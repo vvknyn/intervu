@@ -1,0 +1,79 @@
+name: Update README Stats
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'src/lib/copy.ts'
+      - 'tests/e2e/**'
+      - 'src/app/**/page.tsx'
+      - 'src/components/**'
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Count stats and update README
+        run: |
+          # Count banner quotes
+          QUOTE_COUNT=$(node -e "
+            const fs = require('fs');
+            const src = fs.readFileSync('src/lib/copy.ts', 'utf8');
+            const match = src.match(/BANNER_QUOTES = \[([\s\S]*?)\];/);
+            if (match) {
+              const quotes = match[1].match(/\"[^\"]+\"/g);
+              console.log(quotes ? quotes.length : 0);
+            } else {
+              console.log(0);
+            }
+          ")
+
+          # Count e2e test files
+          TEST_COUNT=$(ls tests/e2e/*.spec.ts 2>/dev/null | wc -l | tr -d ' ')
+
+          # Count pages (route directories under src/app)
+          PAGE_COUNT=$(find src/app -name 'page.tsx' | wc -l | tr -d ' ')
+
+          # Count components
+          COMPONENT_COUNT=$(find src/components -name '*.tsx' | wc -l | tr -d ' ')
+
+          echo "Quotes: $QUOTE_COUNT | Tests: $TEST_COUNT | Pages: $PAGE_COUNT | Components: $COMPONENT_COUNT"
+
+          # Update the quote count in README if the marker exists
+          if grep -q '300+ quirky' README.md; then
+            sed -i "s/[0-9]\++ quirky/${QUOTE_COUNT}+ quirky/g" README.md
+          fi
+
+          # Update copy.ts comment if marker exists
+          if grep -q '300+ messages' README.md; then
+            sed -i "s/[0-9]\++ messages/${QUOTE_COUNT}+ messages/g" README.md
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet README.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: Auto-update README stats [skip ci]"
+          git push
