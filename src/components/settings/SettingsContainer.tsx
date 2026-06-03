@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { fetchProfile, updateModelSettings, saveProviderApiKeys } from "@/actions/profile";
-import { AVAILABLE_MODELS } from "@/lib/llm/models";
-import type { Provider } from "@/lib/llm/models";
+import { fetchProfile } from "@/actions/profile";
 import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
 import { deleteAccount, requestPasswordResetFromSettings } from "@/actions/auth";
 import { exportUserData } from "@/actions/account";
@@ -13,16 +11,12 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { themes, themeNames } from "@/lib/themes";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { createClient } from "@/lib/supabase/client";
+import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { useRouter } from "next/navigation";
-import { User } from "@supabase/supabase-js";
 import { getAppConfig } from "@/actions/admin";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SecureStorage } from "@/lib/security";
-import { ConnectionCard } from "@/components/settings/ConnectionCard";
-import { SecurityBadge } from "@/components/settings/SecurityBadge";
-import { ApiKeyConfigModal } from "@/components/dashboard/ApiKeyConfigModal";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { SETTINGS_MESSAGES, OUTPUT_PREF_DESCRIPTIONS } from "@/lib/copy";
 
@@ -34,28 +28,11 @@ interface OutputPreferences {
 const OUTPUT_PREFS_KEY = "intervu-output-prefs";
 const OUTPUT_PREFS_DEFAULTS: OutputPreferences = { strategyLength: "standard", coverLetterLength: "standard" };
 
-const PROVIDER_META: { provider: Provider; name: string; benefit: string }[] = [
-    { provider: "groq", name: "Groq", benefit: "Fastest open-source models \u2014 free" },
-    { provider: "gemini", name: "Google Gemini", benefit: "Large context window \u2014 free" },
-    { provider: "openai", name: "OpenAI", benefit: "Most capable reasoning \u2014 pay-as-you-go" },
-];
-
 export function SettingsContainer() {
     const { theme, setTheme: setThemeFn } = useTheme();
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-
-    const [apiKey, setApiKey] = useState("");
-    const [model, setModel] = useState<string>(AVAILABLE_MODELS.groq[0].id);
-
-    // Provider + keys state
-    const [provider, setProvider] = useState<string>("groq");
-    const [keys, setKeys] = useState<{ [key: string]: string }>({ groq: "", gemini: "", openai: "" });
-
-    // API Key Config Modal state
-    const [keyConfigOpen, setKeyConfigOpen] = useState(false);
-    const [keyConfigProvider, setKeyConfigProvider] = useState<Provider>("groq");
 
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -104,8 +81,7 @@ export function SettingsContainer() {
     const handleSignOut = async () => {
         isSigningOut.current = true;
         SecureStorage.clear();
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await firebaseSignOut();
         window.location.href = "/";
     };
 
@@ -169,23 +145,18 @@ export function SettingsContainer() {
 
     // Listen for auth state changes
     useEffect(() => {
-        const supabase = createClient();
+        const currentUser = getCurrentUser();
+        if (currentUser) setUser(currentUser);
 
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) setUser(user);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const unsubscribe = onAuthChange((firebaseUser) => {
             if (isSigningOut.current) return;
-            setUser(session?.user ?? null);
-            if (event === 'SIGNED_IN') {
+            setUser(firebaseUser);
+            if (firebaseUser) {
                 router.refresh();
             }
         });
 
-        return () => {
-            subscription.unsubscribe();
-        };
+        return () => unsubscribe();
     }, [router]);
 
     // Load initial data
@@ -198,14 +169,7 @@ export function SettingsContainer() {
             try {
                 const { data: profileData } = await fetchProfile();
                 if (profileData) {
-                    if (profileData.custom_api_key) setApiKey(profileData.custom_api_key);
-                    if (profileData.preferred_model) setModel(profileData.preferred_model);
                     if ((profileData as any).is_admin) setIsAdmin(true);
-                } else {
-                    const guestKeys = SecureStorage.getItem('guest_api_keys');
-                    const guestModel = localStorage.getItem('guest_model');
-                    if (guestKeys) setApiKey(guestKeys);
-                    if (guestModel) setModel(guestModel);
                 }
 
                 const { data: configData } = await getAppConfig();
@@ -217,26 +181,7 @@ export function SettingsContainer() {
             }
         };
         loadData();
-    }, [user?.id]);
-
-    // Parse composite apiKey/model into provider + keys state
-    useEffect(() => {
-        if (model && model.includes(':')) {
-            const parts = model.split(':');
-            setProvider(parts[0]);
-        }
-
-        try {
-            if (apiKey && apiKey.trim().startsWith('{')) {
-                const parsed = JSON.parse(apiKey);
-                setKeys(prev => ({ ...prev, ...parsed }));
-            } else if (apiKey) {
-                setKeys(prev => ({ ...prev, groq: apiKey }));
-            }
-        } catch (e) {
-            console.error("Failed to parse API keys", e);
-        }
-    }, [apiKey, model]);
+    }, [user?.uid]);
 
     const updateOutputPref = <K extends keyof OutputPreferences>(key: K, value: OutputPreferences[K]) => {
         const updated = { ...outputPrefs, [key]: value };
@@ -244,107 +189,8 @@ export function SettingsContainer() {
         localStorage.setItem(OUTPUT_PREFS_KEY, JSON.stringify(updated));
     };
 
-    const handleConfigureKey = (prov: Provider) => {
-        setKeyConfigProvider(prov);
-        setKeyConfigOpen(true);
-    };
-
-    const handleSelectProvider = (prov: Provider) => {
-        setProvider(prov);
-        // Auto-save the provider selection
-        handleSaveProviderSelection(prov);
-    };
-
-    const handleSaveProviderSelection = async (prov: string) => {
-        try {
-            // @ts-expect-error - Dictionary access with string key
-            const bestModelId = AVAILABLE_MODELS[prov]?.[0]?.id || AVAILABLE_MODELS.groq[0].id;
-            const compositeModel = `${prov}:${bestModelId}`;
-            setModel(compositeModel);
-
-            const res = await updateModelSettings("", compositeModel);
-            if (res.error && res.error === "Unauthorized") {
-                localStorage.setItem('guest_model', compositeModel);
-            }
-        } catch (e) {
-            console.error("Failed to save provider selection", e);
-        }
-    };
-
-    const handleRemoveApiKey = async (prov: 'groq' | 'gemini' | 'openai') => {
-        const newKeys = { ...keys, [prov]: "" };
-        setKeys(newKeys);
-
-        const compositeKey = JSON.stringify(newKeys);
-        setApiKey(compositeKey);
-
-        // Save to localStorage
-        localStorage.setItem('guest_api_keys', compositeKey);
-
-        // Save to database
-        const supabase = createClient();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        if (currentUser?.id) {
-            try {
-                await saveProviderApiKeys(newKeys);
-            } catch (error) {
-                console.error("Failed to remove key from database:", error);
-            }
-        }
-
-        // Also update via legacy path for compatibility
-        const res = await updateModelSettings(compositeKey, "");
-        if (res.error && res.error === "Unauthorized") {
-            SecureStorage.setItem('guest_api_keys', compositeKey);
-        }
-
-        // If the removed provider was active, switch to another connected provider
-        if (provider === prov) {
-            const remaining = Object.entries(newKeys).find(([p, k]) => k && p !== prov);
-            if (remaining) {
-                handleSelectProvider(remaining[0] as Provider);
-            }
-        }
-
-        setMessage({ type: 'success', text: SETTINGS_MESSAGES.keyRemoved(PROVIDER_META.find(m => m.provider === prov)?.name || prov) });
-        setTimeout(() => setMessage(null), 3000);
-    };
-
-    const handleSaveApiKey = async (prov: 'groq' | 'gemini' | 'openai', key: string) => {
-        const newKeys = { ...keys, [prov]: key };
-        setKeys(newKeys);
-
-        const compositeKey = JSON.stringify(newKeys);
-        setApiKey(compositeKey);
-
-        // Save to localStorage for immediate availability
-        localStorage.setItem('guest_api_keys', compositeKey);
-
-        // Save to database
-        const supabase = createClient();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        if (currentUser?.id) {
-            try {
-                await saveProviderApiKeys(newKeys);
-            } catch (error) {
-                console.error("Failed to save keys to database:", error);
-            }
-        }
-
-        // Also update via legacy path for compatibility
-        const res = await updateModelSettings(compositeKey, "");
-        if (res.error && res.error === "Unauthorized") {
-            SecureStorage.setItem('guest_api_keys', compositeKey);
-        }
-
-        setMessage({ type: 'success', text: SETTINGS_MESSAGES.keySaved });
-        setTimeout(() => setMessage(null), 3000);
-    };
-
-    const createdAt = user?.created_at
-        ? new Date(user.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    const createdAt = user?.metadata?.creationTime
+        ? new Date(user.metadata.creationTime).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
         : null;
 
     if (isLoading) {
@@ -454,33 +300,6 @@ export function SettingsContainer() {
                     </div>
                 </section>
 
-                {/* Section: Your AI Connection */}
-                <section className="pt-6 border-t border-border">
-                    <h2 className="text-lg font-semibold mb-1">Your AI Connection</h2>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        Intervu is the interface — you bring the intelligence. Connect a provider to power your interview prep.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                        {PROVIDER_META.map((meta) => (
-                            <ConnectionCard
-                                key={meta.provider}
-                                provider={meta.provider}
-                                providerName={meta.name}
-                                benefit={meta.benefit}
-                                isConnected={!!keys[meta.provider]}
-                                isActive={provider === meta.provider}
-                                onConnect={() => handleConfigureKey(meta.provider)}
-                                onSelect={() => handleSelectProvider(meta.provider)}
-                                onRemove={() => handleRemoveApiKey(meta.provider)}
-                                modelId={AVAILABLE_MODELS[meta.provider]?.[0]?.id}
-                            />
-                        ))}
-                    </div>
-
-                    <SecurityBadge compact />
-                </section>
-
                 {/* Section: Account */}
                 <section className="pt-6 border-t border-border">
                     <h2 className="text-lg font-semibold mb-4">Account</h2>
@@ -489,7 +308,7 @@ export function SettingsContainer() {
                         <span className="text-muted-foreground text-right whitespace-nowrap py-1">user:</span>
                         <span className="py-1">
                             {user ? (
-                                user.user_metadata?.username || user.email?.split("@")[0]
+                                user.displayName || user.email?.split("@")[0]
                             ) : (
                                 <button
                                     onClick={() => setAuthPopoverOpen(true)}
@@ -700,15 +519,6 @@ export function SettingsContainer() {
                     </DialogContent>
                 </Dialog>
 
-                {/* API Key Configuration Modal */}
-                <ApiKeyConfigModal
-                    open={keyConfigOpen}
-                    onOpenChange={setKeyConfigOpen}
-                    provider={keyConfigProvider}
-                    currentKey={keys[keyConfigProvider] || ""}
-                    onSave={handleSaveApiKey}
-                    onRemove={handleRemoveApiKey}
-                />
             </div>
         </PageLayout>
     );

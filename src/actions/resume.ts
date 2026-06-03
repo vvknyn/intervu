@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
@@ -10,28 +11,25 @@ import { ProviderConfig } from "@/lib/llm/types";
  */
 export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const { data, error } = await supabase
-            .from("profiles")
-            .select("resume_data, resume_import_source, resume_import_confidence")
-            .eq("id", user.id)
-            .single();
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
 
-        if (error) {
-            console.error("[Resume] Fetch Error:", error);
+        if (!doc.exists) {
             return { data: undefined };
         }
 
+        const docData = doc.data();
+
         return {
-            data: data?.resume_data as ResumeData | undefined,
-            source: data?.resume_import_source,
-            confidence: data?.resume_import_confidence
+            data: docData?.resume_data as ResumeData | undefined,
+            source: docData?.resume_import_source,
+            confidence: docData?.resume_import_confidence
         };
     } catch (e: any) {
         console.error("[Resume] Fetch Exception:", e);
@@ -48,20 +46,20 @@ export async function saveResumeData(
     confidence?: number
 ): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        console.log("[Resume] Saving resume data for:", user.id);
+        console.log("[Resume] Saving resume data for:", user.uid);
 
         // 1. Generate text representation for RAG/Context (Dashboard compatibility)
         const resumeText = resumeDataToText(resumeData);
 
+        const db = getAdminDb();
+
         // 2. Try to update everything first (resume_data + resume_text)
-        // If 'resume_data' column is missing, this will fail.
         try {
             const updateData: Record<string, any> = {
                 resume_data: resumeData,
@@ -72,30 +70,22 @@ export async function saveResumeData(
             if (importSource) updateData.resume_import_source = importSource;
             if (confidence !== undefined) updateData.resume_import_confidence = confidence;
 
-            const { error } = await supabase
-                .from("profiles")
-                .update(updateData)
-                .eq("id", user.id);
+            await db.collection("profiles").doc(user.uid).update(updateData);
 
-            if (!error) return {}; // Success
+            return {}; // Success
 
-            // If error is about missing column, fall back
-            console.warn("[Resume] Primary save failed, attempting fallback to resume_text only:", error.message);
-
-        } catch (e) {
-            console.warn("[Resume] Primary save exception:", e);
+        } catch (e: any) {
+            // If error, fall back to resume_text only
+            console.warn("[Resume] Primary save failed, attempting fallback to resume_text only:", e.message);
         }
 
         // 3. Fallback: Save ONLY resume_text (and text-based fields) for Dashboard compatibility
         // This ensures the "Resume Required" state is cleared even if structured storage fails
-        const { error: fallbackError } = await supabase
-            .from("profiles")
-            .update({
-                resume_text: resumeText
-            })
-            .eq("id", user.id);
-
-        if (fallbackError) {
+        try {
+            await db.collection("profiles").doc(user.uid).update({
+                resume_text: resumeText,
+            });
+        } catch (fallbackError: any) {
             console.error("[Resume] Fallback Save Error:", fallbackError);
             return { error: fallbackError.message };
         }
@@ -166,12 +156,12 @@ export async function parseResumeWithAI(
 
         const prompt = `
             You are an expert resume parser. Analyze the text and extract structured JSON.
-            
+
             RESUME TEXT:
             """
             ${content.substring(0, 8000)}
             """
-            
+
             EXTRACT:
             1. Profile: profession (use FULL NAME), yearsOfExperience (number), location, email, phone, linkedin.
             2. Experience: company, role, dates, description (preserve bullets as single string).
@@ -194,9 +184,7 @@ export async function parseResumeWithAI(
             }
         `;
 
-        // Use lighter model for resume parsing to avoid rate limits
         const optimizedConfig = {
-            model: 'llama-3.3-70b-versatile',
             ...configOverride
         };
 
@@ -231,9 +219,6 @@ export async function parseResumeWithAI(
 
             return normalized.trim();
         };
-
-        // Helper to normalize newlines...
-        // ... (lines 297-313 not shown in snippet, but I target 315-316)
 
         // Debug LLM response
         console.log("[Resume] LLM Response Keys:", result.parsed ? Object.keys(result.parsed) : "No parsed object");

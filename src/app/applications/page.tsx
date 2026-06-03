@@ -26,8 +26,7 @@ import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { createClient } from "@/lib/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 
 type ViewState = "list" | "wizard" | "detail";
 
@@ -72,30 +71,28 @@ function ApplicationsContent() {
     const [editingApp, setEditingApp] = useState<Application | undefined>(undefined);
 
     useEffect(() => {
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data }) => setUser(data.user));
+        const currentUser = getCurrentUser();
+        if (currentUser) setUser(currentUser);
 
         fetchProfile().then(({ data }) => {
             if (data && (data as any).is_admin) setIsAdmin(true);
         });
 
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const unsubscribe = onAuthChange((firebaseUser) => {
             if (isSigningOut.current) return;
-            setUser(session?.user ?? null);
-            if (event === 'SIGNED_IN') {
+            setUser(firebaseUser);
+            if (firebaseUser) {
                 router.refresh();
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => unsubscribe();
     }, [router]);
 
     const handleSignOut = async () => {
         isSigningOut.current = true;
         localStorage.clear();
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await firebaseSignOut();
         window.location.href = "/";
     };
 

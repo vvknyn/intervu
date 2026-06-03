@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { RecipeWizardShell, type WizardStep } from "../RecipeWizardShell";
-import { ConnectAIStep } from "../steps/ConnectAIStep";
 import { ImportResumeStep } from "../steps/ImportResumeStep";
 import { AddStoryStep } from "../steps/AddStoryStep";
 import { RecipeCompleteStep } from "../steps/RecipeCompleteStep";
@@ -13,7 +12,6 @@ import { COMPLETION } from "@/lib/copy";
 
 const STEPS: WizardStep[] = [
     { id: "welcome", label: "Welcome" },
-    { id: "connect-ai", label: "Connect AI" },
     { id: "import-resume", label: "Import Resume", optional: true },
     { id: "add-story", label: "Add Story", optional: true },
 ];
@@ -21,8 +19,6 @@ const STEPS: WizardStep[] = [
 interface SetupRecipeWizardProps {
     isOpen: boolean;
     onClose: () => void;
-    onSaveApiKey: (provider: 'groq' | 'gemini' | 'openai', key: string) => Promise<void>;
-    apiKeys: { groq?: string; gemini?: string; openai?: string };
     resume: string;
     onResumeChange: (text: string) => void;
     stories: StarStory[];
@@ -33,8 +29,6 @@ interface SetupRecipeWizardProps {
 export function SetupRecipeWizard({
     isOpen,
     onClose,
-    onSaveApiKey,
-    apiKeys,
     resume,
     onResumeChange,
     stories,
@@ -42,14 +36,8 @@ export function SetupRecipeWizard({
     dismissCount = 0,
 }: SetupRecipeWizardProps) {
     const [currentStep, setCurrentStep] = useState(0);
-    const [aiValid, setAiValid] = useState(!!(apiKeys.groq || apiKeys.gemini || apiKeys.openai));
     const [resumeValid, setResumeValid] = useState(!!resume);
     const [complete, setComplete] = useState(false);
-
-    // Sync validity when props change (e.g., loaded asynchronously after mount)
-    useEffect(() => {
-        setAiValid(!!(apiKeys.groq || apiKeys.gemini || apiKeys.openai));
-    }, [apiKeys.groq, apiKeys.gemini, apiKeys.openai]);
 
     useEffect(() => {
         setResumeValid(!!resume);
@@ -79,17 +67,12 @@ export function SetupRecipeWizard({
         onClose();
     };
 
-    const handleAiValidityChange = useCallback((valid: boolean) => {
-        setAiValid(valid);
-    }, []);
-
     const handleResumeValidityChange = useCallback((valid: boolean) => {
         setResumeValid(valid);
     }, []);
 
     const canAdvance = (() => {
         if (currentStep === 0) return true; // Welcome step always advanceable
-        if (currentStep === 1) return aiValid; // API key is required
         return true; // Resume and story steps are optional
     })();
 
@@ -131,20 +114,13 @@ export function SetupRecipeWizard({
                 <WelcomeStep dismissCount={dismissCount} />
             )}
             {currentStep === 1 && (
-                <ConnectAIStep
-                    apiKeys={apiKeys}
-                    onSave={onSaveApiKey}
-                    onValidityChange={handleAiValidityChange}
-                />
-            )}
-            {currentStep === 2 && (
                 <ImportResumeStep
                     resume={resume}
                     onResumeChange={onResumeChange}
                     onValidityChange={handleResumeValidityChange}
                 />
             )}
-            {currentStep === 3 && (
+            {currentStep === 2 && (
                 <AddStoryStep
                     onSave={handleStorySave}
                 />

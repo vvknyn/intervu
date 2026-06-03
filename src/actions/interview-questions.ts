@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { revalidatePath } from "next/cache";
 
@@ -18,11 +19,7 @@ export async function addInterviewQuestion(input: {
     applicationId?: string;
 }) {
     try {
-        const supabase = await createClient();
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
-
+        const user = await getServerUser();
         if (!user) {
             return { error: "User not authenticated" };
         }
@@ -54,25 +51,22 @@ export async function addInterviewQuestion(input: {
         }
 
         // 2. Save to Database
-        const { data, error } = await supabase
-            .from("interview_questions")
-            .insert({
-                user_id: user.id,
-                application_id: input.applicationId || null,
-                question: input.question,
-                answer: generated.answer,
-                tags: generated.tags || [],
-            })
-            .select()
-            .single();
+        const db = getAdminDb();
+        const now = new Date().toISOString();
+        const docData = {
+            user_id: user.uid,
+            application_id: input.applicationId || null,
+            question: input.question,
+            answer: generated.answer,
+            tags: generated.tags || [],
+            created_at: now,
+        };
 
-        if (error) {
-            console.error("Error saving question:", error);
-            return { error: "Failed to save question" };
-        }
+        const docRef = await db.collection("interview_questions").add(docData);
+        const data = { id: docRef.id, ...docData };
 
         revalidatePath("/applications");
-        revalidatePath(`/applications?id=${input.applicationId}`); // Revalidate specific app page if applicable
+        revalidatePath(`/applications?id=${input.applicationId}`);
 
         return { data };
     } catch (error: any) {
@@ -82,56 +76,53 @@ export async function addInterviewQuestion(input: {
 }
 
 export async function getInterviewQuestions(applicationId?: string) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (!user) {
-        return { error: "User not authenticated" };
-    }
+        const db = getAdminDb();
+        let query: FirebaseFirestore.Query = db
+            .collection("interview_questions")
+            .where("user_id", "==", user.uid)
+            .orderBy("created_at", "desc");
 
-    let query = supabase
-        .from("interview_questions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        if (applicationId) {
+            query = query.where("application_id", "==", applicationId);
+        }
 
-    if (applicationId) {
-        query = query.eq("application_id", applicationId);
-    }
+        const snapshot = await query.get();
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as InterviewQuestion[];
 
-    const { data, error } = await query;
-
-    if (error) {
+        return { data };
+    } catch (error: any) {
         console.error("Error fetching questions:", error);
         return { error: "Failed to fetch questions" };
     }
-
-    return { data: data as InterviewQuestion[] };
 }
 
 export async function deleteInterviewQuestion(id: string) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (!user) {
-        return { error: "User not authenticated" };
-    }
+        const db = getAdminDb();
+        const docRef = db.collection("interview_questions").doc(id);
+        const doc = await docRef.get();
 
-    const { error } = await supabase
-        .from('interview_questions')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Question not found" };
+        }
 
-    if (error) {
+        await docRef.delete();
+
+        revalidatePath('/applications');
+        return { success: true };
+    } catch (error: any) {
         console.error("Error deleting question:", error);
         return { error: error.message };
     }
-
-    revalidatePath('/applications');
-    return { success: true };
 }

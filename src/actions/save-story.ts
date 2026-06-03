@@ -1,36 +1,45 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { StarStory } from "@/types";
 
 export async function saveStories(stories: StarStory[]) {
     if (!stories || !Array.isArray(stories)) return { error: "Invalid stories data" };
 
     try {
-        const supabase = await createClient();
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
+
         console.log("[Server Action] Saving stories individually...", stories.length);
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { error: "Unauthorized" };
+        const db = getAdminDb();
+        const batch = db.batch();
+        const collectionRef = db.collection("stories");
 
         const rowsToInsert = stories.map(story => ({
             title: story.title,
             // We store the full object in content to preserve all fields including ID and deleted status
             content: JSON.stringify(story),
-            user_id: user.id
+            user_id: user.uid,
+            created_at: new Date().toISOString(),
         }));
 
-        const { data, error } = await supabase
-            .from('stories')
-            .insert(rowsToInsert)
-            .select();
-
-        if (error) {
-            console.error("[Supabase Error]", error);
-            return { error: error.message };
+        const docRefs: FirebaseFirestore.DocumentReference[] = [];
+        for (const row of rowsToInsert) {
+            const docRef = collectionRef.doc();
+            batch.set(docRef, row);
+            docRefs.push(docRef);
         }
 
-        console.log("[Server Action] Saved rows:", data?.length);
+        await batch.commit();
+
+        const data = rowsToInsert.map((row, i) => ({
+            id: docRefs[i].id,
+            ...row,
+        }));
+
+        console.log("[Server Action] Saved rows:", data.length);
         return { success: true, data };
 
     } catch (e: unknown) {
@@ -41,24 +50,22 @@ export async function saveStories(stories: StarStory[]) {
 
 export async function fetchStories() {
     try {
-        const supabase = await createClient();
-
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
 
-        // Fetch stories for the current user
-        const { data, error } = await supabase
-            .from('stories')
-            .select('id, content, created_at')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true }); // Oldest first, so newer overwrites older
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("stories")
+            .where("user_id", "==", user.uid)
+            .orderBy("created_at", "asc") // Oldest first, so newer overwrites older
+            .get();
 
-        if (error) {
-            console.error("[Supabase Error]", error);
-            return { error: error.message };
-        }
+        const data = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+        })) as { id: string; content: string; created_at: string }[];
 
-        if (!data) {
+        if (!data || data.length === 0) {
             console.log("[Server Action] No data returned from fetchStories");
             return { data: "[]" };
         }
@@ -77,7 +84,6 @@ export async function fetchStories() {
 
                 // Handle legacy format (array of stories)
                 if (Array.isArray(parsed)) {
-                    // console.log(`[Server Action] Found legacy array in row created at ${row.created_at}, size: ${parsed.length}`);
                     parsed.forEach((s: StarStory) => {
                         if (s.id) {
                             storyMap.set(s.id, s);
@@ -94,14 +100,10 @@ export async function fetchStories() {
                 }
             } catch (e) {
                 // If JSON parsing fails, treat it as legacy text content and wrap it in a partial story
-                // This ensures we don't lose data like "--- PRE-LOADED STAR STORIES ---"
                 if (row.content && typeof row.content === 'string' && row.content.trim().length > 0) {
                     const fallbackId = row.id;
-                    // Only add if we haven't seen this ID (unlikely to collide as it's a UUID)
-                    // or if we want to preserve this specific row as a story
                     if (!storyMap.has(fallbackId)) {
                         // Advanced Legacy Parsing: Try to split by "Q:" and "A:"
-                        // Format appears to be: Q: Question \n A: Answer \n\n
                         const rawText = row.content;
                         const qaRegex = /Q:\s*(.*?)\s*\n\s*A:\s*([\s\S]*?)(?=\n\s*Q:|$)/g;
                         let match;

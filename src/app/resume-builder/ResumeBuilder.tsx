@@ -15,11 +15,8 @@ import { fetchTailoredVersions, saveTailoredVersion, SaveVersionInput } from "@/
 import { ProviderConfig } from "@/lib/llm/types";
 import { Header } from "@/components/layout/Header";
 import { PageLayout } from "@/components/layout/PageLayout";
-import { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import { onAuthChange, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { useDebouncedCallback } from "use-debounce";
-import { ApiKeyConfigModal } from "@/components/dashboard/ApiKeyConfigModal";
-import { saveProviderApiKeys } from "@/actions/profile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -58,11 +55,6 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
 
     const [data, setData] = useState<ResumeData>(INITIAL_DATA);
     const [isLoaded, setIsLoaded] = useState(false);
-    const [modelProvider, setModelProvider] = useState<'groq' | 'gemini' | 'openai'>('groq');
-    const [modelId, setModelId] = useState('llama-3.3-70b-versatile');
-    const [apiKeys, setApiKeys] = useState<{ groq?: string; gemini?: string; openai?: string }>({});
-    const [keyConfigOpen, setKeyConfigOpen] = useState(false);
-    const [keyConfigProvider, setKeyConfigProvider] = useState<'groq' | 'gemini' | 'openai'>('groq');
     const [user, setUser] = useState<User | null>(null);
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
     const [importModalOpen, setImportModalOpen] = useState(false);
@@ -76,22 +68,16 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
 
     // Listen for auth state changes
     useEffect(() => {
-        const supabase = createClient();
+        const currentUser = getCurrentUser();
+        if (currentUser) setUser(currentUser);
 
-        // Initial check to ensure we have user if already logged in
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) setUser(user);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setUser(session?.user ?? null);
-            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-                router.refresh();
-            }
+        const unsubscribe = onAuthChange((firebaseUser) => {
+            setUser(firebaseUser);
+            router.refresh();
         });
 
         return () => {
-            subscription.unsubscribe();
+            unsubscribe();
         };
     }, [router]);
 
@@ -124,8 +110,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
 
     useEffect(() => {
         const loadData = async () => {
-            console.log("[ResumeBuilder] loadData started. VersionId:", versionId, "User:", user?.id);
-            const supabase = createClient();
+            console.log("[ResumeBuilder] loadData started. VersionId:", versionId, "User:", user?.uid);
 
             let resumeLoaded = false;
 
@@ -241,65 +226,10 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 setSyncStatus('offline');
             }
 
-            // Load model config and API keys
-            const { data: profileData } = await fetchProfile();
-            if (profileData && profileData.preferred_model) {
-                let provider: 'groq' | 'gemini' | 'openai' = 'groq';
-                let model = profileData.preferred_model;
-
-                if (model.includes(':')) {
-                    const parts = model.split(':');
-                    provider = parts[0] as 'groq' | 'gemini' | 'openai';
-                    model = parts.slice(1).join(':');
-                } else if (model.startsWith('gemini')) {
-                    provider = 'gemini';
-                } else if (model.startsWith('gpt')) {
-                    provider = 'openai';
-                } else {
-                    provider = 'groq';
-                }
-
-                setModelProvider(provider);
-                setModelId(model);
-
-                // Load API keys from profile
-                if (profileData.custom_api_key) {
-                    try {
-                        const keys = JSON.parse(profileData.custom_api_key);
-                        if (keys && typeof keys === 'object') {
-                            setApiKeys(keys);
-                        }
-                    } catch {
-                        // Not JSON, legacy format
-                    }
-                }
-            }
-
-            // Also load API keys from SecureStorage (fallback/guest mode)
-            const guestKeysJson = SecureStorage.getItem('guest_api_keys');
-            if (guestKeysJson) {
-                try {
-                    const keys = JSON.parse(guestKeysJson);
-                    setApiKeys(prev => ({ ...prev, ...keys }));
-                } catch {
-                    // Ignore parse errors
-                }
-            }
-
-            // Guest mode: Load model preference from localStorage
-            const guestModel = localStorage.getItem('guest_model');
-            if (guestModel && guestModel.includes(':')) {
-                const parts = guestModel.split(':');
-                const provider = parts[0] as 'groq' | 'gemini' | 'openai';
-                const model = parts.slice(1).join(':');
-                setModelProvider(provider);
-                setModelId(model);
-            }
-
             setIsLoaded(true);
         };
         loadData();
-    }, [versionId, isTailoredMode, user?.id]);
+    }, [versionId, isTailoredMode, user?.uid]);
 
     // Save to localStorage always, and debounce save to DB if authenticated
     // IMPORTANT: Do NOT save to DB when viewing a tailored version - that would overwrite the base resume
@@ -431,59 +361,6 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
         console.log("[ResumeBuilder] Version saved:", version.versionName);
     }, [user]);
 
-    const handleModelChange = useCallback((provider: 'groq' | 'gemini' | 'openai', model: string) => {
-        setModelProvider(provider);
-        setModelId(model);
-    }, []);
-
-    const handleConfigureKey = useCallback((provider: 'groq' | 'gemini' | 'openai') => {
-        setKeyConfigProvider(provider);
-        setKeyConfigOpen(true);
-    }, []);
-
-    const handleSaveApiKey = useCallback(async (provider: 'groq' | 'gemini' | 'openai', key: string) => {
-        const newKeys = { ...apiKeys, [provider]: key };
-        setApiKeys(newKeys);
-
-        // Save to SecureStorage
-        SecureStorage.setItem('guest_api_keys', JSON.stringify(newKeys));
-
-        // Save to database if logged in
-        if (user) {
-            try {
-                await saveProviderApiKeys(newKeys);
-            } catch (e) {
-                console.error("Failed to save API keys:", e);
-            }
-        }
-    }, [apiKeys, user]);
-
-    const handleRemoveApiKey = useCallback(async (provider: 'groq' | 'gemini' | 'openai') => {
-        const newKeys = { ...apiKeys, [provider]: undefined };
-        setApiKeys(newKeys);
-
-        // Save to SecureStorage
-        SecureStorage.setItem('guest_api_keys', JSON.stringify(newKeys));
-
-        // Save to database if logged in
-        if (user) {
-            try {
-                await saveProviderApiKeys(newKeys);
-            } catch (e) {
-                console.error("Failed to remove API key:", e);
-            }
-        }
-
-        // If the removed provider was active, switch to another connected provider
-        if (modelProvider === provider) {
-            const remaining = Object.entries(newKeys).find(([p, k]) => k && p !== provider);
-            if (remaining) {
-                const [nextProvider] = remaining;
-                handleModelChange(nextProvider as 'groq' | 'gemini' | 'openai', '');
-            }
-        }
-    }, [apiKeys, user, modelProvider, handleModelChange]);
-
     // State for "Make Base" feature
     const [isMakingBase, setIsMakingBase] = useState(false);
     const [madeBase, setMadeBase] = useState(false);
@@ -535,12 +412,6 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                     user={user}
                     showSearch={false}
                     title="Resume Builder"
-                    modelProvider={modelProvider}
-                    modelId={modelId}
-                    onModelChange={handleModelChange}
-                    apiKeys={apiKeys}
-                    onConfigureKey={handleConfigureKey}
-                    onRemoveKey={handleRemoveApiKey}
                     backButton={
                         (source === 'applications' || source === 'new-application') ? (
                             <Link href="/applications">
@@ -663,61 +534,53 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                     originalData={originalData} // Pass for diff highlighting
                     isTailoredMode={isTailoredMode}
                     versionsToggle={
-                        <div className="flex flex-col items-end gap-1.5">
-                            <div className="flex items-center gap-2">
-                                {/* Save Version Button */}
-                                <button
-                                    data-tour="resume-import"
-                                    onClick={() => {
-                                        if (user) {
-                                            setSaveVersionModalOpen(true);
-                                        } else {
-                                            setAuthPopoverOpen(true);
-                                        }
-                                    }}
-                                    className="group inline-flex items-center h-9 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
-                                    title={user ? "Save current resume as a version" : "Sign in to save versions"}
-                                >
-                                    <FloppyDisk size={16} weight="fill" className="text-muted-foreground group-hover:text-brand shrink-0 transition-colors" />
-                                    <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                        <span className="overflow-hidden whitespace-nowrap text-sm font-medium pl-1.5">
-                                            Save Version
-                                        </span>
+                        <div className="flex items-center gap-2">
+                            {/* Save Version Button */}
+                            <button
+                                data-tour="resume-import"
+                                onClick={() => {
+                                    if (user) {
+                                        setSaveVersionModalOpen(true);
+                                    } else {
+                                        setAuthPopoverOpen(true);
+                                    }
+                                }}
+                                className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                title={user ? "Save current resume as a version" : "Sign in to save versions"}
+                            >
+                                <FloppyDisk size={15} weight="fill" className="text-muted-foreground group-hover:text-brand shrink-0 transition-colors" />
+                                <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
+                                    <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
+                                        Save
                                     </span>
-                                </button>
+                                </span>
+                            </button>
 
-                                {/* Tailor Resume / View Versions Button */}
-                                <button
-                                    data-tour="resume-tailor"
-                                    onClick={() => {
-                                        if (user) {
-                                            setTailoringSidebarOpen(true);
-                                        } else {
-                                            setAuthPopoverOpen(true);
-                                        }
-                                    }}
-                                    className="group inline-flex items-center h-9 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
-                                    title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
-                                >
-                                    <Sparkle size={16} weight="fill" className="text-brand shrink-0" />
-                                    <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                        <span className="overflow-hidden whitespace-nowrap text-sm font-medium pl-1.5">
-                                            {versionsCount > 0 ? "Versions" : "Tailor Resume"}
-                                        </span>
+                            {/* Tailor Resume / View Versions Button */}
+                            <button
+                                data-tour="resume-tailor"
+                                onClick={() => {
+                                    if (user) {
+                                        setTailoringSidebarOpen(true);
+                                    } else {
+                                        setAuthPopoverOpen(true);
+                                    }
+                                }}
+                                className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
+                            >
+                                <Sparkle size={15} weight="fill" className="text-brand shrink-0" />
+                                <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
+                                    <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
+                                        {versionsCount > 0 ? "Versions" : "Tailor"}
                                     </span>
-                                    {versionsCount > 0 && user && (
-                                        <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand/10 text-brand text-xs font-semibold">
-                                            {versionsCount}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
-                            {versionsCount === 0 && (
-                                <p className="flex items-center gap-1 text-[11px] text-muted-foreground max-w-[260px] text-right">
-                                    <Info size={12} weight="duotone" className="text-brand shrink-0" />
-                                    Save snapshots of your resume and create job-specific tailored versions.
-                                </p>
-                            )}
+                                </span>
+                                {versionsCount > 0 && user && (
+                                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand/10 text-brand text-xs font-semibold">
+                                        {versionsCount}
+                                    </span>
+                                )}
+                            </button>
                         </div>
                     }
                 />
@@ -779,16 +642,6 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 currentVersionId={versionId}
                 applicationId={applicationId}
                 isNewApplication={source === 'new-application'}
-            />
-
-            {/* API Key Config Modal */}
-            <ApiKeyConfigModal
-                open={keyConfigOpen}
-                onOpenChange={setKeyConfigOpen}
-                provider={keyConfigProvider}
-                currentKey={apiKeys[keyConfigProvider]}
-                onSave={handleSaveApiKey}
-                onRemove={handleRemoveApiKey}
             />
 
             {/* Auth Popover for guest users trying to access protected features */}

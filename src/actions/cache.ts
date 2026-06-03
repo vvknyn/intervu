@@ -4,7 +4,8 @@
 
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { CachedInterviewData } from "@/lib/interview-cache";
 
 const CACHE_DURATION_HOURS = 24;
@@ -33,30 +34,26 @@ export interface ServerCachedData {
  */
 export async function fetchServerCache(cacheKey: string): Promise<{ data?: CachedInterviewData; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const { data, error } = await supabase
-            .from("interview_prep_cache")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("cache_key", cacheKey)
-            .gt("expires_at", new Date().toISOString()) // Only non-expired
-            .single();
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("interview_prep_cache")
+            .where("user_id", "==", user.uid)
+            .where("cache_key", "==", cacheKey)
+            .where("expires_at", ">", new Date().toISOString())
+            .get();
 
-        if (error) {
-            console.log("[ServerCache] Cache miss or error:", error.message);
+        if (snapshot.empty) {
+            console.log("[ServerCache] Cache miss:", cacheKey);
             return { data: undefined };
         }
 
-        if (!data) {
-            console.log("[ServerCache] No cache entry found");
-            return { data: undefined };
-        }
+        const data = snapshot.docs[0].data();
 
         console.log("[ServerCache] Cache hit:", cacheKey);
 
@@ -93,41 +90,50 @@ export async function fetchServerCache(cacheKey: string): Promise<{ data?: Cache
  */
 export async function saveServerCache(cachedData: CachedInterviewData): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
+        const db = getAdminDb();
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + CACHE_DURATION_HOURS);
 
-        const { error } = await supabase
-            .from("interview_prep_cache")
-            .upsert({
-                user_id: user.id,
-                cache_key: cachedData.cacheKey,
-                company: cachedData.company,
-                position: cachedData.position,
-                round: cachedData.round,
-                recon_data: cachedData.reconData,
-                match_data: cachedData.matchData,
-                questions_data: cachedData.questionsData,
-                reverse_data: cachedData.reverseData,
-                technical_data: cachedData.technicalData,
-                coding_challenge: cachedData.codingChallenges,
-                system_design_data: cachedData.systemDesignData,
-                resume_companies: cachedData.resumeCompanies || [],
-                has_resume_context: cachedData.hasResumeContext,
-                expires_at: expiresAt.toISOString()
-            }, {
-                onConflict: "user_id,cache_key"
-            });
+        const cacheDoc = {
+            user_id: user.uid,
+            cache_key: cachedData.cacheKey,
+            company: cachedData.company,
+            position: cachedData.position,
+            round: cachedData.round,
+            recon_data: cachedData.reconData,
+            match_data: cachedData.matchData,
+            questions_data: cachedData.questionsData,
+            reverse_data: cachedData.reverseData,
+            technical_data: cachedData.technicalData,
+            coding_challenge: cachedData.codingChallenges,
+            system_design_data: cachedData.systemDesignData,
+            resume_companies: cachedData.resumeCompanies || [],
+            has_resume_context: cachedData.hasResumeContext,
+            expires_at: expiresAt.toISOString(),
+        };
 
-        if (error) {
-            console.error("[ServerCache] Save error:", error);
-            return { error: error.message };
+        // Check for existing doc with same user_id + cache_key
+        const snapshot = await db
+            .collection("interview_prep_cache")
+            .where("user_id", "==", user.uid)
+            .where("cache_key", "==", cachedData.cacheKey)
+            .get();
+
+        if (!snapshot.empty) {
+            // Update existing doc
+            await snapshot.docs[0].ref.update(cacheDoc);
+        } else {
+            // Create new doc
+            await db.collection("interview_prep_cache").add({
+                ...cacheDoc,
+                created_at: new Date().toISOString(),
+            });
         }
 
         console.log("[ServerCache] Data saved:", cachedData.cacheKey, "expires:", expiresAt);
@@ -143,23 +149,22 @@ export async function saveServerCache(cachedData: CachedInterviewData): Promise<
  */
 export async function clearServerCache(cacheKey: string): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const { error } = await supabase
-            .from("interview_prep_cache")
-            .delete()
-            .eq("user_id", user.id)
-            .eq("cache_key", cacheKey);
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("interview_prep_cache")
+            .where("user_id", "==", user.uid)
+            .where("cache_key", "==", cacheKey)
+            .get();
 
-        if (error) {
-            console.error("[ServerCache] Clear error:", error);
-            return { error: error.message };
-        }
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
 
         console.log("[ServerCache] Cleared:", cacheKey);
         return {};
@@ -174,22 +179,21 @@ export async function clearServerCache(cacheKey: string): Promise<{ error?: stri
  */
 export async function clearAllServerCache(): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const { error } = await supabase
-            .from("interview_prep_cache")
-            .delete()
-            .eq("user_id", user.id);
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("interview_prep_cache")
+            .where("user_id", "==", user.uid)
+            .get();
 
-        if (error) {
-            console.error("[ServerCache] Clear all error:", error);
-            return { error: error.message };
-        }
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
 
         console.log("[ServerCache] Cleared all cache for user");
         return {};
@@ -204,17 +208,23 @@ export async function clearAllServerCache(): Promise<{ error?: string }> {
  */
 export async function cleanupExpiredCache(): Promise<{ deleted?: number; error?: string }> {
     try {
-        const supabase = await createClient();
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("interview_prep_cache")
+            .where("expires_at", "<", new Date().toISOString())
+            .get();
 
-        const { error } = await supabase.rpc('cleanup_expired_cache');
-
-        if (error) {
-            console.error("[ServerCache] Cleanup error:", error);
-            return { error: error.message };
+        if (snapshot.empty) {
+            console.log("[ServerCache] No expired entries to clean up");
+            return { deleted: 0 };
         }
 
-        console.log("[ServerCache] Expired entries cleaned up");
-        return {};
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+
+        console.log("[ServerCache] Expired entries cleaned up:", snapshot.size);
+        return { deleted: snapshot.size };
     } catch (e: any) {
         console.error("[ServerCache] Cleanup exception:", e);
         return { error: e.message };

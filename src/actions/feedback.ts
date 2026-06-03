@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { headers } from "next/headers";
 
 type FeedbackType = "bug" | "feedback" | "other";
@@ -25,61 +26,59 @@ export async function submitFeedback({
     message: string;
     path: string;
 }) {
-    const supabase = await createClient();
+    const user = await getServerUser();
     const headersList = await headers();
     const userAgent = headersList.get("user-agent") || "unknown";
 
-    // Get current user
-    const {
-        data: { user },
-        error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    if (!user) {
         return { error: "You must be logged in to submit feedback." };
     }
 
-    const { error } = await supabase.from("feedback").insert({
-        user_id: user.id,
-        type,
-        message,
-        path,
-        user_agent: userAgent,
-    });
+    try {
+        const db = getAdminDb();
+        await db.collection("feedback").add({
+            user_id: user.uid,
+            type,
+            message,
+            path,
+            user_agent: userAgent,
+            created_at: new Date().toISOString(),
+        });
 
-    if (error) {
+        return { success: true };
+    } catch (error: any) {
         console.error("Error submitting feedback:", error);
         return { error: "Failed to submit feedback. Please try again." };
     }
-
-    return { success: true };
 }
 
 export async function fetchAllFeedback(): Promise<{ data?: FeedbackItem[]; error?: string }> {
-    const supabase = await createClient();
-
-    // Verify caller is admin
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
+    try {
+        const db = getAdminDb();
 
-    if (!profile?.is_admin) return { error: "Unauthorized" };
+        // Verify caller is admin
+        const profileDoc = await db.collection("profiles").doc(user.uid).get();
+        if (!profileDoc.exists || !profileDoc.data()?.is_admin) {
+            return { error: "Unauthorized" };
+        }
 
-    // Fetch all feedback, newest first
-    const { data, error } = await supabase
-        .from("feedback")
-        .select("*")
-        .order("created_at", { ascending: false });
+        // Fetch all feedback, newest first
+        const snapshot = await db
+            .collection("feedback")
+            .orderBy("created_at", "desc")
+            .get();
 
-    if (error) {
+        const data: FeedbackItem[] = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        })) as FeedbackItem[];
+
+        return { data };
+    } catch (error: any) {
         console.error("[Feedback] Fetch error:", error);
         return { error: error.message };
     }
-
-    return { data: (data || []) as FeedbackItem[] };
 }

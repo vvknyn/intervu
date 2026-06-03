@@ -23,9 +23,8 @@ import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { RESUME_MESSAGES } from "@/lib/copy";
 
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { createClient } from "@/lib/supabase/client";
+import { getCurrentUser, signOut as firebaseSignOut, type User } from "@/lib/firebase/client-auth";
 import { useRouter } from "next/navigation";
-import { User } from "@supabase/supabase-js";
 
 const RESUME_STORAGE_KEY = "interview-os-resume-data";
 
@@ -51,8 +50,8 @@ function ResumeTailorContent() {
     const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data }) => setUser(data.user));
+        const currentUser = getCurrentUser();
+        if (currentUser) setUser(currentUser);
 
         fetchProfile().then(({ data }) => {
             if (data && (data as any).is_admin) setIsAdmin(true);
@@ -61,8 +60,7 @@ function ResumeTailorContent() {
 
     const handleSignOut = async () => {
         localStorage.clear();
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await firebaseSignOut();
         window.location.href = "/";
     };
 

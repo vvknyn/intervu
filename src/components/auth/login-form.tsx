@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { signIn, signUp } from '@/actions/auth'
+import { signInWithUsername, signUpWithUsername } from '@/lib/firebase/client-auth'
+import { signUp } from '@/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,12 +19,10 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     const router = useRouter()
-    const supabase = createClient()
-    const [activeTab, setActiveTab] = useState<"login" | "signup">("login") // 'login' | 'signup'
+    const [activeTab, setActiveTab] = useState<"login" | "signup">("login")
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [isPending, startTransition] = useTransition()
-    const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
 
@@ -32,19 +30,17 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
         e.preventDefault()
         setMessage(null)
 
-        const formData = new FormData()
-        formData.append('username', username)
-        formData.append('password', password)
-
         startTransition(async () => {
-            const result = await signIn(null, formData)
-            if (result?.error) {
-                setMessage(result.error)
-            } else if (result?.success) {
-                const { data: { session }, error } = await supabase.auth.refreshSession()
+            try {
+                await signInWithUsername(username, password)
                 router.refresh()
-                if (onSuccess) {
-                    onSuccess()
+                if (onSuccess) onSuccess()
+            } catch (err: any) {
+                const msg = err?.message || ''
+                if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
+                    setMessage('Invalid username or password')
+                } else {
+                    setMessage(msg)
                 }
             }
         })
@@ -59,38 +55,25 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
 
         setMessage(null)
 
-        const formData = new FormData()
-        formData.append('username', username)
-        formData.append('password', password)
-
         startTransition(async () => {
-            const result = await signUp(null, formData)
-            if (result?.error) {
-                setMessage(result.error)
-            } else if (result?.success) {
-                await supabase.auth.getUser()
-                router.refresh()
-                if (onSuccess) {
-                    onSuccess()
+            try {
+                // Create user + profile on server
+                const formData = new FormData()
+                formData.append('username', username)
+                formData.append('password', password)
+                const result = await signUp(null, formData)
+                if (result?.error) {
+                    setMessage(result.error)
+                    return
                 }
+                // Sign in client-side to create session cookie
+                await signInWithUsername(username, password)
+                router.refresh()
+                if (onSuccess) onSuccess()
+            } catch (err: any) {
+                setMessage(err?.message || 'Sign up failed')
             }
         })
-    }
-
-    const handleOAuthLogin = async (provider: 'google' | 'apple') => {
-        if (provider === 'google') setIsGoogleLoading(true)
-
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider,
-            options: {
-                redirectTo: `${location.origin}/auth/callback?next=/dashboard`,
-            },
-        })
-
-        if (error) {
-            setMessage(error.message)
-            if (provider === 'google') setIsGoogleLoading(false)
-        }
     }
 
     if (showForgotPassword) {

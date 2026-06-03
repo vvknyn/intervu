@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export interface FavoriteQuestion {
     id: string;
@@ -28,169 +29,180 @@ export interface CreateFavoriteInput {
  * Fetch all favorite questions for the current user
  */
 export async function fetchFavorites() {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { data: null, error: "Unauthorized" };
     }
 
-    const { data, error } = await supabase
-        .from("favorite_questions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    try {
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("favorite_questions")
+            .where("user_id", "==", user.uid)
+            .orderBy("created_at", "desc")
+            .get();
 
-    if (error) {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FavoriteQuestion[];
+        return { data, error: null };
+    } catch (error: any) {
         console.error("Error fetching favorites:", error);
         return { data: null, error: error.message };
     }
-
-    return { data: data as FavoriteQuestion[], error: null };
 }
 
 /**
  * Add a question to favorites
  */
 export async function addFavorite(input: CreateFavoriteInput) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { data: null, error: "Unauthorized" };
     }
 
-    const { data, error } = await supabase
-        .from("favorite_questions")
-        .insert({
-            user_id: user.id,
-            ...input
-        })
-        .select()
-        .single();
+    try {
+        const db = getAdminDb();
 
-    if (error) {
-        // Handle unique constraint violation gracefully
-        if (error.code === "23505") {
+        // Check for duplicate (replaces Postgres unique constraint 23505)
+        const existingSnapshot = await db
+            .collection("favorite_questions")
+            .where("user_id", "==", user.uid)
+            .where("question_text", "==", input.question_text)
+            .limit(1)
+            .get();
+
+        if (!existingSnapshot.empty) {
             return { data: null, error: "Question already in favorites" };
         }
+
+        const now = new Date().toISOString();
+        const docData = {
+            user_id: user.uid,
+            ...input,
+            created_at: now,
+            updated_at: now,
+        };
+
+        const docRef = await db.collection("favorite_questions").add(docData);
+        const data = { id: docRef.id, ...docData } as FavoriteQuestion;
+
+        return { data, error: null };
+    } catch (error: any) {
         console.error("Error adding favorite:", error);
         return { data: null, error: error.message };
     }
-
-    return { data: data as FavoriteQuestion, error: null };
 }
 
 /**
  * Remove a question from favorites
  */
 export async function removeFavorite(favoriteId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { error: "Unauthorized" };
     }
 
-    const { error } = await supabase
-        .from("favorite_questions")
-        .delete()
-        .eq("id", favoriteId)
-        .eq("user_id", user.id);
+    try {
+        const db = getAdminDb();
+        const docRef = db.collection("favorite_questions").doc(favoriteId);
+        const doc = await docRef.get();
 
-    if (error) {
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Favorite not found" };
+        }
+
+        await docRef.delete();
+        return { error: null };
+    } catch (error: any) {
         console.error("Error removing favorite:", error);
         return { error: error.message };
     }
-
-    return { error: null };
 }
 
 /**
  * Update notes for a favorite question
  */
 export async function updateFavoriteNotes(favoriteId: string, notes: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { error: "Unauthorized" };
     }
 
-    const { error } = await supabase
-        .from("favorite_questions")
-        .update({
-            notes,
-            updated_at: new Date().toISOString()
-        })
-        .eq("id", favoriteId)
-        .eq("user_id", user.id);
+    try {
+        const db = getAdminDb();
+        const docRef = db.collection("favorite_questions").doc(favoriteId);
+        const doc = await docRef.get();
 
-    if (error) {
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Favorite not found" };
+        }
+
+        await docRef.update({
+            notes,
+            updated_at: new Date().toISOString(),
+        });
+
+        return { error: null };
+    } catch (error: any) {
         console.error("Error updating favorite notes:", error);
         return { error: error.message };
     }
-
-    return { error: null };
 }
 
 /**
  * Batch-fetch all favorited question texts for the current user.
- * Returns a map of question_text → favorite_id for O(1) lookups.
+ * Returns a map of question_text -> favorite_id for O(1) lookups.
  */
 export async function fetchFavoritedQuestionTexts(): Promise<{ data: Record<string, string>; error: string | null }> {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { data: {}, error: "Unauthorized" };
     }
 
-    const { data, error } = await supabase
-        .from("favorite_questions")
-        .select("id, question_text")
-        .eq("user_id", user.id);
+    try {
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("favorite_questions")
+            .where("user_id", "==", user.uid)
+            .get();
 
-    if (error) {
+        const map: Record<string, string> = {};
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            map[data.question_text] = doc.id;
+        }
+
+        return { data: map, error: null };
+    } catch (error: any) {
         console.error("Error fetching favorited texts:", error);
         return { data: {}, error: error.message };
     }
-
-    const map: Record<string, string> = {};
-    for (const row of data || []) {
-        map[row.question_text] = row.id;
-    }
-
-    return { data: map, error: null };
 }
 
 /**
  * Check if a question is favorited
  */
 export async function isFavorited(questionText: string, company?: string, position?: string, round?: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getServerUser();
+    if (!user) {
         return { data: false, error: "Unauthorized" };
     }
 
-    let query = supabase
-        .from("favorite_questions")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("question_text", questionText);
+    try {
+        const db = getAdminDb();
+        let query: FirebaseFirestore.Query = db
+            .collection("favorite_questions")
+            .where("user_id", "==", user.uid)
+            .where("question_text", "==", questionText);
 
-    if (company) query = query.eq("company", company);
-    if (position) query = query.eq("position", position);
-    if (round) query = query.eq("round", round);
+        if (company) query = query.where("company", "==", company);
+        if (position) query = query.where("position", "==", position);
+        if (round) query = query.where("round", "==", round);
 
-    const { data, error } = await query.single();
+        const snapshot = await query.limit(1).get();
 
-    if (error && error.code !== "PGRST116") { // PGRST116 = not found
+        return { data: !snapshot.empty, error: null };
+    } catch (error: any) {
         console.error("Error checking favorite status:", error);
         return { data: false, error: error.message };
     }
-
-    return { data: !!data, error: null };
 }

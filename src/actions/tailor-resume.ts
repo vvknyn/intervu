@@ -3,7 +3,8 @@
 import { JobAnalysis, TailoringRecommendation, TailoredResumeVersion, ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeProfile, ResumeEducation, ResumeSection } from "@/types/resume";
 import { generateGenericJSON, generateGenericText, fetchJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { fetchUrlContent } from "@/actions/fetch-url";
 
 /**
@@ -81,29 +82,25 @@ export async function analyzeJobRequirements(
 
         // Save to database if user is authenticated
         try {
-            const supabase = await createClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getServerUser();
 
             if (user) {
-                const { data: savedAnalysis, error: dbError } = await supabase
-                    .from('job_analyses')
-                    .insert({
-                        user_id: user.id,
-                        job_url: jobUrl,
-                        job_text: jobText,
-                        company_name: analysis.companyName,
-                        position_title: analysis.positionTitle,
-                        extracted_requirements: analysis.extractedRequirements,
-                        extracted_skills: analysis.extractedSkills,
-                        culture_indicators: analysis.cultureIndicators,
-                        seniority_level: analysis.seniorityLevel
-                    })
-                    .select()
-                    .single();
+                const db = getAdminDb();
+                const docRef = await db.collection('job_analyses').add({
+                    user_id: user.uid,
+                    job_url: jobUrl,
+                    job_text: jobText,
+                    company_name: analysis.companyName,
+                    position_title: analysis.positionTitle,
+                    extracted_requirements: analysis.extractedRequirements,
+                    extracted_skills: analysis.extractedSkills,
+                    culture_indicators: analysis.cultureIndicators,
+                    seniority_level: analysis.seniorityLevel,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
 
-                if (!dbError && savedAnalysis) {
-                    analysis.id = savedAnalysis.id;
-                }
+                analysis.id = docRef.id;
             }
         } catch (dbError) {
             console.error("Failed to save job analysis to DB:", dbError);
@@ -334,8 +331,7 @@ export async function saveTailoredVersion(
     input: SaveVersionInput
 ): Promise<{ data?: { id: string }; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Must be authenticated to save version" };
@@ -359,30 +355,24 @@ export async function saveTailoredVersion(
         const tailoredExperience = input.tailoredExperience || originalExperience;
         const tailoredCompetencies = input.tailoredCompetencies || originalCompetencies;
 
-        // Build the payload with all columns (migrations have been applied)
-        const payload: Record<string, any> = {
-            user_id: user.id,
-            version_name: input.versionName.trim(),
+        const db = getAdminDb();
 
-            // Job info - explicitly null for snapshots
+        // Build the payload
+        const payload: Record<string, any> = {
+            user_id: user.uid,
+            version_name: input.versionName.trim(),
             job_analysis_id: input.jobAnalysisId || null,
             company_name: input.companyName || 'Snapshot',
             position_title: input.positionTitle || 'Resume snapshot',
-
-            // Original data - full snapshot
             original_summary: originalSummary,
             original_experience: originalExperience,
             original_competencies: originalCompetencies,
             original_profile: originalProfile,
             original_education: originalEducation,
             section_order: input.sectionOrder || ['summary', 'experience', 'skills', 'education'],
-
-            // Tailored data
             tailored_summary: tailoredSummary,
             tailored_experience: tailoredExperience,
             tailored_competencies: tailoredCompetencies,
-
-            // Metadata
             recommendations: input.recommendations || [],
             applied_at: input.appliedAt || new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -397,35 +387,20 @@ export async function saveTailoredVersion(
         });
 
         if (input.id) {
-            // Update existing version
-            const { error } = await supabase
-                .from('tailored_resumes')
-                .update(payload)
-                .eq('id', input.id)
-                .eq('user_id', user.id);
-
-            if (error) {
-                console.error("[saveTailoredVersion] Update error:", error);
-                return { error: `Failed to update version: ${error.message}` };
+            // Update existing version — verify ownership
+            const docRef = db.collection('tailored_resumes').doc(input.id);
+            const doc = await docRef.get();
+            if (!doc.exists || doc.data()?.user_id !== user.uid) {
+                return { error: "Version not found" };
             }
-
+            await docRef.update(payload);
             console.log("[saveTailoredVersion] Updated version:", input.id);
             return { data: { id: input.id } };
         } else {
-            // Insert new version
-            const { data, error } = await supabase
-                .from('tailored_resumes')
-                .insert(payload)
-                .select('id')
-                .single();
-
-            if (error) {
-                console.error("[saveTailoredVersion] Insert error:", error);
-                return { error: `Failed to save version: ${error.message}` };
-            }
-
-            console.log("[saveTailoredVersion] Created version:", data.id);
-            return { data: { id: data.id } };
+            payload.created_at = new Date().toISOString();
+            const docRef = await db.collection('tailored_resumes').add(payload);
+            console.log("[saveTailoredVersion] Created version:", docRef.id);
+            return { data: { id: docRef.id } };
         }
     } catch (e: any) {
         console.error("[saveTailoredVersion] Unexpected error:", e);
@@ -438,23 +413,19 @@ export async function saveTailoredVersion(
  */
 export async function fetchTailoredVersions(): Promise<{ data?: TailoredResumeVersion[]; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { data: [] };
         }
 
-        const { data, error } = await supabase
-            .from('tailored_resumes')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
+        const db = getAdminDb();
+        const snapshot = await db.collection('tailored_resumes')
+            .where('user_id', '==', user.uid)
+            .orderBy('created_at', 'desc')
+            .get();
 
-        if (error) {
-            console.error("Database error fetching versions:", error);
-            return { error: "Failed to fetch tailored versions" };
-        }
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         const versions: TailoredResumeVersion[] = (data || []).map((row: any) => ({
             id: row.id,
@@ -493,8 +464,7 @@ export async function updateVersionName(
     newName: string
 ): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Must be authenticated" };
@@ -504,19 +474,18 @@ export async function updateVersionName(
             return { error: "Version name cannot be empty" };
         }
 
-        const { error } = await supabase
-            .from('tailored_resumes')
-            .update({
-                version_name: newName.trim(),
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', versionId)
-            .eq('user_id', user.id);
+        const db = getAdminDb();
+        const docRef = db.collection('tailored_resumes').doc(versionId);
+        const doc = await docRef.get();
 
-        if (error) {
-            console.error("Database error updating version name:", error);
-            return { error: "Failed to update version name" };
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Version not found" };
         }
+
+        await docRef.update({
+            version_name: newName.trim(),
+            updated_at: new Date().toISOString()
+        });
 
         return {};
     } catch (e: any) {
@@ -530,23 +499,21 @@ export async function updateVersionName(
  */
 export async function deleteTailoredVersion(versionId: string): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Must be authenticated" };
         }
 
-        const { error } = await supabase
-            .from('tailored_resumes')
-            .delete()
-            .eq('id', versionId)
-            .eq('user_id', user.id);
+        const db = getAdminDb();
+        const docRef = db.collection('tailored_resumes').doc(versionId);
+        const doc = await docRef.get();
 
-        if (error) {
-            console.error("Database error deleting version:", error);
-            return { error: "Failed to delete version" };
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Version not found" };
         }
+
+        await docRef.delete();
 
         // Revalidate the page to update the list
         try {

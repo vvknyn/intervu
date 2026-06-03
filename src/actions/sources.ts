@@ -1,20 +1,25 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { SourceItem } from "@/types";
 import { checkContentSafety, checkContentSafetyStrict } from "@/lib/url-safety";
 import { fetchUrlContent as fetchUrlCore, discoverLinks as discoverLinksCore } from "@/actions/fetch-url";
 
 export async function fetchSources(): Promise<{ data?: SourceItem[]; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data, error } = await supabase
-            .from("sources")
-            .select("*")
-            .order("created_at", { ascending: false });
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
 
-        if (error) throw error;
-        return { data: data as SourceItem[] };
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("sources")
+            .where("user_id", "==", user.uid)
+            .orderBy("created_at", "desc")
+            .get();
+
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SourceItem[];
+        return { data };
     } catch (e: unknown) {
         console.error("Fetch Sources Error:", e);
         return { error: (e as Error).message || "Failed to fetch sources." };
@@ -23,7 +28,8 @@ export async function fetchSources(): Promise<{ data?: SourceItem[]; error?: str
 
 export async function saveSource(source: Omit<SourceItem, 'id' | 'created_at' | 'user_id'>): Promise<{ data?: SourceItem; error?: string }> {
     try {
-        const supabase = await createClient();
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
 
         // Normalize newlines in content to prevent issues
         const content = source.content.replace(/\r\n/g, '\n');
@@ -38,17 +44,20 @@ export async function saveSource(source: Omit<SourceItem, 'id' | 'created_at' | 
             if (!safetyCheck.safe) return { error: safetyCheck.reason };
         }
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return { error: "Unauthorized" };
+        const db = getAdminDb();
+        const now = new Date().toISOString();
+        const docData = {
+            ...source,
+            content,
+            visibility,
+            user_id: user.uid,
+            created_at: now,
+        };
 
-        const { data, error } = await supabase
-            .from("sources")
-            .insert([{ ...source, content, visibility, user_id: user.id }])
-            .select()
-            .single();
+        const docRef = await db.collection("sources").add(docData);
+        const data = { id: docRef.id, ...docData } as SourceItem;
 
-        if (error) throw error;
-        return { data: data as SourceItem };
+        return { data };
     } catch (e: unknown) {
         console.error("Save Source Error:", e);
         return { error: (e as Error).message || "Failed to save source." };
@@ -57,13 +66,18 @@ export async function saveSource(source: Omit<SourceItem, 'id' | 'created_at' | 
 
 export async function deleteSource(id: string): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { error } = await supabase
-            .from("sources")
-            .delete()
-            .eq("id", id);
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
 
-        if (error) throw error;
+        const db = getAdminDb();
+        const docRef = db.collection("sources").doc(id);
+        const doc = await docRef.get();
+
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Source not found" };
+        }
+
+        await docRef.delete();
         return {};
     } catch (e: unknown) {
         console.error("Delete Source Error:", e);
@@ -82,22 +96,37 @@ export async function discoverLinks(url: string): Promise<{ links: { url: string
 
 export async function fetchPublicSources(search?: string): Promise<{ data?: Omit<SourceItem, 'user_id'>[]; error?: string }> {
     try {
-        const supabase = await createClient();
-        let query = supabase
-            .from("sources")
-            .select("id, type, title, content, created_at, visibility")
-            .eq("visibility", "public")
-            .order("created_at", { ascending: false })
-            .limit(50);
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("sources")
+            .where("visibility", "==", "public")
+            .orderBy("created_at", "desc")
+            .limit(50)
+            .get();
 
+        let results = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                type: data.type,
+                title: data.title,
+                content: data.content,
+                created_at: data.created_at,
+                visibility: data.visibility,
+            } as Omit<SourceItem, 'user_id'>;
+        });
+
+        // Firestore can't do ilike, so filter in memory
         if (search && search.trim()) {
-            const term = `%${search.trim()}%`;
-            query = query.or(`title.ilike.${term},content.ilike.${term}`);
+            const term = search.trim().toLowerCase();
+            results = results.filter(
+                item =>
+                    (item.title && item.title.toLowerCase().includes(term)) ||
+                    (item.content && item.content.toLowerCase().includes(term))
+            );
         }
 
-        const { data, error } = await query;
-        if (error) throw error;
-        return { data: data as Omit<SourceItem, 'user_id'>[] };
+        return { data: results };
     } catch (e: unknown) {
         console.error("Fetch Public Sources Error:", e);
         return { error: (e as Error).message || "Failed to fetch public sources." };
@@ -106,36 +135,35 @@ export async function fetchPublicSources(search?: string): Promise<{ data?: Omit
 
 export async function addPublicSourceToCollection(sourceId: string): Promise<{ data?: SourceItem; error?: string }> {
     try {
-        const supabase = await createClient();
-
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
 
-        // Fetch the public source
-        const { data: publicSource, error: fetchError } = await supabase
-            .from("sources")
-            .select("*")
-            .eq("id", sourceId)
-            .eq("visibility", "public")
-            .single();
+        const db = getAdminDb();
 
-        if (fetchError || !publicSource) return { error: "Source not found or not public" };
+        // Fetch the public source
+        const publicDoc = await db.collection("sources").doc(sourceId).get();
+
+        if (!publicDoc.exists || publicDoc.data()?.visibility !== "public") {
+            return { error: "Source not found or not public" };
+        }
+
+        const publicSource = publicDoc.data()!;
 
         // Copy as a private source for this user
-        const { data, error } = await supabase
-            .from("sources")
-            .insert([{
-                type: publicSource.type,
-                title: publicSource.title,
-                content: publicSource.content,
-                visibility: 'private',
-                user_id: user.id,
-            }])
-            .select()
-            .single();
+        const now = new Date().toISOString();
+        const docData = {
+            type: publicSource.type,
+            title: publicSource.title,
+            content: publicSource.content,
+            visibility: 'private',
+            user_id: user.uid,
+            created_at: now,
+        };
 
-        if (error) throw error;
-        return { data: data as SourceItem };
+        const docRef = await db.collection("sources").add(docData);
+        const data = { id: docRef.id, ...docData } as SourceItem;
+
+        return { data };
     } catch (e: unknown) {
         console.error("Add Public Source Error:", e);
         return { error: (e as Error).message || "Failed to add source." };

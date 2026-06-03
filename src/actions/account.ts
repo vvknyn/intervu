@@ -1,36 +1,62 @@
 "use server";
 
-import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { getServerUser, clearSessionCookie } from "@/lib/firebase/auth-session";
+import { getAdminDb, getAdminAuth } from "@/lib/firebase/admin";
 
 /**
  * Delete the current user's account and all associated data.
- * Uses the admin client to call auth.admin.deleteUser().
- * CASCADE foreign keys ensure all data in stories, sources, applications,
- * tailored_resumes, job_analyses, favorite_questions, and interview_prep_cache
- * is automatically deleted.
+ * Manually deletes from all collections since Firestore has no CASCADE.
  */
 export async function deleteAccount(): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const adminClient = await createAdminClient();
+        const db = getAdminDb();
+        const uid = user.uid;
 
-        // Delete the auth user - CASCADE will handle all related data
-        const { error } = await adminClient.auth.admin.deleteUser(user.id);
+        // Collections where docs are keyed by user_id field
+        const userIdCollections = [
+            "stories",
+            "sources",
+            "applications",
+            "tailored_resumes",
+            "job_analyses",
+            "favorite_questions",
+            "interview_prep_cache",
+            "feedback",
+        ];
 
-        if (error) {
-            console.error("[Account] Delete error:", error);
-            return { error: error.message };
-        }
+        // Delete from all collections with user_id field
+        const deletionPromises = userIdCollections.map(async (collectionName) => {
+            const snapshot = await db
+                .collection(collectionName)
+                .where("user_id", "==", uid)
+                .get();
 
-        // Sign out the current session
-        await supabase.auth.signOut();
+            if (snapshot.empty) return;
+
+            const batch = db.batch();
+            snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit();
+        });
+
+        // Delete profiles doc (keyed by uid directly)
+        deletionPromises.push(
+            db.collection("profiles").doc(uid).delete().then(() => {})
+        );
+
+        await Promise.all(deletionPromises);
+
+        // Delete Firebase Auth user
+        const auth = getAdminAuth();
+        await auth.deleteUser(uid);
+
+        // Clear session cookie
+        await clearSessionCookie();
 
         return {};
     } catch (e: any) {
@@ -41,84 +67,56 @@ export async function deleteAccount(): Promise<{ error?: string }> {
 
 /**
  * Export all user data as a JSON object.
- * Excludes provider_api_keys for security.
  */
 export async function exportUserData(): Promise<{ data?: Record<string, any>; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        // Fetch all user data from every table in parallel
+        const db = getAdminDb();
+        const uid = user.uid;
+
+        // Fetch all user data from every collection in parallel
         const [
-            profileResult,
-            storiesResult,
-            sourcesResult,
-            applicationsResult,
-            tailoredResumesResult,
-            jobAnalysesResult,
-            favoriteQuestionsResult,
-            cacheResult,
+            profileDoc,
+            storiesSnapshot,
+            sourcesSnapshot,
+            applicationsSnapshot,
+            tailoredResumesSnapshot,
+            jobAnalysesSnapshot,
+            favoriteQuestionsSnapshot,
+            cacheSnapshot,
         ] = await Promise.all([
-            supabase
-                .from("profiles")
-                .select("id, username, resume_text, resume_data, resume_import_source, resume_import_confidence, resume_last_updated, preferred_model, created_at")
-                .eq("id", user.id)
-                .single(),
-            supabase
-                .from("stories")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("sources")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("applications")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("tailored_resumes")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("job_analyses")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("favorite_questions")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false }),
-            supabase
-                .from("interview_prep_cache")
-                .select("*")
-                .eq("user_id", user.id),
+            db.collection("profiles").doc(uid).get(),
+            db.collection("stories").where("user_id", "==", uid).get(),
+            db.collection("sources").where("user_id", "==", uid).get(),
+            db.collection("applications").where("user_id", "==", uid).get(),
+            db.collection("tailored_resumes").where("user_id", "==", uid).get(),
+            db.collection("job_analyses").where("user_id", "==", uid).get(),
+            db.collection("favorite_questions").where("user_id", "==", uid).get(),
+            db.collection("interview_prep_cache").where("user_id", "==", uid).get(),
         ]);
+
+        const snapshotToDocs = (snapshot: FirebaseFirestore.QuerySnapshot) =>
+            snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
         const exportData = {
             exported_at: new Date().toISOString(),
             user: {
-                id: user.id,
-                email: user.email,
-                created_at: user.created_at,
+                id: uid,
+                email: user.email || null,
             },
-            profile: profileResult.data || null,
-            stories: storiesResult.data || [],
-            sources: sourcesResult.data || [],
-            applications: applicationsResult.data || [],
-            tailored_resumes: tailoredResumesResult.data || [],
-            job_analyses: jobAnalysesResult.data || [],
-            favorite_questions: favoriteQuestionsResult.data || [],
-            interview_prep_cache: cacheResult.data || [],
+            profile: profileDoc.exists ? { id: profileDoc.id, ...profileDoc.data() } : null,
+            stories: snapshotToDocs(storiesSnapshot),
+            sources: snapshotToDocs(sourcesSnapshot),
+            applications: snapshotToDocs(applicationsSnapshot),
+            tailored_resumes: snapshotToDocs(tailoredResumesSnapshot),
+            job_analyses: snapshotToDocs(jobAnalysesSnapshot),
+            favorite_questions: snapshotToDocs(favoriteQuestionsSnapshot),
+            interview_prep_cache: snapshotToDocs(cacheSnapshot),
         };
 
         return { data: exportData };

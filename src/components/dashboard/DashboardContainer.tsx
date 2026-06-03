@@ -12,19 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AuthPopover } from "@/components/auth/auth-popover";
 
-import { ModelSwitcher } from "./ModelSwitcher";
+
 import { signOut } from "@/actions/auth";
-import { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 
 import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, StarStory, SourceItem, TechnicalData, CodingChallenge, ProviderConfig, SystemDesignData } from "@/types";
 import { fetchFavoritedQuestionTexts, addFavorite, removeFavorite } from "@/actions/favorites";
 import { fetchRecon, fetchMatch, fetchQuestions, fetchReverse, generateGenericJSON, generateGenericText, fetchTechnicalQuestions, fetchCodingChallenge, explainTechnicalConcept, extractCompaniesFromResume, fetchSystemDesignQuestions, checkApiHealth, generateInterviewPlan } from "@/actions/generate-context";
-import { AVAILABLE_MODELS } from "@/lib/llm/models";
+
 import { fetchUrlContent } from "@/actions/fetch-url";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions } from "@/actions/tailor-resume";
-import { updateModelSettings, fetchProfile, updateResume, saveProviderApiKeys } from "@/actions/profile";
+import { fetchProfile, updateResume } from "@/actions/profile";
 import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
 import { RateLimiter } from "@/lib/rate-limiter";
@@ -57,7 +56,7 @@ const StoryManager = dynamic(() => import("@/components/dashboard/StoryManager")
 const SourcesManager = dynamic(() => import("@/components/settings/SourcesManager").then(m => ({ default: m.SourcesManager })), { ssr: false });
 const ContextModal = dynamic(() => import("@/components/modals/ContextModal").then(m => ({ default: m.ContextModal })), { ssr: false });
 const PrivacyNotice = dynamic(() => import("@/components/ui/privacy-notice").then(m => ({ default: m.PrivacyNotice })), { ssr: false });
-const ApiKeyConfigModal = dynamic(() => import("@/components/dashboard/ApiKeyConfigModal").then(m => ({ default: m.ApiKeyConfigModal })), { ssr: false });
+
 const SetupRecipeWizard = dynamic(() => import("@/components/recipes/wizards/SetupRecipeWizard").then(m => ({ default: m.SetupRecipeWizard })), { ssr: false });
 const StoryBankRecipeWizard = dynamic(() => import("@/components/recipes/wizards/StoryBankRecipeWizard").then(m => ({ default: m.StoryBankRecipeWizard })), { ssr: false });
 const PrepareInterviewDialog = dynamic(() => import("@/components/recipes/wizards/PrepareInterviewDialog").then(m => ({ default: m.PrepareInterviewDialog })), { ssr: false });
@@ -161,9 +160,6 @@ export function DashboardContainer() {
     useEffect(() => {
         storiesRef.current = stories;
     }, [stories]);
-    const [modelProvider, setModelProvider] = useState<'groq' | 'gemini' | 'openai'>('groq');
-    const [modelId, setModelId] = useState('llama-3.3-70b-versatile');
-    const [apiKeys, setApiKeys] = useState<{ groq?: string; gemini?: string; openai?: string }>({});
 
     // Question generation settings
     const [prepSettings, setPrepSettings] = useState<QuestionSettings>({
@@ -217,9 +213,6 @@ export function DashboardContainer() {
     const [activeSection, setActiveSection] = useState("section-match");
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-    // API Key Configuration Modal State
-    const [keyConfigOpen, setKeyConfigOpen] = useState(false);
-    const [keyConfigProvider, setKeyConfigProvider] = useState<'groq' | 'gemini' | 'openai'>('groq');
 
     // Recipe Wizard State
     const [setupRecipeOpen, setSetupRecipeOpen] = useState(false);
@@ -228,7 +221,6 @@ export function DashboardContainer() {
     const [prepareRecipeOpen, setPrepareRecipeOpen] = useState(false);
     const [sourcesRecipeOpen, setSourcesRecipeOpen] = useState(false);
     const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
-    const [apiKeysLoaded, setApiKeysLoaded] = useState(false);
 
     // Ref for the center column (viewport-locked scroll container on desktop)
     const centerColumnRef = useRef<HTMLDivElement>(null);
@@ -288,9 +280,8 @@ export function DashboardContainer() {
     // Load User Data (Resume, Stories, Profile)
     // Returns the resume text so callers can check for stale cache
     const fetchUserData = useCallback(async (): Promise<string> => {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        const currentUser = getCurrentUser();
+        setUser(currentUser);
         setIsAuthChecked(true);
 
         // Load Stories
@@ -427,76 +418,6 @@ export function DashboardContainer() {
                 }
             }
 
-            // Load user model preference
-            if (profileData.preferred_model) {
-                let provider: 'groq' | 'gemini' | 'openai' = 'groq';
-                let model = profileData.preferred_model;
-
-                if (profileData.preferred_model.startsWith('gemini')) provider = 'gemini';
-                else if (profileData.preferred_model.startsWith('gpt')) provider = 'openai';
-                else provider = 'groq';
-
-                // Validate model availability
-                const validModels = AVAILABLE_MODELS[provider];
-                const isValid = validModels.some(m => m.id === model);
-                if (!isValid) {
-                    console.warn(`[Dashboard] Deprecated model ${model} found. Switching to ${validModels[0].id}`);
-                    model = validModels[0].id;
-                }
-
-                setModelProvider(provider);
-                setModelId(model);
-            }
-
-            // Load API keys from database first, then fallback to localStorage
-            let keysLoaded = false;
-
-            // First try provider_api_keys (parsed from custom_api_key JSON in fetchProfile)
-            const profileDataAny = profileData as any;
-            if (profileDataAny.provider_api_keys && typeof profileDataAny.provider_api_keys === 'object') {
-                const keys = profileDataAny.provider_api_keys as { groq?: string; gemini?: string; openai?: string };
-                if (Object.keys(keys).length > 0) {
-                    setApiKeys(keys);
-                    keysLoaded = true;
-                    console.log("[DashboardContainer] Loaded API keys from database (JSONB):", Object.keys(keys));
-                }
-            }
-
-            // Fallback to custom_api_key (legacy TEXT column)
-            if (!keysLoaded && profileData.custom_api_key) {
-                try {
-                    const parsed = JSON.parse(profileData.custom_api_key);
-                    if (parsed && typeof parsed === 'object') {
-                        setApiKeys(parsed);
-                        keysLoaded = true;
-                        console.log("[DashboardContainer] Loaded API keys from database (TEXT):", Object.keys(parsed));
-                    }
-                } catch (e) {
-                    console.error("Failed to parse API keys from profile:", e);
-                }
-            }
-
-            // Fallback to localStorage if no keys in database
-            if (!keysLoaded && typeof window !== 'undefined') {
-                const guestKeys = localStorage.getItem('guest_api_keys');
-                if (guestKeys) {
-                    try {
-                        const parsed = JSON.parse(guestKeys);
-                        setApiKeys(parsed);
-                        console.log("[DashboardContainer] Loaded API keys from localStorage (fallback):", Object.keys(parsed));
-
-                        // Sync localStorage keys to database if user is logged in
-                        if (user?.id) {
-                            console.log("[DashboardContainer] Syncing localStorage keys to database for user:", user.id);
-                            updateModelSettings(guestKeys, "").catch(e =>
-                                console.warn("Failed to sync keys to database:", e)
-                            );
-                        }
-                    } catch (e) {
-                        console.error("Failed to parse guest API keys:", e);
-                    }
-                }
-            }
         } else {
             // Guest mode: Load from localStorage
             console.log("[DashboardContainer] Guest mode - loading from localStorage");
@@ -517,70 +438,12 @@ export function DashboardContainer() {
                     console.warn("Failed to parse saved resume", e);
                 }
             }
-
-            // Load API keys
-            const guestKeysJson = localStorage.getItem('guest_api_keys');
-            const guestModel = localStorage.getItem('guest_model');
-
-            // Parse model preference
-            let provider: 'groq' | 'gemini' | 'openai' = 'groq';
-            let model = 'llama-3.3-70b-versatile';
-
-            if (guestModel && guestModel.includes(':')) {
-                const parts = guestModel.split(':');
-                provider = parts[0] as 'groq' | 'gemini' | 'openai';
-                model = parts.slice(1).join(':');
-
-                // Validate model availability
-                if (AVAILABLE_MODELS[provider]) {
-                    const validModels = AVAILABLE_MODELS[provider];
-                    const isValid = validModels.some(m => m.id === model);
-                    if (!isValid) {
-                        console.warn(`[Dashboard] Deprecated guest model ${model} found. Switching to ${validModels[0].id}`);
-                        model = validModels[0].id;
-                    }
-                }
-            }
-
-            setModelProvider(provider);
-            setModelId(model);
-
-            // Load API keys - try new format first
-            if (guestKeysJson) {
-                try {
-                    const keys = JSON.parse(guestKeysJson);
-                    setApiKeys(keys);
-                    console.log("[DashboardContainer] Loaded API keys from localStorage:", Object.keys(keys));
-                } catch (e) {
-                    console.warn("Failed to parse guest API keys", e);
-                }
-            } else {
-                // Fallback to old format (guest_api_key - single key)
-                const legacyKey = localStorage.getItem('guest_api_key');
-                if (legacyKey) {
-                    if (legacyKey.trim().startsWith('{')) {
-                        try {
-                            const keys = JSON.parse(legacyKey);
-                            setApiKeys(keys);
-                        } catch (e) {
-                            console.warn("Failed to parse legacy guest API key", e);
-                        }
-                    } else {
-                        setApiKeys({ [provider]: legacyKey });
-                    }
-                }
-            }
         }
-        setApiKeysLoaded(true);
         return resumeText;
     }, []);
 
-    // Helper: Build model config from state for AI calls
-    const modelConfig: Partial<ProviderConfig> = {
-        provider: modelProvider,
-        model: modelId,
-        apiKey: apiKeys[modelProvider]
-    };
+    // Model config — server reads OPENROUTER_API_KEY from env
+    const modelConfig: Partial<ProviderConfig> = {};
 
     // Manual Refresh - Force new analysis (Bypass Cache)
     const handleRefresh = async () => {
@@ -613,20 +476,6 @@ export function DashboardContainer() {
         };
     }, [fetchUserData]);
 
-    // Auto-open setup wizard when no API key is configured
-    // The API key step is critical -- keep showing the wizard until at least one key exists
-    // Uses apiKeysLoaded (not isAuthChecked) to avoid opening before keys finish loading
-    // Respects the welcome-dismissed flag so it doesn't reopen after the user has keys
-    useEffect(() => {
-        const hasAnyKey = !!(apiKeys.groq || apiKeys.gemini || apiKeys.openai);
-        const wasDismissed = typeof window !== "undefined" && localStorage.getItem('intervu-welcome-dismissed') === 'true';
-        if (!hasAnyKey && apiKeysLoaded && !wasDismissed) {
-            const timer = setTimeout(() => {
-                setSetupRecipeOpen(true);
-            }, 500);
-            return () => clearTimeout(timer);
-        }
-    }, [apiKeys, apiKeysLoaded]);
 
     // Load prep settings from localStorage
     useEffect(() => {
@@ -639,23 +488,13 @@ export function DashboardContainer() {
             const userResume = await fetchUserData();
             const hasUserContext = userResume.length > 20;
 
-            const supabase = createClient();
             // Listen for auth changes
-            const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-                setUser(session?.user ?? null);
-                if (event === 'SIGNED_OUT') {
+            const unsubscribeAuth = onAuthChange((firebaseUser) => {
+                setUser(firebaseUser);
+                if (!firebaseUser) {
                     setStories([]);
-                    setApiKeys({}); // Clear API keys on sign out
                     setResume("");  // Clear resume
                     setResumeCompanies([]); // Clear companies
-
-                    // Clear guest keys from localStorage
-                    if (typeof window !== 'undefined') {
-                        localStorage.removeItem('guest_api_keys');
-                        localStorage.removeItem('guest_api_key');
-                        localStorage.removeItem('guest_model');
-                        console.log("[DashboardContainer] Cleared guest keys on sign out");
-                    }
                 }
             });
 
@@ -728,7 +567,7 @@ export function DashboardContainer() {
 
             // Return cleanup function
             return () => {
-                subscription?.unsubscribe();
+                unsubscribeAuth?.();
             };
         };
         loadData();
@@ -850,96 +689,48 @@ export function DashboardContainer() {
         }
     };
 
-    // Fix: fetchUserData handles state updates, but we need ensure checking the latest state or fallback
-    const checkApiKey = (prov: 'groq' | 'gemini' | 'openai'): string | undefined => {
-        // 1. Check state
-        if (apiKeys[prov] && apiKeys[prov]!.trim() !== '') return apiKeys[prov];
-
-        // 2. Fallback to localStorage (Guest keys)
-        if (typeof window !== 'undefined') {
-            try {
-                const guestKeys = localStorage.getItem('guest_api_keys');
-                if (guestKeys) {
-                    const parsed = JSON.parse(guestKeys);
-                    if (parsed[prov] && parsed[prov].trim() !== '') {
-                        console.log("[DashboardContainer] Recovered API key from localStorage for", prov);
-                        // Sync state opportunistically
-                        setApiKeys(prev => ({ ...prev, ...parsed }));
-                        return parsed[prov];
-                    }
-                }
-            } catch (e) {
-                console.warn("Failed to check localStorage for keys:", e);
-            }
-        }
-        return undefined;
-    };
 
     const handleAnalyze = async (forceRefresh: boolean = false) => {
-        // Gate: if no API key at all, open setup wizard
-        const hasAnyKey = !!(apiKeys.groq || apiKeys.gemini || apiKeys.openai);
-        if (!hasAnyKey) {
-            setSetupRecipeOpen(true);
-            return;
-        }
-
+        console.log(`[handleAnalyze] Called with query="${searchQuery}" forceRefresh=${forceRefresh}`);
         if (!searchQuery.trim()) {
             setSearchError("Tell us what you're preparing for \u2014 e.g. \"Google PM final round\"");
             return;
         }
 
-        // Validate API key exists for the selected provider before starting
-        const currentApiKey = checkApiKey(modelProvider);
-
-        console.log("[DashboardContainer] handleAnalyze check:", {
-            modelProvider,
-            hasKey: !!currentApiKey,
-            keyLength: currentApiKey?.length
-        });
-
-        if (!currentApiKey) {
-            const providerName = modelProvider.charAt(0).toUpperCase() + modelProvider.slice(1);
-            setSearchError(`Connect your ${providerName} key to start analyzing.`);
-            setKeyConfigProvider(modelProvider);
-            setKeyConfigOpen(true);
-            return;
-        }
-
-        // Build config with the verified key (don't rely on stale state)
-        const activeModelConfig: Partial<ProviderConfig> = {
-            provider: modelProvider,
-            model: modelId,
-            apiKey: currentApiKey
-        };
-
-        console.log("[DashboardContainer] Using activeModelConfig:", {
-            provider: activeModelConfig.provider,
-            model: activeModelConfig.model,
-            hasKey: !!activeModelConfig.apiKey
-        });
+        // Server handles API key via OPENROUTER_API_KEY env var
+        const activeModelConfig: Partial<ProviderConfig> = {};
 
         setSearchError(null);
         setLoading(true);
         setLoadingText(LOADING_STEPS.parsing);
+        let progressInterval: ReturnType<typeof setInterval> | null = null;
+
+      try {
 
         // Try quick parse first (instant, client-side)
+        console.log("Parsing query...");
         let parsed = quickParseSearchQuery(searchQuery);
 
         // If quick parse fails, try server-side LLM parsing with timeout
         if (!parsed) {
+            console.log("Quick parse failed, trying server parse...");
             try {
                 parsed = await parseSearchQuery(searchQuery, activeModelConfig);
             } catch (e) {
                 console.error("Parse failed:", e);
+                console.log(`Parse error: ${e}`);
             }
         }
 
         if (!parsed) {
+            console.log("Parse returned null — showing error");
             setSearchError("Could not understand your query. Please enter in format: Company, Position, Round (e.g., Google, Software Engineer, Technical)");
             setLoading(false);
             if (hasSearched) setViewState("error");
             return;
         }
+
+        console.log(`Parsed: ${parsed.company} / ${parsed.position} / ${parsed.round}`);
 
         // Update parsed values
         setCompany(parsed.company);
@@ -987,11 +778,13 @@ export function DashboardContainer() {
         });
 
         // Skip Cache if forceRefresh is true
+        console.log("Checking cache...");
         if (!forceRefresh) {
             const cached = await loadEnhancedCache(parsed.company, parsed.position, parsed.round);
             const shouldUseCache = cached && (cached.hasContext === hasResumeContext) && (!hasResumeContext || (hasResumeContext && cached.matchData));
 
             if (shouldUseCache && cached) {
+                console.log("Cache hit! Loading from cache");
                 setReconData(cached.reconData);
                 setMatchData(cached.matchData);
                 setQuestionsData(cached.questionsData);
@@ -1016,10 +809,9 @@ export function DashboardContainer() {
 
 
         // Check rate limit before making API calls (cache miss)
-        const supabase = createClient();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const currentUser = getCurrentUser();
         if (currentUser) {
-            const rateLimitCheck = canMakeRequest(currentUser.id);
+            const rateLimitCheck = canMakeRequest(currentUser.uid);
             if (!rateLimitCheck.allowed) {
                 setSearchError(rateLimitCheck.message || "Rate limit exceeded");
                 setLoading(false);
@@ -1027,7 +819,7 @@ export function DashboardContainer() {
                 return;
             }
             // Record this request for rate limiting
-            recordRequest(currentUser.id);
+            recordRequest(currentUser.uid);
         }
 
         setHasSearched(true);
@@ -1040,7 +832,7 @@ export function DashboardContainer() {
         setLoadingText(LOADING_MESSAGES[0]);
 
         // Simulated progress interval
-        const progressInterval = setInterval(() => {
+        progressInterval = setInterval(() => {
             setProgress(prev => {
                 // Slower progress as it gets higher, capping at 90%
                 if (prev >= 90) return 90;
@@ -1056,9 +848,8 @@ export function DashboardContainer() {
         }, 800);
 
         const storiesText = getStoriesContext();
-        try {
+            console.log("Calling generateInterviewPlan server action...");
             // Generate Interview Plan (Batched Backend Action)
-            // This replaces the complex sequential frontend logic with a robust backend orchestrator
             setLoadingText(LOADING_STEPS.generating);
 
             // Load output preferences from localStorage
@@ -1140,7 +931,7 @@ export function DashboardContainer() {
             params.set('searched', 'true');
             router.push(`/?${params.toString()}`);
 
-        } catch (e: unknown) {
+      } catch (e: unknown) {
             let errorMessage = "Analysis failed due to an unexpected error.";
 
             if (e instanceof Error) {
@@ -1161,16 +952,17 @@ export function DashboardContainer() {
                 console.error("[DashboardContainer] Analysis Error:", e);
             }
 
+            setSearchError(errorMessage);
             setError(errorMessage);
-            setViewState("error");
-        } finally {
-            clearInterval(progressInterval);
+            setViewState(hasSearched ? "error" : "empty");
+      } finally {
+            if (progressInterval) clearInterval(progressInterval);
             setLoading(false);
             setLoadingText("");
             setProgress(0);
             // Update last analyzed settings
             setLastAnalyzedSettings(prepSettings);
-        }
+      }
     };
 
     const handleUpdateMatches = async (newMatches: string[]) => {
@@ -1576,120 +1368,6 @@ export function DashboardContainer() {
         router.push("/");
     };
 
-    const handleModelChange = async (provider: 'groq' | 'gemini' | 'openai', model: string) => {
-        // Check if the new provider has an API key configured
-        const hasKey = apiKeys[provider] && apiKeys[provider]!.trim() !== '';
-
-        if (!hasKey) {
-            // Open the API key config modal for the new provider
-            const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-            setSearchError(`${providerName} needs a key to work. Tap Connect to set it up.`);
-            setKeyConfigProvider(provider);
-            setKeyConfigOpen(true);
-            // Still update the selection so user knows what they picked
-        }
-
-        setModelProvider(provider);
-        setModelId(model);
-
-        // Persist to database/localStorage
-        const compositeModel = `${provider}:${model}`;
-        try {
-            const res = await updateModelSettings("", compositeModel); // Empty key means keep existing
-
-            if (res.error && res.error === "Unauthorized") {
-                // Guest mode: save to localStorage
-                localStorage.setItem('guest_model', compositeModel);
-            }
-        } catch (e) {
-            console.error("Failed to save model settings:", e);
-        }
-    };
-
-    // API Key Configuration
-    const handleConfigureKey = (provider: 'groq' | 'gemini' | 'openai') => {
-        setKeyConfigProvider(provider);
-        setKeyConfigOpen(true);
-    };
-
-    const handleSaveApiKey = async (provider: 'groq' | 'gemini' | 'openai', key: string) => {
-        console.log("[DashboardContainer] handleSaveApiKey called for:", provider);
-        const newKeys = { ...apiKeys, [provider]: key };
-
-        // Update state immediately
-        setApiKeys(newKeys);
-
-        // Clear error if we just saved the key for the selected provider
-        if (provider === modelProvider) {
-            setSearchError(null);
-        }
-
-        // Always save to localStorage for immediate availability & backup
-        localStorage.setItem('guest_api_keys', JSON.stringify(newKeys));
-        console.log("[DashboardContainer] Saved to localStorage");
-
-        // Get fresh user data from Supabase (don't rely on potentially stale state)
-        const supabase = createClient();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        // Save to database (priority for persistence)
-        if (currentUser?.id) {
-            try {
-                console.log("[DashboardContainer] Saving to database for user:", currentUser.id);
-
-                const result = await Promise.race([
-                    saveProviderApiKeys(newKeys),
-                    new Promise<{ error: string }>((_, reject) =>
-                        setTimeout(() => reject(new Error("Save timed out after 10s")), 10000)
-                    )
-                ]);
-
-                if (result && 'error' in result && result.error) {
-                    console.error("[DashboardContainer] DB save failed:", result.error);
-                    // localStorage still has the backup
-                } else {
-                    console.log("[DashboardContainer] DB save successful - keys are persisted");
-                }
-            } catch (error) {
-                console.error("[DashboardContainer] DB save error:", error);
-                // localStorage still has the backup
-            }
-        } else {
-            console.log("[DashboardContainer] Guest mode - keys saved to localStorage only");
-        }
-    };
-
-    const handleRemoveApiKey = async (provider: 'groq' | 'gemini' | 'openai') => {
-        const newKeys = { ...apiKeys, [provider]: undefined };
-        setApiKeys(newKeys);
-
-        // Save to localStorage
-        localStorage.setItem('guest_api_keys', JSON.stringify(newKeys));
-
-        // Save to database if authenticated
-        const supabase = createClient();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        if (currentUser?.id) {
-            try {
-                await saveProviderApiKeys(newKeys);
-            } catch (error) {
-                console.error("[DashboardContainer] Failed to remove key from DB:", error);
-            }
-        }
-
-        // If the removed provider was active, switch to another connected provider
-        if (modelProvider === provider) {
-            const remaining = Object.entries(newKeys).find(([p, k]) => k && p !== provider);
-            if (remaining) {
-                const [nextProvider] = remaining;
-                const nextModel = AVAILABLE_MODELS[nextProvider as 'groq' | 'gemini' | 'openai'][0].id;
-                handleModelChange(nextProvider as 'groq' | 'gemini' | 'openai', nextModel);
-            }
-        }
-
-        console.log("[DashboardContainer] Removed key for:", provider);
-    };
 
     const handleRegenerateAll = async () => {
         if (isRegeneratingAll || !company || !position || !round) return;
@@ -1715,19 +1393,11 @@ export function DashboardContainer() {
 
     const recipeContext = {
         hasResume: !!resume,
-        // Before keys finish loading, assume keys exist to prevent setup card flash
-        hasApiKeys: !apiKeysLoaded || !!(apiKeys.groq || apiKeys.gemini || apiKeys.openai),
+        hasApiKeys: true,
         storyCount: stories.length,
     };
 
     const handleRecipeSelect = (recipe: Recipe) => {
-        // If no API key and this isn't the setup recipe, redirect to setup
-        const hasAnyKey = !!(apiKeys.groq || apiKeys.gemini || apiKeys.openai);
-        if (!hasAnyKey && recipe.id !== "setup") {
-            setSetupRecipeOpen(true);
-            return;
-        }
-
         switch (recipe.type) {
             case "navigate":
                 if (recipe.navigateTo) router.push(recipe.navigateTo);
@@ -1754,16 +1424,6 @@ export function DashboardContainer() {
             <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background transition-all duration-500">
                 {/* Top Right Actions */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
-                    <div data-tour="model-switcher">
-                        <ModelSwitcher
-                            provider={modelProvider}
-                            model={modelId}
-                            onModelChange={handleModelChange}
-                            apiKeys={apiKeys}
-                            onConfigureKey={handleConfigureKey}
-                            onRemoveKey={handleRemoveApiKey}
-                        />
-                    </div >
                 </div>
                 <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
 
@@ -1874,31 +1534,14 @@ export function DashboardContainer() {
                     onSave={handleSaveContext}
                 />
 
-                {/* API Key Configuration Modal */}
-                <ApiKeyConfigModal
-                    open={keyConfigOpen}
-                    onOpenChange={setKeyConfigOpen}
-                    provider={keyConfigProvider}
-                    currentKey={apiKeys[keyConfigProvider]}
-                    onSave={handleSaveApiKey}
-                    onRemove={handleRemoveApiKey}
-                />
-
                 {/* Recipe Wizards */}
                 <SetupRecipeWizard
                     isOpen={setupRecipeOpen}
                     dismissCount={setupDismissCountRef.current}
                     onClose={() => {
-                        const hasAnyKey = !!(apiKeys.groq || apiKeys.gemini || apiKeys.openai);
                         setSetupRecipeOpen(false);
-                        if (hasAnyKey) {
-                            localStorage.setItem('intervu-welcome-dismissed', 'true');
-                        } else {
-                            setupDismissCountRef.current += 1;
-                        }
+                        localStorage.setItem('intervu-welcome-dismissed', 'true');
                     }}
-                    onSaveApiKey={handleSaveApiKey}
-                    apiKeys={apiKeys}
                     resume={resume}
                     onResumeChange={setResume}
                     stories={stories}
@@ -1980,15 +1623,6 @@ export function DashboardContainer() {
                     user={user}
                     title="Intervu"
                     onOpenSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
-                    modelProvider={modelProvider}
-                    modelId={modelId}
-                    onModelChange={handleModelChange}
-                    apiKeys={apiKeys}
-                    onConfigureKey={(provider) => {
-                        setKeyConfigProvider(provider);
-                        setKeyConfigOpen(true);
-                    }}
-                    onRemoveKey={handleRemoveApiKey}
                     onRegenerateAll={() => handleAnalyze(true)}
                     isRegeneratingAll={isRegeneratingAll}
                     prepSettings={prepSettings}
@@ -2040,89 +1674,6 @@ export function DashboardContainer() {
                             >
                                 Try Again
                             </Button>
-
-                            {/* Offer to switch providers if the error suggests it */}
-                            {(error?.toLowerCase().includes("rate limit") ||
-                                error?.toLowerCase().includes("quota") ||
-                                error?.toLowerCase().includes("timeout") ||
-                                error?.toLowerCase().includes("switch")) && (
-                                    <div className="pt-2 border-t border-destructive/10">
-                                        <p className="text-xs text-muted-foreground mb-2 text-center">Try a different provider:</p>
-                                        <div className="flex gap-2 justify-center">
-                                            {modelProvider !== 'groq' && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-xs"
-                                                    onClick={() => {
-                                                        if (apiKeys.groq) {
-                                                            handleModelChange('groq', 'llama-3.3-70b-versatile');
-                                                            setError(null);
-                                                            setViewState("empty");
-                                                            setTimeout(() => handleAnalyze(), 100);
-                                                        } else {
-                                                            handleConfigureKey('groq');
-                                                        }
-                                                    }}
-                                                >
-                                                    {apiKeys.groq ? 'Switch to Groq' : 'Connect Groq'}
-                                                </Button>
-                                            )}
-                                            {modelProvider !== 'gemini' && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-xs"
-                                                    onClick={() => {
-                                                        if (apiKeys.gemini) {
-                                                            handleModelChange('gemini', 'gemini-flash-latest');
-                                                            setError(null);
-                                                            setViewState("empty");
-                                                            setTimeout(() => handleAnalyze(), 100);
-                                                        } else {
-                                                            handleConfigureKey('gemini');
-                                                        }
-                                                    }}
-                                                >
-                                                    {apiKeys.gemini ? 'Switch to Gemini' : 'Connect Gemini'}
-                                                </Button>
-                                            )}
-                                            {modelProvider !== 'openai' && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-xs"
-                                                    onClick={() => {
-                                                        if (apiKeys.openai) {
-                                                            handleModelChange('openai', 'gpt-4o-mini');
-                                                            setError(null);
-                                                            setViewState("empty");
-                                                            setTimeout(() => handleAnalyze(), 100);
-                                                        } else {
-                                                            handleConfigureKey('openai');
-                                                        }
-                                                    }}
-                                                >
-                                                    {apiKeys.openai ? 'Switch to OpenAI' : 'Connect OpenAI'}
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                            {/* Show configure key button if error is about missing/invalid key */}
-                            {(error?.toLowerCase().includes("api key") ||
-                                error?.toLowerCase().includes("unauthorized") ||
-                                error?.toLowerCase().includes("invalid")) && (
-                                    <Button
-                                        variant="default"
-                                        className="w-full"
-                                        onClick={() => handleConfigureKey(modelProvider)}
-                                    >
-                                        <Gear size={16} className="mr-2" />
-                                        Connect {modelProvider.charAt(0).toUpperCase() + modelProvider.slice(1)}
-                                    </Button>
-                                )}
 
                             <Button
                                 variant="ghost"
@@ -2417,16 +1968,6 @@ export function DashboardContainer() {
                 context={context}
                 setContext={setContext}
                 onSave={handleSaveContext}
-            />
-
-            {/* API Key Configuration Modal */}
-            <ApiKeyConfigModal
-                open={keyConfigOpen}
-                onOpenChange={setKeyConfigOpen}
-                provider={keyConfigProvider}
-                currentKey={apiKeys[keyConfigProvider]}
-                onSave={handleSaveApiKey}
-                onRemove={handleRemoveApiKey}
             />
 
             {/* Coding Count Dialog */}

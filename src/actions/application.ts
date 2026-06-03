@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
 
 export type ApplicationStatus = 'applied' | 'interviewing' | 'offer' | 'rejected' | 'withdrawn';
@@ -43,102 +44,144 @@ export interface UpdateApplicationData {
 }
 
 export async function getApplications() {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-        .from('applications')
-        .select(`
-            *,
-            resume_version:tailored_resumes(version_name)
-        `)
-        .order('created_at', { ascending: false });
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (error) {
+        const db = getAdminDb();
+        const snapshot = await db
+            .collection("applications")
+            .where("user_id", "==", user.uid)
+            .orderBy("created_at", "desc")
+            .get();
+
+        const applications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Application[];
+
+        // Fetch resume version names for applications that have resume_version_id
+        const resumeVersionIds = applications
+            .map(app => app.resume_version_id)
+            .filter((id): id is string => !!id);
+
+        if (resumeVersionIds.length > 0) {
+            const uniqueIds = [...new Set(resumeVersionIds)];
+            const versionMap: Record<string, string> = {};
+
+            // Firestore 'in' queries support up to 30 values at a time
+            for (let i = 0; i < uniqueIds.length; i += 30) {
+                const batch = uniqueIds.slice(i, i + 30);
+                const resumeSnap = await db
+                    .collection("tailored_resumes")
+                    .where("__name__", "in", batch)
+                    .get();
+                resumeSnap.docs.forEach(doc => {
+                    const data = doc.data();
+                    versionMap[doc.id] = data.version_name || "";
+                });
+            }
+
+            applications.forEach(app => {
+                if (app.resume_version_id && versionMap[app.resume_version_id] !== undefined) {
+                    app.resume_version = { version_name: versionMap[app.resume_version_id] };
+                } else {
+                    app.resume_version = null;
+                }
+            });
+        } else {
+            applications.forEach(app => {
+                app.resume_version = null;
+            });
+        }
+
+        return { data: applications };
+    } catch (error: any) {
         console.error("Error fetching applications:", error);
-        return { error: error.message };
+        return { error: error.message || "Failed to fetch applications" };
     }
-
-    return { data: data as Application[] };
 }
 
 export async function createApplication(application: CreateApplicationData) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (!user) {
-        return { error: "User not authenticated" };
-    }
-
-    const { data, error } = await supabase
-        .from('applications')
-        .insert({
+        const db = getAdminDb();
+        const now = new Date().toISOString();
+        const docData = {
             ...application,
-            user_id: user.id
-        })
-        .select()
-        .single();
+            user_id: user.uid,
+            created_at: now,
+            updated_at: now,
+        };
 
-    if (error) {
+        const docRef = await db.collection("applications").add(docData);
+        const data = { id: docRef.id, ...docData };
+
+        revalidatePath('/applications');
+        return { data };
+    } catch (error: any) {
         console.error("Error creating application:", error);
-        return { error: error.message };
+        return { error: error.message || "Failed to create application" };
     }
-
-    revalidatePath('/applications');
-    return { data };
 }
 
 export async function updateApplication(id: string, updates: UpdateApplicationData) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (!user) {
-        return { error: "User not authenticated" };
-    }
+        const db = getAdminDb();
+        const docRef = db.collection("applications").doc(id);
+        const doc = await docRef.get();
 
-    const { data, error } = await supabase
-        .from('applications')
-        .update({
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Application not found" };
+        }
+
+        const updateData = {
             ...updates,
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+            updated_at: new Date().toISOString(),
+        };
 
-    if (error) {
+        await docRef.update(updateData);
+
+        const updated = await docRef.get();
+        const data = { id: updated.id, ...updated.data() };
+
+        revalidatePath('/applications');
+        return { data };
+    } catch (error: any) {
         console.error("Error updating application:", error);
-        return { error: error.message };
+        return { error: error.message || "Failed to update application" };
     }
-
-    revalidatePath('/applications');
-    return { data };
 }
 
 export async function deleteApplication(id: string) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    try {
+        const user = await getServerUser();
+        if (!user) {
+            return { error: "User not authenticated" };
+        }
 
-    if (!user) {
-        return { error: "User not authenticated" };
-    }
+        const db = getAdminDb();
+        const docRef = db.collection("applications").doc(id);
+        const doc = await docRef.get();
 
-    const { error } = await supabase
-        .from('applications')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Application not found" };
+        }
 
-    if (error) {
+        await docRef.delete();
+
+        revalidatePath('/applications');
+        return { success: true };
+    } catch (error: any) {
         console.error("Error deleting application:", error);
-        return { error: error.message };
+        return { error: error.message || "Failed to delete application" };
     }
-
-    revalidatePath('/applications');
-    return { success: true };
 }

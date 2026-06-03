@@ -13,14 +13,14 @@ import {
     Gear,
     SignIn,
 } from "@phosphor-icons/react";
-import { User as SupabaseUser } from "@supabase/supabase-js";
+import { type User as FirebaseUser } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { AuthPopover } from "@/components/auth/auth-popover";
 
 interface AppShellProps {
     children: React.ReactNode;
-    user?: SupabaseUser | null;
+    user?: FirebaseUser | null;
 }
 
 const NAV_ITEMS = [
@@ -174,15 +174,15 @@ export function AppShell({ children, user }: AppShellProps) {
                                     ? "bg-brand/20 text-brand"
                                     : "bg-brand/10 text-brand"
                             )}>
-                                {(user.user_metadata?.username || "?")[0]}
+                                {(user.displayName || "?")[0]}
                             </div>
                             <span className="text-[10px] mt-1 font-medium truncate w-14 text-center">
-                                {user.user_metadata?.username || user.email?.split("@")[0]}
+                                {user.displayName || user.email?.split("@")[0]}
                             </span>
 
                             {/* Tooltip */}
                             <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                <p className="text-xs font-medium">{user.user_metadata?.username || user.email?.split("@")[0]}</p>
+                                <p className="text-xs font-medium">{user.displayName || user.email?.split("@")[0]}</p>
                                 <p className="text-[10px] text-white/60 dark:text-neutral-500">Account & settings</p>
                             </div>
                         </Link>
@@ -284,13 +284,13 @@ export function AppShell({ children, user }: AppShellProps) {
                             "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold uppercase",
                             activeItem === "settings" ? "bg-brand/20 text-brand" : "bg-brand/10 text-brand"
                         )}>
-                            {(user.user_metadata?.username || "?")[0]}
+                            {(user.displayName || "?")[0]}
                         </div>
                         <span className={cn(
                             "text-[10px] mt-0.5 font-medium",
                             activeItem === "settings" && "text-brand"
                         )}>
-                            {user.user_metadata?.username || user.email?.split("@")[0]}
+                            {user.displayName || user.email?.split("@")[0]}
                         </span>
                         {activeItem === "settings" && (
                             <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />

@@ -198,12 +198,12 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                 <div className="max-w-[1600px] mx-auto h-full flex lg:gap-0">
                     {/* Left: Live Preview (Hidden on mobile unless active) */}
                     <div className={`
-                        lg:w-[42%] lg:block lg:border-r border-border bg-muted/30 overflow-y-auto p-4 lg:p-8
+                        lg:w-[45%] lg:block lg:border-r border-border bg-muted/30 overflow-y-auto overflow-x-hidden p-4 lg:p-6
                         absolute inset-0 lg:static z-20 lg:z-auto bg-background lg:bg-muted/30
                         ${mobileTab === 'preview' ? 'block' : 'hidden'}
                     `}>
                         {/* Mobile Zoom Wrapper */}
-                        <div className="min-w-[8.5in] lg:min-w-0 transform origin-top-left scale-[0.45] sm:scale-[0.6] md:scale-[0.75] lg:scale-100 h-full">
+                        <div className="min-w-[8.5in] lg:min-w-0 transform origin-top-left scale-[0.45] sm:scale-[0.6] md:scale-[0.75] lg:scale-[0.82] xl:scale-[0.92] 2xl:scale-100 h-full">
                             <LiveResumePreview
                                 data={data}
                                 onEdit={(section) => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { checkUsernameAvailability, signUp, signIn } from "@/actions/auth";
-import { createClient } from "@/lib/supabase/client";
+import { checkUsernameAvailability } from "@/actions/auth";
+import { signInWithUsername, signUpWithUsername } from "@/lib/firebase/client-auth";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useDebouncedCallback } from "use-debounce";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
@@ -13,24 +13,10 @@ export function SimpleAuthForm() {
     const [isLogin, setIsLogin] = useState(true);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [availability, setAvailability] = useState<{ available?: boolean; checking?: boolean; message?: string } | null>(null);
-
-    const [signInState, signInAction, isSigningIn] = useActionState(signIn, null);
-    const [signUpState, signUpAction, isSigningUp] = useActionState(signUp, null);
-
-    const state = isLogin ? signInState : signUpState;
-    const action = isLogin ? signInAction : signUpAction;
-    const isPending = isLogin ? isSigningIn : isSigningUp;
-
-    // React to successful sign-in/sign-up
-    useEffect(() => {
-        if (state?.success) {
-            const supabase = createClient();
-            supabase.auth.getUser().then(() => {
-                router.refresh();
-            });
-        }
-    }, [state?.success, router]);
+    const [error, setError] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     const checkAvailability = useDebouncedCallback(async (value: string) => {
         if (!value || value.length < 3) {
@@ -52,6 +38,48 @@ export function SimpleAuthForm() {
         }
     };
 
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!username || !password) {
+            setError("Username and password are required");
+            return;
+        }
+
+        setError(null);
+        startTransition(async () => {
+            try {
+                if (isLogin) {
+                    await signInWithUsername(username, password);
+                } else {
+                    // Create profile on server first, then sign in client-side
+                    const formData = new FormData();
+                    formData.append("username", username);
+                    formData.append("password", password);
+                    const { signUp } = await import("@/actions/auth");
+                    const result = await signUp(null, formData);
+                    if (result?.error) {
+                        setError(result.error);
+                        return;
+                    }
+                    // Now sign in client-side to create session
+                    await signInWithUsername(username, password);
+                }
+                router.refresh();
+            } catch (err: any) {
+                const msg = err?.message || "Authentication failed";
+                if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password") || msg.includes("auth/user-not-found")) {
+                    setError("Invalid username or password");
+                } else if (msg.includes("auth/email-already-in-use")) {
+                    setError("Username is already taken");
+                } else if (msg.includes("auth/weak-password")) {
+                    setError("Password must be at least 6 characters");
+                } else {
+                    setError(msg);
+                }
+            }
+        });
+    };
+
     if (showForgotPassword) {
         return <ForgotPasswordForm onBack={() => setShowForgotPassword(false)} />;
     }
@@ -62,10 +90,9 @@ export function SimpleAuthForm() {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                     {isLogin ? "Welcome back" : "Create account"}
                 </h2>
-                {/* Discrete message, minimal visibility */}
             </div>
 
-            <form action={action} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1">
                     <input
                         id="username"
@@ -104,19 +131,21 @@ export function SimpleAuthForm() {
                         autoComplete={isLogin ? "current-password" : "new-password"}
                         required
                         placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:text-white"
                     />
                 </div>
 
-                {state?.error && (
+                {error && (
                     <div className="mt-2 text-xs text-red-500 text-center">
-                        {state.error}
+                        {error}
                     </div>
                 )}
 
                 <button
                     type="submit"
-                    disabled={isPending || (isSigningUp && availability?.available !== true && username.length > 0)}
+                    disabled={isPending || (!isLogin && availability?.available !== true && username.length > 0)}
                     className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 mt-6"
                 >
                     {isPending ? (
@@ -144,7 +173,9 @@ export function SimpleAuthForm() {
                     onClick={() => {
                         setIsLogin(!isLogin);
                         setUsername("");
+                        setPassword("");
                         setAvailability(null);
+                        setError(null);
                     }}
                     className="text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                 >

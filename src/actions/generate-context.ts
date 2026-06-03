@@ -8,104 +8,19 @@ import { ProviderFactory } from "@/lib/llm/providers";
 const processEnv = process.env;
 
 import { ProviderConfig } from "@/lib/llm/types";
-import { decrypt } from "@/lib/encryption";
 
-// Helper to get configuration (Custom or Default)
+const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
+
+// Helper to get configuration — always uses OpenRouter
 const getConfig = async (override?: Partial<ProviderConfig>) => {
-    try {
-        const { data } = await fetchProfile();
+    const apiKey = processEnv.OPENROUTER_API_KEY || "";
+    const model = override?.model || DEFAULT_MODEL;
 
-        // 1. Determine Provider and Model
-        // Priority: Override -> DB Preferred -> Default
-        let provider: 'groq' | 'gemini' | 'openai' = 'groq';
-        let model = "llama-3.3-70b-versatile";
-
-        if (override?.provider) {
-            provider = override.provider;
-            model = override.model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'llama-3.3-70b-versatile');
-        } else if (data?.preferred_model) {
-            const rawModel = data.preferred_model;
-            if (rawModel.includes(':')) {
-                const parts = rawModel.split(':');
-                provider = parts[0] as any;
-                model = parts.slice(1).join(':');
-            } else {
-                provider = 'groq'; // Legacy default
-                model = rawModel;
-            }
-        }
-
-        // Apply Model Override if specified (and provider wasn't explicitly changed to something else)
-        if (override?.model) {
-            model = override.model;
-        }
-
-        // Auto-fix deprecated Gemini models
-        if (provider === 'gemini') {
-            if (model === 'gemini-1.5-pro' || model === 'gemini-1.5-pro-latest' || model === 'gemini-1.5-pro-002') model = 'gemini-pro-latest';
-            if (model === 'gemini-1.5-flash' || model === 'gemini-1.5-flash-latest' || model === 'gemini-1.5-flash-002') model = 'gemini-flash-latest';
-            if (model === 'gemini-pro') model = 'gemini-pro-latest';
-            if (model === 'gemini-flash') model = 'gemini-flash-latest';
-        }
-
-        // 2. Determine API Key
-        let apiKey = "";
-
-        // A. Override Key
-        if (override?.apiKey && override.apiKey.trim() !== "") {
-            apiKey = override.apiKey;
-        }
-
-        // B. DB Keys (JSON)
-        if (!apiKey && data?.custom_api_key?.trim().startsWith('{')) {
-            try {
-                const keys = JSON.parse(data.custom_api_key);
-                if (keys[provider]) {
-                    // Decrypt the key value (handles both encrypted and plaintext)
-                    apiKey = decrypt(keys[provider]);
-                }
-            } catch (e) {
-                console.warn("Failed to parse API keys JSON", e);
-            }
-        }
-
-        // C. Legacy DB Key (Text)
-        if (!apiKey && data?.custom_api_key && !data.custom_api_key.trim().startsWith('{')) {
-            if (provider === 'groq') apiKey = decrypt(data.custom_api_key);
-        }
-
-        // D. Environment Variables
-        if (!apiKey) {
-            if (provider === 'groq') apiKey = processEnv.GROQ_API_KEY || processEnv.NEXT_PUBLIC_GROQ_API_KEY || "";
-            if (!apiKey && provider === 'gemini') apiKey = processEnv.GEMINI_API_KEY || processEnv.NEXT_PUBLIC_GEMINI_API_KEY || "";
-            if (!apiKey && provider === 'openai') apiKey = processEnv.OPENAI_API_KEY || processEnv.NEXT_PUBLIC_OPENAI_API_KEY || "";
-        }
-
-        if (!apiKey) {
-            const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-            throw new Error(`Missing API key for ${providerName}. Please click the model switcher to configure your API key.`);
-        }
-
-        // Safety check: Ensure the key isn't still encrypted
-        if (apiKey.startsWith("enc:")) {
-            console.error("[getConfig] Encrypted key detected (decryption failed). Key prefix:", apiKey.substring(0, 15) + "...");
-            throw new Error(`Server Error: Unable to decrypt API key. The ENCRYPTION_KEY environment variable may be missing or incorrect.`);
-        }
-
-        // Log key prefix for debugging (first 4 chars)
-        console.log(`[getConfig] Using ${provider} key starting with: ${apiKey.substring(0, 4)}...`);
-
-        return { apiKey, provider, model };
-    } catch (e: unknown) {
-        // Fallback safety - try environment variables
-        const fallbackKey = processEnv.GROQ_API_KEY || processEnv.NEXT_PUBLIC_GROQ_API_KEY || "";
-        if (fallbackKey) {
-            console.warn("[Config] Using fallback Groq API key from environment:", e instanceof Error ? e.message : String(e));
-            return { apiKey: fallbackKey, provider: 'groq' as const, model: "llama-3.3-70b-versatile" };
-        }
-        const errorMsg = e instanceof Error ? e.message : "No API key configured";
-        throw new Error(errorMsg);
+    if (!apiKey) {
+        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
+
+    return { apiKey, provider: "openrouter", model };
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

@@ -1,16 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import { Button } from "@/components/ui/button"
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default async function AccountPage() {
-    const supabase = await createClient()
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    const user = await getServerUser();
 
     if (!user) {
-        return redirect('/')
+        return redirect("/");
     }
 
     return (
@@ -33,5 +29,5 @@ export default async function AccountPage() {
                 </form>
             </div>
         </div>
-    )
+    );
 }

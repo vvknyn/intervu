@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { encryptKeys, decryptKeys } from "@/lib/encryption";
 
 export interface ProviderApiKeys {
@@ -11,33 +12,35 @@ export interface ProviderApiKeys {
 
 export async function fetchProfile() {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        // Only select columns that exist in all schemas
-        const { data, error } = await supabase
-            .from("profiles")
-            .select("resume_text, custom_api_key, preferred_model, is_admin")
-            .eq("id", user.id)
-            .single();
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
 
-        if (error) {
-            console.error("[Profile] Fetch Error:", error);
+        if (!doc.exists) {
             // Don't error out, just return null so we can fall back to default if needed
             return { data: null };
         }
 
+        const docData = doc.data();
+        const data: Record<string, any> = {
+            resume_text: docData?.resume_text ?? null,
+            custom_api_key: docData?.custom_api_key ?? null,
+            preferred_model: docData?.preferred_model ?? null,
+            is_admin: docData?.is_admin ?? false,
+        };
+
         // Parse custom_api_key if it's JSON (contains provider keys)
-        if (data && data.custom_api_key) {
+        if (data.custom_api_key) {
             try {
                 const parsed = JSON.parse(data.custom_api_key);
                 // If it's a valid JSON object with provider keys, attach it
                 if (parsed && typeof parsed === 'object') {
-                    (data as any).provider_api_keys = parsed;
+                    data.provider_api_keys = parsed;
                 }
             } catch {
                 // Not JSON, that's okay - it's a legacy single key
@@ -52,57 +55,41 @@ export async function fetchProfile() {
 
 export async function updateResume(resumeText: string) {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        console.log("[Profile] Updating resume for:", user.id);
+        console.log("[Profile] Updating resume for:", user.uid);
 
-        const { error } = await supabase
-            .from("profiles")
-            .update({ resume_text: resumeText })
-            .eq("id", user.id);
-
-        if (error) {
-            console.error("[Profile] Update Error:", error);
-            return { error: error.message };
-        }
+        const db = getAdminDb();
+        await db.collection("profiles").doc(user.uid).update({
+            resume_text: resumeText,
+        });
 
         return { success: true };
     } catch (e: any) {
+        console.error("[Profile] Update Error:", e);
         return { error: e.message };
     }
 }
 
 export async function updateModelSettings(apiKey: string, model: string) {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        console.log("[Profile] Updating model settings for:", user.id);
+        console.log("[Profile] Updating model settings for:", user.uid);
 
-        // Simply save to custom_api_key (works for both JSON and plain text)
-        const updateData: Record<string, unknown> = {
+        const db = getAdminDb();
+        await db.collection("profiles").doc(user.uid).update({
             preferred_model: model,
-            custom_api_key: apiKey
-        };
-
-        const { error } = await supabase
-            .from("profiles")
-            .update(updateData)
-            .eq("id", user.id);
-
-        if (error) {
-            console.error("[Profile] Settings Update Error:", error);
-            return { error: error.message };
-        }
+            custom_api_key: apiKey,
+        });
 
         // Revalidate cache to ensure new settings take effect everywhere
         try {
@@ -114,6 +101,7 @@ export async function updateModelSettings(apiKey: string, model: string) {
 
         return { success: true };
     } catch (e: any) {
+        console.error("[Profile] Settings Update Error:", e);
         return { error: e.message };
     }
 }
@@ -124,33 +112,26 @@ export async function updateModelSettings(apiKey: string, model: string) {
  */
 export async function saveProviderApiKeys(keys: ProviderApiKeys) {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        console.log("[Profile] Saving provider API keys for:", user.id);
+        console.log("[Profile] Saving provider API keys for:", user.uid);
 
         // Encrypt API key values before storing
         const encryptedKeys = encryptKeys(keys as Record<string, string | undefined>);
 
-        const { error } = await supabase
-            .from("profiles")
-            .update({
-                custom_api_key: JSON.stringify(encryptedKeys)
-            })
-            .eq("id", user.id);
-
-        if (error) {
-            console.error("[Profile] API Keys Save Error:", error);
-            return { error: error.message };
-        }
+        const db = getAdminDb();
+        await db.collection("profiles").doc(user.uid).update({
+            custom_api_key: JSON.stringify(encryptedKeys),
+        });
 
         console.log("[Profile] API keys saved successfully");
         return { success: true };
     } catch (e: any) {
+        console.error("[Profile] API Keys Save Error:", e);
         return { error: e.message };
     }
 }
@@ -160,28 +141,26 @@ export async function saveProviderApiKeys(keys: ProviderApiKeys) {
  */
 export async function loadProviderApiKeys(): Promise<{ data?: ProviderApiKeys; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
 
-        const { data, error } = await supabase
-            .from("profiles")
-            .select("custom_api_key")
-            .eq("id", user.id)
-            .single();
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
 
-        if (error) {
-            console.error("[Profile] API Keys Load Error:", error);
-            return { error: error.message };
+        if (!doc.exists) {
+            return { data: {} };
         }
 
+        const docData = doc.data();
+        const customApiKey = docData?.custom_api_key;
+
         // Parse custom_api_key if it's JSON, then decrypt values
-        if (data?.custom_api_key) {
+        if (customApiKey) {
             try {
-                const parsed = JSON.parse(data.custom_api_key);
+                const parsed = JSON.parse(customApiKey);
                 if (parsed && typeof parsed === 'object') {
                     // Decrypt API key values (handles both encrypted and plaintext for backwards compat)
                     const decrypted = decryptKeys(parsed);

@@ -3,9 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { KeyboardEvent } from "react";
-import { User as SupabaseUser } from "@supabase/supabase-js";
+import { type User as FirebaseUser } from "firebase/auth";
 
-import { ModelSwitcher } from "@/components/dashboard/ModelSwitcher";
 import { PrepSettings, QuestionSettings } from "@/components/dashboard/PrepSettings";
 
 interface HeaderProps {
@@ -20,16 +19,10 @@ interface HeaderProps {
   company?: string;
   position?: string;
   round?: string;
-  user: SupabaseUser | null;
+  user: FirebaseUser | null;
   showSearch?: boolean;
   title?: string;
   onOpenSidebar?: () => void;
-  modelProvider?: 'groq' | 'gemini' | 'openai';
-  modelId?: string;
-  onModelChange?: (provider: 'groq' | 'gemini' | 'openai', modelId: string) => void;
-  apiKeys?: { groq?: string; gemini?: string; openai?: string };
-  onConfigureKey?: (provider: 'groq' | 'gemini' | 'openai') => void;
-  onRemoveKey?: (provider: 'groq' | 'gemini' | 'openai') => void;
   onRegenerateAll?: () => void;
   isRegeneratingAll?: boolean;
   prepSettings?: QuestionSettings;
@@ -58,12 +51,6 @@ export function Header({
   showSearch = true,
   title,
   onOpenSidebar,
-  modelProvider,
-  modelId,
-  onModelChange,
-  apiKeys,
-  onConfigureKey,
-  onRemoveKey,
   onRegenerateAll,
   isRegeneratingAll = false,
   prepSettings,
@@ -232,20 +219,6 @@ export function Header({
             </button>
           )}
 
-          {/* Model Switcher — desktop only */}
-          {modelProvider && modelId && onModelChange && (
-            <div data-tour="model-switcher" className="hidden sm:block">
-              <ModelSwitcher
-                provider={modelProvider}
-                model={modelId}
-                onModelChange={onModelChange}
-                apiKeys={apiKeys}
-                onConfigureKey={onConfigureKey}
-                onRemoveKey={onRemoveKey}
-              />
-            </div>
-          )}
-
           {/* Mobile overflow menu (⋮) — contains all hidden actions */}
           <Popover>
             <PopoverTrigger asChild>
@@ -254,21 +227,6 @@ export function Header({
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-auto min-w-[10rem] p-1.5 sm:hidden">
-              {/* Model Switcher — full width */}
-              {modelProvider && modelId && onModelChange && (
-                <div className="pb-1.5 mb-1.5 border-b border-border">
-                  <ModelSwitcher
-                    provider={modelProvider}
-                    model={modelId}
-                    onModelChange={onModelChange}
-                    apiKeys={apiKeys}
-                    onConfigureKey={onConfigureKey}
-                    onRemoveKey={onRemoveKey}
-                    className="w-full"
-                  />
-                </div>
-              )}
-
               {onRegenerateAll && (
                 <button
                   onClick={onRegenerateAll}

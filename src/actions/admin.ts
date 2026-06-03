@@ -1,59 +1,56 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function getAppConfig() {
-    const supabase = await createClient();
+    try {
+        const db = getAdminDb();
+        const doc = await db.collection("app_config").doc("main").get();
 
-    const { data, error } = await supabase
-        .from("app_config")
-        .select("*")
-        .eq("id", 1)
-        .single();
+        if (!doc.exists) {
+            console.error("[Admin] app_config/main document not found");
+            return { data: null, error: "App config not found" };
+        }
 
-    if (error) {
+        return { data: doc.data() as { show_donation: boolean; donation_url: string; updated_at?: string } };
+    } catch (error: any) {
         console.error("[Admin] Failed to fetch app config:", error);
         return { data: null, error: error.message };
     }
-
-    return { data };
 }
 
 export async function updateAppConfig(updates: {
     show_donation?: boolean;
     donation_url?: string;
 }) {
-    const supabase = await createClient();
-
-    const { error } = await supabase
-        .from("app_config")
-        .update({
+    try {
+        const db = getAdminDb();
+        await db.collection("app_config").doc("main").update({
             ...updates,
             updated_at: new Date().toISOString(),
-        })
-        .eq("id", 1);
+        });
 
-    if (error) {
+        return { success: true };
+    } catch (error: any) {
         console.error("[Admin] Failed to update app config:", error);
         return { error: error.message };
     }
-
-    return { success: true };
 }
 
 export async function isCurrentUserAdmin(): Promise<boolean> {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getServerUser();
     if (!user) return false;
 
-    const { data, error } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
+    try {
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
 
-    if (error || !data) return false;
+        if (!doc.exists) return false;
 
-    return data.is_admin === true;
+        return doc.data()?.is_admin === true;
+    } catch (error) {
+        console.error("[Admin] Error checking admin status:", error);
+        return false;
+    }
 }

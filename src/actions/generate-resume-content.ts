@@ -2,71 +2,19 @@
 
 import { ProviderFactory } from "@/lib/llm/providers";
 import { ProviderConfig } from "@/lib/llm/types";
-import { fetchProfile } from "@/actions/profile";
 
 const processEnv = process.env;
+const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
 
-// Helper to get configuration (same approach as generate-context.ts)
 const getConfig = async (override?: Partial<ProviderConfig>) => {
-    try {
-        // 1. Check Override first (for guest users)
-        if (override?.apiKey && override?.provider) {
-            return {
-                apiKey: override.apiKey,
-                provider: override.provider,
-                model: override.model || (override.provider === 'gemini' ? 'gemini-1.5-flash' : 'llama-3.3-70b-versatile')
-            };
-        }
+    const apiKey = processEnv.OPENROUTER_API_KEY || "";
+    const model = override?.model || DEFAULT_MODEL;
 
-        const { data } = await fetchProfile();
-
-        // Parse preferred_model for provider:model format
-        const rawModel = override?.model || data?.preferred_model || "groq:llama-3.3-70b-versatile";
-        let provider: 'groq' | 'gemini' | 'openai' = 'groq';
-        let model = rawModel;
-
-        if (rawModel.includes(':')) {
-            const parts = rawModel.split(':');
-            provider = parts[0] as any;
-            model = parts.slice(1).join(':');
-        } else {
-            provider = 'groq';
-            model = rawModel || "llama-3.3-70b-versatile";
-        }
-
-        // Handle API Key
-        let apiKey = "";
-
-        // 1. Try JSON stored in DB custom_api_key
-        if (data?.custom_api_key?.trim().startsWith('{')) {
-            try {
-                const keys = JSON.parse(data.custom_api_key);
-                apiKey = keys[provider];
-            } catch (e) {
-                console.warn("Failed to parse API keys JSON", e);
-            }
-        }
-
-        // 2. Legacy fallback
-        if (!apiKey && data?.custom_api_key && !data.custom_api_key.trim().startsWith('{')) {
-            if (provider === 'groq') apiKey = data.custom_api_key;
-        }
-
-        // 3. Environment fallback
-        if (!apiKey) {
-            if (provider === 'groq') apiKey = processEnv.GROQ_API_KEY || processEnv.NEXT_PUBLIC_GROQ_API_KEY || "";
-            if (provider === 'gemini') apiKey = processEnv.GEMINI_API_KEY || processEnv.NEXT_PUBLIC_GEMINI_API_KEY || "";
-            if (provider === 'openai') apiKey = processEnv.OPENAI_API_KEY || processEnv.NEXT_PUBLIC_OPENAI_API_KEY || "";
-        }
-
-        if (!apiKey) throw new Error(`Missing API Key for ${provider}. Please configure it in Settings.`);
-
-        return { apiKey, provider, model };
-    } catch (e: unknown) {
-        const apiKey = processEnv.GROQ_API_KEY || processEnv.NEXT_PUBLIC_GROQ_API_KEY;
-        if (!apiKey) throw new Error("Critical: No API Key available. " + (e instanceof Error ? e.message : ""));
-        return { apiKey, provider: 'groq' as const, model: "llama-3.3-70b-versatile" };
+    if (!apiKey) {
+        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
+
+    return { apiKey, provider: "openrouter", model };
 };
 
 // Generate professional summary
@@ -170,28 +118,6 @@ export async function generateExperienceBullets(params: {
             - DO NOT change their numbers or metrics
             - DO NOT remove technical specifics to make it more "general"
 
-            === HOW TO HANDLE DIFFERENT INPUT TYPES ===
-
-            IF the user provided detailed bullet points:
-            → Polish the wording, add STAR structure, but keep 90% of their content intact
-            → Example: "Built API using Node.js, reduced latency 40%" → Expand into full STAR sentence keeping "Node.js" and "40%"
-
-            IF the user provided rough notes or fragments:
-            → Transform into complete sentences while preserving ALL technical details they mentioned
-            → Example: "worked on payment system, stripe integration, PCI compliance" → Full bullets about Stripe, PCI, payment work
-
-            IF the user provided very little:
-            → Generate reasonable content based on role/company, but keep it conservative and realistic
-            → Don't invent impressive metrics - use qualitative descriptions instead
-
-            === STAR FRAMEWORK (WEAVE NATURALLY INTO EACH BULLET) ===
-
-            Each bullet point should weave together these elements naturally:
-            - SITUATION: What was the context, challenge, or problem?
-            - TASK: What was your specific responsibility or goal?
-            - ACTION: What did YOU specifically do? (Be detailed about your approach)
-            - RESULT: What was the measurable outcome or impact?
-
             === FORMAT REQUIREMENTS ===
 
             1. GENERATE 4-5 BULLET POINTS
@@ -201,66 +127,11 @@ export async function generateExperienceBullets(params: {
             === WRITING STYLE - FAANG/BIG TECH PROFESSIONAL ===
 
             Write like a senior engineer at Google, Meta, or Amazon would write their resume.
-            Professional, precise, impactful - but not robotic or full of corporate jargon.
-
-            KEY CHARACTERISTICS:
-            - Confident and direct, not hedging or overly humble
-            - Technical depth with clear business impact
-            - Quantified results with specific metrics
-            - Shows ownership and scope of influence
-            - Demonstrates system-level thinking
-
-            SENTENCE PATTERNS (vary these):
-
-            Pattern A - Impact-first:
-            "Reduced [metric] by [X]% by designing and implementing [specific solution] for [system/product]"
-
-            Pattern B - Scale + Technical:
-            "Architected [system] handling [scale: QPS, users, data volume] using [technologies], enabling [business outcome]"
-
-            Pattern C - Leadership + Delivery:
-            "Led [X]-person team to deliver [project] on [timeline], resulting in [measurable impact]"
-
-            Pattern D - Problem → Solution → Impact:
-            "Identified [bottleneck/issue] in [system], redesigned [component] using [approach], improving [metric] from [X] to [Y]"
-
-            Pattern E - Ownership:
-            "Owned end-to-end [feature/system] serving [scale], from technical design through launch, achieving [outcome]"
-
-            === THINGS TO INCLUDE ===
-
-            - Specific technologies, architectures, and technical decisions
-            - Scale: QPS, DAU/MAU, data volume, team size, budget
-            - Precise metrics: latency (p50, p99), throughput, availability, cost savings
-            - Scope of ownership and decision-making authority
-            - Cross-functional collaboration with specific teams (PM, Data Science, SRE)
-            - Business impact tied to technical work
 
             === AVOID ===
 
             - Overused words: "Spearheaded", "Leveraged", "Utilized", "Synergy"
             - Vague claims without specifics
-            - Overly casual language ("pretty much", "kind of", "worked on stuff")
-            - Generic statements that don't differentiate you
-
-            === EXCELLENT EXAMPLES (FAANG-STYLE) ===
-
-            "Architected and implemented a distributed caching layer using Redis Cluster, reducing API latency p99 from 850ms to 120ms and handling 50K QPS at peak load for the checkout service serving 12M monthly active users."
-
-            "Led a team of 4 engineers to redesign the notification delivery pipeline, migrating from a polling-based system to event-driven architecture with Kafka, reducing infrastructure costs by $180K annually while improving delivery reliability from 94% to 99.7%."
-
-            "Owned the search ranking algorithm improvements for the discovery feed, collaborating with ML engineers to implement real-time personalization that increased user engagement by 18% and click-through rate by 31% based on A/B testing across 5M users."
-
-            "Identified and resolved a critical memory leak in the core payment processing service that was causing cascading failures during traffic spikes. Implemented circuit breakers and improved monitoring, eliminating the P0 incidents that had been occurring weekly."
-
-            "Designed and built an internal developer platform that automated environment provisioning, reducing new engineer onboarding time from 3 days to 4 hours and enabling 200+ developers to self-serve staging deployments."
-
-            === BAD EXAMPLES (DO NOT WRITE LIKE THIS) ===
-
-            "Worked on various backend services" (too vague, no impact)
-            "Helped improve system performance" (no ownership, no metrics)
-            "Was responsible for the payment system" (passive, no achievements)
-            "Utilized microservices architecture to deliver solutions" (buzzwordy, no specifics)
 
             Return ONLY a JSON object:
             { "bullets": ["First detailed bullet point here", "Second detailed bullet point here", ...] }
@@ -280,7 +151,6 @@ export async function generateExperienceBullets(params: {
             const parsed = JSON.parse(response.text || "{}");
             return { bullets: parsed.bullets || [] };
         } catch (parseError) {
-            // Fallback: try to extract bullets from plain text
             const lines = response.text?.split('\n').filter(line => line.trim().length > 0) || [];
             return { bullets: lines.slice(0, 5) };
         }

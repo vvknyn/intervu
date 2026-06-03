@@ -12,8 +12,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { StarStory, SourceItem } from "@/types";
 import { fetchProfile } from "@/actions/profile";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
@@ -47,22 +46,22 @@ function LibraryContent() {
     const defaultTab = searchParams.get("tab") === "sources" ? "sources" : "stories";
 
     useEffect(() => {
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data }) => setUser(data.user));
+        const currentUser = getCurrentUser();
+        if (currentUser) setUser(currentUser);
 
         fetchProfile().then(({ data }) => {
             if (data && (data as any).is_admin) setIsAdmin(true);
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const unsubscribe = onAuthChange((firebaseUser) => {
             if (isSigningOut.current) return;
-            setUser(session?.user ?? null);
-            if (event === "SIGNED_IN") {
+            setUser(firebaseUser);
+            if (firebaseUser) {
                 router.refresh();
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => unsubscribe();
     }, [router]);
 
     useEffect(() => {
@@ -90,13 +89,12 @@ function LibraryContent() {
             }
         };
         loadData();
-    }, [user?.id]);
+    }, [user?.uid]);
 
     const handleSignOut = async () => {
         isSigningOut.current = true;
         localStorage.clear();
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await firebaseSignOut();
         window.location.href = "/";
     };
 

@@ -1,6 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { ApplicationDraft } from "@/components/applications/ApplicationWizard";
 
 /**
@@ -8,9 +9,7 @@ import { ApplicationDraft } from "@/components/applications/ApplicationWizard";
  */
 export async function createApplicationDraft(draft: ApplicationDraft): Promise<{ data?: { id: string }; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
+        const user = await getServerUser();
         if (!user) {
             return { error: "Must be authenticated to create application" };
         }
@@ -20,28 +19,21 @@ export async function createApplicationDraft(draft: ApplicationDraft): Promise<{
             return { error: "Company name and position are required" };
         }
 
-        // Insert into applications table
-        const { data, error } = await supabase
-            .from('applications')
-            .insert({
-                user_id: user.id,
-                company_name: draft.jobAnalysis.companyName,
-                position: draft.jobAnalysis.positionTitle,
-                job_url: draft.jobUrl || null,
-                // job_description: draft.jobText || null, // Ensure migration 20260207010000 is applied before uncommenting
-                status: 'applied',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .select('id')
-            .single();
+        const db = getAdminDb();
+        const now = new Date().toISOString();
 
-        if (error) {
-            console.error("Failed to create application draft:", error);
-            return { error: error.message };
-        }
+        const docRef = await db.collection("applications").add({
+            user_id: user.uid,
+            company_name: draft.jobAnalysis.companyName,
+            position: draft.jobAnalysis.positionTitle,
+            job_url: draft.jobUrl || null,
+            // job_description: draft.jobText || null, // Ensure migration is applied before uncommenting
+            status: 'applied',
+            created_at: now,
+            updated_at: now,
+        });
 
-        return { data: { id: data.id } };
+        return { data: { id: docRef.id } };
     } catch (e: any) {
         console.error("Create application draft error:", e);
         return { error: e.message || "Failed to create application draft" };
@@ -53,20 +45,17 @@ export async function createApplicationDraft(draft: ApplicationDraft): Promise<{
  */
 export async function fetchApplicationById(id: string): Promise<{ data?: any; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
+        const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
 
-        const { data, error } = await supabase
-            .from('applications')
-            .select('*')
-            .eq('id', id)
-            .eq('user_id', user.id)
-            .single();
+        const db = getAdminDb();
+        const doc = await db.collection("applications").doc(id).get();
 
-        if (error) throw error;
-        return { data };
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Application not found" };
+        }
+
+        return { data: { id: doc.id, ...doc.data() } };
     } catch (e: any) {
         console.error("Fetch application error:", e);
         return { error: e.message };
@@ -81,21 +70,22 @@ export async function linkResumeVersionToApplication(
     resumeVersionId: string
 ): Promise<{ error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
+        const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
 
-        const { error } = await supabase
-            .from('applications')
-            .update({
-                resume_version_id: resumeVersionId,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', applicationId)
-            .eq('user_id', user.id);
+        const db = getAdminDb();
+        const docRef = db.collection("applications").doc(applicationId);
+        const doc = await docRef.get();
 
-        if (error) throw error;
+        if (!doc.exists || doc.data()?.user_id !== user.uid) {
+            return { error: "Application not found" };
+        }
+
+        await docRef.update({
+            resume_version_id: resumeVersionId,
+            updated_at: new Date().toISOString(),
+        });
+
         return {};
     } catch (e: any) {
         console.error("Link resume version error:", e);
