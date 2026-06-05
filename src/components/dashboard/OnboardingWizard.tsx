@@ -60,13 +60,13 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
 
     // Step 4: Model
     const [provider, setProvider] = useState<"openrouter" | "groq">("openrouter");
-    const [model, setModel] = useState("openrouter/owl-alpha");
+    const [model, setModel] = useState("openai/gpt-4o-mini");
     const [apiKey, setApiKey] = useState("");
 
     const PROVIDER_MODELS = {
         openrouter: [
-            { id: "openrouter/owl-alpha", name: "Owl Alpha (Default, free)" },
-            { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
+            { id: "openai/gpt-4o-mini", name: "GPT-4o mini (Default)" },
+            { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
             { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku" }
         ],
         groq: [
@@ -79,7 +79,7 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
     // Update model when provider changes
     useEffect(() => {
         const defaults = {
-            openrouter: "openrouter/owl-alpha",
+            openrouter: "openai/gpt-4o-mini",
             groq: "llama-3.3-70b-versatile"
         };
         setModel(defaults[provider]);

@@ -1,14 +1,13 @@
 export const DEFAULT_PROVIDER = "openrouter";
-// App-provided default. Owl Alpha is free (no per-token cost) with a ~1M context window,
-// so it works even when the shared OpenRouter balance is depleted.
-export const DEFAULT_MODEL = "openrouter/owl-alpha";
+// App-provided default. A stable, cheap, JSON-reliable model on the shared OpenRouter key.
+// (Replaced the free `owl-alpha` stealth model, which proved unstable — started 400-ing.)
+export const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
 export const AVAILABLE_MODELS = {
     openrouter: [
-        { id: "openrouter/owl-alpha", name: "Owl Alpha", description: "Default — free, fast, ~1M context", category: "Free" as const },
-        { id: "openai/gpt-4o-mini", name: "GPT-4o mini", description: "Fast & cheap, reliable JSON", category: "Paid" as const },
-        { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku", description: "Fast, high quality", category: "Paid" as const },
+        { id: "openai/gpt-4o-mini", name: "GPT-4o mini", description: "Default — fast, cheap, reliable JSON", category: "Paid" as const },
         { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Very fast, low cost", category: "Paid" as const },
+        { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku", description: "Fast, high quality", category: "Paid" as const },
         { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B", description: "Open model", category: "Paid" as const },
         { id: "deepseek/deepseek-chat", name: "DeepSeek V3", description: "Capable, low cost", category: "Paid" as const },
     ],
