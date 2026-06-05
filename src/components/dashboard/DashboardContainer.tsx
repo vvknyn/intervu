@@ -802,7 +802,9 @@ export function DashboardContainer() {
                 params.set('position', parsed.position);
                 params.set('round', parsed.round);
                 params.set('searched', 'true');
-                router.push(`/?${params.toString()}`);
+                // Update the URL in place — NOT via the Next router — so the [searchParams]
+                // init effect doesn't re-fire and re-run a second (token-wasting) analysis.
+                window.history.replaceState(null, "", `/?${params.toString()}`);
                 return;
             }
         }
@@ -929,7 +931,9 @@ export function DashboardContainer() {
             params.set('position', parsed.position);
             params.set('round', parsed.round);
             params.set('searched', 'true');
-            router.push(`/?${params.toString()}`);
+            // Update the URL in place — NOT via the Next router — so the [searchParams]
+            // init effect doesn't re-fire and re-run a second (token-wasting) analysis.
+            window.history.replaceState(null, "", `/?${params.toString()}`);
 
       } catch (e: unknown) {
             let errorMessage = "Analysis failed due to an unexpected error.";
