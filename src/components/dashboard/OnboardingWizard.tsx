@@ -60,13 +60,13 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
 
     // Step 4: Model
     const [provider, setProvider] = useState<"openrouter" | "groq">("openrouter");
-    const [model, setModel] = useState("openai/gpt-4o-mini");
+    const [model, setModel] = useState("deepseek/deepseek-v4-flash");
     const [apiKey, setApiKey] = useState("");
 
     const PROVIDER_MODELS = {
         openrouter: [
-            { id: "openai/gpt-4o-mini", name: "GPT-4o mini (Default)" },
-            { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+            { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash (Default)" },
+            { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
             { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku" }
         ],
         groq: [
@@ -79,7 +79,7 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
     // Update model when provider changes
     useEffect(() => {
         const defaults = {
-            openrouter: "openai/gpt-4o-mini",
+            openrouter: "deepseek/deepseek-v4-flash",
             groq: "llama-3.3-70b-versatile"
         };
         setModel(defaults[provider]);

@@ -159,7 +159,7 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
 }
 
 export class OpenRouterProvider extends OpenAICompatibleProvider {
-    constructor(apiKey: string, model: string = 'openai/gpt-4o-mini') {
+    constructor(apiKey: string, model: string = 'deepseek/deepseek-v4-flash') {
         super('OpenRouter', apiKey, model, 'https://openrouter.ai/api/v1', {
             'HTTP-Referer': 'https://intervu.cc',
             'X-Title': 'Intervu',
