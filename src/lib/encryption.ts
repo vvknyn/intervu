@@ -13,11 +13,17 @@ function getEncryptionKey(): Buffer | null {
 /**
  * Encrypt a plaintext string using AES-256-GCM.
  * Returns a base64-encoded string containing iv:tag:ciphertext.
- * If ENCRYPTION_KEY is not set, returns the plaintext unchanged.
+ * Throws if ENCRYPTION_KEY is not set — we never persist secrets in plaintext.
  */
 export function encrypt(plaintext: string): string {
     const key = getEncryptionKey();
-    if (!key) return plaintext;
+    if (!key) {
+        // Never silently persist secrets in cleartext. A missing key is a misconfiguration.
+        throw new Error(
+            "ENCRYPTION_KEY is not set — refusing to store API keys unencrypted. " +
+            "Set a 32-byte (64 hex char) ENCRYPTION_KEY in the environment."
+        );
+    }
 
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);

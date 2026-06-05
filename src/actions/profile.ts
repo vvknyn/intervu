@@ -5,9 +5,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { encryptKeys, decryptKeys } from "@/lib/encryption";
 
 export interface ProviderApiKeys {
+    openrouter?: string;
     groq?: string;
-    gemini?: string;
-    openai?: string;
 }
 
 export async function fetchProfile() {
@@ -30,6 +29,7 @@ export async function fetchProfile() {
         const data: Record<string, any> = {
             resume_text: docData?.resume_text ?? null,
             custom_api_key: docData?.custom_api_key ?? null,
+            preferred_provider: docData?.preferred_provider ?? null,
             preferred_model: docData?.preferred_model ?? null,
             is_admin: docData?.is_admin ?? false,
         };
@@ -173,6 +173,104 @@ export async function loadProviderApiKeys(): Promise<{ data?: ProviderApiKeys; e
 
         return { data: {} };
     } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+/**
+ * Persist which provider + model the user wants to use (does NOT touch stored keys).
+ */
+export async function updateModelPreference(provider: string, model: string) {
+    try {
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
+
+        const db = getAdminDb();
+        await db.collection("profiles").doc(user.uid).update({
+            preferred_provider: provider,
+            preferred_model: model,
+        });
+        return { success: true };
+    } catch (e: any) {
+        console.error("[Profile] Model preference update error:", e);
+        return { error: e.message };
+    }
+}
+
+/**
+ * Resolve the signed-in user's preferred provider + DECRYPTED key + model in a single read.
+ * Returns null if the user has not configured their own key (caller falls back to the app default).
+ * Decryption happens server-side only — the key never leaves the server.
+ */
+export async function getUserLLMConfig(): Promise<{ provider: string; apiKey: string; model?: string } | null> {
+    try {
+        const user = await getServerUser();
+        if (!user) return null;
+
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
+        if (!doc.exists) return null;
+
+        const d = doc.data() || {};
+        let keys: Record<string, string | undefined> = {};
+        if (d.custom_api_key) {
+            try {
+                const parsed = JSON.parse(d.custom_api_key);
+                if (parsed && typeof parsed === "object") {
+                    keys = decryptKeys(parsed) as Record<string, string | undefined>;
+                }
+            } catch {
+                // legacy single-key string — ignore for BYOK resolution
+            }
+        }
+
+        const preferred = d.preferred_provider as string | undefined;
+        const provider = preferred && keys[preferred]
+            ? preferred
+            : (keys.openrouter ? "openrouter" : keys.groq ? "groq" : undefined);
+
+        if (!provider || !keys[provider]) return null;
+        return { provider, apiKey: keys[provider]!, model: d.preferred_model || undefined };
+    } catch (e: any) {
+        console.warn("[Profile] getUserLLMConfig failed:", e.message);
+        return null;
+    }
+}
+
+/**
+ * Set (or clear, if key is empty) a single provider's API key, merging with existing keys.
+ * Runs entirely server-side: existing keys are decrypted, merged, and re-encrypted, so other
+ * providers' keys are preserved and plaintext never round-trips through the client.
+ */
+export async function saveProviderApiKey(provider: string, key: string) {
+    try {
+        const user = await getServerUser();
+        if (!user) return { error: "Unauthorized" };
+
+        const db = getAdminDb();
+        const doc = await db.collection("profiles").doc(user.uid).get();
+
+        let current: Record<string, string | undefined> = {};
+        const existing = doc.exists ? doc.data()?.custom_api_key : undefined;
+        if (existing) {
+            try {
+                const parsed = JSON.parse(existing);
+                if (parsed && typeof parsed === "object") current = decryptKeys(parsed);
+            } catch {
+                // legacy single-key string — start fresh
+            }
+        }
+
+        const trimmed = key.trim();
+        if (trimmed) current[provider] = trimmed;
+        else delete current[provider];
+
+        await db.collection("profiles").doc(user.uid).update({
+            custom_api_key: JSON.stringify(encryptKeys(current)),
+        });
+        return { success: true };
+    } catch (e: any) {
+        console.error("[Profile] saveProviderApiKey error:", e);
         return { error: e.message };
     }
 }

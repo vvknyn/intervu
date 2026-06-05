@@ -2,25 +2,34 @@
 
 import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, TechnicalData, CodingChallenge, AnswerCritique, QuestionItem, SystemDesignData } from "@/types";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
-import { fetchProfile } from "@/actions/profile";
+import { getUserLLMConfig } from "@/actions/profile";
 import { ProviderFactory } from "@/lib/llm/providers";
+import { ProviderConfig } from "@/lib/llm/types";
+import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 
 const processEnv = process.env;
 
-import { ProviderConfig } from "@/lib/llm/types";
-
-const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
-
-// Helper to get configuration — always uses OpenRouter
+// Resolve LLM config: explicit override → the user's own key (BYOK) → app default (shared OpenRouter key + Owl Alpha).
+// Keys are decrypted server-side only and never returned to the client.
 const getConfig = async (override?: Partial<ProviderConfig>) => {
-    const apiKey = processEnv.OPENROUTER_API_KEY || "";
-    const model = override?.model || DEFAULT_MODEL;
+    // 1. Explicit override carrying a concrete key (rare).
+    if (override?.apiKey && override?.provider) {
+        return { apiKey: override.apiKey, provider: override.provider, model: override.model || DEFAULT_MODEL };
+    }
 
+    // 2. The signed-in user's own provider key (BYOK).
+    const userCfg = await getUserLLMConfig();
+    if (userCfg) {
+        const fallbackModel = AVAILABLE_MODELS[userCfg.provider as Provider]?.[0]?.id || DEFAULT_MODEL;
+        return { apiKey: userCfg.apiKey, provider: userCfg.provider, model: override?.model || userCfg.model || fallbackModel };
+    }
+
+    // 3. App default — shared OpenRouter key + Owl Alpha.
+    const apiKey = processEnv.OPENROUTER_API_KEY || "";
     if (!apiKey) {
         throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
-
-    return { apiKey, provider: "openrouter", model };
+    return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

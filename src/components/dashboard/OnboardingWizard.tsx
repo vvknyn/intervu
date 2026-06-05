@@ -59,35 +59,28 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
     const [sourceType, setSourceType] = useState<"url" | "text">("url");
 
     // Step 4: Model
-    const [provider, setProvider] = useState<"groq" | "gemini" | "openai">("groq");
-    const [model, setModel] = useState("llama-3.3-70b-versatile");
+    const [provider, setProvider] = useState<"openrouter" | "groq">("openrouter");
+    const [model, setModel] = useState("openrouter/owl-alpha");
     const [apiKey, setApiKey] = useState("");
 
     const PROVIDER_MODELS = {
+        openrouter: [
+            { id: "openrouter/owl-alpha", name: "Owl Alpha (Default, free)" },
+            { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
+            { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku" }
+        ],
         groq: [
             { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B (Recommended)" },
-            { id: "llama3-8b-8192", name: "Llama 3 8B (Fast)" },
-            { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+            { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B (Fast)" },
             { id: "gemma2-9b-it", name: "Gemma 2 9B" }
-        ],
-        gemini: [
-            { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Fast)" },
-            { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Powerful)" },
-            { id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash (Preview)" }
-        ],
-        openai: [
-            { id: "gpt-4o", name: "GPT-4o (Best)" },
-            { id: "gpt-4o-mini", name: "GPT-4o Mini (Fast)" },
-            { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" }
         ]
     };
 
     // Update model when provider changes
     useEffect(() => {
         const defaults = {
-            groq: "llama-3.3-70b-versatile",
-            gemini: "gemini-1.5-flash",
-            openai: "gpt-4o"
+            openrouter: "openrouter/owl-alpha",
+            groq: "llama-3.3-70b-versatile"
         };
         setModel(defaults[provider]);
     }, [provider]);
@@ -377,9 +370,8 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="groq">Groq (Fastest & Free Tier)</SelectItem>
-                                        <SelectItem value="gemini">Google Gemini</SelectItem>
-                                        <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                                        <SelectItem value="openrouter">OpenRouter (Default model included)</SelectItem>
+                                        <SelectItem value="groq">Groq (Fastest, free tier)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -404,7 +396,7 @@ export function OnboardingWizard({ isOpen, onComplete, initialResume = "", initi
                                 <Label>API Key {provider === 'groq' ? '(Optional)' : '(Required)'}</Label>
                                 <Input
                                     type="password"
-                                    placeholder={`Enter your ${provider === 'openai' ? 'OpenAI' : provider === 'gemini' ? 'Gemini' : 'Groq'} API Key...`}
+                                    placeholder={`Enter your ${provider === 'openrouter' ? 'OpenRouter' : 'Groq'} API Key...`}
                                     value={apiKey}
                                     onChange={(e) => setApiKey(e.target.value)}
                                 />

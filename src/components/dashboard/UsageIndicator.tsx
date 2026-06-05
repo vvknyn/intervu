@@ -15,7 +15,7 @@ const usageCache = new Map<string, { result: CheckUsageResult; timestamp: number
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
 interface UsageIndicatorProps {
-    provider: 'groq' | 'gemini' | 'openai';
+    provider: 'openrouter' | 'groq';
     apiKey?: string;
     compact?: boolean;
     autoCheck?: boolean;

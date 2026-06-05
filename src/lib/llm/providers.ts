@@ -41,6 +41,10 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
     const message = error?.message || String(error);
     const lowerMessage = message.toLowerCase();
 
+    if (error?.status === 402 || lowerMessage.includes('insufficient credit') || lowerMessage.includes('add more using')) {
+        return { code: LLMErrorCode.QUOTA_EXCEEDED, message: `AI credits exhausted on the shared key. Add your own OpenRouter or Groq key in Settings, or top up your OpenRouter balance.`, provider, model, retryable: false, suggestModelSwitch: true };
+    }
+
     if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
         return { code: LLMErrorCode.TIMEOUT, message: `Request timed out. Please try again.`, provider, model, retryable: true, suggestModelSwitch: false };
     }
@@ -65,34 +69,36 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
 /**
  * OpenRouter provider — uses OpenAI-compatible API at openrouter.ai
  */
-export class OpenRouterProvider implements LLMProvider {
-    private client: OpenAI;
-    private model: string;
-    private static lastRequestTime: number = 0;
-    private static minRequestInterval: number = 500;
+const DEFAULT_MAX_TOKENS = 4000;
 
-    constructor(apiKey: string, model: string = 'qwen/qwen3-vl-235b-a22b-thinking') {
+/**
+ * Shared base for OpenAI-compatible providers (OpenRouter, Groq).
+ * Owns rate-limiting, timeout, retries, and error handling so the
+ * concrete providers only declare their base URL / headers / default model.
+ */
+abstract class OpenAICompatibleProvider implements LLMProvider {
+    protected client: OpenAI;
+    protected model: string;
+    protected providerName: string;
+    private static lastRequestTime: number = 0;
+    private static readonly minRequestInterval: number = 500;
+
+    constructor(providerName: string, apiKey: string, model: string, baseURL: string, headers?: Record<string, string>) {
         if (!apiKey || apiKey.trim() === '') {
-            throw new Error('OpenRouter API key is required');
+            throw new Error(`${providerName} API key is required`);
         }
-        this.client = new OpenAI({
-            apiKey,
-            baseURL: 'https://openrouter.ai/api/v1',
-            defaultHeaders: {
-                'HTTP-Referer': 'https://intervu.cc',
-                'X-Title': 'Intervu',
-            },
-        });
+        this.providerName = providerName;
         this.model = model;
+        this.client = new OpenAI({ apiKey, baseURL, defaultHeaders: headers });
     }
 
     private async waitForRateLimit(): Promise<void> {
         const now = Date.now();
-        const timeSinceLastRequest = now - OpenRouterProvider.lastRequestTime;
-        if (timeSinceLastRequest < OpenRouterProvider.minRequestInterval) {
-            await new Promise(resolve => setTimeout(resolve, OpenRouterProvider.minRequestInterval - timeSinceLastRequest));
+        const elapsed = now - OpenAICompatibleProvider.lastRequestTime;
+        if (elapsed < OpenAICompatibleProvider.minRequestInterval) {
+            await new Promise(resolve => setTimeout(resolve, OpenAICompatibleProvider.minRequestInterval - elapsed));
         }
-        OpenRouterProvider.lastRequestTime = Date.now();
+        OpenAICompatibleProvider.lastRequestTime = Date.now();
     }
 
     async generate(request: LLMRequest): Promise<LLMResponse> {
@@ -102,7 +108,7 @@ export class OpenRouterProvider implements LLMProvider {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 await this.waitForRateLimit();
-                console.log(`[OpenRouter] Generating with model: ${this.model}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
+                console.log(`[${this.providerName}] Generating with model: ${this.model}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
 
                 const completionPromise = this.client.chat.completions.create({
                     messages: [
@@ -110,10 +116,11 @@ export class OpenRouterProvider implements LLMProvider {
                         { role: 'user', content: request.prompt }
                     ],
                     model: this.model,
+                    max_tokens: DEFAULT_MAX_TOKENS,
                     response_format: request.json ? { type: 'json_object' } : undefined,
                 });
 
-                const completion = await withTimeout(completionPromise, DEFAULT_TIMEOUT_MS, 'OpenRouter');
+                const completion = await withTimeout(completionPromise, DEFAULT_TIMEOUT_MS, this.providerName);
                 let text = completion.choices[0]?.message?.content || "";
 
                 if (!text || text.trim() === '') {
@@ -123,17 +130,17 @@ export class OpenRouterProvider implements LLMProvider {
                 // Strip <think>...</think> blocks from thinking models
                 text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-                console.log(`[OpenRouter] Generated ${text.length} characters`);
+                console.log(`[${this.providerName}] Generated ${text.length} characters`);
                 return { text };
 
             } catch (e: any) {
                 lastError = e;
-                console.error(`[OpenRouter] Error (attempt ${attempt + 1}/${maxRetries}):`, e.message);
-                const errorInfo = categorizeError(e, 'OpenRouter', this.model);
+                console.error(`[${this.providerName}] Error (attempt ${attempt + 1}/${maxRetries}):`, e.message);
+                const errorInfo = categorizeError(e, this.providerName, this.model);
 
                 if (errorInfo.code === LLMErrorCode.RATE_LIMIT && attempt < maxRetries - 1) {
                     const waitTime = (attempt + 1) * 3000;
-                    console.log(`[OpenRouter] Rate limited, waiting ${waitTime}ms...`);
+                    console.log(`[${this.providerName}] Rate limited, waiting ${waitTime}ms...`);
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                     continue;
                 }
@@ -146,8 +153,23 @@ export class OpenRouterProvider implements LLMProvider {
             }
         }
 
-        const errorInfo = categorizeError(lastError, 'OpenRouter', this.model);
+        const errorInfo = categorizeError(lastError, this.providerName, this.model);
         return { text: "", error: errorInfo.message };
+    }
+}
+
+export class OpenRouterProvider extends OpenAICompatibleProvider {
+    constructor(apiKey: string, model: string = 'openrouter/owl-alpha') {
+        super('OpenRouter', apiKey, model, 'https://openrouter.ai/api/v1', {
+            'HTTP-Referer': 'https://intervu.cc',
+            'X-Title': 'Intervu',
+        });
+    }
+}
+
+export class GroqProvider extends OpenAICompatibleProvider {
+    constructor(apiKey: string, model: string = 'llama-3.3-70b-versatile') {
+        super('Groq', apiKey, model, 'https://api.groq.com/openai/v1');
     }
 }
 
@@ -155,6 +177,9 @@ export class ProviderFactory {
     static getProvider(provider: string, apiKey: string, model?: string): LLMProvider {
         if (!apiKey || apiKey.trim() === '') {
             throw new Error('Missing API key. Please check your configuration.');
+        }
+        if (provider === 'groq') {
+            return new GroqProvider(apiKey, model);
         }
         return new OpenRouterProvider(apiKey, model);
     }

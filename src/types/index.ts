@@ -85,7 +85,7 @@ export interface CodingChallenge {
 }
 
 export interface ProviderConfig {
-    provider: 'groq' | 'gemini' | 'openai';
+    provider: 'openrouter' | 'groq';
     apiKey: string;
     model: string;
 }

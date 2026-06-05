@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { SecureStorage } from "@/lib/security";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { SETTINGS_MESSAGES, OUTPUT_PREF_DESCRIPTIONS } from "@/lib/copy";
+import { ModelSettings } from "@/components/settings/ModelSettings";
 
 interface OutputPreferences {
     strategyLength: "brief" | "standard" | "detailed";
@@ -298,6 +299,15 @@ export function SettingsContainer() {
                             </div>
                         </div>
                     </div>
+                </section>
+
+                {/* Section: AI Provider */}
+                <section className="pt-6 border-t border-border">
+                    <h2 className="text-lg font-semibold mb-1">AI Provider</h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Bring your own OpenRouter or Groq key, or use the model we provide by default.
+                    </p>
+                    <ModelSettings />
                 </section>
 
                 {/* Section: Account */}

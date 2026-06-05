@@ -7,6 +7,7 @@ export const MODEL_PRICING: Record<string, { inputPer1kTokens: number; outputPer
 
 export const PROVIDER_TIER: Record<Provider, "free" | "paid"> = {
     openrouter: "free",
+    groq: "free",
 };
 
 export function estimateSessionCost(

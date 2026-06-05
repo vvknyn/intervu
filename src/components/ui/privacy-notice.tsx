@@ -41,7 +41,7 @@ export function PrivacyNotice() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         Intervu is a bring-your-own-key tool. Your API keys are stored encrypted and used only to make
                         requests on your behalf. Your resume, stories, and interview data are sent to the AI provider
-                        you choose (Groq, Gemini, or OpenAI) to generate responses. No data is shared with third
+                        you choose (OpenRouter or Groq) to generate responses. No data is shared with third
                         parties beyond the provider you select. You can export or delete all your data at any time
                         from Settings.
                     </p>

@@ -1,3 +1,4 @@
+"use client";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,131 +11,150 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { CheckCircle, WarningCircle, CircleNotch } from "@phosphor-icons/react";
+import { AVAILABLE_MODELS, PROVIDERS, type Provider } from "@/lib/llm/models";
+import { fetchProfile, saveProviderApiKey, updateModelPreference } from "@/actions/profile";
+import { validateProviderKey } from "@/actions/llm-settings";
 
-import { AVAILABLE_MODELS, PROVIDERS } from "@/lib/llm/models";
+const KEY_HELP: Record<Provider, { url: string }> = {
+    openrouter: { url: "https://openrouter.ai/keys" },
+    groq: { url: "https://console.groq.com/keys" },
+};
 
-interface ModelSettingsProps {
-    apiKey: string;
-    model: string;
-    onSave: (apiKey: string, model: string) => void;
-    loading: boolean;
-}
+type VerifyState = { state: "idle" | "checking" | "ok" | "fail"; msg?: string };
 
-export function ModelSettings({ apiKey, model, onSave, loading }: ModelSettingsProps) {
-    // State for all keys
-    const [keys, setKeys] = useState<{ [key: string]: string }>({
-        groq: "",
-        gemini: "",
-        openai: ""
-    });
+export function ModelSettings() {
+    const [provider, setProvider] = useState<Provider>("openrouter");
+    const [model, setModel] = useState<string>(AVAILABLE_MODELS.openrouter[0].id);
+    const [keyInput, setKeyInput] = useState("");
+    const [hasKey, setHasKey] = useState<Record<string, boolean>>({});
+    const [loading, setLoading] = useState(false);
+    const [verify, setVerify] = useState<VerifyState>({ state: "idle" });
+    const [saved, setSaved] = useState(false);
 
-    // State for selection
-    const [provider, setProvider] = useState<string>("groq");
-
-    // Initialize state from props
+    // Load saved preference + which providers already have a key (presence only — never the plaintext key).
     useEffect(() => {
-        // Parse provider:model
-        let initProvider = "groq";
-
-        if (model && model.includes(':')) {
-            const parts = model.split(':');
-            initProvider = parts[0];
-        } else if (model) {
-            // Legacy fallback - unlikely to happen now but good for safety
-        }
-
-        // Avoid loop if already set
-        // Wrap in timeout to avoid synchronous setState warning
-        setTimeout(() => {
-            if (provider !== initProvider) {
-                setProvider(initProvider);
+        (async () => {
+            const { data } = await fetchProfile();
+            if (!data) return;
+            const present: Record<string, boolean> = {};
+            const pk = data.provider_api_keys as Record<string, string> | undefined;
+            if (pk) for (const k of Object.keys(pk)) if (pk[k]) present[k] = true;
+            setHasKey(present);
+            const p = data.preferred_provider as Provider | null;
+            if (p === "openrouter" || p === "groq") {
+                setProvider(p);
+                setModel((data.preferred_model as string) || AVAILABLE_MODELS[p][0].id);
             }
-        }, 0);
+        })();
+    }, []);
 
-        // Parse API Key JSON
-        try {
-            if (apiKey && apiKey.trim().startsWith('{')) {
-                const parsed = JSON.parse(apiKey);
-                // Only update if different to avoid loop (simplified check)
-                // Wrap in timeout
-                setTimeout(() => {
-                    setKeys(prev => ({ ...prev, ...parsed }));
-                }, 0);
-            } else if (apiKey) {
-                setTimeout(() => {
-                    setKeys(prev => ({ ...prev, groq: apiKey }));
-                }, 0);
-            }
-        } catch (e) {
-            console.error("Failed to parse API keys", e);
-        }
-    }, [apiKey, model]);
+    // Keep the model valid for the selected provider; reset transient input/verify state on switch.
+    useEffect(() => {
+        const models = AVAILABLE_MODELS[provider];
+        setModel((cur) => (models.some((m) => m.id === cur) ? cur : models[0].id));
+        setKeyInput("");
+        setVerify({ state: "idle" });
+    }, [provider]);
 
-    const handleKeyChange = (p: string, value: string) => {
-        setKeys(prev => ({ ...prev, [p]: value }));
+    const providerName = PROVIDERS.find((p) => p.id === provider)?.name ?? provider;
+
+    const handleVerify = async () => {
+        setVerify({ state: "checking" });
+        const res = await validateProviderKey(provider, keyInput);
+        setVerify(res.valid ? { state: "ok", msg: "Key works" } : { state: "fail", msg: res.error || "Invalid key" });
     };
 
-    const handleSave = () => {
-        // Save composite key and composite model string
-        const compositeKey = JSON.stringify(keys);
-
-        // Auto-select the first (best) model for the selected provider
-        // @ts-expect-error - Dictionary access with string key
-        const bestModelId = AVAILABLE_MODELS[provider]?.[0]?.id || AVAILABLE_MODELS.groq[0].id;
-
-        const compositeModel = `${provider}:${bestModelId}`;
-        onSave(compositeKey, compositeModel);
+    const handleSave = async () => {
+        setLoading(true);
+        setSaved(false);
+        try {
+            if (keyInput.trim()) {
+                const r = await saveProviderApiKey(provider, keyInput.trim());
+                if (r.error) {
+                    setVerify({ state: "fail", msg: r.error });
+                    return;
+                }
+                setHasKey((prev) => ({ ...prev, [provider]: true }));
+                setKeyInput("");
+            }
+            await updateModelPreference(provider, model);
+            setSaved(true);
+            setVerify({ state: "idle" });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="border border-border rounded-lg p-6 bg-card/50">
-                <h3 className="text-base font-semibold mb-4">LLM Provider Configuration</h3>
+        <div className="space-y-4">
+            {/* Provider */}
+            <div className="space-y-2">
+                <Label>Provider</Label>
+                <Select value={provider} onValueChange={(v) => setProvider(v as Provider)}>
+                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-zinc-950">
+                        {PROVIDERS.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
 
-                <div className="grid gap-6">
-                    {/* Provider Select */}
-                    <div className="space-y-2">
-                        <Label>Select Provider</Label>
-                        <Select value={provider} onValueChange={setProvider}>
-                            <SelectTrigger className="bg-background">
-                                <SelectValue placeholder="Select Provider" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white dark:bg-zinc-950">
-                                {PROVIDERS.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                        {p.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            We automatically select the best model for your chosen provider.
-                        </p>
-                    </div>
-
-                    {/* API Key Input for Selected Provider */}
-                    <div className="space-y-2">
-                        <Label>API Key for {PROVIDERS.find(p => p.id === provider)?.name}</Label>
-                        <Input
-                            type="password"
-                            placeholder={`Enter your ${provider.toUpperCase()} API Key`}
-                            value={keys[provider] || ""}
-                            onChange={(e) => handleKeyChange(provider, e.target.value)}
-                            className="font-mono text-sm"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Your key is stored securely in your database.
-                            {provider === 'groq' && " Use specific Groq keys."}
-                            {provider === 'gemini' && " Get a key from Google AI Studio."}
-                            {provider === 'openai' && " Requires an OpenAI Platform key."}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mt-6 flex justify-end">
-                    <Button onClick={handleSave} disabled={loading}>
-                        {loading ? "Saving..." : "Save Configuration"}
+            {/* API key */}
+            <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                    {providerName} API key
+                    {hasKey[provider] && (
+                        <span className="text-[11px] font-normal text-green-600 dark:text-green-500">✓ saved</span>
+                    )}
+                </Label>
+                <div className="flex gap-2">
+                    <Input
+                        type="password"
+                        placeholder={hasKey[provider] ? "•••••••• (saved — enter to replace)" : `Paste your ${providerName} key`}
+                        value={keyInput}
+                        onChange={(e) => { setKeyInput(e.target.value); setVerify({ state: "idle" }); setSaved(false); }}
+                        className="font-mono text-sm"
+                    />
+                    <Button type="button" variant="outline" onClick={handleVerify} disabled={!keyInput.trim() || verify.state === "checking"}>
+                        {verify.state === "checking" ? <CircleNotch size={16} className="animate-spin" /> : "Verify"}
                     </Button>
+                </div>
+                {verify.state === "ok" && (
+                    <p className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1"><CheckCircle size={14} weight="fill" />{verify.msg}</p>
+                )}
+                {verify.state === "fail" && (
+                    <p className="text-xs text-destructive flex items-center gap-1"><WarningCircle size={14} weight="fill" />{verify.msg}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                    Stored encrypted (AES-256-GCM), used only for your own requests. Get a key at{" "}
+                    <a href={KEY_HELP[provider].url} target="_blank" rel="noopener noreferrer" className="text-brand underline">
+                        {KEY_HELP[provider].url.replace("https://", "")}
+                    </a>.
+                </p>
+            </div>
+
+            {/* Model */}
+            <div className="space-y-2">
+                <Label>Model</Label>
+                <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-zinc-950">
+                        {AVAILABLE_MODELS[provider].map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.name} — {m.description}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-muted-foreground max-w-xs">
+                    No key needed to start — we provide a default model. Add your own to use your preferred model and avoid shared limits.
+                </p>
+                <div className="flex items-center gap-3">
+                    {saved && <span className="text-xs text-green-600 dark:text-green-500">Saved</span>}
+                    <Button onClick={handleSave} disabled={loading}>{loading ? "Saving…" : "Save"}</Button>
                 </div>
             </div>
         </div>
