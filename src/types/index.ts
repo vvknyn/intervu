@@ -91,11 +91,17 @@ export interface ProviderConfig {
 }
 
 export interface AnswerCritique {
-    score: number; // 1-10
-    scoreLabel: string; // e.g., "Junior", "Senior", "Executive"
-    strengths: string[];
-    weaknesses: string[];
-    missing_nuances: string[]; // Specific context missed (e.g. "Didn't mention scale")
+    // The heart-moment: a human reaction, not a report card.
+    reaction: string;          // 2-3 sentences, second person — the moment they feel SEEN. Names the real, often-unnoticed strength.
+    the_one_thing: string;     // The single highest-leverage change, said like a mentor leaning in.
+    say_it_like_this: string;  // Their answer rewritten in their own voice, so they can hear how good it could sound.
+    encouragement: string;     // One honest, earned line that leaves them believing they can do this.
+    score: number;             // 1-10 — kept for tracking/progress, intentionally NOT the lead of the UI.
+    scoreLabel: string;        // A gentle word: "Getting there", "Solid", "Strong", "Ready".
+    // Retained (optional) for back-compat — no longer the primary surface.
+    strengths?: string[];
+    weaknesses?: string[];
+    missing_nuances?: string[];
     improved_version?: string;
-    tone_analysis?: string; // e.g. "Too passive", "Too arrogant"
+    tone_analysis?: string;
 }

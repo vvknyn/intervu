@@ -35,13 +35,15 @@ export const themes: Record<string, Theme> = {
     label: "Indigo",
     colors: {
       light: {
-        brand: "99 102 241",
+        // design accent #4F46E5
+        brand: "79 70 229",
         "brand-foreground": "255 255 255",
         "brand-muted": "165 180 252",
       },
       dark: {
-        brand: "129 140 248",
-        "brand-foreground": "15 15 25",
+        // design accent #7C82F2
+        brand: "124 130 242",
+        "brand-foreground": "255 255 255",
         "brand-muted": "99 102 241",
       },
     },
@@ -114,7 +116,7 @@ export const themes: Record<string, Theme> = {
 
 export const themeNames = Object.keys(themes) as (keyof typeof themes)[];
 
-export const DEFAULT_THEME = "neutral";
+export const DEFAULT_THEME = "indigo";
 
 export function getTheme(name: string): Theme {
   return themes[name] || themes[DEFAULT_THEME];

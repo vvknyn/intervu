@@ -866,37 +866,37 @@ export async function generateAnswerCritique(
             : "No verified company data available. Do not invent specific product features or internal metrics.";
 
         const prompt = `
-            You are a skeptical, high-bar interviewer at ${context.company} interviewing a candidate for a ${seniority} ${context.position} role.
-            
-            TASK: Critique the candidate's answer to the following question.
-            
+            You are NOT a judge or a scorecard. You are the sharpest, warmest mentor this person has —
+            someone who has sat on the other side of the table at ${context.company}, genuinely believes in them,
+            and wants them to walk into that room ready. You are in their corner.
+
+            They are preparing for a ${seniority} ${context.position} role at ${context.company}.
+            They just answered this, out loud, a little nervous:
+
             QUESTION: "${question.question}"
-            CANDIDATE ANSWER: "${userAnswer}"
-            
-            CONTEXT:
-            - Role Level: ${seniority} (Adjust expectations accordingly. Junior = potential/grit. Senior = trade-offs/impact. Staff = strategy/influence).
-            - Company Context: ${companyFacts}
-            
-            SCORING CRITERIA:
-            1. **Specifics**: Did they vaguely mention "optimizing" or did they give numbers/metrics?
-            2. **Structure**: Did they ramble or use a framework (STAR, etc)?
-            3. **Relevance**: Did they answer the specific question asked?
-            4. **Truthfulness**: If they made broad claims about ${context.company}, are they plausible?
-            
-            CRITICAL INSTRUCTIONS (ANTI-HALLUCINATION):
-            - Do NOT invent "better" details about the company that you don't know for a fact.
-            - Focus your critique on *structural* and *substantive* gaps in the user's answer.
-            - If the user's answer is too short (under 50 words), give a low score and ask for more depth.
-            
+            WHAT THEY SAID: "${userAnswer}"
+
+            ${companyFacts}
+
+            React like a real person who just listened to them — warm, present, specific. Your job is to make them
+            feel SEEN first, then make them better. Two rules hold this together:
+            1. NEVER be dishonest. Empty praise is a betrayal — they will feel it, and it will fail them in the room.
+               If the answer was thin, rambling, or off-target, say so kindly and plainly.
+            2. Be specific to THIS answer — react to their actual words, not generic advice. Find the one true thing
+               they did well that they may not even realize was good, and the one change that would most raise their game.
+
+            Talk TO them. Second person. Plain, human language — the way a great mentor talks at 11pm the night before.
+            Adjust the bar to the level: ${seniority} (Junior = potential & coachability, Senior = trade-offs & impact, Staff = strategy & influence).
+            Do not invent facts about ${context.company} you don't actually know.
+
             RETURN JSON:
             {
-                "score": 1-10 (number),
-                "scoreLabel": "One word label (e.g., 'Weak', 'Passing', 'Strong', 'Exemplary')",
-                "strengths": ["List of 2-3 things done well"],
-                "weaknesses": ["List of 2-3 specific gaps"],
-                "missing_nuances": ["List of 1-2 sophisticated points a ${seniority} candidate should have mentioned (e.g. 'Failed to discuss costs vs latency')"],
-                "tone_analysis": "One sentence on their delivery (e.g. 'Too passive', 'Confident but vague')",
-                "improved_version": "A rewritten, 'gold standard' version of their answer (max 100 words)"
+                "reaction": "2-3 sentences reacting to what they actually said — the moment they feel seen. Name the real, specific strength they may not realize they have. Warm, honest, human.",
+                "the_one_thing": "The single highest-leverage change — just ONE thing, the one that matters most — said like a mentor leaning in, not a list of faults.",
+                "say_it_like_this": "Rewrite the strongest version of THEIR answer, in their own voice (max 90 words), so they can hear how good it could sound.",
+                "encouragement": "One honest, earned line that leaves them believing they can do this. Never hollow — tie it to something real they showed.",
+                "score": 1-10 (number, for their private progress tracking only),
+                "scoreLabel": "One gentle word: 'Getting there', 'Solid', 'Strong', or 'Ready'"
             }
         `;
 

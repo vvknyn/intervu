@@ -464,34 +464,57 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                                 className="bg-brand text-brand-foreground hover:bg-brand/90 disabled:opacity-50 shadow-sm transition-all text-xs font-semibold px-6 py-2 h-auto rounded-lg"
                                             >
                                                 {analyzing ? (
-                                                    <><CircleNotch className="animate-spin mr-2" /> Analyzing...</>
+                                                    <><CircleNotch className="animate-spin mr-2" /> Listening...</>
                                                 ) : (
-                                                    "Analyze My Answer"
+                                                    "How did I do?"
                                                 )}
                                             </Button>
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="bg-muted/30 rounded-xl overflow-hidden shadow-[var(--shadow-sm)]">
-                                        {/* Critique Header */}
-                                        <div className="bg-background/80 backdrop-blur-sm p-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className={cn(
-                                                    "text-xl font-black w-10 h-10 flex items-center justify-center rounded-lg",
-                                                    critique.score >= 8 ? "text-green-600 bg-green-500/10" :
-                                                        critique.score >= 5 ? "text-yellow-600 bg-yellow-500/10" :
-                                                            "text-red-600 bg-red-500/10"
-                                                )}>
-                                                    {critique.score}
+                                    <div className="bg-muted/30 rounded-2xl overflow-hidden shadow-[var(--shadow-sm)] animate-in fade-in zoom-in-95 duration-300">
+                                        {/* The reaction — the moment they feel seen. This is the heart. */}
+                                        <div className="p-6 md:p-8">
+                                            <p className="text-base md:text-lg leading-relaxed text-foreground font-medium whitespace-pre-line">
+                                                {critique.reaction}
+                                            </p>
+                                        </div>
+
+                                        {/* The one thing */}
+                                        {critique.the_one_thing && (
+                                            <div className="px-6 md:px-8 pb-6">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-brand mb-1.5">
+                                                    The one thing
                                                 </div>
-                                                <div>
-                                                    <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                                                        Verdict: <span className="text-foreground">{critique.scoreLabel}</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-muted-foreground mt-0.5 max-w-[300px] truncate">
-                                                        {critique.tone_analysis}
-                                                    </div>
+                                                <p className="text-sm leading-relaxed text-foreground/80">
+                                                    {critique.the_one_thing}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Say it like this */}
+                                        {critique.say_it_like_this && (
+                                            <div className="mx-6 md:mx-8 mb-6 rounded-xl bg-background/70 border border-border/40 p-5">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                                                    Say it like this
                                                 </div>
+                                                <p className="text-sm leading-relaxed text-foreground/90 italic whitespace-pre-line">
+                                                    &ldquo;{critique.say_it_like_this}&rdquo;
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Earned belief + try again */}
+                                        <div className="px-6 md:px-8 py-5 bg-gradient-to-r from-transparent via-brand/5 to-transparent border-t border-border/30 flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                {critique.scoreLabel && (
+                                                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 rounded-full px-2.5 py-1">
+                                                        {critique.scoreLabel}
+                                                    </span>
+                                                )}
+                                                <p className="text-sm text-foreground/70 truncate">
+                                                    {critique.encouragement}
+                                                </p>
                                             </div>
                                             <Button
                                                 variant="ghost"
@@ -501,58 +524,10 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                                     delete next[currentQuestion.id];
                                                     return next;
                                                 })}
-                                                className="text-xs hover:text-red-500"
+                                                className="text-xs shrink-0 hover:text-brand"
                                             >
-                                                Try Again
+                                                Try again
                                             </Button>
-                                        </div>
-
-                                        {/* Critique Body */}
-                                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                                            <div>
-                                                <h4 className="font-bold text-green-600 flex items-center gap-2 mb-3 text-[10px] uppercase tracking-wider">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Strengths
-                                                </h4>
-                                                <ul className="space-y-2">
-                                                    {critique.strengths.map((s, i) => (
-                                                        <li key={i} className="flex gap-2 text-foreground/80 text-xs leading-relaxed">
-                                                            <span className="text-green-500">✓</span> {s}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-orange-600 flex items-center gap-2 mb-3 text-[10px] uppercase tracking-wider">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Improvements
-                                                </h4>
-                                                <ul className="space-y-2">
-                                                    {critique.weaknesses.map((w, i) => (
-                                                        <li key={i} className="flex gap-2 text-foreground/80 text-xs leading-relaxed">
-                                                            <span className="text-orange-500">!</span> {w}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        </div>
-
-                                        {critique.missing_nuances.length > 0 && (
-                                            <div className="bg-brand/5 p-4">
-                                                <h4 className="font-bold text-brand text-[10px] uppercase tracking-wider mb-2">
-                                                    Missed Nuance ({company})
-                                                </h4>
-                                                <p className="text-foreground/80 italic text-xs">
-                                                    "{critique.missing_nuances[0]}"
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        <div className="p-2 bg-gradient-to-r from-transparent via-primary/5 to-transparent flex justify-center">
-                                            <button
-                                                onClick={() => setIsPracticeMode(false)}
-                                                className="text-xs font-medium text-brand hover:underline py-2"
-                                            >
-                                                Compare with AI Ideal Answer &rarr;
-                                            </button>
                                         </div>
                                     </div>
                                 )}

@@ -6,15 +6,20 @@ import { cn } from "@/lib/utils";
 import {
     House,
     MagnifyingGlass,
-    FileText,
-    Briefcase,
-    ChatCircleDots,
+    Sparkle,
     Books,
+    FileText,
+    Kanban,
     Gear,
     SignIn,
+    ChatCircleDots,
+    CaretLeft,
+    CaretDown,
+    Sun,
+    Moon,
 } from "@phosphor-icons/react";
 import { type User as FirebaseUser } from "firebase/auth";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { AuthPopover } from "@/components/auth/auth-popover";
 
@@ -24,67 +29,102 @@ interface AppShellProps {
 }
 
 const NAV_ITEMS = [
-    {
-        id: "home",
-        label: "Home",
-        href: "/",
-        icon: House,
-        description: "Dashboard & quick start"
-    },
-    {
-        id: "prepare",
-        label: "Prepare",
-        href: "/",
-        icon: MagnifyingGlass,
-        description: "Interview prep & research"
-    },
-    {
-        id: "library",
-        label: "Library",
-        href: "/library",
-        icon: Books,
-        description: "Stories & knowledge sources"
-    },
-    {
-        id: "resume",
-        label: "Resume",
-        href: "/resume-builder",
-        icon: FileText,
-        description: "Build, tailor & manage"
-    },
-    {
-        id: "applications",
-        label: "Tracker",
-        href: "/applications",
-        icon: Briefcase,
-        description: "Track your applications"
-    }
+    { id: "home", label: "Home", href: "/", icon: House },
+    { id: "jobs", label: "Find jobs", href: "/jobs", icon: MagnifyingGlass },
+    { id: "prepare", label: "Interview prep", href: "/", icon: Sparkle },
+    { id: "library", label: "Library", href: "/library", icon: Books },
+    { id: "resume", label: "Resumes", href: "/resume-builder", icon: FileText },
+    { id: "applications", label: "Applications", href: "/applications", icon: Kanban },
 ];
+
+/** The brand mark — the V of inter·vu, cut as a rising checkmark. Carries the accent. */
+function VMark({ size = 30 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 40 40" role="img" aria-label="intervu" className="shrink-0">
+            <path
+                d="M9 13 L19 28 L31 7"
+                fill="none"
+                stroke="rgb(var(--brand))"
+                strokeWidth={4.4}
+                strokeLinecap="square"
+                strokeLinejoin="miter"
+            />
+        </svg>
+    );
+}
+
+function initialsOf(user: FirebaseUser): string {
+    const src = (user.displayName || user.email || "?").trim();
+    const parts = src.split(/\s+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return src.slice(0, 2).toUpperCase();
+}
 
 export function AppShell({ children, user }: AppShellProps) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [prepareHref, setPrepareHref] = useState<string | null>(null);
+    const [collapsed, setCollapsed] = useState(false);
+    const [dark, setDark] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
-    // Populate prepareHref from current URL on mount + keep it up-to-date
+    // Hydrate persisted UI state on the client (avoids SSR mismatch).
+    useEffect(() => {
+        setMounted(true);
+        try {
+            setCollapsed(localStorage.getItem("iv-collapsed") === "1");
+        } catch {
+            /* ignore */
+        }
+        setDark(document.documentElement.classList.contains("dark"));
+    }, []);
+
+    // Keep "Interview prep" pointing at the active search, like before.
     useEffect(() => {
         if ((pathname === "/" || pathname === "/dashboard") && searchParams?.get("searched")) {
             setPrepareHref(`/?${searchParams.toString()}`);
         }
     }, [pathname, searchParams]);
 
+    const toggleCollapsed = () =>
+        setCollapsed((c) => {
+            const next = !c;
+            try {
+                localStorage.setItem("iv-collapsed", next ? "1" : "0");
+            } catch {
+                /* ignore */
+            }
+            return next;
+        });
+
+    const toggleDark = () =>
+        setDark((d) => {
+            const next = !d;
+            const root = document.documentElement;
+            if (next) root.classList.add("dark");
+            else root.classList.remove("dark");
+            try {
+                localStorage.setItem("intervu-dark", next ? "1" : "0");
+            } catch {
+                /* ignore */
+            }
+            return next;
+        });
+
     const getActiveItem = () => {
         if (pathname === "/" || pathname === "/dashboard") {
             return searchParams?.get("searched") ? "prepare" : "home";
         }
+        if (pathname.startsWith("/jobs")) return "jobs";
         if (pathname.startsWith("/library")) return "library";
         if (pathname.startsWith("/resume-builder") || pathname.startsWith("/resume-tailor")) return "resume";
         if (pathname.startsWith("/applications")) return "applications";
         if (pathname.startsWith("/settings") || pathname.startsWith("/account")) return "settings";
         return null;
     };
-
     const activeItem = getActiveItem();
 
     const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
@@ -92,29 +132,59 @@ export function AppShell({ children, user }: AppShellProps) {
         return <>{children}</>;
     }
 
+    const isCollapsed = mounted && collapsed;
+    const navItems = NAV_ITEMS.filter((item) => item.id !== "prepare" || prepareHref);
+
+    const itemBase =
+        "group relative flex items-center gap-[11px] rounded-[9px] px-2.5 py-2.5 text-[14.5px] font-medium transition-colors w-full text-left";
+    const itemIdle = "text-muted-foreground hover:bg-muted hover:text-foreground";
+    const itemActive = "bg-brand/10 text-brand font-semibold";
+
     return (
-        <div className="min-h-screen bg-background flex flex-col">
-            <main className="flex-1 pb-[4.5rem] lg:pb-0 lg:pl-20">
+        <div
+            className="min-h-screen bg-background flex flex-col"
+            style={{ "--sbw": isCollapsed ? "76px" : "var(--sb-w)" } as React.CSSProperties}
+        >
+            <main className="flex-1 pb-[4.5rem] lg:pb-0 lg:pl-[var(--sbw)] transition-[padding] duration-200 ease-out">
                 {children}
             </main>
 
-            {/* Desktop Side Rail */}
-            <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-20 bg-brand/[0.04] shadow-[var(--shadow-sm)] flex-col items-center py-6 gap-4 z-50" data-tour="nav-menu">
-                {/* Logo + Beta */}
-                <Link href={`/${searchParams?.toString() ? `?${searchParams.toString()}` : ''}`} className="mb-8 flex flex-col items-center gap-1.5 group">
-                    <img
-                        src="/intervu-logo.png"
-                        alt="Intervu"
-                        className="w-10 h-10 rounded-xl object-contain"
-                    />
-                    <span className="text-[7px] font-extrabold text-brand-muted tracking-[0.2em] uppercase select-none opacity-60 group-hover:opacity-100 transition-opacity">
-                        BETA
-                    </span>
-                </Link>
+            {/* Desktop sidebar */}
+            <nav
+                className="hidden lg:flex fixed left-0 top-0 bottom-0 w-[var(--sbw)] bg-card border-r border-border flex-col px-[14px] pt-[18px] pb-[14px] z-50 overflow-hidden transition-[width] duration-200 ease-out"
+                data-tour="nav-menu"
+            >
+                {/* Brand lockup */}
+                <div className={cn("flex items-center gap-2 mb-[18px] px-2 pt-1.5 pb-1", isCollapsed && "justify-center px-0")}>
+                    <button
+                        onClick={toggleCollapsed}
+                        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        className="flex items-center rounded-lg hover:opacity-80 transition-opacity"
+                    >
+                        <VMark size={30} />
+                    </button>
+                    {!isCollapsed && (
+                        <>
+                            <div className="text-[18px] font-bold tracking-[-0.4px] leading-none">
+                                inter<b className="text-brand font-bold">vu</b>
+                            </div>
+                            <span className="text-[8.5px] font-extrabold tracking-[0.18em] uppercase text-muted-foreground/60 self-start mt-1">
+                                beta
+                            </span>
+                            <button
+                                onClick={toggleCollapsed}
+                                title="Collapse sidebar"
+                                className="ml-auto grid place-items-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            >
+                                <CaretLeft size={18} />
+                            </button>
+                        </>
+                    )}
+                </div>
 
-                {/* Nav Items */}
-                <div className="flex-1 flex flex-col items-center gap-1">
-                    {NAV_ITEMS.filter(item => item.id !== "prepare" || prepareHref).map((item) => {
+                {/* Primary nav */}
+                <div className="flex flex-col gap-0.5">
+                    {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = activeItem === item.id;
                         const href = item.id === "prepare" && prepareHref ? prepareHref : item.href;
@@ -122,126 +192,97 @@ export function AppShell({ children, user }: AppShellProps) {
                             <Link
                                 key={item.id}
                                 href={href}
-                                className={cn(
-                                    "group relative flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-150",
-                                    isActive
-                                        ? "bg-brand/10 text-brand"
-                                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                                )}
+                                title={item.label}
+                                className={cn(itemBase, isActive ? itemActive : itemIdle, isCollapsed && "justify-center px-0")}
                             >
-                                {/* Active pill indicator */}
-                                {isActive && (
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] w-[3px] h-5 bg-brand rounded-full" />
-                                )}
-
-                                <Icon
-                                    size={24}
-                                    weight={isActive ? "fill" : "regular"}
-                                />
-                                <span className="text-[10px] mt-1 font-medium">
-                                    {item.label}
-                                </span>
-
-                                {/* Tooltip */}
-                                <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                    <p className="text-xs font-medium">{item.label}</p>
-                                    <p className="text-[10px] text-white/60 dark:text-neutral-500">{item.description}</p>
-                                </div>
+                                <Icon size={19} weight={isActive ? "fill" : "regular"} className="shrink-0" />
+                                {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
                             </Link>
                         );
                     })}
                 </div>
 
-                {/* Bottom Actions Group */}
-                <div className="flex flex-col items-center gap-1">
-                    {/* User area */}
+                {/* Foot */}
+                <div className="mt-auto pt-3">
+                    <hr className="h-px bg-border border-0 mb-2" />
+
+                    {/* Dark mode toggle */}
+                    <button
+                        onClick={toggleDark}
+                        title={dark ? "Switch to light mode" : "Switch to dark mode"}
+                        className={cn(itemBase, itemIdle, isCollapsed && "justify-center px-0")}
+                    >
+                        {dark ? <Sun size={19} className="shrink-0" /> : <Moon size={19} className="shrink-0" />}
+                        {!isCollapsed && <span className="flex-1 truncate">{dark ? "Light mode" : "Dark mode"}</span>}
+                    </button>
+
+                    {/* Settings */}
+                    <Link
+                        href="/settings"
+                        title="Settings"
+                        className={cn(itemBase, activeItem === "settings" ? itemActive : itemIdle, isCollapsed && "justify-center px-0")}
+                    >
+                        <Gear size={19} weight={activeItem === "settings" ? "fill" : "regular"} className="shrink-0" />
+                        {!isCollapsed && <span className="flex-1 truncate">Settings</span>}
+                    </Link>
+
+                    {/* Feedback */}
+                    <FeedbackModal>
+                        <button title="Send feedback" className={cn(itemBase, itemIdle, isCollapsed && "justify-center px-0")}>
+                            <ChatCircleDots size={19} className="shrink-0" />
+                            {!isCollapsed && <span className="flex-1 truncate">Feedback</span>}
+                        </button>
+                    </FeedbackModal>
+
+                    <hr className="h-px bg-border border-0 my-2" />
+
+                    {/* User / login */}
                     {user ? (
                         <Link
                             href="/settings"
+                            title={user.displayName || user.email || "Account"}
                             className={cn(
-                                "group relative flex flex-col items-center justify-center w-14 py-2 rounded-xl transition-all duration-150",
-                                activeItem === "settings"
-                                    ? "bg-brand/10 text-brand"
-                                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                "flex items-center gap-2.5 p-2 rounded-[9px] hover:bg-muted transition-colors",
+                                isCollapsed && "justify-center"
                             )}
                         >
-                            {activeItem === "settings" && (
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] w-[3px] h-5 bg-brand rounded-full" />
+                            <div
+                                className="w-[34px] h-[34px] rounded-full grid place-items-center text-white font-bold text-sm shrink-0"
+                                style={{ background: "linear-gradient(135deg,#8b5cf6,#4f46e5)" }}
+                            >
+                                {initialsOf(user)}
+                            </div>
+                            {!isCollapsed && (
+                                <>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[13.5px] font-semibold truncate leading-tight">
+                                            {user.displayName || user.email?.split("@")[0]}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground truncate leading-tight">{user.email}</div>
+                                    </div>
+                                    <CaretDown size={16} className="text-muted-foreground shrink-0" />
+                                </>
                             )}
-                            <div className={cn(
-                                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold uppercase",
-                                activeItem === "settings"
-                                    ? "bg-brand/20 text-brand"
-                                    : "bg-brand/10 text-brand"
-                            )}>
-                                {(user.displayName || "?")[0]}
-                            </div>
-                            <span className="text-[10px] mt-1 font-medium truncate w-14 text-center">
-                                {user.displayName || user.email?.split("@")[0]}
-                            </span>
-
-                            {/* Tooltip */}
-                            <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                <p className="text-xs font-medium">{user.displayName || user.email?.split("@")[0]}</p>
-                                <p className="text-[10px] text-white/60 dark:text-neutral-500">Account & settings</p>
-                            </div>
                         </Link>
                     ) : (
-                        <>
-                            <button
-                                onClick={() => setAuthPopoverOpen(true)}
-                                className="group relative flex flex-col items-center justify-center w-14 h-14 rounded-xl text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all duration-150"
-                            >
-                                <SignIn size={22} weight="regular" />
-                                <span className="text-[10px] mt-0.5 font-medium">Log in</span>
-
-                                {/* Tooltip */}
-                                <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                    <p className="text-xs font-medium">Log in</p>
-                                    <p className="text-[10px] text-white/60 dark:text-neutral-500">Save & sync your data</p>
-                                </div>
-                            </button>
-
-                            <Link
-                                href="/settings"
-                                className={cn(
-                                    "group relative flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-150",
-                                    activeItem === "settings"
-                                        ? "bg-brand/10 text-brand"
-                                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                                )}
-                            >
-                                <Gear size={22} weight={activeItem === "settings" ? "fill" : "regular"} />
-                                <span className="text-[10px] mt-0.5 font-medium">Settings</span>
-
-                                {/* Tooltip */}
-                                <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                    <p className="text-xs font-medium">Settings</p>
-                                    <p className="text-[10px] text-white/60 dark:text-neutral-500">AI connections & preferences</p>
-                                </div>
-                            </Link>
-                        </>
-                    )}
-
-                    {/* Feedback Button - Prominent for Beta */}
-                    <FeedbackModal>
-                        <button className="group relative flex flex-col items-center justify-center w-14 h-14 rounded-xl text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all duration-150">
-                            <ChatCircleDots size={22} weight="regular" />
-                            <span className="text-[9px] mt-0.5 font-medium">Feedback</span>
-
-                            {/* Tooltip */}
-                            <div className="absolute left-full ml-3 px-3 py-2 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap z-50">
-                                <p className="text-xs font-medium">Send Feedback</p>
-                                <p className="text-[10px] text-white/60 dark:text-neutral-500">Report bugs or share ideas</p>
-                            </div>
+                        <button
+                            onClick={() => setAuthPopoverOpen(true)}
+                            title="Log in"
+                            className={cn(itemBase, itemIdle, isCollapsed && "justify-center px-0")}
+                        >
+                            <SignIn size={19} className="shrink-0" />
+                            {!isCollapsed && <span className="flex-1 truncate">Log in</span>}
                         </button>
-                    </FeedbackModal>
+                    )}
                 </div>
             </nav>
 
-            {/* Mobile Bottom Tab Bar */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-[4.5rem] bg-background/95 backdrop-blur-xl flex items-center justify-around px-2 z-50 shadow-[0_-4px_16px_rgb(0_0_0/0.06)]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                {NAV_ITEMS.filter(item => item.id !== "prepare").map((item) => {
+            {/* Mobile bottom tab bar */}
+            <nav
+                className="lg:hidden fixed bottom-0 left-0 right-0 h-[4.5rem] bg-card/95 backdrop-blur-xl border-t border-border flex items-center justify-around px-2 z-50 shadow-[0_-4px_16px_rgb(16_18_27/0.06)]"
+                style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            >
+                {NAV_ITEMS.filter((item) => item.id !== "prepare").map((item) => {
                     const Icon = item.icon;
                     const isActive = activeItem === item.id || (item.id === "home" && activeItem === "prepare");
                     return (
@@ -249,25 +290,13 @@ export function AppShell({ children, user }: AppShellProps) {
                             key={item.id}
                             href={item.href}
                             className={cn(
-                                "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-150 min-w-[60px]",
-                                isActive
-                                    ? "text-brand"
-                                    : "text-muted-foreground"
+                                "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px]",
+                                isActive ? "text-brand" : "text-muted-foreground"
                             )}
                         >
-                            <Icon
-                                size={24}
-                                weight={isActive ? "fill" : "regular"}
-                            />
-                            <span className={cn(
-                                "text-[10px] mt-0.5 font-medium",
-                                isActive && "text-brand"
-                            )}>
-                                {item.label}
-                            </span>
-                            {isActive && (
-                                <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />
-                            )}
+                            <Icon size={24} weight={isActive ? "fill" : "regular"} />
+                            <span className="text-[10px] mt-0.5 font-medium leading-none whitespace-nowrap">{item.label}</span>
+                            {isActive && <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />}
                         </Link>
                     );
                 })}
@@ -276,33 +305,30 @@ export function AppShell({ children, user }: AppShellProps) {
                     <Link
                         href="/settings"
                         className={cn(
-                            "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-150 min-w-[60px]",
+                            "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px]",
                             activeItem === "settings" ? "text-brand" : "text-muted-foreground"
                         )}
                     >
-                        <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold uppercase",
-                            activeItem === "settings" ? "bg-brand/20 text-brand" : "bg-brand/10 text-brand"
-                        )}>
-                            {(user.displayName || "?")[0]}
+                        <div
+                            className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold uppercase",
+                                activeItem === "settings" ? "bg-brand/20 text-brand" : "bg-brand/10 text-brand"
+                            )}
+                        >
+                            {(user.displayName || user.email || "?")[0]}
                         </div>
-                        <span className={cn(
-                            "text-[10px] mt-0.5 font-medium",
-                            activeItem === "settings" && "text-brand"
-                        )}>
+                        <span className="text-[10px] mt-0.5 font-medium leading-none whitespace-nowrap">
                             {user.displayName || user.email?.split("@")[0]}
                         </span>
-                        {activeItem === "settings" && (
-                            <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />
-                        )}
+                        {activeItem === "settings" && <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />}
                     </Link>
                 ) : (
                     <button
                         onClick={() => setAuthPopoverOpen(true)}
-                        className="flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-150 min-w-[60px] text-muted-foreground"
+                        className="flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px] text-muted-foreground"
                     >
                         <SignIn size={24} weight="regular" />
-                        <span className="text-[10px] mt-0.5 font-medium">Login</span>
+                        <span className="text-[10px] mt-0.5 font-medium leading-none">Login</span>
                     </button>
                 )}
             </nav>

@@ -114,8 +114,11 @@ function ResumeTailorContent() {
         setSheetState({ isOpen: true, view: 'analysis' });
     };
 
-    const handleAnalyzeJob = async () => {
-        if (!jobInput.trim()) {
+    const handleAnalyzeJob = async (inputOverride?: string) => {
+        // inputOverride lets callers (e.g. the /jobs auto-analyze) pass the posting directly,
+        // bypassing the state-update race. A click event arg is ignored via the typeof guard.
+        const input = (typeof inputOverride === "string" ? inputOverride : jobInput).trim();
+        if (!input) {
             setError(RESUME_MESSAGES.noJobPosting);
             return;
         }
@@ -124,7 +127,7 @@ function ResumeTailorContent() {
         setError(null);
 
         try {
-            const result = await analyzeJobRequirements(jobInput, jobUrl || undefined);
+            const result = await analyzeJobRequirements(input, jobUrl || undefined);
 
             if (result.error) {
                 setError(result.error);
@@ -184,6 +187,25 @@ function ResumeTailorContent() {
             // For now we assume the user flow starts from analysis or selects a version which sets context
         }
     }, [searchParams]);
+
+    // Prefill the job posting when arriving from /jobs → "Apply with tailored resume".
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem("intervu:tailor-job");
+            if (raw) {
+                sessionStorage.removeItem("intervu:tailor-job");
+                const j = JSON.parse(raw) as { description?: string };
+                if (j.description) {
+                    setJobInput(j.description);
+                    // Description is already present — skip the paste page, analyze immediately.
+                    void handleAnalyzeJob(j.description);
+                }
+            }
+        } catch {
+            /* ignore */
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSaveVersion = async (versionName: string, appliedRecommendations: TailoringRecommendation[]) => {
         if (!resumeData || !jobAnalysis) return;
@@ -349,7 +371,7 @@ function ResumeTailorContent() {
                             </div>
 
                             <Button
-                                onClick={handleAnalyzeJob}
+                                onClick={() => handleAnalyzeJob()}
                                 disabled={isAnalyzing || !jobInput.trim() || !resumeData}
                                 className="w-full h-11 sm:h-12 text-sm sm:text-base shadow-sm"
                                 size="lg"

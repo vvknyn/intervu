@@ -6,70 +6,87 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-hanken), var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 
 :root {
-  --background: 255 255 255;
-  --foreground: 10 10 10;
-  --card: 252 252 253;
-  --card-foreground: 10 10 10;
+  /* Intervu design system — calm, focused, minimal. Indigo accent. (light) */
+  --background: 248 248 251;
+  --foreground: 21 22 27;
+  --card: 255 255 255;
+  --card-foreground: 21 22 27;
   --popover: 255 255 255;
-  --popover-foreground: 10 10 10;
+  --popover-foreground: 21 22 27;
   --primary: var(--brand);
   /* Link primary to brand */
   --primary-foreground: var(--brand-foreground);
-  --secondary: 245 245 245;
-  --secondary-foreground: 10 10 10;
-  --muted: 245 245 245;
-  --muted-foreground: 115 115 115;
-  --accent: 245 245 245;
-  --accent-foreground: 10 10 10;
-  --destructive: 239 68 68;
+  --secondary: 243 244 248;
+  --secondary-foreground: 21 22 27;
+  --muted: 243 244 248;
+  --muted-foreground: 138 143 158;
+  --accent: 236 238 244;
+  --accent-foreground: 21 22 27;
+  --destructive: 190 18 60;
   --destructive-foreground: 255 255 255;
-  --border: 229 229 229;
-  --input: 229 229 229;
+  --border: 231 232 239;
+  --input: 217 219 229;
   --ring: var(--brand);
   /* Link ring to brand */
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  /* Brand color - overridden by ThemeProvider */
-  --brand: 10 10 10;
+  /* Brand color - overridden by ThemeProvider (design indigo #4F46E5) */
+  --brand: 79 70 229;
   --brand-foreground: 255 255 255;
-  --brand-muted: 115 115 115;
+  --brand-muted: 165 180 252;
 
-  /* Surface tokens */
-  --surface: 250 250 250;
-  --surface-hover: 245 245 245;
+  /* Surface + text levels (design system) */
+  --surface: 255 255 255;
+  --surface-hover: 243 244 248;
+  --surface-2: 243 244 248;
+  --surface-3: 236 238 244;
+  --border-strong: 217 219 229;
+  --text-2: 86 91 105;
+  --text-3: 138 143 158;
 
-  /* Shadow tokens */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.03);
-  --shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.08), 0 4px 12px -4px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 4px 16px -4px rgb(0 0 0 / 0.1), 0 8px 24px -8px rgb(0 0 0 / 0.06);
+  /* Pipeline / status colors */
+  --st-saved: 107 114 128;   --st-saved-soft: 237 238 241;
+  --st-applied: 37 99 235;   --st-applied-soft: 229 237 255;
+  --st-intv: 180 83 9;       --st-intv-soft: 251 240 222;
+  --st-offer: 21 128 61;     --st-offer-soft: 227 245 233;
+  --st-closed: 190 18 60;    --st-closed-soft: 252 231 236;
+
+  /* Sidebar width */
+  --sb-w: 250px;
+
+  /* Shadow tokens (design) */
+  --shadow-sm: 0 1px 2px rgb(16 18 27 / 0.05), 0 1px 1px rgb(16 18 27 / 0.04);
+  --shadow-md: 0 2px 4px rgb(16 18 27 / 0.04), 0 8px 24px rgb(16 18 27 / 0.06);
+  --shadow-lg: 0 12px 40px rgb(16 18 27 / 0.12), 0 4px 12px rgb(16 18 27 / 0.06);
 }
 
 .dark {
-  --background: 14 14 14;
-  --foreground: 250 250 250;
-  --card: 20 20 20;
-  --card-foreground: 250 250 250;
-  --popover: 18 18 18;
-  --popover-foreground: 250 250 250;
+  /* Intervu design system (dark) */
+  --background: 11 12 16;
+  --foreground: 243 244 248;
+  --card: 21 23 30;
+  --card-foreground: 243 244 248;
+  --popover: 21 23 30;
+  --popover-foreground: 243 244 248;
   --primary: var(--brand);
   /* Link primary to brand */
   --primary-foreground: var(--brand-foreground);
-  --secondary: 28 28 28;
-  --secondary-foreground: 250 250 250;
-  --muted: 28 28 28;
-  --muted-foreground: 161 161 161;
-  --accent: 28 28 28;
-  --accent-foreground: 250 250 250;
-  --destructive: 239 68 68;
-  --destructive-foreground: 250 250 250;
-  --border: 40 40 40;
-  --input: 40 40 40;
+  --secondary: 27 30 39;
+  --secondary-foreground: 243 244 248;
+  --muted: 27 30 39;
+  --muted-foreground: 110 116 132;
+  --accent: 35 39 51;
+  --accent-foreground: 243 244 248;
+  --destructive: 247 115 148;
+  --destructive-foreground: 21 22 27;
+  --border: 38 42 53;
+  --input: 52 58 72;
   --ring: var(--brand);
   /* Link ring to brand */
   --chart-1: 250 250 250;
@@ -77,28 +94,40 @@
   --chart-3: 153 153 153;
   --chart-4: 102 102 102;
   --chart-5: 51 51 51;
-  --sidebar: 52 52 52;
-  --sidebar-foreground: 250 250 250;
-  --sidebar-primary: 99 102 241;
-  --sidebar-primary-foreground: 250 250 250;
-  --sidebar-accent: 69 69 69;
-  --sidebar-accent-foreground: 250 250 250;
-  --sidebar-border: 69 69 69;
+  --sidebar: 21 23 30;
+  --sidebar-foreground: 243 244 248;
+  --sidebar-primary: 124 130 242;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 35 39 51;
+  --sidebar-accent-foreground: 243 244 248;
+  --sidebar-border: 38 42 53;
   --sidebar-ring: 112 112 112;
 
-  /* Brand color - overridden by ThemeProvider */
-  --brand: 250 250 250;
-  --brand-foreground: 10 10 10;
-  --brand-muted: 161 161 161;
+  /* Brand color - overridden by ThemeProvider (design indigo #7C82F2) */
+  --brand: 124 130 242;
+  --brand-foreground: 255 255 255;
+  --brand-muted: 99 102 241;
 
-  /* Surface tokens */
-  --surface: 22 22 22;
-  --surface-hover: 28 28 28;
+  /* Surface + text levels (design system) */
+  --surface: 21 23 30;
+  --surface-hover: 27 30 39;
+  --surface-2: 27 30 39;
+  --surface-3: 35 39 51;
+  --border-strong: 52 58 72;
+  --text-2: 166 172 188;
+  --text-3: 110 116 132;
 
-  /* Shadow tokens */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 1px 3px 0 rgb(0 0 0 / 0.15);
-  --shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.3), 0 4px 12px -4px rgb(0 0 0 / 0.2);
-  --shadow-lg: 0 4px 16px -4px rgb(0 0 0 / 0.4), 0 8px 24px -8px rgb(0 0 0 / 0.25);
+  /* Pipeline / status colors (dark) */
+  --st-saved: 154 161 174;   --st-saved-soft: 33 36 45;
+  --st-applied: 123 162 255; --st-applied-soft: 24 35 56;
+  --st-intv: 230 169 90;     --st-intv-soft: 44 36 19;
+  --st-offer: 107 214 152;   --st-offer-soft: 21 39 28;
+  --st-closed: 247 115 148;  --st-closed-soft: 44 22 32;
+
+  /* Shadow tokens (design, dark) */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 2px 6px rgb(0 0 0 / 0.3), 0 10px 28px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.55);
 }
 
 @theme inline {
@@ -131,6 +160,21 @@
   --color-brand-muted: rgb(var(--brand-muted));
   --color-surface: rgb(var(--surface));
   --color-surface-hover: rgb(var(--surface-hover));
+  --color-surface-2: rgb(var(--surface-2));
+  --color-surface-3: rgb(var(--surface-3));
+  --color-border-strong: rgb(var(--border-strong));
+  --color-text-2: rgb(var(--text-2));
+  --color-text-3: rgb(var(--text-3));
+  --color-st-saved: rgb(var(--st-saved));
+  --color-st-saved-soft: rgb(var(--st-saved-soft));
+  --color-st-applied: rgb(var(--st-applied));
+  --color-st-applied-soft: rgb(var(--st-applied-soft));
+  --color-st-intv: rgb(var(--st-intv));
+  --color-st-intv-soft: rgb(var(--st-intv-soft));
+  --color-st-offer: rgb(var(--st-offer));
+  --color-st-offer-soft: rgb(var(--st-offer-soft));
+  --color-st-closed: rgb(var(--st-closed));
+  --color-st-closed-soft: rgb(var(--st-closed-soft));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
