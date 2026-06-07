@@ -2,6 +2,7 @@
 
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isAdminUser } from "@/lib/llm/credit-gate";
 
 export async function getAppConfig() {
     try {
@@ -41,16 +42,7 @@ export async function updateAppConfig(updates: {
 export async function isCurrentUserAdmin(): Promise<boolean> {
     const user = await getServerUser();
     if (!user) return false;
-
-    try {
-        const db = getAdminDb();
-        const doc = await db.collection("profiles").doc(user.uid).get();
-
-        if (!doc.exists) return false;
-
-        return doc.data()?.is_admin === true;
-    } catch (error) {
-        console.error("[Admin] Error checking admin status:", error);
-        return false;
-    }
+    // Admin = email allowlist (vvk) OR profiles.is_admin. Shared with the
+    // credit gate so "admin" means the same thing everywhere.
+    return isAdminUser(user);
 }

@@ -4,6 +4,7 @@ import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, Techn
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { getUserLLMConfig } from "@/actions/profile";
 import { ProviderFactory } from "@/lib/llm/providers";
+import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 
@@ -98,6 +99,10 @@ const repairJSON = (text: string) => {
 };
 
 export const fetchJSON = async (prompt: string, label: string, configOverride?: Partial<ProviderConfig>) => {
+    // Credit gate — charged ONCE per generation, above the retry loop, and only
+    // when this resolves to the shared key (admins + BYOK are exempt). Throws
+    // OUT_OF_CREDITS when the user's monthly free balance is exhausted.
+    await chargeIfSharedKey(await getConfig(configOverride));
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
         return Promise.race([
@@ -588,6 +593,7 @@ export async function generateGenericJSON(prompt: string, configOverride?: Parti
 export async function generateGenericText(prompt: string, configOverride?: Partial<ProviderConfig>): Promise<string> {
     try {
         const config = await getConfig(configOverride);
+        await chargeIfSharedKey(config);
         const provider = ProviderFactory.getProvider(config.provider, config.apiKey, config.model);
 
         const response = await provider.generate({
