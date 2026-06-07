@@ -3,6 +3,7 @@
 import { createApplication } from "@/actions/application";
 import { getJobsBackendStatus, searchJobs as runSearch } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "@/lib/jobs/types";
+import { validate, markJobAppliedSchema } from "@/lib/validation";
 
 /** Search the jobs corpus (dispatches to whichever backend is configured). */
 export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
@@ -28,10 +29,13 @@ export async function markJobAppliedAction(input: {
   title: string;
   applyUrl: string;
 }): Promise<{ data?: { id: string }; error?: string }> {
+  const parsed = validate(markJobAppliedSchema, input);
+  if (!parsed.ok) return { error: parsed.error };
+
   const res = await createApplication({
-    company_name: input.company || "Unknown Company",
-    position: input.title || "Unknown Position",
-    job_url: input.applyUrl || undefined,
+    company_name: parsed.data.company,
+    position: parsed.data.title,
+    job_url: parsed.data.applyUrl,
     status: "applied",
     applied_at: new Date().toISOString(),
   });

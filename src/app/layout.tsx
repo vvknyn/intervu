@@ -24,9 +24,45 @@ const hanken = Hanken_Grotesk({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://intervu.cc";
+const SITE_TITLE = "Intervu";
+const SITE_DESCRIPTION =
+  "Your job application workspace — manage resumes, applications, and interview prep in one place. Bring your own API key. No subscriptions.";
+
 export const metadata: Metadata = {
-  title: "Intervu",
-  description: "Your Job Application Workspace - Manage resumes, applications, and interview prep in one place",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_TITLE,
+    template: "%s · Intervu",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_TITLE,
+  keywords: [
+    "interview prep",
+    "resume builder",
+    "job application tracker",
+    "cover letter",
+    "job search",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE_TITLE,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

@@ -3,6 +3,7 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { encryptKeys, decryptKeys } from "@/lib/encryption";
+import { validate, saveProviderApiKeySchema } from "@/lib/validation";
 
 export interface ProviderApiKeys {
     openrouter?: string;
@@ -246,6 +247,11 @@ export async function saveProviderApiKey(provider: string, key: string) {
     try {
         const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
+
+        // Reject unknown providers / oversize keys before decrypt+merge+re-encrypt.
+        const parsed = validate(saveProviderApiKeySchema, { provider, key });
+        if (!parsed.ok) return { error: parsed.error };
+        ({ provider, key } = parsed.data);
 
         const db = getAdminDb();
         const doc = await db.collection("profiles").doc(user.uid).get();

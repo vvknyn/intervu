@@ -5,28 +5,36 @@
 <h1 align="center">Intervu</h1>
 
 <p align="center">
-  Your open-source, AI-powered job application workspace.<br/>
-  Bring your own API key. No subscriptions. No data harvesting.
+  Your AI-powered job application workspace.<br/>
+  Resumes, applications, interview prep, and job search in one place.
 </p>
 
 <p align="center">
   <a href="#getting-started">Get Started</a> &middot;
   <a href="#features">Features</a> &middot;
-  <a href="CONTRIBUTING.md">Contribute</a> &middot;
-  <a href="LICENSE">MIT License</a>
+  <a href="DEPLOY.md">Deploy</a> &middot;
+  <a href="LICENSE">License</a>
 </p>
 
 ![Intervu Homepage](public/demo-screenshot.png)
 
 ---
 
-## Why Intervu?
+## What is Intervu?
 
-Most interview prep tools charge $20-50/month to wrap the same LLM APIs you can call yourself. Intervu takes a different approach:
+Intervu ([intervu.cc](https://intervu.cc)) is a single workspace for the whole job
+search loop: discover roles, tailor your resume, write cover letters, track
+applications, and prep for the interview.
 
-- **BYOK (Bring Your Own Key)** -- Plug in a free Groq or Gemini key and you're set. Or use OpenAI if you prefer. You pay the provider directly for what you use.
-- **Privacy-first** -- API keys are encrypted at rest with AES and never leave your account. No analytics, no tracking, no data sold.
-- **Open source** -- MIT licensed. Self-host it, fork it, extend it.
+- **Credits + BYOK** — Generations run on a shared, app-funded model with a small
+  free monthly grant. Out of credits? Bring your own [OpenRouter](https://openrouter.ai)
+  or [Groq](https://console.groq.com) key in Settings and you're never charged or
+  rate-limited — you pay the provider directly.
+- **Keys encrypted at rest** — Your provider keys are AES-encrypted server-side and
+  never round-trip through the browser in plaintext.
+- **Job search built in** — A large jobs corpus (served by a self-hosted
+  Meilisearch index) with a ghost-job signal so you don't waste applications on
+  stale listings.
 
 ---
 
@@ -34,7 +42,8 @@ Most interview prep tools charge $20-50/month to wrap the same LLM APIs you can 
 
 ### Interview Prep Engine
 
-Type a company, role, and round in natural language (e.g. *"Google PM final round"*) and Intervu generates a full prep package:
+Type a company, role, and round in natural language (e.g. *"Google PM final round"*)
+and Intervu generates a full prep package:
 
 | Section | What it does |
 |---|---|
@@ -48,9 +57,9 @@ Type a company, role, and round in natural language (e.g. *"Google PM final roun
 
 ### Resume Builder & Tailoring
 
-- Build a structured resume from scratch or import from PDF/DOCX/text
+- Build a structured resume from scratch or import from PDF / DOCX / text
 - Paste a job posting URL and get AI-powered tailoring recommendations
-- Save multiple resume versions -- one per application
+- Save multiple resume versions — one per application
 - Export to PDF or DOCX
 
 ### Application Tracker
@@ -60,50 +69,34 @@ Type a company, role, and round in natural language (e.g. *"Google PM final roun
 - Generate cover letters with one click
 - Jump straight from a tracked application into interview prep
 
-### STAR Story Bank
+### Job Search
 
-- Store behavioral interview stories in the STAR format (Situation, Task, Action, Result)
-- Stories are automatically referenced during question prep
+- Search a large jobs corpus from the **Find jobs** tab (powered by Meilisearch)
+- Ghost-job signal flags listings that look stale or re-posted
+- "Apply" deep-links you out to the original posting and records it in your tracker
 
-### Knowledge Sources
+### STAR Story Bank & Knowledge Sources
 
-- Add articles, research notes, or URLs as knowledge sources
-- Referenced by the AI during prep generation for more personalized output
+- Store behavioral stories in the STAR format; they're referenced during question prep
+- Add articles, notes, or URLs as knowledge sources the AI draws on for personalized output
 
-### Guided Workflows
+### Personality-Driven Copy & Interactive Tour
 
-The home screen shows contextual recipe cards based on your setup state:
-
-- **Set Up Intervu** -- Connect an AI provider, import your resume, add your first story. Includes sign-in for returning users.
-- **Prepare for an Interview** -- Quick search to generate a full prep package
-- **Tailor Resume for a Job** -- Optimize your resume for a specific posting
-- **Track an Application** -- Log a new application with resume + cover letter
-- **Add Sources & Knowledge** -- Build your knowledge base
-- **Build Your Story Bank** -- Add STAR stories for behavioral rounds
-
-### Motivational Banner
-
-A subtle, rotating quote banner appears across every page with 301+ quirky interview-themed messages. Rotates automatically every 3 minutes with a smooth fade transition. Dismiss it for 24 hours with a single click, or disable it permanently from Settings.
-
-### Personality-Driven Copy
-
-All messaging across the app -- loading states, empty states, login prompts, error messages, success toasts -- uses centralized, quirky copy from a single source of truth (`src/lib/copy.ts`). Every visit shows randomized messages so the experience feels fresh.
-
-### Interactive Tour
-
-A contextual tour system guides new users through the interface. The tour trigger only appears on pages with relevant content and adapts to the current page's features.
+- All user-facing text lives in `src/lib/copy.ts` (single source of truth, randomized per visit)
+- A rotating motivational banner and a contextual onboarding tour guide new users
 
 ---
 
-## Supported AI Providers
+## AI Providers
 
-| Provider | Models | Cost |
+| Mode | Provider | Notes |
 |---|---|---|
-| **Groq** | Llama 3.3 70B, Llama 3 8B, Mixtral 8x7B, Gemma 2 9B | Free |
-| **Google Gemini** | Gemini 2.0 Flash, 1.5 Flash, 1.5 Pro | Free |
-| **OpenAI** | GPT-4o, GPT-4o Mini, GPT-3.5 Turbo | Paid |
+| **Shared (default)** | OpenRouter | App-funded, credit-metered. Small free monthly grant per account. |
+| **BYOK** | OpenRouter or Groq | Add your own key in Settings → never charged, never rate-limited. |
+| **Transcription** | Groq (Whisper) | Used for in-app audio transcription. |
 
-Groq and Gemini both offer free API keys -- you can use Intervu without spending anything.
+Admins get unlimited use of the shared key. Anonymous (signed-out) users cannot use
+the shared key — sign in, or bring your own key.
 
 ---
 
@@ -111,14 +104,16 @@ Groq and Gemini both offer free API keys -- you can use Intervu without spending
 
 | Layer | Technology |
 |---|---|
-| Framework | [Next.js 16](https://nextjs.org/) (App Router, Turbopack, Server Actions) |
-| Database | [Supabase](https://supabase.com/) (PostgreSQL + Auth + RLS) |
-| Styling | [Tailwind CSS 4](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/) |
-| Icons | [Phosphor Icons](https://phosphoricons.com/) |
-| AI | OpenAI SDK, Google Generative AI, Groq SDK |
+| Framework | [Next.js 16](https://nextjs.org/) (App Router, Turbopack, Server Actions), [React 19](https://react.dev/) |
+| Auth & Data | [Firebase](https://firebase.google.com/) — Auth (session cookies) + Firestore |
+| Styling | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-variable design tokens, dark mode) + Radix UI primitives |
+| Icons | [Phosphor Icons](https://phosphoricons.com/) + [Lucide](https://lucide.dev/) |
+| AI | OpenRouter (via the OpenAI SDK) + [Groq SDK](https://groq.com/) |
+| Job search | [Meilisearch](https://www.meilisearch.com/) (self-hosted), Subspace jobs API |
 | Code Editor | [Monaco Editor](https://microsoft.github.io/monaco-editor/) |
-| PDF/DOCX | unpdf, mammoth, jspdf, docx |
-| Testing | [Playwright](https://playwright.dev/) (E2E + unit) |
+| PDF / DOCX | unpdf, mammoth, jspdf, docx |
+| Validation | [Zod](https://zod.dev/) (server-action input boundaries) |
+| Testing | [Playwright](https://playwright.dev/) (E2E) + `node:test` via `tsx` (unit) |
 | Encryption | CryptoJS (AES) |
 
 ---
@@ -127,128 +122,69 @@ Groq and Gemini both offer free API keys -- you can use Intervu without spending
 
 ### Prerequisites
 
-- **Node.js 18+**
-- A **Supabase** account ([free tier](https://supabase.com/pricing) works)
-- An API key from at least one provider: [Groq](https://console.groq.com/) (free), [Google AI Studio](https://aistudio.google.com/apikey) (free), or [OpenAI](https://platform.openai.com/api-keys) (paid)
+- **Node.js 20+**
+- A **Firebase** project (Auth + Firestore enabled) with a service account
+- An [OpenRouter](https://openrouter.ai/keys) key for the shared model (and/or let users BYOK)
+- *(Optional)* A running **Meilisearch** instance for the jobs corpus
 
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/vvknyn/interview-os.git
-cd interview-os
+git clone https://github.com/vvknyn/intervu.git
+cd intervu
 npm install
 ```
 
-### 2. Set up Supabase
+### 2. Configure environment
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Run the SQL migrations in order:
-   ```bash
-   # Using the Supabase CLI
-   supabase db push
-   ```
-   Or run each file in `supabase/migrations/` manually via the Supabase SQL Editor.
-3. Copy your project URL and anon key from **Settings > API**.
-
-### 3. Configure environment
-
-```bash
-cp .env.example .env.local
-```
-
-Fill in the required values:
+Create `.env.local` in the project root and fill in:
 
 ```env
-# Required -- from Supabase Settings > API
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# --- Firebase (client) — public-by-design, inlined into the bundle ---
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+NEXT_PUBLIC_FIREBASE_APP_ID=...
 
-# Required -- encrypts user API keys at rest
-# Generate with: openssl rand -hex 32
+# --- Firebase Admin (server) — SECRET. Either the JSON blob… ---
+FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
+# …or the three individual fields (PRIVATE KEY is the PEM block from the service
+# account JSON, with literal newlines escaped as \n):
+# FIREBASE_CLIENT_EMAIL=...
+# FIREBASE_PRIVATE_KEY="<your service-account PEM, newlines as \n>"
+
+# --- AI ---
+OPENROUTER_API_KEY=sk-or-...   # shared, app-funded model
+GROQ_API_KEY=gsk_...           # audio transcription (Whisper)
+
+# --- Secrets ---
+# Encrypts users' BYOK provider keys at rest. Generate: openssl rand -hex 32
 ENCRYPTION_KEY=your-32-byte-hex-key
+# Comma-separated admin emails (unlimited shared-key use). Defaults to the owner.
+ADMIN_EMAILS=you@example.com
 
-# Optional -- server-side fallback keys for demo/trial mode
-GROQ_API_KEY=gsk_...
-GEMINI_API_KEY=...
-OPENAI_API_KEY=sk-...
+# --- Jobs (optional; the Find-jobs tab is empty without these) ---
+MEILISEARCH_HOST=https://your-meili-host
+MEILISEARCH_SEARCH_KEY=...      # read-only search key used at request time
+# MEILISEARCH_ADMIN_KEY / MEILISEARCH_API_KEY are used only by the off-Vercel sync worker
+SUBSPACE_API_BASE_URL=...
+SUBSPACE_API_KEY=...
 ```
 
-### 4. Start developing
+> `.env.local` is gitignored. Never commit real keys. The `NEXT_PUBLIC_FIREBASE_*`
+> values are public-by-design (they ship in the client bundle); everything else is
+> a server secret.
+
+### 3. Run
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The setup wizard will guide you through connecting an AI provider and importing your resume.
-
----
-
-## Deployment
-
-### Vercel (recommended)
-
-1. Push to GitHub
-2. Import the repo in [Vercel](https://vercel.com)
-3. Add your `.env.local` variables to **Settings > Environment Variables**
-4. Deploy
-
-### Self-hosting
-
-Any platform that runs Node.js 18+ works. Build and start:
-
-```bash
-npm run build
-npm start
-```
-
-Set the same environment variables from `.env.example` in your hosting provider.
-
----
-
-## Project Structure
-
-```
-interview-os/
-├── .github/
-│   └── workflows/
-│       └── update-readme-stats.yml  # Auto-updates README stats on push
-│
-├── src/
-│   ├── app/                    # Next.js routes
-│   │   ├── page.tsx            # Home / dashboard
-│   │   ├── applications/       # Application tracker
-│   │   ├── resume-builder/     # Resume creation
-│   │   ├── resume-tailor/      # Resume optimization
-│   │   ├── library/            # Stories & sources
-│   │   └── settings/           # Account & AI config
-│   │
-│   ├── actions/                # Server actions (data + AI)
-│   │   └── fetch-quotes.ts     # Quote fetcher for banner
-│   │
-│   ├── components/             # UI components
-│   │   ├── dashboard/          # Prep engine sections
-│   │   ├── recipes/            # Guided workflow system
-│   │   ├── applications/       # Tracker components
-│   │   ├── resume-builder/     # Resume editor
-│   │   ├── layout/             # Shell, header, nav
-│   │   ├── tour/               # Interactive tour system
-│   │   ├── auth/               # Auth popover, login form
-│   │   └── ui/                 # Shadcn base + motivational banner
-│   │
-│   ├── lib/                    # Utilities
-│   │   ├── llm/                # Model configs & caching
-│   │   ├── supabase/           # DB client setup
-│   │   ├── copy.ts             # Centralized quirky copy (301+ messages)
-│   │   └── encryption.ts       # AES encrypt/decrypt
-│   │
-│   └── types/                  # TypeScript definitions
-│
-├── scripts/                    # Dev & deployment scripts
-├── supabase/migrations/        # Database schema (SQL)
-├── tests/                      # Playwright E2E + unit tests
-└── public/                     # Static assets
-```
+Open [http://localhost:3000](http://localhost:3000). Create an account, connect a
+provider (or rely on the shared credits), and import your resume.
 
 ---
 
@@ -259,50 +195,84 @@ npm run dev          # Development server
 npm run build        # Production build
 npm start            # Production server
 npm run lint         # ESLint
-npm test             # All Playwright tests
-npm run test:ui      # Tests with Playwright UI
-npm run test:headed  # Tests with visible browser
-npm run promote      # Merge staging → main and push
+npm test             # All Playwright E2E tests
+npm run test:unit    # Unit tests (node:test via tsx)
 ```
 
-Individual test suites:
+Unit tests under `tests/unit/` run directly with `tsx`, e.g.:
 
 ```bash
-npm run test:nav       # Navigation
-npm run test:auth      # Authentication
-npm run test:dash      # Dashboard / prep engine
-npm run test:resume    # Resume builder
-npm run test:tailor    # Resume tailoring
-npm run test:apps      # Application tracker
-npm run test:settings  # Settings
-npm run test:mobile    # Mobile responsiveness
-npm run test:privacy   # Privacy & account
-npm run test:unit      # Unit tests
-npm run test:banner    # Motivational banner
-npm run test:wizard    # Setup wizard
-npm run test:copy      # Quirky copy / messages
+npx tsx --test tests/unit/validation.test.ts
+npx tsx --test tests/unit/url-safety.test.ts
+```
+
+Targeted Playwright suites are exposed as `npm run test:nav`, `test:auth`,
+`test:dash`, `test:resume`, `test:tailor`, `test:apps`, `test:settings`,
+`test:mobile`, and `test:privacy`.
+
+---
+
+## Project Structure
+
+```
+intervu/
+├── .github/workflows/
+│   ├── ci.yml                  # Lint + typecheck + build on PR/push
+│   └── update-readme-stats.yml # Auto-updates README stats
+│
+├── src/
+│   ├── app/                    # Next.js routes (App Router)
+│   │   ├── page.tsx            # Home / dashboard
+│   │   ├── jobs/               # Job search (Meilisearch)
+│   │   ├── applications/       # Application tracker
+│   │   ├── resume-builder/     # Resume creation
+│   │   ├── resume-tailor/      # Resume optimization
+│   │   ├── library/            # Stories & sources
+│   │   ├── settings/           # Account & AI config
+│   │   ├── error.tsx           # Route error boundary
+│   │   ├── not-found.tsx       # 404
+│   │   ├── robots.ts           # /robots.txt
+│   │   ├── sitemap.ts          # /sitemap.xml
+│   │   └── opengraph-image.tsx # OG/Twitter card (next/og)
+│   │
+│   ├── actions/                # Server actions (data + AI)
+│   ├── components/             # UI components
+│   ├── lib/                    # Utilities
+│   │   ├── llm/                # Provider config, credit gate, sentinels
+│   │   ├── jobs/               # Meilisearch + Subspace jobs client + sync
+│   │   ├── firebase/           # Client + Admin SDK setup, auth session
+│   │   ├── validation.ts       # Zod input-validation chokepoint
+│   │   ├── url-safety.ts       # SSRF guards for user-supplied URLs
+│   │   ├── encryption.ts       # AES encrypt/decrypt for BYOK keys
+│   │   └── copy.ts             # Centralized user-facing copy
+│   │
+│   └── types/                  # TypeScript definitions
+│
+├── firestore.rules             # Firestore security rules
+├── next.config.ts              # Security headers, CSP, images
+├── tests/                      # Playwright E2E + node:test unit
+└── public/                     # Static assets
 ```
 
 ---
 
-## Contributing
+## Security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. In short:
-
-1. Fork the repo
-2. Create a feature branch from `main`
-3. Make your changes and add tests
-4. Ensure `npm run lint` and `npm test` pass
-5. Open a pull request
-
-### Centralized Copy
-
-All user-facing text lives in `src/lib/copy.ts`. If you're adding new messages, put them there. If you're changing existing messages, check there first. This keeps tone consistent and makes i18n possible down the road.
-
-Bug reports and feature requests are welcome in [Issues](https://github.com/vvknyn/interview-os/issues).
+- **HTTP headers** — `next.config.ts` sets HSTS, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, a `Permissions-Policy`, and
+  a Content-Security-Policy (currently Report-Only; see the file's TODO before
+  enforcing).
+- **Firestore rules** — owner-scoped reads/writes with a default-deny catch-all.
+- **Input validation** — mutating server actions validate input through the Zod
+  chokepoint in `src/lib/validation.ts`.
+- **SSRF** — user-supplied URLs (resume tailoring, link discovery) pass through
+  `src/lib/url-safety.ts`, which blocks private/loopback/metadata ranges and
+  re-checks every redirect hop.
+- **Keys** — BYOK provider keys are AES-encrypted at rest; the shared key is never
+  handed to anonymous callers.
 
 ---
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE).

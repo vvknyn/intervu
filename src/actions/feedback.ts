@@ -3,6 +3,7 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { headers } from "next/headers";
+import { validate, submitFeedbackSchema } from "@/lib/validation";
 
 type FeedbackType = "bug" | "feedback" | "other";
 
@@ -34,13 +35,16 @@ export async function submitFeedback({
         return { error: "You must be logged in to submit feedback." };
     }
 
+    const parsed = validate(submitFeedbackSchema, { type, message, path });
+    if (!parsed.ok) return { error: parsed.error };
+
     try {
         const db = getAdminDb();
         await db.collection("feedback").add({
             user_id: user.uid,
-            type,
-            message,
-            path,
+            type: parsed.data.type,
+            message: parsed.data.message,
+            path: parsed.data.path,
             user_agent: userAgent,
             created_at: new Date().toISOString(),
         });

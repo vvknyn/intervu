@@ -3,6 +3,7 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
+import { validate, updateApplicationSchema } from "@/lib/validation";
 
 export type ApplicationStatus = 'applied' | 'interviewing' | 'offer' | 'rejected' | 'withdrawn';
 
@@ -135,6 +136,11 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
             return { error: "User not authenticated" };
         }
 
+        // Validate/normalize the client-supplied payload (rejects unknown keys,
+        // bad statuses, malformed URLs, oversize fields) before it touches the DB.
+        const parsed = validate(updateApplicationSchema, updates);
+        if (!parsed.ok) return { error: parsed.error };
+
         const db = getAdminDb();
         const docRef = db.collection("applications").doc(id);
         const doc = await docRef.get();
@@ -143,10 +149,13 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
             return { error: "Application not found" };
         }
 
-        const updateData = {
-            ...updates,
-            updated_at: new Date().toISOString(),
-        };
+        // The Admin SDK rejects `undefined` field values (ignoreUndefinedProperties
+        // is off), and the schema normalizes cleared optionals to undefined — strip
+        // them so update() only carries fields the client actually supplied.
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        for (const [k, v] of Object.entries(parsed.data)) {
+            if (v !== undefined) updateData[k] = v;
+        }
 
         await docRef.update(updateData);
 
