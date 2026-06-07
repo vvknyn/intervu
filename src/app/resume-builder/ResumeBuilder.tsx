@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { SecureStorage } from "@/lib/security";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
+import { toast, confirmToast } from "@/lib/toast";
 
 const INITIAL_DATA: ResumeData = {
     profile: {
@@ -368,9 +369,13 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
     const handleMakeBase = async () => {
         if (!user || !isTailoredMode) return;
 
-        const confirmed = window.confirm(
-            "This will copy the current tailored version to your base resume. Your original base resume will be replaced. Continue?"
-        );
+        const confirmed = await confirmToast({
+            title: "Replace base resume?",
+            description:
+                "This will copy the current tailored version to your base resume. Your original base resume will be replaced.",
+            confirmLabel: "Replace",
+            destructive: true,
+        });
 
         if (!confirmed) return;
 
@@ -380,7 +385,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
             const result = await saveResumeData(data);
 
             if (result.error) {
-                alert("Failed to update base resume: " + result.error);
+                toast.error("Failed to update base resume: " + result.error);
             } else {
                 setMadeBase(true);
                 // Show success briefly then redirect
@@ -390,7 +395,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
             }
         } catch (err) {
             console.error("Error making base:", err);
-            alert("Failed to update base resume");
+            toast.error("Failed to update base resume");
         } finally {
             setIsMakingBase(false);
         }

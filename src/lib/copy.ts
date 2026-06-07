@@ -89,7 +89,7 @@ export const RECIPE_SUBTITLES: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Search hints (SearchHome.tsx — contextual hints as user types)
+// Search hints (contextual hints as user types in the search box)
 // ---------------------------------------------------------------------------
 export const SEARCH_HINTS = [
     "Type a company name to start your unfair advantage",

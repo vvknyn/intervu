@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { fetchTailoredVersions, deleteTailoredVersion } from "@/actions/tailor-resume";
 import { FileText, Trash, Calendar, Target, CircleNotch, X, Eye, ArrowRight, CheckCircle, SpinnerGap } from "@phosphor-icons/react";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 
 export function TailoredVersionsList() {
     const [versions, setVersions] = useState<TailoredResumeVersion[]>([]);
@@ -42,7 +43,7 @@ export function TailoredVersionsList() {
 
         if (result.error) {
             console.error("[TailoredVersionsList] Delete failed:", result.error);
-            alert("Failed to delete version: " + result.error);
+            toast.error("Failed to delete version: " + result.error);
             setDeletingId(null);
         } else {
             // Remove from local state after successful delete

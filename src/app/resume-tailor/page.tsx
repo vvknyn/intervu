@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import { Badge } from "@/components/ui/badge";
 import { analyzeJobRequirements, generateTailoringRecommendations, saveTailoredVersion } from "@/actions/tailor-resume";
 import { fetchResumeData } from "@/actions/resume";
+import { applyRecommendations } from "@/lib/resume/apply-recommendations";
 import { fetchProfile } from "@/actions/profile";
 import { JobAnalysisPanel } from "@/components/resume-tailor/JobAnalysisPanel";
 import { RecommendationsPanel } from "@/components/resume-tailor/RecommendationsPanel";
@@ -210,7 +211,13 @@ function ResumeTailorContent() {
     const handleSaveVersion = async (versionName: string, appliedRecommendations: TailoringRecommendation[]) => {
         if (!resumeData || !jobAnalysis) return;
 
-        // Create tailored version by applying recommendations
+        // Apply the accepted rewrites to produce the tailored fields. Previously the
+        // tailored* fields were just the ORIGINAL values, so every accepted rec was
+        // silently dropped on save. Uses the shared fuzzy-apply chokepoint (also used
+        // by the applications wizard) so a near-match rewrite still lands.
+        const { tailoredSummary, tailoredExperience, tailoredCompetencies } =
+            applyRecommendations(resumeData, appliedRecommendations);
+
         const tailoredData = {
             id: activeVersionId || undefined, // Pass ID to update if exists
             versionName,
@@ -221,9 +228,9 @@ function ResumeTailorContent() {
             originalProfile: resumeData.profile,
             originalEducation: resumeData.education,
             sectionOrder: resumeData.sectionOrder,
-            tailoredSummary: resumeData.generatedSummary,
-            tailoredExperience: resumeData.experience,
-            tailoredCompetencies: resumeData.competencies,
+            tailoredSummary,
+            tailoredExperience,
+            tailoredCompetencies,
             recommendations: appliedRecommendations,
             companyName: jobAnalysis.companyName,
             positionTitle: jobAnalysis.positionTitle,

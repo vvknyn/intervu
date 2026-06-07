@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { InterviewQuestion, getInterviewQuestions, deleteInterviewQuestion } from "@/actions/interview-questions";
+import { toast, confirmToast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, ChevronDown, ChevronUp, Bot, Tag } from "lucide-react";
 import { AddQuestionModal } from "./AddQuestionModal";
@@ -43,13 +44,20 @@ export function QuestionsList({ applicationId }: QuestionsListProps) {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent accordion toggle
-        if (!confirm("Are you sure you want to delete this question?")) return;
+        const ok = await confirmToast({
+            title: "Delete question?",
+            description: "This interview question will be permanently removed.",
+            confirmLabel: "Delete",
+            destructive: true,
+        });
+        if (!ok) return;
 
         try {
             await deleteInterviewQuestion(id);
             setQuestions(prev => prev.filter(q => q.id !== id));
         } catch (e) {
             console.error("Failed to delete", e);
+            toast.error("Failed to delete question. Please try again.");
         }
     };
 

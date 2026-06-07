@@ -11,6 +11,8 @@ import { Trash, Upload, DownloadSimple, CloudArrowUp, CloudSlash, CloudCheck, Ch
 import { generateSummary, generateExperienceBullets } from "@/actions/generate-resume-content";
 import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
+import { toast } from "@/lib/toast";
+import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
@@ -39,6 +41,19 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
         setAiModalOpen(true);
     };
 
+    // Surface an AI-action error, branching on the cost/auth gate's sentinels.
+    const showAIError = (err: unknown, fallback: string) => {
+        const sentinel = classifySentinel(err);
+        if (sentinel === "auth") {
+            toast.info(sentinelMessage(err) || "Sign in to use the built-in AI (or add your own key in Settings).");
+        } else if (sentinel === "credits") {
+            toast.error(sentinelMessage(err), 7000);
+        } else {
+            const msg = typeof err === "string" ? err : err instanceof Error ? err.message : fallback;
+            toast.error(msg || fallback);
+        }
+    };
+
     const handleAIGenerate = async (params: any) => {
         if (!currentAISection) return;
 
@@ -52,7 +67,7 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                 });
 
                 if (result.error) {
-                    alert(`Error: ${result.error}`);
+                    showAIError(result.error, "Failed to generate summary.");
                     return;
                 }
 
@@ -73,7 +88,7 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                 });
 
                 if (result.error) {
-                    alert(`Error: ${result.error}`);
+                    showAIError(result.error, "Failed to generate bullet points.");
                     return;
                 }
 
@@ -89,7 +104,7 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
             }
         } catch (error) {
             console.error("AI Generation Error:", error);
-            alert("Failed to generate content. Please try again.");
+            showAIError(error, "Failed to generate content. Please try again.");
         }
     };
 

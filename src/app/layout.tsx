@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
+import { Toaster } from "@/lib/toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,7 @@ export default function RootLayout({
             <AppShellWrapper>{children}</AppShellWrapper>
             <TourOverlay />
             <TourTrigger />
+            <Toaster />
           </TourProvider>
         </ThemeProvider>
       </body>

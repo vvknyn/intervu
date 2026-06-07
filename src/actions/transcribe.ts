@@ -3,6 +3,7 @@
 import Groq from "groq-sdk";
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { AUTH_REQUIRED } from "@/lib/llm/credit-gate";
+import { getUserLLMConfig } from "@/actions/profile";
 
 /** Hard cap on uploaded audio size (~25MB) — Groq's whisper API limit, and a
  *  DoS/cost guard against arbitrarily large uploads on the shared key. */
@@ -26,7 +27,13 @@ export async function transcribeAudio(formData: FormData) {
             return { error: "Audio file too large. Please keep recordings under 25MB." };
         }
 
-        const apiKey = process.env.GROQ_API_KEY;
+        // Prefer the user's own Groq key (BYOK) so they're not spending the shared
+        // key; fall back to the app-funded GROQ_API_KEY (login already enforced above).
+        const userCfg = await getUserLLMConfig();
+        const apiKey =
+            userCfg?.provider === "groq" && userCfg.apiKey
+                ? userCfg.apiKey
+                : process.env.GROQ_API_KEY;
         if (!apiKey) {
             throw new Error("Server configuration error: GROQ_API_KEY missing");
         }

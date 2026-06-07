@@ -7,6 +7,8 @@ import MarkdownIt from "markdown-it";
 import { QuestionItem, CompanyReconData, QuestionsData } from "@/types";
 import { cn } from "@/lib/utils";
 import { DashboardSection } from "./DashboardSection";
+import { toast } from "@/lib/toast";
+import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 
 interface QuestionsGridProps {
     questions: QuestionItem[];
@@ -18,13 +20,15 @@ interface QuestionsGridProps {
     favoritedMap?: Record<string, string>;
     onToggleFavorite?: (question: string, isFavorited: boolean, favoriteId?: string) => void;
     isLoggedIn?: boolean;
+    /** Open the login popover when an AI action returns AUTH_REQUIRED. */
+    onRequireAuth?: () => void;
 }
 
 import { generateAnswerCritique } from "@/actions/generate-context";
 import { AnswerCritique } from "@/types";
 import { Textarea } from "@/components/ui/textarea";
 
-export function QuestionsGrid({ questions, onGenerateStrategy, company, position, round, reconData, favoritedMap = {}, onToggleFavorite, isLoggedIn = false }: QuestionsGridProps) {
+export function QuestionsGrid({ questions, onGenerateStrategy, company, position, round, reconData, favoritedMap = {}, onToggleFavorite, isLoggedIn = false, onRequireAuth }: QuestionsGridProps) {
     // Strategies stored by Question ID
     const [strategies, setStrategies] = useState<{ [key: string]: string }>({});
     const [loadingStrategies, setLoadingStrategies] = useState<{ [key: string]: boolean }>({});
@@ -159,7 +163,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
             }
         },
         onError: (err) => {
-            alert(`Voice input error: ${err}`);
+            toast.error(`Voice input error: ${err}`);
         }
     });
 
@@ -176,7 +180,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
     const handleAnalyzeAnswer = async (question: QuestionItem) => {
         const answer = userAnswers[question.id];
         if (!answer || answer.trim().length < 10) {
-            alert("Please provide a longer answer (at least 10 characters) to get a proper critique.");
+            toast.info("Please provide a longer answer (at least 10 characters) to get a proper critique.");
             return;
         }
 
@@ -186,11 +190,29 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
             if (res.data) {
                 setCritiques(prev => ({ ...prev, [question.id]: res.data! }));
             } else if (res.error) {
-                alert(`Analysis failed: ${res.error}`);
+                // SECTION C sentinel UX: the cost/auth gate's prefixed errors come
+                // through here verbatim. AUTH_REQUIRED → login popover; OUT_OF_CREDITS → toast.
+                const sentinel = classifySentinel(res.error);
+                if (sentinel === "auth") {
+                    onRequireAuth?.();
+                    toast.info(sentinelMessage(res.error) || "Sign in to use the built-in AI.");
+                } else if (sentinel === "credits") {
+                    toast.error(sentinelMessage(res.error), 7000);
+                } else {
+                    toast.error(`Analysis failed: ${res.error}`);
+                }
             }
         } catch (e) {
             console.error(e);
-            alert("An error occurred while analyzing the answer. Please try again.");
+            const sentinel = classifySentinel(e);
+            if (sentinel === "auth") {
+                onRequireAuth?.();
+                toast.info(sentinelMessage(e) || "Sign in to use the built-in AI.");
+            } else if (sentinel === "credits") {
+                toast.error(sentinelMessage(e), 7000);
+            } else {
+                toast.error("An error occurred while analyzing the answer. Please try again.");
+            }
         } finally {
             setIsAnalyzing(prev => ({ ...prev, [question.id]: false }));
         }

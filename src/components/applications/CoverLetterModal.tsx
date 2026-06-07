@@ -6,7 +6,7 @@ import { Application, updateApplication } from "@/actions/application";
 import { CoverLetterSection } from "./CoverLetterSection";
 import { fetchTailoredVersions } from "@/actions/tailor-resume";
 import { fetchResumeData } from "@/actions/resume";
-import { ResumeData } from "@/types/resume";
+import { toast } from "@/lib/toast";
 
 interface CoverLetterModalProps {
     open: boolean;
@@ -73,15 +73,20 @@ export function CoverLetterModal({ open, onOpenChange, application, onSuccess }:
 
     const handleSave = async (content: string) => {
         try {
-            await updateApplication(application.id, { cover_letter: content });
+            const result = await updateApplication(application.id, { cover_letter: content });
+            if (result?.error) {
+                // updateApplication returns { error } on failure — previously ignored,
+                // so a failed save looked successful to the user.
+                toast.error(`Could not save cover letter: ${result.error}`);
+                return;
+            }
             onSuccess();
-            // We don't close automatically here to let user copy/read it, 
-            // but the CoverLetterSection has a copy button. 
-            // The user can close the modal manually.
-            // Actually, for "Save", it usually implies committing. 
-            // Let's just update the backend. The user can close when ready.
+            // Modal stays open so the user can copy/read; they close it manually.
         } catch (e) {
             console.error("Failed to save cover letter to application", e);
+            toast.error(
+                `Could not save cover letter: ${e instanceof Error ? e.message : "Unexpected error"}`,
+            );
         }
     };
 

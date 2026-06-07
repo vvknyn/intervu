@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Application, getApplications, createApplication, updateApplication, deleteApplication } from "@/actions/application";
 import { saveTailoredVersion } from "@/actions/tailor-resume";
 import { fetchProfile } from "@/actions/profile";
+import { applyRecommendations } from "@/lib/resume/apply-recommendations";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Plus, Briefcase, Calendar, FileText, CaretRight, MagnifyingGlass, Buildings, Clock, Confetti, XCircle, ArrowBendUpRight, Funnel, Lightning } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
@@ -168,32 +170,12 @@ function ApplicationsContent() {
             let resumeVersionId: string | undefined;
 
             if (draft.selectedRecommendations && draft.selectedRecommendations.length > 0 && draft.baseResume) {
-                // Apply selected recommendations to produce tailored fields
-                let tailoredSummary = draft.baseResume.generatedSummary;
-                const tailoredExperience = [...draft.baseResume.experience.map(e => ({ ...e }))];
-                const tailoredCompetencies = [...draft.baseResume.competencies.map(c => ({ ...c, skills: [...c.skills] }))];
-
-                for (const rec of draft.selectedRecommendations) {
-                    if (rec.category === 'summary' && rec.suggested) {
-                        tailoredSummary = rec.suggested;
-                    } else if (rec.category === 'experience' && rec.original && rec.suggested) {
-                        for (const exp of tailoredExperience) {
-                            if (exp.description.includes(rec.original)) {
-                                exp.description = exp.description.replace(rec.original, rec.suggested);
-                            }
-                        }
-                    } else if (rec.category === 'skills' && rec.original && rec.suggested) {
-                        for (const comp of tailoredCompetencies) {
-                            const skillIdx = comp.skills.findIndex(s => s === rec.original);
-                            if (skillIdx !== -1) {
-                                comp.skills[skillIdx] = rec.suggested;
-                            }
-                            if (comp.category === rec.original) {
-                                comp.category = rec.suggested;
-                            }
-                        }
-                    }
-                }
+                // Apply selected recommendations to produce tailored fields. Uses the
+                // shared fuzzy-apply chokepoint: the old inline loop used exact
+                // includes()/=== matches, which silently no-op'd whenever the AI's
+                // `original` differed from the resume text by whitespace/case (common).
+                const { tailoredSummary, tailoredExperience, tailoredCompetencies } =
+                    applyRecommendations(draft.baseResume, draft.selectedRecommendations);
 
                 const versionData = {
                     versionName: draft.versionName || `${draft.jobAnalysis?.companyName} - ${draft.jobAnalysis?.positionTitle}`,
@@ -240,7 +222,7 @@ function ApplicationsContent() {
 
         } catch (e: any) {
             console.error("Failed to save application:", e);
-            alert("Failed to save application: " + e.message);
+            toast.error("Failed to save application: " + e.message);
         }
     };
 
@@ -274,14 +256,14 @@ function ApplicationsContent() {
         try {
             const result = await deleteApplication(selectedApp.id);
             if (result.error) {
-                alert("Failed to delete application: " + result.error);
+                toast.error("Failed to delete application: " + result.error);
                 return;
             }
             handleBackToList();
             loadApplications();
         } catch (e: any) {
             console.error("Failed to delete:", e);
-            alert("An unexpected error occurred: " + e.message);
+            toast.error("An unexpected error occurred: " + e.message);
         }
     };
 

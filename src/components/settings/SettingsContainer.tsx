@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { fetchProfile } from "@/actions/profile";
 import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
-import { deleteAccount, requestPasswordResetFromSettings } from "@/actions/auth";
+import { deleteAccount } from "@/actions/auth";
 import { exportUserData } from "@/actions/account";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { themes, themeNames } from "@/lib/themes";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
+import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, sendResetEmail, type User } from "@/lib/firebase/client-auth";
 import { useRouter } from "next/navigation";
 import { getAppConfig } from "@/actions/admin";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -65,15 +65,19 @@ export function SettingsContainer() {
         setIsResetting(true);
         setResetMessage(null);
         try {
-            const result = await requestPasswordResetFromSettings(resetEmail);
-            if (result.error) {
-                setResetMessage({ type: 'error', text: result.error });
-            } else {
+            // Native Firebase flow: emails an oobCode link that lands on /reset-password.
+            await sendResetEmail(resetEmail.trim());
+            setResetMessage({ type: 'success', text: SETTINGS_MESSAGES.resetLinkSent });
+            setTimeout(() => setResetMessage(null), 5000);
+        } catch (e: unknown) {
+            const code = (e as { code?: string })?.code;
+            // Don't leak account existence — treat "not found" as success.
+            if (code === "auth/user-not-found") {
                 setResetMessage({ type: 'success', text: SETTINGS_MESSAGES.resetLinkSent });
+            } else {
+                setResetMessage({ type: 'error', text: SETTINGS_MESSAGES.resetLinkFailed });
             }
             setTimeout(() => setResetMessage(null), 5000);
-        } catch {
-            setResetMessage({ type: 'error', text: SETTINGS_MESSAGES.resetLinkFailed });
         } finally {
             setIsResetting(false);
         }

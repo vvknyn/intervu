@@ -3,6 +3,7 @@
 import { ProviderFactory } from "@/lib/llm/providers";
 import { ProviderConfig } from "@/lib/llm/types";
 import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
+import { getUserLLMConfig } from "@/actions/profile";
 
 const processEnv = process.env;
 const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
@@ -10,18 +11,34 @@ const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
 // Chokepoint for this file: every generation resolves config here, so the
 // cost/auth gate runs here too. Throws AUTH_REQUIRED (anonymous) / OUT_OF_CREDITS
 // (exhausted) before any shared-key spend; no-op for BYOK/override keys.
+//
+// Resolution order: explicit override → the signed-in user's own key (BYOK,
+// from their profile) → app default (shared OpenRouter key). Previously this
+// skipped the BYOK tier, so a user who configured their own key in Settings was
+// still metered against (and could be blocked on) the shared key's credits.
 const getConfig = async (override?: Partial<ProviderConfig>) => {
-    const apiKey = override?.apiKey || processEnv.OPENROUTER_API_KEY || "";
-    const model = override?.model || DEFAULT_MODEL;
-    const provider = override?.provider || "openrouter";
+    // 1. Explicit override carrying a concrete key.
+    if (override?.apiKey && override?.provider) {
+        const config = { apiKey: override.apiKey, provider: override.provider, model: override.model || DEFAULT_MODEL };
+        await chargeIfSharedKey({ apiKey: config.apiKey });
+        return config;
+    }
 
+    // 2. The signed-in user's own provider key (BYOK).
+    const userCfg = await getUserLLMConfig();
+    if (userCfg) {
+        const config = { apiKey: userCfg.apiKey, provider: userCfg.provider, model: override?.model || userCfg.model || DEFAULT_MODEL };
+        await chargeIfSharedKey({ apiKey: config.apiKey }); // no-op for a user's own key
+        return config;
+    }
+
+    // 3. App default — shared OpenRouter key.
+    const apiKey = processEnv.OPENROUTER_API_KEY || "";
     if (!apiKey) {
         throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
-
     await chargeIfSharedKey({ apiKey });
-
-    return { apiKey, provider, model };
+    return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
 };
 
 // Generate professional summary

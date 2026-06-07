@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, ChangeEvent } from "react";
 import { SourceItem } from "@/types";
+import { toast, confirmToast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,13 +104,20 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm("Are you sure you want to delete this source?")) return;
+        const ok = await confirmToast({
+            title: "Delete source?",
+            description: "This source will be removed from your prep context.",
+            confirmLabel: "Delete",
+            destructive: true,
+        });
+        if (!ok) return;
 
         try {
             await deleteSource(id);
             onChange(sources.filter(s => s.id !== id));
         } catch (e) {
             console.error("Failed to delete", e);
+            toast.error("Failed to delete source. Please try again.");
         }
     };
 

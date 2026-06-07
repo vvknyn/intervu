@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { generateCoverLetter } from "@/actions/cover-letter";
 import { CircleNotch, MagicWand, Copy, Check, FileText } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { toast, confirmToast } from "@/lib/toast";
+import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 
 interface CoverLetterSectionProps {
     initialContent?: string;
@@ -25,7 +27,12 @@ export function CoverLetterSection({ initialContent = "", jobUrl = "", resumeCon
         }
 
         if (!jobUrl) {
-            if (!confirm("No Job URL provided. Proceed generating a generic cover letter?")) return;
+            const ok = await confirmToast({
+                title: "No job URL provided",
+                description: "Generate a generic cover letter without a specific job posting?",
+                confirmLabel: "Generate anyway",
+            });
+            if (!ok) return;
         }
 
         setIsGenerating(true);
@@ -33,13 +40,22 @@ export function CoverLetterSection({ initialContent = "", jobUrl = "", resumeCon
             const result = await generateCoverLetter(resumeContent, jobUrl || "General Application");
             if (result.error) {
                 console.error(result.error);
-                alert(result.error);
+                // SECTION C sentinel UX from the cost/auth gate.
+                const sentinel = classifySentinel(result.error);
+                if (sentinel === "auth") {
+                    toast.info(sentinelMessage(result.error) || "Sign in to use the built-in AI.");
+                } else if (sentinel === "credits") {
+                    toast.error(sentinelMessage(result.error), 7000);
+                } else {
+                    toast.error(result.error);
+                }
             } else if (result.data) {
                 setContent(result.data);
                 onSave(result.data);
             }
         } catch (e) {
             console.error(e);
+            toast.error("Failed to generate cover letter. Please try again.");
         } finally {
             setIsGenerating(false);
         }

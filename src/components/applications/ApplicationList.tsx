@@ -1,6 +1,7 @@
 "use client";
 
 import { Application, deleteApplication } from "@/actions/application";
+import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Calendar, ArrowSquareOut, PencilSimple, Trash } from "@phosphor-icons/react";
@@ -61,13 +62,13 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
             const result = await deleteApplication(id);
             if (result.error) {
                 console.error("Delete failed:", result.error);
-                alert(`Failed to delete application: ${result.error}`);
+                toast.error(`Failed to delete application: ${result.error}`);
             } else {
                 onRefresh();
             }
         } catch (err) {
             console.error(err);
-            alert("An unexpected error occurred");
+            toast.error("An unexpected error occurred");
         } finally {
             setDeletingId(null);
         }

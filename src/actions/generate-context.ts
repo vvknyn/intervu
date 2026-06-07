@@ -1169,18 +1169,9 @@ export async function generateInterviewPlan(
             }
         }
 
-        // 2. UNIFIED CALL 1: Recon & Match
-        // Generates company research and "Tell me about yourself" strategy in one go
-        const reconMatchRes = await fetchUnifiedReconMatch(company, position, round, resume, stories, settings.modelConfig, settings.outputPrefs?.strategyLength || "standard");
-
-        if ('error' in reconMatchRes) {
-            throw new Error(reconMatchRes.error);
-        }
-
-        const { recon: reconData, match: matchData } = reconMatchRes;
-
         // 3. Prepare Logic for Questions
-        // Calculate needs for the second unified call
+        // Calculate needs for the question generation up front (inputs don't depend
+        // on the recon/match output), so recon/match and questions can run together.
         const isTechnical = round.toLowerCase().includes('technical') ||
             position.toLowerCase().includes('engineer') ||
             position.toLowerCase().includes('developer') ||
@@ -1190,39 +1181,77 @@ export async function generateInterviewPlan(
         const roleType = detectRoleType(position, round);
         const seniority = detectSeniority(position);
 
-        // Get Curated System/PM Questions (No LLM Call)
-        // We ask for the full count, and it returns what it has.
-        // If we want to support the 70/30 split, we can adjust logic.
-        // For optimization, getting purely curated here is fine, and we ask AI for the rest.
         const totalSysCount = settings.prepSettings?.systemDesign || 10;
-        const sysRes = await fetchSystemDesignQuestions(company, position, round, settings.modelConfig, totalSysCount, true);
-        const curatedQuestions = sysRes.data?.questions || [];
+        // Calculate how many AI questions we need (~30%, min 2).
+        const aiSysCount = Math.max(Math.floor(totalSysCount * 0.3), 2);
 
-        // Calculate how many AI questions we need (e.g. 30% or remaining)
-        // Original logic was roughly 70/30.
-        // Let's aim for 3-5 AI questions to supplement.
-        const aiSysCount = Math.max(Math.floor(totalSysCount * 0.3), 2); // Ensure at least a couple AI questions
+        // 2+4. Run the two LLM generations (recon/match, questions) PLUS the
+        // curated (non-LLM) system-design fetch concurrently, and tolerate partial
+        // failure: if one of the two sequential calls fails we still return whatever
+        // succeeded instead of throwing away the entire plan (mirrors the
+        // coding-challenges allSettled path below). chargeIfSharedKey still runs
+        // inside each fetchJSON, so credit/auth semantics are unchanged.
+        const [reconMatchSettled, questionsSettled, sysSettled] = await Promise.allSettled([
+            fetchUnifiedReconMatch(company, position, round, resume, stories, settings.modelConfig, settings.outputPrefs?.strategyLength || "standard"),
+            fetchUnifiedQuestions(company, position, round, settings.modelConfig, {
+                questions: settings.prepSettings?.questions || 20,
+                reverse: settings.prepSettings?.reverse || 5,
+                technical: isTechnical ? (settings.prepSettings?.technical || 10) : 0,
+                systemDesign: aiSysCount,
+                coding: isTechnical // generate one challenge if technical
+            }, {
+                roleType,
+                seniority,
+                resume,
+                stories
+            }),
+            fetchSystemDesignQuestions(company, position, round, settings.modelConfig, totalSysCount, true),
+        ]);
 
-        // 4. UNIFIED CALL 2: All Questions
-        // Batches Interview Questions, Reverse Questions, Technical, System Design (AI part), Coding
-        const questionsResKeys = await fetchUnifiedQuestions(company, position, round, settings.modelConfig, {
-            questions: settings.prepSettings?.questions || 20,
-            reverse: settings.prepSettings?.reverse || 5,
-            technical: isTechnical ? (settings.prepSettings?.technical || 10) : 0,
-            systemDesign: aiSysCount,
-            coding: isTechnical // generate one challenge if technical
-        }, {
-            roleType,
-            seniority,
-            resume,
-            stories
-        });
+        // Normalize each settled result to either its value or an error string.
+        const reconMatchRes = reconMatchSettled.status === 'fulfilled'
+            ? reconMatchSettled.value
+            : { error: reconMatchSettled.reason?.message || String(reconMatchSettled.reason) };
+        const questionsResKeys = questionsSettled.status === 'fulfilled'
+            ? questionsSettled.value
+            : { error: questionsSettled.reason?.message || String(questionsSettled.reason) };
 
-        if ('error' in questionsResKeys) {
-            throw new Error(questionsResKeys.error);
+        // Hard blocks (sign-in required / out of credits) must NOT be swallowed as a
+        // "partial result" — propagate them so the client's sentinel UX fires.
+        for (const r of [reconMatchRes, questionsResKeys]) {
+            if (r && 'error' in r && typeof r.error === 'string' &&
+                (r.error.startsWith(AUTH_REQUIRED) || r.error.startsWith(OUT_OF_CREDITS))) {
+                throw new Error(r.error);
+            }
         }
 
-        const { questionsData, reverseData, technicalData, codingChallenge: firstCodingChallenge, systemDesignData: aiSystemData } = questionsResKeys;
+        const reconMatchOk = !('error' in reconMatchRes);
+        const questionsOk = !('error' in questionsResKeys);
+
+        // If BOTH core generations failed (non-sentinel), there's nothing to show.
+        if (!reconMatchOk && !questionsOk) {
+            const detail = ('error' in reconMatchRes && reconMatchRes.error) || ('error' in questionsResKeys && questionsResKeys.error) || "Failed to generate interview plan";
+            throw new Error(typeof detail === 'string' ? detail : "Failed to generate interview plan");
+        }
+
+        if (!reconMatchOk) console.warn("[Orchestrator] Recon/Match failed, returning partial plan:", (reconMatchRes as { error: string }).error);
+        if (!questionsOk) console.warn("[Orchestrator] Questions failed, returning partial plan:", (questionsResKeys as { error: string }).error);
+
+        const reconData = reconMatchOk ? reconMatchRes.recon : undefined;
+        const matchData = reconMatchOk ? reconMatchRes.match : undefined;
+
+        // Curated system-design questions (non-LLM); empty if that fetch failed.
+        const curatedQuestions = (sysSettled.status === 'fulfilled' ? sysSettled.value.data?.questions : undefined) || [];
+
+        const {
+            questionsData,
+            reverseData,
+            technicalData,
+            codingChallenge: firstCodingChallenge,
+            systemDesignData: aiSystemData,
+        } = questionsOk
+            ? questionsResKeys
+            : { questionsData: undefined, reverseData: undefined, technicalData: undefined, codingChallenge: undefined, systemDesignData: undefined };
 
         // Generate additional coding challenges in parallel if requested
         const codingChallengeCount = settings.codingChallengeCount || (isTechnical ? 1 : 0);
@@ -1259,30 +1288,34 @@ export async function generateInterviewPlan(
             roleType: roleType
         };
 
-        // 5. Save to Cache
-        const now = Date.now();
-        const expires = now + 24 * 60 * 60 * 1000;
+        // 5. Save to Cache — ONLY when the plan is complete. Caching a partial
+        // result (one of the core calls failed) would serve the gaps as a cache hit
+        // forever; leaving it uncached lets the next attempt fill in what's missing.
+        if (reconMatchOk && questionsOk) {
+            const now = Date.now();
+            const expires = now + 24 * 60 * 60 * 1000;
 
-        const fullData = {
-            id: crypto.randomUUID(),
-            cacheKey,
-            company,
-            position,
-            round,
-            reconData,
-            matchData,
-            questionsData,
-            reverseData,
-            technicalData,
-            codingChallenges,
-            systemDesignData: finalSystemDesignData,
-            resumeCompanies: [],
-            hasResumeContext: resume.length > 20,
-            createdAt: now,
-            expiresAt: expires
-        };
+            const fullData = {
+                id: crypto.randomUUID(),
+                cacheKey,
+                company,
+                position,
+                round,
+                reconData,
+                matchData,
+                questionsData,
+                reverseData,
+                technicalData,
+                codingChallenges,
+                systemDesignData: finalSystemDesignData,
+                resumeCompanies: [],
+                hasResumeContext: resume.length > 20,
+                createdAt: now,
+                expiresAt: expires
+            };
 
-        void saveServerCache(fullData as any);
+            void saveServerCache(fullData as any);
+        }
 
         return {
             reconData,

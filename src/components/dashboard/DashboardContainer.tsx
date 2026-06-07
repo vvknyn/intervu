@@ -38,6 +38,8 @@ import { exportToPDF } from "@/actions/export-pdf";
 import { parseSearchQuery } from "@/actions/search";
 import { quickParseSearchQuery } from "@/lib/search-utils";
 import { useDebouncedCallback } from "use-debounce";
+import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
+import { toast } from "@/lib/toast";
 import { PrepSettings, QuestionSettings, loadPrepSettings } from "./PrepSettings";
 import { RecipeGrid } from "@/components/recipes/RecipeGrid";
 import type { Recipe } from "@/components/recipes/recipes-config";
@@ -939,29 +941,45 @@ export function DashboardContainer() {
             window.history.replaceState(null, "", `/?${params.toString()}`);
 
       } catch (e: unknown) {
-            let errorMessage = "Analysis failed due to an unexpected error.";
-
-            if (e instanceof Error) {
-                errorMessage = e.message;
-            } else if (typeof e === "string") {
-                errorMessage = e;
-            } else if (typeof e === "object" && e && "error" in e) {
-                errorMessage = String((e as any).error);
-            } else if (typeof e === "object" && e && "message" in e) {
-                errorMessage = String((e as any).message);
-            }
-
-            // Use warn for expected provider errors (rate limits), error for unexpected failures
-            const isProviderError = errorMessage.toLowerCase().includes('limit') || errorMessage.toLowerCase().includes('switch to');
-            if (isProviderError) {
-                console.warn("[DashboardContainer] Provider limit:", errorMessage);
+            // SECTION C sentinel UX: the server cost/auth gate throws prefixed errors.
+            //  - AUTH_REQUIRED → open the login popover (shared key needs an account).
+            //  - OUT_OF_CREDITS → show an add-key / upgrade message.
+            const sentinel = classifySentinel(e);
+            if (sentinel === "auth") {
+                setAuthPopoverOpen(true);
+                setViewState(hasSearched ? "error" : "empty");
+                setSearchError("Sign in to use Intervu's built-in AI (or add your own key in Settings).");
+            } else if (sentinel === "credits") {
+                const msg = sentinelMessage(e) ||
+                    "You're out of AI credits. Add your own API key in Settings to keep going.";
+                toast.error(msg, 7000);
+                setViewState(hasSearched ? "error" : "empty");
+                setSearchError(msg);
             } else {
-                console.error("[DashboardContainer] Analysis Error:", e);
-            }
+                let errorMessage = "Analysis failed due to an unexpected error.";
 
-            setSearchError(errorMessage);
-            setError(errorMessage);
-            setViewState(hasSearched ? "error" : "empty");
+                if (e instanceof Error) {
+                    errorMessage = e.message;
+                } else if (typeof e === "string") {
+                    errorMessage = e;
+                } else if (typeof e === "object" && e && "error" in e) {
+                    errorMessage = String((e as any).error);
+                } else if (typeof e === "object" && e && "message" in e) {
+                    errorMessage = String((e as any).message);
+                }
+
+                // Use warn for expected provider errors (rate limits), error for unexpected failures
+                const isProviderError = errorMessage.toLowerCase().includes('limit') || errorMessage.toLowerCase().includes('switch to');
+                if (isProviderError) {
+                    console.warn("[DashboardContainer] Provider limit:", errorMessage);
+                } else {
+                    console.error("[DashboardContainer] Analysis Error:", e);
+                }
+
+                setSearchError(errorMessage);
+                setError(errorMessage);
+                setViewState(hasSearched ? "error" : "empty");
+            }
       } finally {
             if (progressInterval) clearInterval(progressInterval);
             setLoading(false);
@@ -1311,7 +1329,7 @@ export function DashboardContainer() {
 
     const handleExportPDF = async () => {
         if (!reconData || !matchData || !questionsData || !reverseData) {
-            alert('Please complete the analysis before exporting to PDF.');
+            toast.info('Please complete the analysis before exporting to PDF.');
             return;
         }
 
@@ -1335,11 +1353,11 @@ export function DashboardContainer() {
                 link.download = `${company}-${round}-interview-prep.pdf`;
                 link.click();
             } else {
-                alert(`Failed to export PDF: ${result.error || 'Unknown error'}`);
+                toast.error(`Failed to export PDF: ${result.error || 'Unknown error'}`);
             }
         } catch (error: unknown) {
             console.error('Export error:', error);
-            alert('Failed to export PDF. Please try again.');
+            toast.error('Failed to export PDF. Please try again.');
         } finally {
             setIsExportingPDF(false);
         }
@@ -1883,6 +1901,7 @@ export function DashboardContainer() {
                                         favoritedMap={favoritedMap}
                                         onToggleFavorite={handleToggleFavorite}
                                         isLoggedIn={!!user}
+                                        onRequireAuth={() => setAuthPopoverOpen(true)}
                                     />
                                 ) : (
                                     <SectionLoader message="Loading interview questions..." />

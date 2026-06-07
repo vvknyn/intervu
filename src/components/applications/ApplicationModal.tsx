@@ -16,6 +16,7 @@ import { CoverLetterSection } from "./CoverLetterSection";
 import { Application, CreateApplicationData, UpdateApplicationData, createApplication, updateApplication } from "@/actions/application";
 import { TailoredResumeVersion } from "@/types/resume";
 import { fetchTailoredVersions } from "@/actions/tailor-resume";
+import { toast } from "@/lib/toast";
 // import { toast } from "sonner";
 import { CircleNotch } from "@phosphor-icons/react";
 
@@ -98,9 +99,7 @@ export function ApplicationModal({ open, onOpenChange, application, onSuccess }:
 
     const handleSave = async () => {
         if (!company || !position) {
-            // simple validation
-            alert("Company and Position are required.");
-            // toast.error("Company and Position are required");
+            toast.error("Company and Position are required.");
             return;
         }
 
@@ -116,16 +115,20 @@ export function ApplicationModal({ open, onOpenChange, application, onSuccess }:
                 cover_letter: coverLetter
             };
 
-            if (application) {
-                await updateApplication(application.id, data);
-            } else {
-                await createApplication(data);
+            const result = application
+                ? await updateApplication(application.id, data)
+                : await createApplication(data);
+            if (result?.error) {
+                // These actions return { error } on failure rather than throwing —
+                // previously ignored, so a failed save silently closed the modal.
+                toast.error("Failed to save application: " + result.error);
+                return;
             }
             onSuccess();
             onOpenChange(false);
         } catch (e: any) {
             console.error(e);
-            // toast.error("Failed to save application");
+            toast.error("Failed to save application: " + (e?.message || "Unexpected error"));
         } finally {
             setLoading(false);
         }

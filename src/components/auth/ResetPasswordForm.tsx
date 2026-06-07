@@ -1,24 +1,73 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { resetPassword } from "@/actions/auth";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { confirmReset } from "@/lib/firebase/client-auth";
 import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
 
 export function ResetPasswordForm() {
     const router = useRouter();
-    const [state, action, isPending] = useActionState(resetPassword, null);
+    const searchParams = useSearchParams();
+    // Firebase's reset link appends ?oobCode=...&mode=resetPassword to our continue URL.
+    const oobCode = searchParams.get("oobCode");
+
+    const [isPending, setIsPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
 
     useEffect(() => {
-        if (state?.success) {
+        if (success) {
             const timer = setTimeout(() => {
                 router.push("/");
             }, 2000);
             return () => clearTimeout(timer);
         }
-    }, [state?.success, router]);
+    }, [success, router]);
 
-    if (state?.success) {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const password = (form.elements.namedItem("password") as HTMLInputElement)?.value?.trim() || "";
+        const confirmPassword =
+            (form.elements.namedItem("confirmPassword") as HTMLInputElement)?.value?.trim() || "";
+
+        if (!password || !confirmPassword) {
+            setError("Both password fields are required");
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Passwords do not match");
+            return;
+        }
+        if (password.length < 6) {
+            setError("Password must be at least 6 characters");
+            return;
+        }
+        if (!oobCode) {
+            setError("This reset link is invalid or has expired. Please request a new one.");
+            return;
+        }
+
+        setIsPending(true);
+        setError(null);
+        try {
+            await confirmReset(oobCode, password);
+            setSuccess(true);
+        } catch (err: unknown) {
+            const code = (err as { code?: string })?.code;
+            if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") {
+                setError("This reset link is invalid or has expired. Please request a new one.");
+            } else if (code === "auth/weak-password") {
+                setError("Password is too weak. Please choose a stronger one.");
+            } else {
+                setError((err as { message?: string })?.message || "Could not reset password. Please try again.");
+            }
+        } finally {
+            setIsPending(false);
+        }
+    };
+
+    if (success) {
         return (
             <div className="min-h-screen flex items-center justify-center px-4">
                 <div className="w-full max-w-xs text-center">
@@ -50,7 +99,13 @@ export function ResetPasswordForm() {
                     </p>
                 </div>
 
-                <form action={action} className="space-y-4">
+                {!oobCode && (
+                    <div className="mb-4 text-xs text-amber-600 dark:text-amber-400 text-center">
+                        This page should be opened from the link in your reset email.
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-1">
                         <input
                             name="password"
@@ -75,9 +130,9 @@ export function ResetPasswordForm() {
                         />
                     </div>
 
-                    {state?.error && (
+                    {error && (
                         <div className="mt-2 text-xs text-red-500 text-center">
-                            {state.error}
+                            {error}
                         </div>
                     )}
 

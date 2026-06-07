@@ -22,11 +22,26 @@ export type { User } from "firebase/auth";
  */
 async function syncSessionCookie(user: User) {
     const idToken = await user.getIdToken();
-    await fetch("/api/auth/session", {
+    const res = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken }),
     });
+    if (!res.ok) {
+        // A failed session POST means server-side auth (Admin SDK reads of the
+        // session cookie) will see the user as logged out, even though the client
+        // SDK has them signed in — leading to silent "Unauthorized" on every
+        // server action. Surface it instead of swallowing.
+        let detail = "";
+        try {
+            detail = await res.text();
+        } catch {
+            /* ignore */
+        }
+        throw new Error(
+            `Failed to establish session (${res.status}). ${detail}`.trim(),
+        );
+    }
 }
 
 /**

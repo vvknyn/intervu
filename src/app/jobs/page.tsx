@@ -29,6 +29,8 @@ import { searchJobsAction, markJobAppliedAction } from "@/actions/jobs";
 import { FilterPanel, facetValueLabel } from "@/components/jobs/FilterPanel";
 import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
+import { toast } from "@/lib/toast";
+import { classifySentinel } from "@/lib/llm/sentinels";
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -611,12 +613,21 @@ function JobsContent() {
                 applyUrl: job.apply_url,
             });
             if (res.error) {
-                alert(`Could not save: ${res.error}`);
+                // Session may have expired between login and save → reopen auth.
+                if (classifySentinel(res.error) === "auth") {
+                    setAuthOpen(true);
+                } else {
+                    toast.error(`Could not save: ${res.error}`);
+                }
                 return;
             }
             setAppliedIds((prev) => new Set(prev).add(job.id));
         } catch (e) {
-            alert(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+            if (classifySentinel(e) === "auth") {
+                setAuthOpen(true);
+            } else {
+                toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+            }
         } finally {
             setApplyingId(null);
         }
