@@ -4,9 +4,9 @@ import { ProviderFactory } from "@/lib/llm/providers";
 import { ProviderConfig } from "@/lib/llm/types";
 import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 import { getUserLLMConfig } from "@/actions/profile";
+import { DEFAULT_MODEL } from "@/lib/llm/models";
 
 const processEnv = process.env;
-const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
 
 // Chokepoint for this file: every generation resolves config here, so the
 // cost/auth gate runs here too. Throws AUTH_REQUIRED (anonymous) / OUT_OF_CREDITS

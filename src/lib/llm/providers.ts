@@ -46,7 +46,10 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
     }
 
     if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
-        return { code: LLMErrorCode.TIMEOUT, message: `Request timed out. Please try again.`, provider, model, retryable: true, suggestModelSwitch: false };
+        // Non-retryable: retrying a timed-out call just re-incurs the full timeout
+        // (the old 3x retry turned one 60s timeout into ~180s of hanging). Fail fast;
+        // the user can re-trigger, and prep generation degrades per-section (allSettled).
+        return { code: LLMErrorCode.TIMEOUT, message: `Request timed out. Please try again.`, provider, model, retryable: false, suggestModelSwitch: false };
     }
     if (lowerMessage.includes('429') || lowerMessage.includes('rate limit') || lowerMessage.includes('too many requests')) {
         return { code: LLMErrorCode.RATE_LIMIT, message: `Rate limit reached. Please wait a moment and try again.`, provider, model, retryable: true, suggestModelSwitch: false };

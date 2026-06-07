@@ -4,8 +4,7 @@ import { ProviderFactory } from "@/lib/llm/providers";
 import { fetchUrlContent } from "@/actions/fetch-url";
 import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 import { getUserLLMConfig } from "@/actions/profile";
-
-const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
+import { DEFAULT_MODEL } from "@/lib/llm/models";
 
 // Resolve LLM config: the signed-in user's own key (BYOK) → app default (shared
 // OpenRouter key). The credit/auth gate runs against the resolved key, so BYOK
