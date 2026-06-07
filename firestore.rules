@@ -52,12 +52,17 @@ service cloud.firestore {
 
     match /feedback/{docId} {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && request.auth.uid == resource.data.user_id;
     }
 
     // App config — anyone can read, admin writes handled by Admin SDK
     match /app_config/{docId} {
       allow read: if true;
+    }
+
+    // Default deny — any collection/path not explicitly allowed above is closed.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

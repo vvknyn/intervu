@@ -2,6 +2,7 @@
 
 import { ProviderFactory } from "@/lib/llm/providers";
 import { fetchUrlContent } from "@/actions/fetch-url";
+import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 
 const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
 
@@ -23,6 +24,10 @@ export async function generateCoverLetter(resumeContent: string, jobUrlOrDescrip
         if (!apiKey) {
             return { error: "Missing OPENROUTER_API_KEY environment variable." };
         }
+
+        // Require login + credit gate (this resolves to the shared key). Throws
+        // AUTH_REQUIRED for anonymous callers and OUT_OF_CREDITS when exhausted.
+        await chargeIfSharedKey({ apiKey });
 
         const provider = ProviderFactory.getProvider("openrouter", apiKey, DEFAULT_MODEL);
 

@@ -2,19 +2,26 @@
 
 import { ProviderFactory } from "@/lib/llm/providers";
 import { ProviderConfig } from "@/lib/llm/types";
+import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 
 const processEnv = process.env;
 const DEFAULT_MODEL = "qwen/qwen3-vl-235b-a22b-thinking";
 
+// Chokepoint for this file: every generation resolves config here, so the
+// cost/auth gate runs here too. Throws AUTH_REQUIRED (anonymous) / OUT_OF_CREDITS
+// (exhausted) before any shared-key spend; no-op for BYOK/override keys.
 const getConfig = async (override?: Partial<ProviderConfig>) => {
-    const apiKey = processEnv.OPENROUTER_API_KEY || "";
+    const apiKey = override?.apiKey || processEnv.OPENROUTER_API_KEY || "";
     const model = override?.model || DEFAULT_MODEL;
+    const provider = override?.provider || "openrouter";
 
     if (!apiKey) {
         throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
 
-    return { apiKey, provider: "openrouter", model };
+    await chargeIfSharedKey({ apiKey });
+
+    return { apiKey, provider, model };
 };
 
 // Generate professional summary

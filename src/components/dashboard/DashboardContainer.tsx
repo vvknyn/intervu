@@ -717,6 +717,9 @@ export function DashboardContainer() {
             try {
                 parsed = await parseSearchQuery(searchQuery, activeModelConfig);
             } catch (e) {
+                // SECTION C: handle AUTH_REQUIRED/OUT_OF_CREDITS on the client
+                // (e.g. show sign-in prompt / add-key CTA) — the server gate throws
+                // these with a recognizable prefix on shared-key generations.
                 console.error("Parse failed:", e);
                 console.log(`Parse error: ${e}`);
             }

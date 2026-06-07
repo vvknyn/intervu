@@ -1,10 +1,14 @@
 import { test, expect } from '@playwright/test';
 
-// Use environment variable or valid key structure but not actual key
-const GEMINI_KEY = process.env.GEMINI_API_KEY || '***REMOVED-LEAKED-SECRET***';
-const GROQ_KEY = process.env.GROQ_API_KEY || 'gsk_test_key_placeholder_for_verification';
+// Real keys come ONLY from the environment — never hardcode a literal here.
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GROQ_KEY = process.env.GROQ_API_KEY;
 
 test.describe('API Key and Search Stability', () => {
+    // These tests drive the real provider config UIs and need live keys. Skip the
+    // whole suite (rather than fail or leak a placeholder) when keys are absent.
+    test.skip(!GEMINI_KEY || !GROQ_KEY, 'Set GEMINI_API_KEY and GROQ_API_KEY to run API stability tests');
+
 
     test.beforeEach(async ({ page }) => {
         // Clear local storage to ensure fresh state
@@ -43,7 +47,7 @@ test.describe('API Key and Search Stability', () => {
 
         // Enter key
         const input = page.locator('input[type="password"]');
-        await input.fill(GROQ_KEY);
+        await input.fill(GROQ_KEY!); // suite-level test.skip guarantees this is set
         // Wait for button to be enabled/ready
         const saveBtn = page.locator('button:has-text("Save Key")');
         await expect(saveBtn).toBeEnabled();
@@ -118,7 +122,7 @@ test.describe('API Key and Search Stability', () => {
 
         const keyInput = page.locator('input[type="password"]');
         await expect(keyInput).toBeVisible();
-        await keyInput.fill(GEMINI_KEY);
+        await keyInput.fill(GEMINI_KEY!); // suite-level test.skip guarantees this is set
         await page.click('button:has-text("Save Key")');
         await expect(modal).not.toBeVisible();
 
@@ -148,7 +152,7 @@ test.describe('API Key and Search Stability', () => {
             localStorage.setItem('guest_api_keys', JSON.stringify(guestKeys));
             localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
             console.log("Injected keys:", guestKeys);
-        }, GROQ_KEY);
+        }, GROQ_KEY!); // suite-level test.skip guarantees this is set
 
         await page.reload();
 

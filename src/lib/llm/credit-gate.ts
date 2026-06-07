@@ -29,6 +29,13 @@ const MONTHLY_FREE_CREDITS = 10;
 /** Prefix on the thrown message so the UI can recognize the out-of-credits block. */
 export const OUT_OF_CREDITS = "OUT_OF_CREDITS";
 
+/**
+ * Prefix on the thrown message so the UI can recognize the "must sign in" block.
+ * The shared, app-funded key is never given to anonymous callers — sign-in is
+ * required so usage is metered to an account (or exempted for admins / BYOK).
+ */
+export const AUTH_REQUIRED = "AUTH_REQUIRED";
+
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {
     return (process.env.ADMIN_EMAILS || "vivek.nar87@gmail.com")
@@ -60,21 +67,46 @@ function sharedKey(): string {
 }
 
 /**
- * Charge one credit iff the resolved config is using the SHARED key and the
- * caller is a non-admin user. No-op for admins, BYOK/override keys, anonymous
- * callers, or when no shared key is configured. Throws `OUT_OF_CREDITS: …` when
- * the user's balance is exhausted; fails open on any other error.
+ * Enforce the cost policy for a single user-facing AI generation, given the
+ * resolved provider config. This is the SINGLE chokepoint every server action
+ * that can hit the shared, app-funded key must call.
+ *
+ *  - BYOK / explicit override / no shared key configured → no-op (they pay).
+ *  - Shared key + NO authenticated user → HARD BLOCK (`AUTH_REQUIRED: …`). The
+ *    shared key is never spent for anonymous traffic.
+ *  - Shared key + admin → allowed, uncharged.
+ *  - Shared key + non-admin user → charge one credit; `OUT_OF_CREDITS: …` when
+ *    the monthly free balance is exhausted.
+ *
+ * FAIL-OPEN applies ONLY to credit-counting infrastructure errors (Firestore
+ * down, etc.) — those allow the generation so a billing bug can't lock users
+ * out. AUTH_REQUIRED and OUT_OF_CREDITS are deliberate hard blocks and always
+ * propagate.
  */
 export async function chargeIfSharedKey(config: { apiKey?: string | null }): Promise<void> {
+    const shared = sharedKey();
+    if (!shared || !config?.apiKey || config.apiKey !== shared) return; // BYOK / override / unconfigured
+
+    // Resolving the user is part of the auth decision, not credit infra: a failure
+    // here means we cannot prove an account, so we must NOT spend the shared key.
+    let user: { uid: string; email?: string } | null;
     try {
-        const shared = sharedKey();
-        if (!shared || !config?.apiKey || config.apiKey !== shared) return; // BYOK / override / unconfigured
-        const user = await getServerUser();
-        if (!user) return; // no account to meter — allow
+        user = await getServerUser();
+    } catch {
+        user = null;
+    }
+    if (!user) {
+        throw new Error(
+            `${AUTH_REQUIRED}: Sign in to use Intervu’s built-in AI (or add your own key in Settings).`,
+        );
+    }
+
+    try {
         if (await isAdminUser(user)) return; // vvk / admins: unlimited
         await consumeCredit(user.uid);
     } catch (e) {
-        if (e instanceof Error && e.message.startsWith(OUT_OF_CREDITS)) throw e;
+        // Hard blocks always propagate; only credit-counting infra errors fail open.
+        if (e instanceof Error && (e.message.startsWith(OUT_OF_CREDITS) || e.message.startsWith(AUTH_REQUIRED))) throw e;
         console.error("[credits] gate failing open:", e instanceof Error ? e.message : e);
     }
 }

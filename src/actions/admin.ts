@@ -25,6 +25,7 @@ export async function updateAppConfig(updates: {
     show_donation?: boolean;
     donation_url?: string;
 }) {
+    if (!(await isCurrentUserAdmin())) return { error: "Forbidden" };
     try {
         const db = getAdminDb();
         await db.collection("app_config").doc("main").update({

@@ -1,7 +1,11 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const GEMINI_KEY = '***REMOVED-LEAKED-SECRET***';
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_KEY) {
+    console.error("GEMINI_API_KEY is not set. Export it before running this script.");
+    process.exit(1);
+}
 
 async function listModels() {
     console.log("Listing Gemini Models...");

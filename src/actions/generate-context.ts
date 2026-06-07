@@ -4,7 +4,7 @@ import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, Techn
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { getUserLLMConfig } from "@/actions/profile";
 import { ProviderFactory } from "@/lib/llm/providers";
-import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
+import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 
@@ -38,6 +38,14 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const formatError = (e: any) => {
     console.error("Generation Error:", e);
     const msg = e?.message || String(e) || "";
+
+    // Hard blocks from the cost/auth gate must reach the client VERBATIM so it can
+    // recognize the prefix (see Section C client handling). Do NOT run them through
+    // the prefix-stripping cleanup below, which would eat "AUTH_REQUIRED:" etc.
+    if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS)) {
+        return { error: msg };
+    }
+
     const lowerMsg = msg.toLowerCase();
 
     let errorMessage = "An unexpected error occurred.";

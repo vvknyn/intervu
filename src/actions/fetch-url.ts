@@ -1,5 +1,8 @@
+"use server";
+
 import * as cheerio from "cheerio";
-import { checkUrlSafety, checkContentSafety } from "@/lib/url-safety";
+import { checkContentSafety, assertSafeFetchUrl, UnsafeUrlError } from "@/lib/url-safety";
+import { getServerUser } from "@/lib/firebase/auth-session";
 
 const FETCH_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -8,21 +11,91 @@ const FETCH_HEADERS = {
     "Cache-Control": "no-cache"
 };
 
+/** Hard caps: total redirects followed and response body size. */
+const MAX_REDIRECTS = 5;
+const MAX_BYTES = 5 * 1024 * 1024; // 5MB
+const FETCH_TIMEOUT_MS = 8000;
+
+/**
+ * SSRF-safe fetch for user-supplied URLs. Validates the URL (and every redirect
+ * hop) against the private/loopback/metadata blocklist, follows redirects
+ * manually with a cap, and aborts after ~8s. Throws UnsafeUrlError on a blocked
+ * target.
+ */
+async function safeFetch(rawUrl: string): Promise<Response> {
+    let current = rawUrl;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        // Re-validate every hop — defends against a public URL 30x-redirecting to
+        // an internal/metadata address (and against DNS rebinding between hops).
+        await assertSafeFetchUrl(current);
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        let response: Response;
+        try {
+            response = await fetch(current, {
+                headers: FETCH_HEADERS,
+                redirect: "manual", // we follow manually so each Location is re-checked
+                signal: controller.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+        }
+
+        // Opaque-redirect (status 0) or a 3xx with Location → follow manually.
+        const location = response.headers.get("location");
+        const isRedirect = response.status === 0 || (response.status >= 300 && response.status < 400);
+        if (isRedirect && location) {
+            current = new URL(location, current).toString();
+            continue;
+        }
+        return response;
+    }
+    throw new UnsafeUrlError("Too many redirects");
+}
+
+/** Read a response body with a hard byte cap to avoid memory-exhaustion DoS. */
+async function readCapped(response: Response): Promise<string> {
+    const reader = response.body?.getReader();
+    if (!reader) return await response.text();
+    const decoder = new TextDecoder();
+    let received = 0;
+    let out = "";
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        if (received > MAX_BYTES) {
+            try { await reader.cancel(); } catch { /* ignore */ }
+            break;
+        }
+        out += decoder.decode(value, { stream: true });
+    }
+    out += decoder.decode();
+    return out;
+}
+
 export async function fetchUrlContent(url: string): Promise<{ data?: string; title?: string; error?: string }> {
     try {
         if (!url) return { error: "No URL provided" };
 
-        // Safety check on URL
-        const urlCheck = checkUrlSafety(url);
-        if (!urlCheck.safe) return { error: urlCheck.reason };
+        // Require login — these fetch the open internet on the server's behalf.
+        const user = await getServerUser();
+        if (!user) return { error: "Please sign in to fetch content from a URL." };
 
-        const response = await fetch(url, { headers: FETCH_HEADERS });
+        let response: Response;
+        try {
+            response = await safeFetch(url);
+        } catch (e) {
+            if (e instanceof UnsafeUrlError) return { error: e.message };
+            throw e;
+        }
 
         if (!response.ok) {
             return { error: "Could not access this link. Please paste the content directly." };
         }
 
-        const html = await response.text();
+        const html = await readCapped(response);
         const $ = cheerio.load(html);
 
         // Remove scripts, styles, and other non-content elements
@@ -56,16 +129,25 @@ const ASSET_EXTENSIONS = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|
 
 export async function discoverLinks(url: string): Promise<{ links: { url: string; title: string }[]; error?: string }> {
     try {
-        const urlCheck = checkUrlSafety(url);
-        if (!urlCheck.safe) return { links: [], error: urlCheck.reason };
+        // Require login — these fetch the open internet on the server's behalf.
+        const user = await getServerUser();
+        if (!user) return { links: [], error: "Please sign in to discover links." };
 
-        const parsed = new URL(url);
+        let response: Response;
+        let parsed: URL;
+        try {
+            parsed = await assertSafeFetchUrl(url);
+            response = await safeFetch(url);
+        } catch (e) {
+            if (e instanceof UnsafeUrlError) return { links: [], error: e.message };
+            throw e;
+        }
+
         const baseDomain = parsed.hostname;
 
-        const response = await fetch(url, { headers: FETCH_HEADERS });
         if (!response.ok) return { links: [], error: "Could not access URL" };
 
-        const html = await response.text();
+        const html = await readCapped(response);
         const $ = cheerio.load(html);
 
         const seen = new Set<string>();
