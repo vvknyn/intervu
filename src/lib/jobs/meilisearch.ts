@@ -34,6 +34,15 @@ export const JOBS_INDEX_SETTINGS = {
   rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
+  // Facet values must sort by COUNT, not the Meili default (alpha). With alpha,
+  // punctuation/digit-leading junk ('"city":""', '00000') fills the 100-value
+  // cap and buries the real, high-count countries (US, India, Canada…). Sorting
+  // by count surfaces the real values first; raising the cap keeps the long tail
+  // reachable via "Show all". See lib/jobs/types.ts FACETABLE_KEYS.
+  faceting: {
+    maxValuesPerFacet: 300,
+    sortFacetValuesBy: { "*": "count" },
+  },
 };
 
 function host(): string | null {

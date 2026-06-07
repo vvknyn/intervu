@@ -33,6 +33,27 @@ const SALARY_PRESETS = [
 
 const TOP_N = 6;
 
+/** Non-informative sentinel values — a filter that matches "unknown" is just noise. */
+const SENTINEL_VALUES = new Set(["", "unknown", "null", "undefined", "n/a", "none"]);
+
+/**
+ * True if a facet value is noise we should hide from the filter list. Drops
+ * sentinels everywhere, plus junk that leaked into `location_country` (zip
+ * codes, coordinate/JSON fragments, stray tokens). The upstream feed normalizes
+ * these now (Subspace `toPublicJob`), but the UI stays defensive so a stale
+ * index or future regression can't resurface garbage. Selected values are
+ * always kept visible (handled by the caller) so they remain uncheckable.
+ */
+export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
+    if (SENTINEL_VALUES.has(value.trim().toLowerCase())) return true;
+    if (key === "location_country") {
+        if (/[0-9{}[\]"<>:#=]/.test(value)) return true; // zips, coords, JSON fragments
+        if (!/[a-z]/i.test(value)) return true; // no letters → not a country
+        if (value.length > 40) return true;
+    }
+    return false;
+}
+
 /** Human-friendly label for a facet value (shared with the active-filter chips). */
 export function facetValueLabel(key: FacetKey, v: string): string {
     return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -112,7 +133,10 @@ export function FilterPanel({
                     const merged = new Map<string, number>(dist ? Object.entries(dist) : []);
                     // Keep selected-but-now-zero values visible so they remain uncheckable.
                     for (const v of selected) if (!merged.has(v)) merged.set(v, 0);
-                    const all = [...merged.entries()].sort((a, b) => b[1] - a[1]);
+                    // Drop noise (sentinels + junk country values) unless it's selected.
+                    const all = [...merged.entries()]
+                        .filter(([v]) => selected.includes(v) || !isNoiseFacetValue(key, v))
+                        .sort((a, b) => b[1] - a[1]);
                     if (all.length === 0) return null;
                     const isExpanded = expanded[key];
                     const shown = isExpanded ? all : all.slice(0, TOP_N);

@@ -27,6 +27,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { searchJobsAction, markJobAppliedAction } from "@/actions/jobs";
 import { FilterPanel, facetValueLabel } from "@/components/jobs/FilterPanel";
+import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { toast } from "@/lib/toast";
@@ -432,6 +433,9 @@ function JobsContent() {
     const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
     const [applyingId, setApplyingId] = useState<string | null>(null);
     const pendingApply = useRef<PublicJob | null>(null);
+    const [tailorOpen, setTailorOpen] = useState(false);
+    const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
+    const pendingTailor = useRef<PublicJob | null>(null);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -578,24 +582,24 @@ function JobsContent() {
     if (salaryMin > 0) activeChips.push({ label: `≥ $${Math.round(salaryMin / 1000)}k`, onRemove: () => setSalaryMin(0) });
     if (visaOnly) activeChips.push({ label: "Sponsors visas", onRemove: () => setVisaOnly(false) });
 
+    // Open the in-place analysis slideout for a job. Tailoring is AI-backed
+    // (login-gated), so prompt sign-in first and resume once authenticated.
+    const openTailor = (job: PublicJob) => {
+        setTailorJob({
+            company: cleanCompany(job.company),
+            position: decodeText(job.title),
+            description: job.description ?? "",
+            url: job.apply_url || undefined,
+        });
+        setTailorOpen(true);
+    };
     const handleTailor = (job: PublicJob) => {
-        // Carry the full job description into the tailor flow (too long for a URL param).
-        try {
-            sessionStorage.setItem(
-                "intervu:tailor-job",
-                JSON.stringify({
-                    company: cleanCompany(job.company),
-                    position: decodeText(job.title),
-                    description: job.description ?? "",
-                }),
-            );
-        } catch {
-            /* sessionStorage unavailable — fall back to params only */
+        if (!user) {
+            pendingTailor.current = job;
+            setAuthOpen(true);
+            return;
         }
-        const p = new URLSearchParams();
-        p.set("company", cleanCompany(job.company));
-        p.set("position", decodeText(job.title));
-        router.push(`/resume-tailor?${p.toString()}`);
+        openTailor(job);
     };
     const handlePrep = (job: PublicJob) => {
         const p = new URLSearchParams();
@@ -650,6 +654,11 @@ function JobsContent() {
             const job = pendingApply.current;
             pendingApply.current = null;
             void doMarkApplied(job);
+        }
+        if (user && pendingTailor.current) {
+            const job = pendingTailor.current;
+            pendingTailor.current = null;
+            openTailor(job);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
@@ -818,6 +827,12 @@ function JobsContent() {
             )}
 
             <AuthPopover open={authOpen} onOpenChange={setAuthOpen} showTrigger={false} />
+            <TailorAnalysisSheet
+                open={tailorOpen}
+                onOpenChange={setTailorOpen}
+                job={tailorJob}
+                onAuthRequired={() => setAuthOpen(true)}
+            />
         </PageLayout>
     );
 }
