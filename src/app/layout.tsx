@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Hanken_Grotesk } from "next/font/google";
+import { Geist_Mono, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -8,11 +8,8 @@ import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
 import { Toaster } from "@/lib/toast";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
+// Hanken Grotesk is the UI typeface (see globals.css --font-sans); we no longer
+// ship Geist Sans. Geist Mono is kept for code/monospace surfaces.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -73,7 +70,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${hanken.variable} antialiased`}
+        className={`${geistMono.variable} ${hanken.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}

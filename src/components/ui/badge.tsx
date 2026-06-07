@@ -19,6 +19,12 @@ const badgeVariants = cva(
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
         brand: "bg-brand/10 text-brand border-brand/20 [a&]:hover:bg-brand/20",
+        // Status variants — design-token backed, dark-mode correct (see lib/ui/status-tokens.ts).
+        "st-saved": "bg-st-saved-soft text-st-saved border-st-saved/20",
+        "st-applied": "bg-st-applied-soft text-st-applied border-st-applied/20",
+        "st-intv": "bg-st-intv-soft text-st-intv border-st-intv/20",
+        "st-offer": "bg-st-offer-soft text-st-offer border-st-offer/20",
+        "st-closed": "bg-st-closed-soft text-st-closed border-st-closed/20",
       },
     },
     defaultVariants: {

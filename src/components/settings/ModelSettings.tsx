@@ -93,7 +93,7 @@ export function ModelSettings() {
                 <Label>Provider</Label>
                 <Select value={provider} onValueChange={(v) => setProvider(v as Provider)}>
                     <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-zinc-950">
+                    <SelectContent className="bg-popover">
                         {PROVIDERS.map((p) => (
                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
@@ -140,7 +140,7 @@ export function ModelSettings() {
                 <Label>Model</Label>
                 <Select value={model} onValueChange={setModel}>
                     <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-zinc-950">
+                    <SelectContent className="bg-popover">
                         {AVAILABLE_MODELS[provider].map((m) => (
                             <SelectItem key={m.id} value={m.id}>{m.name} — {m.description}</SelectItem>
                         ))}

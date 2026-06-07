@@ -40,6 +40,8 @@ import { quickParseSearchQuery } from "@/lib/search-utils";
 import { useDebouncedCallback } from "use-debounce";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { PrepSettings, QuestionSettings, loadPrepSettings } from "./PrepSettings";
 import { RecipeGrid } from "@/components/recipes/RecipeGrid";
 import type { Recipe } from "@/components/recipes/recipes-config";
@@ -1455,15 +1457,12 @@ export function DashboardContainer() {
 
                 {/* Main Content - Centered Search */}
                 <div className={`w-full max-w-2xl transition-all duration-500 ${loading ? 'opacity-50' : ''}`}>
-                    {/* Title */}
+                    {/* Title — the single BETA badge lives in the sidebar lockup (AppShell). */}
                     <div className="mb-12 text-center">
-                        <div className="flex items-start justify-center gap-3 mb-3">
+                        <div className="mb-3">
                             <h1 className="text-[40px] sm:text-[56px] font-semibold tracking-tighter leading-none">
                                 Intervu
                             </h1>
-                            <span className="mt-2 px-2.5 py-0.5 rounded-full bg-brand/[0.08] text-brand text-[10px] font-bold uppercase tracking-widest border border-brand/[0.12]">
-                                Beta
-                            </span>
                         </div>
                         <p className="text-muted-foreground text-base">
                             Your job application workspace
@@ -1518,7 +1517,7 @@ export function DashboardContainer() {
                     </div>
 
                     <div className="px-1 mt-3 mb-6">
-                        <p className="text-muted-foreground/50 text-xs tracking-wide leading-relaxed">
+                        <p className="text-muted-foreground/80 text-xs tracking-wide leading-relaxed">
                             Try &ldquo;Amazon SDE intern behavioral&rdquo; or &ldquo;McKinsey case interview&rdquo;
                         </p>
                     </div>
@@ -1735,19 +1734,21 @@ export function DashboardContainer() {
 
                             {/* Context Badges - Indicators of what's fueling the AI */}
                             <div className="flex items-center gap-2 px-1 flex-wrap">
+                                {/* Context chips use the shared status-token palette (lib/ui/status-tokens.ts)
+                                    so the three context types stay visually distinct AND legible in dark mode. */}
                                 {resume && resume.length > 50 && (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-100/50 shadow-sm">
+                                    <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm", STATUS_PILL.applied)}>
                                         <FileText size={12} weight="fill" />
                                         <span>Resume Context</span>
                                     </div>
                                 )}
                                 {jobContext && jobContext.length > 20 && (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-medium border border-emerald-100/50 shadow-sm">
+                                    <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm", STATUS_PILL.offer)}>
                                         <LinkIcon size={12} weight="bold" />
                                         <span>Job Post Context</span>
                                     </div>
                                 )}
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-[10px] font-medium border border-purple-100/50 shadow-sm">
+                                <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm", STATUS_PILL.intv)}>
                                     <Globe size={12} weight="fill" />
                                     <span>Web Knowledge</span>
                                 </div>

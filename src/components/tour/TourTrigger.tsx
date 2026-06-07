@@ -67,17 +67,19 @@ export function TourTrigger() {
   // No tour targets on this page — don't render the button
   if (!hasTargets) return null;
 
-  // Default floating ? button — small and subtle
+  // Default floating button — small and subtle. Sits above the mobile tab bar
+  // (bottom ~7rem) and clear of the footer on desktop (bottom-6), honoring the
+  // iOS safe-area inset so it never collides with footer text.
   return (
     <button
       onClick={startTour}
-      className="fixed bottom-24 right-4 lg:bottom-4 z-[80] flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/80 text-muted-foreground backdrop-blur-sm border border-border/50 hover:bg-muted hover:text-foreground transition-all text-[10px] font-medium shadow-sm"
-      aria-label="Start guided tour"
+      className="fixed right-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-[80] flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/80 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm transition-all outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40 lg:bottom-6"
+      aria-label="Take a tour"
     >
       <Question size={14} weight="bold" />
-      <span className="tracking-wide">i am legend</span>
+      <span className="tracking-wide">Take a tour</span>
       {!hasSeen && (
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand animate-ping opacity-60" />
+        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-brand opacity-60 motion-safe:animate-ping" />
       )}
     </button>
   );

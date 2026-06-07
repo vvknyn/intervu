@@ -75,7 +75,7 @@ export function Header({
       <div className="px-4 h-16 flex items-center gap-2 sm:gap-4 overflow-hidden">
         {/* Mobile Menu Button */}
         {onOpenSidebar && (
-          <Button variant="ghost" size="icon" className="lg:hidden -ml-2 text-muted-foreground" onClick={onOpenSidebar}>
+          <Button variant="ghost" size="icon" className="lg:hidden -ml-2 text-muted-foreground" onClick={onOpenSidebar} aria-label="Open menu">
             <div className="space-y-1.5">
               <div className="w-5 h-0.5 bg-current rounded-full"></div>
               <div className="w-5 h-0.5 bg-current rounded-full"></div>

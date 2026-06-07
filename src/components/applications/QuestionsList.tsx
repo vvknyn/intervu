@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { InterviewQuestion, getInterviewQuestions, deleteInterviewQuestion } from "@/actions/interview-questions";
 import { toast, confirmToast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ChevronDown, ChevronUp, Bot, Tag } from "lucide-react";
+import { Plus, Trash as Trash2, Robot as Bot } from "@phosphor-icons/react";
 import { AddQuestionModal } from "./AddQuestionModal";
 import { cn } from "@/lib/utils";
 import {

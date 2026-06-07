@@ -136,9 +136,13 @@ export function AppShell({ children, user }: AppShellProps) {
     const navItems = NAV_ITEMS.filter((item) => item.id !== "prepare" || prepareHref);
 
     const itemBase =
-        "group relative flex items-center gap-[11px] rounded-[9px] px-2.5 py-2.5 text-[14.5px] font-medium transition-colors w-full text-left";
+        "group relative flex items-center gap-[11px] rounded-[9px] px-2.5 py-2.5 text-[14.5px] font-medium transition-colors w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background";
     const itemIdle = "text-muted-foreground hover:bg-muted hover:text-foreground";
     const itemActive = "bg-brand/10 text-brand font-semibold";
+
+    // Shared base for the mobile bottom-tab items (keyboard focus + even spacing).
+    const mobileItemBase =
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand/40";
 
     return (
         <div
@@ -168,7 +172,7 @@ export function AppShell({ children, user }: AppShellProps) {
                             <div className="text-[18px] font-bold tracking-[-0.4px] leading-none">
                                 inter<b className="text-brand font-bold">vu</b>
                             </div>
-                            <span className="text-[8.5px] font-extrabold tracking-[0.18em] uppercase text-muted-foreground/60 self-start mt-1">
+                            <span className="text-[8.5px] font-extrabold tracking-[0.18em] uppercase text-muted-foreground/80 self-start mt-1">
                                 beta
                             </span>
                             <button
@@ -182,8 +186,9 @@ export function AppShell({ children, user }: AppShellProps) {
                     )}
                 </div>
 
-                {/* Primary nav */}
-                <div className="flex flex-col gap-0.5">
+                {/* Primary nav — scrolls independently so the footer (login/avatar)
+                    can never overlap the nav links on a short viewport. */}
+                <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto custom-scrollbar">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = activeItem === item.id;
@@ -247,8 +252,11 @@ export function AppShell({ children, user }: AppShellProps) {
                             )}
                         >
                             <div
-                                className="w-[34px] h-[34px] rounded-full grid place-items-center text-white font-bold text-sm shrink-0"
-                                style={{ background: "linear-gradient(135deg,#8b5cf6,#4f46e5)" }}
+                                className="w-[34px] h-[34px] rounded-full grid place-items-center font-bold text-sm shrink-0 text-brand-foreground"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, rgb(var(--brand) / 0.85), rgb(var(--brand)))",
+                                }}
                             >
                                 {initialsOf(user)}
                             </div>
@@ -290,13 +298,15 @@ export function AppShell({ children, user }: AppShellProps) {
                             key={item.id}
                             href={item.href}
                             className={cn(
-                                "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px]",
+                                // flex-1 + min-w-0 lets the 6 tabs share the bar evenly so the
+                                // icon, label and active-dot never collide on a narrow phone.
+                                mobileItemBase,
                                 isActive ? "text-brand" : "text-muted-foreground"
                             )}
                         >
-                            <Icon size={24} weight={isActive ? "fill" : "regular"} />
-                            <span className="text-[10px] mt-0.5 font-medium leading-none whitespace-nowrap">{item.label}</span>
-                            {isActive && <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />}
+                            <Icon size={22} weight={isActive ? "fill" : "regular"} className="shrink-0" />
+                            <span className="max-w-full truncate text-[10px] font-medium leading-none">{item.label}</span>
+                            <div className={cn("h-1 w-1 rounded-full bg-brand", isActive ? "opacity-100" : "opacity-0")} />
                         </Link>
                     );
                 })}
@@ -305,30 +315,31 @@ export function AppShell({ children, user }: AppShellProps) {
                     <Link
                         href="/settings"
                         className={cn(
-                            "flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px]",
+                            mobileItemBase,
                             activeItem === "settings" ? "text-brand" : "text-muted-foreground"
                         )}
                     >
                         <div
                             className={cn(
-                                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold uppercase",
+                                "flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold uppercase",
                                 activeItem === "settings" ? "bg-brand/20 text-brand" : "bg-brand/10 text-brand"
                             )}
                         >
                             {(user.displayName || user.email || "?")[0]}
                         </div>
-                        <span className="text-[10px] mt-0.5 font-medium leading-none whitespace-nowrap">
+                        <span className="max-w-full truncate text-[10px] font-medium leading-none">
                             {user.displayName || user.email?.split("@")[0]}
                         </span>
-                        {activeItem === "settings" && <div className="w-1 h-1 rounded-full bg-brand mt-0.5" />}
+                        <div className={cn("h-1 w-1 rounded-full bg-brand", activeItem === "settings" ? "opacity-100" : "opacity-0")} />
                     </Link>
                 ) : (
                     <button
                         onClick={() => setAuthPopoverOpen(true)}
-                        className="flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-colors min-w-[60px] text-muted-foreground"
+                        className={cn(mobileItemBase, "text-muted-foreground")}
                     >
-                        <SignIn size={24} weight="regular" />
-                        <span className="text-[10px] mt-0.5 font-medium leading-none">Login</span>
+                        <SignIn size={22} weight="regular" className="shrink-0" />
+                        <span className="max-w-full truncate text-[10px] font-medium leading-none">Login</span>
+                        <div className="h-1 w-1 rounded-full opacity-0" />
                     </button>
                 )}
             </nav>

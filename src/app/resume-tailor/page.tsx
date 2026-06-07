@@ -332,11 +332,12 @@ function ResumeTailorContent() {
                     <Card className="border-border shadow-sm">
                         <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                             <div className="space-y-3">
-                                <label className="text-sm font-medium text-foreground/80">
+                                <label htmlFor="tailor-job-url" className="text-sm font-medium text-foreground/80">
                                     Job URL (Optional)
                                 </label>
                                 <div className="flex gap-2">
                                     <Input
+                                        id="tailor-job-url"
                                         placeholder="https://company.com/careers/job-123"
                                         value={jobUrl}
                                         onChange={(e) => setJobUrl(e.target.value)}
@@ -359,10 +360,11 @@ function ResumeTailorContent() {
                             </div>
 
                             <div className="space-y-3">
-                                <label className="text-sm font-medium text-foreground/80">
+                                <label htmlFor="tailor-job-description" className="text-sm font-medium text-foreground/80">
                                     Job Description *
                                 </label>
                                 <Textarea
+                                    id="tailor-job-description"
                                     placeholder="Paste the full job posting text here..."
                                     value={jobInput}
                                     onChange={(e) => setJobInput(e.target.value)}
@@ -380,6 +382,7 @@ function ResumeTailorContent() {
                             <Button
                                 onClick={() => handleAnalyzeJob()}
                                 disabled={isAnalyzing || !jobInput.trim() || !resumeData}
+                                variant="brand"
                                 className="w-full h-11 sm:h-12 text-sm sm:text-base shadow-sm"
                                 size="lg"
                             >
@@ -407,7 +410,7 @@ function ResumeTailorContent() {
             >
                 <SheetContent side="right" className="p-0 flex flex-col overflow-hidden sm:max-w-xl w-full" hideCloseButton>
                     {/* Custom Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b bg-white dark:bg-neutral-950 sticky top-0 z-10 transition-all duration-300">
+                    <div className="flex items-center justify-between px-6 py-4 border-b bg-card sticky top-0 z-10 transition-all duration-300">
                         <div className="flex items-center gap-3">
                             {sheetState.view === 'recommendations' && (
                                 <Button
@@ -466,7 +469,7 @@ function ResumeTailorContent() {
                     </div>
 
                     {/* Scrollable Content Area - Swappable */}
-                    <div className="flex-1 overflow-y-auto bg-white dark:bg-neutral-950 relative">
+                    <div className="flex-1 overflow-y-auto bg-card relative">
                         {/* Analysis View */}
                         <div className={`absolute inset-0 transition-all duration-300 ${sheetState.view === 'analysis' ? 'translate-x-0 opacity-100 z-10' : '-translate-x-20 opacity-0 z-0 pointer-events-none'}`}>
                             <div className="px-6 py-6">
@@ -490,7 +493,7 @@ function ResumeTailorContent() {
 
                     {/* Sticky Footer for Analysis View */}
                     {sheetState.view === 'analysis' && (
-                        <div className="border-t bg-white dark:bg-neutral-950 px-6 py-4 space-y-3 z-20">
+                        <div className="border-t bg-card px-6 py-4 space-y-3 z-20">
                             {resumeData && (
                                 <Button
                                     onClick={handleGenerateRecommendations}

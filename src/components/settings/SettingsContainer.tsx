@@ -392,8 +392,10 @@ export function SettingsContainer() {
                                 <button
                                     key={name}
                                     onClick={() => setThemeFn(name)}
-                                    className="flex items-center gap-1 group"
+                                    className="flex items-center gap-1 group focus-ring rounded-full"
                                     title={t.label}
+                                    aria-label={`${t.label} theme`}
+                                    aria-pressed={isActive}
                                 >
                                     <div
                                         className={`w-4 h-4 rounded-full border ${isActive ? 'ring-2 ring-offset-1 ring-foreground/40' : 'border-border hover:scale-110'} transition-all`}

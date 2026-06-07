@@ -13,7 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { addInterviewQuestion } from "@/actions/interview-questions";
-import { Loader2 } from "lucide-react";
+import { CircleNotch as Loader2 } from "@phosphor-icons/react";
 
 interface AddQuestionModalProps {
     open: boolean;

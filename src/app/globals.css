@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-hanken), var(--font-geist-sans);
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -25,7 +25,8 @@
   --secondary: 243 244 248;
   --secondary-foreground: 21 22 27;
   --muted: 243 244 248;
-  --muted-foreground: 138 143 158;
+  /* WCAG AA: 88 95 110 = 6.05:1 on --background (248 248 251). Was 138 143 158 ≈ 3.05:1. */
+  --muted-foreground: 88 95 110;
   --accent: 236 238 244;
   --accent-foreground: 21 22 27;
   --destructive: 190 18 60;
@@ -48,7 +49,8 @@
   --surface-3: 236 238 244;
   --border-strong: 217 219 229;
   --text-2: 86 91 105;
-  --text-3: 138 143 158;
+  /* WCAG AA: 92 99 112 = 5.7:1 on --background (248 248 251). Was 138 143 158 ≈ 2.6-3.05:1. */
+  --text-3: 92 99 112;
 
   /* Pipeline / status colors */
   --st-saved: 107 114 128;   --st-saved-soft: 237 238 241;
@@ -80,7 +82,8 @@
   --secondary: 27 30 39;
   --secondary-foreground: 243 244 248;
   --muted: 27 30 39;
-  --muted-foreground: 110 116 132;
+  /* WCAG AA: 132 138 154 = 5.66:1 on --background (11 12 16). Was 110 116 132 ≈ 4.18:1. */
+  --muted-foreground: 132 138 154;
   --accent: 35 39 51;
   --accent-foreground: 243 244 248;
   --destructive: 247 115 148;
@@ -115,7 +118,8 @@
   --surface-3: 35 39 51;
   --border-strong: 52 58 72;
   --text-2: 166 172 188;
-  --text-3: 110 116 132;
+  /* WCAG AA: 132 138 154 = 5.66:1 on --background (11 12 16). Was 110 116 132 ≈ 4.18:1. */
+  --text-3: 132 138 154;
 
   /* Pipeline / status colors (dark) */
   --st-saved: 154 161 174;   --st-saved-soft: 33 36 45;
@@ -325,4 +329,33 @@ textarea::selection {
 
 .focus-ring:focus-visible {
   box-shadow: 0 0 0 2px rgb(var(--background)), 0 0 0 4px rgb(var(--brand) / 0.4);
+}
+
+/* Respect users who ask for less motion (vestibular safety + WCAG 2.3.3).
+   Neutralizes our custom fade-in, the staggered delays, and any CSS
+   animation/transition site-wide. framer-motion springs are skipped
+   separately via useReducedMotion() in the tour overlay. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fade-in,
+  .delay-100,
+  .delay-200,
+  .delay-300,
+  .delay-400,
+  .delay-500 {
+    animation: none !important;
+    animation-delay: 0ms !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

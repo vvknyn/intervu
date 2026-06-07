@@ -26,19 +26,22 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
+import { STATUS_ICON_CHIP, STATUS_PILL, applicationStatusTone } from "@/lib/ui/status-tokens";
 
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 
 type ViewState = "list" | "wizard" | "detail";
 
+// Colors resolve through the shared status-token chokepoint (lib/ui/status-tokens.ts)
+// so the pills are design-token backed and dark-mode correct in one place.
 const STATUS_CONFIG = {
-    applied: { label: "Applied", color: "bg-blue-100 text-blue-700", icon: Clock },
-    interviewing: { label: "Interviewing", color: "bg-purple-100 text-purple-700", icon: Briefcase },
-    offer: { label: "Offer", color: "bg-green-100 text-green-700", icon: Confetti },
-    rejected: { label: "Rejected", color: "bg-red-100 text-red-700", icon: XCircle },
-    withdrawn: { label: "Withdrawn", color: "bg-gray-100 text-gray-700", icon: ArrowBendUpRight }
-};
+    applied: { label: "Applied", tone: applicationStatusTone("applied"), icon: Clock },
+    interviewing: { label: "Interviewing", tone: applicationStatusTone("interviewing"), icon: Briefcase },
+    offer: { label: "Offer", tone: applicationStatusTone("offer"), icon: Confetti },
+    rejected: { label: "Rejected", tone: applicationStatusTone("rejected"), icon: XCircle },
+    withdrawn: { label: "Withdrawn", tone: applicationStatusTone("withdrawn"), icon: ArrowBendUpRight }
+} as const;
 
 // Loading fallback component
 function ApplicationsLoading() {
@@ -361,7 +364,7 @@ function ApplicationsContent() {
 
                 {/* Stats Overview */}
                 <div data-tour="app-status-cards" className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8">
-                    {(Object.entries(STATUS_CONFIG) as [Application['status'], typeof STATUS_CONFIG['applied']][]).map(([status, config]) => {
+                    {(Object.entries(STATUS_CONFIG) as [Application['status'], (typeof STATUS_CONFIG)['applied']][]).map(([status, config]) => {
                         const count = statusCounts[status] || 0;
                         const Icon = config.icon;
                         const isActive = statusFilter === status;
@@ -377,7 +380,7 @@ function ApplicationsContent() {
                                         : "shadow-sm hover:shadow-md"
                                 )}
                             >
-                                <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mb-1.5 sm:mb-2", config.color)}>
+                                <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mb-1.5 sm:mb-2", STATUS_ICON_CHIP[config.tone])}>
                                     <Icon size={14} weight="fill" className="sm:hidden" />
                                     <Icon size={16} weight="fill" className="hidden sm:block" />
                                 </div>
@@ -465,7 +468,7 @@ function ApplicationsContent() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <h3 className="font-semibold truncate text-sm sm:text-base">{app.company_name}</h3>
-                                            <span className={cn("text-xs px-2 py-0.5 rounded-full shrink-0", config.color)}>
+                                            <span className={cn("text-xs px-2 py-0.5 rounded-full shrink-0", STATUS_PILL[config.tone])}>
                                                 {config.label}
                                             </span>
                                         </div>

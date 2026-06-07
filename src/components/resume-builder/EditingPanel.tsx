@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkle, Plus, Trash, X, ArrowUp, ArrowDown, DotsSixVertical, ArrowsClockwise, CaretLeft, CaretRight, FloppyDisk, Info } from "@phosphor-icons/react";
+import { Sparkle, Plus, Trash, X, ArrowUp, ArrowDown, ArrowsClockwise, CaretLeft, CaretRight, FloppyDisk, Info } from "@phosphor-icons/react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 
 interface EditingPanelProps {
@@ -209,7 +209,11 @@ export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI
                                     key={section}
                                     className="flex items-center gap-2 p-2.5 bg-muted/40 hover:bg-muted/60 rounded-lg border border-border/50 transition-colors group"
                                 >
-                                    <DotsSixVertical size={16} weight="bold" className="text-muted-foreground/50 shrink-0" />
+                                    {/* Position index, not a drag handle — reordering is via the
+                                        ▲▼ buttons below, so we don't imply a drag affordance. */}
+                                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-background text-[11px] font-semibold text-muted-foreground">
+                                        {index + 1}
+                                    </span>
                                     <span className="text-sm font-medium flex-1 text-foreground">
                                         {SECTION_LABELS[section]}
                                     </span>

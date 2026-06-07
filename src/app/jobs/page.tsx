@@ -31,27 +31,32 @@ import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, t
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 
 /* ----------------------------- helpers ----------------------------- */
 
+// Ghost-badge presentation. Colors route through the shared status-token
+// chokepoint (lib/ui/status-tokens.ts): caution/likely_ghost → intv (amber),
+// clear → offer (green). Token classes carry both light + dark values, so the
+// per-state dark: overrides are no longer needed.
 const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: string; explain: string } | null> = {
     likely_ghost: {
         label: "Possible ghost job",
-        cls: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/25",
-        dot: "bg-amber-500",
+        cls: STATUS_PILL.intv,
+        dot: "bg-st-intv",
         explain:
             "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
     },
     caution: {
         label: "Worth verifying",
-        cls: "bg-amber-50/70 text-amber-700 border-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300/90 dark:border-amber-500/20",
-        dot: "bg-amber-400",
+        cls: STATUS_PILL.intv,
+        dot: "bg-st-intv/80",
         explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
     },
     clear: {
         label: "No ghost signals",
-        cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25",
-        dot: "bg-emerald-500",
+        cls: STATUS_PILL.offer,
+        dot: "bg-st-offer",
         explain: "No ghost-risk signals — this posting looks active.",
     },
     unscored: null,

@@ -59,7 +59,7 @@ export const tourSteps: Record<string, TourStep[]> = {
       selector: '[data-tour="resume-editor"]',
       title: "Resume Editor",
       description:
-        "Build and edit your resume section by section. Changes save automatically. Drag sections to reorder them.",
+        "Build and edit your resume section by section. Changes save automatically. Use the up and down arrows to reorder sections.",
       placement: "right",
     },
     {

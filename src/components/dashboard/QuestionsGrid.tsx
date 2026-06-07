@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSection } from "./DashboardSection";
 import { toast } from "@/lib/toast";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
+import { STATUS_PILL, difficultyTone } from "@/lib/ui/status-tokens";
 
 interface QuestionsGridProps {
     questions: QuestionItem[];
@@ -378,6 +379,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             className="h-10 w-10 md:h-12 md:w-12 rounded-full hover:bg-background/80 hover:shadow-sm text-muted-foreground hover:text-foreground transition-all"
                             onClick={handlePrev}
                             disabled={!hasPrev}
+                            aria-label="Previous question"
                         >
                             <CaretLeft size={20} className="md:w-6 md:h-6" />
                         </Button>
@@ -389,6 +391,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             className="h-10 w-10 md:h-12 md:w-12 rounded-full hover:bg-background/80 hover:shadow-sm text-muted-foreground hover:text-foreground transition-all"
                             onClick={handleNext}
                             disabled={!hasNext}
+                            aria-label="Next question"
                         >
                             <CaretRight size={20} className="md:w-6 md:h-6" />
                         </Button>
@@ -402,10 +405,9 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                         {currentQuestion.difficulty && (
                             <span className={cn(
                                 "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full",
-                                currentQuestion.difficulty === 'junior' && "bg-green-500/10 text-green-600",
-                                currentQuestion.difficulty === 'mid' && "bg-yellow-500/10 text-yellow-600",
-                                currentQuestion.difficulty === 'senior' && "bg-orange-500/10 text-orange-600",
-                                currentQuestion.difficulty === 'staff+' && "bg-red-500/10 text-red-600",
+                                // Token-backed difficulty colors (lib/ui/status-tokens.ts) — covers
+                                // the full junior→director+ scale and is dark-mode correct.
+                                STATUS_PILL[difficultyTone(currentQuestion.difficulty)],
                             )}>
                                 {currentQuestion.difficulty}
                             </span>
@@ -425,6 +427,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             }}
                             className="absolute -left-2 top-0 md:-left-8 p-2 rounded-full text-muted-foreground/40 hover:text-yellow-500 hover:bg-yellow-500/5 transition-colors"
                             title={favoritedMap[currentQuestion.question] ? "Unstar Question" : "Star Question"}
+                            aria-label={favoritedMap[currentQuestion.question] ? "Unstar question" : "Star question"}
                         >
                             <Star size={18} weight={favoritedMap[currentQuestion.question] ? "fill" : "regular"} className={favoritedMap[currentQuestion.question] ? "text-yellow-500" : ""} />
                         </button>
@@ -433,6 +436,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             onClick={() => handleSpeak(currentQuestion.question)}
                             className="absolute -right-2 top-0 md:-right-8 p-2 rounded-full text-muted-foreground/40 hover:text-brand hover:bg-brand/5 transition-colors"
                             title={isSpeaking ? "Stop Speaking" : "Read Aloud"}
+                            aria-label={isSpeaking ? "Stop reading question aloud" : "Read question aloud"}
                         >
                             <SpeakerHigh size={18} weight={isSpeaking ? "fill" : "regular"} className={isSpeaking ? "animate-pulse" : ""} />
                         </button>
@@ -471,6 +475,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                                             : "bg-background shadow-sm text-muted-foreground hover:text-foreground hover:shadow-md"
                                                 )}
                                                 title={isProcessing ? "Processing Audio..." : isListening ? "Stop Listening" : "Voice Input"}
+                                                aria-label={isProcessing ? "Processing audio" : isListening ? "Stop voice input" : "Start voice input"}
                                             >
                                                 {isProcessing ? (
                                                     <CircleNotch size={18} className="animate-spin" />
@@ -607,7 +612,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                 </div>
 
                 {/* Context/Hint */}
-                <div className="text-center mt-3 text-[10px] text-muted-foreground/60">
+                <div className="text-center mt-3 text-[10px] text-muted-foreground/80">
                     Use arrow keys to navigate • Generated based on role & company context
                 </div>
             </div>

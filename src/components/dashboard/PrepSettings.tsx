@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PREP_PRESET_DESCRIPTIONS } from "@/lib/copy";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 
 // Preset configurations for different preparation intensities
 export type PresetKey = "light" | "standard" | "deep" | "panic";
@@ -261,7 +262,7 @@ export function PrepSettings({
                                     )}
 
                                     {jobContext && !isFetchingJob && (
-                                        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-green-600 font-medium bg-green-50 px-2 py-1 rounded border border-green-100">
+                                        <div className={cn("mt-2 flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded", STATUS_PILL.offer)}>
                                             <FileText size={12} />
                                             Context Active ({jobContext.length} chars)
                                         </div>

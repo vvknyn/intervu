@@ -2,7 +2,7 @@
 
 import { useTour } from "@/hooks/use-tour";
 import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { X } from "@phosphor-icons/react";
 
 const CARD_WIDTH = 320;
@@ -106,6 +106,8 @@ export function TourOverlay() {
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardHeight, setCardHeight] = useState(200);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  // Respect prefers-reduced-motion: skip the spring + fades for vestibular safety.
+  const reduceMotion = useReducedMotion();
 
   // Update window size
   useEffect(() => {
@@ -246,10 +248,10 @@ export function TourOverlay() {
             d={overlayPath}
             fill="rgba(0,0,0,0.5)"
             fillRule="evenodd"
-            initial={{ opacity: 0 }}
+            initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1, d: overlayPath }} // Animate d for smooth transition
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            transition={{ duration: reduceMotion ? 0 : 0.3, ease: "easeOut" }}
           />
         </svg>
 
@@ -263,9 +265,9 @@ export function TourOverlay() {
             left: cardPos.left,
             zIndex: 201,
           }}
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1, top: cardPos.top, left: cardPos.left }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 30 }}
           key={currentStep}
         >
           {/* Arrow */}
@@ -291,7 +293,7 @@ export function TourOverlay() {
               className="h-full rounded-full bg-brand"
               initial={false}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+              transition={{ duration: reduceMotion ? 0 : 0.3, ease: "easeOut" }}
             />
           </div>
 

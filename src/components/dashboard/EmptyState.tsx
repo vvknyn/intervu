@@ -16,7 +16,7 @@ export function EmptyState() {
             <p className="text-muted-foreground text-sm leading-relaxed max-w-md mx-auto">
                 {EMPTY_DASHBOARD.subtext}
             </p>
-            <div className="flex items-center justify-center gap-3 mt-6 text-xs text-muted-foreground/50">
+            <div className="flex items-center justify-center gap-3 mt-6 text-xs text-muted-foreground/80">
                 <span className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/20" />
                     Company
