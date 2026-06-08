@@ -36,6 +36,13 @@ import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
+import {
+    emptyPending,
+    queuePending,
+    clearPending,
+    takeReplay,
+    type PendingState,
+} from "@/lib/jobs/pending-actions";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
@@ -548,10 +555,8 @@ function JobsContent() {
     const [authOpen, setAuthOpen] = useState(false);
     const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
     const [applyingId, setApplyingId] = useState<string | null>(null);
-    const pendingApply = useRef<PublicJob | null>(null);
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
-    const pendingTailor = useRef<PublicJob | null>(null);
 
     // Entry gate: which screen / results mode we're in, the resume backing it,
     // the import modal, and the in-flight Explore call + its suggested titles.
@@ -560,8 +565,19 @@ function JobsContent() {
     const [importOpen, setImportOpen] = useState(false);
     const [exploring, setExploring] = useState(false);
     const [exploreTitles, setExploreTitles] = useState<string[]>([]);
-    const pendingUpload = useRef(false);
-    const pendingExplore = useRef<ResumeData | null>(null);
+
+    // All four "run this after the user signs in" actions (apply / tailor /
+    // upload / explore) live in one pure pending-state ref so only the LATEST
+    // intent is ever queued and a dismissed action can never replay. See
+    // lib/jobs/pending-actions.ts. `authedRef` is the deterministic success
+    // signal from this page's AuthPopover (`onAuthed`) — replay fires only when
+    // it's set, so an unrelated later sign-in (e.g. the sidebar "Log in", which
+    // never touches this popover) replays nothing, race-free regardless of
+    // whether `setUser(true)` or the popover-close lands first.
+    const pendingRef = useRef<PendingState<PublicJob, PublicJob, ResumeData>>(
+        emptyPending<PublicJob, PublicJob, ResumeData>(),
+    );
+    const authedRef = useRef(false);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -730,8 +746,8 @@ function JobsContent() {
     };
     const handleTailor = (job: PublicJob) => {
         if (!user) {
-            pendingTailor.current = job;
-            setAuthOpen(true);
+            pendingRef.current = queuePending(pendingRef.current, { kind: "tailor", payload: job });
+            openAuth();
             return;
         }
         openTailor(job);
@@ -778,23 +794,63 @@ function JobsContent() {
     };
     const handleMarkApplied = (job: PublicJob) => {
         if (!user) {
-            pendingApply.current = job;
-            setAuthOpen(true);
+            pendingRef.current = queuePending(pendingRef.current, { kind: "apply", payload: job });
+            openAuth();
             return;
         }
         void doMarkApplied(job);
     };
+
+    // Run whatever the user queued before signing in — exactly once, and ONLY
+    // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
+    // other path to being logged-in (sidebar login, an already-signed-in tab)
+    // never sets `authedRef`, so a stale apply/tailor/upload/explore can't fire.
+    // `takeReplay` empties the state, so the dispatch is idempotent no matter
+    // how many times this runs or in what order relative to `setUser`.
+    const maybeReplay = useCallback(() => {
+        if (!authedRef.current) return;
+        const { next, action } = takeReplay(pendingRef.current);
+        pendingRef.current = next;
+        if (!action) return;
+        switch (action.kind) {
+            case "apply":
+                void doMarkApplied(action.payload);
+                break;
+            case "tailor":
+                openTailor(action.payload);
+                break;
+            case "upload":
+                setImportOpen(true);
+                break;
+            case "explore":
+                void runExplore(action.payload);
+                break;
+        }
+        // doMarkApplied / openTailor / runExplore read no changing component
+        // state (only stable setters + the action payload), so capturing the
+        // first render's closures here is safe — keep a stable identity.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Open the auth popover for a freshly-queued action. Resetting `authedRef`
+    // here scopes the "success" signal to THIS attempt, so a prior confirmed
+    // sign-in can't be mistaken for the new one.
+    const openAuth = () => {
+        authedRef.current = false;
+        setAuthOpen(true);
+    };
+
+    // Fired by AuthPopover on a *successful* sign-in, before it closes. This is
+    // the deterministic success signal; mark authed, then attempt the replay.
+    const handleAuthed = () => {
+        authedRef.current = true;
+        maybeReplay();
+    };
+
+    // Defensive: if `user` flips truthy after `authedRef` was set but before the
+    // direct replay could run (unusual ordering), this still fires it once.
     useEffect(() => {
-        if (user && pendingApply.current) {
-            const job = pendingApply.current;
-            pendingApply.current = null;
-            void doMarkApplied(job);
-        }
-        if (user && pendingTailor.current) {
-            const job = pendingTailor.current;
-            pendingTailor.current = null;
-            openTailor(job);
-        }
+        if (user) maybeReplay();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
@@ -830,12 +886,14 @@ function JobsContent() {
         void resolveEntry();
     }, [resolveEntry]);
 
-    // Cancel any gate action queued for after sign-in (upload / explore) so a
-    // later login (via Tailor/Apply) can't hijack the user into it — or silently
-    // spend an Explore credit they didn't ask for. (code review, 2026-06-07)
+    // Cancel ANY action queued for after sign-in (apply / tailor / upload /
+    // explore) so a later, unrelated login can't hijack the user into it — or
+    // silently spend an Explore credit / write a phantom application they didn't
+    // ask for. Called by every alternate path (results-mode entry, gate choice)
+    // and on a dismiss of the popover. (code review, 2026-06-07; pending-state
+    // unified + apply/tailor leak closed, 2026-06-08)
     const clearPendingGate = () => {
-        pendingUpload.current = false;
-        pendingExplore.current = null;
+        pendingRef.current = clearPending(pendingRef.current);
     };
 
     // CHOOSE → Match: derive query + seniority facet from the resume. Free, instant.
@@ -851,14 +909,24 @@ function JobsContent() {
 
     // CHOOSE → Explore: ask the model for adjacent titles (1 credit). On auth →
     // popover + retry; on credits/empty → free skill-based broaden so the user
-    // still gets a result.
+    // still gets a result. The auth GATE lives here; the authenticated body is
+    // `runExplore` so the post-auth replay can re-run it without re-reading a
+    // (possibly stale) `user` from a captured closure.
     const enterExplore = async (r: ResumeData) => {
         clearPendingGate();
         if (!user) {
-            pendingExplore.current = r;
-            setAuthOpen(true);
+            pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
+            openAuth();
             return;
         }
+        await runExplore(r);
+    };
+
+    // The authenticated Explore work. Reads no mutable component state beyond
+    // its `r` argument + stable setters, so it is safe to invoke from the
+    // stable-identity `maybeReplay` closure. A server-reported auth error
+    // (session expired) re-queues + reopens auth.
+    const runExplore = async (r: ResumeData) => {
         setExploring(true);
         try {
             const res = await suggestAdjacentRolesAction({
@@ -868,8 +936,8 @@ function JobsContent() {
             });
             if (res.error) {
                 if (classifySentinel(res.error) === "auth") {
-                    pendingExplore.current = r;
-                    setAuthOpen(true);
+                    pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
+                    openAuth();
                     return;
                 }
                 const { q } = buildExploreBroadenQuery(r);
@@ -922,8 +990,8 @@ function JobsContent() {
     const handleUploadClick = () => {
         clearPendingGate();
         if (!user) {
-            pendingUpload.current = true;
-            setAuthOpen(true);
+            pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
+            openAuth();
             return;
         }
         setImportOpen(true);
@@ -947,21 +1015,6 @@ function JobsContent() {
         setMode("loading");
         void resolveEntry();
     };
-
-    // Resume a gated action (upload / explore) after the user signs in.
-    useEffect(() => {
-        if (!user) return;
-        if (pendingUpload.current) {
-            pendingUpload.current = false;
-            setImportOpen(true);
-        }
-        if (pendingExplore.current) {
-            const r = pendingExplore.current;
-            pendingExplore.current = null;
-            void enterExplore(r);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]);
 
     const notConnected = result != null && !result.configured;
 
@@ -1175,7 +1228,20 @@ function JobsContent() {
                 </>
             )}
 
-            <AuthPopover open={authOpen} onOpenChange={setAuthOpen} showTrigger={false} />
+            <AuthPopover
+                open={authOpen}
+                onOpenChange={(open) => {
+                    // A close WITHOUT a preceding `onAuthed` (handleAuthed sets
+                    // authedRef before this fires on success) is a dismissal —
+                    // drop any queued action so it can't replay on a later,
+                    // unrelated sign-in. Race-free: this reads authedRef, never
+                    // the relative timing of setUser / setAuthOpen.
+                    if (!open && !authedRef.current) clearPendingGate();
+                    setAuthOpen(open);
+                }}
+                onAuthed={handleAuthed}
+                showTrigger={false}
+            />
             <TailorAnalysisSheet
                 open={tailorOpen}
                 onOpenChange={setTailorOpen}

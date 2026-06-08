@@ -9,10 +9,20 @@ interface AuthPopoverProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     showTrigger?: boolean;
+    /**
+     * Fired on a *successful* sign-in, BEFORE the popover closes — giving the
+     * parent a deterministic success signal it cannot otherwise distinguish
+     * from a dismiss (a dismiss and a success both just call `onOpenChange(false)`).
+     * Optional and backward-compatible: callers that don't pass it (e.g.
+     * WelcomeStep) are unaffected. /jobs uses it to decide whether a queued
+     * post-auth action may replay (success) or must be cleared (dismiss).
+     */
+    onAuthed?: () => void;
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed }: AuthPopoverProps) {
     const handleSuccess = () => {
+        onAuthed?.();
         onOpenChange(false);
     };
 
