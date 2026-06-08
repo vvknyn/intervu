@@ -16,6 +16,9 @@ import {
     ShieldCheck,
     Lightning,
     Sparkle,
+    Compass,
+    ArrowLeft,
+    ArrowRight,
     CaretRight,
 } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
@@ -25,14 +28,19 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { searchJobsAction, markJobAppliedAction } from "@/actions/jobs";
+import { searchJobsAction, markJobAppliedAction, suggestAdjacentRolesAction } from "@/actions/jobs";
+import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { FilterPanel, facetValueLabel } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
+import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
+import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
+import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import type { ResumeData } from "@/types/resume";
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -405,6 +413,114 @@ function JobsListSplash() {
     );
 }
 
+/* ----------------------------- entry gate ----------------------------- */
+
+/**
+ * Entry state machine for /jobs. The gate (`ask` / `choose`) replaces today's
+ * auto-load; the results modes drive `searchJobsAction` via the existing
+ * query/facet state. `search` is special — it shows a prompt and only fetches
+ * once a query is typed. See docs/superpowers/specs/2026-06-07-jobs-resume-entry-design.md.
+ */
+type Mode = "loading" | "ask" | "choose" | "match" | "explore" | "search" | "browse";
+type ResultMode = "match" | "explore" | "search" | "browse";
+
+interface PersistedEntry {
+    mode: ResultMode;
+    q?: string;
+    facets?: Partial<Record<FacetKey, string[]>>;
+    titles?: string[];
+}
+
+const ENTRY_KEY = "intervu.jobs.entry";
+
+function readPersist(): PersistedEntry | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = localStorage.getItem(ENTRY_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw) as PersistedEntry;
+        // Only results modes are ever persisted; ignore anything else.
+        return (["match", "explore", "search", "browse"] as string[]).includes(p?.mode) ? p : null;
+    } catch {
+        return null;
+    }
+}
+
+function writePersist(p: PersistedEntry): void {
+    if (typeof window === "undefined") return;
+    try {
+        localStorage.setItem(ENTRY_KEY, JSON.stringify(p));
+    } catch {
+        /* private mode / quota — non-fatal, gate just re-asks next visit */
+    }
+}
+
+function clearPersist(): void {
+    if (typeof window === "undefined") return;
+    try {
+        localStorage.removeItem(ENTRY_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/** A resume is "usable" for matching if it has a profession or at least one skill. */
+function resumeIsUsable(d: ResumeData | undefined): boolean {
+    if (!d) return false;
+    if ((d.profile?.profession ?? "").trim()) return true;
+    return (d.competencies ?? []).some((c) => (c.skills ?? []).some((s) => (s ?? "").trim()));
+}
+
+const MODE_META: Record<ResultMode, { label: string; Icon: typeof Target }> = {
+    match: { label: "Matched to your resume", Icon: Target },
+    explore: { label: "Exploring adjacent roles", Icon: Compass },
+    search: { label: "Search", Icon: MagnifyingGlass },
+    browse: { label: "Browsing all live roles", Icon: Briefcase },
+};
+
+/** Slim bar above the results that names the active mode + offers "Start over". */
+function ModeBar({ mode, onStartOver }: { mode: Mode; onStartOver: () => void }) {
+    const meta = MODE_META[mode as ResultMode];
+    if (!meta) return null;
+    return (
+        <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                <meta.Icon size={16} weight="duotone" className="text-brand" />
+                {meta.label}
+            </span>
+            <button
+                onClick={onStartOver}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+                <ArrowLeft size={12} /> Start over
+            </button>
+        </div>
+    );
+}
+
+/** Empty state for search-only mode before the user has typed anything. */
+function SearchPrompt({ onBrowseAll }: { onBrowseAll: () => void }) {
+    return (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+                <MagnifyingGlass size={26} />
+            </div>
+            <h3 className="mb-1.5 text-lg font-semibold">Search for the kind of role you want</h3>
+            <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
+                Try something like <span className="font-medium text-foreground">&ldquo;staff product designer,
+                remote&rdquo;</span> or <span className="font-medium text-foreground">&ldquo;backend engineer
+                fintech&rdquo;</span> in the box above.
+            </p>
+            <button
+                onClick={onBrowseAll}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+                or browse all live roles <ArrowRight size={12} />
+            </button>
+        </div>
+    );
+}
+
 function JobsContent() {
     const router = useRouter();
     const [query, setQuery] = useState("");
@@ -437,6 +553,16 @@ function JobsContent() {
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
     const pendingTailor = useRef<PublicJob | null>(null);
 
+    // Entry gate: which screen / results mode we're in, the resume backing it,
+    // the import modal, and the in-flight Explore call + its suggested titles.
+    const [mode, setMode] = useState<Mode>("loading");
+    const [resume, setResume] = useState<ResumeData | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
+    const [exploring, setExploring] = useState(false);
+    const [exploreTitles, setExploreTitles] = useState<string[]>([]);
+    const pendingUpload = useRef(false);
+    const pendingExplore = useRef<ResumeData | null>(null);
+
     useEffect(() => {
         const current = getCurrentUser();
         if (current) setUser(current);
@@ -444,8 +570,17 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
-    // Debounced search on query / facet / salary / visa changes.
+    // Debounced search on query / facet / salary / visa changes — but only once
+    // a results mode is active. In `search` mode we wait for a non-empty query
+    // (empty → the SearchPrompt, no fetch); gate/loading modes never fetch.
     useEffect(() => {
+        const isResults = mode === "match" || mode === "explore" || mode === "search" || mode === "browse";
+        const shouldFetch = isResults && (mode !== "search" || query.trim().length > 0);
+        if (!shouldFetch) {
+            setLoading(false);
+            if (mode === "search") setResult(null); // empty search → prompt, not stale hits
+            return;
+        }
         let cancelled = false;
         setLoading(true);
         const t = setTimeout(async () => {
@@ -483,7 +618,7 @@ function JobsContent() {
             cancelled = true;
             clearTimeout(t);
         };
-    }, [query, facets, salaryMin, visaOnly]);
+    }, [query, facets, salaryMin, visaOnly, mode]);
 
     const hits = result?.hits ?? [];
     const selected = useMemo(
@@ -663,6 +798,171 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
+    /* ----------------------------- entry gate logic ----------------------------- */
+
+    // Resolve the opening screen: a saved, usable resume → straight to CHOOSE;
+    // otherwise ASK. Anonymous users get "Unauthorized" from fetchResumeData → ASK.
+    const resolveEntry = useCallback(async () => {
+        try {
+            const { data } = await fetchResumeData();
+            if (data && resumeIsUsable(data)) {
+                setResume(data);
+                setMode("choose");
+                return;
+            }
+        } catch {
+            /* fall through to ASK */
+        }
+        setResume(null);
+        setMode("ask");
+    }, []);
+
+    // First load: restore a remembered results mode, else resolve the gate.
+    useEffect(() => {
+        const persisted = readPersist();
+        if (persisted) {
+            setExploreTitles(persisted.titles ?? []);
+            setFacets(persisted.facets ?? {});
+            setQuery(persisted.q ?? "");
+            setMode(persisted.mode);
+            return;
+        }
+        void resolveEntry();
+    }, [resolveEntry]);
+
+    // Cancel any gate action queued for after sign-in (upload / explore) so a
+    // later login (via Tailor/Apply) can't hijack the user into it — or silently
+    // spend an Explore credit they didn't ask for. (code review, 2026-06-07)
+    const clearPendingGate = () => {
+        pendingUpload.current = false;
+        pendingExplore.current = null;
+    };
+
+    // CHOOSE → Match: derive query + seniority facet from the resume. Free, instant.
+    const enterMatch = (r: ResumeData) => {
+        clearPendingGate();
+        const { q, facets: f } = buildMatchQuery(r);
+        setExploreTitles([]);
+        setFacets(f);
+        setQuery(q);
+        setMode("match");
+        writePersist({ mode: "match", q, facets: f });
+    };
+
+    // CHOOSE → Explore: ask the model for adjacent titles (1 credit). On auth →
+    // popover + retry; on credits/empty → free skill-based broaden so the user
+    // still gets a result.
+    const enterExplore = async (r: ResumeData) => {
+        clearPendingGate();
+        if (!user) {
+            pendingExplore.current = r;
+            setAuthOpen(true);
+            return;
+        }
+        setExploring(true);
+        try {
+            const res = await suggestAdjacentRolesAction({
+                profession: r.profile?.profession ?? "",
+                skills: topSkills(r, 12),
+                seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
+            });
+            if (res.error) {
+                if (classifySentinel(res.error) === "auth") {
+                    pendingExplore.current = r;
+                    setAuthOpen(true);
+                    return;
+                }
+                const { q } = buildExploreBroadenQuery(r);
+                if (!q) {
+                    toast.error("Couldn't build an explore view — try Match or search instead.");
+                    return;
+                }
+                setExploreTitles([]);
+                setFacets({});
+                setQuery(q);
+                setMode("explore");
+                writePersist({ mode: "explore", q, facets: {}, titles: [] });
+                toast.info(
+                    classifySentinel(res.error) === "credits"
+                        ? "Out of AI credits — showing skill-based matches instead."
+                        : "Showing roles related to your skills.",
+                );
+                return;
+            }
+            const titles = res.titles ?? [];
+            const q = titles.join(" ");
+            setExploreTitles(titles);
+            setFacets({});
+            setQuery(q);
+            setMode("explore");
+            writePersist({ mode: "explore", q, facets: {}, titles });
+        } finally {
+            setExploring(false);
+        }
+    };
+
+    const enterBrowse = () => {
+        clearPendingGate();
+        setExploreTitles([]);
+        setFacets({});
+        setQuery("");
+        setMode("browse");
+        writePersist({ mode: "browse", q: "" });
+    };
+
+    const handleSearchOnly = () => {
+        clearPendingGate();
+        setExploreTitles([]);
+        setFacets({});
+        setQuery("");
+        setMode("search");
+        writePersist({ mode: "search", q: "" });
+    };
+
+    const handleUploadClick = () => {
+        clearPendingGate();
+        if (!user) {
+            pendingUpload.current = true;
+            setAuthOpen(true);
+            return;
+        }
+        setImportOpen(true);
+    };
+
+    const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
+        setResume(data);
+        setImportOpen(false);
+        setMode("choose");
+        // Persist to the profile so returning users skip the upload step (best-effort).
+        void saveResumeData(data, source, confidence).catch(() => {});
+    };
+
+    const startOver = () => {
+        clearPersist();
+        setExploreTitles([]);
+        setFacets({});
+        setSalaryMin(0);
+        setVisaOnly(false);
+        setQuery("");
+        setMode("loading");
+        void resolveEntry();
+    };
+
+    // Resume a gated action (upload / explore) after the user signs in.
+    useEffect(() => {
+        if (!user) return;
+        if (pendingUpload.current) {
+            pendingUpload.current = false;
+            setImportOpen(true);
+        }
+        if (pendingExplore.current) {
+            const r = pendingExplore.current;
+            pendingExplore.current = null;
+            void enterExplore(r);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
+
     const notConnected = result != null && !result.configured;
 
     const filterPanel = (
@@ -688,6 +988,27 @@ function JobsContent() {
                 />
             }
         >
+            {mode === "loading" ? (
+                <div className="flex min-h-[55vh] items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                </div>
+            ) : mode === "ask" || mode === "choose" ? (
+                <JobsEntryGate
+                    step={mode === "ask" ? "ask" : "choose"}
+                    resumeLabel={resume?.profile?.profession}
+                    exploring={exploring}
+                    onUpload={handleUploadClick}
+                    onSearchOnly={handleSearchOnly}
+                    onMatch={() => resume && enterMatch(resume)}
+                    onExplore={() => {
+                        if (resume) void enterExplore(resume);
+                    }}
+                    onDifferentResume={() => setImportOpen(true)}
+                    onBrowseAll={enterBrowse}
+                />
+            ) : (
+                <>
+                    <ModeBar mode={mode} onStartOver={startOver} />
             {/* Search */}
             <div className="relative mb-3.5">
                 <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -698,6 +1019,30 @@ function JobsContent() {
                     className="h-11 bg-card pl-10"
                 />
             </div>
+
+            {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
+            {mode === "explore" && exploreTitles.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-0.5 text-xs text-muted-foreground">Exploring:</span>
+                    {exploreTitles.map((t) => {
+                        const active = query.trim() === t;
+                        return (
+                            <button
+                                key={t}
+                                onClick={() => setQuery(active ? exploreTitles.join(" ") : t)}
+                                className={cn(
+                                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                                    active
+                                        ? "border-brand bg-brand/10 text-brand"
+                                        : "border-border text-muted-foreground hover:border-brand/40 hover:text-foreground",
+                                )}
+                            >
+                                {t}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Toolbar: mobile Filters button + active-filter chips + count */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -750,7 +1095,9 @@ function JobsContent() {
                 </div>
             )}
 
-            {notConnected ? (
+            {mode === "search" && !query.trim() ? (
+                <SearchPrompt onBrowseAll={enterBrowse} />
+            ) : notConnected ? (
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
                     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                         <MagnifyingGlass size={26} />
@@ -825,6 +1172,8 @@ function JobsContent() {
                     </div>
                 </div>
             )}
+                </>
+            )}
 
             <AuthPopover open={authOpen} onOpenChange={setAuthOpen} showTrigger={false} />
             <TailorAnalysisSheet
@@ -832,6 +1181,11 @@ function JobsContent() {
                 onOpenChange={setTailorOpen}
                 job={tailorJob}
                 onAuthRequired={() => setAuthOpen(true)}
+            />
+            <ResumeImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                onImport={handleImport}
             />
         </PageLayout>
     );
