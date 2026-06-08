@@ -830,8 +830,17 @@ function JobsContent() {
         void resolveEntry();
     }, [resolveEntry]);
 
+    // Cancel any gate action queued for after sign-in (upload / explore) so a
+    // later login (via Tailor/Apply) can't hijack the user into it — or silently
+    // spend an Explore credit they didn't ask for. (code review, 2026-06-07)
+    const clearPendingGate = () => {
+        pendingUpload.current = false;
+        pendingExplore.current = null;
+    };
+
     // CHOOSE → Match: derive query + seniority facet from the resume. Free, instant.
     const enterMatch = (r: ResumeData) => {
+        clearPendingGate();
         const { q, facets: f } = buildMatchQuery(r);
         setExploreTitles([]);
         setFacets(f);
@@ -844,6 +853,7 @@ function JobsContent() {
     // popover + retry; on credits/empty → free skill-based broaden so the user
     // still gets a result.
     const enterExplore = async (r: ResumeData) => {
+        clearPendingGate();
         if (!user) {
             pendingExplore.current = r;
             setAuthOpen(true);
@@ -892,6 +902,7 @@ function JobsContent() {
     };
 
     const enterBrowse = () => {
+        clearPendingGate();
         setExploreTitles([]);
         setFacets({});
         setQuery("");
@@ -900,6 +911,7 @@ function JobsContent() {
     };
 
     const handleSearchOnly = () => {
+        clearPendingGate();
         setExploreTitles([]);
         setFacets({});
         setQuery("");
@@ -908,6 +920,7 @@ function JobsContent() {
     };
 
     const handleUploadClick = () => {
+        clearPendingGate();
         if (!user) {
             pendingUpload.current = true;
             setAuthOpen(true);
