@@ -22,6 +22,7 @@ import { type User as FirebaseUser } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { CreditBalance } from "@/components/layout/CreditBalance";
 
 interface AppShellProps {
     children: React.ReactNode;
@@ -240,6 +241,9 @@ export function AppShell({ children, user }: AppShellProps) {
                     </FeedbackModal>
 
                     <hr className="h-px bg-border border-0 my-2" />
+
+                    {/* AI credit balance (hidden when signed out) */}
+                    {user && <CreditBalance collapsed={isCollapsed} />}
 
                     {/* User / login */}
                     {user ? (
