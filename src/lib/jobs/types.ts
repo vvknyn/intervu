@@ -37,6 +37,14 @@ export interface PublicJob {
   source: string;
   posted_at: string | null;
   first_seen_at: string | null;
+  /**
+   * Derived at intervu ingest (see `derivePostedTs` in lib/jobs/meilisearch.ts) —
+   * not part of the Subspace wire contract. Epoch ms, sanitized: rejects future
+   * dates and pre-2000 junk in `posted_at`, falling back to `first_seen_at`.
+   * Exists because Meilisearch range operators are numeric-only, so the raw
+   * ISO `posted_at` string can't be range-filtered for age-bucket queries.
+   */
+  posted_ts?: number | null;
   updated_at: string | null;
   vacancy_status: string;
   /** Coarse, public-safe ghost signal. Raw scores intentionally excluded (B2B IP). */
@@ -70,6 +78,12 @@ export type FacetKey = (typeof FACETABLE_KEYS)[number];
 /** Per-facet value→count, for rendering filter options with live counts. */
 export type FacetDistribution = Partial<Record<FacetKey, Record<string, number>>>;
 
+/** Explicit sort choice. Omitted = auto (newest with no query, relevance with a query). */
+export type JobSortMode = "newest" | "relevance";
+
+/** Age-bucket filter, computed against sanitized `posted_ts` at request time. */
+export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
+
 /** Search request shape shared across every backend + the server action. */
 export interface JobSearchParams {
   q?: string;
@@ -79,6 +93,10 @@ export interface JobSearchParams {
   salaryMin?: number;
   /** Only jobs that sponsor visas. */
   visaOnly?: boolean;
+  /** Explicit sort override; see `JobSortMode`. */
+  sort?: JobSortMode;
+  /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
+  postedBucket?: PostedBucket;
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */

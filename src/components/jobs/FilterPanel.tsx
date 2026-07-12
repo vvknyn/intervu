@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CaretDown, Check } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { FACETABLE_KEYS, type FacetDistribution, type FacetKey } from "@/lib/jobs/types";
+import { FACETABLE_KEYS, type FacetDistribution, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 
 const GROUP_LABELS: Record<FacetKey, string> = {
     work_type: "Work type",
@@ -30,6 +30,20 @@ const SALARY_PRESETS = [
     { label: "$150k+", value: 150_000 },
     { label: "$200k+", value: 200_000 },
 ];
+
+const POSTED_BUCKET_PRESETS: { label: string; value: PostedBucket | undefined }[] = [
+    { label: "Any", value: undefined },
+    { label: "Last 24h", value: "1d" },
+    { label: "Last 3 days", value: "3d" },
+    { label: "Last week", value: "7d" },
+    { label: "Last 30 days", value: "30d" },
+    { label: "Older than 30 days", value: "older" },
+];
+
+/** Human label for a posted-bucket value, shared with the active-filter chips. */
+export function postedBucketLabel(v: PostedBucket): string {
+    return POSTED_BUCKET_PRESETS.find((o) => o.value === v)?.label ?? v;
+}
 
 const TOP_N = 6;
 
@@ -63,6 +77,7 @@ export interface FilterState {
     facets: Partial<Record<FacetKey, string[]>>;
     salaryMin: number;
     visaOnly: boolean;
+    postedBucket: PostedBucket | undefined;
 }
 
 export function FilterPanel({
@@ -72,6 +87,7 @@ export function FilterPanel({
     onToggleFacet,
     onSalaryMin,
     onVisaOnly,
+    onPostedBucket,
     onClearAll,
 }: {
     distribution: FacetDistribution | undefined;
@@ -80,6 +96,7 @@ export function FilterPanel({
     onToggleFacet: (key: FacetKey, value: string) => void;
     onSalaryMin: (v: number) => void;
     onVisaOnly: (v: boolean) => void;
+    onPostedBucket: (v: PostedBucket | undefined) => void;
     onClearAll: () => void;
 }) {
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -99,6 +116,26 @@ export function FilterPanel({
             </div>
 
             <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
+                {/* Date posted — recency is a primary job-seeker filter, so it leads. */}
+                <Section title="Date posted" collapsed={collapsed.posted} onToggle={() => toggleCollapse("posted")}>
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                        {POSTED_BUCKET_PRESETS.map((o) => (
+                            <button
+                                key={o.label}
+                                onClick={() => onPostedBucket(o.value)}
+                                className={cn(
+                                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                                    state.postedBucket === o.value
+                                        ? "border-brand/40 bg-brand/10 text-brand"
+                                        : "border-border bg-card text-muted-foreground hover:border-brand/30",
+                                )}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+                    </div>
+                </Section>
+
                 {/* Minimum salary */}
                 <Section title="Minimum salary" collapsed={collapsed.salary} onToggle={() => toggleCollapse("salary")}>
                     <div className="flex flex-wrap gap-1.5 px-3 pb-3">
