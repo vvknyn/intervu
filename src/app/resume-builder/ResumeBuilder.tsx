@@ -534,7 +534,13 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                     data={data}
                     onUpdate={updateData}
                     onClear={clearData}
-                    onImport={() => setImportModalOpen(true)}
+                    onImport={() => {
+                        if (user) {
+                            setImportModalOpen(true);
+                        } else {
+                            setAuthPopoverOpen(true);
+                        }
+                    }}
                     syncStatus={syncStatus}
                     originalData={originalData} // Pass for diff highlighting
                     isTailoredMode={isTailoredMode}
