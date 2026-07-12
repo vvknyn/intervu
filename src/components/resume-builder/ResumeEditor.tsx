@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ResumeData } from "@/types/resume";
 import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
 import { AIWritingModal } from "./AIWritingModal";
 import { Button } from "@/components/ui/button";
-import { Trash, Upload, DownloadSimple, CloudArrowUp, CloudSlash, CloudCheck, Check } from "@phosphor-icons/react";
+import { Trash, Upload, DownloadSimple, CloudArrowUp, CloudSlash, CloudCheck, Check, Printer } from "@phosphor-icons/react";
 import { generateSummary, generateExperienceBullets } from "@/actions/generate-resume-content";
 import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
@@ -16,6 +17,14 @@ import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
+
+// SSR-safe "has mounted" check (avoids the setState-in-effect anti-pattern —
+// `document.body` doesn't exist during SSR, so the print portal can only
+// render once we're definitely on the client).
+const subscribeNever = () => () => {};
+function useMounted(): boolean {
+    return useSyncExternalStore(subscribeNever, () => true, () => false);
+}
 
 interface ResumeEditorProps {
     data: ResumeData;
@@ -34,6 +43,29 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
     const [currentAISection, setCurrentAISection] = useState<string | null>(null);
     const handleDownloadWord = async () => {
         await exportToDocx(data);
+    };
+
+    // Portal target for the print copy only exists client-side.
+    const mounted = useMounted();
+
+    // Native print, not canvas rasterization. The on-screen preview sits
+    // inside a scale() transform wrapper (see the mobile zoom wrapper below),
+    // which corrupts browser print — so a separate, untransformed, portaled
+    // copy (#resume-print-root) is what actually gets printed; see the
+    // scoped `@media print` rule in globals.css.
+    const handlePrint = () => {
+        const root = document.documentElement;
+        root.classList.add("printing-resume");
+        let cleaned = false;
+        const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            root.classList.remove("printing-resume");
+        };
+        window.addEventListener("afterprint", cleanup, { once: true });
+        // Safety net: `afterprint` doesn't fire reliably in every browser.
+        setTimeout(cleanup, 5000);
+        window.print();
     };
 
     const handleGenerateWithAI = (section: string) => {
@@ -170,6 +202,17 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                         {/* Versions Toggle */}
                         {versionsToggle}
 
+                        {/* Print / PDF Button */}
+                        <button
+                            onClick={handlePrint}
+                            className="group hidden sm:inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                        >
+                            <Printer size={15} weight="bold" className="text-muted-foreground group-hover:text-brand shrink-0" />
+                            <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
+                                <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">Print / PDF</span>
+                            </span>
+                        </button>
+
                         {/* Export Button */}
                         <button
                             onClick={handleDownloadWord}
@@ -278,6 +321,18 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                         : undefined
                 }
             />
+
+            {/* Print-only copy: untransformed (no scale() wrapper), portaled to
+                <body> so it sits outside the app shell. Only #resume-print-root
+                is made visible when `html.printing-resume` is set — see the
+                scoped @media print rule in globals.css. */}
+            {mounted &&
+                createPortal(
+                    <div id="resume-print-root" className="hidden">
+                        <LiveResumePreview data={data} onEdit={() => {}} selectedSection={null} printMode />
+                    </div>,
+                    document.body,
+                )}
         </div>
     );
 }

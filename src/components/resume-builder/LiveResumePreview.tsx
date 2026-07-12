@@ -10,10 +10,12 @@ interface LiveResumePreviewProps {
     onEdit: (field: string) => void;
     selectedSection: string | null;
     originalData?: ResumeData | null; // For diff highlighting
+    /** Render a plain, non-interactive copy for native print/PDF (no click/hover/selection chrome). */
+    printMode?: boolean;
 }
 
 export function LiveResumePreview(props: LiveResumePreviewProps) {
-    const { data, onEdit, selectedSection, originalData } = props;
+    const { data, onEdit, selectedSection, originalData, printMode = false } = props;
     const [hoveredSection, setHoveredSection] = useState<string | null>(null);
 
     // Determine section order - use custom order if set, otherwise auto-detect
@@ -92,6 +94,17 @@ export function LiveResumePreview(props: LiveResumePreviewProps) {
                 : changeStatus === 'removed'
                     ? 'bg-red-100 ring-2 ring-red-400 shadow-md opacity-60 dark:bg-red-900/40 dark:ring-red-600'
                     : '';
+
+        // Print copy: no click/hover/selection affordances (no cursor-pointer,
+        // no hover bg, no rings, no floating pencil button). `originalData` is
+        // never passed to the print copy, so diff badges never apply here.
+        if (printMode) {
+            return (
+                <div className={`relative rounded ${className}`}>
+                    {children}
+                </div>
+            );
+        }
 
         return (
             <div
@@ -297,10 +310,10 @@ export function LiveResumePreview(props: LiveResumePreviewProps) {
     };
 
     return (
-        <div className="bg-white shadow-lg rounded overflow-hidden max-w-[8.5in] mx-auto">
+        <div className={printMode ? "bg-white w-full" : "bg-white shadow-lg rounded overflow-hidden max-w-[8.5in] mx-auto"}>
             {/* Resume Document - Tight spacing for maximum content */}
             <div
-                className="px-6 py-3 min-h-[11in] text-gray-900"
+                className={printMode ? "px-6 py-3 text-gray-900" : "px-6 py-3 min-h-[11in] text-gray-900"}
                 style={{ fontFamily: 'Times New Roman, Georgia, serif', fontSize: '10px' }}
             >
                 {/* Header - Compact */}

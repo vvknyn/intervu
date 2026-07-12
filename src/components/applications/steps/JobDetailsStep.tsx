@@ -247,7 +247,7 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
                                     {draft.jobAnalysis.extractedRequirements.slice(0, 8).map((req, i) => (
                                         <div
                                             key={i}
-                                            className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded-lg text-xs text-foreground transition-colors"
+                                            className="min-w-0 break-words px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded-lg text-xs text-foreground transition-colors"
                                         >
                                             {req}
                                         </div>

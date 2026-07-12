@@ -231,7 +231,7 @@ export function TailorAnalysisSheet({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto bg-card">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden bg-card">
                     {view === "analysis" ? (
                         <div className="px-6 py-6">
                             {isAnalyzing ? (
