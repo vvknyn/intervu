@@ -18,6 +18,7 @@ import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation
 import { parseResumeWithAI, extractPDFText, extractDocxText } from "@/actions/resume";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, X, Sparkle, Warning, PencilSimple } from "@phosphor-icons/react";
 import { ProviderConfig } from "@/lib/llm/types";
+import { sentinelMessage } from "@/lib/llm/sentinels";
 
 interface ResumeImportModalProps {
     isOpen: boolean;
@@ -166,7 +167,9 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride }:
                 setStep('review');
             }
         } catch (e: any) {
-            setError(e.message || "Failed to parse resume");
+            // Cost/auth-gate errors arrive prefixed ("AUTH_REQUIRED: …") —
+            // strip the sentinel so the user sees the human-readable part.
+            setError(sentinelMessage(e) || "Failed to parse resume");
             setStep('input');
         } finally {
             setIsProcessing(false);
