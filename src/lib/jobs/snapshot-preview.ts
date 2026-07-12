@@ -10,9 +10,10 @@
  * Faceting is disjunctive (a facet's own selection does not collapse its other
  * options' counts), matching how a faceted filter UI is expected to behave.
  */
+import { derivePostedTs } from "./meilisearch";
 import { hasSubspaceApiKey, iterateSnapshot } from "./subspaceJobs";
 import { FACETABLE_KEYS } from "./types";
-import type { FacetDistribution, FacetKey, JobSearchParams, JobSearchResult, PublicJob } from "./types";
+import type { FacetDistribution, FacetKey, JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "./types";
 
 const MAX_PAGES = 6; // ≤ 6 × 500 = 3000 jobs held in memory
 const PAGE_LIMIT = 500;
@@ -49,7 +50,24 @@ function jobTopSalary(j: PublicJob): number | null {
   return j.salary_max ?? j.salary_min ?? null;
 }
 
-/** Query + salary + visa predicates (the non-facet filters), always applied. */
+/** Age-bucket → milliseconds lookback. Mirrors lib/jobs/meilisearch.ts's BUCKET_MS. */
+const BUCKET_MS: Record<Exclude<PostedBucket, "older">, number> = {
+  "1d": 1 * 86_400_000,
+  "3d": 3 * 86_400_000,
+  "7d": 7 * 86_400_000,
+  "30d": 30 * 86_400_000,
+};
+
+/** True if `j`'s sanitized posted_ts falls in `bucket`. Jobs with no derivable ts never match. */
+function passPostedBucket(j: PublicJob, bucket: PostedBucket | undefined): boolean {
+  if (!bucket) return true;
+  const ts = derivePostedTs(j);
+  if (ts == null) return false;
+  const now = Date.now();
+  return bucket === "older" ? ts < now - BUCKET_MS["30d"] : ts >= now - BUCKET_MS[bucket];
+}
+
+/** Query + salary + visa + posted-bucket predicates (the non-facet filters), always applied. */
 function passBase(j: PublicJob, p: JobSearchParams): boolean {
   if (p.q) {
     const hay = `${j.title} ${j.company ?? ""} ${j.location ?? ""} ${(j.tags ?? []).join(" ")}`.toLowerCase();
@@ -60,6 +78,7 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
     if (s == null || s < p.salaryMin) return false;
   }
   if (p.visaOnly && j.visa_sponsorship !== true) return false;
+  if (!passPostedBucket(j, p.postedBucket)) return false;
   return true;
 }
 
@@ -79,10 +98,9 @@ function passFacets(j: PublicJob, p: JobSearchParams, exceptKey?: FacetKey): boo
   return true;
 }
 
+/** Newest-first sort key — sanitized the same way as the Meilisearch backend. */
 function postedTime(j: PublicJob): number {
-  const t = j.posted_at || j.first_seen_at;
-  const n = t ? Date.parse(t) : Number.NaN;
-  return Number.isFinite(n) ? n : 0;
+  return derivePostedTs(j) ?? 0;
 }
 
 function computeFacetDistribution(corpus: PublicJob[], p: JobSearchParams): FacetDistribution {

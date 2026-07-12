@@ -30,12 +30,21 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { searchJobsAction, markJobAppliedAction, suggestAdjacentRolesAction } from "@/actions/jobs";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { FilterPanel, facetValueLabel } from "@/components/jobs/FilterPanel";
+import { FilterPanel, facetValueLabel, postedBucketLabel } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
-import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
+import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import {
+    FACETABLE_KEYS,
+    type FacetKey,
+    type GhostBadge,
+    type JobSearchResult,
+    type JobSortMode,
+    type PostedBucket,
+    type PublicJob,
+} from "@/lib/jobs/types";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -126,11 +135,15 @@ function salaryText(j: PublicJob): string | null {
     return `${cur}${fmt(one)}${per}`;
 }
 
-function postedAge(iso: string | null): string | null {
-    if (!iso) return null;
-    const t = Date.parse(iso);
-    if (!Number.isFinite(t)) return null;
-    const days = Math.floor((Date.now() - t) / 86_400_000);
+/**
+ * Format a sanitized posted timestamp as a relative age. Takes the epoch-ms
+ * `posted_ts` (via `derivePostedTs`) rather than the raw `posted_at` string so
+ * a future-dated posting (measured live: sentinels like 2030-01-31) never
+ * renders as "today" — it falls back to `first_seen_at` instead.
+ */
+function postedAge(ts: number | null): string | null {
+    if (ts == null) return null;
+    const days = Math.floor((Date.now() - ts) / 86_400_000);
     if (days <= 0) return "today";
     if (days === 1) return "1d";
     if (days < 30) return `${days}d`;
@@ -152,7 +165,7 @@ function GhostChip({ badge }: { badge: GhostBadge }) {
 /* ----------------------------- job row ----------------------------- */
 
 function JobRow({ job, active, onClick }: { job: PublicJob; active: boolean; onClick: () => void }) {
-    const age = postedAge(job.posted_at ?? job.first_seen_at);
+    const age = postedAge(derivePostedTs(job));
     const sal = salaryText(job);
     return (
         <button
@@ -526,6 +539,11 @@ function JobsContent() {
     const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>({});
     const [salaryMin, setSalaryMin] = useState(0);
     const [visaOnly, setVisaOnly] = useState(false);
+    const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(undefined);
+    // Explicit sort override; null = auto (newest with no query, relevance with a query —
+    // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
+    // activeCount/activeChips/clearAll.
+    const [sortOverride, setSortOverride] = useState<JobSortMode | null>(null);
     const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
     const [result, setResult] = useState<JobSearchResult | null>(null);
@@ -533,12 +551,16 @@ function JobsContent() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
+    // Effective sort: an explicit override wins, otherwise mirror the backend's
+    // own auto default so the toggle's highlighted pill always matches reality.
+    const effectiveSort: JobSortMode = sortOverride ?? (query.trim() ? "relevance" : "newest");
+
     // Infinite scroll: how many pages are loaded, and a signature of the active
     // query so a slow load-more can't append onto a result from newer filters.
     const pagesLoadedRef = useRef(1);
     const searchSig = useMemo(
-        () => JSON.stringify({ query: query.trim(), facets, salaryMin, visaOnly }),
-        [query, facets, salaryMin, visaOnly],
+        () => JSON.stringify({ query: query.trim(), facets, salaryMin, visaOnly, postedBucket, sortOverride }),
+        [query, facets, salaryMin, visaOnly, postedBucket, sortOverride],
     );
     const searchSigRef = useRef(searchSig);
     searchSigRef.current = searchSig;
@@ -598,6 +620,8 @@ function JobsContent() {
                     facets,
                     salaryMin: salaryMin || undefined,
                     visaOnly: visaOnly || undefined,
+                    postedBucket,
+                    sort: sortOverride ?? undefined,
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -626,7 +650,7 @@ function JobsContent() {
             cancelled = true;
             clearTimeout(t);
         };
-    }, [query, facets, salaryMin, visaOnly, mode]);
+    }, [query, facets, salaryMin, visaOnly, postedBucket, sortOverride, mode]);
 
     const hits = result?.hits ?? [];
     const selected = useMemo(
@@ -659,6 +683,8 @@ function JobsContent() {
                 facets,
                 salaryMin: salaryMin || undefined,
                 visaOnly: visaOnly || undefined,
+                postedBucket,
+                sort: sortOverride ?? undefined,
                 limit: PAGE,
                 offset,
             });
@@ -676,7 +702,7 @@ function JobsContent() {
             inFlightRef.current = false;
             setLoadingMore(false);
         }
-    }, [result, query, facets, salaryMin, visaOnly]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, sortOverride]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -709,12 +735,14 @@ function JobsContent() {
         setFacets({});
         setSalaryMin(0);
         setVisaOnly(false);
+        setPostedBucket(undefined);
     };
 
     const activeCount =
         Object.values(facets).reduce((n, vs) => n + (vs?.length ?? 0), 0) +
         (salaryMin > 0 ? 1 : 0) +
-        (visaOnly ? 1 : 0);
+        (visaOnly ? 1 : 0) +
+        (postedBucket ? 1 : 0);
 
     const activeChips: { label: string; onRemove: () => void }[] = [];
     for (const key of FACETABLE_KEYS) {
@@ -724,6 +752,8 @@ function JobsContent() {
     }
     if (salaryMin > 0) activeChips.push({ label: `≥ $${Math.round(salaryMin / 1000)}k`, onRemove: () => setSalaryMin(0) });
     if (visaOnly) activeChips.push({ label: "Sponsors visas", onRemove: () => setVisaOnly(false) });
+    if (postedBucket)
+        activeChips.push({ label: postedBucketLabel(postedBucket), onRemove: () => setPostedBucket(undefined) });
 
     // Open the in-place analysis slideout for a job. Tailoring is AI-backed
     // (login-gated), so prompt sign-in first and resume once authenticated.
@@ -1003,6 +1033,8 @@ function JobsContent() {
         setFacets({});
         setSalaryMin(0);
         setVisaOnly(false);
+        setPostedBucket(undefined);
+        setSortOverride(null);
         setQuery("");
         setMode("loading");
         void resolveEntry();
@@ -1013,11 +1045,12 @@ function JobsContent() {
     const filterPanel = (
         <FilterPanel
             distribution={result?.facetDistribution}
-            state={{ facets, salaryMin, visaOnly }}
+            state={{ facets, salaryMin, visaOnly, postedBucket }}
             activeCount={activeCount}
             onToggleFacet={toggleFacet}
             onSalaryMin={setSalaryMin}
             onVisaOnly={setVisaOnly}
+            onPostedBucket={setPostedBucket}
             onClearAll={clearAll}
         />
     );
@@ -1120,6 +1153,36 @@ function JobsContent() {
                     </button>
                 )}
                 <span className="flex-1" />
+                {result?.configured && (
+                    <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 text-xs">
+                        <button
+                            onClick={() => setSortOverride("newest")}
+                            className={cn(
+                                "rounded-md px-2 py-1 font-medium transition-colors",
+                                effectiveSort === "newest"
+                                    ? "bg-brand/10 text-brand"
+                                    : "text-muted-foreground hover:text-foreground",
+                            )}
+                        >
+                            Newest
+                        </button>
+                        <button
+                            onClick={() => query.trim() && setSortOverride("relevance")}
+                            disabled={!query.trim()}
+                            title={query.trim() ? undefined : "Type a search to rank by relevance"}
+                            className={cn(
+                                "rounded-md px-2 py-1 font-medium transition-colors",
+                                !query.trim()
+                                    ? "cursor-not-allowed text-muted-foreground/40"
+                                    : effectiveSort === "relevance"
+                                      ? "bg-brand/10 text-brand"
+                                      : "text-muted-foreground hover:text-foreground",
+                            )}
+                        >
+                            Relevance
+                        </button>
+                    </div>
+                )}
                 {loading && hits.length > 0 && (
                     <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
                         <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
@@ -1129,7 +1192,7 @@ function JobsContent() {
                 {!loading && result?.configured && (
                     <span className="text-[13px] text-muted-foreground">
                         {result.total.toLocaleString()} {result.total === 1 ? "role" : "roles"}
-                        {query.trim() ? "" : " · newest first"}
+                        {effectiveSort === "newest" ? " · newest first" : query.trim() ? " · best match" : ""}
                     </span>
                 )}
             </div>
