@@ -469,7 +469,7 @@ function ResumeTailorContent() {
                     </div>
 
                     {/* Scrollable Content Area - Swappable */}
-                    <div className="flex-1 overflow-y-auto bg-card relative">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-card relative">
                         {/* Analysis View */}
                         <div className={`absolute inset-0 transition-all duration-300 ${sheetState.view === 'analysis' ? 'translate-x-0 opacity-100 z-10' : '-translate-x-20 opacity-0 z-0 pointer-events-none'}`}>
                             <div className="px-6 py-6">

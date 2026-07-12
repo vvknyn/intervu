@@ -222,7 +222,7 @@ export function ReviewStep({ draft, onUpdate, onGoToStep }: ReviewStepProps) {
                                 <span className="w-5 h-5 rounded-full bg-brand/10 text-brand flex items-center justify-center text-xs flex-shrink-0 font-medium">
                                     {i + 1}
                                 </span>
-                                <span className="text-foreground/90">{req}</span>
+                                <span className="min-w-0 break-words text-foreground/90">{req}</span>
                             </div>
                         ))}
                         {(draft.jobAnalysis.extractedRequirements?.length || 0) > 5 && (

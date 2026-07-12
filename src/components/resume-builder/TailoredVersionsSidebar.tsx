@@ -448,7 +448,7 @@ export function TailoredVersionsSidebar({ isOpen, onClose, currentVersionId, app
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                     {/* List View */}
                     {view === 'list' && (
                         <div className="p-4 space-y-3">

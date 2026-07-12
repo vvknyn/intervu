@@ -33,6 +33,7 @@ import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { FilterPanel, facetValueLabel } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { FACETABLE_KEYS, type FacetKey, type GhostBadge, type JobSearchResult, type PublicJob } from "@/lib/jobs/types";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
@@ -97,11 +98,6 @@ function decodeText(s: string | null | undefined): string {
 /** Company names sometimes carry a leading req/location code (e.g. "USA102 Acme Inc"). Strip it. */
 function cleanCompany(s: string | null | undefined): string {
     return decodeText(s).replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
-}
-
-function companyInitial(name: string | null): string {
-    const n = cleanCompany(name).trim();
-    return n ? n[0].toUpperCase() : "?";
 }
 
 function locationText(j: PublicJob): string {
@@ -169,9 +165,7 @@ function JobRow({ job, active, onClick }: { job: PublicJob; active: boolean; onC
             )}
         >
             <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-base font-bold text-brand">
-                    {companyInitial(job.company)}
-                </div>
+                <CompanyLogo domain={job.company_domain} name={job.company} size="sm" />
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                         <span className="truncate text-sm font-semibold">{decodeText(job.title)}</span>
@@ -277,9 +271,7 @@ function JobDetail({
         <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-xl font-bold text-brand">
-                        {companyInitial(job.company)}
-                    </div>
+                    <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
                         <h2 className="text-xl font-bold leading-tight tracking-tight">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
@@ -1206,7 +1198,7 @@ function JobsContent() {
                                         </p>
                                     )}
                                 </div>
-                                <div className="lg:sticky lg:top-4">
+                                <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto custom-scrollbar">
                                     {selected ? (
                                         <JobDetail
                                             key={selected.id}

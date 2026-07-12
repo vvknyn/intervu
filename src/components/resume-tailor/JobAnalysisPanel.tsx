@@ -46,7 +46,7 @@ export function JobAnalysisPanel({ analysis }: { analysis: JobAnalysis }) {
                     {analysis.extractedRequirements?.map((req, i) => (
                         <li key={i} className="flex items-start gap-3 group">
                             <CheckCircle size={18} className="text-green-600 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm leading-relaxed text-foreground/85">{req}</span>
+                            <span className="min-w-0 break-words text-sm leading-relaxed text-foreground/85">{req}</span>
                         </li>
                     )) || (
                         <li className="text-sm text-muted-foreground italic">No requirements extracted</li>
@@ -88,7 +88,7 @@ export function JobAnalysisPanel({ analysis }: { analysis: JobAnalysis }) {
                         {analysis.cultureIndicators.map((culture, i) => (
                             <div key={i} className="flex items-start gap-3">
                                 <span className="w-1.5 h-1.5 rounded-full bg-brand/60 mt-2 shrink-0" />
-                                <span className="text-sm leading-relaxed text-muted-foreground">
+                                <span className="min-w-0 break-words text-sm leading-relaxed text-muted-foreground">
                                     {culture}
                                 </span>
                             </div>

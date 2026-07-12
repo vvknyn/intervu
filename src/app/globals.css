@@ -359,3 +359,30 @@ textarea::selection {
     scroll-behavior: auto !important;
   }
 }
+
+/* Resume Builder — Print / PDF (native print, not canvas rasterization).
+   Scoped to the `html.printing-resume` toggle (set for the duration of
+   window.print() by ResumeEditor's Print button) so printing any OTHER
+   page of the app is unaffected. #resume-print-root is a portaled,
+   untransformed copy of the resume (see LiveResumePreview `printMode` +
+   ResumeEditor.tsx) — the on-screen preview can't be printed directly
+   because it sits inside a scale() transform wrapper. */
+@media print {
+  html.printing-resume body > *:not(#resume-print-root) {
+    display: none !important;
+  }
+
+  html.printing-resume #resume-print-root {
+    display: block !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* NOTE: @page is global (affects printing of every page in the app, not just
+   the resume) — acceptable since it only sets page size/margins. Left
+   unscoped because CSS has no way to scope @page to a class/selector. */
+@page {
+  size: letter;
+  margin: 0.5in;
+}
