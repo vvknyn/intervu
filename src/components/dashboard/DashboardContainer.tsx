@@ -40,6 +40,7 @@ import {
     buildSessionSummary,
     type PrepSessionState,
     type PrepSessionAction,
+    type PrepSessionSummary,
 } from "@/lib/prep/session-progress";
 import {
     emptyPendingPrep,
@@ -145,6 +146,10 @@ export function DashboardContainer() {
     const prepEntitlementReadyRef = useRef(true);
     const [prepEntitlement, setPrepEntitlement] = useState<PrepEntitlement | null>(null);
     const [prepSessionState, setPrepSessionState] = useState<PrepSessionState | null>(null);
+    const [prepSummarySnapshot, setPrepSummarySnapshot] = useState<{
+        summary: PrepSessionSummary;
+        questionIds: string[];
+    } | null>(null);
     const sessionInitRef = useRef<string | null>(null);
 
     // Calculate if role is technical (for optimistic tab rendering)
@@ -694,48 +699,60 @@ export function DashboardContainer() {
     };
 
     const handleSummaryGoToApplication = () => {
-        setHasSearched(true);
-        setPrepPhase("package");
+        router.push("/applications");
     };
 
     const handleSummaryViewStarred = () => {
         if (!prepSessionState) return;
-        const idx = prepSessionState.questionIds.findIndex(
+        const starredIds = prepSessionState.questionIds.filter(
             (id) => prepSessionState.questions[id]?.starred,
         );
-        const actions: PrepSessionAction[] = [];
-        if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
-        if (actions.length > 0) applyPrepSessionActions(actions);
+        if (starredIds.length === 0) return;
+        applyPrepSessionActions([{ type: "CONTINUE_WITH", questionIds: starredIds }]);
         setPrepPhase("session");
     };
 
     const handleSummaryPracticeReviewed = () => {
         if (!prepSessionState) return;
-        const idx = prepSessionState.questionIds.findIndex(
+        const reviewedIds = prepSessionState.questionIds.filter(
             (id) => prepSessionState.questions[id]?.status === "reviewed",
         );
-        const actions: PrepSessionAction[] = [{ type: "SWITCH_MODE", mode: "practice" }];
-        if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
-        applyPrepSessionActions(actions);
+        if (reviewedIds.length === 0) return;
+        applyPrepSessionActions([
+            { type: "CONTINUE_WITH", questionIds: reviewedIds, mode: "practice" },
+        ]);
         setPrepPhase("session");
     };
 
     const handleSummaryRetryFocus = () => {
         if (!prepSessionState) return;
-        const summary = buildSessionSummary(prepSessionState);
-        const focusId = summary.performance.focusQuestionIds[0];
-        const actions: PrepSessionAction[] = [];
-        if (focusId) {
-            const idx = prepSessionState.questionIds.indexOf(focusId);
-            if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
-        }
-        if (actions.length > 0) applyPrepSessionActions(actions);
+        const summary =
+            prepSummarySnapshot?.summary ?? buildSessionSummary(prepSessionState);
+        const focusIds = summary.performance.focusQuestionIds;
+        if (focusIds.length === 0) return;
+        const retryQuestionIds = focusIds.filter((id) => {
+            const question = prepSessionState.questions[id];
+            if (!question) return false;
+            return (
+                question.critique !== undefined ||
+                question.status === "critiqued" ||
+                question.status === "skipped"
+            );
+        });
+        applyPrepSessionActions([
+            {
+                type: "CONTINUE_WITH",
+                questionIds: focusIds,
+                retryQuestionIds,
+            },
+        ]);
         setPrepPhase("session");
     };
 
     const handleSummarySameContextNewSession = () => {
         if (!prepSessionState || !questionsData) return;
         sessionInitRef.current = null;
+        setPrepSummarySnapshot(null);
         const allQuestions = [
             ...questionsData.questions,
             ...(systemDesignData?.questions ?? []),
@@ -2036,7 +2053,15 @@ export function DashboardContainer() {
                     reconData={reconData ?? undefined}
                     onGenerateReveal={(question) => handleGenerateStrategy(0, question)}
                     onRequireAuth={() => setAuthPopoverOpen(true)}
-                    onFinish={() => setPrepPhase("summary")}
+                    onFinish={() => {
+                        if (prepSessionState) {
+                            setPrepSummarySnapshot({
+                                summary: buildSessionSummary(prepSessionState),
+                                questionIds: [...prepSessionState.questionIds],
+                            });
+                        }
+                        setPrepPhase("summary");
+                    }}
                     onSwitchToPractice={() =>
                         dispatchPrepSession({ type: "SWITCH_MODE", mode: "practice" })
                     }
@@ -2049,9 +2074,14 @@ export function DashboardContainer() {
         } else if (prepPhase === "summary" && prepSessionState) {
             mainContent = (
                 <PrepSummary
-                    summary={buildSessionSummary(prepSessionState)}
+                    summary={
+                        prepSummarySnapshot?.summary ??
+                        buildSessionSummary(prepSessionState)
+                    }
                     jobContext={prepJobContext}
-                    questionIds={prepSessionState.questionIds}
+                    questionIds={
+                        prepSummarySnapshot?.questionIds ?? prepSessionState.questionIds
+                    }
                     onPracticeReviewed={handleSummaryPracticeReviewed}
                     onRetryFocus={handleSummaryRetryFocus}
                     onOpenPackage={handleSummaryOpenPackage}

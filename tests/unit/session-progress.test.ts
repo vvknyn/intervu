@@ -144,6 +144,92 @@ describe("SKIP", () => {
   });
 });
 
+describe("CONTINUE_WITH", () => {
+  it("restricts session sequence to filtered question ids", () => {
+    let state = startSession("learn");
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
+    state = prepSessionReducer(state, { type: "MARK_REVIEWED", questionId: "q1" })!;
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q3",
+      revealedContent: "<p>Answer</p>",
+    })!;
+    state = prepSessionReducer(state, { type: "MARK_REVIEWED", questionId: "q3" })!;
+
+    state = prepSessionReducer(state, {
+      type: "CONTINUE_WITH",
+      questionIds: ["q1", "q3"],
+      mode: "practice",
+    })!;
+
+    assert.deepEqual(state.questionIds, ["q1", "q3"]);
+    assert.equal(state.currentIndex, 0);
+    assert.equal(state.mode, "practice");
+    assert.equal(state.questions.q2.status, "unreviewed");
+  });
+
+  it("prepares focus questions for retry without dropping other progress", () => {
+    let state = startSession("practice");
+    state = prepSessionReducer(state, {
+      type: "SET_ANSWER",
+      questionId: "q1",
+      answerText: "A1",
+    })!;
+    state = prepSessionReducer(state, {
+      type: "SET_CRITIQUE",
+      questionId: "q1",
+      critique: mockCritique(9, "Strong"),
+    })!;
+    state = prepSessionReducer(state, {
+      type: "SET_ANSWER",
+      questionId: "q2",
+      answerText: "A2",
+    })!;
+    state = prepSessionReducer(state, {
+      type: "SET_CRITIQUE",
+      questionId: "q2",
+      critique: mockCritique(3, "Needs work"),
+    })!;
+    state = prepSessionReducer(state, { type: "SKIP", questionId: "q3" })!;
+
+    const beforeSummary = buildSessionSummary(state);
+    assert.deepEqual(beforeSummary.performance.focusQuestionIds, ["q2", "q3"]);
+
+    state = prepSessionReducer(state, {
+      type: "CONTINUE_WITH",
+      questionIds: beforeSummary.performance.focusQuestionIds,
+      retryQuestionIds: beforeSummary.performance.focusQuestionIds,
+    })!;
+
+    assert.deepEqual(state.questionIds, ["q2", "q3"]);
+    assert.equal(state.currentIndex, 0);
+    assert.equal(state.questions.q2.status, "retried");
+    assert.equal(state.questions.q2.critique, undefined);
+    assert.equal(state.questions.q2.answerText, "A2");
+    assert.equal(state.questions.q3.status, "retried");
+    assert.equal(state.questions.q1.status, "critiqued");
+    assert.equal(state.questions.q1.critique?.score, 9);
+  });
+
+  it("filters starred questions into a dedicated session sequence", () => {
+    let state = startSession("learn");
+    state = prepSessionReducer(state, { type: "TOGGLE_STAR", questionId: "q2" })!;
+    state = prepSessionReducer(state, { type: "TOGGLE_STAR", questionId: "q3" })!;
+
+    state = prepSessionReducer(state, {
+      type: "CONTINUE_WITH",
+      questionIds: ["q2", "q3"],
+    })!;
+
+    assert.deepEqual(state.questionIds, ["q2", "q3"]);
+    assert.equal(state.currentIndex, 0);
+  });
+});
+
 describe("buildSessionSummary progress counts", () => {
   it("aggregates learn and practice progress", () => {
     let state = startSession("learn");

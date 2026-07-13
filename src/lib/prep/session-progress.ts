@@ -81,7 +81,13 @@ export type PrepSessionAction =
   | { type: "SKIP"; questionId: string }
   | { type: "TOGGLE_STAR"; questionId: string }
   | { type: "SET_INDEX"; index: number }
-  | { type: "SWITCH_MODE"; mode: PrepSessionMode };
+  | { type: "SWITCH_MODE"; mode: PrepSessionMode }
+  | {
+      type: "CONTINUE_WITH";
+      questionIds: string[];
+      mode?: PrepSessionMode;
+      retryQuestionIds?: string[];
+    };
 
 const SESSION_STORAGE_PREFIX = "intervu_prep_session_v1_";
 const STRONG_SCORE_THRESHOLD = 7;
@@ -211,6 +217,36 @@ export function prepSessionReducer(
     case "SWITCH_MODE":
       if (!state) return state;
       return touchState({ ...state, mode: action.mode });
+
+    case "CONTINUE_WITH": {
+      if (!state) return state;
+      const validIds = action.questionIds.filter((id) => state.questions[id]);
+      if (validIds.length === 0) return state;
+
+      let next: PrepSessionState = touchState({
+        ...state,
+        questionIds: validIds,
+        currentIndex: 0,
+        ...(action.mode !== undefined ? { mode: action.mode } : {}),
+      });
+
+      for (const questionId of action.retryQuestionIds ?? []) {
+        const question = next.questions[questionId];
+        if (!question) continue;
+        if (
+          question.critique !== undefined ||
+          question.status === "critiqued" ||
+          question.status === "skipped"
+        ) {
+          next = updateQuestion(next, questionId, {
+            status: "retried",
+            critique: undefined,
+          });
+        }
+      }
+
+      return next;
+    }
 
     default:
       return state;
