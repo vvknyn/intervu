@@ -9,8 +9,6 @@ import {
 } from "../../src/lib/prep/plan-list";
 import { sessionStorageKey, serializeSessionState } from "../../src/lib/prep/session-progress";
 
-process.env.NODE_ENV = "test";
-
 function makeEntry(overrides: Partial<CachedInterviewData> = {}): CachedInterviewData {
   const now = Date.now();
   return {

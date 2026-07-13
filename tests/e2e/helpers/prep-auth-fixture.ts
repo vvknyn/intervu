@@ -1,4 +1,18 @@
 import type { Page, BrowserContext } from '@playwright/test';
+import type { IdTokenResult } from 'firebase/auth';
+
+function e2eIdTokenResult(): IdTokenResult {
+  const now = new Date().toISOString();
+  return {
+    token: 'e2e-mock-id-token',
+    authTime: now,
+    expirationTime: new Date(Date.now() + 3_600_000).toISOString(),
+    issuedAtTime: now,
+    signInProvider: 'password',
+    signInSecondFactor: null,
+    claims: {},
+  };
+}
 
 export type E2EPrepEntitlement = {
   isAdmin: boolean;
@@ -22,7 +36,7 @@ const E2E_MOCK_USER = {
   tenantId: null,
   delete: async () => {},
   getIdToken: async () => 'e2e-mock-id-token',
-  getIdTokenResult: async () => ({ token: 'e2e-mock-id-token' }),
+  getIdTokenResult: async () => e2eIdTokenResult(),
   reload: async () => {},
   toJSON: () => ({}),
   phoneNumber: null,
