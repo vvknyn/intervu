@@ -1,4 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import {
+  installAuthenticatedPrepFixture,
+  openPrepModeScreen,
+} from './helpers/prep-auth-fixture';
 
 const FIXTURE_COMPANY = 'TestCo';
 const FIXTURE_POSITION = 'Engineer';
@@ -146,6 +150,59 @@ test.describe('SESSION - Interview Session P0', () => {
     await expect(page.getByTestId('prep-mode-learn')).toBeVisible();
     await expect(page.getByTestId('prep-mode-practice')).toBeVisible();
     await expect(page.getByTestId('prep-sign-in-prompt')).toBeVisible();
+  });
+
+  /**
+   * TC-SESSION-005: Authenticated user sees entitlement on mode screen
+   */
+  test('TC-SESSION-005: authenticated mode shows entitlement label', async ({ page, context }) => {
+    await installAuthenticatedPrepFixture(context, {
+      isAdmin: false,
+      isBYOK: false,
+      credits: 7,
+      monthlyFree: 10,
+    });
+
+    await openPrepModeScreen(page, FIXTURE_COMPANY, FIXTURE_POSITION, FIXTURE_ROUND);
+
+    await expect(page.getByTestId('prep-entitlement-label')).toHaveText('7 credits');
+    await expect(page.getByTestId('prep-sign-in-prompt')).not.toBeVisible();
+    await expect(page.getByTestId('prep-mode-learn')).toBeVisible();
+    await expect(page.getByTestId('prep-mode-practice')).toBeVisible();
+  });
+
+  /**
+   * TC-SESSION-006: BYOK entitlement label on mode screen
+   */
+  test('TC-SESSION-006: authenticated BYOK shows API key entitlement', async ({ page, context }) => {
+    await installAuthenticatedPrepFixture(context, {
+      isAdmin: false,
+      isBYOK: true,
+      credits: 0,
+      monthlyFree: 10,
+    });
+
+    await openPrepModeScreen(page, FIXTURE_COMPANY, FIXTURE_POSITION, FIXTURE_ROUND);
+
+    await expect(page.getByTestId('prep-entitlement-label')).toHaveText('Your API key');
+    await expect(page.getByTestId('prep-sign-in-prompt')).not.toBeVisible();
+  });
+
+  /**
+   * TC-SESSION-007: Admin unlimited entitlement on mode screen
+   */
+  test('TC-SESSION-007: authenticated admin shows unlimited entitlement', async ({ page, context }) => {
+    await installAuthenticatedPrepFixture(context, {
+      isAdmin: true,
+      isBYOK: false,
+      credits: 0,
+      monthlyFree: 10,
+    });
+
+    await openPrepModeScreen(page, FIXTURE_COMPANY, FIXTURE_POSITION, FIXTURE_ROUND);
+
+    await expect(page.getByTestId('prep-entitlement-label')).toHaveText('Unlimited');
+    await expect(page.getByTestId('prep-sign-in-prompt')).not.toBeVisible();
   });
 
   /**

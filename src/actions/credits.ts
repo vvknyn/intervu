@@ -1,7 +1,26 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { getCreditState } from "@/lib/llm/credit-gate";
 import { getUserLLMConfig } from "@/actions/profile";
+
+const E2E_CREDITS_COOKIE = "intervu_e2e_credits";
+
+async function readE2EMockCredits(): Promise<{
+    isAdmin: boolean;
+    isBYOK: boolean;
+    credits: number;
+    monthlyFree: number;
+} | null> {
+    if (process.env.NODE_ENV === "production") return null;
+    const raw = (await cookies()).get(E2E_CREDITS_COOKIE)?.value;
+    if (!raw) return null;
+    try {
+        return JSON.parse(decodeURIComponent(raw));
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Current user's AI-credit state for the balance indicator.
@@ -17,6 +36,9 @@ export async function getMyCreditsAction(): Promise<{
     credits: number;
     monthlyFree: number;
 }> {
+    const e2eMock = await readE2EMockCredits();
+    if (e2eMock) return e2eMock;
+
     const [state, userKey] = await Promise.all([getCreditState(), getUserLLMConfig()]);
     return {
         isAdmin: state.isAdmin,

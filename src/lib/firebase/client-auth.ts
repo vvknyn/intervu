@@ -17,6 +17,18 @@ import { getFirebaseAuth } from "./config";
 
 export type { User } from "firebase/auth";
 
+declare global {
+    interface Window {
+        /** Set by Playwright addInitScript in e2e — never in production UI. */
+        __INTERVU_E2E_AUTH__?: User;
+    }
+}
+
+function e2eMockUser(): User | null {
+    if (typeof window === "undefined") return null;
+    return window.__INTERVU_E2E_AUTH__ ?? null;
+}
+
 /**
  * Sync the Firebase ID token to a server-side session cookie.
  */
@@ -86,6 +98,8 @@ export async function signOut() {
  * Get the current user (client-side).
  */
 export function getCurrentUser(): User | null {
+    const mock = e2eMockUser();
+    if (mock) return mock;
     const auth = getFirebaseAuth();
     return auth.currentUser;
 }
@@ -94,6 +108,11 @@ export function getCurrentUser(): User | null {
  * Listen for auth state changes.
  */
 export function onAuthChange(callback: (user: User | null) => void): () => void {
+    const mock = e2eMockUser();
+    if (mock) {
+        callback(mock);
+        return () => {};
+    }
     const auth = getFirebaseAuth();
     return onAuthStateChanged(auth, callback);
 }

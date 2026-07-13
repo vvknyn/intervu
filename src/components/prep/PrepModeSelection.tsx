@@ -75,7 +75,10 @@ export function PrepModeSelection({
       </p>
 
       {entitlementDisplay && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+        <div
+          className="flex items-center gap-2 text-sm text-muted-foreground mb-2"
+          data-testid="prep-entitlement-label"
+        >
           <entitlementDisplay.Icon size={16} weight="regular" />
           <span>{entitlementDisplay.label}</span>
         </div>

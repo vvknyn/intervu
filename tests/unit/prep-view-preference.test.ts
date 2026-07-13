@@ -6,6 +6,8 @@ import {
   __testClearPreferredViews,
 } from "../../src/lib/prep/plan-list";
 
+process.env.NODE_ENV = "test";
+
 describe("prep view preference", () => {
   beforeEach(() => {
     __testClearPreferredViews();
