@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isUnavailableJobsResult } from '../../src/lib/jobs/result-state';
+import {
+    isUnavailableJobsResult,
+    resolveSelectionAfterRefresh,
+} from '../../src/lib/jobs/result-state';
 import type { JobSearchResult } from '../../src/lib/jobs/types';
 
 function result(overrides: Partial<JobSearchResult> = {}): JobSearchResult {
@@ -50,5 +53,30 @@ describe('isUnavailableJobsResult', () => {
             ),
             false,
         );
+    });
+});
+
+describe('resolveSelectionAfterRefresh', () => {
+    const hits = [{ id: 'first' }, { id: 'second' }];
+
+    it('preserves a valid selection and an open deliberate detail', () => {
+        assert.deepEqual(resolveSelectionAfterRefresh('second', hits), {
+            selectedId: 'second',
+            preserveDeliberateDetail: true,
+        });
+    });
+
+    it('selects the first replacement but closes deliberate detail when selection disappeared', () => {
+        assert.deepEqual(resolveSelectionAfterRefresh('missing', hits), {
+            selectedId: 'first',
+            preserveDeliberateDetail: false,
+        });
+    });
+
+    it('clears selection and closes deliberate detail for zero hits', () => {
+        assert.deepEqual(resolveSelectionAfterRefresh('first', []), {
+            selectedId: null,
+            preserveDeliberateDetail: false,
+        });
     });
 });

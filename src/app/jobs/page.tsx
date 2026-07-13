@@ -44,7 +44,10 @@ import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { isUnavailableJobsResult } from "@/lib/jobs/result-state";
+import {
+    isUnavailableJobsResult,
+    resolveSelectionAfterRefresh,
+} from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     FACETABLE_KEYS,
@@ -592,6 +595,8 @@ function JobsContent() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const selectedIdRef = useRef<string | null>(null);
+    selectedIdRef.current = selectedId;
 
     // Effective sort: shared resolver normalizes relevance-without-query to newest.
     const effectiveSort: JobSortMode = resolveEffectiveSort({
@@ -654,12 +659,19 @@ function JobsContent() {
         const shouldFetch = isResults && (mode !== "search" || query.trim().length > 0);
         if (!shouldFetch) {
             setLoading(false);
-            if (mode === "search") setResult(null); // empty search → prompt, not stale hits
+            if (mode === "search") {
+                setResult(null); // empty search → prompt, not stale hits
+                setSelectedId(null);
+                setDetailSheetOpen(false);
+                userPickedDetailRef.current = false;
+            }
             return;
         }
         let cancelled = false;
         setSearchError(null);
-        if (!(resultRef.current?.hits.length)) setLoading(true);
+        // `loading` means any first-page request is in flight. Rendering still
+        // distinguishes first load (`hits.length === 0`) from background refresh.
+        setLoading(true);
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
@@ -684,10 +696,12 @@ function JobsContent() {
                 pagesLoadedRef.current = 1;
                 setLoadingMore(false);
                 setResult(r);
-                setSelectedId((prev) =>
-                    prev && r.hits.some((h) => h.id === prev) ? prev : r.hits[0]?.id ?? null,
-                );
-                if (!userPickedDetailRef.current) setDetailSheetOpen(false);
+                const selection = resolveSelectionAfterRefresh(selectedIdRef.current, r.hits);
+                setSelectedId(selection.selectedId);
+                if (!selection.preserveDeliberateDetail) {
+                    setDetailSheetOpen(false);
+                    userPickedDetailRef.current = false;
+                }
             } catch (e) {
                 if (!cancelled) {
                     const msg = e instanceof Error ? e.message : String(e);

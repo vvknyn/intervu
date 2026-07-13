@@ -23,6 +23,13 @@ async function enterBrowseMode(page: Page) {
     await expect(
         page.getByRole('heading', { name: /Tailor jobs to your resume/i }),
     ).toHaveCount(0, { timeout: 15000 });
+    await expect(
+        page.getByRole('listbox', { name: 'Job results' })
+            .or(page.getByText(/Job search is being connected/i))
+            .or(page.getByText(/No roles match those filters/i))
+            .or(page.getByText(/Job search is temporarily unavailable/i))
+            .first(),
+    ).toBeVisible({ timeout: 15000 });
 }
 
 test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
@@ -81,6 +88,23 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
         await searchInput.fill('');
         await expect(sortTrigger).toContainText(/Date posted/i, { timeout: 15000 });
+    });
+
+    test('TC-JOBS-REFRESH-001: refetch keeps current results visible and shows in-flight feedback', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await enterBrowseMode(page);
+
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        const firstResult = results.getByRole('option').first();
+        if ((await firstResult.count()) === 0) {
+            test.skip(true, 'No job rows — cannot verify background refresh feedback');
+        }
+
+        await page.getByPlaceholder(/Search role/i).fill('engineer');
+        await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
+        await expect(firstResult).toBeVisible();
+        await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Updating…', { exact: true })).toHaveCount(0, { timeout: 15000 });
     });
 
     test('TC-JOBS-SEL-001: selecting a result updates the labeled desktop detail region', async ({ page }) => {
@@ -213,5 +237,25 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });
         await expect(dialog.getByRole('heading', { level: 2 }).first()).toBeVisible();
+    });
+
+    test('TC-JOBS-MOBILE-002: zero-hit refresh closes an open detail sheet', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await enterBrowseMode(page);
+
+        const options = page.getByRole('listbox', { name: 'Job results' }).getByRole('option');
+        if ((await options.count()) === 0) {
+            test.skip(true, 'No job rows for mobile empty-refresh test');
+        }
+
+        // Schedule a zero-result refresh, then deliberately open a still-visible
+        // result during the debounce window.
+        await page.getByPlaceholder(/Search role/i).fill('zzqxvbnmnevermatches');
+        await options.first().click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible({ timeout: 10000 });
+
+        await expect(page.getByText(/No roles match those filters/i)).toBeVisible({ timeout: 15000 });
+        await expect(dialog).toHaveCount(0);
     });
 });
