@@ -7,6 +7,8 @@ import { ProviderFactory } from "@/lib/llm/providers";
 import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
+import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
+import { resolveCacheLookup } from "@/lib/interview-cache";
 
 const processEnv = process.env;
 
@@ -868,7 +870,7 @@ export async function fetchSystemDesignQuestions(
 export async function generateAnswerCritique(
     question: QuestionItem,
     userAnswer: string,
-    context: { company: string; position: string; round: string; reconData?: CompanyReconData },
+    context: { company: string; position: string; round: string; reconData?: CompanyReconData; jobContextText?: string },
     configOverride?: Partial<ProviderConfig>
 ): Promise<{ data?: AnswerCritique; error?: string }> {
     try {
@@ -878,6 +880,9 @@ export async function generateAnswerCritique(
         const companyFacts = context.reconData
             ? `Verified Company Facts: ${JSON.stringify(context.reconData)}`
             : "No verified company data available. Do not invent specific product features or internal metrics.";
+        const jobContextSection = context.jobContextText
+            ? `\n\nJOB POSTING CONTEXT:\n${context.jobContextText}`
+            : "";
 
         const prompt = `
             You are NOT a judge or a scorecard. You are the sharpest, warmest mentor this person has —
@@ -890,7 +895,7 @@ export async function generateAnswerCritique(
             QUESTION: "${question.question}"
             WHAT THEY SAID: "${userAnswer}"
 
-            ${companyFacts}
+            ${companyFacts}${jobContextSection}
 
             React like a real person who just listened to them — warm, present, specific. Your job is to make them
             feel SEEN first, then make them better. Two rules hold this together:
@@ -931,10 +936,12 @@ async function fetchUnifiedReconMatch(
     resume: string,
     stories: string,
     configOverride?: Partial<ProviderConfig>,
-    strategyLength: "brief" | "standard" | "detailed" = "standard"
+    strategyLength: "brief" | "standard" | "detailed" = "standard",
+    jobContextText: string = ""
 ): Promise<{ recon: CompanyReconData; match: MatchData } | { error: string }> {
     try {
         const fullContext = `RESUME SUMMARY:\n${resume}\n\nADDITIONAL STORIES:\n${stories}`;
+        const jobContextSection = jobContextText ? `\n\nJOB POSTING CONTEXT:\n${jobContextText}` : "";
         const sanitizedCompany = company.trim().replace(/['"]/g, '');
 
         const unifiedLengthInstruction = strategyLength === "brief"
@@ -962,7 +969,7 @@ async function fetchUnifiedReconMatch(
 
         const prompt = `
             Context: Interview at ${sanitizedCompany} for '${position}' (Round: ${round}).
-            Candidate Context: ${fullContext}
+            Candidate Context: ${fullContext}${jobContextSection}
 
             Task: Perform TWO analyses in parallel.
 
@@ -1048,6 +1055,7 @@ async function fetchUnifiedQuestions(
         seniority: string;
         resume: string;
         stories: string;
+        jobContextText?: string;
     }
 ): Promise<{
     questionsData: QuestionsData;
@@ -1058,6 +1066,9 @@ async function fetchUnifiedQuestions(
 } | { error: string }> {
     try {
         const { questions, reverse, technical, systemDesign, coding } = counts;
+        const jobContextSection = context.jobContextText
+            ? `\n\nJOB POSTING CONTEXT:\n${context.jobContextText}`
+            : "";
 
         const prompt = `
             Generate interview questions for ${position} at ${company} (${round}).
@@ -1065,7 +1076,7 @@ async function fetchUnifiedQuestions(
 
             CANDIDATE CONTEXT:
             Resume Summary: ${context.resume}
-            Additional Stories: ${context.stories}
+            Additional Stories: ${context.stories}${jobContextSection}
 
             CRITICAL: Use the candidate's background to make questions specific and relevant where possible.
 
@@ -1112,7 +1123,13 @@ export async function generateInterviewPlan(
     round: string,
     resume: string,
     stories: string,
-    settings: any,
+    settings: {
+        modelConfig?: Partial<ProviderConfig>;
+        prepSettings?: { questions: number; reverse: number; technical: number; systemDesign: number };
+        outputPrefs?: { strategyLength: "brief" | "standard" | "detailed"; coverLetterLength: string };
+        codingChallengeCount?: number;
+        jobContext?: PrepJobContext;
+    },
     forceRefresh: boolean = false
 ): Promise<{
     reconData?: CompanyReconData;
@@ -1134,38 +1151,72 @@ export async function generateInterviewPlan(
             }
         }, null, 2));
 
-        const cacheKey = `${company}-${position}-${round}`.toLowerCase();
+        const hasJd = (settings.jobContext?.content?.originalJd?.length ?? 0) > 0
+            || (settings.jobContext?.content?.normalizedJd?.length ?? 0) > 0;
+        const jdFingerprint = hasJd && settings.jobContext
+            ? fingerprintJobContext(settings.jobContext)
+            : undefined;
+        const { primaryKey, legacyKey } = resolveCacheLookup(company, position, round, jdFingerprint);
+        const cacheKey = primaryKey;
+        const jobContextText = settings.jobContext?.content?.normalizedJd
+            || settings.jobContext?.content?.originalJd
+            || "";
         const hasResumeContext = resume.length > 20;
 
         // 1. Check Server Cache (if not forced)
         // Skip cache when the caller has resume context but the cached data was generated without it
         if (!forceRefresh) {
-            const { data: cached } = await fetchServerCache(cacheKey);
-            if (cached) {
+            const tryCacheKey = async (key: string) => {
+                const { data: cached } = await fetchServerCache(key);
+                if (!cached) return null;
+
                 const cacheContextMatch = cached.hasResumeContext === hasResumeContext;
                 const cacheUsable = cacheContextMatch && (!hasResumeContext || (hasResumeContext && cached.matchData));
+                return cacheUsable ? cached : null;
+            };
 
-                if (cacheUsable) {
-                    console.log("[Orchestrator] Server cache hit (context match). hasResume:", hasResumeContext);
-                    // Normalize cached codingChallenge/codingChallenges for backward compat
+            const primaryCached = await tryCacheKey(primaryKey);
+            if (primaryCached) {
+                console.log("[Orchestrator] Server cache hit (primary key). hasResume:", hasResumeContext);
+                const cachedCoding = (() => {
+                    if (primaryCached.codingChallenges && Array.isArray(primaryCached.codingChallenges)) return primaryCached.codingChallenges;
+                    const raw = (primaryCached as any).codingChallenge;
+                    return Array.isArray(raw) ? raw : raw ? [raw] : [];
+                })();
+                return {
+                    reconData: primaryCached.reconData,
+                    matchData: primaryCached.matchData,
+                    questionsData: primaryCached.questionsData,
+                    reverseData: primaryCached.reverseData,
+                    technicalData: primaryCached.technicalData,
+                    codingChallenges: cachedCoding,
+                    systemDesignData: primaryCached.systemDesignData,
+                    fromCache: true
+                };
+            }
+
+            if (!jdFingerprint) {
+                const legacyCached = await tryCacheKey(legacyKey);
+                if (legacyCached) {
+                    console.log("[Orchestrator] Server cache hit (legacy key). hasResume:", hasResumeContext);
                     const cachedCoding = (() => {
-                        if (cached.codingChallenges && Array.isArray(cached.codingChallenges)) return cached.codingChallenges;
-                        const raw = (cached as any).codingChallenge;
+                        if (legacyCached.codingChallenges && Array.isArray(legacyCached.codingChallenges)) return legacyCached.codingChallenges;
+                        const raw = (legacyCached as any).codingChallenge;
                         return Array.isArray(raw) ? raw : raw ? [raw] : [];
                     })();
                     return {
-                        reconData: cached.reconData,
-                        matchData: cached.matchData,
-                        questionsData: cached.questionsData,
-                        reverseData: cached.reverseData,
-                        technicalData: cached.technicalData,
+                        reconData: legacyCached.reconData,
+                        matchData: legacyCached.matchData,
+                        questionsData: legacyCached.questionsData,
+                        reverseData: legacyCached.reverseData,
+                        technicalData: legacyCached.technicalData,
                         codingChallenges: cachedCoding,
-                        systemDesignData: cached.systemDesignData,
+                        systemDesignData: legacyCached.systemDesignData,
                         fromCache: true
                     };
-                } else {
-                    console.log("[Orchestrator] Server cache skipped (context mismatch). cached:", cached.hasResumeContext, "current:", hasResumeContext);
                 }
+            } else {
+                console.log("[Orchestrator] Skipping legacy cache (JD fingerprint present, primary miss).");
             }
         }
 
@@ -1192,8 +1243,8 @@ export async function generateInterviewPlan(
         // coding-challenges allSettled path below). chargeIfSharedKey still runs
         // inside each fetchJSON, so credit/auth semantics are unchanged.
         const [reconMatchSettled, questionsSettled, sysSettled] = await Promise.allSettled([
-            fetchUnifiedReconMatch(company, position, round, resume, stories, settings.modelConfig, settings.outputPrefs?.strategyLength || "standard"),
-            fetchUnifiedQuestions(company, position, round, settings.modelConfig, {
+            fetchUnifiedReconMatch(company, position, round, resume, stories, settings.modelConfig, settings.outputPrefs?.strategyLength || "standard", jobContextText),
+            fetchUnifiedQuestions(company, position, round, settings.modelConfig ?? {}, {
                 questions: settings.prepSettings?.questions || 20,
                 reverse: settings.prepSettings?.reverse || 5,
                 technical: isTechnical ? (settings.prepSettings?.technical || 10) : 0,
@@ -1203,7 +1254,8 @@ export async function generateInterviewPlan(
                 roleType,
                 seniority,
                 resume,
-                stories
+                stories,
+                jobContextText,
             }),
             fetchSystemDesignQuestions(company, position, round, settings.modelConfig, totalSysCount, true),
         ]);
@@ -1301,6 +1353,7 @@ export async function generateInterviewPlan(
                 company,
                 position,
                 round,
+                ...(jdFingerprint !== undefined ? { jdFingerprint } : {}),
                 reconData,
                 matchData,
                 questionsData,

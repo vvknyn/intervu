@@ -16,6 +16,7 @@ export interface ServerCachedData {
     company: string;
     position: string;
     round: string;
+    jd_fingerprint?: string;
     reconData?: any;
     matchData?: any;
     questionsData?: any;
@@ -63,6 +64,7 @@ export async function fetchServerCache(cacheKey: string): Promise<{ data?: Cache
                 company: data.company,
                 position: data.position,
                 round: data.round,
+                jdFingerprint: data.jd_fingerprint,
                 hasResumeContext: data.has_resume_context,
                 createdAt: new Date(data.created_at).getTime(),
                 expiresAt: new Date(data.expires_at).getTime(),
@@ -106,6 +108,9 @@ export async function saveServerCache(cachedData: CachedInterviewData): Promise<
             company: cachedData.company,
             position: cachedData.position,
             round: cachedData.round,
+            ...(cachedData.jdFingerprint !== undefined
+                ? { jd_fingerprint: cachedData.jdFingerprint }
+                : {}),
             recon_data: cachedData.reconData,
             match_data: cachedData.matchData,
             questions_data: cachedData.questionsData,

@@ -26,6 +26,7 @@ import { fetchTailoredVersions } from "@/actions/tailor-resume";
 import { fetchProfile, updateResume } from "@/actions/profile";
 import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
+import { buildPrepJobContextFromLegacy } from "@/lib/prep/job-context";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -872,7 +873,16 @@ export function DashboardContainer() {
                 modelConfig: activeModelConfig,
                 prepSettings,
                 outputPrefs,
-                codingChallengeCount: codingChallengeCountRef.current
+                codingChallengeCount: codingChallengeCountRef.current,
+                jobContext: buildPrepJobContextFromLegacy({
+                    company: parsed.company,
+                    position: parsed.position,
+                    round: parsed.round,
+                    jobUrl,
+                    jobContextText: jobContext,
+                    resumeText: currentResume,
+                    prepIntensity: JSON.stringify(prepSettings),
+                }),
             };
 
             const result = await generateInterviewPlan(
@@ -1109,13 +1119,14 @@ export function DashboardContainer() {
         const category = typeof questionItem === 'object' ? questionItem.category : 'Behavioral';
         const keyPoints = questionItem.keyPoints || [];
         const framework = questionItem.framework || questionItem.answerFramework;
+        const jobContextSection = jobContext ? `\n\nJOB POSTING CONTEXT:\n${jobContext}` : "";
 
         // Behavioral -> STAR Method (Uses Resume)
         if (category === 'Behavioral') {
             const prompt = `
-                Context: Candidate is interviewing at ${company} for a ${position} role.
+                Context: Candidate is interviewing at ${company} for a ${position} role.${jobContextSection}
                 Question: "${questionText}"
-                Full Resume & Data: ${getFullContext()}
+                Full Resume & Data: ${getFullContext()}${jobContextSection}
 
                 Task: Write a compelling STAR method answer using the candidate's background.
 
@@ -1149,11 +1160,11 @@ export function DashboardContainer() {
             const keyPointsHint = keyPoints.length > 0 ? `Key points to cover: ${keyPoints.join(', ')}` : '';
 
             const prompt = `
-                Context: Candidate is interviewing at ${company} for a ${position} role.
+                Context: Candidate is interviewing at ${company} for a ${position} role.${jobContextSection}
                 Question: "${questionText}"
                 ${frameworkHint}
                 ${keyPointsHint}
-                Full Resume & Data: ${getFullContext()}
+                Full Resume & Data: ${getFullContext()}${jobContextSection}
 
                 Task: Provide a structured PM interview answer with SPECIFIC DATA AND METRICS.
 
@@ -1195,7 +1206,7 @@ export function DashboardContainer() {
         // System Design Questions
         if (category === 'System Design') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.
+                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
                 Question: "${questionText}"
                 ${keyPoints.length > 0 ? `Key points to address: ${keyPoints.join(', ')}` : ''}
 
@@ -1216,7 +1227,7 @@ export function DashboardContainer() {
         // Coding Questions
         if (category === 'Coding') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.
+                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
                 Question: "${questionText}"
 
                 Task: Provide a coding interview answer.
@@ -1237,9 +1248,9 @@ export function DashboardContainer() {
         // Case Study Questions
         if (category === 'Case Study') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.
+                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
                 Question: "${questionText}"
-                Full Resume & Data: ${getFullContext()}
+                Full Resume & Data: ${getFullContext()}${jobContextSection}
 
                 Task: Provide a structured case study answer with SPECIFIC DATA AND METRICS throughout.
 
@@ -1262,7 +1273,7 @@ export function DashboardContainer() {
         }
 
         const prompt = `
-            Context: Interview at ${company} for ${position}.
+            Context: Interview at ${company} for ${position}.${jobContextSection}
             Question: "${questionText}"
             Category: ${category}
             ${keyPoints.length > 0 ? `Key points to address: ${keyPoints.join(', ')}` : ''}

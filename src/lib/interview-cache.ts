@@ -9,6 +9,7 @@ export interface CachedInterviewData {
     company: string;
     position: string;
     round: string;
+    jdFingerprint?: string;
     hasResumeContext: boolean;
     createdAt: number;
     expiresAt: number;
@@ -70,15 +71,7 @@ export class InterviewCache {
      * Generate cache key from search parameters
      */
     static getCacheKey(company: string, position: string, round: string): string {
-        const normalized = `${company.toLowerCase()}_${position.toLowerCase()}_${round.toLowerCase()}`;
-        // Simple hash function
-        let hash = 0;
-        for (let i = 0; i < normalized.length; i++) {
-            const char = normalized.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32bit integer
-        }
-        return `${Math.abs(hash).toString(36)}_${normalized.substring(0, 20)}`;
+        return getCacheKeyForPlan(company, position, round);
     }
 
     /**
@@ -192,6 +185,39 @@ export class InterviewCache {
                 : null
         };
     }
+}
+
+export function getCacheKeyForPlan(
+    company: string,
+    position: string,
+    round: string,
+    jdFingerprint?: string,
+): string {
+    const normalized = `${company.toLowerCase()}_${position.toLowerCase()}_${round.toLowerCase()}`;
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+        const char = normalized.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    const baseKey = `${Math.abs(hash).toString(36)}_${normalized.substring(0, 20)}`;
+    if (jdFingerprint) {
+        return `${baseKey}_jd_${jdFingerprint}`;
+    }
+    return baseKey;
+}
+
+export function resolveCacheLookup(
+    company: string,
+    position: string,
+    round: string,
+    jdFingerprint?: string,
+): { primaryKey: string; legacyKey: string } {
+    const legacyKey = getCacheKeyForPlan(company, position, round);
+    const primaryKey = jdFingerprint
+        ? getCacheKeyForPlan(company, position, round, jdFingerprint)
+        : legacyKey;
+    return { primaryKey, legacyKey };
 }
 
 // Run cleanup on initialization
