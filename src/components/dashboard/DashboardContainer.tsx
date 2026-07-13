@@ -28,6 +28,15 @@ import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
 import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext } from "@/lib/prep/job-context";
 import { listCachedPlans, listResumableSessions, type CachedPlanListItem } from "@/lib/prep/plan-list";
+import type { PrepSessionMode } from "@/lib/prep/session-progress";
+import {
+    emptyPendingPrep,
+    queuePendingPrep,
+    clearPendingPrep,
+    takePrepReplay,
+    type PendingPrepStartPayload,
+    type PendingPrepState,
+} from "@/lib/prep/pending-prep-actions";
 import { PrepLanding } from "@/components/prep/PrepLanding";
 import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
 import { PrepModeSelection } from "@/components/prep/PrepModeSelection";
@@ -116,6 +125,9 @@ export function DashboardContainer() {
     const [codingCountDialogOpen, setCodingCountDialogOpen] = useState(false);
     const codingCountResolverRef = useRef<((count: number) => void) | null>(null);
     const codingChallengeCountRef = useRef<number>(1);
+
+    const pendingPrepRef = useRef<PendingPrepState>(emptyPendingPrep());
+    const authedPrepRef = useRef(false);
 
     // Calculate if role is technical (for optimistic tab rendering)
     // Calculate if role is technical (for optimistic tab rendering)
@@ -613,6 +625,155 @@ export function DashboardContainer() {
             setResumableSessions(listResumableSessions());
         }
     }, [hasSearched, prepPhase]);
+
+    const openPrepAuth = () => {
+        authedPrepRef.current = false;
+        setAuthPopoverOpen(true);
+    };
+
+    const runPrepStart = async (payload: PendingPrepStartPayload) => {
+        const { jobContext, mode, prepSettings: settings } = payload;
+        const companyName = jobContext.identity.companyName;
+        const jobTitle = jobContext.identity.jobTitle;
+        const roundVal = jobContext.interview.round;
+
+        setPrepJobContext({
+            ...jobContext,
+            interview: { ...jobContext.interview, sessionMode: mode },
+        });
+        setCompany(companyName);
+        setPosition(jobTitle);
+        setRound(roundVal);
+        setJobContext(jobContext.content.originalJd ?? "");
+        setPrepSettings(settings);
+
+        setSearchError(null);
+        setLoading(true);
+        setLoadingText(LOADING_STEPS.generating);
+
+        try {
+            const currentResume = resumeRef.current || resume;
+            const hasResumeContext = currentResume.length > 20;
+
+            const cached = await loadEnhancedCache(companyName, jobTitle, roundVal);
+            const shouldUseCache = cached
+                && (cached.hasContext === hasResumeContext)
+                && (!hasResumeContext || (hasResumeContext && cached.matchData));
+
+            if (shouldUseCache && cached) {
+                applyCachedPlanData(cached);
+                setPrepPhase("session");
+                return;
+            }
+
+            const currentUser = getCurrentUser();
+            if (currentUser) {
+                const rateLimitCheck = canMakeRequest(currentUser.uid);
+                if (!rateLimitCheck.allowed) {
+                    setSearchError(rateLimitCheck.message || "Rate limit exceeded");
+                    return;
+                }
+                recordRequest(currentUser.uid);
+            }
+
+            const storiesText = getStoriesContext();
+
+            let outputPrefs = { strategyLength: "standard" as const, coverLetterLength: "standard" as const };
+            try {
+                const stored = localStorage.getItem("intervu-output-prefs");
+                if (stored) outputPrefs = { ...outputPrefs, ...JSON.parse(stored) };
+            } catch { /* ignore */ }
+
+            const result = await generateInterviewPlan(
+                companyName,
+                jobTitle,
+                roundVal,
+                currentResume,
+                storiesText,
+                {
+                    modelConfig: {},
+                    prepSettings: settings,
+                    outputPrefs,
+                    codingChallengeCount: codingChallengeCountRef.current,
+                    jobContext,
+                },
+                false,
+            );
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
+
+            if (result.reconData) setReconData(result.reconData);
+            if (result.matchData) setMatchData(result.matchData);
+            if (result.questionsData) setQuestionsData(result.questionsData);
+            if (result.reverseData) setReverseData(result.reverseData);
+            if (result.technicalData) setTechnicalData(result.technicalData);
+            if (result.codingChallenges && result.codingChallenges.length > 0) {
+                setCodingChallenges(result.codingChallenges);
+            }
+            if (result.systemDesignData) setSystemDesignData(result.systemDesignData);
+            setResultsHaveResumeContext(currentResume.length > 20);
+            setLastAnalyzedSettings(settings);
+            setPrepPhase("session");
+        } catch (e: unknown) {
+            const sentinel = classifySentinel(e);
+            if (sentinel === "auth") {
+                setAuthPopoverOpen(true);
+                setSearchError("Sign in to use Intervu's built-in AI (or add your own key in Settings).");
+            } else if (sentinel === "credits") {
+                const msg = sentinelMessage(e) ||
+                    "You're out of AI credits. Add your own API key in Settings to keep going.";
+                toast.error(msg, 7000);
+                setSearchError(msg);
+            } else {
+                const errorMessage = e instanceof Error ? e.message : "Failed to start preparation.";
+                setSearchError(errorMessage);
+            }
+        } finally {
+            setLoading(false);
+            setLoadingText("");
+        }
+    };
+
+    const maybeReplayPrepStart = useCallback(() => {
+        if (!authedPrepRef.current) return;
+        const { next, action } = takePrepReplay(pendingPrepRef.current);
+        pendingPrepRef.current = next;
+        if (!action) return;
+        if (action.kind === "start") {
+            void runPrepStart(action.payload);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (user) maybeReplayPrepStart();
+    }, [user, maybeReplayPrepStart]);
+
+    const handlePrepModeSelect = (mode: PrepSessionMode) => {
+        const { companyName, jobTitle } = prepJobContext.identity;
+        const roundVal = prepJobContext.interview.round;
+        const planCacheKey = InterviewCache.getCacheKey(companyName, jobTitle, roundVal);
+
+        const payload: PendingPrepStartPayload = {
+            jobContext: {
+                ...prepJobContext,
+                interview: { ...prepJobContext.interview, sessionMode: mode },
+            },
+            mode,
+            prepSettings,
+            planCacheKey,
+        };
+
+        if (!user) {
+            pendingPrepRef.current = queuePendingPrep(pendingPrepRef.current, { kind: "start", payload });
+            openPrepAuth();
+            return;
+        }
+
+        void runPrepStart(payload);
+    };
 
     // Auto-save Resume with Debounce
     const debouncedSaveResume = useDebouncedCallback(async (text: string) => {
@@ -1608,17 +1769,23 @@ export function DashboardContainer() {
                 />
             );
         } else if (prepPhase === "mode") {
-            mainContent = (
+            mainContent = loading ? (
+                <div className="w-full max-w-2xl flex flex-col items-center py-12">
+                    <LoadingState message={loadingText || LOADING_STEPS.generating} />
+                </div>
+            ) : (
                 <PrepModeSelection
                     jobContext={prepJobContext}
-                    onSelectMode={(mode) => {
-                        setPrepJobContext((ctx) => ({
-                            ...ctx,
-                            interview: { ...ctx.interview, sessionMode: mode },
-                        }));
-                    }}
+                    isAuthenticated={!!user}
+                    onSelectMode={handlePrepModeSelect}
                     onBack={() => setPrepPhase("setup")}
                 />
+            );
+        } else if (prepPhase === "session") {
+            mainContent = (
+                <div className="w-full max-w-2xl">
+                    <LoadingState message="Preparing your session…" />
+                </div>
             );
         } else {
             mainContent = (
@@ -1717,7 +1884,20 @@ export function DashboardContainer() {
                 {/* Top Right Actions */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                 </div>
-                <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+                <AuthPopover
+                    open={authPopoverOpen}
+                    onOpenChange={(open) => {
+                        if (!open && !authedPrepRef.current) {
+                            pendingPrepRef.current = clearPendingPrep(pendingPrepRef.current);
+                        }
+                        setAuthPopoverOpen(open);
+                    }}
+                    onAuthed={() => {
+                        authedPrepRef.current = true;
+                        maybeReplayPrepStart();
+                    }}
+                    showTrigger={false}
+                />
 
                 {mainContent}
 
