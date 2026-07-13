@@ -54,6 +54,20 @@ describe("fingerprintJobContext", () => {
   });
 });
 
+describe("buildPrepJobContextFromLegacy", () => {
+  it("preserves original JD padding while normalizing trimmed copy", () => {
+    const paddedJd = "  Build APIs  ";
+    const ctx = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: paddedJd,
+    });
+    assert.equal(ctx.content.originalJd, paddedJd);
+    assert.equal(ctx.content.normalizedJd, "Build APIs");
+  });
+});
+
 describe("optional fields", () => {
   it("does not throw when optional fields are missing", () => {
     const ctx = emptyPrepJobContext("Acme", "Engineer", "Technical");

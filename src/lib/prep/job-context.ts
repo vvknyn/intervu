@@ -133,7 +133,9 @@ export function buildPrepJobContextFromLegacy(params: {
       ...(params.jobUrl !== undefined ? { sourceUrl: params.jobUrl } : {}),
     },
     content: {
-      ...(trimmedJd !== undefined ? { originalJd: trimmedJd, normalizedJd: trimmedJd } : {}),
+      ...(params.jobContextText !== undefined
+        ? { originalJd: params.jobContextText, normalizedJd: trimmedJd }
+        : {}),
     },
     candidate: {
       ...(params.resumeText !== undefined
