@@ -104,6 +104,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
         await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Loading more roles…', { exact: true })).toHaveCount(0);
         await expect(page.getByText('Updating…', { exact: true })).toHaveCount(0, { timeout: 15000 });
     });
 

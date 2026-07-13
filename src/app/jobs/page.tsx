@@ -44,6 +44,7 @@ import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
@@ -606,15 +607,10 @@ function JobsContent() {
 
     const hasQuery = query.trim().length > 0;
 
-    // Infinite scroll: how many pages are loaded, and a signature of the active
-    // query so a slow load-more can't append onto a result from newer filters.
-    const pagesLoadedRef = useRef(1);
-    const searchSig = useMemo(
-        () => JSON.stringify({ query: query.trim(), facets, salaryMin, visaOnly, postedBucket, sortOverride }),
-        [query, facets, salaryMin, visaOnly, postedBucket, sortOverride],
-    );
-    const searchSigRef = useRef(searchSig);
-    searchSigRef.current = searchSig;
+    // A monotonic generation makes stale pagination unambiguous, including
+    // reversible A→B→A query changes where signatures alone are insufficient.
+    const paginationRef = useRef<JobsPaginationGeneration | null>(null);
+    if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
@@ -658,7 +654,9 @@ function JobsContent() {
         const isResults = mode === "match" || mode === "explore" || mode === "search" || mode === "browse";
         const shouldFetch = isResults && (mode !== "search" || query.trim().length > 0);
         if (!shouldFetch) {
+            paginationRef.current!.invalidate();
             setLoading(false);
+            setLoadingMore(false);
             if (mode === "search") {
                 setResult(null); // empty search → prompt, not stale hits
                 setSelectedId(null);
@@ -668,7 +666,10 @@ function JobsContent() {
             return;
         }
         let cancelled = false;
+        let firstPageSucceeded = false;
+        const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
+        setLoadingMore(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
@@ -685,7 +686,7 @@ function JobsContent() {
                     limit: PAGE,
                     offset: 0,
                 });
-                if (cancelled) return;
+                if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
                 if (isUnavailableJobsResult(r)) {
                     setSearchError(r.note ?? "Job search is temporarily unavailable.");
                     // An initial failure needs backend metadata for the error
@@ -693,8 +694,7 @@ function JobsContent() {
                     if (!(resultRef.current?.hits.length)) setResult(r);
                     return;
                 }
-                pagesLoadedRef.current = 1;
-                setLoadingMore(false);
+                firstPageSucceeded = true;
                 setResult(r);
                 const selection = resolveSelectionAfterRefresh(selectedIdRef.current, r.hits);
                 setSelectedId(selection.selectedId);
@@ -711,7 +711,12 @@ function JobsContent() {
                     // any) and let the explicit error state own first load.
                 }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (
+                    !cancelled &&
+                    paginationRef.current!.finishFirstPage(generation, firstPageSucceeded)
+                ) {
+                    setLoading(false);
+                }
             }
         }, 250);
         return () => {
@@ -760,20 +765,16 @@ function JobsContent() {
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
 
-    // Single-flight guard + observer handle (refs so we never rebind the observer).
-    const inFlightRef = useRef(false);
+    // Observer handle stays stable; the generation coordinator owns request guards.
     const observerRef = useRef<IntersectionObserver | null>(null);
 
-    // Fetch the next page and append it. Discards its result if the filters
-    // changed mid-flight, and de-dupes against what's already loaded.
+    // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
-        if (inFlightRef.current) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
-        const sig = searchSigRef.current;
-        const offset = pagesLoadedRef.current * PAGE;
-        inFlightRef.current = true;
+        const ticket = paginationRef.current!.beginLoadMore(PAGE);
+        if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
             const r = await searchJobsAction({
@@ -784,12 +785,14 @@ function JobsContent() {
                 postedBucket,
                 sort: sortOverride ?? undefined,
                 limit: PAGE,
-                offset,
+                offset: ticket.offset,
             });
-            if (searchSigRef.current !== sig) return; // newer search won — drop this page
-            pagesLoadedRef.current += 1;
+            if (!paginationRef.current!.completeLoadMore(ticket)) return;
             setResult((prev) => {
                 if (!prev) return prev;
+                // React may run this updater after another first-page generation
+                // starts; check again at commit time before touching its results.
+                if (!paginationRef.current!.isCurrentGeneration(ticket.generation)) return prev;
                 const seen = new Set(prev.hits.map((h) => h.id));
                 const fresh = r.hits.filter((h) => !seen.has(h.id));
                 return fresh.length ? { ...prev, hits: [...prev.hits, ...fresh] } : prev;
@@ -797,8 +800,7 @@ function JobsContent() {
         } catch {
             /* transient — the sentinel re-fires on the next scroll */
         } finally {
-            inFlightRef.current = false;
-            setLoadingMore(false);
+            if (paginationRef.current!.endLoadMore(ticket)) setLoadingMore(false);
         }
     }, [result, query, facets, salaryMin, visaOnly, postedBucket, sortOverride]);
 
