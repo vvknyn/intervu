@@ -59,7 +59,22 @@ function resolveLookupKeys(
     }
 
     const jdFingerprint = options?.jdFingerprint;
-    return resolveCacheLookup(company, position, round, jdFingerprint);
+    const { primaryKey, legacyKey } = resolveCacheLookup(
+        company,
+        position,
+        round,
+        jdFingerprint,
+    );
+    return { primaryKey, legacyKey, jdFingerprint };
+}
+
+/** Legacy cache keys are only valid when no JD fingerprint scopes the lookup. */
+export function shouldAttemptLegacyCacheFallback(
+    jdFingerprint: string | undefined,
+    primaryKey: string,
+    legacyKey: string,
+): boolean {
+    return !jdFingerprint && legacyKey !== primaryKey;
 }
 
 function toEnhancedPayload(cached: CachedInterviewData): EnhancedCachePayload {
@@ -99,7 +114,7 @@ async function tryLoadCacheKey(cacheKey: string): Promise<EnhancedCachePayload |
 
 /**
  * Load cached interview data (checks client then server cache).
- * Tries JD-aware primary key first, then legacy key when they differ.
+ * Tries JD-aware primary key first; legacy key only when no JD fingerprint exists.
  */
 export async function loadEnhancedCache(
     company: string,
@@ -108,10 +123,15 @@ export async function loadEnhancedCache(
     options?: CacheLookupOptions,
 ): Promise<EnhancedCachePayload | null> {
     try {
-        const { primaryKey, legacyKey } = resolveLookupKeys(company, position, round, options);
+        const { primaryKey, legacyKey, jdFingerprint } = resolveLookupKeys(
+            company,
+            position,
+            round,
+            options,
+        );
 
         let loaded = await tryLoadCacheKey(primaryKey);
-        if (!loaded && legacyKey !== primaryKey) {
+        if (!loaded && shouldAttemptLegacyCacheFallback(jdFingerprint, primaryKey, legacyKey)) {
             loaded = await tryLoadCacheKey(legacyKey);
         }
 

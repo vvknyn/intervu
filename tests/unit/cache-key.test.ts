@@ -29,6 +29,24 @@ describe("resolvePlanCacheKey", () => {
       getCacheKeyForPlan("Google", "SWE", "Technical", jdFingerprint),
     );
   });
+
+  it("shares plan key across learn and practice session modes", () => {
+    const learn = emptyPrepJobContext("Google", "SWE", "Technical");
+    learn.content.originalJd = "Build distributed systems";
+    learn.interview.sessionMode = "learn";
+
+    const practice = emptyPrepJobContext("Google", "SWE", "Technical");
+    practice.content.originalJd = "Build distributed systems";
+    practice.interview.sessionMode = "practice";
+    practice.interview.completedQuestionIds = ["q1", "q2"];
+    practice.interview.practiceSessionId = "sess-123";
+
+    const learnKey = resolvePlanCacheKey(learn);
+    const practiceKey = resolvePlanCacheKey(practice);
+
+    assert.equal(learnKey.primaryKey, practiceKey.primaryKey);
+    assert.equal(learnKey.jdFingerprint, practiceKey.jdFingerprint);
+  });
 });
 
 describe("planHasSessionQuestions", () => {

@@ -102,8 +102,25 @@ export function stableSerializeJobContext(ctx: PrepJobContext): string {
   return JSON.stringify(stableSerializeValue(ctx));
 }
 
+/** Session-scoped interview fields must not affect plan cache identity. */
+export function jobContextForPlanFingerprint(ctx: PrepJobContext): PrepJobContext {
+  const {
+    sessionMode: _sessionMode,
+    interviewPlanId: _interviewPlanId,
+    practiceSessionId: _practiceSessionId,
+    completedQuestionIds: _completedQuestionIds,
+    starredQuestionIds: _starredQuestionIds,
+    ...planInterview
+  } = ctx.interview;
+
+  return {
+    ...ctx,
+    interview: planInterview,
+  };
+}
+
 export function fingerprintJobContext(ctx: PrepJobContext): string {
-  const serialized = stableSerializeJobContext(ctx);
+  const serialized = stableSerializeJobContext(jobContextForPlanFingerprint(ctx));
   let hash = 0;
   for (let i = 0; i < serialized.length; i++) {
     const char = serialized.charCodeAt(i);

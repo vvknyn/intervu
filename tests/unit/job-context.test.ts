@@ -52,6 +52,30 @@ describe("fingerprintJobContext", () => {
     });
     assert.notEqual(fingerprintJobContext(a), fingerprintJobContext(b));
   });
+
+  it("ignores session-only interview fields", () => {
+    const learn = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: "Build APIs",
+    });
+    learn.interview.sessionMode = "learn";
+
+    const practice = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: "Build APIs",
+    });
+    practice.interview.sessionMode = "practice";
+    practice.interview.practiceSessionId = "sess-abc";
+    practice.interview.completedQuestionIds = ["q1"];
+    practice.interview.starredQuestionIds = ["q2"];
+    practice.interview.interviewPlanId = "plan-xyz";
+
+    assert.equal(fingerprintJobContext(learn), fingerprintJobContext(practice));
+  });
 });
 
 describe("buildPrepJobContextFromLegacy", () => {

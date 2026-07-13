@@ -69,3 +69,44 @@ Addressed all six Important findings and the Minor entitlement-loading finding f
 ## Commit
 
 Single commit on `feat/interview-session-first-p0` (see SHAs returned to parent agent).
+
+---
+
+## Round 2 — Remaining Important Findings (2026-07-12)
+
+### 7. `loadEnhancedCache` legacy fallback served mismatched JD plans (Important)
+- Added `shouldAttemptLegacyCacheFallback` in `src/lib/cache-helpers.ts`.
+- `loadEnhancedCache` now only tries `legacyKey` when **no** JD fingerprint exists (matches server `generate-context` rule).
+- `resolveLookupKeys` propagates `jdFingerprint` through the direct `resolveCacheLookup` path.
+
+### 8. `sessionMode` polluted plan fingerprint (Important)
+- Added `jobContextForPlanFingerprint` in `src/lib/prep/job-context.ts` stripping session-only interview fields (`sessionMode`, `interviewPlanId`, `practiceSessionId`, `completedQuestionIds`, `starredQuestionIds`) before hashing.
+- `fingerprintJobContext` uses the stripped context so Learn and Practice share the same plan cache key for the same JD.
+
+## Round 2 Files Changed
+
+| File | Change |
+|------|--------|
+| `src/lib/cache-helpers.ts` | JD-gated legacy fallback + `shouldAttemptLegacyCacheFallback` |
+| `src/lib/prep/job-context.ts` | `jobContextForPlanFingerprint`; session fields excluded from fingerprint |
+| `tests/unit/cache-helpers.test.ts` | **NEW** — 3 tests for legacy fallback guard |
+| `tests/unit/cache-key.test.ts` | +1 test: learn/practice share plan key |
+| `tests/unit/job-context.test.ts` | +1 test: session fields ignored in fingerprint |
+
+## Round 2 Tests
+
+| Suite | Result |
+|-------|--------|
+| `npx tsc --noEmit` | ✅ PASS |
+| `NODE_ENV=test npx tsx tests/unit/job-context.test.ts` | ✅ 7/7 |
+| `NODE_ENV=test npx tsx tests/unit/interview-context.test.ts` | ✅ 3/3 |
+| `NODE_ENV=test npx tsx tests/unit/cache-key.test.ts` | ✅ 7/7 |
+| `NODE_ENV=test npx tsx tests/unit/cache-helpers.test.ts` | ✅ 3/3 |
+| `NODE_ENV=test npx tsx tests/unit/session-progress.test.ts` | ✅ 20/20 |
+| `NODE_ENV=test npx tsx tests/unit/pending-prep-actions.test.ts` | ✅ 8/8 |
+| `NODE_ENV=test npx tsx tests/unit/plan-list.test.ts` | ✅ 6/6 |
+| `npm run test:session` | ✅ 7/7 |
+
+## Round 2 Commit
+
+See SHA returned to parent agent.
