@@ -18,6 +18,8 @@ export interface PrepSessionQuestionProgress {
   answerText?: string;
   critique?: AnswerCritique;
   revealedAt?: string;
+  /** Rendered HTML for the suggested answer shown after a successful reveal. */
+  revealedContent?: string;
   practicedAt?: string;
 }
 
@@ -60,7 +62,7 @@ export interface PrepSessionSummary {
 
 export type PrepSessionAction =
   | { type: "START"; planCacheKey: string; mode: PrepSessionMode; questionIds: string[] }
-  | { type: "REVEAL"; questionId: string }
+  | { type: "REVEAL"; questionId: string; revealedContent: string }
   | { type: "MARK_REVIEWED"; questionId: string }
   | { type: "PRACTICE_ONE"; questionId: string }
   | { type: "SET_ANSWER"; questionId: string; answerText: string }
@@ -143,6 +145,7 @@ export function prepSessionReducer(
       return updateQuestion(state, action.questionId, {
         status: "revealed",
         revealedAt: nowIso(),
+        revealedContent: action.revealedContent,
       });
 
     case "MARK_REVIEWED":
@@ -274,6 +277,22 @@ export function buildSessionSummary(state: PrepSessionState): PrepSessionSummary
 
 export function sessionStorageKey(planCacheKey: string): string {
   return `${SESSION_STORAGE_PREFIX}${planCacheKey}`;
+}
+
+const REVEAL_FAILURE_PATTERNS = [
+  /^error generating text\.?$/i,
+  /^failed to generate/i,
+  /^generation failed/i,
+];
+
+/** True when reveal generation returned an error sentinel or placeholder text. */
+export function isRevealGenerationFailure(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  if (trimmed.startsWith("AUTH_REQUIRED") || trimmed.startsWith("OUT_OF_CREDITS")) {
+    return true;
+  }
+  return REVEAL_FAILURE_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 export function serializeSessionState(state: PrepSessionState): string {

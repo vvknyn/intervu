@@ -7,6 +7,7 @@ import {
   serializeSessionState,
   parseSessionState,
   sessionStorageKey,
+  isRevealGenerationFailure,
 } from "../../src/lib/prep/session-progress";
 
 const PLAN_KEY = "test_plan_key";
@@ -47,18 +48,27 @@ describe("START", () => {
 });
 
 describe("REVEAL", () => {
-  it("sets question status to revealed", () => {
+  it("sets question status to revealed with content", () => {
     let state = startSession();
-    state = prepSessionReducer(state, { type: "REVEAL", questionId: "q1" })!;
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
     assert.equal(state.questions.q1.status, "revealed");
     assert.ok(state.questions.q1.revealedAt);
+    assert.equal(state.questions.q1.revealedContent, "<p>Answer</p>");
   });
 });
 
 describe("Learn flow MARK_REVIEWED", () => {
   it("marks a revealed question as reviewed", () => {
     let state = startSession("learn");
-    state = prepSessionReducer(state, { type: "REVEAL", questionId: "q1" })!;
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
     state = prepSessionReducer(state, { type: "MARK_REVIEWED", questionId: "q1" })!;
     assert.equal(state.questions.q1.status, "reviewed");
   });
@@ -116,7 +126,11 @@ describe("SKIP", () => {
 describe("buildSessionSummary progress counts", () => {
   it("aggregates learn and practice progress", () => {
     let state = startSession("learn");
-    state = prepSessionReducer(state, { type: "REVEAL", questionId: "q1" })!;
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
     state = prepSessionReducer(state, { type: "MARK_REVIEWED", questionId: "q1" })!;
     state = prepSessionReducer(state, { type: "PRACTICE_ONE", questionId: "q1" })!;
     state = prepSessionReducer(state, { type: "TOGGLE_STAR", questionId: "q2" })!;
@@ -178,6 +192,17 @@ describe("buildSessionSummary performance average excludes skipped", () => {
     assert.equal(summary.performance.critiquedCount, 2);
     assert.equal(summary.performance.averageScore, 7);
     assert.ok(summary.performance.focusQuestionIds.includes("q2"));
+  });
+});
+
+describe("isRevealGenerationFailure", () => {
+  it("detects placeholder and sentinel error text", () => {
+    assert.equal(isRevealGenerationFailure(""), true);
+    assert.equal(isRevealGenerationFailure("   "), true);
+    assert.equal(isRevealGenerationFailure("Error generating text."), true);
+    assert.equal(isRevealGenerationFailure("AUTH_REQUIRED: Sign in"), true);
+    assert.equal(isRevealGenerationFailure("OUT_OF_CREDITS: Add a key"), true);
+    assert.equal(isRevealGenerationFailure("**Situation:** I led a team"), false);
   });
 });
 

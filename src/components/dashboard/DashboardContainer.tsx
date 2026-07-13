@@ -1779,18 +1779,34 @@ export function DashboardContainer() {
     const handleResumeSession = async (planCacheKey: string) => {
         const session = resumableSessions.find((s) => s.planCacheKey === planCacheKey);
         if (!session) return;
-        const plan = cachedPlans.find((p) => p.cacheKey === planCacheKey);
-        if (plan) {
-            await handleOpenPackage(plan);
-        } else {
-            setCompany(session.company);
-            setPosition(session.position);
-            setRound(session.round);
-            setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
-            setHasSearched(true);
-            setPrepPhase("package");
-            const cached = await loadEnhancedCache(session.company, session.position, session.round);
-            applyCachedPlanData(cached);
+
+        setCompany(session.company);
+        setPosition(session.position);
+        setRound(session.round);
+        setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
+        setHasSearched(true);
+
+        const cached = await loadEnhancedCache(session.company, session.position, session.round);
+        applyCachedPlanData(cached);
+
+        try {
+            const raw = localStorage.getItem(sessionStorageKey(planCacheKey));
+            const parsed = raw ? parseSessionState(raw) : null;
+            if (parsed && parsed.planCacheKey === planCacheKey) {
+                setPrepSessionState(parsed);
+                sessionInitRef.current = planCacheKey;
+                setPrepJobContext({
+                    ...emptyPrepJobContext(session.company, session.position, session.round),
+                    interview: {
+                        ...emptyPrepJobContext(session.company, session.position, session.round).interview,
+                        sessionMode: parsed.mode,
+                    },
+                });
+                setPrepPhase("session");
+                return;
+            }
+        } catch {
+            /* ignore corrupt storage */
         }
     };
 

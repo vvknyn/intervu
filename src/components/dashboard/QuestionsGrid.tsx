@@ -15,6 +15,7 @@ import type {
     PrepSessionAction,
     PrepSessionQuestionProgress,
 } from "@/lib/prep/session-progress";
+import { isRevealGenerationFailure } from "@/lib/prep/session-progress";
 
 interface QuestionsGridProps {
     questions: QuestionItem[];
@@ -157,12 +158,17 @@ export function QuestionsGrid({
         if (!sessionProgress) return;
         const answers: { [key: string]: string } = {};
         const crits: { [key: string]: AnswerCritique } = {};
+        const restoredStrategies: { [key: string]: string } = {};
         for (const [id, progress] of Object.entries(sessionProgress)) {
             if (progress.answerText) answers[id] = progress.answerText;
             if (progress.critique) crits[id] = progress.critique;
+            if (progress.revealedContent) restoredStrategies[id] = progress.revealedContent;
         }
         setUserAnswers((prev) => ({ ...answers, ...prev }));
         setCritiques((prev) => ({ ...crits, ...prev }));
+        if (Object.keys(restoredStrategies).length > 0) {
+            setStrategies((prev) => ({ ...restoredStrategies, ...prev }));
+        }
     }, [sessionProgress]);
 
     // Stop speaking when question changes
@@ -361,12 +367,37 @@ export function QuestionsGrid({
         setLoadingStrategies(prev => ({ ...prev, [question.id]: true }));
         try {
             const rawStrategy = await onGenerateStrategy(0, question);
+            if (isRevealGenerationFailure(rawStrategy)) {
+                const sentinel = classifySentinel(rawStrategy);
+                if (sentinel === "auth") {
+                    onRequireAuth?.();
+                    toast.info(sentinelMessage(rawStrategy) || "Sign in to use the built-in AI.");
+                } else if (sentinel === "credits") {
+                    toast.error(sentinelMessage(rawStrategy), 7000);
+                } else {
+                    toast.error("Could not generate a suggested answer. Please try again.");
+                }
+                return;
+            }
             const parsedStrategy = md.render(rawStrategy);
             setStrategies(prev => ({ ...prev, [question.id]: parsedStrategy }));
             setIsExpanded(true); // Auto-expand on success
-            externalDispatch?.({ type: "REVEAL", questionId: question.id });
+            externalDispatch?.({
+                type: "REVEAL",
+                questionId: question.id,
+                revealedContent: parsedStrategy,
+            });
         } catch (e) {
             console.error(e);
+            const sentinel = classifySentinel(e);
+            if (sentinel === "auth") {
+                onRequireAuth?.();
+                toast.info(sentinelMessage(e) || "Sign in to use the built-in AI.");
+            } else if (sentinel === "credits") {
+                toast.error(sentinelMessage(e), 7000);
+            } else {
+                toast.error("Could not generate a suggested answer. Please try again.");
+            }
         } finally {
             setLoadingStrategies(prev => ({ ...prev, [question.id]: false }));
         }

@@ -9,11 +9,21 @@ import type {
   PrepSessionMode,
   PrepSessionState,
   PrepSessionAction,
+  PrepSessionQuestionProgress,
 } from "@/lib/prep/session-progress";
 import type { CompanyReconData, QuestionItem } from "@/types";
 
 export function getSessionQuestionLabel(index: number, total: number): string {
   return `Question ${index + 1} of ${total}`;
+}
+
+export function shouldShowLearnActions(
+  mode: PrepSessionMode,
+  progress: PrepSessionQuestionProgress | undefined,
+): boolean {
+  if (mode !== "learn" || !progress) return false;
+  if (!progress.revealedContent) return false;
+  return progress.status === "revealed" || progress.status === "reviewed";
 }
 
 export interface PrepSessionViewProps {
@@ -96,12 +106,7 @@ export function PrepSessionView({
     [dispatch],
   );
 
-  const showLearnActions =
-    mode === "learn" &&
-    currentProgress &&
-    (currentProgress.status === "revealed" ||
-      currentProgress.status === "reviewed" ||
-      !!currentProgress.revealedAt);
+  const showLearnActions = shouldShowLearnActions(mode, currentProgress);
 
   if (!currentQuestion || total === 0) {
     return (
