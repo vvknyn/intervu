@@ -1,4 +1,6 @@
 import type { AnswerCritique } from "@/types/index";
+import type { PrepJobContext } from "@/lib/prep/job-context";
+import { emptyPrepJobContext } from "@/lib/prep/job-context";
 
 export type PrepSessionMode = "learn" | "practice";
 
@@ -32,6 +34,8 @@ export interface PrepSessionState {
   currentIndex: number;
   questionIds: string[];
   questions: Record<string, PrepSessionQuestionProgress>;
+  /** Job context used when the session started (for reveal/critique on resume). */
+  jobContext?: PrepJobContext;
 }
 
 export interface PrepSessionProgressCounts {
@@ -61,7 +65,13 @@ export interface PrepSessionSummary {
 }
 
 export type PrepSessionAction =
-  | { type: "START"; planCacheKey: string; mode: PrepSessionMode; questionIds: string[] }
+  | {
+      type: "START";
+      planCacheKey: string;
+      mode: PrepSessionMode;
+      questionIds: string[];
+      jobContext?: PrepJobContext;
+    }
   | { type: "REVEAL"; questionId: string; revealedContent: string }
   | { type: "MARK_REVIEWED"; questionId: string }
   | { type: "PRACTICE_ONE"; questionId: string }
@@ -113,6 +123,7 @@ export function emptySessionState(
   planCacheKey: string,
   mode: PrepSessionMode,
   questionIds: string[],
+  jobContext?: PrepJobContext,
 ): PrepSessionState {
   const timestamp = nowIso();
   const questions: Record<string, PrepSessionQuestionProgress> = {};
@@ -129,6 +140,7 @@ export function emptySessionState(
     currentIndex: 0,
     questionIds,
     questions,
+    ...(jobContext ? { jobContext } : {}),
   };
 }
 
@@ -138,7 +150,12 @@ export function prepSessionReducer(
 ): PrepSessionState | null {
   switch (action.type) {
     case "START":
-      return emptySessionState(action.planCacheKey, action.mode, action.questionIds);
+      return emptySessionState(
+        action.planCacheKey,
+        action.mode,
+        action.questionIds,
+        action.jobContext,
+      );
 
     case "REVEAL":
       if (!state) return state;
@@ -277,6 +294,37 @@ export function buildSessionSummary(state: PrepSessionState): PrepSessionSummary
 
 export function sessionStorageKey(planCacheKey: string): string {
   return `${SESSION_STORAGE_PREFIX}${planCacheKey}`;
+}
+
+/** Restore PrepJobContext from persisted session state (falls back to empty context). */
+export function resolveSessionJobContext(
+  state: PrepSessionState,
+  company: string,
+  position: string,
+  round: string,
+): PrepJobContext {
+  const base = state.jobContext
+    ? state.jobContext
+    : emptyPrepJobContext(company, position, round);
+
+  return {
+    ...base,
+    identity: {
+      ...base.identity,
+      companyName: base.identity.companyName || company,
+      jobTitle: base.identity.jobTitle || position,
+    },
+    interview: {
+      ...base.interview,
+      round: base.interview.round || round,
+      sessionMode: state.mode,
+    },
+  };
+}
+
+/** JD text from session blob only — empty when not stored (clears stale legacy state). */
+export function sessionJobContextText(state: PrepSessionState): string {
+  return state.jobContext?.content?.originalJd?.trim() ?? "";
 }
 
 const REVEAL_FAILURE_PATTERNS = [

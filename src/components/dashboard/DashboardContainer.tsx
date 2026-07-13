@@ -35,6 +35,8 @@ import {
     serializeSessionState,
     parseSessionState,
     sessionStorageKey,
+    resolveSessionJobContext,
+    sessionJobContextText,
     type PrepSessionState,
     type PrepSessionAction,
 } from "@/lib/prep/session-progress";
@@ -678,6 +680,9 @@ export function DashboardContainer() {
             const parsed = raw ? parseSessionState(raw) : null;
             if (parsed && parsed.planCacheKey === planCacheKey) {
                 setPrepSessionState(parsed);
+                const restoredCtx = resolveSessionJobContext(parsed, company, position, round);
+                setPrepJobContext(restoredCtx);
+                setJobContext(sessionJobContextText(parsed));
                 return;
             }
         } catch {
@@ -695,6 +700,7 @@ export function DashboardContainer() {
             planCacheKey,
             mode,
             questionIds,
+            jobContext: prepJobContext,
         });
         setPrepSessionState(initial);
         if (initial) {
@@ -1795,13 +1801,14 @@ export function DashboardContainer() {
             if (parsed && parsed.planCacheKey === planCacheKey) {
                 setPrepSessionState(parsed);
                 sessionInitRef.current = planCacheKey;
-                setPrepJobContext({
-                    ...emptyPrepJobContext(session.company, session.position, session.round),
-                    interview: {
-                        ...emptyPrepJobContext(session.company, session.position, session.round).interview,
-                        sessionMode: parsed.mode,
-                    },
-                });
+                const restoredCtx = resolveSessionJobContext(
+                    parsed,
+                    session.company,
+                    session.position,
+                    session.round,
+                );
+                setPrepJobContext(restoredCtx);
+                setJobContext(sessionJobContextText(parsed));
                 setPrepPhase("session");
                 return;
             }
@@ -1949,7 +1956,7 @@ export function DashboardContainer() {
                     favoritedMap={favoritedMap}
                     onToggleFavorite={handleToggleFavorite}
                     isLoggedIn={!!user}
-                    jobContextText={prepJobContext.content.originalJd ?? jobContext}
+                    jobContextText={prepJobContext.content.originalJd ?? ""}
                 />
             );
         } else if (prepPhase === "summary") {

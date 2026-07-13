@@ -8,7 +8,10 @@ import {
   parseSessionState,
   sessionStorageKey,
   isRevealGenerationFailure,
+  resolveSessionJobContext,
+  sessionJobContextText,
 } from "../../src/lib/prep/session-progress";
+import { buildPrepJobContextFromLegacy } from "../../src/lib/prep/job-context";
 
 const PLAN_KEY = "test_plan_key";
 const QUESTION_IDS = ["q1", "q2", "q3"];
@@ -44,6 +47,24 @@ describe("START", () => {
     assert.equal(state.currentIndex, 0);
     assert.equal(state.version, 1);
     assert.equal(state.planCacheKey, PLAN_KEY);
+  });
+
+  it("persists jobContext when provided", () => {
+    const jobContext = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: "Build distributed systems",
+    });
+    const state = prepSessionReducer(null, {
+      type: "START",
+      planCacheKey: PLAN_KEY,
+      mode: "learn",
+      questionIds: QUESTION_IDS,
+      jobContext,
+    })!;
+    assert.equal(state.jobContext?.content.originalJd, "Build distributed systems");
+    assert.equal(state.jobContext?.identity.companyName, "Acme");
   });
 });
 
@@ -221,8 +242,56 @@ describe("parseSessionState round-trip", () => {
     assert.deepEqual(restored, state);
   });
 
+  it("serializes and restores jobContext", () => {
+    const jobContext = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: "Own the API platform",
+    });
+    const state = prepSessionReducer(null, {
+      type: "START",
+      planCacheKey: PLAN_KEY,
+      mode: "practice",
+      questionIds: QUESTION_IDS,
+      jobContext,
+    })!;
+    const restored = parseSessionState(serializeSessionState(state));
+    assert.equal(restored?.jobContext?.content.originalJd, "Own the API platform");
+  });
+
   it("returns null for corrupt JSON", () => {
     assert.equal(parseSessionState("{not json"), null);
     assert.equal(parseSessionState(JSON.stringify({ version: 2 })), null);
+  });
+});
+
+describe("resolveSessionJobContext", () => {
+  it("restores stored JD and session mode", () => {
+    const jobContext = buildPrepJobContextFromLegacy({
+      company: "Acme",
+      position: "Engineer",
+      round: "Technical",
+      jobContextText: "Ship reliable services",
+    });
+    const state = prepSessionReducer(null, {
+      type: "START",
+      planCacheKey: PLAN_KEY,
+      mode: "practice",
+      questionIds: QUESTION_IDS,
+      jobContext,
+    })!;
+
+    const restored = resolveSessionJobContext(state, "Acme", "Engineer", "Technical");
+    assert.equal(restored.content.originalJd, "Ship reliable services");
+    assert.equal(restored.interview.sessionMode, "practice");
+  });
+
+  it("returns empty JD for legacy sessions without stored jobContext", () => {
+    const state = startSession("learn");
+    const restored = resolveSessionJobContext(state, "Acme", "Engineer", "Technical");
+    assert.equal(restored.content.originalJd, undefined);
+    assert.equal(sessionJobContextText(state), "");
+    assert.equal(restored.interview.sessionMode, "learn");
   });
 });
