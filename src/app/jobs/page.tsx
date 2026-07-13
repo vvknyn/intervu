@@ -44,6 +44,7 @@ import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { isUnavailableJobsResult } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     FACETABLE_KEYS,
@@ -196,11 +197,13 @@ function JobRow({
 }) {
     const age = postedAge(derivePostedTs(job));
     const sal = salaryText(job);
+    const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
             type="button"
             role="option"
             aria-selected={active}
+            aria-label={`View ${accessibleName}`}
             data-job-row
             onClick={onClick}
             className={cn(
@@ -584,6 +587,8 @@ function JobsContent() {
     const userPickedDetailRef = useRef(false);
 
     const [result, setResult] = useState<JobSearchResult | null>(null);
+    const resultRef = useRef<JobSearchResult | null>(null);
+    resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -654,7 +659,7 @@ function JobsContent() {
         }
         let cancelled = false;
         setSearchError(null);
-        if (!(result?.hits?.length)) setLoading(true);
+        if (!(resultRef.current?.hits.length)) setLoading(true);
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
@@ -669,9 +674,11 @@ function JobsContent() {
                     offset: 0,
                 });
                 if (cancelled) return;
-                if (r.configured && r.note && r.hits.length === 0 && /unavailable/i.test(r.note)) {
-                    setSearchError(r.note);
-                    setResult(r);
+                if (isUnavailableJobsResult(r)) {
+                    setSearchError(r.note ?? "Job search is temporarily unavailable.");
+                    // An initial failure needs backend metadata for the error
+                    // state. A background failure must not blank existing hits.
+                    if (!(resultRef.current?.hits.length)) setResult(r);
                     return;
                 }
                 pagesLoadedRef.current = 1;
@@ -685,15 +692,9 @@ function JobsContent() {
                 if (!cancelled) {
                     const msg = e instanceof Error ? e.message : String(e);
                     setSearchError(msg);
-                    if (!(result?.hits?.length)) {
-                        setResult({
-                            hits: [],
-                            total: 0,
-                            backend: "unconfigured",
-                            configured: true,
-                            note: msg,
-                        });
-                    }
+                    // A thrown transport error is not an unconfigured backend
+                    // or a successful empty result. Preserve prior data (if
+                    // any) and let the explicit error state own first load.
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -720,7 +721,7 @@ function JobsContent() {
         }
     }, []);
 
-    const hits = result?.hits ?? [];
+    const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
     const selected = useMemo(
         () => hits.find((h) => h.id === selectedId) ?? hits[0] ?? null,
         [hits, selectedId],
@@ -1127,7 +1128,8 @@ function JobsContent() {
     };
 
     const notConnected = result != null && !result.configured && result.backend === "unconfigured";
-    const transientError = searchError != null && result?.configured === true;
+    const blockingError = searchError != null && hits.length === 0;
+    const backgroundError = searchError != null && hits.length > 0;
 
     const filterPanel = (
         <FilterPanel
@@ -1145,7 +1147,7 @@ function JobsContent() {
     return (
         <PageLayout
             fullWidth
-            className="w-full max-w-[1700px] px-4 sm:px-6 py-6"
+            className="w-full max-w-[1700px] px-4 py-6 sm:px-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden"
             header={
                 <PageHeader
                     title="Find jobs"
@@ -1179,8 +1181,10 @@ function JobsContent() {
                     >
                         Skip to results
                     </a>
-                    <ModeBar mode={mode} onStartOver={startOver} />
-                    <div className="flex min-h-0 flex-col lg:h-[calc(100dvh-4rem)]">
+                    <div className="shrink-0">
+                        <ModeBar mode={mode} onStartOver={startOver} />
+                    </div>
+                    <div className="flex min-h-0 flex-col lg:flex-1">
             {/* Search */}
             <div className="relative mb-3.5 shrink-0">
                 <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -1289,7 +1293,7 @@ function JobsContent() {
                 </div>
             )}
 
-            {transientError && (
+            {backgroundError && (
                 <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-sm text-destructive">
                     <span>{searchError}</span>
                     <Button
@@ -1318,20 +1322,45 @@ function JobsContent() {
                     </p>
                     <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
                 </div>
+            ) : blockingError ? (
+                <div
+                    role="alert"
+                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                >
+                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                    <h3 className="text-lg font-semibold">Job search is temporarily unavailable</h3>
+                    <p className="mt-1 max-w-md text-sm text-muted-foreground">{searchError}</p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        onClick={() => setSearchRetry((n) => n + 1)}
+                    >
+                        Retry
+                    </Button>
+                </div>
             ) : (
-                <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
-                    {/* Filter rail (xl+) — scrolls inside bounded pane */}
-                    <aside className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar xl:block">
+                <div className="relative grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
+                    {/* xl: visible filter/list/detail three-pane workspace. */}
+                    <aside
+                        role="region"
+                        aria-label="Job filters"
+                        className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar xl:block"
+                    >
                         {filterPanel}
                     </aside>
-                    {/* Filter panel (mobile / tablet / lg, toggled) */}
+                    {/* lg–xl: list/detail stay visible; Filters opens a bounded overlay. */}
                     {showFiltersMobile && (
-                        <div className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain custom-scrollbar xl:hidden">
+                        <aside
+                            role="region"
+                            aria-label="Job filters"
+                            className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain rounded-xl bg-background shadow-lg custom-scrollbar lg:absolute lg:inset-y-0 lg:left-0 lg:z-20 lg:max-h-none lg:w-[230px] xl:hidden"
+                        >
                             {filterPanel}
-                        </div>
+                        </aside>
                     )}
 
-                    {/* Results + detail */}
+                    {/* lg: two-pane list/detail workspace; xl adds the filter pane. */}
                     <div className="flex min-h-0 flex-col">
                         {loading && hits.length === 0 ? (
                             <JobsListSplash />
@@ -1375,7 +1404,15 @@ function JobsContent() {
                                         </p>
                                     )}
                                 </div>
-                                <div className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block">
+                                <aside
+                                    role="region"
+                                    aria-label={
+                                        selected
+                                            ? `Job details: ${decodeText(selected.title)} at ${cleanCompany(selected.company) || "Unknown company"}`
+                                            : "Job details"
+                                    }
+                                    className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
+                                >
                                     {selected ? (
                                         <JobDetail
                                             key={selected.id}
@@ -1388,7 +1425,7 @@ function JobsContent() {
                                             onPrep={() => handlePrep(selected)}
                                         />
                                     ) : null}
-                                </div>
+                                </aside>
                             </div>
                         )}
                     </div>

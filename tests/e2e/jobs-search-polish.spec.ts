@@ -83,12 +83,13 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(sortTrigger).toContainText(/Date posted/i, { timeout: 15000 });
     });
 
-    test('TC-JOBS-SEL-001: row click sets aria-selected and syncs desktop detail', async ({ page }) => {
+    test('TC-JOBS-SEL-001: selecting a result updates the labeled desktop detail region', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const rows = page.locator('[data-job-row]');
-        if ((await rows.count()) === 0) {
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        const options = results.getByRole('option');
+        if ((await options.count()) === 0) {
             const empty = page
                 .locator('text=/being connected|No roles match|Finding live roles/i')
                 .first();
@@ -96,69 +97,119 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             return;
         }
 
-        const second = rows.nth(1);
+        const second = options.nth(1);
+        const optionName = await second.getAttribute('aria-label');
+        expect(optionName).toMatch(/^View /);
         await second.click();
         await expect(second).toHaveAttribute('aria-selected', 'true');
-
-        const title = await second.locator('.font-semibold').first().textContent();
-        if (title) {
-            await expect(page.getByRole('heading', { level: 2, name: new RegExp(title.trim().slice(0, 20), 'i') })).toBeVisible();
-        }
+        await expect(
+            page.getByRole('region', {
+                name: `Job details: ${optionName!.replace(/^View /, '')}`,
+            }),
+        ).toBeVisible();
     });
 
-    test('TC-JOBS-LAYOUT-001: desktop panes scroll independently within bounded viewport', async ({ page }) => {
+    test('TC-JOBS-LAYOUT-001: xl has three independently scrolling panes without document scroll', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const rows = page.locator('[data-job-row]');
-        if ((await rows.count()) === 0) {
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        if ((await results.getByRole('option').count()) === 0) {
             test.skip(true, 'No job rows — cannot verify pane scroll geometry');
         }
 
-        const metrics = await page.evaluate(() => {
-            const list = document.getElementById('jobs-results-list');
-            const panes = document.querySelectorAll('.overscroll-contain.custom-scrollbar');
-            const bounded = document.querySelector('.lg\\:h-\\[calc\\(100dvh-4rem\\)\\]');
-            const paneData = [...panes].map((el) => {
-                const node = el as HTMLElement;
-                const style = getComputedStyle(node);
-                return {
-                    overflowY: style.overflowY,
-                    clientHeight: node.clientHeight,
-                    scrollHeight: node.scrollHeight,
-                    canScroll: node.scrollHeight > node.clientHeight,
-                };
-            });
-            return {
-                boundedHeight: bounded ? (bounded as HTMLElement).clientHeight : 0,
-                listOverflow: list ? getComputedStyle(list).overflowY : null,
-                listClientHeight: list?.clientHeight ?? 0,
-                pageScrollHeight: document.documentElement.scrollHeight,
-                viewportHeight: window.innerHeight,
-                paneCount: paneData.length,
-                scrollablePanes: paneData.filter((p) => p.overflowY === 'auto' || p.overflowY === 'scroll').length,
-                paneData,
-            };
-        });
+        const filters = page.getByRole('region', { name: 'Job filters' });
+        const detail = page.getByRole('region', { name: /Job details:/ });
+        await expect(filters).toBeVisible();
+        await expect(results).toBeVisible();
+        await expect(detail).toBeVisible();
 
-        expect(metrics.boundedHeight).toBeGreaterThan(0);
-        expect(metrics.boundedHeight).toBeLessThanOrEqual(metrics.viewportHeight);
-        expect(metrics.listOverflow).toBe('auto');
-        expect(metrics.scrollablePanes).toBeGreaterThanOrEqual(2);
-        // Bounded workspace: page should not grow to multi-thousand px document scroll on desktop.
-        expect(metrics.pageScrollHeight).toBeLessThan(metrics.viewportHeight * 2);
+        const before = await page.evaluate(() => ({
+            pageScrollY: window.scrollY,
+            documentHeight: document.documentElement.scrollHeight,
+            viewportHeight: window.innerHeight,
+        }));
+        expect(before.documentHeight).toBeLessThanOrEqual(before.viewportHeight + 2);
+
+        const paneMetrics = await Promise.all(
+            [filters, results, detail].map((pane) =>
+                pane.evaluate((node) => {
+                    const rect = node.getBoundingClientRect();
+                    return {
+                        overflowY: getComputedStyle(node).overflowY,
+                        height: rect.height,
+                        top: rect.top,
+                        scrollHeight: node.scrollHeight,
+                    };
+                }),
+            ),
+        );
+        for (const pane of paneMetrics) {
+            expect(pane.overflowY).toBe('auto');
+            expect(pane.height).toBeGreaterThan(0);
+            expect(pane.height).toBeLessThan(before.viewportHeight);
+        }
+
+        await results.evaluate((node) => {
+            node.scrollTop = Math.min(400, node.scrollHeight - node.clientHeight);
+        });
+        await expect.poll(() => results.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+
+        const after = await Promise.all([
+            page.evaluate(() => window.scrollY),
+            filters.evaluate((node) => node.getBoundingClientRect().top),
+            detail.evaluate((node) => node.getBoundingClientRect().top),
+        ]);
+        expect(after[0]).toBe(before.pageScrollY);
+        expect(Math.abs(after[1] - paneMetrics[0].top)).toBeLessThanOrEqual(1);
+        expect(Math.abs(after[2] - paneMetrics[2].top)).toBeLessThanOrEqual(1);
+    });
+
+    test('TC-JOBS-LAYOUT-002: lg has two panes and a bounded independently scrolling filter overlay', async ({ page }) => {
+        await page.setViewportSize({ width: 1024, height: 768 });
+        await enterBrowseMode(page);
+
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        if ((await results.getByRole('option').count()) === 0) {
+            test.skip(true, 'No job rows — cannot verify lg pane geometry');
+        }
+
+        const detail = page.getByRole('region', { name: /Job details:/ });
+        await expect(results).toBeVisible();
+        await expect(detail).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
+
+        const documentMetrics = await page.evaluate(() => ({
+            height: document.documentElement.scrollHeight,
+            viewport: window.innerHeight,
+        }));
+        expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
+
+        await page.getByRole('button', { name: /Filters/ }).click();
+        const filterOverlay = page.getByRole('region', { name: 'Job filters' });
+        await expect(filterOverlay).toBeVisible();
+        const overlayMetrics = await filterOverlay.evaluate((node) => ({
+            overflowY: getComputedStyle(node).overflowY,
+            height: node.getBoundingClientRect().height,
+        }));
+        expect(overlayMetrics.overflowY).toBe('auto');
+        expect(overlayMetrics.height).toBeGreaterThan(0);
+        expect(overlayMetrics.height).toBeLessThan(documentMetrics.viewport);
+        expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
+            documentMetrics.viewport + 2,
+        );
     });
 
     test('TC-JOBS-MOBILE-001: deliberate row tap opens bottom sheet detail', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await enterBrowseMode(page);
 
-        const rows = page.locator('[data-job-row]');
-        if ((await rows.count()) === 0) {
+        const options = page.getByRole('listbox', { name: 'Job results' }).getByRole('option');
+        if ((await options.count()) === 0) {
             test.skip(true, 'No job rows for mobile sheet test');
         }
 
-        await rows.first().click();
+        await options.first().click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });
         await expect(dialog.getByRole('heading', { level: 2 }).first()).toBeVisible();
