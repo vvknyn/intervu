@@ -1143,19 +1143,25 @@ export async function generateInterviewPlan(
     fromCache?: boolean;
 }> {
     try {
-        console.log("[Orchestrator] Received settings:", JSON.stringify({
-            ...settings,
-            modelConfig: {
-                ...settings?.modelConfig,
-                apiKey: settings?.modelConfig?.apiKey ? "***" : "MISSING"
-            }
-        }, null, 2));
-
         const hasJd = (settings.jobContext?.content?.originalJd?.length ?? 0) > 0
             || (settings.jobContext?.content?.normalizedJd?.length ?? 0) > 0;
         const jdFingerprint = hasJd && settings.jobContext
             ? fingerprintJobContext(settings.jobContext)
             : undefined;
+
+        console.log("[Orchestrator] Received settings:", JSON.stringify({
+            hasJobContext: hasJd,
+            jdFingerprint,
+            prepSettings: settings.prepSettings,
+            outputPrefs: settings.outputPrefs,
+            codingChallengeCount: settings.codingChallengeCount,
+            modelConfig: {
+                provider: settings?.modelConfig?.provider,
+                model: settings?.modelConfig?.model,
+                apiKey: settings?.modelConfig?.apiKey ? "***" : "MISSING",
+            },
+        }, null, 2));
+
         const { primaryKey, legacyKey } = resolveCacheLookup(company, position, round, jdFingerprint);
         const cacheKey = primaryKey;
         const jobContextText = settings.jobContext?.content?.normalizedJd
@@ -1195,7 +1201,7 @@ export async function generateInterviewPlan(
                 };
             }
 
-            if (!jdFingerprint) {
+            if (!jdFingerprint && legacyKey !== primaryKey) {
                 const legacyCached = await tryCacheKey(legacyKey);
                 if (legacyCached) {
                     console.log("[Orchestrator] Server cache hit (legacy key). hasResume:", hasResumeContext);

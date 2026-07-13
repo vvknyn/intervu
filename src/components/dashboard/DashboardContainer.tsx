@@ -1126,7 +1126,7 @@ export function DashboardContainer() {
             const prompt = `
                 Context: Candidate is interviewing at ${company} for a ${position} role.${jobContextSection}
                 Question: "${questionText}"
-                Full Resume & Data: ${getFullContext()}${jobContextSection}
+                Full Resume & Data: ${getFullContext()}
 
                 Task: Write a compelling STAR method answer using the candidate's background.
 
@@ -1164,7 +1164,7 @@ export function DashboardContainer() {
                 Question: "${questionText}"
                 ${frameworkHint}
                 ${keyPointsHint}
-                Full Resume & Data: ${getFullContext()}${jobContextSection}
+                Full Resume & Data: ${getFullContext()}
 
                 Task: Provide a structured PM interview answer with SPECIFIC DATA AND METRICS.
 
@@ -1206,7 +1206,7 @@ export function DashboardContainer() {
         // System Design Questions
         if (category === 'System Design') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
+                Context: Interview at ${company} for ${position}.${jobContextSection}
                 Question: "${questionText}"
                 ${keyPoints.length > 0 ? `Key points to address: ${keyPoints.join(', ')}` : ''}
 
@@ -1227,7 +1227,7 @@ export function DashboardContainer() {
         // Coding Questions
         if (category === 'Coding') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
+                Context: Interview at ${company} for ${position}.${jobContextSection}
                 Question: "${questionText}"
 
                 Task: Provide a coding interview answer.
@@ -1248,9 +1248,9 @@ export function DashboardContainer() {
         // Case Study Questions
         if (category === 'Case Study') {
             const prompt = `
-                Context: Interview at ${company} for ${position}.${jobContextSection}${jobContextSection}
+                Context: Interview at ${company} for ${position}.${jobContextSection}
                 Question: "${questionText}"
-                Full Resume & Data: ${getFullContext()}${jobContextSection}
+                Full Resume & Data: ${getFullContext()}
 
                 Task: Provide a structured case study answer with SPECIFIC DATA AND METRICS throughout.
 
