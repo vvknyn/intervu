@@ -10,6 +10,11 @@ import { DashboardSection } from "./DashboardSection";
 import { toast } from "@/lib/toast";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 import { STATUS_PILL, difficultyTone } from "@/lib/ui/status-tokens";
+import type {
+    PrepSessionMode,
+    PrepSessionAction,
+    PrepSessionQuestionProgress,
+} from "@/lib/prep/session-progress";
 
 interface QuestionsGridProps {
     questions: QuestionItem[];
@@ -23,13 +28,41 @@ interface QuestionsGridProps {
     isLoggedIn?: boolean;
     /** Open the login popover when an AI action returns AUTH_REQUIRED. */
     onRequireAuth?: () => void;
+    sessionMode?: PrepSessionMode;
+    sessionQuestionIds?: string[];
+    sessionIndex?: number;
+    onSessionIndexChange?: (index: number) => void;
+    externalDispatch?: (action: PrepSessionAction) => void;
+    sessionProgress?: Record<string, PrepSessionQuestionProgress>;
+    jobContextText?: string;
+    onSessionContinue?: () => void;
 }
 
 import { generateAnswerCritique } from "@/actions/generate-context";
 import { AnswerCritique } from "@/types";
 import { Textarea } from "@/components/ui/textarea";
 
-export function QuestionsGrid({ questions, onGenerateStrategy, company, position, round, reconData, favoritedMap = {}, onToggleFavorite, isLoggedIn = false, onRequireAuth }: QuestionsGridProps) {
+export function QuestionsGrid({
+    questions,
+    onGenerateStrategy,
+    company,
+    position,
+    round,
+    reconData,
+    favoritedMap = {},
+    onToggleFavorite,
+    isLoggedIn = false,
+    onRequireAuth,
+    sessionMode,
+    sessionQuestionIds,
+    sessionIndex,
+    onSessionIndexChange,
+    externalDispatch,
+    sessionProgress,
+    jobContextText,
+    onSessionContinue,
+}: QuestionsGridProps) {
+    const isSessionMode = sessionMode !== undefined;
     // Strategies stored by Question ID
     const [strategies, setStrategies] = useState<{ [key: string]: string }>({});
     const [loadingStrategies, setLoadingStrategies] = useState<{ [key: string]: boolean }>({});
@@ -93,20 +126,44 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
         return [{ id: 'All', label: 'All', icon: Lightning }, ...dynamicCats.sort((a, b) => a.label.localeCompare(b.label))];
     }, [presentCategories]);
 
+    const sessionOrderedQuestions = useMemo(() => {
+        if (!sessionQuestionIds) return questions;
+        const byId = new Map(questions.map((q) => [q.id, q]));
+        return sessionQuestionIds
+            .map((id) => byId.get(id))
+            .filter((q): q is QuestionItem => !!q);
+    }, [questions, sessionQuestionIds]);
+
     // Filter Logic
     const filteredQuestions = useMemo(() => {
+        if (isSessionMode) return sessionOrderedQuestions;
         if (activeTab === 'All') return questions;
         return questions.filter(q => q.category === activeTab);
-    }, [questions, activeTab]);
+    }, [questions, activeTab, isSessionMode, sessionOrderedQuestions]);
 
-    const currentQuestion = filteredQuestions[currentIndex];
-    const hasNext = currentIndex < filteredQuestions.length - 1;
-    const hasPrev = currentIndex > 0;
+    const effectiveIndex = isSessionMode && sessionIndex !== undefined ? sessionIndex : currentIndex;
+    const currentQuestion = filteredQuestions[effectiveIndex];
+    const hasNext = effectiveIndex < filteredQuestions.length - 1;
+    const hasPrev = effectiveIndex > 0;
+    const effectivePracticeMode = isSessionMode ? sessionMode === "practice" : isPracticeMode;
 
     // Reset carousel index when category changes
     useEffect(() => {
-        setCurrentIndex(0);
-    }, [activeTab]);
+        if (!isSessionMode) setCurrentIndex(0);
+    }, [activeTab, isSessionMode]);
+
+    // Hydrate session progress from persisted state
+    useEffect(() => {
+        if (!sessionProgress) return;
+        const answers: { [key: string]: string } = {};
+        const crits: { [key: string]: AnswerCritique } = {};
+        for (const [id, progress] of Object.entries(sessionProgress)) {
+            if (progress.answerText) answers[id] = progress.answerText;
+            if (progress.critique) crits[id] = progress.critique;
+        }
+        setUserAnswers((prev) => ({ ...answers, ...prev }));
+        setCritiques((prev) => ({ ...crits, ...prev }));
+    }, [sessionProgress]);
 
     // Stop speaking when question changes
     useEffect(() => {
@@ -114,7 +171,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
             window.speechSynthesis.cancel();
             setIsSpeaking(false);
         }
-    }, [currentIndex, activeTab]);
+    }, [effectiveIndex, activeTab]);
 
     // --- END HOISTED ---
 
@@ -186,10 +243,18 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
         }
 
         setIsAnalyzing(prev => ({ ...prev, [question.id]: true }));
+        externalDispatch?.({ type: "SET_ANSWER", questionId: question.id, answerText: answer });
         try {
-            const res = await generateAnswerCritique(question, answer, { company, position, round, reconData });
+            const res = await generateAnswerCritique(question, answer, {
+                company,
+                position,
+                round,
+                reconData,
+                jobContextText,
+            });
             if (res.data) {
                 setCritiques(prev => ({ ...prev, [question.id]: res.data! }));
+                externalDispatch?.({ type: "SET_CRITIQUE", questionId: question.id, critique: res.data });
             } else if (res.error) {
                 // SECTION C sentinel UX: the cost/auth gate's prefixed errors come
                 // through here verbatim. AUTH_REQUIRED → login popover; OUT_OF_CREDITS → toast.
@@ -228,11 +293,21 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
     });
 
     const handleNext = () => {
-        if (hasNext) setCurrentIndex(prev => prev + 1);
+        if (!hasNext) return;
+        if (isSessionMode && onSessionIndexChange) {
+            onSessionIndexChange(effectiveIndex + 1);
+        } else {
+            setCurrentIndex((prev) => prev + 1);
+        }
     };
 
     const handlePrev = () => {
-        if (hasPrev) setCurrentIndex(prev => prev - 1);
+        if (!hasPrev) return;
+        if (isSessionMode && onSessionIndexChange) {
+            onSessionIndexChange(effectiveIndex - 1);
+        } else {
+            setCurrentIndex((prev) => prev - 1);
+        }
     };
 
     // Expanded State
@@ -241,12 +316,14 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
     // Reset expanded state when question changes
     useEffect(() => {
         setIsExpanded(false);
-    }, [currentIndex, activeTab]);
+    }, [effectiveIndex, activeTab]);
 
     const toggleExpand = () => setIsExpanded(prev => !prev);
 
     // Keyboard navigation
     useEffect(() => {
+        if (isSessionMode) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             // Avoid interfering with inputs if any
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
@@ -272,7 +349,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
 
         window.addEventListener('keydown', handleKeyDown as any);
         return () => window.removeEventListener('keydown', handleKeyDown as any);
-    }, [hasNext, hasPrev]);
+    }, [hasNext, hasPrev, isSessionMode]);
 
     const handleStrategy = async (question: QuestionItem) => {
         if (strategies[question.id] || loadingStrategies[question.id]) {
@@ -287,6 +364,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
             const parsedStrategy = md.render(rawStrategy);
             setStrategies(prev => ({ ...prev, [question.id]: parsedStrategy }));
             setIsExpanded(true); // Auto-expand on success
+            externalDispatch?.({ type: "REVEAL", questionId: question.id });
         } catch (e) {
             console.error(e);
         } finally {
@@ -317,61 +395,64 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
             subtitle="Practice answering common interview questions"
             icon={ChatCircleDots}
             action={
-                <div className="flex items-center gap-3">
-                    {/* Mode Toggle */}
-                    <div className="flex items-center bg-muted/50 p-1 rounded-lg">
-                        <button
-                            onClick={() => setIsPracticeMode(false)}
-                            className={cn(
-                                "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200",
-                                !isPracticeMode
-                                    ? "bg-brand text-brand-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                            )}
-                        >
-                            Learn
-                        </button>
-                        <button
-                            onClick={() => setIsPracticeMode(true)}
-                            className={cn(
-                                "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 flex items-center gap-1.5",
-                                isPracticeMode
-                                    ? "bg-brand text-brand-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                            )}
-                        >
-                            <Lightning size={10} weight={isPracticeMode ? "fill" : "bold"} />
-                            Practice
-                        </button>
-                    </div>
+                !isSessionMode ? (
+                    <div className="flex items-center gap-3">
+                        {/* Mode Toggle */}
+                        <div className="flex items-center bg-muted/50 p-1 rounded-lg">
+                            <button
+                                onClick={() => setIsPracticeMode(false)}
+                                className={cn(
+                                    "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200",
+                                    !isPracticeMode
+                                        ? "bg-brand text-brand-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                )}
+                            >
+                                Learn
+                            </button>
+                            <button
+                                onClick={() => setIsPracticeMode(true)}
+                                className={cn(
+                                    "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 flex items-center gap-1.5",
+                                    isPracticeMode
+                                        ? "bg-brand text-brand-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                )}
+                            >
+                                <Lightning size={10} weight={isPracticeMode ? "fill" : "bold"} />
+                                Practice
+                            </button>
+                        </div>
 
-                    {/* Category Select Dropdown */}
-                    <Select
-                        value={activeTab}
-                        onValueChange={(val) => setActiveTab(val as any)}
-                    >
-                        <SelectTrigger className="w-[160px] h-8 text-xs font-medium bg-background">
-                            <SelectValue placeholder="Category" />
-                        </SelectTrigger>
-                        <SelectContent align="end">
-                            {categories.map(cat => (
-                                <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                    <div className="flex items-center gap-2 max-w-[140px]">
-                                        <cat.icon size={14} className={cn("shrink-0", activeTab === cat.id ? "text-brand" : "text-muted-foreground")} />
-                                        <span className="truncate">{cat.label}</span>
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                        {/* Category Select Dropdown */}
+                        <Select
+                            value={activeTab}
+                            onValueChange={(val) => setActiveTab(val as any)}
+                        >
+                            <SelectTrigger className="w-[160px] h-8 text-xs font-medium bg-background">
+                                <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                                {categories.map(cat => (
+                                    <SelectItem key={cat.id} value={cat.id} className="text-xs">
+                                        <div className="flex items-center gap-2 max-w-[140px]">
+                                            <cat.icon size={14} className={cn("shrink-0", activeTab === cat.id ? "text-brand" : "text-muted-foreground")} />
+                                            <span className="truncate">{cat.label}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : undefined
             }
         >
             {/* Carousel Card */}
             <div className="relative group">
                 <div className="bg-muted/10 rounded-2xl p-4 md:p-5 min-h-[320px] flex flex-col items-center text-center transition-all relative shadow-[var(--shadow-sm)]">
 
-                    {/* Left/Right Nav - absolute for better centering of content */}
+                    {/* Left/Right Nav - hidden in focused session mode */}
+                    {!isSessionMode && (
                     <div className="absolute top-1/2 -translate-y-1/2 left-2 z-10 md:left-4">
                         <Button
                             variant="ghost"
@@ -384,6 +465,8 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             <CaretLeft size={20} className="md:w-6 md:h-6" />
                         </Button>
                     </div>
+                    )}
+                    {!isSessionMode && (
                     <div className="absolute top-1/2 -translate-y-1/2 right-2 z-10 md:right-4">
                         <Button
                             variant="ghost"
@@ -396,11 +479,13 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             <CaretRight size={20} className="md:w-6 md:h-6" />
                         </Button>
                     </div>
+                    )}
 
                     {/* Progress */}
+                    {!isSessionMode && (
                     <div className="mb-4 flex items-center justify-center gap-2">
                         <span className="text-[10px] font-medium text-muted-foreground bg-background px-2 py-1 rounded-full shadow-sm">
-                            {currentIndex + 1} / {filteredQuestions.length}
+                            {effectiveIndex + 1} / {filteredQuestions.length}
                         </span>
                         {currentQuestion.difficulty && (
                             <span className={cn(
@@ -413,6 +498,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                             </span>
                         )}
                     </div>
+                    )}
 
                     {/* Question Header - Centered Content Area */}
                     <div className="relative mb-4 flex flex-col items-center gap-4 max-w-2xl px-8 md:px-12">
@@ -424,6 +510,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                 if (onToggleFavorite) {
                                     onToggleFavorite(currentQuestion.question, !!favId, favId);
                                 }
+                                externalDispatch?.({ type: "TOGGLE_STAR", questionId: currentQuestion.id });
                             }}
                             className="absolute -left-2 top-0 md:-left-8 p-2 rounded-full text-muted-foreground/40 hover:text-yellow-500 hover:bg-yellow-500/5 transition-colors"
                             title={favoritedMap[currentQuestion.question] ? "Unstar Question" : "Star Question"}
@@ -448,7 +535,7 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
 
                     {/* Action Area */}
                     <div className="mt-auto w-full mx-auto px-4 pb-4 max-w-3xl">
-                        {isPracticeMode ? (
+                        {effectivePracticeMode ? (
                             <div className="w-full text-left space-y-6 animate-in fade-in slide-in-from-bottom-4">
                                 {!critique ? (
                                     <>
@@ -500,14 +587,17 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                     </>
                                 ) : (
                                     <div className="bg-muted/30 rounded-2xl overflow-hidden shadow-[var(--shadow-sm)] animate-in fade-in zoom-in-95 duration-300">
-                                        {/* The reaction — the moment they feel seen. This is the heart. */}
                                         <div className="p-6 md:p-8">
                                             <p className="text-base md:text-lg leading-relaxed text-foreground font-medium whitespace-pre-line">
                                                 {critique.reaction}
                                             </p>
+                                            {isSessionMode && critique.scoreLabel && (
+                                                <span className="inline-block mt-3 text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 rounded-full px-2.5 py-1">
+                                                    {critique.scoreLabel}
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {/* The one thing */}
                                         {critique.the_one_thing && (
                                             <div className="px-6 md:px-8 pb-6">
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-brand mb-1.5">
@@ -519,7 +609,6 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                             </div>
                                         )}
 
-                                        {/* Say it like this */}
                                         {critique.say_it_like_this && (
                                             <div className="mx-6 md:mx-8 mb-6 rounded-xl bg-background/70 border border-border/40 p-5">
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
@@ -531,8 +620,16 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                             </div>
                                         )}
 
-                                        {/* Earned belief + try again */}
+                                        {isSessionMode && critique.encouragement && (
+                                            <div className="px-6 md:px-8 pb-6">
+                                                <p className="text-sm text-foreground/70">
+                                                    {critique.encouragement}
+                                                </p>
+                                            </div>
+                                        )}
+
                                         <div className="px-6 md:px-8 py-5 bg-gradient-to-r from-transparent via-brand/5 to-transparent border-t border-border/30 flex items-center justify-between gap-4">
+                                            {!isSessionMode && (
                                             <div className="flex items-center gap-3 min-w-0">
                                                 {critique.scoreLabel && (
                                                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 rounded-full px-2.5 py-1">
@@ -543,18 +640,46 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                                                     {critique.encouragement}
                                                 </p>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setCritiques(prev => {
-                                                    const next = { ...prev };
-                                                    delete next[currentQuestion.id];
-                                                    return next;
-                                                })}
-                                                className="text-xs shrink-0 hover:text-brand"
-                                            >
-                                                Try again
-                                            </Button>
+                                            )}
+                                            {isSessionMode ? (
+                                                <div className="flex items-center justify-end gap-2 w-full">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setCritiques(prev => {
+                                                                const next = { ...prev };
+                                                                delete next[currentQuestion.id];
+                                                                return next;
+                                                            });
+                                                            externalDispatch?.({ type: "RETRY", questionId: currentQuestion.id });
+                                                        }}
+                                                        className="text-xs hover:text-brand"
+                                                    >
+                                                        Retry
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => onSessionContinue?.()}
+                                                        className="text-xs bg-brand text-brand-foreground hover:bg-brand/90"
+                                                    >
+                                                        Continue
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setCritiques(prev => {
+                                                        const next = { ...prev };
+                                                        delete next[currentQuestion.id];
+                                                        return next;
+                                                    })}
+                                                    className="text-xs shrink-0 hover:text-brand"
+                                                >
+                                                    Try again
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -612,9 +737,11 @@ export function QuestionsGrid({ questions, onGenerateStrategy, company, position
                 </div>
 
                 {/* Context/Hint */}
+                {!isSessionMode && (
                 <div className="text-center mt-3 text-[10px] text-muted-foreground/80">
                     Use arrow keys to navigate • Generated based on role & company context
                 </div>
+                )}
             </div>
         </DashboardSection>
     );

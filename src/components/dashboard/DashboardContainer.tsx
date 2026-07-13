@@ -31,6 +31,14 @@ import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext
 import { listCachedPlans, listResumableSessions, type CachedPlanListItem } from "@/lib/prep/plan-list";
 import type { PrepSessionMode } from "@/lib/prep/session-progress";
 import {
+    prepSessionReducer,
+    serializeSessionState,
+    parseSessionState,
+    sessionStorageKey,
+    type PrepSessionState,
+    type PrepSessionAction,
+} from "@/lib/prep/session-progress";
+import {
     emptyPendingPrep,
     queuePendingPrep,
     clearPendingPrep,
@@ -41,6 +49,7 @@ import {
 import { PrepLanding } from "@/components/prep/PrepLanding";
 import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
 import { PrepModeSelection, type PrepEntitlement } from "@/components/prep/PrepModeSelection";
+import { PrepSessionView } from "@/components/prep/PrepSessionView";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -131,6 +140,8 @@ export function DashboardContainer() {
     const authedPrepRef = useRef(false);
     const prepEntitlementReadyRef = useRef(true);
     const [prepEntitlement, setPrepEntitlement] = useState<PrepEntitlement | null>(null);
+    const [prepSessionState, setPrepSessionState] = useState<PrepSessionState | null>(null);
+    const sessionInitRef = useRef<string | null>(null);
 
     // Calculate if role is technical (for optimistic tab rendering)
     // Calculate if role is technical (for optimistic tab rendering)
@@ -633,6 +644,79 @@ export function DashboardContainer() {
         authedPrepRef.current = false;
         setAuthPopoverOpen(true);
     };
+
+    const dispatchPrepSession = useCallback((action: PrepSessionAction) => {
+        setPrepSessionState((prev) => {
+            const next = prepSessionReducer(prev, action);
+            if (next) {
+                try {
+                    localStorage.setItem(
+                        sessionStorageKey(next.planCacheKey),
+                        serializeSessionState(next),
+                    );
+                } catch {
+                    /* ignore storage errors */
+                }
+                setResumableSessions(listResumableSessions());
+            }
+            return next;
+        });
+    }, []);
+
+    useEffect(() => {
+        if (prepPhase !== "session" || !questionsData) return;
+
+        const planCacheKey = InterviewCache.getCacheKey(company, position, round);
+        if (sessionInitRef.current === planCacheKey && prepSessionState?.planCacheKey === planCacheKey) {
+            return;
+        }
+
+        sessionInitRef.current = planCacheKey;
+
+        try {
+            const raw = localStorage.getItem(sessionStorageKey(planCacheKey));
+            const parsed = raw ? parseSessionState(raw) : null;
+            if (parsed && parsed.planCacheKey === planCacheKey) {
+                setPrepSessionState(parsed);
+                return;
+            }
+        } catch {
+            /* ignore corrupt storage */
+        }
+
+        const allQuestions = [
+            ...questionsData.questions,
+            ...(systemDesignData?.questions ?? []),
+        ];
+        const questionIds = allQuestions.map((q) => q.id);
+        const mode: PrepSessionMode = prepJobContext.interview.sessionMode ?? "learn";
+        const initial = prepSessionReducer(null, {
+            type: "START",
+            planCacheKey,
+            mode,
+            questionIds,
+        });
+        setPrepSessionState(initial);
+        if (initial) {
+            try {
+                localStorage.setItem(
+                    sessionStorageKey(planCacheKey),
+                    serializeSessionState(initial),
+                );
+            } catch {
+                /* ignore */
+            }
+        }
+    }, [
+        prepPhase,
+        questionsData,
+        systemDesignData,
+        company,
+        position,
+        round,
+        prepJobContext.interview.sessionMode,
+        prepSessionState?.planCacheKey,
+    ]);
 
     const runPrepStart = async (payload: PendingPrepStartPayload) => {
         const { jobContext, mode, prepSettings: settings } = payload;
@@ -1823,6 +1907,40 @@ export function DashboardContainer() {
                     onSelectMode={handlePrepModeSelect}
                     onBack={() => setPrepPhase("setup")}
                 />
+            );
+        } else if (prepPhase === "session" && prepSessionState && questionsData) {
+            const sessionQuestions = [
+                ...questionsData.questions,
+                ...(systemDesignData?.questions ?? []),
+            ];
+            mainContent = (
+                <PrepSessionView
+                    mode={prepSessionState.mode}
+                    jobContext={prepJobContext}
+                    questions={sessionQuestions}
+                    sessionState={prepSessionState}
+                    dispatch={dispatchPrepSession}
+                    company={company}
+                    position={position}
+                    round={round}
+                    reconData={reconData ?? undefined}
+                    onGenerateReveal={(question) => handleGenerateStrategy(0, question)}
+                    onRequireAuth={() => setAuthPopoverOpen(true)}
+                    onFinish={() => setPrepPhase("summary")}
+                    onSwitchToPractice={() =>
+                        dispatchPrepSession({ type: "SWITCH_MODE", mode: "practice" })
+                    }
+                    favoritedMap={favoritedMap}
+                    onToggleFavorite={handleToggleFavorite}
+                    isLoggedIn={!!user}
+                    jobContextText={prepJobContext.content.originalJd ?? jobContext}
+                />
+            );
+        } else if (prepPhase === "summary") {
+            mainContent = (
+                <div className="w-full max-w-2xl text-center py-12">
+                    <p className="text-muted-foreground">Session complete.</p>
+                </div>
             );
         } else if (prepPhase === "session") {
             mainContent = (
