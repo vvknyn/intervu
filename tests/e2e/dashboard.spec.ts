@@ -1,4 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+/** Open legacy search UI from session-first landing. */
+async function openSearchPlans(page: Page) {
+  await page.getByRole('button', { name: 'Search plans' }).click();
+  await expect(page.locator('[data-tour="search-input"]')).toBeVisible();
+}
 
 /**
  * TEST GROUP: DASH - Dashboard/Interview Prep Tests
@@ -15,12 +21,13 @@ test.describe('DASH - Dashboard Tests', () => {
    */
   test('TC-DASH-001: Search bar accepts input', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Find and fill search input
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Google, Software Engineer, Technical');
 
-    // Verify input value
     await expect(searchInput).toHaveValue('Google, Software Engineer, Technical');
   });
 
@@ -65,12 +72,16 @@ test.describe('DASH - Dashboard Tests', () => {
    */
   test('TC-DASH-004: Empty search state shows brand', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Should see the brand name
+    // Landing: session-first home shows brand and primary CTA
     await expect(page.locator('text=Intervu').first()).toBeVisible();
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
 
-    // Should see the search input
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    // Search plans view: legacy search input is available after CTA
+    await openSearchPlans(page);
+    await expect(page.locator('[data-tour="search-input"]')).toBeVisible();
   });
 
   /**
@@ -193,13 +204,13 @@ test.describe('DASH - Dashboard Tests', () => {
     await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('body')).toBeVisible();
     await expect(page).toHaveURL(/company=Apple/);
-    // Package view shows search header or section content
-    const hasPrepContent = await page.locator('text=Intervu').first().isVisible()
-      || await page.locator('[data-tour="search-input"]').isVisible()
-      || await page.locator('text=Questions').first().isVisible().catch(() => false);
-    expect(hasPrepContent).toBeTruthy();
+
+    // Package view hydrates URL params into the dashboard search header
+    const searchInput = page.locator('[data-tour="search-input"]');
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
+    await expect(searchInput).toHaveValue(/Apple/i);
+    await expect(searchInput).toHaveValue(/iOS Engineer/i);
   });
 
   /**
@@ -227,11 +238,12 @@ test.describe('DASH - Dashboard Tests', () => {
    */
   test('TC-DASH-012: Search placeholder text is visible', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
-    const placeholder = await searchInput.getAttribute('placeholder');
+    await openSearchPlans(page);
 
-    expect(placeholder).toBeTruthy();
+    const searchInput = page.locator('[data-tour="search-input"]');
+    await expect(searchInput).toHaveAttribute('placeholder', /./);
   });
 
   /**
