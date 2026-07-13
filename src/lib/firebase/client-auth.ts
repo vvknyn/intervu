@@ -25,7 +25,7 @@ declare global {
 }
 
 function e2eMockUser(): User | null {
-    if (typeof window === "undefined") return null;
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") return null;
     return window.__INTERVU_E2E_AUTH__ ?? null;
 }
 
