@@ -105,8 +105,8 @@ export function FilterPanel({
     const toggleExpand = (k: string) => setExpanded((s) => ({ ...s, [k]: !s[k] }));
 
     return (
-        <div className="rounded-xl border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex h-full min-h-0 flex-col rounded-xl border border-border bg-card">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
                 <span className="text-sm font-semibold">Filters</span>
                 {activeCount > 0 && (
                     <button onClick={onClearAll} className="text-xs font-medium text-brand hover:underline">
@@ -115,10 +115,10 @@ export function FilterPanel({
                 )}
             </div>
 
-            <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
+            <div className="min-h-0 flex-1">
                 {/* Date posted — recency is a primary job-seeker filter, so it leads. */}
                 <Section title="Date posted" collapsed={collapsed.posted} onToggle={() => toggleCollapse("posted")}>
-                    <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                         {POSTED_BUCKET_PRESETS.map((o) => (
                             <button
                                 key={o.label}
@@ -138,7 +138,7 @@ export function FilterPanel({
 
                 {/* Minimum salary */}
                 <Section title="Minimum salary" collapsed={collapsed.salary} onToggle={() => toggleCollapse("salary")}>
-                    <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                         {SALARY_PRESETS.map((s) => (
                             <button
                                 key={s.value}
@@ -158,7 +158,7 @@ export function FilterPanel({
 
                 {/* Visa sponsorship */}
                 <Section title="Visa sponsorship" collapsed={collapsed.visa} onToggle={() => toggleCollapse("visa")}>
-                    <div className="px-1.5 pb-2">
+                    <div className="px-2 pb-2">
                         <Row label="Sponsors visas" checked={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)} />
                     </div>
                 </Section>
@@ -185,7 +185,7 @@ export function FilterPanel({
                             collapsed={collapsed[key]}
                             onToggle={() => toggleCollapse(key)}
                         >
-                            <div className="px-1.5 pb-2">
+                            <div className="px-2 pb-2">
                                 {shown.map(([value, n]) => (
                                     <Row
                                         key={value}
@@ -198,7 +198,7 @@ export function FilterPanel({
                                 {all.length > TOP_N && (
                                     <button
                                         onClick={() => toggleExpand(key)}
-                                        className="mt-1 px-2.5 text-xs font-medium text-brand hover:underline"
+                                        className="mt-1 px-2 text-xs font-medium text-brand hover:underline"
                                     >
                                         {isExpanded ? "Show less" : `Show all ${all.length}`}
                                     </button>
@@ -225,9 +225,15 @@ function Section({
     onToggle: () => void;
     children: React.ReactNode;
 }) {
+    const sectionLabel = count ? `${title}, ${count} selected` : title;
     return (
         <div className="border-b border-border/60 last:border-b-0">
-            <button onClick={onToggle} className="flex w-full items-center justify-between px-4 py-2.5 text-left">
+            <button
+                onClick={onToggle}
+                aria-expanded={!collapsed}
+                aria-label={sectionLabel}
+                className="flex w-full items-center justify-between px-3 py-2 text-left"
+            >
                 <span className="text-[13px] font-semibold">
                     {title}
                     {count ? <span className="ml-1.5 text-brand">{count}</span> : null}
@@ -253,10 +259,18 @@ function Row({
     checked: boolean;
     onClick: () => void;
 }) {
+    const ariaLabel =
+        typeof count === "number"
+            ? `${label}, ${count.toLocaleString()} matching roles`
+            : label;
     return (
         <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            aria-label={ariaLabel}
             onClick={onClick}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-muted/60"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-muted/60"
         >
             <span
                 className={cn(
@@ -266,9 +280,11 @@ function Row({
             >
                 {checked && <Check size={11} weight="bold" />}
             </span>
-            <span className="flex-1 truncate text-[13px]">{label}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px]">{label}</span>
             {typeof count === "number" && (
-                <span className="text-xs text-muted-foreground">{count.toLocaleString()}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground" aria-hidden>
+                    {count.toLocaleString()}
+                </span>
             )}
         </button>
     );

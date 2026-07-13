@@ -79,7 +79,7 @@ export type FacetKey = (typeof FACETABLE_KEYS)[number];
 export type FacetDistribution = Partial<Record<FacetKey, Record<string, number>>>;
 
 /** Explicit sort choice. Omitted = auto (newest with no query, relevance with a query). */
-export type JobSortMode = "newest" | "relevance";
+export type JobSortMode = "newest" | "relevance" | "salary_desc";
 
 /** Age-bucket filter, computed against sanitized `posted_ts` at request time. */
 export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";

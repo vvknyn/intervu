@@ -23,6 +23,14 @@ import {
 } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -36,6 +44,12 @@ import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
+import {
+    isUnavailableJobsResult,
+    resolveSelectionAfterRefresh,
+} from "@/lib/jobs/result-state";
+import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     FACETABLE_KEYS,
     type FacetKey,
@@ -162,18 +176,44 @@ function GhostChip({ badge }: { badge: GhostBadge }) {
     );
 }
 
+function sortModeLabel(mode: JobSortMode, hasQuery: boolean): string {
+    if (mode === "salary_desc") return "Salary high to low";
+    if (mode === "newest") return "Date posted";
+    return hasQuery ? "Best match" : "Date posted";
+}
+
+function sortCountSuffix(mode: JobSortMode, hasQuery: boolean): string {
+    if (mode === "salary_desc") return " · highest salary first";
+    if (mode === "newest") return " · newest first";
+    return hasQuery ? " · best match" : "";
+}
+
 /* ----------------------------- job row ----------------------------- */
 
-function JobRow({ job, active, onClick }: { job: PublicJob; active: boolean; onClick: () => void }) {
+function JobRow({
+    job,
+    active,
+    onClick,
+}: {
+    job: PublicJob;
+    active: boolean;
+    onClick: () => void;
+}) {
     const age = postedAge(derivePostedTs(job));
     const sal = salaryText(job);
+    const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
+            type="button"
+            role="option"
+            aria-selected={active}
+            aria-label={`View ${accessibleName}`}
+            data-job-row
             onClick={onClick}
             className={cn(
                 "block w-full rounded-xl border p-4 text-left transition-all",
                 active
-                    ? "border-brand/40 bg-brand/5 shadow-sm"
+                    ? "border-brand/50 bg-brand/5 shadow-sm ring-1 ring-brand/25 border-l-[3px] border-l-brand"
                     : "border-border bg-card hover:border-brand/30 hover:shadow-sm",
             )}
         >
@@ -545,25 +585,32 @@ function JobsContent() {
     // activeCount/activeChips/clearAll.
     const [sortOverride, setSortOverride] = useState<JobSortMode | null>(null);
     const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+    const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+    const [searchRetry, setSearchRetry] = useState(0);
+    const userPickedDetailRef = useRef(false);
 
     const [result, setResult] = useState<JobSearchResult | null>(null);
+    const resultRef = useRef<JobSearchResult | null>(null);
+    resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const selectedIdRef = useRef<string | null>(null);
+    selectedIdRef.current = selectedId;
 
-    // Effective sort: an explicit override wins, otherwise mirror the backend's
-    // own auto default so the toggle's highlighted pill always matches reality.
-    const effectiveSort: JobSortMode = sortOverride ?? (query.trim() ? "relevance" : "newest");
+    // Effective sort: shared resolver normalizes relevance-without-query to newest.
+    const effectiveSort: JobSortMode = resolveEffectiveSort({
+        q: query,
+        sort: sortOverride ?? undefined,
+    });
 
-    // Infinite scroll: how many pages are loaded, and a signature of the active
-    // query so a slow load-more can't append onto a result from newer filters.
-    const pagesLoadedRef = useRef(1);
-    const searchSig = useMemo(
-        () => JSON.stringify({ query: query.trim(), facets, salaryMin, visaOnly, postedBucket, sortOverride }),
-        [query, facets, salaryMin, visaOnly, postedBucket, sortOverride],
-    );
-    const searchSigRef = useRef(searchSig);
-    searchSigRef.current = searchSig;
+    const hasQuery = query.trim().length > 0;
+
+    // A monotonic generation makes stale pagination unambiguous, including
+    // reversible A→B→A query changes where signatures alone are insufficient.
+    const paginationRef = useRef<JobsPaginationGeneration | null>(null);
+    if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
@@ -607,11 +654,24 @@ function JobsContent() {
         const isResults = mode === "match" || mode === "explore" || mode === "search" || mode === "browse";
         const shouldFetch = isResults && (mode !== "search" || query.trim().length > 0);
         if (!shouldFetch) {
+            paginationRef.current!.invalidate();
             setLoading(false);
-            if (mode === "search") setResult(null); // empty search → prompt, not stale hits
+            setLoadingMore(false);
+            if (mode === "search") {
+                setResult(null); // empty search → prompt, not stale hits
+                setSelectedId(null);
+                setDetailSheetOpen(false);
+                userPickedDetailRef.current = false;
+            }
             return;
         }
         let cancelled = false;
+        let firstPageSucceeded = false;
+        const generation = paginationRef.current!.beginFirstPage();
+        setSearchError(null);
+        setLoadingMore(false);
+        // `loading` means any first-page request is in flight. Rendering still
+        // distinguishes first load (`hits.length === 0`) from background refresh.
         setLoading(true);
         const t = setTimeout(async () => {
             try {
@@ -626,56 +686,95 @@ function JobsContent() {
                     limit: PAGE,
                     offset: 0,
                 });
-                if (cancelled) return;
-                pagesLoadedRef.current = 1;
-                setLoadingMore(false);
+                if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
+                if (isUnavailableJobsResult(r)) {
+                    setSearchError(r.note ?? "Job search is temporarily unavailable.");
+                    // An initial failure needs backend metadata for the error
+                    // state. A background failure must not blank existing hits.
+                    if (!(resultRef.current?.hits.length)) setResult(r);
+                    return;
+                }
+                firstPageSucceeded = true;
                 setResult(r);
-                setSelectedId((prev) =>
-                    prev && r.hits.some((h) => h.id === prev) ? prev : r.hits[0]?.id ?? null,
-                );
+                const selection = resolveSelectionAfterRefresh(selectedIdRef.current, r.hits);
+                setSelectedId(selection.selectedId);
+                if (!selection.preserveDeliberateDetail) {
+                    setDetailSheetOpen(false);
+                    userPickedDetailRef.current = false;
+                }
             } catch (e) {
-                if (!cancelled)
-                    setResult({
-                        hits: [],
-                        total: 0,
-                        backend: "unconfigured",
-                        configured: false,
-                        note: e instanceof Error ? e.message : String(e),
-                    });
+                if (!cancelled) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    setSearchError(msg);
+                    // A thrown transport error is not an unconfigured backend
+                    // or a successful empty result. Preserve prior data (if
+                    // any) and let the explicit error state own first load.
+                }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (
+                    !cancelled &&
+                    paginationRef.current!.finishFirstPage(generation, firstPageSucceeded)
+                ) {
+                    setLoading(false);
+                }
             }
         }, 250);
         return () => {
             cancelled = true;
             clearTimeout(t);
         };
-    }, [query, facets, salaryMin, visaOnly, postedBucket, sortOverride, mode]);
+    }, [query, facets, salaryMin, visaOnly, postedBucket, sortOverride, mode, searchRetry]);
 
-    const hits = result?.hits ?? [];
+    // Relevance is meaningless without a query — drop the override rather than send it.
+    useEffect(() => {
+        if (!hasQuery && sortOverride === "relevance") setSortOverride(null);
+    }, [hasQuery, sortOverride]);
+
+    const selectJob = useCallback((id: string, deliberate = false) => {
+        setSelectedId(id);
+        if (deliberate) {
+            userPickedDetailRef.current = true;
+            if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+                setDetailSheetOpen(true);
+            }
+        }
+    }, []);
+
+    const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
     const selected = useMemo(
         () => hits.find((h) => h.id === selectedId) ?? hits[0] ?? null,
         [hits, selectedId],
+    );
+
+    const handleResultsKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+            e.preventDefault();
+            const idx = hits.findIndex((h) => h.id === selectedId);
+            const base = idx < 0 ? 0 : idx;
+            const next =
+                e.key === "ArrowDown"
+                    ? Math.min(base + 1, hits.length - 1)
+                    : Math.max(base - 1, 0);
+            if (hits[next]) selectJob(hits[next].id, false);
+        },
+        [hits, selectedId, selectJob],
     );
 
     const total = result?.total ?? 0;
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
 
-    // Single-flight guard + observer handle (refs so we never rebind the observer).
-    const inFlightRef = useRef(false);
+    // Observer handle stays stable; the generation coordinator owns request guards.
     const observerRef = useRef<IntersectionObserver | null>(null);
 
-    // Fetch the next page and append it. Discards its result if the filters
-    // changed mid-flight, and de-dupes against what's already loaded.
+    // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
-        if (inFlightRef.current) return;
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
-        const sig = searchSigRef.current;
-        const offset = pagesLoadedRef.current * PAGE;
-        inFlightRef.current = true;
+        const ticket = paginationRef.current!.beginLoadMore(PAGE);
+        if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
             const r = await searchJobsAction({
@@ -686,12 +785,14 @@ function JobsContent() {
                 postedBucket,
                 sort: sortOverride ?? undefined,
                 limit: PAGE,
-                offset,
+                offset: ticket.offset,
             });
-            if (searchSigRef.current !== sig) return; // newer search won — drop this page
-            pagesLoadedRef.current += 1;
+            if (!paginationRef.current!.completeLoadMore(ticket)) return;
             setResult((prev) => {
                 if (!prev) return prev;
+                // React may run this updater after another first-page generation
+                // starts; check again at commit time before touching its results.
+                if (!paginationRef.current!.isCurrentGeneration(ticket.generation)) return prev;
                 const seen = new Set(prev.hits.map((h) => h.id));
                 const fresh = r.hits.filter((h) => !seen.has(h.id));
                 return fresh.length ? { ...prev, hits: [...prev.hits, ...fresh] } : prev;
@@ -699,8 +800,7 @@ function JobsContent() {
         } catch {
             /* transient — the sentinel re-fires on the next scroll */
         } finally {
-            inFlightRef.current = false;
-            setLoadingMore(false);
+            if (paginationRef.current!.endLoadMore(ticket)) setLoadingMore(false);
         }
     }, [result, query, facets, salaryMin, visaOnly, postedBucket, sortOverride]);
 
@@ -1036,11 +1136,16 @@ function JobsContent() {
         setPostedBucket(undefined);
         setSortOverride(null);
         setQuery("");
+        setSearchError(null);
+        setDetailSheetOpen(false);
+        userPickedDetailRef.current = false;
         setMode("loading");
         void resolveEntry();
     };
 
-    const notConnected = result != null && !result.configured;
+    const notConnected = result != null && !result.configured && result.backend === "unconfigured";
+    const blockingError = searchError != null && hits.length === 0;
+    const backgroundError = searchError != null && hits.length > 0;
 
     const filterPanel = (
         <FilterPanel
@@ -1058,7 +1163,7 @@ function JobsContent() {
     return (
         <PageLayout
             fullWidth
-            className="w-full max-w-[1700px] px-4 sm:px-6 py-6"
+            className="w-full max-w-[1700px] px-4 py-6 sm:px-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden"
             header={
                 <PageHeader
                     title="Find jobs"
@@ -1086,9 +1191,18 @@ function JobsContent() {
                 />
             ) : (
                 <>
-                    <ModeBar mode={mode} onStartOver={startOver} />
+                    <a
+                        href="#jobs-results-list"
+                        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:rounded-lg focus:border focus:border-border focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+                    >
+                        Skip to results
+                    </a>
+                    <div className="shrink-0">
+                        <ModeBar mode={mode} onStartOver={startOver} />
+                    </div>
+                    <div className="flex min-h-0 flex-col lg:flex-1">
             {/* Search */}
-            <div className="relative mb-3.5">
+            <div className="relative mb-3.5 shrink-0">
                 <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
                     value={query}
@@ -1123,7 +1237,7 @@ function JobsContent() {
             )}
 
             {/* Toolbar: mobile Filters button + active-filter chips + count */}
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
                 <Button
                     variant="outline"
                     size="sm"
@@ -1154,34 +1268,26 @@ function JobsContent() {
                 )}
                 <span className="flex-1" />
                 {result?.configured && (
-                    <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 text-xs">
-                        <button
-                            onClick={() => setSortOverride("newest")}
-                            className={cn(
-                                "rounded-md px-2 py-1 font-medium transition-colors",
-                                effectiveSort === "newest"
-                                    ? "bg-brand/10 text-brand"
-                                    : "text-muted-foreground hover:text-foreground",
-                            )}
+                    <Select
+                        value={effectiveSort}
+                        onValueChange={(v) => setSortOverride(v as JobSortMode)}
+                    >
+                        <SelectTrigger
+                            size="sm"
+                            className="h-8 w-auto min-w-[9.5rem] gap-1.5 border-border bg-card px-2.5 text-xs"
+                            aria-label="Sort results"
                         >
-                            Newest
-                        </button>
-                        <button
-                            onClick={() => query.trim() && setSortOverride("relevance")}
-                            disabled={!query.trim()}
-                            title={query.trim() ? undefined : "Type a search to rank by relevance"}
-                            className={cn(
-                                "rounded-md px-2 py-1 font-medium transition-colors",
-                                !query.trim()
-                                    ? "cursor-not-allowed text-muted-foreground/40"
-                                    : effectiveSort === "relevance"
-                                      ? "bg-brand/10 text-brand"
-                                      : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            Relevance
-                        </button>
-                    </div>
+                            <span className="text-muted-foreground">Sort:</span>
+                            <SelectValue>{sortModeLabel(effectiveSort, hasQuery)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                            <SelectItem value="relevance" disabled={!hasQuery}>
+                                Best match
+                            </SelectItem>
+                            <SelectItem value="newest">Date posted</SelectItem>
+                            <SelectItem value="salary_desc">Salary high to low</SelectItem>
+                        </SelectContent>
+                    </Select>
                 )}
                 {loading && hits.length > 0 && (
                     <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -1192,17 +1298,32 @@ function JobsContent() {
                 {!loading && result?.configured && (
                     <span className="text-[13px] text-muted-foreground">
                         {result.total.toLocaleString()} {result.total === 1 ? "role" : "roles"}
-                        {effectiveSort === "newest" ? " · newest first" : query.trim() ? " · best match" : ""}
+                        {sortCountSuffix(effectiveSort, hasQuery)}
                     </span>
                 )}
             </div>
 
             {result?.preview && result.note && (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                <div className="mb-4 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                     {result.note}
                 </div>
             )}
 
+            {backgroundError && (
+                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-sm text-destructive">
+                    <span>{searchError}</span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        onClick={() => setSearchRetry((n) => n + 1)}
+                    >
+                        Retry
+                    </Button>
+                </div>
+            )}
+
+            <div className="min-h-0 flex-1">
             {mode === "search" && !query.trim() ? (
                 <SearchPrompt onBrowseAll={enterBrowse} />
             ) : notConnected ? (
@@ -1217,15 +1338,46 @@ function JobsContent() {
                     </p>
                     <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
                 </div>
+            ) : blockingError ? (
+                <div
+                    role="alert"
+                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                >
+                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                    <h3 className="text-lg font-semibold">Job search is temporarily unavailable</h3>
+                    <p className="mt-1 max-w-md text-sm text-muted-foreground">{searchError}</p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        onClick={() => setSearchRetry((n) => n + 1)}
+                    >
+                        Retry
+                    </Button>
+                </div>
             ) : (
-                <div className="grid items-start gap-5 xl:grid-cols-[230px_minmax(0,1fr)]">
-                    {/* Filter rail (xl+) */}
-                    <aside className="sticky top-4 hidden self-start xl:block">{filterPanel}</aside>
-                    {/* Filter panel (mobile / tablet, toggled) */}
-                    {showFiltersMobile && <div className="xl:hidden">{filterPanel}</div>}
+                <div className="relative grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
+                    {/* xl: visible filter/list/detail three-pane workspace. */}
+                    <aside
+                        role="region"
+                        aria-label="Job filters"
+                        className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar xl:block"
+                    >
+                        {filterPanel}
+                    </aside>
+                    {/* lg–xl: list/detail stay visible; Filters opens a bounded overlay. */}
+                    {showFiltersMobile && (
+                        <aside
+                            role="region"
+                            aria-label="Job filters"
+                            className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain rounded-xl bg-background shadow-lg custom-scrollbar lg:absolute lg:inset-y-0 lg:left-0 lg:z-20 lg:max-h-none lg:w-[230px] xl:hidden"
+                        >
+                            {filterPanel}
+                        </aside>
+                    )}
 
-                    {/* Results + detail */}
-                    <div>
+                    {/* lg: two-pane list/detail workspace; xl adds the filter pane. */}
+                    <div className="flex min-h-0 flex-col">
                         {loading && hits.length === 0 ? (
                             <JobsListSplash />
                         ) : hits.length === 0 ? (
@@ -1233,15 +1385,22 @@ function JobsContent() {
                                 No roles match those filters. Try clearing a filter or broadening your search.
                             </div>
                         ) : (
-                            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-                                <div>
-                                    <div className="space-y-2.5">
+                            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+                                <div
+                                    id="jobs-results-list"
+                                    tabIndex={0}
+                                    role="listbox"
+                                    aria-label="Job results"
+                                    onKeyDown={handleResultsKeyDown}
+                                    className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
+                                >
+                                    <div className="space-y-2.5 pr-1">
                                         {hits.map((job) => (
                                             <JobRow
                                                 key={job.id}
                                                 job={job}
                                                 active={selected?.id === job.id}
-                                                onClick={() => setSelectedId(job.id)}
+                                                onClick={() => selectJob(job.id, true)}
                                             />
                                         ))}
                                     </div>
@@ -1261,7 +1420,15 @@ function JobsContent() {
                                         </p>
                                     )}
                                 </div>
-                                <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto custom-scrollbar">
+                                <aside
+                                    role="region"
+                                    aria-label={
+                                        selected
+                                            ? `Job details: ${decodeText(selected.title)} at ${cleanCompany(selected.company) || "Unknown company"}`
+                                            : "Job details"
+                                    }
+                                    className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
+                                >
                                     {selected ? (
                                         <JobDetail
                                             key={selected.id}
@@ -1274,12 +1441,14 @@ function JobsContent() {
                                             onPrep={() => handlePrep(selected)}
                                         />
                                     ) : null}
-                                </div>
+                                </aside>
                             </div>
                         )}
                     </div>
                 </div>
             )}
+            </div>
+                    </div>
                 </>
             )}
 
@@ -1308,6 +1477,25 @@ function JobsContent() {
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
             />
+            <Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
+                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
+                    <SheetTitle className="sr-only">
+                        {selected ? `${decodeText(selected.title)} at ${cleanCompany(selected.company)}` : "Job details"}
+                    </SheetTitle>
+                    {selected ? (
+                        <JobDetail
+                            key={selected.id}
+                            job={selected}
+                            applied={appliedIds.has(selected.id)}
+                            applying={applyingId === selected.id}
+                            onTailor={() => handleTailor(selected)}
+                            onOpenPosting={() => handleOpenPosting(selected)}
+                            onMarkApplied={() => handleMarkApplied(selected)}
+                            onPrep={() => handlePrep(selected)}
+                        />
+                    ) : null}
+                </SheetContent>
+            </Sheet>
         </PageLayout>
     );
 }
