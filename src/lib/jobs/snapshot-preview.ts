@@ -11,6 +11,7 @@
  * options' counts), matching how a faceted filter UI is expected to behave.
  */
 import { derivePostedTs } from "./meilisearch";
+import { compareJobsBySort, resolveEffectiveSort } from "./sort";
 import { hasSubspaceApiKey, iterateSnapshot } from "./subspaceJobs";
 import { FACETABLE_KEYS } from "./types";
 import type { FacetDistribution, FacetKey, JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "./types";
@@ -46,10 +47,6 @@ function facetValue(j: PublicJob, key: FacetKey): string | null {
   return v == null || v === "" ? null : String(v);
 }
 
-function jobTopSalary(j: PublicJob): number | null {
-  return j.salary_max ?? j.salary_min ?? null;
-}
-
 /** Age-bucket → milliseconds lookback. Mirrors lib/jobs/meilisearch.ts's BUCKET_MS. */
 const BUCKET_MS: Record<Exclude<PostedBucket, "older">, number> = {
   "1d": 1 * 86_400_000,
@@ -74,7 +71,7 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
     if (!hay.includes(p.q.toLowerCase())) return false;
   }
   if (p.salaryMin && p.salaryMin > 0) {
-    const s = jobTopSalary(j);
+    const s = j.salary_max ?? j.salary_min ?? null;
     if (s == null || s < p.salaryMin) return false;
   }
   if (p.visaOnly && j.visa_sponsorship !== true) return false;
@@ -98,11 +95,6 @@ function passFacets(j: PublicJob, p: JobSearchParams, exceptKey?: FacetKey): boo
   return true;
 }
 
-/** Newest-first sort key — sanitized the same way as the Meilisearch backend. */
-function postedTime(j: PublicJob): number {
-  return derivePostedTs(j) ?? 0;
-}
-
 function computeFacetDistribution(corpus: PublicJob[], p: JobSearchParams): FacetDistribution {
   const dist: FacetDistribution = {};
   for (const key of FACETABLE_KEYS) {
@@ -121,9 +113,10 @@ function computeFacetDistribution(corpus: PublicJob[], p: JobSearchParams): Face
 
 export async function searchSnapshotPreview(p: JobSearchParams): Promise<JobSearchResult> {
   const corpus = await loadCorpus();
+  const sortMode = resolveEffectiveSort(p);
   const filtered = corpus
     .filter((j) => passBase(j, p) && passFacets(j, p))
-    .sort((a, b) => postedTime(b) - postedTime(a));
+    .sort((a, b) => compareJobsBySort(a, b, sortMode));
   const offset = p.offset ?? 0;
   const limit = p.limit ?? 40;
   return {

@@ -8,6 +8,7 @@
  * ingestion/admin uses the admin key and is only ever invoked by the off-Vercel
  * sync worker — never at request time.
  */
+import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PublicJob } from "./types";
 
@@ -101,15 +102,6 @@ function buildFilter(p: JobSearchParams, legacy = false): string[] {
   return f;
 }
 
-/** `legacy=true` mirrors the pre-posted_ts default (posted_at:desc). */
-function buildSort(p: JobSearchParams, legacy = false): string[] | undefined {
-  const tsField = legacy ? "posted_at" : "posted_ts";
-  if (p.sort === "newest") return [`${tsField}:desc`];
-  if (p.sort === "relevance") return undefined;
-  // No explicit choice: surface freshest first with no query, let relevance rank a query.
-  return p.q ? undefined : [`${tsField}:desc`];
-}
-
 function searchBody(p: JobSearchParams, legacy: boolean) {
   return {
     q: p.q ?? "",
@@ -118,7 +110,7 @@ function searchBody(p: JobSearchParams, legacy: boolean) {
     // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
-    sort: buildSort(p, legacy),
+    sort: buildMeiliSort(p, legacy),
   };
 }
 
