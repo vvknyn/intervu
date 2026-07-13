@@ -184,6 +184,60 @@ describe("buildSessionSummary progress counts", () => {
   });
 });
 
+describe("buildSessionSummary output shapes", () => {
+  it("learn summary exposes learn progress counts and empty performance scores", () => {
+    let state = startSession("learn");
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
+    state = prepSessionReducer(state, { type: "MARK_REVIEWED", questionId: "q1" })!;
+
+    const summary = buildSessionSummary(state);
+    assert.equal(summary.mode, "learn");
+    assert.equal(typeof summary.progress.reviewed, "number");
+    assert.equal(typeof summary.progress.revealed, "number");
+    assert.equal(typeof summary.progress.practiced, "number");
+    assert.equal(typeof summary.progress.starred, "number");
+    assert.equal(typeof summary.progress.unreviewed, "number");
+    assert.equal(summary.progress.completed, 0);
+    assert.equal(summary.progress.retried, 0);
+    assert.equal(summary.progress.skipped, 0);
+    assert.equal(summary.performance.critiquedCount, 0);
+    assert.equal(summary.performance.averageScore, null);
+    assert.deepEqual(summary.performance.scoreLabelCounts, {});
+    assert.deepEqual(summary.performance.strongestQuestionIds, []);
+    assert.deepEqual(summary.performance.focusQuestionIds, []);
+  });
+
+  it("practice summary exposes practice progress and performance metrics", () => {
+    let state = startSession("practice");
+    state = prepSessionReducer(state, {
+      type: "SET_ANSWER",
+      questionId: "q1",
+      answerText: "A1",
+    })!;
+    state = prepSessionReducer(state, {
+      type: "SET_CRITIQUE",
+      questionId: "q1",
+      critique: mockCritique(9, "Strong"),
+    })!;
+    state = prepSessionReducer(state, { type: "SKIP", questionId: "q2" })!;
+
+    const summary = buildSessionSummary(state);
+    assert.equal(summary.mode, "practice");
+    assert.equal(typeof summary.progress.completed, "number");
+    assert.equal(typeof summary.progress.retried, "number");
+    assert.equal(typeof summary.progress.skipped, "number");
+    assert.equal(summary.performance.critiquedCount, 1);
+    assert.equal(summary.performance.averageScore, 9);
+    assert.ok("Strong" in summary.performance.scoreLabelCounts);
+    assert.ok(Array.isArray(summary.performance.strongestQuestionIds));
+    assert.ok(summary.performance.focusQuestionIds.includes("q2"));
+  });
+});
+
 describe("buildSessionSummary performance average excludes skipped", () => {
   it("averages only critiqued scores, not skipped", () => {
     let state = startSession("practice");

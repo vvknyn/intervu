@@ -37,6 +37,7 @@ import {
     sessionStorageKey,
     resolveSessionJobContext,
     sessionJobContextText,
+    buildSessionSummary,
     type PrepSessionState,
     type PrepSessionAction,
 } from "@/lib/prep/session-progress";
@@ -52,6 +53,7 @@ import { PrepLanding } from "@/components/prep/PrepLanding";
 import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
 import { PrepModeSelection, type PrepEntitlement } from "@/components/prep/PrepModeSelection";
 import { PrepSessionView } from "@/components/prep/PrepSessionView";
+import { PrepSummary } from "@/components/prep/PrepSummary";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -664,6 +666,91 @@ export function DashboardContainer() {
             return next;
         });
     }, []);
+
+    const applyPrepSessionActions = useCallback((actions: PrepSessionAction[]) => {
+        setPrepSessionState((prev) => {
+            let next = prev;
+            for (const action of actions) {
+                next = prepSessionReducer(next, action);
+            }
+            if (next) {
+                try {
+                    localStorage.setItem(
+                        sessionStorageKey(next.planCacheKey),
+                        serializeSessionState(next),
+                    );
+                } catch {
+                    /* ignore storage errors */
+                }
+                setResumableSessions(listResumableSessions());
+            }
+            return next;
+        });
+    }, []);
+
+    const handleSummaryOpenPackage = () => {
+        setHasSearched(true);
+        setPrepPhase("package");
+    };
+
+    const handleSummaryGoToApplication = () => {
+        setHasSearched(true);
+        setPrepPhase("package");
+    };
+
+    const handleSummaryViewStarred = () => {
+        if (!prepSessionState) return;
+        const idx = prepSessionState.questionIds.findIndex(
+            (id) => prepSessionState.questions[id]?.starred,
+        );
+        const actions: PrepSessionAction[] = [];
+        if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
+        if (actions.length > 0) applyPrepSessionActions(actions);
+        setPrepPhase("session");
+    };
+
+    const handleSummaryPracticeReviewed = () => {
+        if (!prepSessionState) return;
+        const idx = prepSessionState.questionIds.findIndex(
+            (id) => prepSessionState.questions[id]?.status === "reviewed",
+        );
+        const actions: PrepSessionAction[] = [{ type: "SWITCH_MODE", mode: "practice" }];
+        if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
+        applyPrepSessionActions(actions);
+        setPrepPhase("session");
+    };
+
+    const handleSummaryRetryFocus = () => {
+        if (!prepSessionState) return;
+        const summary = buildSessionSummary(prepSessionState);
+        const focusId = summary.performance.focusQuestionIds[0];
+        const actions: PrepSessionAction[] = [];
+        if (focusId) {
+            const idx = prepSessionState.questionIds.indexOf(focusId);
+            if (idx >= 0) actions.push({ type: "SET_INDEX", index: idx });
+        }
+        if (actions.length > 0) applyPrepSessionActions(actions);
+        setPrepPhase("session");
+    };
+
+    const handleSummarySameContextNewSession = () => {
+        if (!prepSessionState || !questionsData) return;
+        sessionInitRef.current = null;
+        const allQuestions = [
+            ...questionsData.questions,
+            ...(systemDesignData?.questions ?? []),
+        ];
+        applyPrepSessionActions([
+            {
+                type: "START",
+                planCacheKey: prepSessionState.planCacheKey,
+                mode: prepSessionState.mode,
+                questionIds: allQuestions.map((q) => q.id),
+                jobContext: prepJobContext,
+            },
+        ]);
+        setPrepPhase("session");
+    };
 
     useEffect(() => {
         if (prepPhase !== "session" || !questionsData) return;
@@ -1959,11 +2046,19 @@ export function DashboardContainer() {
                     jobContextText={prepJobContext.content.originalJd ?? ""}
                 />
             );
-        } else if (prepPhase === "summary") {
+        } else if (prepPhase === "summary" && prepSessionState) {
             mainContent = (
-                <div className="w-full max-w-2xl text-center py-12">
-                    <p className="text-muted-foreground">Session complete.</p>
-                </div>
+                <PrepSummary
+                    summary={buildSessionSummary(prepSessionState)}
+                    jobContext={prepJobContext}
+                    questionIds={prepSessionState.questionIds}
+                    onPracticeReviewed={handleSummaryPracticeReviewed}
+                    onRetryFocus={handleSummaryRetryFocus}
+                    onOpenPackage={handleSummaryOpenPackage}
+                    onViewStarred={handleSummaryViewStarred}
+                    onGoToApplication={handleSummaryGoToApplication}
+                    onSameContextNewSession={handleSummarySameContextNewSession}
+                />
             );
         } else if (prepPhase === "session") {
             mainContent = (
