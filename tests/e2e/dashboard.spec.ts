@@ -6,6 +6,12 @@ async function openSearchPlans(page: Page) {
   await expect(page.locator('[data-tour="search-input"]')).toBeVisible();
 }
 
+/** Open prep settings panel from search plans view. */
+async function openPrepSettings(page: Page) {
+  await page.locator('[data-tour="prep-settings"] button').click();
+  await expect(page.getByRole('heading', { name: 'Interview Configuration' })).toBeVisible();
+}
+
 /**
  * TEST GROUP: DASH - Dashboard/Interview Prep Tests
  *
@@ -52,9 +58,11 @@ test.describe('DASH - Dashboard Tests', () => {
    */
   test('TC-DASH-003: Search with Enter key triggers analyze', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Fill search input
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Meta, Product Manager, Behavioral');
 
     // Press Enter
@@ -134,8 +142,9 @@ test.describe('DASH - Dashboard Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Fill search
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await expect(searchInput).toBeVisible({ timeout: 10000 });
     await searchInput.fill('Netflix, Engineer, Technical');
 
@@ -164,9 +173,11 @@ test.describe('DASH - Dashboard Tests', () => {
       sessionStorage.clear();
     });
     await page.reload();
+    await page.waitForLoadState('networkidle');
 
-    // Page should still work
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    // Session-first landing should still render after clearing storage
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
   });
 
   /**
@@ -222,9 +233,11 @@ test.describe('DASH - Dashboard Tests', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Page should still be functional
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    // Session-first landing should be functional on mobile
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
 
     // Bottom nav should be visible
     const bottomNav = page.locator('nav.lg\\:hidden');
@@ -247,11 +260,11 @@ test.describe('DASH - Dashboard Tests', () => {
   });
 
   /**
-   * TC-DASH-013: Connect your AI nudge visible when no keys
+   * TC-DASH-013: Landing works without guest API keys
    *
-   * When no API keys are configured, a nudge to connect AI should be shown.
+   * Session-first landing should render even when guest keys are cleared.
    */
-  test('TC-DASH-013: Connect your AI nudge visible when no keys', async ({ page }) => {
+  test('TC-DASH-013: Landing works without guest API keys', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.removeItem('guest_api_keys');
@@ -260,9 +273,8 @@ test.describe('DASH - Dashboard Tests', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should see the "Connect your AI" nudge
-    const nudge = page.locator('text=Connect your AI');
-    await expect(nudge.first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
   });
 
   /**
@@ -303,7 +315,9 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Google, Software Engineer, Technical');
     await searchInput.press('Enter');
 
@@ -326,7 +340,9 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Amazon, Product Manager, Behavioral');
     await searchInput.press('Enter');
 
@@ -347,7 +363,9 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('McKinsey, Management Consultant, Case Interview');
     await searchInput.press('Enter');
 
@@ -360,7 +378,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    *
    * Searching without an API key should prompt the user to connect.
    */
-  test('TC-DASH-SEARCH-004: Search without API key shows connect prompt', async ({ page }) => {
+  test('TC-DASH-SEARCH-004: Search without API key proceeds without connect modal', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.removeItem('guest_api_keys');
@@ -369,19 +387,17 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
-    await searchInput.fill('Google, Engineer, Technical');
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
+    await searchInput.fill('Amazon, Product Manager, Behavioral');
     await searchInput.press('Enter');
 
     await page.waitForTimeout(1000);
 
-    // Should show dialog to connect a key, or error mentioning "Connect"
-    const dialog = page.locator('[role="dialog"]');
-    const connectText = page.locator('text=/Connect/i');
-    const hasDialog = await dialog.isVisible().catch(() => false);
-    const hasConnect = await connectText.first().isVisible().catch(() => false);
-
-    expect(hasDialog || hasConnect).toBeTruthy();
+    const connectDialog = page.locator('[role="dialog"]').filter({ hasText: /Connect/i });
+    await expect(connectDialog).not.toBeVisible({ timeout: 3000 });
+    await expect(page.locator('body')).toBeVisible();
   });
 
   /**
@@ -391,8 +407,11 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    */
   test('TC-DASH-SEARCH-005: Two-part query defaults correctly', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Google, Software Engineer');
     await searchInput.press('Enter');
 
@@ -407,8 +426,11 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    */
   test('TC-DASH-SEARCH-006: Single word query parses as company', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Netflix');
     await searchInput.press('Enter');
 
@@ -425,7 +447,9 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Optym, OR Scientist, Technical');
     await searchInput.press('Enter');
 
@@ -448,26 +472,27 @@ test.describe('DASH-API - API Key Configuration Tests', () => {
    *
    * User gets prompted to connect when analyzing without a key.
    */
-  test('TC-DASH-API-001: API key modal opens when analyzing without key', async ({ page }) => {
+  test('TC-DASH-API-001: Analyze without guest API key does not require connect modal', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Clear any existing API keys
     await page.evaluate(() => {
       localStorage.removeItem('guest_api_keys');
       localStorage.removeItem('guest_api_key');
     });
     await page.reload();
+    await page.waitForLoadState('networkidle');
 
-    // Fill search and try to analyze
-    const searchInput = page.locator('input[type="text"]').first();
-    await searchInput.fill('Google, Engineer, Technical');
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
+    await searchInput.fill('Amazon, Product Manager, Behavioral');
     await searchInput.press('Enter');
 
-    // Should show API key modal
     await page.waitForTimeout(1000);
-    const hasModal = await page.locator('[role="dialog"]').isVisible();
-    expect(hasModal).toBeTruthy();
+    const connectDialog = page.locator('[role="dialog"]').filter({ hasText: /Connect/i });
+    await expect(connectDialog).not.toBeVisible({ timeout: 3000 });
+    await expect(page.locator('body')).toBeVisible();
   });
 
   /**
@@ -498,112 +523,66 @@ test.describe('DASH-API - API Key Configuration Tests', () => {
    *
    * The model switcher button should be visible in the header.
    */
-  test('TC-DASH-API-003: Model switcher is visible on landing page', async ({ page }) => {
-    await page.goto('/');
+  test('TC-DASH-API-003: Model settings visible on settings page', async ({ page }) => {
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Look for model switcher (contains provider names)
-    const modelSwitcher = page.locator('[data-tour="model-switcher"]');
-    await expect(modelSwitcher).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'AI Provider' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Provider', { exact: true })).toBeVisible();
   });
 
   /**
-   * TC-DASH-API-004: Model switcher dropdown works
+   * TC-DASH-API-004: Provider dropdown works on settings page
    *
-   * Clicking model switcher should show provider options.
+   * Selecting a provider should show provider-specific model options.
    */
-  test('TC-DASH-API-004: Model switcher dropdown works', async ({ page }) => {
-    await page.goto('/');
+  test('TC-DASH-API-004: Provider dropdown works', async ({ page }) => {
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Click model switcher
-    const modelSwitcher = page.locator('[data-tour="model-switcher"] button').first();
-    await modelSwitcher.click();
+    const providerTrigger = page.locator('label:has-text("Provider")').locator('..').getByRole('combobox').first();
+    await providerTrigger.click();
 
-    // Should show dropdown with provider options
-    await page.waitForTimeout(300);
-    const dropdown = page.locator('[data-radix-popper-content-wrapper]');
-    await expect(dropdown).toBeVisible({ timeout: 5000 });
-
-    // Should see provider names
-    await expect(dropdown.locator('text=Groq')).toBeVisible();
-    await expect(dropdown.locator('text=Gemini')).toBeVisible();
-    await expect(dropdown.locator('text=OpenAI')).toBeVisible();
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible({ timeout: 5000 });
+    await expect(listbox.getByRole('option', { name: 'OpenRouter' })).toBeVisible();
+    await expect(listbox.getByRole('option', { name: 'Groq' })).toBeVisible();
   });
 
   /**
-   * TC-DASH-API-005: Cost badges visible in model switcher
-   *
-   * Model switcher dropdown should show Free/Pay-as-you-go badges per provider.
+   * TC-DASH-API-005: Model dropdown lists options for selected provider
    */
-  test('TC-DASH-API-005: Cost badges visible in model switcher', async ({ page }) => {
-    await page.goto('/');
+  test('TC-DASH-API-005: Model dropdown lists provider models', async ({ page }) => {
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Open model switcher
-    const modelSwitcher = page.locator('[data-tour="model-switcher"] button').first();
-    await modelSwitcher.click();
-    await page.waitForTimeout(300);
+    const modelTrigger = page.locator('label:has-text("Model")').locator('..').getByRole('combobox').first();
+    await modelTrigger.click();
 
-    const dropdown = page.locator('[data-radix-popper-content-wrapper]');
-    await expect(dropdown).toBeVisible();
-
-    // Should show "Free" badges for Groq and Gemini
-    const freeBadges = dropdown.locator('text=Free');
-    const freeCount = await freeBadges.count();
-    expect(freeCount).toBeGreaterThanOrEqual(2);
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible({ timeout: 5000 });
+    expect(await listbox.getByRole('option').count()).toBeGreaterThan(0);
   });
 
   /**
-   * TC-DASH-API-006: Gear icons for configuration are visible
-   *
-   * Each provider in dropdown should have a gear icon to open configuration modal.
+   * TC-DASH-API-006: API key input visible on settings page
    */
-  test('TC-DASH-API-006: Gear icons for configuration are visible', async ({ page }) => {
-    await page.goto('/');
+  test('TC-DASH-API-006: API key input visible on settings page', async ({ page }) => {
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Open model switcher
-    const modelSwitcher = page.locator('[data-tour="model-switcher"] button').first();
-    await modelSwitcher.click();
-    await page.waitForTimeout(500);
-
-    // Look for gear/connect buttons
-    const dropdown = page.locator('[data-radix-popper-content-wrapper]');
-    const gearButtons = dropdown.locator('[title="Connect"]');
-
-    const count = await gearButtons.count();
-    // Should have 3 gear icons (one for each provider: Groq, Gemini, OpenAI)
-    expect(count).toBeGreaterThanOrEqual(3);
+    const apiKeyInput = page.locator('input[type="password"]').first();
+    await expect(apiKeyInput).toBeVisible({ timeout: 5000 });
   });
 
   /**
-   * TC-DASH-API-007: Clicking gear icon opens connect modal
-   *
-   * Clicking a gear icon should open the connect modal for that provider.
+   * TC-DASH-API-007: Verify button visible for API key input
    */
-  test('TC-DASH-API-007: Clicking gear icon opens connect modal', async ({ page }) => {
-    await page.goto('/');
+  test('TC-DASH-API-007: Verify button visible for API key input', async ({ page }) => {
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    // Open model switcher
-    const modelSwitcher = page.locator('[data-tour="model-switcher"] button').first();
-    await modelSwitcher.click();
-    await page.waitForTimeout(500);
-
-    // Click first gear icon
-    const dropdown = page.locator('[data-radix-popper-content-wrapper]');
-    const gearButton = dropdown.locator('[title="Connect"]').first();
-    await gearButton.click();
-    await page.waitForTimeout(500);
-
-    // Verify modal opened
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
-
-    // Modal should have key input and "Connect" title
-    const apiKeyInput = page.locator('input[type="password"]');
-    await expect(apiKeyInput).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Verify' })).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -620,8 +599,11 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    */
   test('TC-DASH-CTX-001: Job URL input is visible', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Look for URL input in optional context section
+    await openSearchPlans(page);
+    await openPrepSettings(page);
+
     const urlInput = page.locator('input[type="url"]').first();
     await expect(urlInput).toBeVisible();
   });
@@ -633,8 +615,11 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    */
   test('TC-DASH-CTX-002: Can switch between URL and text mode', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Find toggle button
+    await openSearchPlans(page);
+    await openPrepSettings(page);
+
     const toggleButton = page.locator('button, a').filter({ hasText: /paste.*description|paste.*instead/i }).first();
 
     if (await toggleButton.isVisible()) {
@@ -653,6 +638,10 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    */
   test('TC-DASH-CTX-003: Job context accepts URL input', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await openSearchPlans(page);
+    await openPrepSettings(page);
 
     const urlInput = page.locator('input[type="url"]').first();
     await urlInput.fill('https://careers.example.com/job/123');
@@ -680,9 +669,12 @@ test.describe('DASH-PROGRESS - Progressive Loading Tests', () => {
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test' }));
     });
+    await page.reload();
+    await page.waitForLoadState('networkidle');
 
-    // Fill search
-    const searchInput = page.locator('input[type="text"]').first();
+    await openSearchPlans(page);
+
+    const searchInput = page.locator('[data-tour="search-input"]');
     await searchInput.fill('Google, Engineer, Technical');
 
     // Start analysis
