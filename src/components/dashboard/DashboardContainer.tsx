@@ -752,10 +752,30 @@ export function DashboardContainer() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Refetch entitlement when auth changes; delay post-auth replay until preflight completes.
+    // Fired by AuthPopover on successful sign-in (after syncSessionCookie in
+    // LoginForm). Await fresh entitlement with the new session cookie, then replay.
+    const handlePrepAuthed = async () => {
+        authedPrepRef.current = true;
+        prepEntitlementReadyRef.current = false;
+        try {
+            const r = await getMyCreditsAction();
+            setPrepEntitlement(r);
+        } catch {
+            /* replay may still proceed; mode screen shows stale/null entitlement */
+        } finally {
+            prepEntitlementReadyRef.current = true;
+            maybeReplayPrepStart();
+        }
+    };
+
+    // Refetch entitlement when auth changes (mode-screen display). Post-auth replay
+    // is gated in handlePrepAuthed — not this effect — so guest preflight cannot
+    // mark ready before the session cookie exists.
     useEffect(() => {
         let alive = true;
-        prepEntitlementReadyRef.current = false;
+        if (!authedPrepRef.current) {
+            prepEntitlementReadyRef.current = false;
+        }
         getMyCreditsAction()
             .then((r) => {
                 if (alive) setPrepEntitlement(r);
@@ -763,19 +783,14 @@ export function DashboardContainer() {
             .catch(() => {})
             .finally(() => {
                 if (!alive) return;
-                prepEntitlementReadyRef.current = true;
-                if (authedPrepRef.current) {
-                    maybeReplayPrepStart();
+                if (!authedPrepRef.current) {
+                    prepEntitlementReadyRef.current = true;
                 }
             });
         return () => {
             alive = false;
         };
-    }, [user, maybeReplayPrepStart]);
-
-    useEffect(() => {
-        if (user) maybeReplayPrepStart();
-    }, [user, maybeReplayPrepStart]);
+    }, [user]);
 
     const handlePrepModeSelect = (mode: PrepSessionMode) => {
         const { companyName, jobTitle } = prepJobContext.identity;
@@ -840,10 +855,11 @@ export function DashboardContainer() {
     }, [resume]); // Only re-run if resume changes drastically (and we don't have companies)
 
 
-    // Derived: Serialize Stories for AI
+    // Derived: Serialize Stories for AI (read ref so replay/start paths see current stories)
     const getStoriesContext = () => {
-        if (stories.length === 0) return "";
-        return stories.map(s => `
+        const currentStories = storiesRef.current;
+        if (currentStories.length === 0) return "";
+        return currentStories.map(s => `
             STORY TITLE: ${s.title}
             SITUATION: ${s.situation}
             TASK: ${s.task}
@@ -1920,8 +1936,7 @@ export function DashboardContainer() {
                         setAuthPopoverOpen(open);
                     }}
                     onAuthed={() => {
-                        authedPrepRef.current = true;
-                        maybeReplayPrepStart();
+                        void handlePrepAuthed();
                     }}
                     showTrigger={false}
                 />
