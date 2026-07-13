@@ -172,6 +172,37 @@ test.describe('DASH - Dashboard Tests', () => {
   });
 
   /**
+   * TC-DASH-PREP-001: Clean home shows session-first landing
+   *
+   * Session-first landing should show the primary Start CTA.
+   */
+  test('TC-DASH-PREP-001: Clean home shows Start new preparation', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start new preparation' })).toBeVisible();
+  });
+
+  /**
+   * TC-DASH-PREP-002: Legacy URL loads prep package view
+   *
+   * Legacy searched=true URLs should load without error and show prep content.
+   */
+  test('TC-DASH-PREP-002: Legacy URL loads prep content', async ({ page }) => {
+    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page).toHaveURL(/company=Apple/);
+    // Package view shows search header or section content
+    const hasPrepContent = await page.locator('text=Intervu').first().isVisible()
+      || await page.locator('[data-tour="search-input"]').isVisible()
+      || await page.locator('text=Questions').first().isVisible().catch(() => false);
+    expect(hasPrepContent).toBeTruthy();
+  });
+
+  /**
    * TC-DASH-011: Mobile bottom tab bar works
    *
    * On mobile viewport, bottom tab bar should be accessible.

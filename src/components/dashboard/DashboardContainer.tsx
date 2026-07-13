@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, KeyboardEvent, useRef } from "react";
+import { useState, useEffect, useCallback, KeyboardEvent, useRef, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -26,7 +26,11 @@ import { fetchTailoredVersions } from "@/actions/tailor-resume";
 import { fetchProfile, updateResume } from "@/actions/profile";
 import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
-import { buildPrepJobContextFromLegacy } from "@/lib/prep/job-context";
+import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext } from "@/lib/prep/job-context";
+import { listCachedPlans, listResumableSessions, type CachedPlanListItem } from "@/lib/prep/plan-list";
+import { PrepLanding } from "@/components/prep/PrepLanding";
+import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
+import { PrepModeSelection } from "@/components/prep/PrepModeSelection";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -89,6 +93,11 @@ export function DashboardContainer() {
     const [progress, setProgress] = useState(0); // Progress State
     const [viewState, setViewState] = useState<"empty" | "loading" | "dashboard" | "error">("empty");
     const [hasSearched, setHasSearched] = useState(false);
+    const [prepPhase, setPrepPhase] = useState<"landing" | "setup" | "mode" | "session" | "summary" | "package">("landing");
+    const [showSearchPlans, setShowSearchPlans] = useState(false);
+    const [prepJobContext, setPrepJobContext] = useState<PrepJobContext>(() => emptyPrepJobContext("", "", ""));
+    const [cachedPlans, setCachedPlans] = useState<CachedPlanListItem[]>([]);
+    const [resumableSessions, setResumableSessions] = useState<ReturnType<typeof listResumableSessions>>([]);
     const [error, setError] = useState<string | null>(null);
     // Data State
     const [reconData, setReconData] = useState<CompanyReconData | null>(null);
@@ -515,6 +524,8 @@ export function DashboardContainer() {
             // If navigating to clean "/" (Home), reset to home view
             if (isCleanHome) {
                 setHasSearched(false);
+                setPrepPhase("landing");
+                setShowSearchPlans(false);
             }
 
             // Restore dashboard state from localStorage (only on clean home with no URL override)
@@ -541,6 +552,7 @@ export function DashboardContainer() {
                 setRound(urlRound);
                 setSearchQuery(`${urlCompany}, ${urlPosition}, ${urlRound}`);
                 setHasSearched(true);
+                setPrepPhase("package");
 
                 // Try to load from cache
                 const cached = await loadEnhancedCache(urlCompany, urlPosition, urlRound);
@@ -593,6 +605,14 @@ export function DashboardContainer() {
             localStorage.setItem('dashboard_state', JSON.stringify(state));
         }
     }, [searchQuery, company, position, round, jobUrl, jobContext, hasSearched]);
+
+    // Refresh cached plan list when returning to landing
+    useEffect(() => {
+        if (!hasSearched && prepPhase === "landing") {
+            setCachedPlans(listCachedPlans());
+            setResumableSessions(listResumableSessions());
+        }
+    }, [hasSearched, prepPhase]);
 
     // Auto-save Resume with Debounce
     const debouncedSaveResume = useDebouncedCallback(async (text: string) => {
@@ -1402,6 +1422,8 @@ export function DashboardContainer() {
         setSystemDesignData(null);
         setHasSearched(false);
         setViewState("empty");
+        setPrepPhase("landing");
+        setShowSearchPlans(false);
         setSearchError(null);
         router.push("/");
     };
@@ -1435,6 +1457,56 @@ export function DashboardContainer() {
         storyCount: stories.length,
     };
 
+    const applyCachedPlanData = (cached: Awaited<ReturnType<typeof loadEnhancedCache>>) => {
+        if (!cached) return;
+        const hasUserContext = resumeRef.current.length > 50;
+        const shouldUseCache = (cached.hasContext === hasUserContext) && (!hasUserContext || (hasUserContext && cached.matchData));
+        setReconData(cached.reconData);
+        setQuestionsData(cached.questionsData);
+        setReverseData(cached.reverseData);
+        setTechnicalData(cached.technicalData);
+        setCodingChallenges(cached.codingChallenges || []);
+        setSystemDesignData(cached.systemDesignData);
+        if (shouldUseCache) {
+            setMatchData(cached.matchData);
+            setResultsHaveResumeContext(!!cached.hasContext);
+        } else {
+            setMatchData(null);
+            setResultsHaveResumeContext(false);
+        }
+        setViewState("dashboard");
+    };
+
+    const handleOpenPackage = async (item: CachedPlanListItem) => {
+        setCompany(item.company);
+        setPosition(item.position);
+        setRound(item.round);
+        setSearchQuery(`${item.company}, ${item.position}, ${item.round}`);
+        setHasSearched(true);
+        setPrepPhase("package");
+
+        const cached = await loadEnhancedCache(item.company, item.position, item.round);
+        applyCachedPlanData(cached);
+    };
+
+    const handleResumeSession = async (planCacheKey: string) => {
+        const session = resumableSessions.find((s) => s.planCacheKey === planCacheKey);
+        if (!session) return;
+        const plan = cachedPlans.find((p) => p.cacheKey === planCacheKey);
+        if (plan) {
+            await handleOpenPackage(plan);
+        } else {
+            setCompany(session.company);
+            setPosition(session.position);
+            setRound(session.round);
+            setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
+            setHasSearched(true);
+            setPrepPhase("package");
+            const cached = await loadEnhancedCache(session.company, session.position, session.round);
+            applyCachedPlanData(cached);
+        }
+    };
+
     const handleRecipeSelect = (recipe: Recipe) => {
         switch (recipe.type) {
             case "navigate":
@@ -1458,16 +1530,106 @@ export function DashboardContainer() {
     // Removed blocking check for user/guest to allow open access
 
     if (!hasSearched) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background transition-all duration-500">
-                {/* Top Right Actions */}
-                <div className="absolute top-4 right-4 flex items-center gap-2">
-                </div>
-                <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+        let mainContent: ReactNode;
 
-
-                {/* Main Content - Centered Search */}
+        if (prepPhase === "landing" && !showSearchPlans) {
+            mainContent = (
+                <PrepLanding
+                    cachedPlans={cachedPlans}
+                    resumableSessions={resumableSessions}
+                    onStartNew={() => {
+                        setPrepJobContext(emptyPrepJobContext("", "", ""));
+                        setPrepPhase("setup");
+                    }}
+                    onSearch={() => setShowSearchPlans(true)}
+                    onResume={handleResumeSession}
+                    onOpenPackage={handleOpenPackage}
+                />
+            );
+        } else if (prepPhase === "setup") {
+            mainContent = (
+                <PrepSetupFlow
+                    jobContext={prepJobContext}
+                    onJobContextChange={setPrepJobContext}
+                    prepSettings={prepSettings}
+                    onPrepSettingsChange={setPrepSettings}
+                    resume={resume}
+                    stories={stories}
+                    sources={sources}
+                    isFetchingJob={isFetchingJob}
+                    onFetchJobContext={async () => {
+                        const url = prepJobContext.identity.sourceUrl;
+                        if (!url) return;
+                        setIsFetchingJob(true);
+                        setSearchError(null);
+                        try {
+                            const res = await fetchUrlContent(url);
+                            if (res.data) {
+                                setPrepJobContext((ctx) => ({
+                                    ...ctx,
+                                    content: { ...ctx.content, originalJd: res.data },
+                                }));
+                                const parsed = await parseSearchQuery(
+                                    `Extract company name and job title from: ${res.data.substring(0, 1000)}`,
+                                );
+                                if (parsed?.company && parsed?.position) {
+                                    setPrepJobContext((ctx) => ({
+                                        ...ctx,
+                                        identity: {
+                                            ...ctx.identity,
+                                            companyName: parsed.company,
+                                            jobTitle: parsed.position,
+                                        },
+                                    }));
+                                }
+                            } else {
+                                setSearchError(res.error || "Failed to fetch job posting");
+                            }
+                        } catch {
+                            setSearchError("Failed to fetch job posting");
+                        } finally {
+                            setIsFetchingJob(false);
+                        }
+                    }}
+                    onContinue={() => {
+                        const { companyName, jobTitle } = prepJobContext.identity;
+                        const roundVal = prepJobContext.interview.round;
+                        setCompany(companyName);
+                        setPosition(jobTitle);
+                        setRound(roundVal);
+                        setJobUrl(prepJobContext.identity.sourceUrl ?? "");
+                        setJobContext(prepJobContext.content.originalJd ?? "");
+                        if (companyName || jobTitle || roundVal) {
+                            setSearchQuery([companyName, jobTitle, roundVal].filter(Boolean).join(", "));
+                        }
+                        setPrepPhase("mode");
+                    }}
+                    onBack={() => setPrepPhase("landing")}
+                />
+            );
+        } else if (prepPhase === "mode") {
+            mainContent = (
+                <PrepModeSelection
+                    jobContext={prepJobContext}
+                    onSelectMode={(mode) => {
+                        setPrepJobContext((ctx) => ({
+                            ...ctx,
+                            interview: { ...ctx.interview, sessionMode: mode },
+                        }));
+                    }}
+                    onBack={() => setPrepPhase("setup")}
+                />
+            );
+        } else {
+            mainContent = (
                 <div className={`w-full max-w-2xl transition-all duration-500 ${loading ? 'opacity-50' : ''}`}>
+                    {showSearchPlans && (
+                        <div className="mb-6">
+                            <Button variant="ghost" size="sm" onClick={() => setShowSearchPlans(false)} className="-ml-2">
+                                Back
+                            </Button>
+                        </div>
+                    )}
                     {/* Title — the single BETA badge lives in the sidebar lockup (AppShell). */}
                     <div className="mb-12 text-center">
                         <div className="mb-3">
@@ -1547,19 +1709,34 @@ export function DashboardContainer() {
                     )}
 
                 </div>
+            );
+        }
+
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background transition-all duration-500">
+                {/* Top Right Actions */}
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                </div>
+                <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+
+                {mainContent}
 
                 {/* Footer hint */}
-                <div className="mt-8 flex flex-col items-center gap-2 text-muted-foreground text-xs">
-                    <span>Press <kbd className="px-1.5 py-0.5 border border-border rounded">Enter</kbd> to begin</span>
-                    {!user && (
-                        <button
-                            onClick={() => setAuthPopoverOpen(true)}
-                            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-                        >
-                            Log in to save your progress across devices
-                        </button>
-                    )}
-                </div>
+                {(prepPhase === "landing" && !showSearchPlans) || showSearchPlans ? (
+                    <div className="mt-8 flex flex-col items-center gap-2 text-muted-foreground text-xs">
+                        {showSearchPlans && (
+                            <span>Press <kbd className="px-1.5 py-0.5 border border-border rounded">Enter</kbd> to begin</span>
+                        )}
+                        {!user && (
+                            <button
+                                onClick={() => setAuthPopoverOpen(true)}
+                                className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                            >
+                                Log in to save your progress across devices
+                            </button>
+                        )}
+                    </div>
+                ) : null}
 
                 <ContextModal
                     isOpen={isContextOpen}
