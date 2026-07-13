@@ -24,6 +24,7 @@ import { fetchUrlContent } from "@/actions/fetch-url";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions } from "@/actions/tailor-resume";
 import { fetchProfile, updateResume } from "@/actions/profile";
+import { getMyCreditsAction } from "@/actions/credits";
 import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
 import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext } from "@/lib/prep/job-context";
@@ -39,7 +40,7 @@ import {
 } from "@/lib/prep/pending-prep-actions";
 import { PrepLanding } from "@/components/prep/PrepLanding";
 import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
-import { PrepModeSelection } from "@/components/prep/PrepModeSelection";
+import { PrepModeSelection, type PrepEntitlement } from "@/components/prep/PrepModeSelection";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -128,6 +129,8 @@ export function DashboardContainer() {
 
     const pendingPrepRef = useRef<PendingPrepState>(emptyPendingPrep());
     const authedPrepRef = useRef(false);
+    const prepEntitlementReadyRef = useRef(true);
+    const [prepEntitlement, setPrepEntitlement] = useState<PrepEntitlement | null>(null);
 
     // Calculate if role is technical (for optimistic tab rendering)
     // Calculate if role is technical (for optimistic tab rendering)
@@ -719,7 +722,8 @@ export function DashboardContainer() {
         } catch (e: unknown) {
             const sentinel = classifySentinel(e);
             if (sentinel === "auth") {
-                setAuthPopoverOpen(true);
+                pendingPrepRef.current = queuePendingPrep(pendingPrepRef.current, { kind: "start", payload });
+                openPrepAuth();
                 setSearchError("Sign in to use Intervu's built-in AI (or add your own key in Settings).");
             } else if (sentinel === "credits") {
                 const msg = sentinelMessage(e) ||
@@ -738,6 +742,7 @@ export function DashboardContainer() {
 
     const maybeReplayPrepStart = useCallback(() => {
         if (!authedPrepRef.current) return;
+        if (!prepEntitlementReadyRef.current) return;
         const { next, action } = takePrepReplay(pendingPrepRef.current);
         pendingPrepRef.current = next;
         if (!action) return;
@@ -746,6 +751,27 @@ export function DashboardContainer() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Refetch entitlement when auth changes; delay post-auth replay until preflight completes.
+    useEffect(() => {
+        let alive = true;
+        prepEntitlementReadyRef.current = false;
+        getMyCreditsAction()
+            .then((r) => {
+                if (alive) setPrepEntitlement(r);
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!alive) return;
+                prepEntitlementReadyRef.current = true;
+                if (authedPrepRef.current) {
+                    maybeReplayPrepStart();
+                }
+            });
+        return () => {
+            alive = false;
+        };
+    }, [user, maybeReplayPrepStart]);
 
     useEffect(() => {
         if (user) maybeReplayPrepStart();
@@ -1777,6 +1803,7 @@ export function DashboardContainer() {
                 <PrepModeSelection
                     jobContext={prepJobContext}
                     isAuthenticated={!!user}
+                    entitlement={prepEntitlement}
                     onSelectMode={handlePrepModeSelect}
                     onBack={() => setPrepPhase("setup")}
                 />

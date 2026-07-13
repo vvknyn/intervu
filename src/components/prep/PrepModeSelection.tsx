@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ArrowLeft, BookOpen, Key, Microphone, Sparkle, Coins } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { getMyCreditsAction } from "@/actions/credits";
 import type { PrepJobContext } from "@/lib/prep/job-context";
 import type { PrepSessionMode } from "@/lib/prep/session-progress";
 import { cn } from "@/lib/utils";
 import { PrepJobHeader } from "./PrepJobHeader";
 
-type Entitlement = { isAdmin: boolean; isBYOK: boolean; credits: number; monthlyFree: number };
+export type PrepEntitlement = { isAdmin: boolean; isBYOK: boolean; credits: number; monthlyFree: number };
 
 export interface PrepModeSelectionProps {
   jobContext: PrepJobContext;
   isAuthenticated: boolean;
+  entitlement: PrepEntitlement | null;
   onSelectMode: (mode: PrepSessionMode) => void;
   onBack: () => void;
 }
@@ -47,7 +46,7 @@ const MODES: Array<{
   },
 ];
 
-function entitlementLabel(s: Entitlement): { Icon: typeof Coins; label: string } {
+function entitlementLabel(s: PrepEntitlement): { Icon: typeof Coins; label: string } {
   if (s.isAdmin) return { Icon: Sparkle, label: "Unlimited" };
   if (s.isBYOK) return { Icon: Key, label: "Your API key" };
   return { Icon: Coins, label: `${s.credits} credit${s.credits === 1 ? "" : "s"}` };
@@ -56,23 +55,11 @@ function entitlementLabel(s: Entitlement): { Icon: typeof Coins; label: string }
 export function PrepModeSelection({
   jobContext,
   isAuthenticated,
+  entitlement,
   onSelectMode,
   onBack,
 }: PrepModeSelectionProps) {
-  const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    getMyCreditsAction()
-      .then((r) => alive && setEntitlement(r))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const entitlementDisplay = entitlement ? entitlementLabel(entitlement) : null;
-  const startDisabled = !isAuthenticated;
 
   return (
     <div className="w-full max-w-2xl animate-in fade-in duration-300">
@@ -104,14 +91,12 @@ export function PrepModeSelection({
         {MODES.map(({ mode, title, subtitle, startLabel, icon: Icon, iconBg, iconColor }) => (
           <button
             key={mode}
-            onClick={() => !startDisabled && onSelectMode(mode)}
-            disabled={startDisabled}
+            onClick={() => onSelectMode(mode)}
             data-testid={`prep-mode-${mode}`}
             className={cn(
               "group text-left p-5 rounded-xl border border-border/40 bg-card",
               "hover:shadow-md hover:border-border/60 transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              startDisabled && "opacity-50 cursor-not-allowed hover:shadow-none",
             )}
           >
             <div
