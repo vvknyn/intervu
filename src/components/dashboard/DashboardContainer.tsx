@@ -26,8 +26,12 @@ import { fetchTailoredVersions } from "@/actions/tailor-resume";
 import { fetchProfile, updateResume } from "@/actions/profile";
 import { getMyCreditsAction } from "@/actions/credits";
 import { llmCache } from "@/lib/llm/cache";
-import { InterviewCache } from "@/lib/interview-cache";
 import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext } from "@/lib/prep/job-context";
+import {
+    planHasSessionQuestions,
+    resolvePlanCacheKey,
+    validatePrepSetup,
+} from "@/lib/prep/cache-key";
 import { listCachedPlans, listResumableSessions, getPreferredView, setPreferredView, type CachedPlanListItem, type PrepPlanView } from "@/lib/prep/plan-list";
 import type { PrepSessionMode } from "@/lib/prep/session-progress";
 import {
@@ -146,6 +150,8 @@ export function DashboardContainer() {
     const authedPrepRef = useRef(false);
     const prepEntitlementReadyRef = useRef(true);
     const [prepEntitlement, setPrepEntitlement] = useState<PrepEntitlement | null>(null);
+    const [prepEntitlementLoading, setPrepEntitlementLoading] = useState(false);
+    const [activePlanCacheKey, setActivePlanCacheKey] = useState<string | null>(null);
     const [prepSessionState, setPrepSessionState] = useState<PrepSessionState | null>(null);
     const [prepSummarySnapshot, setPrepSummarySnapshot] = useState<{
         summary: PrepSessionSummary;
@@ -591,27 +597,48 @@ export function DashboardContainer() {
                 setPrepPhase("package");
 
                 // Try to load from cache
-                const cached = await loadEnhancedCache(urlCompany, urlPosition, urlRound);
+                let restoredJobUrl = "";
+                let restoredJd = "";
+                if (savedState) {
+                    try {
+                        const parsed = JSON.parse(savedState);
+                        restoredJobUrl = parsed.jobUrl ?? "";
+                        restoredJd = parsed.jobContext ?? "";
+                    } catch {
+                        /* ignore corrupt dashboard_state */
+                    }
+                }
+                const restoredJobContext = buildPrepJobContextFromLegacy({
+                    company: urlCompany,
+                    position: urlPosition,
+                    round: urlRound,
+                    jobUrl: restoredJobUrl,
+                    jobContextText: restoredJd,
+                });
+                const cached = await loadEnhancedCache(urlCompany, urlPosition, urlRound, {
+                    jobContext: restoredJobContext,
+                });
                 // Don't use stale cache if user has resume but cache has no matchData
                 const shouldUseCacheUrl = cached && (cached.hasContext === hasUserContext) && (!hasUserContext || (hasUserContext && cached.matchData));
                 if (shouldUseCacheUrl && cached) {
-                    setReconData(cached.reconData);
-                    setMatchData(cached.matchData);
-                    setQuestionsData(cached.questionsData);
-                    setReverseData(cached.reverseData);
-                    setTechnicalData(cached.technicalData);
+                    setActivePlanCacheKey(cached.cacheKey);
+                    setReconData(cached.reconData ?? null);
+                    setMatchData(cached.matchData ?? null);
+                    setQuestionsData(cached.questionsData ?? null);
+                    setReverseData(cached.reverseData ?? null);
+                    setTechnicalData(cached.technicalData ?? null);
                     setCodingChallenges(cached.codingChallenges || []);
-                    setSystemDesignData(cached.systemDesignData);
+                    setSystemDesignData(cached.systemDesignData ?? null);
                     setResultsHaveResumeContext(!!cached.hasContext);
                     setViewState("dashboard");
                 } else if (cached) {
                     // Restore partial data but trigger re-analysis for match
-                    setReconData(cached.reconData);
-                    setQuestionsData(cached.questionsData);
-                    setReverseData(cached.reverseData);
-                    setTechnicalData(cached.technicalData);
+                    setReconData(cached.reconData ?? null);
+                    setQuestionsData(cached.questionsData ?? null);
+                    setReverseData(cached.reverseData ?? null);
+                    setTechnicalData(cached.technicalData ?? null);
                     setCodingChallenges(cached.codingChallenges || []);
-                    setSystemDesignData(cached.systemDesignData);
+                    setSystemDesignData(cached.systemDesignData ?? null);
                     setResultsHaveResumeContext(false);
                     setViewState("dashboard");
                     // matchData left as null - auto-analyze effect will trigger
@@ -700,10 +727,27 @@ export function DashboardContainer() {
         if (questionsData) setViewState("dashboard");
     };
 
-    const currentPlanCacheKey = company && position && round
-        ? InterviewCache.getCacheKey(company, position, round)
-        : null;
-    const isPlanLoaded = !!questionsData && !!currentPlanCacheKey;
+    const resolvedPlanCacheKey =
+        activePlanCacheKey ??
+        (prepJobContext.identity.companyName || prepJobContext.identity.jobTitle || prepJobContext.interview.round
+            ? resolvePlanCacheKey(prepJobContext).primaryKey
+            : company && position && round
+                ? resolvePlanCacheKey(
+                    buildPrepJobContextFromLegacy({
+                        company,
+                        position,
+                        round,
+                        jobUrl,
+                        jobContextText: jobContext,
+                    }),
+                ).primaryKey
+                : null);
+
+    const currentPlanCacheKey = resolvedPlanCacheKey;
+    const isPlanLoaded =
+        !!questionsData &&
+        !!currentPlanCacheKey &&
+        planHasSessionQuestions(questionsData, systemDesignData);
     const showPrepViewSwitch =
         isPlanLoaded &&
         (prepPhase === "package" || prepPhase === "session" || prepPhase === "summary");
@@ -809,7 +853,8 @@ export function DashboardContainer() {
     useEffect(() => {
         if (prepPhase !== "session" || !questionsData) return;
 
-        const planCacheKey = InterviewCache.getCacheKey(company, position, round);
+        const planCacheKey = currentPlanCacheKey;
+        if (!planCacheKey) return;
         if (sessionInitRef.current === planCacheKey && prepSessionState?.planCacheKey === planCacheKey) {
             return;
         }
@@ -863,6 +908,7 @@ export function DashboardContainer() {
         round,
         prepJobContext.interview.sessionMode,
         prepSessionState?.planCacheKey,
+        currentPlanCacheKey,
     ]);
 
     const runPrepStart = async (payload: PendingPrepStartPayload) => {
@@ -870,7 +916,9 @@ export function DashboardContainer() {
         const companyName = jobContext.identity.companyName;
         const jobTitle = jobContext.identity.jobTitle;
         const roundVal = jobContext.interview.round;
+        const canonicalKey = payload.planCacheKey;
 
+        setActivePlanCacheKey(canonicalKey);
         setPrepJobContext({
             ...jobContext,
             interview: { ...jobContext.interview, sessionMode: mode },
@@ -889,14 +937,18 @@ export function DashboardContainer() {
             const currentResume = resumeRef.current || resume;
             const hasResumeContext = currentResume.length > 20;
 
-            const cached = await loadEnhancedCache(companyName, jobTitle, roundVal);
+            const cached = await loadEnhancedCache(companyName, jobTitle, roundVal, {
+                cacheKey: canonicalKey,
+                jobContext,
+            });
             const shouldUseCache = cached
                 && (cached.hasContext === hasResumeContext)
-                && (!hasResumeContext || (hasResumeContext && cached.matchData));
+                && (!hasResumeContext || (hasResumeContext && cached.matchData))
+                && planHasSessionQuestions(cached.questionsData, cached.systemDesignData);
 
             if (shouldUseCache && cached) {
                 applyCachedPlanData(cached);
-                setPreferredView(payload.planCacheKey, "session");
+                setPreferredView(cached.cacheKey, "session");
                 setPrepPhase("session");
                 return;
             }
@@ -939,18 +991,58 @@ export function DashboardContainer() {
                 throw new Error(result.error);
             }
 
+            const resultCacheKey = result.cacheKey ?? canonicalKey;
+            setActivePlanCacheKey(resultCacheKey);
+
             if (result.reconData) setReconData(result.reconData);
             if (result.matchData) setMatchData(result.matchData);
-            if (result.questionsData) setQuestionsData(result.questionsData);
             if (result.reverseData) setReverseData(result.reverseData);
             if (result.technicalData) setTechnicalData(result.technicalData);
             if (result.codingChallenges && result.codingChallenges.length > 0) {
                 setCodingChallenges(result.codingChallenges);
             }
+
+            const sessionReady =
+                result.sessionReady ??
+                planHasSessionQuestions(result.questionsData, result.systemDesignData);
+
+            if (!sessionReady) {
+                setQuestionsData(null);
+                setSystemDesignData(null);
+                setSearchError("Could not generate interview questions. Please try again.");
+                setPrepPhase("mode");
+                return;
+            }
+
+            if (result.questionsData) setQuestionsData(result.questionsData);
             if (result.systemDesignData) setSystemDesignData(result.systemDesignData);
             setResultsHaveResumeContext(currentResume.length > 20);
             setLastAnalyzedSettings(settings);
-            setPreferredView(payload.planCacheKey, "session");
+
+            await saveEnhancedCache(
+                companyName,
+                jobTitle,
+                roundVal,
+                {
+                    reconData: result.reconData,
+                    matchData: result.matchData,
+                    questionsData: result.questionsData,
+                    reverseData: result.reverseData,
+                    technicalData: result.technicalData,
+                    codingChallenges: result.codingChallenges,
+                    systemDesignData: result.systemDesignData,
+                },
+                hasResumeContext,
+                resumeCompanies,
+                {
+                    cacheKey: resultCacheKey,
+                    jdFingerprint: result.jdFingerprint,
+                    jobContext,
+                },
+            );
+            setCachedPlans(listCachedPlans());
+
+            setPreferredView(resultCacheKey, "session");
             setPrepPhase("session");
         } catch (e: unknown) {
             const sentinel = classifySentinel(e);
@@ -990,6 +1082,7 @@ export function DashboardContainer() {
     const handlePrepAuthed = async () => {
         authedPrepRef.current = true;
         prepEntitlementReadyRef.current = false;
+        setPrepEntitlementLoading(true);
         try {
             const r = await getMyCreditsAction();
             setPrepEntitlement(r);
@@ -997,6 +1090,7 @@ export function DashboardContainer() {
             /* replay may still proceed; mode screen shows stale/null entitlement */
         } finally {
             prepEntitlementReadyRef.current = true;
+            setPrepEntitlementLoading(false);
             maybeReplayPrepStart();
         }
     };
@@ -1009,6 +1103,11 @@ export function DashboardContainer() {
         if (!authedPrepRef.current) {
             prepEntitlementReadyRef.current = false;
         }
+        if (user) {
+            setPrepEntitlementLoading(true);
+        } else {
+            setPrepEntitlementLoading(false);
+        }
         getMyCreditsAction()
             .then((r) => {
                 if (alive) setPrepEntitlement(r);
@@ -1016,6 +1115,7 @@ export function DashboardContainer() {
             .catch(() => {})
             .finally(() => {
                 if (!alive) return;
+                setPrepEntitlementLoading(false);
                 if (!authedPrepRef.current) {
                     prepEntitlementReadyRef.current = true;
                 }
@@ -1026,15 +1126,14 @@ export function DashboardContainer() {
     }, [user]);
 
     const handlePrepModeSelect = (mode: PrepSessionMode) => {
-        const { companyName, jobTitle } = prepJobContext.identity;
-        const roundVal = prepJobContext.interview.round;
-        const planCacheKey = InterviewCache.getCacheKey(companyName, jobTitle, roundVal);
+        const jobContextForStart = {
+            ...prepJobContext,
+            interview: { ...prepJobContext.interview, sessionMode: mode },
+        };
+        const { primaryKey: planCacheKey } = resolvePlanCacheKey(jobContextForStart);
 
         const payload: PendingPrepStartPayload = {
-            jobContext: {
-                ...prepJobContext,
-                interview: { ...prepJobContext.interview, sessionMode: mode },
-            },
+            jobContext: jobContextForStart,
             mode,
             prepSettings,
             planCacheKey,
@@ -1244,18 +1343,28 @@ export function DashboardContainer() {
         // Skip Cache if forceRefresh is true
         console.log("Checking cache...");
         if (!forceRefresh) {
-            const cached = await loadEnhancedCache(parsed.company, parsed.position, parsed.round);
+            const legacyJobContext = buildPrepJobContextFromLegacy({
+                company: parsed.company,
+                position: parsed.position,
+                round: parsed.round,
+                jobUrl,
+                jobContextText: jobContext,
+            });
+            const cached = await loadEnhancedCache(parsed.company, parsed.position, parsed.round, {
+                jobContext: legacyJobContext,
+            });
             const shouldUseCache = cached && (cached.hasContext === hasResumeContext) && (!hasResumeContext || (hasResumeContext && cached.matchData));
 
             if (shouldUseCache && cached) {
                 console.log("Cache hit! Loading from cache");
-                setReconData(cached.reconData);
-                setMatchData(cached.matchData);
-                setQuestionsData(cached.questionsData);
-                setReverseData(cached.reverseData);
-                setTechnicalData(cached.technicalData);
+                setActivePlanCacheKey(cached.cacheKey);
+                setReconData(cached.reconData ?? null);
+                setMatchData(cached.matchData ?? null);
+                setQuestionsData(cached.questionsData ?? null);
+                setReverseData(cached.reverseData ?? null);
+                setTechnicalData(cached.technicalData ?? null);
                 setCodingChallenges(cached.codingChallenges || []);
-                setSystemDesignData(cached.systemDesignData);
+                setSystemDesignData(cached.systemDesignData ?? null);
                 setResultsHaveResumeContext(!!cached.hasContext);
                 setHasSearched(true);
                 setViewState("dashboard");
@@ -1895,16 +2004,17 @@ export function DashboardContainer() {
 
     const applyCachedPlanData = (cached: Awaited<ReturnType<typeof loadEnhancedCache>>) => {
         if (!cached) return;
+        setActivePlanCacheKey(cached.cacheKey);
         const hasUserContext = resumeRef.current.length > 50;
         const shouldUseCache = (cached.hasContext === hasUserContext) && (!hasUserContext || (hasUserContext && cached.matchData));
-        setReconData(cached.reconData);
-        setQuestionsData(cached.questionsData);
-        setReverseData(cached.reverseData);
-        setTechnicalData(cached.technicalData);
+        setReconData(cached.reconData ?? null);
+        setQuestionsData(cached.questionsData ?? null);
+        setReverseData(cached.reverseData ?? null);
+        setTechnicalData(cached.technicalData ?? null);
         setCodingChallenges(cached.codingChallenges || []);
-        setSystemDesignData(cached.systemDesignData);
+        setSystemDesignData(cached.systemDesignData ?? null);
         if (shouldUseCache) {
-            setMatchData(cached.matchData);
+            setMatchData(cached.matchData ?? null);
             setResultsHaveResumeContext(!!cached.hasContext);
         } else {
             setMatchData(null);
@@ -1921,8 +2031,11 @@ export function DashboardContainer() {
         setHasSearched(true);
         setPrepPhase("package");
 
-        const cached = await loadEnhancedCache(item.company, item.position, item.round);
+        const cached = await loadEnhancedCache(item.company, item.position, item.round, {
+            cacheKey: item.cacheKey,
+        });
         applyCachedPlanData(cached);
+        setActivePlanCacheKey(item.cacheKey);
 
         const preferred = getPreferredView(item.cacheKey);
         if (preferred === "session") {
@@ -1959,8 +2072,11 @@ export function DashboardContainer() {
         setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
         setHasSearched(false);
 
-        const cached = await loadEnhancedCache(session.company, session.position, session.round);
+        const cached = await loadEnhancedCache(session.company, session.position, session.round, {
+            cacheKey: planCacheKey,
+        });
         applyCachedPlanData(cached);
+        setActivePlanCacheKey(planCacheKey);
 
         try {
             const raw = localStorage.getItem(sessionStorageKey(planCacheKey));
@@ -2069,16 +2185,22 @@ export function DashboardContainer() {
                         }
                     }}
                     onContinue={() => {
+                        const validation = validatePrepSetup(prepJobContext);
+                        if (!validation.valid) {
+                            setSearchError(validation.message ?? "Complete all role details to continue.");
+                            return;
+                        }
                         const { companyName, jobTitle } = prepJobContext.identity;
                         const roundVal = prepJobContext.interview.round;
-                        setCompany(companyName);
-                        setPosition(jobTitle);
-                        setRound(roundVal);
+                        setCompany(companyName.trim());
+                        setPosition(jobTitle.trim());
+                        setRound(roundVal.trim());
                         setJobUrl(prepJobContext.identity.sourceUrl ?? "");
                         setJobContext(prepJobContext.content.originalJd ?? "");
                         if (companyName || jobTitle || roundVal) {
                             setSearchQuery([companyName, jobTitle, roundVal].filter(Boolean).join(", "));
                         }
+                        setSearchError(null);
                         setPrepPhase("mode");
                     }}
                     onBack={() => setPrepPhase("landing")}
@@ -2094,11 +2216,17 @@ export function DashboardContainer() {
                     jobContext={prepJobContext}
                     isAuthenticated={!!user}
                     entitlement={prepEntitlement}
+                    entitlementLoading={prepEntitlementLoading}
                     onSelectMode={handlePrepModeSelect}
                     onBack={() => setPrepPhase("setup")}
                 />
             );
-        } else if (prepPhase === "session" && prepSessionState && questionsData) {
+        } else if (
+            prepPhase === "session" &&
+            prepSessionState &&
+            questionsData &&
+            planHasSessionQuestions(questionsData, systemDesignData)
+        ) {
             const sessionQuestions = [
                 ...questionsData.questions,
                 ...(systemDesignData?.questions ?? []),

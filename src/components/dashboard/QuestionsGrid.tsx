@@ -2,7 +2,7 @@ import { ChatCircleDots, CaretLeft, CaretRight, Lightning, ArrowsClockwise, Circ
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import MarkdownIt from "markdown-it";
 import { QuestionItem, CompanyReconData, QuestionsData } from "@/types";
 import { cn } from "@/lib/utils";
@@ -147,6 +147,12 @@ export function QuestionsGrid({
     const hasNext = effectiveIndex < filteredQuestions.length - 1;
     const hasPrev = effectiveIndex > 0;
     const effectivePracticeMode = isSessionMode ? sessionMode === "practice" : isPracticeMode;
+
+    const handleSkipPracticeQuestion = useCallback(() => {
+        if (!currentQuestion) return;
+        externalDispatch?.({ type: "SKIP", questionId: currentQuestion.id });
+        onSessionContinue?.();
+    }, [currentQuestion, externalDispatch, onSessionContinue]);
 
     // Reset carousel index when category changes
     useEffect(() => {
@@ -602,7 +608,19 @@ export function QuestionsGrid({
                                                 )}
                                             </button>
                                         </div>
-                                        <div className="flex justify-end">
+                                        <div className="flex justify-between items-center gap-3">
+                                            {isSessionMode && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleSkipPracticeQuestion}
+                                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                                    data-testid="prep-practice-skip"
+                                                >
+                                                    Skip
+                                                </Button>
+                                            )}
+                                            <div className={cn("flex justify-end", !isSessionMode && "w-full")}>
                                             <Button
                                                 onClick={() => handleAnalyzeAnswer(currentQuestion)}
                                                 disabled={analyzing || userAnswer.length < 10}
@@ -614,6 +632,7 @@ export function QuestionsGrid({
                                                     "How did I do?"
                                                 )}
                                             </Button>
+                                            </div>
                                         </div>
                                     </>
                                 ) : (

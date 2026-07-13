@@ -8,7 +8,44 @@ import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/cred
 import { ProviderConfig } from "@/lib/llm/types";
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
+import { planHasSessionQuestions } from "@/lib/prep/cache-key";
 import { resolveCacheLookup } from "@/lib/interview-cache";
+
+function hashQuestionText(text: string): string {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+        const char = text.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function normalizeSystemDesignQuestion(
+    raw: QuestionItem | Record<string, unknown>,
+    index: number,
+    source: "curated" | "ai",
+    displayCategory: string,
+): QuestionItem {
+    const record = raw as Record<string, unknown>;
+    const questionText =
+        typeof record.question === "string"
+            ? record.question
+            : String(record.question ?? "");
+    const existingId =
+        typeof record.id === "string" && record.id.trim().length > 0
+            ? record.id.trim()
+            : undefined;
+    const stableId =
+        existingId ?? `sd-${source}-${index}-${hashQuestionText(questionText)}`;
+
+    return {
+        ...(raw as QuestionItem),
+        id: stableId,
+        question: questionText,
+        category: displayCategory,
+    };
+}
 
 const processEnv = process.env;
 
@@ -1141,6 +1178,9 @@ export async function generateInterviewPlan(
     systemDesignData?: SystemDesignData;
     error?: string;
     fromCache?: boolean;
+    cacheKey?: string;
+    jdFingerprint?: string;
+    sessionReady?: boolean;
 }> {
     try {
         const hasJd = (settings.jobContext?.content?.originalJd?.length ?? 0) > 0
@@ -1197,7 +1237,13 @@ export async function generateInterviewPlan(
                     technicalData: primaryCached.technicalData,
                     codingChallenges: cachedCoding,
                     systemDesignData: primaryCached.systemDesignData,
-                    fromCache: true
+                    fromCache: true,
+                    cacheKey: primaryKey,
+                    ...(jdFingerprint !== undefined ? { jdFingerprint } : {}),
+                    sessionReady: planHasSessionQuestions(
+                        primaryCached.questionsData,
+                        primaryCached.systemDesignData,
+                    ),
                 };
             }
 
@@ -1218,7 +1264,12 @@ export async function generateInterviewPlan(
                         technicalData: legacyCached.technicalData,
                         codingChallenges: cachedCoding,
                         systemDesignData: legacyCached.systemDesignData,
-                        fromCache: true
+                        fromCache: true,
+                        cacheKey: legacyKey,
+                        sessionReady: planHasSessionQuestions(
+                            legacyCached.questionsData,
+                            legacyCached.systemDesignData,
+                        ),
                     };
                 }
             } else {
@@ -1334,10 +1385,17 @@ export async function generateInterviewPlan(
             }
         }
 
-        // Merge System Design Questions
-        const finalSystemDesignQuestions = [...curatedQuestions, ...(aiSystemData?.questions || [])].map((q, idx) => ({
-            ...q // preserve properties
-        }));
+        const systemDesignCategory =
+            roleType === "product" ? "Product Management" : "System Design";
+
+        const finalSystemDesignQuestions = [
+            ...curatedQuestions.map((q, idx) =>
+                normalizeSystemDesignQuestion(q, idx, "curated", systemDesignCategory),
+            ),
+            ...(aiSystemData?.questions || []).map((q, idx) =>
+                normalizeSystemDesignQuestion(q, idx, "ai", "System Design"),
+            ),
+        ];
 
         const finalSystemDesignData: SystemDesignData = {
             questions: finalSystemDesignQuestions,
@@ -1346,10 +1404,11 @@ export async function generateInterviewPlan(
             roleType: roleType
         };
 
-        // 5. Save to Cache — ONLY when the plan is complete. Caching a partial
-        // result (one of the core calls failed) would serve the gaps as a cache hit
-        // forever; leaving it uncached lets the next attempt fill in what's missing.
-        if (reconMatchOk && questionsOk) {
+        const sessionReady = planHasSessionQuestions(questionsData, finalSystemDesignData);
+
+        // 5. Save to Cache — ONLY when the plan is complete with session questions.
+        // Caching a partial result would serve gaps as a cache hit forever.
+        if (reconMatchOk && questionsOk && sessionReady) {
             const now = Date.now();
             const expires = now + 24 * 60 * 60 * 1000;
 
@@ -1384,7 +1443,10 @@ export async function generateInterviewPlan(
             technicalData,
             codingChallenges,
             systemDesignData: finalSystemDesignData,
-            fromCache: false
+            fromCache: false,
+            cacheKey,
+            ...(jdFingerprint !== undefined ? { jdFingerprint } : {}),
+            sessionReady,
         };
 
     } catch (e: any) {

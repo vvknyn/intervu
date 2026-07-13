@@ -13,6 +13,7 @@ export interface PrepModeSelectionProps {
   jobContext: PrepJobContext;
   isAuthenticated: boolean;
   entitlement: PrepEntitlement | null;
+  entitlementLoading?: boolean;
   onSelectMode: (mode: PrepSessionMode) => void;
   onBack: () => void;
 }
@@ -56,10 +57,12 @@ export function PrepModeSelection({
   jobContext,
   isAuthenticated,
   entitlement,
+  entitlementLoading = false,
   onSelectMode,
   onBack,
 }: PrepModeSelectionProps) {
   const entitlementDisplay = entitlement ? entitlementLabel(entitlement) : null;
+  const startDisabled = isAuthenticated && entitlementLoading;
 
   return (
     <div className="w-full max-w-2xl animate-in fade-in duration-300">
@@ -84,6 +87,12 @@ export function PrepModeSelection({
         </div>
       )}
 
+      {entitlementLoading && isAuthenticated && (
+        <p className="text-sm text-muted-foreground mb-4" data-testid="prep-entitlement-loading">
+          Checking credits…
+        </p>
+      )}
+
       {!isAuthenticated && (
         <p className="text-sm text-muted-foreground mb-6" data-testid="prep-sign-in-prompt">
           Sign in to start
@@ -94,12 +103,14 @@ export function PrepModeSelection({
         {MODES.map(({ mode, title, subtitle, startLabel, icon: Icon, iconBg, iconColor }) => (
           <button
             key={mode}
-            onClick={() => onSelectMode(mode)}
+            onClick={() => !startDisabled && onSelectMode(mode)}
+            disabled={startDisabled}
             data-testid={`prep-mode-${mode}`}
             className={cn(
               "group text-left p-5 rounded-xl border border-border/40 bg-card",
               "hover:shadow-md hover:border-border/60 transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              startDisabled && "opacity-60 cursor-not-allowed hover:shadow-none",
             )}
           >
             <div
