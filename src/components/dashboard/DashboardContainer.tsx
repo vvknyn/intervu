@@ -28,7 +28,7 @@ import { getMyCreditsAction } from "@/actions/credits";
 import { llmCache } from "@/lib/llm/cache";
 import { InterviewCache } from "@/lib/interview-cache";
 import { buildPrepJobContextFromLegacy, emptyPrepJobContext, type PrepJobContext } from "@/lib/prep/job-context";
-import { listCachedPlans, listResumableSessions, type CachedPlanListItem } from "@/lib/prep/plan-list";
+import { listCachedPlans, listResumableSessions, getPreferredView, setPreferredView, type CachedPlanListItem, type PrepPlanView } from "@/lib/prep/plan-list";
 import type { PrepSessionMode } from "@/lib/prep/session-progress";
 import {
     prepSessionReducer,
@@ -55,6 +55,7 @@ import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
 import { PrepModeSelection, type PrepEntitlement } from "@/components/prep/PrepModeSelection";
 import { PrepSessionView } from "@/components/prep/PrepSessionView";
 import { PrepSummary } from "@/components/prep/PrepSummary";
+import { PrepPackageSwitch } from "@/components/prep/PrepPackageSwitch";
 import { RateLimiter } from "@/lib/rate-limiter";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { loadEnhancedCache, saveEnhancedCache, canMakeRequest, recordRequest } from "@/lib/cache-helpers";
@@ -696,7 +697,38 @@ export function DashboardContainer() {
     const handleSummaryOpenPackage = () => {
         setHasSearched(true);
         setPrepPhase("package");
+        if (questionsData) setViewState("dashboard");
     };
+
+    const currentPlanCacheKey = company && position && round
+        ? InterviewCache.getCacheKey(company, position, round)
+        : null;
+    const isPlanLoaded = !!questionsData && !!currentPlanCacheKey;
+    const activePrepView: PrepPlanView =
+        prepPhase === "session" || prepPhase === "summary" ? "session" : "package";
+
+    const handlePrepViewSwitch = (view: PrepPlanView) => {
+        if (!currentPlanCacheKey) return;
+        setPreferredView(currentPlanCacheKey, view);
+        if (view === "session") {
+            setHasSearched(false);
+            setPrepPhase(prepPhase === "summary" ? "summary" : "session");
+        } else {
+            setHasSearched(true);
+            setPrepPhase("package");
+            if (questionsData) setViewState("dashboard");
+        }
+    };
+
+    const prepViewSwitch = isPlanLoaded ? (
+        <div className="w-full flex justify-center mb-6">
+            <PrepPackageSwitch
+                activeView={activePrepView}
+                onSwitch={handlePrepViewSwitch}
+                hasActiveSession={!!prepSessionState}
+            />
+        </div>
+    ) : null;
 
     const handleSummaryGoToApplication = () => {
         router.push("/applications");
@@ -859,6 +891,7 @@ export function DashboardContainer() {
 
             if (shouldUseCache && cached) {
                 applyCachedPlanData(cached);
+                setPreferredView(payload.planCacheKey, "session");
                 setPrepPhase("session");
                 return;
             }
@@ -912,6 +945,7 @@ export function DashboardContainer() {
             if (result.systemDesignData) setSystemDesignData(result.systemDesignData);
             setResultsHaveResumeContext(currentResume.length > 20);
             setLastAnalyzedSettings(settings);
+            setPreferredView(payload.planCacheKey, "session");
             setPrepPhase("session");
         } catch (e: unknown) {
             const sentinel = classifySentinel(e);
@@ -1884,6 +1918,30 @@ export function DashboardContainer() {
 
         const cached = await loadEnhancedCache(item.company, item.position, item.round);
         applyCachedPlanData(cached);
+
+        const preferred = getPreferredView(item.cacheKey);
+        if (preferred === "session") {
+            setHasSearched(false);
+            setPrepPhase("session");
+            try {
+                const raw = localStorage.getItem(sessionStorageKey(item.cacheKey));
+                const parsed = raw ? parseSessionState(raw) : null;
+                if (parsed && parsed.planCacheKey === item.cacheKey) {
+                    setPrepSessionState(parsed);
+                    sessionInitRef.current = item.cacheKey;
+                    const restoredCtx = resolveSessionJobContext(
+                        parsed,
+                        item.company,
+                        item.position,
+                        item.round,
+                    );
+                    setPrepJobContext(restoredCtx);
+                    setJobContext(sessionJobContextText(parsed));
+                }
+            } catch {
+                /* ignore corrupt storage */
+            }
+        }
     };
 
     const handleResumeSession = async (planCacheKey: string) => {
@@ -1894,7 +1952,7 @@ export function DashboardContainer() {
         setPosition(session.position);
         setRound(session.round);
         setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
-        setHasSearched(true);
+        setHasSearched(false);
 
         const cached = await loadEnhancedCache(session.company, session.position, session.round);
         applyCachedPlanData(cached);
@@ -2205,6 +2263,7 @@ export function DashboardContainer() {
                     showTrigger={false}
                 />
 
+                {prepViewSwitch}
                 {mainContent}
 
                 {/* Footer hint */}
@@ -2387,6 +2446,7 @@ export function DashboardContainer() {
 
             {viewState === "dashboard" && (
                 <div className="w-full px-6 md:px-8 pt-4 pb-8 animate-in fade-in duration-500">
+                    {prepViewSwitch}
                     {/* Three-Column Layout: Sidebar | Main | Recon */}
                     <div className="flex flex-col lg:flex-row gap-4 relative lg:h-[calc(100vh-5rem)] lg:overflow-hidden">
                         {/* Left Sidebar - Navigation */}

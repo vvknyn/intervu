@@ -5,6 +5,9 @@ import { parseSessionState } from "@/lib/prep/session-progress";
 
 const INTERVIEW_PREP_CACHE_KEY = "interview_prep_cache";
 const SESSION_STORAGE_PREFIX = "intervu_prep_session_v1_";
+const PREFERRED_VIEW_STORAGE_KEY = "intervu_prep_preferred_view_v1";
+
+export type PrepPlanView = "session" | "package";
 
 export interface CachedPlanListItem {
   cacheKey: string;
@@ -27,6 +30,7 @@ export interface ResumableSessionItem {
 
 let testCacheOverride: Record<string, CachedInterviewData> | null = null;
 let testSessionStorage: Record<string, string> | null = null;
+let testPreferredViewStore: Record<string, PrepPlanView> | null = null;
 
 export function __testSetInterviewCacheEntries(entries: CachedInterviewData[]): void {
   if (process.env.NODE_ENV !== "test") return;
@@ -39,6 +43,52 @@ export function __testSetInterviewCacheEntries(entries: CachedInterviewData[]): 
 export function __testSetSessionEntries(entries: Record<string, string>): void {
   if (process.env.NODE_ENV !== "test") return;
   testSessionStorage = entries;
+}
+
+export function __testClearPreferredViews(): void {
+  if (process.env.NODE_ENV !== "test") return;
+  testPreferredViewStore = {};
+}
+
+function readPreferredViewStore(): Record<string, PrepPlanView> {
+  if (testPreferredViewStore) return testPreferredViewStore;
+
+  if (typeof localStorage === "undefined") return {};
+
+  try {
+    const stored = localStorage.getItem(PREFERRED_VIEW_STORAGE_KEY);
+    if (!stored) return {};
+    const parsed = JSON.parse(stored) as Record<string, PrepPlanView>;
+    return parsed ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function writePreferredViewStore(store: Record<string, PrepPlanView>): void {
+  if (testPreferredViewStore) {
+    testPreferredViewStore = store;
+    return;
+  }
+
+  if (typeof localStorage === "undefined") return;
+
+  try {
+    localStorage.setItem(PREFERRED_VIEW_STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+export function getPreferredView(planCacheKey: string): PrepPlanView | null {
+  const store = readPreferredViewStore();
+  return store[planCacheKey] ?? null;
+}
+
+export function setPreferredView(planCacheKey: string, view: PrepPlanView): void {
+  const store = readPreferredViewStore();
+  store[planCacheKey] = view;
+  writePreferredViewStore(store);
 }
 
 function readCacheEntries(): Record<string, CachedInterviewData> {
