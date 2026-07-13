@@ -704,6 +704,11 @@ export function DashboardContainer() {
         ? InterviewCache.getCacheKey(company, position, round)
         : null;
     const isPlanLoaded = !!questionsData && !!currentPlanCacheKey;
+    const showPrepViewSwitch =
+        isPlanLoaded &&
+        (prepPhase === "package" || prepPhase === "session" || prepPhase === "summary");
+    const hasActiveSessionForPlan =
+        !!currentPlanCacheKey && prepSessionState?.planCacheKey === currentPlanCacheKey;
     const activePrepView: PrepPlanView =
         prepPhase === "session" || prepPhase === "summary" ? "session" : "package";
 
@@ -720,12 +725,12 @@ export function DashboardContainer() {
         }
     };
 
-    const prepViewSwitch = isPlanLoaded ? (
+    const prepViewSwitch = showPrepViewSwitch ? (
         <div className="w-full flex justify-center mb-6">
             <PrepPackageSwitch
                 activeView={activePrepView}
                 onSwitch={handlePrepViewSwitch}
-                hasActiveSession={!!prepSessionState}
+                hasActiveSession={hasActiveSessionForPlan}
             />
         </div>
     ) : null;

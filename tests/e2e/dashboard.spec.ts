@@ -292,6 +292,74 @@ test.describe('DASH - Dashboard Tests', () => {
   });
 
   /**
+   * TC-DASH-PREP-005: View switch hidden on landing despite stale plan/session state
+   *
+   * Navigating home after loading a plan should not show the package switch on landing/setup.
+   */
+  test('TC-DASH-PREP-005: View switch hidden on clean home landing', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+      function getCacheKey(company: string, position: string, round: string) {
+        const normalized = `${company.toLowerCase()}_${position.toLowerCase()}_${round.toLowerCase()}`;
+        let hash = 0;
+        for (let i = 0; i < normalized.length; i++) {
+          const char = normalized.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return `${Math.abs(hash).toString(36)}_${normalized.substring(0, 20)}`;
+      }
+
+      const company = 'Apple';
+      const position = 'iOS Engineer';
+      const round = 'Onsite';
+      const cacheKey = getCacheKey(company, position, round);
+      const now = Date.now();
+
+      localStorage.setItem('interview_prep_cache', JSON.stringify({
+        [cacheKey]: {
+          cacheKey,
+          company,
+          position,
+          round,
+          hasResumeContext: false,
+          createdAt: now,
+          expiresAt: now + 24 * 60 * 60 * 1000,
+          questionsData: {
+            questions: [{ id: 'q1', text: 'Tell me about yourself.', category: 'behavioral' }],
+          },
+        },
+      }));
+
+      localStorage.setItem(`intervu_prep_session_v1_${cacheKey}`, JSON.stringify({
+        version: 1,
+        planCacheKey: cacheKey,
+        mode: 'learn',
+        startedAt: new Date(now).toISOString(),
+        updatedAt: new Date(now).toISOString(),
+        currentIndex: 0,
+        questionIds: ['q1'],
+        questions: {
+          q1: { status: 'unreviewed', starred: false },
+        },
+      }));
+    });
+
+    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('prep-view-switch')).toBeVisible({ timeout: 10000 });
+
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('prep-start-new')).toBeVisible();
+    await expect(page.getByTestId('prep-view-switch')).not.toBeVisible();
+
+    await page.getByTestId('prep-start-new').click();
+    await expect(page.getByTestId('prep-view-switch')).not.toBeVisible();
+  });
+
+  /**
    * TC-DASH-011: Mobile bottom tab bar works
    *
    * On mobile viewport, bottom tab bar should be accessible.
