@@ -2053,13 +2053,11 @@ export function DashboardContainer() {
                     reconData={reconData ?? undefined}
                     onGenerateReveal={(question) => handleGenerateStrategy(0, question)}
                     onRequireAuth={() => setAuthPopoverOpen(true)}
-                    onFinish={() => {
-                        if (prepSessionState) {
-                            setPrepSummarySnapshot({
-                                summary: buildSessionSummary(prepSessionState),
-                                questionIds: [...prepSessionState.questionIds],
-                            });
-                        }
+                    onFinish={(finishedState) => {
+                        setPrepSummarySnapshot({
+                            summary: buildSessionSummary(finishedState),
+                            questionIds: [...finishedState.questionIds],
+                        });
                         setPrepPhase("summary");
                     }}
                     onSwitchToPractice={() =>

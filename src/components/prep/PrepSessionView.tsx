@@ -11,6 +11,7 @@ import type {
   PrepSessionAction,
   PrepSessionQuestionProgress,
 } from "@/lib/prep/session-progress";
+import { prepSessionReducer } from "@/lib/prep/session-progress";
 import type { CompanyReconData, QuestionItem } from "@/types";
 
 export function getSessionQuestionLabel(index: number, total: number): string {
@@ -26,6 +27,21 @@ export function shouldShowLearnActions(
   return progress.status === "revealed" || progress.status === "reviewed";
 }
 
+/** Post-reducer state for onFinish after "I understand" — avoids stale closure snapshot. */
+export function sessionStateAfterMarkReviewed(
+  sessionState: PrepSessionState,
+  questionId: string,
+): PrepSessionState {
+  const next = prepSessionReducer(sessionState, {
+    type: "MARK_REVIEWED",
+    questionId,
+  });
+  if (!next) {
+    throw new Error(`MARK_REVIEWED failed for question ${questionId}`);
+  }
+  return next;
+}
+
 export interface PrepSessionViewProps {
   mode: PrepSessionMode;
   jobContext: PrepJobContext;
@@ -38,7 +54,7 @@ export interface PrepSessionViewProps {
   reconData?: CompanyReconData;
   onGenerateReveal: (question: QuestionItem) => Promise<string>;
   onRequireAuth: () => void;
-  onFinish: () => void;
+  onFinish: (sessionState: PrepSessionState) => void;
   onSwitchToPractice: () => void;
   favoritedMap: Record<string, string>;
   onToggleFavorite: (question: string, isFavorited: boolean, favoriteId?: string) => void;
@@ -79,19 +95,23 @@ export function PrepSessionView({
     ? sessionState.questions[currentQuestion.id]
     : undefined;
 
-  const handleAdvance = useCallback(() => {
-    if (currentIndex >= total - 1) {
-      onFinish();
-    } else {
-      dispatch({ type: "SET_INDEX", index: currentIndex + 1 });
-    }
-  }, [currentIndex, total, onFinish, dispatch]);
+  const handleAdvance = useCallback(
+    (stateForFinish: PrepSessionState = sessionState) => {
+      if (currentIndex >= total - 1) {
+        onFinish(stateForFinish);
+      } else {
+        dispatch({ type: "SET_INDEX", index: currentIndex + 1 });
+      }
+    },
+    [currentIndex, total, onFinish, dispatch, sessionState],
+  );
 
   const handleUnderstand = useCallback(() => {
     if (!currentQuestion) return;
+    const next = sessionStateAfterMarkReviewed(sessionState, currentQuestion.id);
     dispatch({ type: "MARK_REVIEWED", questionId: currentQuestion.id });
-    handleAdvance();
-  }, [currentQuestion, dispatch, handleAdvance]);
+    handleAdvance(next);
+  }, [currentQuestion, dispatch, handleAdvance, sessionState]);
 
   const handlePracticeOne = useCallback(() => {
     if (!currentQuestion) return;

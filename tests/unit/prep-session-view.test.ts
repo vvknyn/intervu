@@ -2,8 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   getSessionQuestionLabel,
+  sessionStateAfterMarkReviewed,
   shouldShowLearnActions,
 } from "../../src/components/prep/PrepSessionView";
+import {
+  buildSessionSummary,
+  prepSessionReducer,
+} from "../../src/lib/prep/session-progress";
 
 describe("getSessionQuestionLabel", () => {
   it("returns Question X of N format", () => {
@@ -51,5 +56,29 @@ describe("shouldShowLearnActions", () => {
       }),
       false,
     );
+  });
+});
+
+describe("sessionStateAfterMarkReviewed", () => {
+  it("includes final learn question in summary snapshot state", () => {
+    let state = prepSessionReducer(null, {
+      type: "START",
+      planCacheKey: "plan",
+      mode: "learn",
+      questionIds: ["q1"],
+    })!;
+    state = prepSessionReducer(state, {
+      type: "REVEAL",
+      questionId: "q1",
+      revealedContent: "<p>Answer</p>",
+    })!;
+
+    const staleSummary = buildSessionSummary(state);
+    assert.equal(staleSummary.progress.reviewed, 0);
+
+    const finishState = sessionStateAfterMarkReviewed(state, "q1");
+    const finishSummary = buildSessionSummary(finishState);
+    assert.equal(finishState.questions.q1.status, "reviewed");
+    assert.equal(finishSummary.progress.reviewed, 1);
   });
 });
