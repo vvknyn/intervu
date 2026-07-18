@@ -565,11 +565,12 @@ function JobsContent() {
     const searchParams = useSearchParams();
 
     // Parsed once from the URL present at mount, to seed the state hooks below.
-    // The URL stays authoritative afterwards: every mutation routes back out
-    // through `applyUrlState` (replace for filters/sort/ghost, push for
-    // opening a job) so state and URL never drift. Only `job` selection stays
-    // reactively re-derived from `searchParams` post-mount (see the effect
-    // near `selected`, below) — everything else is one-way (state → URL).
+    // The URL stays authoritative afterwards, bidirectionally: every mutation
+    // routes out through `applyUrlState` (replace for filters/sort/ghost,
+    // push for opening a job), AND every `searchParams` change routes back in
+    // through the reconcile effect near `selected`, below — so history
+    // navigation (Back/Forward), a typed address bar, or an external link all
+    // fully reconstruct the screen, not just the selected job.
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [query, setQuery] = useState(initialUrlState.q);
@@ -801,16 +802,62 @@ function JobsContent() {
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
 
-    // Selected job is derived from the URL's `job` param — the reactive
-    // source of truth. Row click pushes it (`openJob`); this effect picks it
-    // back up on mount (deep link), on browser back/forward (popstate needs
-    // no bespoke handling — Next's router already updates `searchParams`),
-    // and closes the mobile sheet when `job` disappears (detail close calls
-    // `router.back()`, see the Sheet below). Deliberately keyed on
-    // `searchParams` alone, NOT `hits` — re-deriving on every `loadMore` page
-    // would fight the keyboard-nav highlight above for no reason.
+    // The URL is the reactive source of truth for the WHOLE screen, not just
+    // `job` — this effect reconciles every parsed field back into local state
+    // whenever `searchParams` changes. That covers Back/Forward, a typed
+    // address bar, and an external link, none of which go through
+    // `applyUrlState`. Without this, only `job` self-corrected on history
+    // navigation; every other field (q/facets/salaryMin/visaOnly/
+    // postedBucket/sort/hideGhosts) was seeded once at mount and never
+    // re-derived, so Back after a `replace` could leave the screen showing
+    // state the address bar no longer matches (e.g. push a job open, then
+    // replace the query — Back only unwinds the top history entry, so the
+    // URL reverts but the query text and results didn't).
+    //
+    // Loop safety: `applyUrlState`'s own writes must not bounce back here.
+    // Every mutation call site in this file sets local state directly BEFORE
+    // calling `applyUrlState`, so by the time the resulting `searchParams`
+    // change reaches this effect, `buildUrlState()` (current local state,
+    // reassembled) already serializes identically to the freshly parsed URL
+    // — the comparison below finds them equal and the setters never run, so
+    // there's no render loop and `searchKey` changes at most once per actual
+    // user action.
     useEffect(() => {
-        const jobId = searchParams.get("job");
+        const parsed = parseJobsUrl(searchParams);
+        const current = buildUrlState();
+        // Compare everything except `job`: `job` is intentionally excluded
+        // because `buildUrlState()` sources its `jobId` straight from
+        // `searchParams.get("job")` (the same value `parsed.jobId` just
+        // read), so the two would trivially match and mask a job-only URL
+        // change from the equality check below.
+        const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
+        const currentKey = serializeJobsUrl({ ...current, jobId: null });
+        if (parsedKey !== currentKey) {
+            setQuery(parsed.q);
+            // Facets are an object, not a primitive — a same-content-but-new-
+            // reference set would still be a needless render, so gate it on
+            // serialized equality rather than setting unconditionally.
+            const facetsChanged =
+                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
+                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
+            if (facetsChanged) setFacets(parsed.facets);
+            setSalaryMin(parsed.salaryMin);
+            setVisaOnly(parsed.visaOnly);
+            setPostedBucket(parsed.postedBucket);
+            setHideGhosts(parsed.hideGhosts);
+            setSortOverride(resolveUrlSort(parsed.sort));
+        }
+
+        // Selected job stays derived from the URL's `job` param — the
+        // reactive source of truth. Row click pushes it (`openJob`); this
+        // picks it back up on mount (deep link), on browser back/forward
+        // (popstate needs no bespoke handling — Next's router already
+        // updates `searchParams`), and closes the mobile sheet when `job`
+        // disappears (detail close calls `router.back()`, see the Sheet
+        // below). Deliberately unconditional (not gated behind the subset
+        // check above) — a job-only URL change must still update selection
+        // even when nothing else in the subset changed.
+        const jobId = parsed.jobId;
         setSelectedId(jobId);
         if (jobId) {
             userPickedDetailRef.current = true;
@@ -821,6 +868,7 @@ function JobsContent() {
             userPickedDetailRef.current = false;
             setDetailSheetOpen(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
     // `selectedId` set (deliberately, from the URL) but not among the loaded
@@ -1327,6 +1375,7 @@ function JobsContent() {
                 {activeChips.map((c, i) => (
                     <button
                         key={i}
+                        data-testid="active-filter-chip"
                         onClick={c.onRemove}
                         className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
                     >

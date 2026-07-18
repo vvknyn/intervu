@@ -86,4 +86,70 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.reload();
         await expect(page.getByText(/roles|results/i).first()).toHaveText(countBefore ?? "");
     });
+
+    /**
+     * Reviewer finding (Task 5 review): only `job` was re-derived from the URL
+     * after mount — q/facets/salaryMin/visaOnly/postedBucket/sort/hideGhosts
+     * were seeded once and never reconciled on history navigation. Reachable
+     * drift: open a job (push adds a history entry on top of `?q=engineer`) →
+     * edit the query to "designer" (replace rewrites only the TOP entry) →
+     * press Back → the URL reverts to `?q=engineer` but the screen kept
+     * showing "designer". The fix makes the URL the reactive source for every
+     * parsed field, not just `job`, so Back always matches the address bar.
+     */
+    test("back after opening a job and editing the query restores the URL's query, not the edited one", async ({ page }) => {
+        await page.goto("/jobs?q=engineer");
+        const searchInput = page.getByRole("textbox").first();
+        await expect(searchInput).toHaveValue("engineer");
+
+        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        await firstRow.click();
+        await expect(page).toHaveURL(/job=/);
+        await expect(page).toHaveURL(/q=engineer/);
+
+        // Replace rewrites only the top history entry (the job-open one) —
+        // this is the drift the reviewer flagged.
+        await searchInput.fill("designer");
+        await expect(searchInput).toHaveValue("designer");
+        await expect(page).toHaveURL(/q=designer/);
+
+        await page.goBack();
+        await expect(page).toHaveURL(/q=engineer/);
+        await expect(page).not.toHaveURL(/q=designer/);
+        await expect(searchInput).toHaveValue("engineer");
+    });
+
+    /**
+     * Class coverage, not just the `q` instance: the same drift is reachable
+     * through a filter mutation. Open a job (push → `?job=`), then apply the
+     * "Last week" posted-bucket filter from the rail (replace, on top of the
+     * push — mirroring the reviewer's push-then-replace pattern for a
+     * non-`q` field, carrying `job=` along since `buildUrlState()` defaults
+     * `jobId` to whatever the URL currently holds). Back must unwind past
+     * BOTH: the URL reverts to the bare `/jobs` entry, and the screen must
+     * match — no `posted` filter, no active chip, no open detail. Starts
+     * from the unfiltered default view (always has rows, per the "anonymous
+     * first paint" test above) rather than a pre-filtered URL, so this test
+     * isn't sensitive to how many roles currently fall in the 7-day bucket.
+     */
+    test("back after opening a job and applying a posted-bucket filter restores the prior state", async ({ page }) => {
+        await page.goto("/jobs");
+        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        await firstRow.click();
+        await expect(page).toHaveURL(/job=/);
+        await expect(page).not.toHaveURL(/posted=/);
+
+        const postedButton = page
+            .getByRole("region", { name: "Job filters" })
+            .getByRole("button", { name: "Last week" });
+        await postedButton.click();
+        await expect(page).toHaveURL(/posted=7d/);
+        await expect(page).toHaveURL(/job=/); // replace preserves the open job
+        await expect(page.getByTestId("active-filter-chip").filter({ hasText: "Last week" })).toBeVisible();
+
+        await page.goBack();
+        await expect(page).not.toHaveURL(/posted=7d/);
+        await expect(page).not.toHaveURL(/job=/);
+        await expect(page.getByTestId("active-filter-chip")).toHaveCount(0);
+    });
 });
