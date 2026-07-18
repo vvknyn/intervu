@@ -203,4 +203,28 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(filters).toBeVisible();
         await expect(filters.getByRole("checkbox", { name: /Hide likely-ghost/i })).toBeVisible();
     });
+
+    /**
+     * TASK 8 — Row badges + résumé upsell card. Anonymous session, no
+     * résumé on hand, so the card is expected on first paint (gate =
+     * NOT dismissed AND NOT resumeIsUsable(local resume state)).
+     */
+    test("upsell card shows once and dismissal survives reload", async ({ page }) => {
+        await page.goto("/jobs");
+        const card = page.getByText("rank all", { exact: false });
+        await expect(card).toBeVisible();
+        await page.getByRole("button", { name: /dismiss|✕/i }).first().click();
+        await expect(card).not.toBeVisible();
+        await page.reload();
+        await expect(page.getByText("rank all", { exact: false })).not.toBeVisible();
+    });
+
+    // Resolution #2: `formatRelativeAge` (Task 3, locked) has no space before
+    // the h/d unit ("2h ago"/"3d ago") but does before "min" ("6 min ago"),
+    // and "just now" under 60s. The regex below matches exactly those three
+    // shapes plus "just now" — no bare `\d+ ?ago` catch-all.
+    test("clear rows carry a live badge with age", async ({ page }) => {
+        await page.goto("/jobs");
+        await expect(page.getByText(/✓ live (just now|\d+ min ago|\d+h ago|\d+d ago)/).first()).toBeVisible();
+    });
 });

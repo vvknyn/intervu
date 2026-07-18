@@ -44,9 +44,11 @@ import {
 } from "@/actions/jobs";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
+import { badgeFor } from "@/lib/jobs/badges";
 import { FilterPanel, activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
@@ -204,13 +206,18 @@ function postedAge(ts: number | null): string | null {
     return months < 12 ? `${months}mo` : `${Math.floor(months / 12)}y`;
 }
 
-function GhostChip({ badge }: { badge: GhostBadge }) {
+// `text` is the compact row-badge string from `badgeFor` (lib/jobs/badges.ts)
+// — a pure function of (ghost_badge, updated_at, posted_ts, now), unit-tested
+// in tests/unit/jobs-badges.test.ts. GHOST_META still owns the styling
+// (cls/dot) and the longer descriptive copy used elsewhere (JobDetail's
+// banner); this chip only renders the short row-level text.
+function GhostChip({ badge, text }: { badge: GhostBadge; text: string }) {
     const meta = GHOST_META[badge];
     if (!meta) return null;
     return (
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.cls)}>
             <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
-            {meta.label}
+            {text}
         </span>
     );
 }
@@ -238,8 +245,14 @@ function JobRow({
     active: boolean;
     onClick: () => void;
 }) {
-    const age = postedAge(derivePostedTs(job));
+    const postedTs = derivePostedTs(job);
+    const age = postedAge(postedTs);
     const sal = salaryText(job);
+    // Task 8 row badge: clear → "✓ live {age}" (from updated_at), caution →
+    // "⚠ {daysOpen} days open" (from posted_ts), likely_ghost → "✕ likely
+    // ghost", unscored → null (renders nothing, same as the old
+    // `GHOST_META[job.ghost_badge] &&` gate this replaces).
+    const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, Date.now());
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
@@ -277,9 +290,9 @@ function JobRow({
                             </span>
                         )}
                     </div>
-                    {GHOST_META[job.ghost_badge] && (
+                    {badgeText && (
                         <div className="mt-2.5">
-                            <GhostChip badge={job.ghost_badge} />
+                            <GhostChip badge={job.ghost_badge} text={badgeText} />
                         </div>
                     )}
                 </div>
@@ -718,6 +731,28 @@ function JobsContent() {
     const [exploring, setExploring] = useState(false);
     const [exploreTitles, setExploreTitles] = useState<string[]>([]);
 
+    // Task 8 résumé upsell card dismissal — read once on mount (no new mount
+    // fetch of the résumé itself; Task 4 removed that). The card's other gate
+    // condition, `resumeIsUsable(resume)`, uses this same local `resume`
+    // state reactively — a successful import sets it and hides the card
+    // without any extra plumbing here.
+    const [upsellDismissed, setUpsellDismissed] = useState(false);
+    useEffect(() => {
+        try {
+            setUpsellDismissed(localStorage.getItem("intervu.jobs.upsell.dismissed") === "1");
+        } catch {
+            /* private mode */
+        }
+    }, []);
+    const dismissUpsell = () => {
+        setUpsellDismissed(true);
+        try {
+            localStorage.setItem("intervu.jobs.upsell.dismissed", "1");
+        } catch {
+            /* private mode */
+        }
+    };
+
     // All four "run this after the user signs in" actions (apply / tailor /
     // upload / explore) live in one pure pending-state ref so only the LATEST
     // intent is ever queued and a dismissed action can never replay. See
@@ -1135,6 +1170,12 @@ function JobsContent() {
         label: entry.label,
         onRemove: () => applyFilterState(entry.clear(filterState)),
     }));
+
+    // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
+    // LOCAL state (no new mount fetch — see the state block above). A user
+    // with a server-side résumé they haven't loaded this session still sees
+    // the card until dismissed; accepted trade-off, not a bug.
+    const showUpsell = !upsellDismissed && !resumeIsUsable(resume ?? undefined);
 
     // Open the in-place analysis slideout for a job. Tailoring is AI-backed
     // (login-gated), so prompt sign-in first and resume once authenticated.
@@ -1826,14 +1867,33 @@ function JobsContent() {
                                     className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
                                 >
                                     <div className="space-y-2.5 pr-1">
-                                        {hits.map((job) => (
-                                            <JobRow
-                                                key={job.id}
-                                                job={job}
-                                                active={selected?.id === job.id}
-                                                onClick={() => openJob(job.id)}
-                                            />
-                                        ))}
+                                        {hits.flatMap((job, idx) => {
+                                            const row = (
+                                                <JobRow
+                                                    key={job.id}
+                                                    job={job}
+                                                    active={selected?.id === job.id}
+                                                    onClick={() => openJob(job.id)}
+                                                />
+                                            );
+                                            // After the FIRST row only (idx 0) — `hits` is the
+                                            // full accumulated list across infinite-scroll pages,
+                                            // so this never re-fires for later pages and never
+                                            // renders when `hits` is empty (that branch is gated
+                                            // above by the `hits.length === 0` check).
+                                            if (idx === 0 && showUpsell) {
+                                                return [
+                                                    row,
+                                                    <ResumeUpsellCard
+                                                        key="resume-upsell"
+                                                        total={corpusTotal}
+                                                        onUpload={handleUploadClick}
+                                                        onDismiss={dismissUpsell}
+                                                    />,
+                                                ];
+                                            }
+                                            return [row];
+                                        })}
                                     </div>
                                     {hasMore ? (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-6">
