@@ -37,10 +37,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { searchJobsAction, markJobAppliedAction, suggestAdjacentRolesAction } from "@/actions/jobs";
-import { fetchResumeData, saveResumeData } from "@/actions/resume";
+import { saveResumeData } from "@/actions/resume";
 import { FilterPanel, facetValueLabel, postedBucketLabel } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
-import { JobsEntryGate } from "@/components/jobs/JobsEntryGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -465,56 +464,17 @@ function JobsListSplash() {
     );
 }
 
-/* ----------------------------- entry gate ----------------------------- */
+/* ----------------------------- results mode ----------------------------- */
 
 /**
- * Entry state machine for /jobs. The gate (`ask` / `choose`) replaces today's
- * auto-load; the results modes drive `searchJobsAction` via the existing
- * query/facet state. `search` is special — it shows a prompt and only fetches
- * once a query is typed. See docs/superpowers/specs/2026-06-07-jobs-resume-entry-design.md.
+ * Results-view mode for /jobs. Jobs render on first paint for everyone —
+ * there is no entry gate — so `mode` only ever tracks which results view is
+ * active; it always starts at `"browse"`. `search` is special — it shows a
+ * prompt and only fetches once a query is typed. Match/Explore are triggered
+ * from resume-driven actions (see `enterMatch` / `enterExplore` below); their
+ * UI trigger point is being re-homed onto the results view in a later task.
  */
-type Mode = "loading" | "ask" | "choose" | "match" | "explore" | "search" | "browse";
-type ResultMode = "match" | "explore" | "search" | "browse";
-
-interface PersistedEntry {
-    mode: ResultMode;
-    q?: string;
-    facets?: Partial<Record<FacetKey, string[]>>;
-    titles?: string[];
-}
-
-const ENTRY_KEY = "intervu.jobs.entry";
-
-function readPersist(): PersistedEntry | null {
-    if (typeof window === "undefined") return null;
-    try {
-        const raw = localStorage.getItem(ENTRY_KEY);
-        if (!raw) return null;
-        const p = JSON.parse(raw) as PersistedEntry;
-        // Only results modes are ever persisted; ignore anything else.
-        return (["match", "explore", "search", "browse"] as string[]).includes(p?.mode) ? p : null;
-    } catch {
-        return null;
-    }
-}
-
-function writePersist(p: PersistedEntry): void {
-    if (typeof window === "undefined") return;
-    try {
-        localStorage.setItem(ENTRY_KEY, JSON.stringify(p));
-    } catch {
-        /* private mode / quota — non-fatal, gate just re-asks next visit */
-    }
-}
-
-function clearPersist(): void {
-    if (typeof window === "undefined") return;
-    try {
-        localStorage.removeItem(ENTRY_KEY);
-    } catch {
-        /* ignore */
-    }
-}
+type Mode = "match" | "explore" | "search" | "browse";
 
 /** A resume is "usable" for matching if it has a profession or at least one skill. */
 function resumeIsUsable(d: ResumeData | undefined): boolean {
@@ -523,7 +483,7 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
     return (d.competencies ?? []).some((c) => (c.skills ?? []).some((s) => (s ?? "").trim()));
 }
 
-const MODE_META: Record<ResultMode, { label: string; Icon: typeof Target }> = {
+const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {
     match: { label: "Matched to your resume", Icon: Target },
     explore: { label: "Exploring adjacent roles", Icon: Compass },
     search: { label: "Search", Icon: MagnifyingGlass },
@@ -532,7 +492,7 @@ const MODE_META: Record<ResultMode, { label: string; Icon: typeof Target }> = {
 
 /** Slim bar above the results that names the active mode + offers "Start over". */
 function ModeBar({ mode, onStartOver }: { mode: Mode; onStartOver: () => void }) {
-    const meta = MODE_META[mode as ResultMode];
+    const meta = MODE_META[mode];
     if (!meta) return null;
     return (
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -619,9 +579,9 @@ function JobsContent() {
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
-    // Entry gate: which screen / results mode we're in, the resume backing it,
-    // the import modal, and the in-flight Explore call + its suggested titles.
-    const [mode, setMode] = useState<Mode>("loading");
+    // Which results mode we're in, the resume backing Match/Explore, the
+    // import modal, and the in-flight Explore call + its suggested titles.
+    const [mode, setMode] = useState<Mode>("browse");
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [exploring, setExploring] = useState(false);
@@ -647,12 +607,10 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
-    // Debounced search on query / facet / salary / visa changes — but only once
-    // a results mode is active. In `search` mode we wait for a non-empty query
-    // (empty → the SearchPrompt, no fetch); gate/loading modes never fetch.
+    // Debounced search on query / facet / salary / visa changes. In `search`
+    // mode we wait for a non-empty query (empty → the SearchPrompt, no fetch).
     useEffect(() => {
-        const isResults = mode === "match" || mode === "explore" || mode === "search" || mode === "browse";
-        const shouldFetch = isResults && (mode !== "search" || query.trim().length > 0);
+        const shouldFetch = mode !== "search" || query.trim().length > 0;
         if (!shouldFetch) {
             paginationRef.current!.invalidate();
             setLoading(false);
@@ -976,37 +934,19 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    /* ----------------------------- entry gate logic ----------------------------- */
+    /* ----------------------------- resume-driven actions ----------------------------- */
 
-    // Resolve the opening screen: a saved, usable resume → straight to CHOOSE;
-    // otherwise ASK. Anonymous users get "Unauthorized" from fetchResumeData → ASK.
-    const resolveEntry = useCallback(async () => {
-        try {
-            const { data } = await fetchResumeData();
-            if (data && resumeIsUsable(data)) {
-                setResume(data);
-                setMode("choose");
-                return;
-            }
-        } catch {
-            /* fall through to ASK */
-        }
-        setResume(null);
-        setMode("ask");
-    }, []);
-
-    // First load: restore a remembered results mode, else resolve the gate.
+    // One-time cleanup: the entry gate used to persist the active mode under
+    // this key so a reload could skip straight back to it. There is no gate to
+    // skip anymore (results render unconditionally), so the key is now dead —
+    // remove it for anyone still carrying it from before this change shipped.
     useEffect(() => {
-        const persisted = readPersist();
-        if (persisted) {
-            setExploreTitles(persisted.titles ?? []);
-            setFacets(persisted.facets ?? {});
-            setQuery(persisted.q ?? "");
-            setMode(persisted.mode);
-            return;
+        try {
+            localStorage.removeItem("intervu.jobs.entry");
+        } catch {
+            /* private mode */
         }
-        void resolveEntry();
-    }, [resolveEntry]);
+    }, []);
 
     // Cancel ANY action queued for after sign-in (apply / tailor / upload /
     // explore) so a later, unrelated login can't hijack the user into it — or
@@ -1018,7 +958,7 @@ function JobsContent() {
         pendingRef.current = clearPending(pendingRef.current);
     };
 
-    // CHOOSE → Match: derive query + seniority facet from the resume. Free, instant.
+    // Match: derive query + seniority facet from the resume. Free, instant.
     const enterMatch = (r: ResumeData) => {
         clearPendingGate();
         const { q, facets: f } = buildMatchQuery(r);
@@ -1026,10 +966,9 @@ function JobsContent() {
         setFacets(f);
         setQuery(q);
         setMode("match");
-        writePersist({ mode: "match", q, facets: f });
     };
 
-    // CHOOSE → Explore: ask the model for adjacent titles (1 credit). On auth →
+    // Explore: ask the model for adjacent titles (1 credit). On auth →
     // popover + retry; on credits/empty → free skill-based broaden so the user
     // still gets a result. The auth GATE lives here; the authenticated body is
     // `runExplore` so the post-auth replay can re-run it without re-reading a
@@ -1071,7 +1010,6 @@ function JobsContent() {
                 setFacets({});
                 setQuery(q);
                 setMode("explore");
-                writePersist({ mode: "explore", q, facets: {}, titles: [] });
                 toast.info(
                     classifySentinel(res.error) === "credits"
                         ? "Out of AI credits — showing skill-based matches instead."
@@ -1085,7 +1023,6 @@ function JobsContent() {
             setFacets({});
             setQuery(q);
             setMode("explore");
-            writePersist({ mode: "explore", q, facets: {}, titles });
         } finally {
             setExploring(false);
         }
@@ -1097,7 +1034,6 @@ function JobsContent() {
         setFacets({});
         setQuery("");
         setMode("browse");
-        writePersist({ mode: "browse", q: "" });
     };
 
     const handleSearchOnly = () => {
@@ -1106,7 +1042,6 @@ function JobsContent() {
         setFacets({});
         setQuery("");
         setMode("search");
-        writePersist({ mode: "search", q: "" });
     };
 
     const handleUploadClick = () => {
@@ -1122,13 +1057,11 @@ function JobsContent() {
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
         setResume(data);
         setImportOpen(false);
-        setMode("choose");
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
     };
 
     const startOver = () => {
-        clearPersist();
         setExploreTitles([]);
         setFacets({});
         setSalaryMin(0);
@@ -1139,8 +1072,7 @@ function JobsContent() {
         setSearchError(null);
         setDetailSheetOpen(false);
         userPickedDetailRef.current = false;
-        setMode("loading");
-        void resolveEntry();
+        setMode("browse");
     };
 
     const notConnected = result != null && !result.configured && result.backend === "unconfigured";
@@ -1171,36 +1103,17 @@ function JobsContent() {
                 />
             }
         >
-            {mode === "loading" ? (
-                <div className="flex min-h-[55vh] items-center justify-center">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+            <>
+                <a
+                    href="#jobs-results-list"
+                    className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:rounded-lg focus:border focus:border-border focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+                >
+                    Skip to results
+                </a>
+                <div className="shrink-0">
+                    <ModeBar mode={mode} onStartOver={startOver} />
                 </div>
-            ) : mode === "ask" || mode === "choose" ? (
-                <JobsEntryGate
-                    step={mode === "ask" ? "ask" : "choose"}
-                    resumeLabel={resume?.profile?.profession}
-                    exploring={exploring}
-                    onUpload={handleUploadClick}
-                    onSearchOnly={handleSearchOnly}
-                    onMatch={() => resume && enterMatch(resume)}
-                    onExplore={() => {
-                        if (resume) void enterExplore(resume);
-                    }}
-                    onDifferentResume={() => setImportOpen(true)}
-                    onBrowseAll={enterBrowse}
-                />
-            ) : (
-                <>
-                    <a
-                        href="#jobs-results-list"
-                        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:rounded-lg focus:border focus:border-border focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
-                    >
-                        Skip to results
-                    </a>
-                    <div className="shrink-0">
-                        <ModeBar mode={mode} onStartOver={startOver} />
-                    </div>
-                    <div className="flex min-h-0 flex-col lg:flex-1">
+                <div className="flex min-h-0 flex-col lg:flex-1">
             {/* Search */}
             <div className="relative mb-3.5 shrink-0">
                 <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -1448,9 +1361,8 @@ function JobsContent() {
                 </div>
             )}
             </div>
-                    </div>
-                </>
-            )}
+                </div>
+            </>
 
             <AuthPopover
                 open={authOpen}

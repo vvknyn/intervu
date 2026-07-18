@@ -4,25 +4,13 @@ import { test, expect, type Page } from '@playwright/test';
  * TEST GROUP: JOBS-SEARCH - /jobs search polish (sort, panes, selection)
  *
  * Environment-tolerant: works with configured Meilisearch OR unconfigured backend.
- * Seeds BROWSE mode via localStorage to skip the entry gate.
+ * There is no entry gate — /jobs renders BROWSE results on first paint for
+ * everyone (see jobs-first-screen.spec.ts) — so this just navigates straight in.
  */
 
-const ENTRY_KEY = 'intervu.jobs.entry';
-
 async function enterBrowseMode(page: Page) {
-    await page.addInitScript((key) => {
-        try {
-            window.localStorage.setItem(key, JSON.stringify({ mode: 'browse', q: '' }));
-        } catch {
-            /* storage disabled */
-        }
-    }, ENTRY_KEY);
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
-    // Gate must be gone
-    await expect(
-        page.getByRole('heading', { name: /Tailor jobs to your resume/i }),
-    ).toHaveCount(0, { timeout: 15000 });
     await expect(
         page.getByRole('listbox', { name: 'Job results' })
             .or(page.getByText(/Job search is being connected/i))
@@ -34,14 +22,13 @@ async function enterBrowseMode(page: Page) {
 
 test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
     test.beforeEach(async ({ page }) => {
-        await page.addInitScript((key) => {
+        await page.addInitScript(() => {
             try {
-                window.localStorage.removeItem(key);
                 window.localStorage.clear();
             } catch {
                 /* ignore */
             }
-        }, ENTRY_KEY);
+        });
     });
 
     test('TC-JOBS-SORT-001: sort control offers three labeled options when configured', async ({ page }) => {
