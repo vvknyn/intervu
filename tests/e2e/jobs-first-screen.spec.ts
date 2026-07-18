@@ -185,4 +185,22 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.getByRole("combobox", { name: /Sort results/i }).click();
         await expect(page.getByText("Rank by fit", { exact: false })).toBeVisible();
     });
+
+    /**
+     * TASK 7 — Filter rail: promotion, More group, ghost toggle, 1024px
+     * threshold. 1100px sits between the OLD xl (1280px) and NEW lg (1024px)
+     * thresholds, so this specifically proves the rail moved to lg — it would
+     * fail under the pre-Task-7 xl:-gated rail. No click required: first paint
+     * must already show it (mirrors TC-JOBS-LAYOUT-002 in
+     * jobs-search-polish.spec.ts, which asserts the same thing pinned to the
+     * 1024px boundary itself).
+     */
+    test("desktop 1100px shows the filter rail with the ghost toggle, no click needed", async ({ page }) => {
+        await page.setViewportSize({ width: 1100, height: 800 });
+        await page.goto("/jobs");
+
+        const filters = page.getByRole("region", { name: "Job filters" });
+        await expect(filters).toBeVisible();
+        await expect(filters.getByRole("checkbox", { name: /Hide likely-ghost/i })).toBeVisible();
+    });
 });

@@ -44,7 +44,7 @@ import {
 } from "@/actions/jobs";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
-import { FilterPanel, facetValueLabel, postedBucketLabel } from "@/components/jobs/FilterPanel";
+import { FilterPanel, activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
@@ -56,7 +56,6 @@ import {
 } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
-    FACETABLE_KEYS,
     type FacetKey,
     type GhostBadge,
     type JobSearchResult,
@@ -666,6 +665,12 @@ function JobsContent() {
     const [corpusTotal, setCorpusTotal] = useState<number | null>(null);
     const corpusTotalCapturedRef = useRef(false);
 
+    // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
+    // many likely_ghost postings the CURRENT filters are hiding right now.
+    // `null` = not resolved yet, or not applicable (ghosts shown) — either
+    // way FilterPanel only renders the count suffix when non-null and > 0.
+    const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
+
     // Corpus freshness stamp ("updated 3h ago"). Fetched once on mount.
     // `undefined` = not resolved yet (render nothing); `null` = resolved but
     // the backend has no known sync time (render "freshness unknown" — never
@@ -815,6 +820,40 @@ function JobsContent() {
                 if (!selection.preserveDeliberateDetail) {
                     setDetailSheetOpen(false);
                     userPickedDetailRef.current = false;
+                }
+                // Honest hidden-ghost count for the rail's toggle row (Task 7): one
+                // extra limit-1, facets-only request with hideGhosts flipped off and
+                // any explicit `ghost_badge` facet stripped, so it's counting against
+                // the SAME other filters rather than a legacy-facet-narrowed set (see
+                // controller resolution #2). Skipped entirely when ghosts are already
+                // shown. Fire-and-forget — it must not block `loading`/`finally` below
+                // — and reuses this closure's own `cancelled` flag plus the pagination
+                // generation as its staleness guard (the same precedent
+                // JobsPaginationGeneration/FitIntentGuard set elsewhere in this file),
+                // rather than a bespoke guard class.
+                if (hideGhosts) {
+                    searchJobsAction({
+                        q: query.trim() || undefined,
+                        facets: { ...facets, ghost_badge: undefined },
+                        salaryMin: salaryMin || undefined,
+                        visaOnly: visaOnly || undefined,
+                        postedBucket,
+                        hideGhosts: false,
+                        sort: sortOverride ?? undefined,
+                        withFacets: true,
+                        limit: 1,
+                        offset: 0,
+                    })
+                        .then((gr) => {
+                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
+                            if (isUnavailableJobsResult(gr)) return;
+                            setGhostHiddenCount(gr.facetDistribution?.ghost_badge?.["likely_ghost"] ?? 0);
+                        })
+                        .catch(() => {
+                            /* best-effort — the toggle row just omits the count suffix */
+                        });
+                } else {
+                    setGhostHiddenCount(null);
                 }
             } catch (e) {
                 if (!cancelled) {
@@ -1050,34 +1089,52 @@ function JobsContent() {
         setPostedBucket(v);
         applyUrlState(buildUrlState({ postedBucket: v }), "replace");
     };
+    // Task 7: setLocal-then-applyUrlState, mirroring every other mutator here
+    // (see the ordering rule in this file's header comment / composer
+    // precedent in url-state.ts).
+    const onHideGhosts = (v: boolean) => {
+        setHideGhosts(v);
+        applyUrlState(buildUrlState({ hideGhosts: v }), "replace");
+    };
 
-    const clearAll = () => {
-        setFacets({});
-        setSalaryMin(0);
-        setVisaOnly(false);
-        setPostedBucket(undefined);
+    // Sets every local FilterState field + pushes the matching URL replace in
+    // one shot — the shared tail of both `clearAll` and a single chip's
+    // `onRemove` (via `activeFilterEntries(...).clear`), so the two can never
+    // drift on which fields a "clear" touches.
+    const applyFilterState = (next: FilterState) => {
+        setFacets(next.facets);
+        setSalaryMin(next.salaryMin);
+        setVisaOnly(next.visaOnly);
+        setPostedBucket(next.postedBucket);
+        setHideGhosts(next.hideGhosts);
         applyUrlState(
-            buildUrlState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined }),
+            buildUrlState({
+                facets: next.facets,
+                salaryMin: next.salaryMin,
+                visaOnly: next.visaOnly,
+                postedBucket: next.postedBucket,
+                hideGhosts: next.hideGhosts,
+            }),
             "replace",
         );
     };
 
-    const activeCount =
-        Object.values(facets).reduce((n, vs) => n + (vs?.length ?? 0), 0) +
-        (salaryMin > 0 ? 1 : 0) +
-        (visaOnly ? 1 : 0) +
-        (postedBucket ? 1 : 0);
+    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
 
-    const activeChips: { label: string; onRemove: () => void }[] = [];
-    for (const key of FACETABLE_KEYS) {
-        for (const v of facets[key] ?? []) {
-            activeChips.push({ label: facetValueLabel(key, v), onRemove: () => toggleFacet(key, v) });
-        }
-    }
-    if (salaryMin > 0) activeChips.push({ label: `≥ $${Math.round(salaryMin / 1000)}k`, onRemove: () => applySalaryMin(0) });
-    if (visaOnly) activeChips.push({ label: "Sponsors visas", onRemove: () => applyVisaOnly(false) });
-    if (postedBucket)
-        activeChips.push({ label: postedBucketLabel(postedBucket), onRemove: () => applyPostedBucket(undefined) });
+    const clearAll = () => {
+        applyFilterState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined, hideGhosts: true });
+    };
+
+    // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
+    // active" — the toolbar chips below, the count badges (mobile Filters
+    // button + rail's "Clear all (N)"), and Tasks 10-11's sheet/empty state
+    // all read from it so they can never disagree.
+    const activeEntries = activeFilterEntries(filterState);
+    const activeCount = activeEntries.length;
+    const activeChips = activeEntries.map((entry) => ({
+        label: entry.label,
+        onRemove: () => applyFilterState(entry.clear(filterState)),
+    }));
 
     // Open the in-place analysis slideout for a job. Tailoring is AI-backed
     // (login-gated), so prompt sign-in first and resume once authenticated.
@@ -1477,13 +1534,16 @@ function JobsContent() {
     const filterPanel = (
         <FilterPanel
             distribution={result?.facetDistribution}
-            state={{ facets, salaryMin, visaOnly, postedBucket }}
+            state={filterState}
             activeCount={activeCount}
             onToggleFacet={toggleFacet}
             onSalaryMin={applySalaryMin}
             onVisaOnly={applyVisaOnly}
             onPostedBucket={applyPostedBucket}
             onClearAll={clearAll}
+            hideGhosts={hideGhosts}
+            onHideGhosts={onHideGhosts}
+            ghostHiddenCount={ghostHiddenCount}
         />
     );
 
@@ -1579,7 +1639,7 @@ function JobsContent() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 xl:hidden"
+                    className="gap-1.5 lg:hidden"
                     onClick={() => setShowFiltersMobile((v) => !v)}
                 >
                     <Funnel size={14} /> Filters
@@ -1727,27 +1787,27 @@ function JobsContent() {
                     </Button>
                 </div>
             ) : (
-                <div className="relative grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
-                    {/* xl: visible filter/list/detail three-pane workspace. */}
+                <div className="relative grid h-full min-h-0 gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
+                    {/* lg+: visible filter/list/detail three-pane workspace (Task 7 — was xl). */}
                     <aside
                         role="region"
                         aria-label="Job filters"
-                        className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar xl:block"
+                        className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
                     >
                         {filterPanel}
                     </aside>
-                    {/* lg–xl: list/detail stay visible; Filters opens a bounded overlay. */}
+                    {/* <lg only: rail is hidden, so Filters opens a bounded overlay instead (Task 7 — was lg–xl). */}
                     {showFiltersMobile && (
                         <aside
                             role="region"
                             aria-label="Job filters"
-                            className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain rounded-xl bg-background shadow-lg custom-scrollbar lg:absolute lg:inset-y-0 lg:left-0 lg:z-20 lg:max-h-none lg:w-[230px] xl:hidden"
+                            className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain rounded-xl bg-background shadow-lg custom-scrollbar lg:hidden"
                         >
                             {filterPanel}
                         </aside>
                     )}
 
-                    {/* lg: two-pane list/detail workspace; xl adds the filter pane. */}
+                    {/* lg: two-pane list/detail workspace; lg also adds the filter pane (Task 7 — was xl). */}
                     <div className="flex min-h-0 flex-col">
                         {loading && hits.length === 0 ? (
                             <JobsListSplash />

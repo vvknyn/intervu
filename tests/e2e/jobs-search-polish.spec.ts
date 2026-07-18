@@ -177,7 +177,14 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(Math.abs(after[2] - paneMetrics[2].top)).toBeLessThanOrEqual(1);
     });
 
-    test('TC-JOBS-LAYOUT-002: lg has two panes and a bounded independently scrolling filter overlay', async ({ page }) => {
+    test('TC-JOBS-LAYOUT-002: lg (1024px) now shows the filter rail directly — no overlay needed', async ({ page }) => {
+        // Task 7 moved the filter-rail visibility threshold from xl (1280px) to
+        // lg (1024px), collapsing the old "lg: two panes + overlay, xl: three
+        // panes" split into one tier: lg+ is always three panes. This test used
+        // to assert the rail was ABSENT at 1024px and had to be opened via the
+        // "Filters" button/overlay — that tier no longer exists, so the
+        // assertions below invert to match (mirrors TC-JOBS-LAYOUT-001's
+        // three-pane shape, but pinned to the boundary width itself).
         await page.setViewportSize({ width: 1024, height: 768 });
         await enterBrowseMode(page);
 
@@ -186,16 +193,34 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify lg pane geometry');
         }
 
+        const filters = page.getByRole('region', { name: 'Job filters' });
         const detail = page.getByRole('region', { name: /Job details:/ });
+        await expect(filters).toBeVisible();
         await expect(results).toBeVisible();
         await expect(detail).toBeVisible();
-        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
+        // The mobile "Filters" toggle button is lg:hidden now too — it must not
+        // coexist with the always-visible rail.
+        await expect(page.getByRole('button', { name: /Filters/ })).toHaveCount(0);
 
         const documentMetrics = await page.evaluate(() => ({
             height: document.documentElement.scrollHeight,
             viewport: window.innerHeight,
         }));
         expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
+    });
+
+    test('TC-JOBS-LAYOUT-002B: below lg, Filters still opens a bounded independently scrolling overlay', async ({ page }) => {
+        // Coverage for the overlay mechanism itself (showFiltersMobile), whose
+        // trigger threshold Task 7 moved down to <1024px alongside the rail.
+        await page.setViewportSize({ width: 900, height: 768 });
+        await enterBrowseMode(page);
+
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        if ((await results.getByRole('option').count()) === 0) {
+            test.skip(true, 'No job rows — cannot verify sub-lg overlay geometry');
+        }
+        await expect(results).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
 
         await page.getByRole('button', { name: /Filters/ }).click();
         const filterOverlay = page.getByRole('region', { name: 'Job filters' });
@@ -206,10 +231,13 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         }));
         expect(overlayMetrics.overflowY).toBe('auto');
         expect(overlayMetrics.height).toBeGreaterThan(0);
-        expect(overlayMetrics.height).toBeLessThan(documentMetrics.viewport);
-        expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
-            documentMetrics.viewport + 2,
-        );
+        // Unlike TC-JOBS-LAYOUT-002 (>= lg), the page-level scroll containment
+        // (`lg:h-[...] lg:overflow-hidden` on PageLayout) doesn't apply below lg
+        // — a scrollable document is expected here. Only the overlay itself
+        // needs to be internally bounded/scrollable, which the assertions above
+        // already cover.
+        const viewportHeight = await page.evaluate(() => window.innerHeight);
+        expect(overlayMetrics.height).toBeLessThan(viewportHeight);
     });
 
     test('TC-JOBS-MOBILE-001: deliberate row tap opens bottom sheet detail', async ({ page }) => {
