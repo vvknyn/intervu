@@ -15,6 +15,19 @@ export interface JobsUrlState {
     jobId: string | null;
 }
 
+/**
+ * Strip `sort` back to unset. The shared URL-state transition for every
+ * place "ranked by résumé" must stop being claimed — the chip's own dismiss
+ * AND, symmetrically, Explore taking over the query (see `activateExplore`
+ * in `src/app/jobs/page.tsx`). Both call through this one function so the
+ * two directions can't drift apart (review fix, 2026-07-18: Explore used to
+ * leave `sort=fit` — and the chip + Select label with it — stuck in the URL
+ * after activating).
+ */
+export function withSortCleared(state: JobsUrlState): JobsUrlState {
+    return { ...state, sort: null };
+}
+
 export const DEFAULT_URL_STATE: JobsUrlState = {
     q: "",
     facets: {},

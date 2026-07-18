@@ -69,9 +69,11 @@ import {
     serializeJobsUrl,
     DEFAULT_URL_STATE,
     urlSortToMode,
+    withSortCleared,
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
+import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -604,6 +606,13 @@ function JobsContent() {
     // one; the backend sort stays whatever `resolveUrlSort` resolves it to
     // (relevance, via the résumé-derived query — see `applyFit`).
     const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
+    // Mirrors `fitActive` for read access from callbacks that can outlive the
+    // render that defined them (`maybeReplay`'s stable-identity closure) —
+    // same reason `resultRef`/`selectedIdRef` exist below. Used by
+    // `activateExplore` (review fix, 2026-07-18) so Explore reliably clears a
+    // stale fit claim even via the post-auth replay path.
+    const fitActiveRef = useRef(fitActive);
+    fitActiveRef.current = fitActive;
     const [showFiltersMobile, setShowFiltersMobile] = useState(false);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
@@ -1211,6 +1220,21 @@ function JobsContent() {
     // same invariant as `pendingRef`: only the latest intent survives.
     const resumeActionAfterImportRef = useRef<"fit" | "explore" | null>(null);
 
+    // Guards `handleRankByFit`'s async résumé fetch against being superseded
+    // by a LATER sort choice (fit again, or any other sort option) made
+    // while the fetch is still in flight — see lib/jobs/fit-intent.ts.
+    // Instantiated once, mirroring the `paginationRef` idiom below.
+    // (review fix, 2026-07-18)
+    const fitIntentRef = useRef<FitIntentGuard | null>(null);
+    if (!fitIntentRef.current) fitIntentRef.current = new FitIntentGuard();
+
+    // Closes the gap between a click and `exploring` actually flipping true
+    // (that state only flips inside `runExplore`, well after
+    // `resolveUsableResume()`'s await resolves) — without this, a rapid
+    // double-click on the Explore button could fire `enterExplore` twice and
+    // double-spend a credit. (review fix, 2026-07-18)
+    const exploreInFlightRef = useRef(false);
+
     // Cancel ANY action queued for after sign-in (apply / tailor / upload /
     // explore) so a later, unrelated login can't hijack the user into it — or
     // silently spend an Explore credit / write a phantom application they didn't
@@ -1258,7 +1282,28 @@ function JobsContent() {
     // ordinary, independently-editable search state.
     const clearFit = () => {
         setFitActive(false);
-        applyUrlState({ ...buildUrlState(), sort: null }, "replace");
+        applyUrlState(withSortCleared(buildUrlState()), "replace");
+    };
+
+    // Shared "explore results are now showing" step for both the AI-suggested
+    // path and the skill-based broaden fallback in `runExplore` below. Also
+    // clears any stale "ranked by résumé" framing — chip, Select label, and
+    // `sort=fit` in the URL — since Explore's query no longer reflects the
+    // fit pipeline once this runs. Mirrors `applyFit`'s own cross-clear of
+    // `exploreTitles` in the opposite direction. Reads `fitActiveRef` (not
+    // the `fitActive` closure) so this stays correct even invoked through
+    // `maybeReplay`'s stable, first-render-captured `runExplore` reference.
+    // (review fix, 2026-07-18 — Explore used to leave the fit chip/Select
+    // label/URL sort stuck after activating.)
+    const activateExplore = (q: string, titles: string[]) => {
+        setExploreTitles(titles);
+        setFacets({});
+        setQuery(q);
+        setMode("explore");
+        if (fitActiveRef.current) {
+            setFitActive(false);
+            applyUrlState(withSortCleared(buildUrlState()), "replace");
+        }
     };
 
     // Explore: ask the model for adjacent titles (1 credit). On auth →
@@ -1299,10 +1344,7 @@ function JobsContent() {
                     toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
                     return;
                 }
-                setExploreTitles([]);
-                setFacets({});
-                setQuery(q);
-                setMode("explore");
+                activateExplore(q, []);
                 toast.info(
                     classifySentinel(res.error) === "credits"
                         ? "Out of AI credits — showing skill-based matches instead."
@@ -1312,10 +1354,7 @@ function JobsContent() {
             }
             const titles = res.titles ?? [];
             const q = titles.join(" ");
-            setExploreTitles(titles);
-            setFacets({});
-            setQuery(q);
-            setMode("explore");
+            activateExplore(q, titles);
         } finally {
             setExploring(false);
         }
@@ -1327,8 +1366,18 @@ function JobsContent() {
     // (see `handleImport`'s `resumeActionAfterImportRef` check). The ref is
     // set AFTER `handleUploadClick()` runs, not before — that call's own
     // `clearPendingGate()` would otherwise wipe it immediately.
+    //
+    // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
+    // round-trip, and the Select's `onValueChange` bumps the SAME guard for
+    // every sort choice (fit or otherwise, see the toolbar JSX below), so a
+    // user who picks a different sort — or clicks "Rank by fit" again —
+    // before this resolves gets their newer choice honored instead of a
+    // stale, late-arriving fit application clobbering it. (review fix,
+    // 2026-07-18)
     const handleRankByFit = async () => {
+        const token = fitIntentRef.current!.begin();
         const r = await resolveUsableResume();
+        if (!fitIntentRef.current!.isCurrent(token)) return;
         if (r) {
             applyFit(r);
             return;
@@ -1339,15 +1388,25 @@ function JobsContent() {
 
     // Compact Explore button beside the search input. Same on-demand résumé
     // resolution as fit; the actual gating (auth/credits) is `enterExplore`/
-    // `runExplore`, reused verbatim and unmodified.
+    // `runExplore`, reused verbatim and unmodified. `exploreInFlightRef`
+    // closes the click-to-`exploring`-state gap so a rapid double-click can't
+    // fire `enterExplore` (and its 1-credit spend) twice before the button's
+    // own `disabled={exploring}` has a chance to engage. (review fix,
+    // 2026-07-18)
     const handleExploreClick = async () => {
-        const r = await resolveUsableResume();
-        if (r) {
-            await enterExplore(r);
-            return;
+        if (exploreInFlightRef.current) return;
+        exploreInFlightRef.current = true;
+        try {
+            const r = await resolveUsableResume();
+            if (r) {
+                await enterExplore(r);
+                return;
+            }
+            handleUploadClick();
+            resumeActionAfterImportRef.current = "explore";
+        } finally {
+            exploreInFlightRef.current = false;
         }
-        handleUploadClick();
-        resumeActionAfterImportRef.current = "explore";
     };
 
     const enterBrowse = () => {
@@ -1356,14 +1415,6 @@ function JobsContent() {
         setFacets({});
         setQuery("");
         setMode("browse");
-    };
-
-    const handleSearchOnly = () => {
-        clearPendingGate();
-        setExploreTitles([]);
-        setFacets({});
-        setQuery("");
-        setMode("search");
     };
 
     const handleUploadClick = () => {
@@ -1558,6 +1609,10 @@ function JobsContent() {
                                 void handleRankByFit();
                                 return;
                             }
+                            // Any OTHER sort choice also supersedes an
+                            // in-flight `handleRankByFit` résumé fetch, not
+                            // just re-picking fit — see fit-intent.ts.
+                            fitIntentRef.current!.begin();
                             const nextMode = v as JobSortMode;
                             setFitActive(false);
                             setSortOverride(nextMode);
