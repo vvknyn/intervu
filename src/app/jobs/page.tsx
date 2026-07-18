@@ -36,8 +36,14 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { searchJobsAction, markJobAppliedAction, suggestAdjacentRolesAction } from "@/actions/jobs";
-import { saveResumeData } from "@/actions/resume";
+import {
+    searchJobsAction,
+    markJobAppliedAction,
+    suggestAdjacentRolesAction,
+    getJobsFreshnessAction,
+} from "@/actions/jobs";
+import { fetchResumeData, saveResumeData } from "@/actions/resume";
+import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { FilterPanel, facetValueLabel, postedBucketLabel } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -136,15 +142,22 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
 }
 
 /**
- * `sort=fit` isn't real yet (the résumé-rank pipeline lands in Task 6) — resolve
- * it to relevance. This is the ONE call site for `urlSortToMode`, so Task 6
- * swaps this single branch for the real fit pipeline instead of hunting for
- * every place sort gets read off the URL.
+ * Resolve the URL's `sort` to the backend `JobSortMode` this page sends to
+ * `searchJobsAction`. `fit` isn't a backend sort mode — "ranked by résumé"
+ * is achieved by putting the résumé-derived text into `query` (see
+ * `applyFit`) and letting relevance ranking do the work, exactly like the
+ * old Match mode did. So `fit` resolves to `null` here (no override), and
+ * `resolveEffectiveSort` naturally lands on "relevance" once that query is
+ * non-empty. Whether "ranked by résumé" is ACTIVE (for the Select label +
+ * dismissible chip) is tracked separately by the `fitActive` state, derived
+ * straight from the raw URL value — see its declaration below. This is the
+ * ONE call site for `urlSortToMode`, so this is the only place sort=fit
+ * needs handling.
  */
 function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
     if (!s) return null;
     const mode = urlSortToMode(s);
-    return mode === "fit" ? "relevance" : mode;
+    return mode === "fit" ? null : mode;
 }
 
 function locationText(j: PublicJob): string {
@@ -496,11 +509,13 @@ function JobsListSplash() {
  * Results-view mode for /jobs. Jobs render on first paint for everyone —
  * there is no entry gate — so `mode` only ever tracks which results view is
  * active; it always starts at `"browse"`. `search` is special — it shows a
- * prompt and only fetches once a query is typed. Match/Explore are triggered
- * from resume-driven actions (see `enterMatch` / `enterExplore` below); their
- * UI trigger point is being re-homed onto the results view in a later task.
+ * prompt and only fetches once a query is typed. `explore` is triggered by
+ * the compact Explore button beside the search input (see `enterExplore`
+ * below). The old Match mode is gone: "Rank by fit" is no longer a
+ * page-wide mode, it's a sort choice — `buildMatchQuery`'s pipeline is
+ * re-homed onto `sort=fit` + a dismissible chip (see `applyFit`).
  */
-type Mode = "match" | "explore" | "search" | "browse";
+type Mode = "explore" | "search" | "browse";
 
 /** A resume is "usable" for matching if it has a profession or at least one skill. */
 function resumeIsUsable(d: ResumeData | undefined): boolean {
@@ -510,7 +525,6 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
 }
 
 const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {
-    match: { label: "Matched to your resume", Icon: Target },
     explore: { label: "Exploring adjacent roles", Icon: Compass },
     search: { label: "Search", Icon: MagnifyingGlass },
     browse: { label: "Browsing all live roles", Icon: Briefcase },
@@ -585,6 +599,11 @@ function JobsContent() {
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/activeChips/clearAll. See `resolveUrlSort` for the sort=fit handling.
     const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
+    // "Ranked by your résumé" — mirrors `sort=fit` in the URL. Kept separate
+    // from `sortOverride` (a real backend `JobSortMode`) because "fit" isn't
+    // one; the backend sort stays whatever `resolveUrlSort` resolves it to
+    // (relevance, via the résumé-derived query — see `applyFit`).
+    const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
     const [showFiltersMobile, setShowFiltersMobile] = useState(false);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
@@ -602,7 +621,10 @@ function JobsContent() {
         visaOnly,
         postedBucket,
         hideGhosts,
-        sort: sortOverride ? modeToUrlSort(sortOverride) : null,
+        // `fitActive` wins the default so `sort=fit` survives unrelated
+        // mutations (a facet toggle, a job open) that rebuild the URL via
+        // `buildUrlState({...})` without an explicit `sort` override.
+        sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
         jobId: searchParams.get("job"),
         ...overrides,
     });
@@ -624,6 +646,34 @@ function JobsContent() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
+
+    // Live corpus size for the search placeholder ("Search 12,345 live-checked
+    // roles…") and Task 8's upsell copy. Captured opportunistically from the
+    // FIRST all-defaults search response (never a dedicated count request) —
+    // `corpusTotalCapturedRef` makes that one-shot regardless of effect
+    // re-runs. A deep link that already carries filters on first load never
+    // fills this in; the placeholder just stays generic.
+    const [corpusTotal, setCorpusTotal] = useState<number | null>(null);
+    const corpusTotalCapturedRef = useRef(false);
+
+    // Corpus freshness stamp ("updated 3h ago"). Fetched once on mount.
+    // `undefined` = not resolved yet (render nothing); `null` = resolved but
+    // the backend has no known sync time (render "freshness unknown" — never
+    // a fabricated time).
+    const [lastUpdated, setLastUpdated] = useState<string | null | undefined>(undefined);
+    useEffect(() => {
+        let cancelled = false;
+        getJobsFreshnessAction()
+            .then((iso) => {
+                if (!cancelled) setLastUpdated(iso);
+            })
+            .catch(() => {
+                if (!cancelled) setLastUpdated(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Effective sort: shared resolver normalizes relevance-without-query to newest.
     const effectiveSort: JobSortMode = resolveEffectiveSort({
@@ -743,6 +793,13 @@ function JobsContent() {
                 }
                 firstPageSucceeded = true;
                 setResult(r);
+                // `searchKey === ""` is exactly the all-defaults JobsUrlState
+                // (ignoring jobId) — the same subset it's built from. One-shot
+                // via the ref so this never fires again once captured.
+                if (!corpusTotalCapturedRef.current && searchKey === "") {
+                    corpusTotalCapturedRef.current = true;
+                    setCorpusTotal(r.total);
+                }
                 const selection = resolveSelectionAfterRefresh(selectedIdRef.current, r.hits);
                 setSelectedId(selection.selectedId);
                 if (!selection.preserveDeliberateDetail) {
@@ -846,6 +903,7 @@ function JobsContent() {
             setPostedBucket(parsed.postedBucket);
             setHideGhosts(parsed.hideGhosts);
             setSortOverride(resolveUrlSort(parsed.sort));
+            setFitActive(parsed.sort === "fit");
         }
 
         // Selected job stays derived from the URL's `job` param — the
@@ -1146,6 +1204,13 @@ function JobsContent() {
         }
     }, []);
 
+    // Which résumé-driven action (if any) should auto-run the moment the
+    // résumé importer completes — set right before `handleUploadClick()` by
+    // `handleRankByFit`/`handleExploreClick`'s no-usable-résumé fallback.
+    // `clearPendingGate` (below) resets it on every alternate path/dismiss,
+    // same invariant as `pendingRef`: only the latest intent survives.
+    const resumeActionAfterImportRef = useRef<"fit" | "explore" | null>(null);
+
     // Cancel ANY action queued for after sign-in (apply / tailor / upload /
     // explore) so a later, unrelated login can't hijack the user into it — or
     // silently spend an Explore credit / write a phantom application they didn't
@@ -1154,16 +1219,46 @@ function JobsContent() {
     // unified + apply/tailor leak closed, 2026-06-08)
     const clearPendingGate = () => {
         pendingRef.current = clearPending(pendingRef.current);
+        resumeActionAfterImportRef.current = null;
     };
 
-    // Match: derive query + seniority facet from the resume. Free, instant.
-    const enterMatch = (r: ResumeData) => {
-        clearPendingGate();
+    // A usable résumé for a résumé-driven action (fit or explore), fetched on
+    // demand. Task 4 removed the mount-time auto-fetch, so `resume` local
+    // state can still be empty for a returning user with one saved — check it
+    // first (fast path, no network round-trip), else ask the server. Mirrors
+    // `resumeIsUsable`'s bar exactly.
+    const resolveUsableResume = async (): Promise<ResumeData | null> => {
+        if (resume && resumeIsUsable(resume)) return resume;
+        const { data } = await fetchResumeData();
+        if (data && resumeIsUsable(data)) {
+            setResume(data);
+            return data;
+        }
+        return null;
+    };
+
+    // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
+    // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
+    // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
+    // `resolveUrlSort` above for why the backend sort stays relevance, not a
+    // literal "fit" value.
+    const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
         setExploreTitles([]);
+        setMode("browse");
         setFacets(f);
         setQuery(q);
-        setMode("match");
+        setSortOverride(null);
+        setFitActive(true);
+        applyUrlState(buildUrlState({ q, facets: f, sort: "fit" }), "replace");
+    };
+
+    // Dismiss the "Ranked by your résumé" chip — per controller resolution
+    // #1, only clears the sort; the résumé-derived query/facets stay as
+    // ordinary, independently-editable search state.
+    const clearFit = () => {
+        setFitActive(false);
+        applyUrlState({ ...buildUrlState(), sort: null }, "replace");
     };
 
     // Explore: ask the model for adjacent titles (1 credit). On auth →
@@ -1201,7 +1296,7 @@ function JobsContent() {
                 }
                 const { q } = buildExploreBroadenQuery(r);
                 if (!q) {
-                    toast.error("Couldn't build an explore view — try Match or search instead.");
+                    toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
                     return;
                 }
                 setExploreTitles([]);
@@ -1224,6 +1319,35 @@ function JobsContent() {
         } finally {
             setExploring(false);
         }
+    };
+
+    // Sort menu → "Rank by fit" click. A résumé already on hand applies
+    // immediately; otherwise queue the résumé importer (via the existing
+    // `handleUploadClick` upload-gate) and apply fit the moment it completes
+    // (see `handleImport`'s `resumeActionAfterImportRef` check). The ref is
+    // set AFTER `handleUploadClick()` runs, not before — that call's own
+    // `clearPendingGate()` would otherwise wipe it immediately.
+    const handleRankByFit = async () => {
+        const r = await resolveUsableResume();
+        if (r) {
+            applyFit(r);
+            return;
+        }
+        handleUploadClick();
+        resumeActionAfterImportRef.current = "fit";
+    };
+
+    // Compact Explore button beside the search input. Same on-demand résumé
+    // resolution as fit; the actual gating (auth/credits) is `enterExplore`/
+    // `runExplore`, reused verbatim and unmodified.
+    const handleExploreClick = async () => {
+        const r = await resolveUsableResume();
+        if (r) {
+            await enterExplore(r);
+            return;
+        }
+        handleUploadClick();
+        resumeActionAfterImportRef.current = "explore";
     };
 
     const enterBrowse = () => {
@@ -1257,6 +1381,12 @@ function JobsContent() {
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
+        // Rank-by-fit / Explore queued this import because no usable résumé
+        // was on hand yet — finish what they asked for now that one exists.
+        const queuedAction = resumeActionAfterImportRef.current;
+        resumeActionAfterImportRef.current = null;
+        if (queuedAction === "fit") applyFit(data);
+        else if (queuedAction === "explore") void enterExplore(data);
     };
 
     const startOver = () => {
@@ -1314,23 +1444,45 @@ function JobsContent() {
                     <ModeBar mode={mode} onStartOver={startOver} />
                 </div>
                 <div className="flex min-h-0 flex-col lg:flex-1">
-            {/* Search */}
-            <div className="relative mb-3.5 shrink-0">
-                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                <Input
-                    value={query}
-                    onChange={(e) => {
-                        const v = e.target.value;
-                        setQuery(v);
-                        // Continuous input is filter-like — `replace`, not `push` (a
-                        // "push" per keystroke would make the back button undo one
-                        // character at a time). There's no discrete submit affordance
-                        // yet (Task 9 — Typeahead); this is the interim, spam-free choice.
-                        applyUrlState(buildUrlState({ q: v }), "replace");
-                    }}
-                    placeholder="Search role, company, or skill…"
-                    className="h-11 bg-card pl-10"
-                />
+            {/* Search + Explore */}
+            <div className="mb-3.5 flex shrink-0 items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                    <Input
+                        value={query}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            setQuery(v);
+                            // Continuous input is filter-like — `replace`, not `push` (a
+                            // "push" per keystroke would make the back button undo one
+                            // character at a time). There's no discrete submit affordance
+                            // yet (Task 9 — Typeahead); this is the interim, spam-free choice.
+                            applyUrlState(buildUrlState({ q: v }), "replace");
+                        }}
+                        placeholder={
+                            corpusTotal != null
+                                ? `Search ${corpusTotal.toLocaleString()} live-checked roles…`
+                                : "Search live-checked roles…"
+                        }
+                        className="h-11 bg-card pl-10"
+                    />
+                </div>
+                {/* Re-homed from the old entry-gate's "Explore adjacent roles" choice.
+                    Credit/auth gating (enterExplore/runExplore) is reused verbatim. */}
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 gap-1.5"
+                    disabled={exploring}
+                    onClick={() => void handleExploreClick()}
+                >
+                    {exploring ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                    ) : (
+                        <Compass size={16} />
+                    )}
+                    Explore
+                </Button>
             </div>
 
             {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
@@ -1388,12 +1540,26 @@ function JobsContent() {
                         Clear all
                     </button>
                 )}
+                {fitActive && (
+                    <button
+                        onClick={clearFit}
+                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
+                    >
+                        Ranked by your résumé
+                        <X size={12} />
+                    </button>
+                )}
                 <span className="flex-1" />
                 {result?.configured && (
                     <Select
-                        value={effectiveSort}
+                        value={fitActive ? "fit" : effectiveSort}
                         onValueChange={(v) => {
+                            if (v === "fit") {
+                                void handleRankByFit();
+                                return;
+                            }
                             const nextMode = v as JobSortMode;
+                            setFitActive(false);
                             setSortOverride(nextMode);
                             applyUrlState(buildUrlState({ sort: modeToUrlSort(nextMode) }), "replace");
                         }}
@@ -1404,7 +1570,7 @@ function JobsContent() {
                             aria-label="Sort results"
                         >
                             <span className="text-muted-foreground">Sort:</span>
-                            <SelectValue>{sortModeLabel(effectiveSort, hasQuery)}</SelectValue>
+                            <SelectValue>{fitActive ? "Rank by fit" : sortModeLabel(effectiveSort, hasQuery)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent align="end">
                             <SelectItem value="relevance" disabled={!hasQuery}>
@@ -1412,6 +1578,7 @@ function JobsContent() {
                             </SelectItem>
                             <SelectItem value="newest">Date posted</SelectItem>
                             <SelectItem value="salary_desc">Salary high to low</SelectItem>
+                            <SelectItem value="fit">Rank by fit</SelectItem>
                         </SelectContent>
                     </Select>
                 )}
@@ -1424,7 +1591,16 @@ function JobsContent() {
                 {!loading && result?.configured && (
                     <span className="text-[13px] text-muted-foreground">
                         {result.total.toLocaleString()} {result.total === 1 ? "role" : "roles"}
-                        {sortCountSuffix(effectiveSort, hasQuery)}
+                        {fitActive ? " · ranked by fit" : sortCountSuffix(effectiveSort, hasQuery)}
+                    </span>
+                )}
+                {lastUpdated !== undefined && (
+                    <span
+                        className="text-xs tabular-nums text-muted-foreground data-[stale=true]:text-amber-600 dark:data-[stale=true]:text-amber-400"
+                        data-stale={isStale(lastUpdated, Date.now())}
+                        title={lastUpdated ?? "freshness unknown"}
+                    >
+                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, Date.now())}` : "freshness unknown"}
                     </span>
                 )}
             </div>

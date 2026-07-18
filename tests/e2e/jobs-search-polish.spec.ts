@@ -65,7 +65,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'Backend unconfigured — sort control absent');
         }
 
-        const searchInput = page.getByPlaceholder(/Search role/i);
+        const searchInput = page.getByPlaceholder(/live-checked roles/i);
         await searchInput.fill('engineer');
         await expect(sortTrigger).toBeVisible({ timeout: 15000 });
 
@@ -87,7 +87,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify background refresh feedback');
         }
 
-        await page.getByPlaceholder(/Search role/i).fill('engineer');
+        await page.getByPlaceholder(/live-checked roles/i).fill('engineer');
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
         await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
@@ -238,7 +238,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
         // Schedule a zero-result refresh, then deliberately open a still-visible
         // result during the debounce window.
-        await page.getByPlaceholder(/Search role/i).fill('zzqxvbnmnevermatches');
+        await page.getByPlaceholder(/live-checked roles/i).fill('zzqxvbnmnevermatches');
         await options.first().click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });

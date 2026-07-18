@@ -152,4 +152,37 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page).not.toHaveURL(/job=/);
         await expect(page.getByTestId("active-filter-chip")).toHaveCount(0);
     });
+
+    /**
+     * TASK 6 — Trust toolbar: corpus-count placeholder, freshness stamp, fit sort.
+     */
+    test("placeholder carries the live corpus count", async ({ page }) => {
+        await page.goto("/jobs");
+        // Captured off the first real search response (250ms debounce + a live
+        // Meilisearch round-trip, never a dedicated count request — see
+        // controller resolution #2), so a synchronous `getAttribute()` right
+        // after `goto()` races it. Poll instead, matching this file's own
+        // 10s allowance for other real-backend assertions above.
+        await expect
+            .poll(() => page.getByRole("textbox").first().getAttribute("placeholder"), { timeout: 10_000 })
+            .toMatch(/Search [\d,]+ live-checked roles/);
+    });
+
+    test("freshness stamp renders relative age", async ({ page }) => {
+        await page.goto("/jobs");
+        // `formatRelativeAge` (Task 3, locked — see its own unit test) formats
+        // "6 min ago" WITH a space before the unit but "2h ago"/"3d ago"
+        // WITHOUT one. `\s?` (not a mandatory literal space) covers both.
+        await expect(page.getByText(/updated (just now|\d+\s?(min|h|d)?\s?ago)/i)).toBeVisible();
+    });
+
+    // Resolution #4: the sort control's accessible name is "Sort results"
+    // (SelectTrigger's aria-label at page.tsx) — not the visible text "Sort:",
+    // which jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002 already target
+    // via `getByRole('combobox', { name: /Sort results/i })`. Mirrored here.
+    test("sort menu offers Rank by fit", async ({ page }) => {
+        await page.goto("/jobs");
+        await page.getByRole("combobox", { name: /Sort results/i }).click();
+        await expect(page.getByText("Rank by fit", { exact: false })).toBeVisible();
+    });
 });
