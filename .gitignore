@@ -53,3 +53,6 @@ playwright/.cache/
 
 # supabase temp files
 supabase/.temp/
+
+# Brainstorming visual companion sessions
+.superpowers/
