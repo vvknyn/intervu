@@ -77,7 +77,7 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
  * fallback used when the live index doesn't have the field yet (see
  * `searchMeili`'s 400-retry). Remove the `legacy` param once the reindex lands.
  */
-function buildFilter(p: JobSearchParams, legacy = false): string[] {
+export function buildFilter(p: JobSearchParams, legacy = false): string[] {
   const f: string[] = ['vacancy_status != "closed"'];
   const facets = p.facets ?? {};
   for (const key of FACETABLE_KEYS) {
@@ -90,6 +90,7 @@ function buildFilter(p: JobSearchParams, legacy = false): string[] {
     f.push(`(salary_max >= ${p.salaryMin} OR salary_min >= ${p.salaryMin})`);
   }
   if (p.visaOnly) f.push("visa_sponsorship = true");
+  if (p.hideGhosts) f.push('ghost_badge != "likely_ghost"');
   if (p.postedBucket && !legacy) {
     const now = Date.now();
     if (p.postedBucket === "older") {

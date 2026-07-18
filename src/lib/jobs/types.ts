@@ -93,6 +93,8 @@ export interface JobSearchParams {
   salaryMin?: number;
   /** Only jobs that sponsor visas. */
   visaOnly?: boolean;
+  /** When true, exclude jobs scored likely_ghost. The first-screen default. */
+  hideGhosts?: boolean;
   /** Explicit sort override; see `JobSortMode`. */
   sort?: JobSortMode;
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
