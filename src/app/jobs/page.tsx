@@ -70,6 +70,7 @@ import {
     DEFAULT_URL_STATE,
     urlSortToMode,
     withSortCleared,
+    composeExploreActivationUrlState,
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
@@ -1295,6 +1296,19 @@ function JobsContent() {
     // `maybeReplay`'s stable, first-render-captured `runExplore` reference.
     // (review fix, 2026-07-18 — Explore used to leave the fit chip/Select
     // label/URL sort stuck after activating.)
+    //
+    // The URL write goes through `composeExploreActivationUrlState` (pure,
+    // unit-tested in lib/jobs/url-state.ts), not a bare `buildUrlState()` —
+    // `setQuery`/`setFacets` just above are async state setters, so
+    // `buildUrlState()` alone would still read this render's pre-explore
+    // closure (the STALE résumé q/facets), not the values just set.
+    // `composeExploreActivationUrlState` sidesteps that by construction: it
+    // always OVERWRITES q/facets/sort in its own body from the `exploreQuery`
+    // argument, regardless of what the snapshot it's given contains for
+    // those fields — so it can't reproduce this bug even if a future caller
+    // forgets to pass overrides into `buildUrlState()` itself. (2nd review
+    // fix, 2026-07-18 — the first pass fixed WHERE fit gets cleared but not
+    // this staleness.)
     const activateExplore = (q: string, titles: string[]) => {
         setExploreTitles(titles);
         setFacets({});
@@ -1302,7 +1316,7 @@ function JobsContent() {
         setMode("explore");
         if (fitActiveRef.current) {
             setFitActive(false);
-            applyUrlState(withSortCleared(buildUrlState()), "replace");
+            applyUrlState(composeExploreActivationUrlState(buildUrlState(), q), "replace");
         }
     };
 

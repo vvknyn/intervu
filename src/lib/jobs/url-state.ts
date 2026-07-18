@@ -28,6 +28,25 @@ export function withSortCleared(state: JobsUrlState): JobsUrlState {
     return { ...state, sort: null };
 }
 
+/**
+ * The URL-state Explore activation writes when it takes over the query (see
+ * `activateExplore` in `src/app/jobs/page.tsx`) — replaces `q` with the new
+ * Explore query, clears `facets` (Explore's own query already encodes
+ * intent, exactly like the fit pipeline's `q` did before it), and strips
+ * `sort` so a stale "ranked by résumé" claim can't survive alongside it.
+ *
+ * Takes `prior` (a full snapshot, e.g. from `buildUrlState()`) and the new
+ * `exploreQuery` as SEPARATE arguments and unconditionally overwrites
+ * `q`/`facets`/`sort` in its own body — never reads `prior.q`/`prior.facets`
+ * for the result — so it cannot reproduce the staleness bug this was
+ * extracted to fix (review fix, 2026-07-18): a caller can pass ANY prior
+ * snapshot, stale or not, for the fields it doesn't touch (salaryMin,
+ * visaOnly, postedBucket, hideGhosts, jobId) and still get a correct result.
+ */
+export function composeExploreActivationUrlState(prior: JobsUrlState, exploreQuery: string): JobsUrlState {
+    return { ...prior, q: exploreQuery, facets: {}, sort: null };
+}
+
 export const DEFAULT_URL_STATE: JobsUrlState = {
     q: "",
     facets: {},
