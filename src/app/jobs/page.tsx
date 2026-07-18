@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
     MagnifyingGlass,
     Funnel,
@@ -58,6 +58,14 @@ import {
     type PostedBucket,
     type PublicJob,
 } from "@/lib/jobs/types";
+import {
+    parseJobsUrl,
+    serializeJobsUrl,
+    DEFAULT_URL_STATE,
+    urlSortToMode,
+    type JobsUrlState,
+    type UrlSort,
+} from "@/lib/jobs/url-state";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -120,6 +128,23 @@ function decodeText(s: string | null | undefined): string {
 /** Company names sometimes carry a leading req/location code (e.g. "USA102 Acme Inc"). Strip it. */
 function cleanCompany(s: string | null | undefined): string {
     return decodeText(s).replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
+}
+
+/** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
+function modeToUrlSort(mode: JobSortMode): UrlSort {
+    return mode === "salary_desc" ? "salary" : mode;
+}
+
+/**
+ * `sort=fit` isn't real yet (the résumé-rank pipeline lands in Task 6) — resolve
+ * it to relevance. This is the ONE call site for `urlSortToMode`, so Task 6
+ * swaps this single branch for the real fit pipeline instead of hunting for
+ * every place sort gets read off the URL.
+ */
+function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
+    if (!s) return null;
+    const mode = urlSortToMode(s);
+    return mode === "fit" ? "relevance" : mode;
 }
 
 function locationText(j: PublicJob): string {
@@ -208,6 +233,7 @@ function JobRow({
             aria-selected={active}
             aria-label={`View ${accessibleName}`}
             data-job-row
+            data-testid="job-row"
             onClick={onClick}
             className={cn(
                 "block w-full rounded-xl border p-4 text-left transition-all",
@@ -535,20 +561,59 @@ function SearchPrompt({ onBrowseAll }: { onBrowseAll: () => void }) {
 
 function JobsContent() {
     const router = useRouter();
-    const [query, setQuery] = useState("");
-    const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>({});
-    const [salaryMin, setSalaryMin] = useState(0);
-    const [visaOnly, setVisaOnly] = useState(false);
-    const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(undefined);
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    // Parsed once from the URL present at mount, to seed the state hooks below.
+    // The URL stays authoritative afterwards: every mutation routes back out
+    // through `applyUrlState` (replace for filters/sort/ghost, push for
+    // opening a job) so state and URL never drift. Only `job` selection stays
+    // reactively re-derived from `searchParams` post-mount (see the effect
+    // near `selected`, below) — everything else is one-way (state → URL).
+    const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const [query, setQuery] = useState(initialUrlState.q);
+    const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>(initialUrlState.facets);
+    const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
+    const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
+    const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(initialUrlState.postedBucket);
+    // First-screen default: exclude likely_ghost from results. `ghosts=show` in
+    // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
+    const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
-    // activeCount/activeChips/clearAll.
-    const [sortOverride, setSortOverride] = useState<JobSortMode | null>(null);
+    // activeCount/activeChips/clearAll. See `resolveUrlSort` for the sort=fit handling.
+    const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
     const [showFiltersMobile, setShowFiltersMobile] = useState(false);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     const userPickedDetailRef = useRef(false);
+
+    // Assembles the full URL-state object from current component state, with
+    // `overrides` layered on top for the field(s) actually changing at the
+    // call site. `jobId` defaults to whatever the URL currently holds, so a
+    // filter/sort/ghost `replace` never accidentally drops an open job.
+    const buildUrlState = (overrides: Partial<JobsUrlState> = {}): JobsUrlState => ({
+        q: query,
+        facets,
+        salaryMin,
+        visaOnly,
+        postedBucket,
+        hideGhosts,
+        sort: sortOverride ? modeToUrlSort(sortOverride) : null,
+        jobId: searchParams.get("job"),
+        ...overrides,
+    });
+
+    // The single navigation contract Tasks 6-11 build on. `replace` for
+    // filter/sort/ghost changes (no history spam); `push` for a search submit
+    // or opening a job (back-button-correct).
+    const applyUrlState = (next: JobsUrlState, history: "replace" | "push") => {
+        const target = `${pathname}${serializeJobsUrl(next)}`;
+        if (history === "push") router.push(target, { scroll: false });
+        else router.replace(target, { scroll: false });
+    };
 
     const [result, setResult] = useState<JobSearchResult | null>(null);
     const resultRef = useRef<JobSearchResult | null>(null);
@@ -607,6 +672,28 @@ function JobsContent() {
         return () => unsub();
     }, []);
 
+    // Refetch rule: only the search-affecting subset should trigger a fetch.
+    // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
+    // only URL change) can never appear in this key — the fetch effect below
+    // depends on `searchKey` instead of the individual fields, which is what
+    // keeps a job-only change from ever re-running the search or resetting
+    // list scroll. The serialized form is the single comparison Task 6+
+    // extends when new search-affecting fields (e.g. resume-driven fit) land.
+    const searchKey = useMemo(
+        () =>
+            serializeJobsUrl({
+                q: query,
+                facets,
+                salaryMin,
+                visaOnly,
+                postedBucket,
+                hideGhosts,
+                sort: sortOverride ? modeToUrlSort(sortOverride) : null,
+                jobId: null,
+            }),
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride],
+    );
+
     // Debounced search on query / facet / salary / visa changes. In `search`
     // mode we wait for a non-empty query (empty → the SearchPrompt, no fetch).
     useEffect(() => {
@@ -639,6 +726,7 @@ function JobsContent() {
                     salaryMin: salaryMin || undefined,
                     visaOnly: visaOnly || undefined,
                     postedBucket,
+                    hideGhosts,
                     sort: sortOverride ?? undefined,
                     withFacets: true,
                     limit: PAGE,
@@ -681,28 +769,70 @@ function JobsContent() {
             cancelled = true;
             clearTimeout(t);
         };
-    }, [query, facets, salaryMin, visaOnly, postedBucket, sortOverride, mode, searchRetry]);
+        // `searchKey` is a faithful serialization of query/facets/salaryMin/
+        // visaOnly/postedBucket/hideGhosts/sortOverride — see its definition
+        // above — so listing it alone (plus mode/searchRetry) satisfies the
+        // refetch rule without duplicating every field in this array.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchKey, mode, searchRetry]);
 
     // Relevance is meaningless without a query — drop the override rather than send it.
     useEffect(() => {
-        if (!hasQuery && sortOverride === "relevance") setSortOverride(null);
+        if (!hasQuery && sortOverride === "relevance") {
+            setSortOverride(null);
+            applyUrlState(buildUrlState({ sort: null }), "replace");
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasQuery, sortOverride]);
 
-    const selectJob = useCallback((id: string, deliberate = false) => {
+    // Keyboard-only highlight (ArrowUp/ArrowDown in the results list).
+    // Deliberately local-only: it must not touch the URL (no history spam)
+    // or reopen the mobile sheet. A deliberate open goes through `openJob` →
+    // `applyUrlState` push instead.
+    const selectJob = useCallback((id: string) => {
         setSelectedId(id);
-        if (deliberate) {
+    }, []);
+
+    // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
+    // work (picked back up by the URL-derived-selection effect below).
+    const openJob = (id: string) => {
+        applyUrlState(buildUrlState({ jobId: id }), "push");
+    };
+
+    const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
+
+    // Selected job is derived from the URL's `job` param — the reactive
+    // source of truth. Row click pushes it (`openJob`); this effect picks it
+    // back up on mount (deep link), on browser back/forward (popstate needs
+    // no bespoke handling — Next's router already updates `searchParams`),
+    // and closes the mobile sheet when `job` disappears (detail close calls
+    // `router.back()`, see the Sheet below). Deliberately keyed on
+    // `searchParams` alone, NOT `hits` — re-deriving on every `loadMore` page
+    // would fight the keyboard-nav highlight above for no reason.
+    useEffect(() => {
+        const jobId = searchParams.get("job");
+        setSelectedId(jobId);
+        if (jobId) {
             userPickedDetailRef.current = true;
             if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
                 setDetailSheetOpen(true);
             }
+        } else {
+            userPickedDetailRef.current = false;
+            setDetailSheetOpen(false);
         }
-    }, []);
+    }, [searchParams]);
 
-    const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
-    const selected = useMemo(
-        () => hits.find((h) => h.id === selectedId) ?? hits[0] ?? null,
-        [hits, selectedId],
-    );
+    // `selectedId` set (deliberately, from the URL) but not among the loaded
+    // hits leaves the pane empty rather than stealing a fallback job — Task 11
+    // adds the single-job fetch tombstone for that case. No explicit
+    // selection at all (ambient "browsing" default) still falls back to the
+    // first hit, exactly like before Task 5 — that default is never
+    // URL-represented.
+    const selected = useMemo(() => {
+        if (!selectedId) return hits[0] ?? null;
+        return hits.find((h) => h.id === selectedId) ?? null;
+    }, [hits, selectedId]);
 
     const handleResultsKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -714,7 +844,7 @@ function JobsContent() {
                 e.key === "ArrowDown"
                     ? Math.min(base + 1, hits.length - 1)
                     : Math.max(base - 1, 0);
-            if (hits[next]) selectJob(hits[next].id, false);
+            if (hits[next]) selectJob(hits[next].id);
         },
         [hits, selectedId, selectJob],
     );
@@ -741,6 +871,7 @@ function JobsContent() {
                 salaryMin: salaryMin || undefined,
                 visaOnly: visaOnly || undefined,
                 postedBucket,
+                hideGhosts,
                 sort: sortOverride ?? undefined,
                 limit: PAGE,
                 offset: ticket.offset,
@@ -760,7 +891,7 @@ function JobsContent() {
         } finally {
             if (paginationRef.current!.endLoadMore(ticket)) setLoadingMore(false);
         }
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, sortOverride]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -779,21 +910,40 @@ function JobsContent() {
     }, []);
     useEffect(() => () => observerRef.current?.disconnect(), []);
 
-    const toggleFacet = (key: FacetKey, value: string) =>
-        setFacets((prev) => {
-            const cur = prev[key] ?? [];
-            const next = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
-            const out = { ...prev };
-            if (next.length) out[key] = next;
-            else delete out[key];
-            return out;
-        });
+    // Every filter/sort mutation below routes through `applyUrlState` with
+    // `"replace"` — a filter toggle must never grow browser history.
+    const toggleFacet = (key: FacetKey, value: string) => {
+        const cur = facets[key] ?? [];
+        const nextValues = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
+        const nextFacets = { ...facets };
+        if (nextValues.length) nextFacets[key] = nextValues;
+        else delete nextFacets[key];
+        setFacets(nextFacets);
+        applyUrlState(buildUrlState({ facets: nextFacets }), "replace");
+    };
+
+    const applySalaryMin = (v: number) => {
+        setSalaryMin(v);
+        applyUrlState(buildUrlState({ salaryMin: v }), "replace");
+    };
+    const applyVisaOnly = (v: boolean) => {
+        setVisaOnly(v);
+        applyUrlState(buildUrlState({ visaOnly: v }), "replace");
+    };
+    const applyPostedBucket = (v: PostedBucket | undefined) => {
+        setPostedBucket(v);
+        applyUrlState(buildUrlState({ postedBucket: v }), "replace");
+    };
 
     const clearAll = () => {
         setFacets({});
         setSalaryMin(0);
         setVisaOnly(false);
         setPostedBucket(undefined);
+        applyUrlState(
+            buildUrlState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined }),
+            "replace",
+        );
     };
 
     const activeCount =
@@ -808,10 +958,10 @@ function JobsContent() {
             activeChips.push({ label: facetValueLabel(key, v), onRemove: () => toggleFacet(key, v) });
         }
     }
-    if (salaryMin > 0) activeChips.push({ label: `≥ $${Math.round(salaryMin / 1000)}k`, onRemove: () => setSalaryMin(0) });
-    if (visaOnly) activeChips.push({ label: "Sponsors visas", onRemove: () => setVisaOnly(false) });
+    if (salaryMin > 0) activeChips.push({ label: `≥ $${Math.round(salaryMin / 1000)}k`, onRemove: () => applySalaryMin(0) });
+    if (visaOnly) activeChips.push({ label: "Sponsors visas", onRemove: () => applyVisaOnly(false) });
     if (postedBucket)
-        activeChips.push({ label: postedBucketLabel(postedBucket), onRemove: () => setPostedBucket(undefined) });
+        activeChips.push({ label: postedBucketLabel(postedBucket), onRemove: () => applyPostedBucket(undefined) });
 
     // Open the in-place analysis slideout for a job. Tailoring is AI-backed
     // (login-gated), so prompt sign-in first and resume once authenticated.
@@ -1068,11 +1218,13 @@ function JobsContent() {
         setVisaOnly(false);
         setPostedBucket(undefined);
         setSortOverride(null);
+        setHideGhosts(true);
         setQuery("");
         setSearchError(null);
         setDetailSheetOpen(false);
         userPickedDetailRef.current = false;
         setMode("browse");
+        applyUrlState(DEFAULT_URL_STATE, "replace");
     };
 
     const notConnected = result != null && !result.configured && result.backend === "unconfigured";
@@ -1085,9 +1237,9 @@ function JobsContent() {
             state={{ facets, salaryMin, visaOnly, postedBucket }}
             activeCount={activeCount}
             onToggleFacet={toggleFacet}
-            onSalaryMin={setSalaryMin}
-            onVisaOnly={setVisaOnly}
-            onPostedBucket={setPostedBucket}
+            onSalaryMin={applySalaryMin}
+            onVisaOnly={applyVisaOnly}
+            onPostedBucket={applyPostedBucket}
             onClearAll={clearAll}
         />
     );
@@ -1119,7 +1271,15 @@ function JobsContent() {
                 <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                        const v = e.target.value;
+                        setQuery(v);
+                        // Continuous input is filter-like — `replace`, not `push` (a
+                        // "push" per keystroke would make the back button undo one
+                        // character at a time). There's no discrete submit affordance
+                        // yet (Task 9 — Typeahead); this is the interim, spam-free choice.
+                        applyUrlState(buildUrlState({ q: v }), "replace");
+                    }}
                     placeholder="Search role, company, or skill…"
                     className="h-11 bg-card pl-10"
                 />
@@ -1183,7 +1343,11 @@ function JobsContent() {
                 {result?.configured && (
                     <Select
                         value={effectiveSort}
-                        onValueChange={(v) => setSortOverride(v as JobSortMode)}
+                        onValueChange={(v) => {
+                            const nextMode = v as JobSortMode;
+                            setSortOverride(nextMode);
+                            applyUrlState(buildUrlState({ sort: modeToUrlSort(nextMode) }), "replace");
+                        }}
                     >
                         <SelectTrigger
                             size="sm"
@@ -1313,7 +1477,7 @@ function JobsContent() {
                                                 key={job.id}
                                                 job={job}
                                                 active={selected?.id === job.id}
-                                                onClick={() => selectJob(job.id, true)}
+                                                onClick={() => openJob(job.id)}
                                             />
                                         ))}
                                     </div>
@@ -1389,7 +1553,16 @@ function JobsContent() {
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
             />
-            <Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
+            <Sheet
+                open={detailSheetOpen}
+                onOpenChange={(open) => {
+                    // Opening is driven entirely by the URL-derived-selection
+                    // effect above. A close (X button, overlay click, swipe,
+                    // Esc) must go back through the URL — `job` was pushed
+                    // when this job opened, so `router.back()` is the close.
+                    if (!open) router.back();
+                }}
+            >
                 <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
                     <SheetTitle className="sr-only">
                         {selected ? `${decodeText(selected.title)} at ${cleanCompany(selected.company)}` : "Job details"}

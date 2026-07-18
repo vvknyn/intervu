@@ -63,4 +63,27 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.waitForTimeout(500);
         expect(await page.evaluate(() => localStorage.getItem('intervu.jobs.entry'))).toBeNull();
     });
+
+    test("deep link reconstructs the exact screen", async ({ page }) => {
+        await page.goto("/jobs?q=engineer&work=remote&posted=7d&salary=150k");
+        await expect(page.getByRole("textbox").first()).toHaveValue("engineer");
+        // Active filter chips reflect the URL (chip text per existing chips loop at page.tsx:1254-1263):
+        await expect(page.getByText("Remote", { exact: false }).first()).toBeVisible();
+    });
+
+    test("opening a job pushes a URL; back closes the detail", async ({ page }) => {
+        await page.goto("/jobs");
+        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        await firstRow.click();
+        await expect(page).toHaveURL(/job=/);
+        await page.goBack();
+        await expect(page).not.toHaveURL(/job=/);
+    });
+
+    test("refresh reproduces the same results state", async ({ page }) => {
+        await page.goto("/jobs?posted=7d");
+        const countBefore = await page.getByText(/roles|results/i).first().textContent();
+        await page.reload();
+        await expect(page.getByText(/roles|results/i).first()).toHaveText(countBefore ?? "");
+    });
 });
