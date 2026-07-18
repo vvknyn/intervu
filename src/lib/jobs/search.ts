@@ -7,7 +7,7 @@
  * Server-only (touches server env + the Subspace client). Call via the
  * `@/actions/jobs` server actions from client components.
  */
-import { hasMeilisearch, searchMeili } from "./meilisearch";
+import { fetchJobsLastUpdated, hasMeilisearch, searchMeili } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "./types";
 
@@ -59,4 +59,10 @@ export async function searchJobs(p: JobSearchParams): Promise<JobSearchResult> {
     configured: false,
     note: getJobsBackendStatus().note,
   };
+}
+
+/** The corpus's last-updated timestamp, for the "last synced" trust stamp. Meilisearch-only for now. */
+export async function getJobsLastUpdated(): Promise<string | null> {
+  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
+  return null;
 }

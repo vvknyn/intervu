@@ -2,13 +2,18 @@
 
 import { createApplication } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { getJobsBackendStatus, searchJobs as runSearch } from "@/lib/jobs/search";
+import { getJobsBackendStatus, getJobsLastUpdated, searchJobs as runSearch } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "@/lib/jobs/types";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 
 /** Search the jobs corpus (dispatches to whichever backend is configured). */
 export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
   return runSearch(params);
+}
+
+/** The corpus's last-updated timestamp, for the "last synced" trust stamp. */
+export async function getJobsFreshnessAction(): Promise<string | null> {
+  return getJobsLastUpdated();
 }
 
 /**

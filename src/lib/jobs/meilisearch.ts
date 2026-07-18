@@ -168,6 +168,25 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   };
 }
 
+/** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
+export async function fetchJobsLastUpdated(): Promise<string | null> {
+  const h = host();
+  if (!h) return null;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ limit: 1, sort: ["updated_at:desc"], attributesToRetrieve: ["updated_at"] }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { hits?: { updated_at?: string }[] };
+    return body.hits?.[0]?.updated_at ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /* --------- Ingestion / admin (invoked only by the off-Vercel sync worker) --------- */
 
 async function adminFetch(path: string, init: RequestInit): Promise<unknown> {
