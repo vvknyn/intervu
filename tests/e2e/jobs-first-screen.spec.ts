@@ -254,9 +254,20 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // the h/d unit ("2h ago"/"3d ago") but does before "min" ("6 min ago"),
     // and "just now" under 60s. The regex below matches exactly those three
     // shapes plus "just now" — no bare `\d+ ?ago` catch-all.
-    test("clear rows carry a live badge with age", async ({ page }) => {
+    //
+    // Staleness fix: `badgeFor` only renders "✓ live" when a row's
+    // `updated_at` is within `STALE_THRESHOLD_MS` of now (freshness.ts) —
+    // past that it renders the neutral "checked {age}" instead, so it makes
+    // no liveness claim data this old can't back. Which prefix renders here
+    // depends on how fresh the live jobs index actually is at test time, so
+    // this assertion accepts either prefix — it still proves a `clear` row
+    // renders a real age-bearing badge, just not which side of the
+    // threshold today's data happens to fall on.
+    test("clear rows carry an age-bearing freshness badge", async ({ page }) => {
         await page.goto("/jobs");
-        await expect(page.getByText(/✓ live (just now|\d+ min ago|\d+h ago|\d+d ago)/).first()).toBeVisible();
+        await expect(
+            page.getByText(/(✓ live|checked) (just now|\d+ min ago|\d+h ago|\d+d ago)/).first(),
+        ).toBeVisible();
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted

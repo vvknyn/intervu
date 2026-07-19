@@ -7,7 +7,7 @@
  * — keeping that derivation here, decoupled from React/Next client deps,
  * makes it unit-testable without a DOM.
  */
-import { formatRelativeAge } from "./freshness";
+import { formatRelativeAge, STALE_THRESHOLD_MS } from "./freshness";
 import type { GhostBadge } from "./types";
 
 /**
@@ -21,8 +21,16 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
 }
 
 /**
- * Row-badge label contract (Task 8):
- *   clear        → "✓ live {relative age of updated_at}"
+ * Row-badge label contract (Task 8; "live" gated by staleness fix):
+ *   clear        → "✓ live {age}" ONLY when updated_at is within
+ *                  STALE_THRESHOLD_MS (freshness.ts — the same constant that
+ *                  drives the toolbar's amber `isStale` stamp) of `now`.
+ *                  Past that threshold, or when updated_at is missing/
+ *                  unparseable, the data can't back a liveness claim: render
+ *                  the neutral "checked {age}" (or bare "checked" with no
+ *                  age at all) instead. One shared threshold means the row
+ *                  badge and the toolbar stamp can never contradict each
+ *                  other — that drift was the defect being fixed.
  *   caution      → "⚠ {daysOpen} days open" (daysOpen derived from posted_ts)
  *   likely_ghost → "✕ likely ghost" (visibility is filtering's job, not this
  *                  function's — it only decides the TEXT for a badge that's
@@ -36,8 +44,13 @@ export function badgeFor(
     nowMs: number,
 ): string | null {
     switch (ghostBadge) {
-        case "clear":
-            return updatedAt ? `✓ live ${formatRelativeAge(updatedAt, nowMs)}` : "✓ live";
+        case "clear": {
+            if (updatedAt == null) return "checked";
+            const parsed = Date.parse(updatedAt);
+            if (Number.isNaN(parsed)) return "checked";
+            const age = formatRelativeAge(updatedAt, nowMs);
+            return nowMs - parsed > STALE_THRESHOLD_MS ? `checked ${age}` : `✓ live ${age}`;
+        }
         case "caution": {
             const days = daysOpenFrom(postedTs, nowMs);
             return days != null ? `⚠ ${days} days open` : "⚠ worth verifying";

@@ -285,10 +285,12 @@ function JobRow({
     const postedTs = derivePostedTs(job);
     const age = postedAge(postedTs, now);
     const sal = salaryText(job);
-    // Task 8 row badge: clear → "✓ live {age}" (from updated_at), caution →
-    // "⚠ {daysOpen} days open" (from posted_ts), likely_ghost → "✕ likely
-    // ghost", unscored → null (renders nothing, same as the old
-    // `GHOST_META[job.ghost_badge] &&` gate this replaces).
+    // Task 8 row badge: clear → "✓ live {age}" when updated_at is within
+    // STALE_THRESHOLD_MS, else the neutral "checked {age}" (staleness fix —
+    // see badgeFor's own doc comment), caution → "⚠ {daysOpen} days open"
+    // (from posted_ts), likely_ghost → "✕ likely ghost", unscored → null
+    // (renders nothing, same as the old `GHOST_META[job.ghost_badge] &&`
+    // gate this replaces).
     const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, now);
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
