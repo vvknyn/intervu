@@ -69,7 +69,7 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
 } from "@/lib/jobs/result-state";
-import { resolveEffectiveSort } from "@/lib/jobs/sort";
+import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type GhostBadge,
@@ -245,7 +245,11 @@ function GhostChip({ badge, text }: { badge: GhostBadge; text: string }) {
 function sortModeLabel(mode: JobSortMode, hasQuery: boolean): string {
     if (mode === "salary_desc") return "Salary high to low";
     if (mode === "newest") return "Date posted";
-    return hasQuery ? "Best match" : "Date posted";
+    if (hasQuery) return "Best match";
+    // Relevance with no query is the corpus's default order. It only reaches
+    // this state when the date sort was coerced away (`coerceSortToSupported`),
+    // so it must NOT keep claiming "Date posted" — that was the mislabel.
+    return "Default order";
 }
 
 function sortCountSuffix(mode: JobSortMode, hasQuery: boolean): string {
@@ -998,11 +1002,19 @@ function JobsContent() {
         };
     }, []);
 
-    // Effective sort: shared resolver normalizes relevance-without-query to newest.
-    const effectiveSort: JobSortMode = resolveEffectiveSort({
-        q: query,
-        sort: sortOverride ?? undefined,
-    });
+    // Effective sort: shared resolver normalizes relevance-without-query to
+    // newest, then the support coercion drops "newest" when the corpus carries
+    // no `posted_ts` — otherwise the request ships a sort Meilisearch silently
+    // ignores while the toolbar claims "newest first".
+    const effectiveSort: JobSortMode = coerceSortToSupported(
+        resolveEffectiveSort({ q: query, sort: sortOverride ?? undefined }),
+        postedDateSupported,
+    );
+
+    // What every search request is actually sorted by. Derived from
+    // `effectiveSort` rather than the raw `sortOverride` so the backend can't be
+    // asked for a date sort the UI isn't claiming — the two must never disagree.
+    const backendSort: JobSortMode = effectiveSort;
 
     const hasQuery = query.trim().length > 0;
 
@@ -1086,8 +1098,11 @@ function JobsContent() {
                 hideGhosts,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
-            }),
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride],
+            }) + (postedDateSupported ? "" : "&nodatesort"),
+        // `postedDateSupported` participates because it changes the sort the
+        // backend is asked for: when the probe resolves, the date sort becomes
+        // real and the results must be re-fetched in the new order.
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported],
     );
 
     // Debounced search on query / facet / salary / visa changes.
@@ -1103,7 +1118,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, sortOverride),
+                    ...buildJobSearchPayload(filterState, query, backendSort),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -1260,7 +1275,7 @@ function JobsContent() {
                         ...buildJobSearchPayload(
                             { ...filterState, facets: { ...filterState.facets, ghost_badge: undefined }, hideGhosts: false },
                             query,
-                            sortOverride,
+                            backendSort,
                         ),
                         withFacets: true,
                         limit: 1,
@@ -1569,7 +1584,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, sortOverride),
+                ...buildJobSearchPayload(filterState, query, backendSort),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1756,7 +1771,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(pendingFilterState, query, sortOverride),
+                    ...buildJobSearchPayload(pendingFilterState, query, backendSort),
                     limit: 1,
                     offset: 0,
                 });
@@ -1767,7 +1782,10 @@ function JobsContent() {
             }
         }, 250);
         return () => clearTimeout(t);
-    }, [filterSheetOpen, pendingFilterState, query, sortOverride]);
+        // `backendSort` rather than the raw `sortOverride`: it also carries the
+        // date-sort coercion, so the pending count re-runs if the support probe
+        // resolves while the sheet is open.
+    }, [filterSheetOpen, pendingFilterState, query, backendSort]);
 
     // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
     // LOCAL state (no new mount fetch — see the state block above). A user
@@ -2388,7 +2406,10 @@ function JobsContent() {
                             <SelectItem value="relevance" disabled={!hasQuery}>
                                 Best match
                             </SelectItem>
-                            <SelectItem value="newest">Date posted</SelectItem>
+                            {/* Offered only when the corpus can honour it — sorting on
+                                `posted_ts` is a silent no-op while that field is unwritten
+                                (see `coerceSortToSupported`). Returns on its own with the data. */}
+                            {postedDateSupported && <SelectItem value="newest">Date posted</SelectItem>}
                             <SelectItem value="salary_desc">Salary high to low</SelectItem>
                             <SelectItem value="fit">Rank by fit</SelectItem>
                         </SelectContent>

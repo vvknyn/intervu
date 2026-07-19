@@ -4,6 +4,7 @@ import {
     resolveEffectiveSort,
     buildMeiliSort,
     compareJobsBySort,
+    coerceSortToSupported,
 } from '../../src/lib/jobs/sort';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -100,5 +101,36 @@ describe('compareJobsBySort salary_desc', () => {
         const unpaid = mkJob({ id: 'b', salary_min: null, salary_max: null });
         assert.ok(compareJobsBySort(paid, unpaid, 'salary_desc') < 0);
         assert.ok(compareJobsBySort(unpaid, paid, 'salary_desc') > 0);
+    });
+});
+
+describe('coerceSortToSupported', () => {
+    it('drops "newest" when the corpus carries no posted_ts', () => {
+        // The bug this exists to prevent: posted_ts is absent on every document,
+        // so `posted_ts:desc` sorts nothing while the toolbar claims "newest first".
+        assert.equal(coerceSortToSupported('newest', false), 'relevance');
+    });
+
+    it('keeps "newest" once the field is populated — the fix self-heals', () => {
+        assert.equal(coerceSortToSupported('newest', true), 'newest');
+    });
+
+    it('leaves every other mode untouched in both states', () => {
+        // Class check: the coercion targets the one unsupported mode, and must
+        // not quietly rewrite sorts that never depended on posted_ts.
+        for (const supported of [true, false]) {
+            assert.equal(coerceSortToSupported('salary_desc', supported), 'salary_desc');
+            assert.equal(coerceSortToSupported('relevance', supported), 'relevance');
+        }
+    });
+
+    it('produces no Meili sort clause once coerced', () => {
+        // End-to-end of the actual defect: the request must stop asking for a
+        // sort the backend silently ignores.
+        const coerced = coerceSortToSupported('newest', false);
+        assert.equal(buildMeiliSort({ q: 'engineer', sort: coerced }), undefined);
+        assert.deepEqual(buildMeiliSort({ q: 'engineer', sort: coerceSortToSupported('newest', true) }), [
+            'posted_ts:desc',
+        ]);
     });
 });

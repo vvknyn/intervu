@@ -14,6 +14,22 @@ export function resolveEffectiveSort(p: Pick<JobSearchParams, "q" | "sort">): Jo
 }
 
 /** Meilisearch sort array for a search request. `legacy` uses posted_at instead of posted_ts. */
+/**
+ * "Newest" ranks on `posted_ts`. When no document carries that field the sort
+ * is a silent no-op — Meilisearch falls back to its default order while the UI
+ * goes on claiming "newest first", which is how a board ends up listing 1mo,
+ * 2mo, 5mo, 1mo under that label.
+ *
+ * Callers pass whether the corpus can actually answer a date sort (see
+ * `isPostedDateFilterSupported`); an unsupported "newest" degrades to relevance
+ * rather than lying about the order. Sorting on `posted_at` is NOT the fallback:
+ * it is sortable, but the corpus carries future-dated sentinels (2030-01-31),
+ * so descending order would put fabricated postings on top.
+ */
+export function coerceSortToSupported(mode: JobSortMode, postedDateSupported: boolean): JobSortMode {
+    return mode === "newest" && !postedDateSupported ? "relevance" : mode;
+}
+
 export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | undefined {
     const mode = resolveEffectiveSort(p);
     const tsField = legacy ? "posted_at" : "posted_ts";
