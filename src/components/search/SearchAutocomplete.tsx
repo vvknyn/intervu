@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
-import { Clock, MagnifyingGlass, CaretRight } from "@phosphor-icons/react";
+import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,15 @@ interface SearchAutocompleteProps {
     className?: string; // Class for the Input
     containerClassName?: string;
     autoFocus?: boolean;
+    /**
+     * Optional async suggestion source (e.g. title/company from a live search
+     * index). When provided, it REPLACES the local `getSuggestions` + history
+     * source entirely — default behavior (no prop) is unchanged, so existing/
+     * future callers (prep pages) keep working without edits. Debounced
+     * 150ms; a monotonic generation guard drops out-of-order responses so a
+     * slow, stale request can't clobber a faster, newer one.
+     */
+    suggest?: (q: string) => Promise<SearchSuggestion[]>;
 }
 
 export function SearchAutocomplete({
@@ -25,7 +34,8 @@ export function SearchAutocomplete({
     disabled,
     className,
     containerClassName,
-    autoFocus
+    autoFocus,
+    suggest
 }: SearchAutocompleteProps) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -39,11 +49,47 @@ export function SearchAutocomplete({
         return [];
     });
     const containerRef = useRef<HTMLDivElement>(null);
+    // Always holds the latest `onSearch` prop. `handleSelect` (below) changes
+    // `value` via `onChange` and then needs to call `onSearch` — but the
+    // callback the parent passes in typically closes over its own `value`
+    // state, so calling the closure captured at THIS render would search the
+    // pre-selection text. Reading through a ref that's kept current every
+    // render sidesteps that stale-closure race without changing the prop
+    // contract (mirrors the "wait a tick for state to update" comment this
+    // replaces — now correct instead of accidentally-right).
+    const onSearchRef = useRef(onSearch);
+    useEffect(() => {
+        onSearchRef.current = onSearch;
+    });
+    // Monotonic generation guard for the async `suggest` path (same shape as
+    // FitIntentGuard in app/jobs/page.tsx): only the response from the LAST
+    // request issued gets to update state, so a slow, stale response can't
+    // clobber a faster, newer one.
+    const suggestGenRef = useRef(0);
 
-    // Update suggestions
     // Update suggestions
     useEffect(() => {
         if (!isOpen) return;
+
+        if (suggest) {
+            const q = value.trim();
+            if (!q) {
+                setSuggestions([]);
+                return;
+            }
+            const generation = ++suggestGenRef.current;
+            const timer = setTimeout(() => {
+                suggest(q)
+                    .then((results) => {
+                        if (suggestGenRef.current === generation) setSuggestions(results);
+                    })
+                    .catch(() => {
+                        if (suggestGenRef.current === generation) setSuggestions([]);
+                    });
+            }, 150);
+            return () => clearTimeout(timer);
+        }
+
         const timer = setTimeout(() => {
             if (value.trim() === "") {
                 setSuggestions(history.slice(0, 5).map(h => ({ text: h, type: 'history' })));
@@ -52,7 +98,7 @@ export function SearchAutocomplete({
             }
         }, 0);
         return () => clearTimeout(timer);
-    }, [value, history, isOpen]);
+    }, [value, history, isOpen, suggest]);
 
     // Click outside
     useEffect(() => {
@@ -80,7 +126,7 @@ export function SearchAutocomplete({
                 handleSelect(suggestions[activeIndex].text);
             } else {
                 setIsOpen(false);
-                onSearch();
+                onSearchRef.current();
             }
         } else if (e.key === "Escape") {
             setIsOpen(false);
@@ -91,13 +137,19 @@ export function SearchAutocomplete({
         onChange(text);
         setIsOpen(false);
 
-        // Update history immediately so it feels responsive
-        const newHistory = [text, ...history.filter(h => h !== text)].slice(0, 10);
-        setHistory(newHistory);
-        localStorage.setItem("interview-os-recent-searches", JSON.stringify(newHistory));
+        // History bookkeeping is part of the local (non-`suggest`) source —
+        // skip it when an external provider is wired in so a jobs-search pick
+        // doesn't pollute the shared prep-search recents bucket.
+        if (!suggest) {
+            const newHistory = [text, ...history.filter(h => h !== text)].slice(0, 10);
+            setHistory(newHistory);
+            localStorage.setItem("interview-os-recent-searches", JSON.stringify(newHistory));
+        }
 
-        // Wait a tick for state to update then search
-        setTimeout(() => onSearch(), 0);
+        // Wait a tick so the parent's re-render (triggered by the `onChange`
+        // above) lands before we search — `onSearchRef` always holds the
+        // latest `onSearch` closure, so this reads the post-selection value.
+        setTimeout(() => onSearchRef.current(), 0);
     };
 
     return (
@@ -126,10 +178,12 @@ export function SearchAutocomplete({
             {/* Dropdown */}
             {isOpen && suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-popover/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
-                    <ul className="py-2 max-h-[300px] overflow-y-auto">
+                    <ul role="listbox" aria-label="Search suggestions" className="py-2 max-h-[300px] overflow-y-auto">
                         {suggestions.map((suggestion, index) => (
                             <li
                                 key={index}
+                                role="option"
+                                aria-selected={index === activeIndex}
                                 className={cn(
                                     "px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors text-sm",
                                     index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -139,6 +193,8 @@ export function SearchAutocomplete({
                             >
                                 {suggestion.type === 'history' ? (
                                     <Clock size={16} className="shrink-0 opacity-70" />
+                                ) : suggestion.type === 'company' ? (
+                                    <Buildings size={16} className="shrink-0 opacity-70" />
                                 ) : (
                                     <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
                                 )}

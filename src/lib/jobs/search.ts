@@ -7,9 +7,9 @@
  * Server-only (touches server env + the Subspace client). Call via the
  * `@/actions/jobs` server actions from client components.
  */
-import { fetchJobsLastUpdated, hasMeilisearch, searchMeili } from "./meilisearch";
+import { fetchJobSuggestions, fetchJobsLastUpdated, hasMeilisearch, searchMeili } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "./types";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
 export function activeBackend(): JobsBackendKind {
   if (hasMeilisearch()) return "meilisearch";
@@ -65,4 +65,19 @@ export async function searchJobs(p: JobSearchParams): Promise<JobSearchResult> {
 export async function getJobsLastUpdated(): Promise<string | null> {
   if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
   return null;
+}
+
+/**
+ * Typeahead dispatcher (Task 9): title/company suggestions for the search
+ * box. Meilisearch-only — the snapshot-preview backend has no search
+ * endpoint of its own to suggest from, so it degrades to empty rather than
+ * scanning its in-memory slice. Never throws.
+ */
+export async function suggestJobs(q: string): Promise<JobSuggestions> {
+  try {
+    if (activeBackend() === "meilisearch") return await fetchJobSuggestions(q);
+  } catch {
+    // fall through to empty — suggestions must never surface an error
+  }
+  return { titles: [], companies: [] };
 }

@@ -227,4 +227,23 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.goto("/jobs");
         await expect(page.getByText(/✓ live (just now|\d+ min ago|\d+h ago|\d+d ago)/).first()).toBeVisible();
     });
+
+    // TASK 9 — Typeahead. The results pane already has its own always-mounted
+    // `role="listbox" aria-label="Job results"` (browse mode), so an
+    // unqualified `getByRole("listbox")` would both strict-mode-fail (2
+    // matches) AND — worse — pass vacuously via `.first()` even if the
+    // suggestions dropdown never rendered. Naming the query after the
+    // dropdown's own `aria-label="Search suggestions"` fixes both: it can
+    // only match the element under test.
+    test("typing shows suggestions; Enter searches without reload", async ({ page }) => {
+        await page.goto("/jobs");
+        const box = page.getByRole("textbox").first();
+        await box.fill("engineer");
+        await expect(
+            page.getByRole("listbox", { name: "Search suggestions" }).or(page.locator("[data-suggestions]"))
+        ).toBeVisible();
+        const nav = page.waitForURL(/q=engineer/);
+        await box.press("Enter");
+        await nav; // URL updated client-side (no full navigation)
+    });
 });

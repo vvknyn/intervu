@@ -2,8 +2,8 @@
 
 import { createApplication } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { getJobsBackendStatus, getJobsLastUpdated, searchJobs as runSearch } from "@/lib/jobs/search";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "@/lib/jobs/types";
+import { getJobsBackendStatus, getJobsLastUpdated, searchJobs as runSearch, suggestJobs } from "@/lib/jobs/search";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 
 /** Search the jobs corpus (dispatches to whichever backend is configured). */
@@ -14,6 +14,19 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
 /** The corpus's last-updated timestamp, for the "last synced" trust stamp. */
 export async function getJobsFreshnessAction(): Promise<string | null> {
   return getJobsLastUpdated();
+}
+
+/**
+ * Typeahead: title/company suggestions for the search box (Task 9). Never
+ * throws — degrades to `{ titles: [], companies: [] }` on any failure so
+ * suggestions are purely an accelerant, never a source of user-visible error.
+ */
+export async function suggestJobsAction(q: string): Promise<JobSuggestions> {
+  try {
+    return await suggestJobs(q);
+  } catch {
+    return { titles: [], companies: [] };
+  }
 }
 
 /**

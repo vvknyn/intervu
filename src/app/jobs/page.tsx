@@ -21,8 +21,9 @@ import {
     ArrowRight,
     CaretRight,
 } from "@phosphor-icons/react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
+import type { SearchSuggestion } from "@/lib/search-suggestions";
 import {
     Select,
     SelectContent,
@@ -41,6 +42,7 @@ import {
     markJobAppliedAction,
     suggestAdjacentRolesAction,
     getJobsFreshnessAction,
+    suggestJobsAction,
 } from "@/actions/jobs";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
@@ -232,6 +234,21 @@ function sortCountSuffix(mode: JobSortMode, hasQuery: boolean): string {
     if (mode === "salary_desc") return " · highest salary first";
     if (mode === "newest") return " · newest first";
     return hasQuery ? " · best match" : "";
+}
+
+/**
+ * Task 9 — typeahead: adapt `suggestJobsAction`'s plain `{ titles, companies }`
+ * into `SearchAutocomplete`'s `SearchSuggestion` shape. Companies are tagged
+ * `'company'` so the dropdown renders them with a distinct icon (Buildings,
+ * vs. the default magnifying-glass for titles) — the type field doubles as
+ * both the render hint and the semantic label; no counts (see
+ * `suggestJobsAction`, company isn't a facet).
+ */
+function mapToSuggestions(data: { titles: string[]; companies: string[] }): SearchSuggestion[] {
+    return [
+        ...data.titles.map((text): SearchSuggestion => ({ text, type: "role" })),
+        ...data.companies.map((text): SearchSuggestion => ({ text, type: "company" })),
+    ];
 }
 
 /* ----------------------------- job row ----------------------------- */
@@ -1612,27 +1629,26 @@ function JobsContent() {
                 <div className="flex min-h-0 flex-col lg:flex-1">
             {/* Search + Explore */}
             <div className="mb-3.5 flex shrink-0 items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                    <Input
-                        value={query}
-                        onChange={(e) => {
-                            const v = e.target.value;
-                            setQuery(v);
-                            // Continuous input is filter-like — `replace`, not `push` (a
-                            // "push" per keystroke would make the back button undo one
-                            // character at a time). There's no discrete submit affordance
-                            // yet (Task 9 — Typeahead); this is the interim, spam-free choice.
-                            applyUrlState(buildUrlState({ q: v }), "replace");
-                        }}
-                        placeholder={
-                            corpusTotal != null
-                                ? `Search ${corpusTotal.toLocaleString()} live-checked roles…`
-                                : "Search live-checked roles…"
-                        }
-                        className="h-11 bg-card pl-10"
-                    />
-                </div>
+                <SearchAutocomplete
+                    value={query}
+                    onChange={(v) => {
+                        setQuery(v);
+                        // Continuous input is filter-like — `replace`, not `push` (a
+                        // "push" per keystroke would make the back button undo one
+                        // character at a time). Discrete submit (Enter, or picking a
+                        // suggestion) uses `push` instead — see `onSearch` below.
+                        applyUrlState(buildUrlState({ q: v }), "replace");
+                    }}
+                    onSearch={() => applyUrlState(buildUrlState({ q: query }), "push")}
+                    suggest={(q) => suggestJobsAction(q).then(mapToSuggestions)}
+                    placeholder={
+                        corpusTotal != null
+                            ? `Search ${corpusTotal.toLocaleString()} live-checked roles…`
+                            : "Search live-checked roles…"
+                    }
+                    className="h-11 bg-card"
+                    containerClassName="min-w-0 flex-1"
+                />
                 {/* Re-homed from the old entry-gate's "Explore adjacent roles" choice.
                     Credit/auth gating (enterExplore/runExplore) is reused verbatim. */}
                 <Button

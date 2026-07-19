@@ -10,7 +10,7 @@
  */
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
-import type { FacetDistribution, JobSearchParams, JobSearchResult, PublicJob } from "./types";
+import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
 
@@ -184,6 +184,71 @@ export async function fetchJobsLastUpdated(): Promise<string | null> {
     return body.hits?.[0]?.updated_at ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Pure: fold raw `{ title, company }` hits into deduped, capped suggestion
+ * lists. Extracted from `fetchJobSuggestions` so the dedupe logic is
+ * unit-testable without a network call (see tests/unit/jobs-suggestions.test.ts).
+ * Titles dedupe case-insensitively (max 5); companies dedupe case-insensitively
+ * (max 3) — first-seen casing wins, blank values are dropped.
+ */
+export function dedupeJobSuggestionHits(
+  hits: Array<{ title?: string | null; company?: string | null }>,
+): JobSuggestions {
+  const titles: string[] = [];
+  const seenTitles = new Set<string>();
+  const companies: string[] = [];
+  const seenCompanies = new Set<string>();
+
+  for (const hit of hits) {
+    const title = (hit.title ?? "").trim();
+    if (title) {
+      const key = title.toLowerCase();
+      if (!seenTitles.has(key)) {
+        seenTitles.add(key);
+        if (titles.length < 5) titles.push(title);
+      }
+    }
+    const company = (hit.company ?? "").trim();
+    if (company) {
+      const key = company.toLowerCase();
+      if (!seenCompanies.has(key)) {
+        seenCompanies.add(key);
+        if (companies.length < 3) companies.push(company);
+      }
+    }
+  }
+
+  return { titles, companies };
+}
+
+const EMPTY_SUGGESTIONS: JobSuggestions = { titles: [], companies: [] };
+
+/**
+ * Read-path: title/company suggestions for the search box's typeahead
+ * (Task 9). One search call against the live index — no facet request, no
+ * counts (see `JobSuggestions` in types.ts). Never throws: an unreachable
+ * index or a malformed response degrades to no suggestions, never an error
+ * surfaced to the search box.
+ */
+export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
+  const query = q.trim();
+  const h = host();
+  if (!h || !query) return EMPTY_SUGGESTIONS;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ q: query, hitsPerPage: 20, attributesToRetrieve: ["title", "company"] }),
+    });
+    if (!res.ok) return EMPTY_SUGGESTIONS;
+    const body = (await res.json()) as { hits?: Array<{ title?: string; company?: string | null }> };
+    return dedupeJobSuggestionHits(body.hits ?? []);
+  } catch {
+    return EMPTY_SUGGESTIONS;
   }
 }
 

@@ -107,6 +107,16 @@ export interface JobSearchParams {
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";
 
+/**
+ * Typeahead result for the search box (Task 9). No counts — `company` isn't a
+ * facet (see FACETABLE_KEYS above), so per-value counts aren't cheap; this is
+ * intentionally plain title/company text, deduped client-side.
+ */
+export interface JobSuggestions {
+  titles: string[];
+  companies: string[];
+}
+
 export interface JobSearchResult {
   hits: PublicJob[];
   total: number;
