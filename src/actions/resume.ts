@@ -5,6 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
+import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 
 /**
  * Fetch structured resume data from database
@@ -224,25 +225,40 @@ export async function parseResumeWithAI(
         console.log("[Resume] LLM Response Keys:", result.parsed ? Object.keys(result.parsed) : "No parsed object");
         console.log("[Resume] Extracted Summary Raw:", result.parsed.generatedSummary || result.parsed.summary || result.parsed.professionalSummary || "MISSING");
 
+        // Experience is derived first (ahead of profile) because years-of-experience
+        // is computed from it below, not trusted from the model.
+        const experience: ResumeExperience[] = Array.isArray(result.parsed.experience)
+            ? result.parsed.experience.map((exp: any, idx: number) => ({
+                id: exp.id || `exp-${idx + 1}`,
+                company: exp.company || "",
+                role: exp.role || "",
+                dates: exp.dates || "",
+                description: normalizeDescription(exp.description || "")
+            }))
+            : [];
+
+        // Years of experience is computed in code from the parsed work-history dates,
+        // never trusted from the model — an arithmetic result that drifts with the
+        // model's training-cutoff notion of "now" is a lying value (e.g. it once
+        // computed Feb 2013 -> "now" as 12 when the real answer was 13). The model's
+        // own number is kept ONLY as a fallback for the rare case where no experience
+        // entry had a parseable date.
+        const computedYoE = computeYearsOfExperience(experience, new Date());
+        const yearsOfExperience = computedYoE !== null
+            ? computedYoE
+            : Number(result.parsed.profile?.yearsOfExperience) || 0;
+
         // Validate and sanitize the parsed data
         const parsed: ResumeData = {
             profile: {
                 profession: result.parsed.profile?.profession || "",
-                yearsOfExperience: Number(result.parsed.profile?.yearsOfExperience) || 0,
+                yearsOfExperience,
                 location: result.parsed.profile?.location || "",
                 email: result.parsed.profile?.email || "",
                 phone: result.parsed.profile?.phone || "",
                 linkedin: result.parsed.profile?.linkedin || ""
             },
-            experience: Array.isArray(result.parsed.experience)
-                ? result.parsed.experience.map((exp: any, idx: number) => ({
-                    id: exp.id || `exp-${idx + 1}`,
-                    company: exp.company || "",
-                    role: exp.role || "",
-                    dates: exp.dates || "",
-                    description: normalizeDescription(exp.description || "")
-                }))
-                : [],
+            experience,
             competencies: Array.isArray(result.parsed.competencies)
                 ? result.parsed.competencies.map((comp: any) => ({
                     category: comp.category || "Skills",
