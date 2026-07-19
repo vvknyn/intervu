@@ -1541,14 +1541,18 @@ function JobsContent() {
         if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
+            // Whole-branch review fix: this used to hand-build the same
+            // (q/facets/salaryMin/visaOnly/postedBucket/hideGhosts/sort)
+            // subset `buildJobSearchPayload` already owns — a duplicate the
+            // module's own doc comment (search-payload.ts) explicitly warns
+            // against, since a field the live search gains later could
+            // silently go missing from this one. `filterState` (declared
+            // near the top of this component) is reconstructed fresh every
+            // render from the same facets/salaryMin/visaOnly/postedBucket/
+            // hideGhosts state this callback already depends on, so this is
+            // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                q: query.trim() || undefined,
-                facets,
-                salaryMin: salaryMin || undefined,
-                visaOnly: visaOnly || undefined,
-                postedBucket,
-                hideGhosts,
-                sort: sortOverride ?? undefined,
+                ...buildJobSearchPayload(filterState, query, sortOverride),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1567,6 +1571,15 @@ function JobsContent() {
         } finally {
             if (paginationRef.current!.endLoadMore(ticket)) setLoadingMore(false);
         }
+        // `filterState` isn't listed here on purpose: it's a plain object
+        // literal rebuilt every render straight from facets/salaryMin/
+        // visaOnly/postedBucket/hideGhosts — the exact fields already
+        // listed below — so it's never stale relative to them, and adding
+        // the (always-new-reference) object itself would only force this
+        // callback to regenerate on every render for no behavioral gain.
+        // Same precedent as `searchKey`'s effect above, which serializes a
+        // superset of these same fields for an identical reason.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride]);
 
     const loadMoreRef = useRef(loadMore);

@@ -16,8 +16,16 @@ import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
  * relocated to the search-params layer — a field the live search gains
  * later could silently go missing from a probe request, and the sheet's
  * "Show N roles" button could promise a number applying wouldn't produce.
- * Now every one of those three call sites (page.tsx) builds its request
- * from this function plus its own request-specific fields.
+ * Now every one of those call sites (page.tsx) builds its request from this
+ * function plus its own request-specific fields.
+ *
+ * Whole-branch review fix — `loadMore`'s infinite-scroll fetch was a FOURTH
+ * hand-built copy of this same subset that slipped in after the above
+ * review fix landed, missed by the "every one of those call sites"
+ * invariant this comment itself asserts. Fields were identical to this
+ * function's output at the time, but nothing enforced that staying true —
+ * `loadMore` now builds from this function too, so all four call sites can
+ * no longer drift from each other.
  */
 export function buildJobSearchPayload(
     state: FilterState,
