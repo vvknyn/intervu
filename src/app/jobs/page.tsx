@@ -17,7 +17,6 @@ import {
     Sparkle,
     Compass,
     ArrowLeft,
-    ArrowRight,
     CaretRight,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -663,14 +662,21 @@ function JobsListSplash() {
 /**
  * Results-view mode for /jobs. Jobs render on first paint for everyone —
  * there is no entry gate — so `mode` only ever tracks which results view is
- * active; it always starts at `"browse"`. `search` is special — it shows a
- * prompt and only fetches once a query is typed. `explore` is triggered by
- * the compact Explore button beside the search input (see `enterExplore`
+ * active; it always starts at `"browse"`. `explore` is triggered by the
+ * compact Explore button beside the search input (see `enterExplore`
  * below). The old Match mode is gone: "Rank by fit" is no longer a
  * page-wide mode, it's a sort choice — `buildMatchQuery`'s pipeline is
  * re-homed onto `sort=fit` + a dismissible chip (see `applyFit`).
+ *
+ * Whole-branch review fix — a `"search"` mode used to exist here (a
+ * dedicated empty-query prompt state), but every `setMode` call site sets
+ * either `"browse"` or `"explore"`; nothing in this file ever set `"search"`.
+ * Removed as dead code, along with what that made unreachable: `SearchPrompt`
+ * (its only render site), `MODE_META.search`, and the `shouldFetch`
+ * early-return branch in the search effect below that existed solely to
+ * skip fetching while `mode === "search"` and the query was empty.
  */
-type Mode = "explore" | "search" | "browse";
+type Mode = "explore" | "browse";
 
 /** A resume is "usable" for matching if it has a profession or at least one skill. */
 function resumeIsUsable(d: ResumeData | undefined): boolean {
@@ -681,7 +687,6 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
 
 const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {
     explore: { label: "Exploring adjacent roles", Icon: Compass },
-    search: { label: "Search", Icon: MagnifyingGlass },
     browse: { label: "Browsing all live roles", Icon: Briefcase },
 };
 
@@ -700,29 +705,6 @@ function ModeBar({ mode, onStartOver }: { mode: Mode; onStartOver: () => void })
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
                 <ArrowLeft size={12} /> Start over
-            </button>
-        </div>
-    );
-}
-
-/** Empty state for search-only mode before the user has typed anything. */
-function SearchPrompt({ onBrowseAll }: { onBrowseAll: () => void }) {
-    return (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                <MagnifyingGlass size={26} />
-            </div>
-            <h3 className="mb-1.5 text-lg font-semibold">Search for the kind of role you want</h3>
-            <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
-                Try something like <span className="font-medium text-foreground">&ldquo;staff product designer,
-                remote&rdquo;</span> or <span className="font-medium text-foreground">&ldquo;backend engineer
-                fintech&rdquo;</span> in the box above.
-            </p>
-            <button
-                onClick={onBrowseAll}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-                or browse all live roles <ArrowRight size={12} />
             </button>
         </div>
     );
@@ -865,7 +847,6 @@ function JobsContent() {
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
-    const userPickedDetailRef = useRef(false);
 
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
@@ -1062,22 +1043,8 @@ function JobsContent() {
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride],
     );
 
-    // Debounced search on query / facet / salary / visa changes. In `search`
-    // mode we wait for a non-empty query (empty → the SearchPrompt, no fetch).
+    // Debounced search on query / facet / salary / visa changes.
     useEffect(() => {
-        const shouldFetch = mode !== "search" || query.trim().length > 0;
-        if (!shouldFetch) {
-            paginationRef.current!.invalidate();
-            setLoading(false);
-            setLoadingMore(false);
-            if (mode === "search") {
-                setResult(null); // empty search → prompt, not stale hits
-                setSelectedId(null);
-                setDetailSheetOpen(false);
-                userPickedDetailRef.current = false;
-            }
-            return;
-        }
         let cancelled = false;
         let firstPageSucceeded = false;
         const generation = paginationRef.current!.beginFirstPage();
@@ -1286,10 +1253,15 @@ function JobsContent() {
         };
         // `searchKey` is a faithful serialization of query/facets/salaryMin/
         // visaOnly/postedBucket/hideGhosts/sortOverride — see its definition
-        // above — so listing it alone (plus mode/searchRetry) satisfies the
-        // refetch rule without duplicating every field in this array.
+        // above — so listing it alone (plus searchRetry) satisfies the
+        // refetch rule without duplicating every field in this array. `mode`
+        // is deliberately NOT listed: every `setMode` call site (applyFit,
+        // activateExplore, enterBrowse, startOver) always pairs it with a
+        // query/facets change in the same render, which `searchKey` already
+        // covers — the dead `"search"`-mode branch that used to justify
+        // `mode` being here directly is gone (whole-branch review fix).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, mode, searchRetry]);
+    }, [searchKey, searchRetry]);
 
     // Relevance is meaningless without a query — drop the override rather than send it.
     useEffect(() => {
@@ -1375,12 +1347,10 @@ function JobsContent() {
         const jobId = parsed.jobId;
         setSelectedId(jobId);
         if (jobId) {
-            userPickedDetailRef.current = true;
             if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
                 setDetailSheetOpen(true);
             }
         } else {
-            userPickedDetailRef.current = false;
             setDetailSheetOpen(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2193,7 +2163,6 @@ function JobsContent() {
         setQuery("");
         setSearchError(null);
         setDetailSheetOpen(false);
-        userPickedDetailRef.current = false;
         setMode("browse");
         applyUrlState(DEFAULT_URL_STATE, "replace");
     };
@@ -2426,9 +2395,7 @@ function JobsContent() {
             )}
 
             <div className="min-h-0 flex-1">
-            {mode === "search" && !query.trim() ? (
-                <SearchPrompt onBrowseAll={enterBrowse} />
-            ) : notConnected ? (
+            {notConnected ? (
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
                     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                         <MagnifyingGlass size={26} />
