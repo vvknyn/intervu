@@ -722,6 +722,14 @@ function ModeBar({ mode, onStartOver }: { mode: Mode; onStartOver: () => void })
  * write, not a third one. `ghostRevealCount` arrives pre-gated from
  * `resolveGhostReveal` (lib/jobs/result-state.ts): non-null here already
  * means hideGhosts is on and the count is positive.
+ *
+ * Whole-branch review fix — `entries` only ever covers FILTERS
+ * (`activeFilterEntries` reads `FilterState`, never `query`), so a
+ * zero-result *search* with no filters active at all rendered a bare "No
+ * roles match" with nothing tappable to recover from — the query itself had
+ * no one-tap clear. `query`/`onClearQuery` add that as its own chip,
+ * first-in-order (the thing most likely to be over-narrowing a search-driven
+ * empty state) alongside the existing filter chips.
  */
 /** Review fix: one source for the `activeFilterEntries` element shape, instead of spelling it out twice below. */
 type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
@@ -729,19 +737,35 @@ type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
 function EmptyResults({
     entries,
     onClearEntry,
+    query,
+    onClearQuery,
     ghostRevealCount,
     onRevealGhosts,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
+    query: string;
+    onClearQuery: () => void;
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
 }) {
+    const hasQuery = query.trim().length > 0;
     return (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card px-6 py-16 text-center">
             <h3 className="text-sm font-semibold">No roles match.</h3>
-            {entries.length > 0 && (
+            {(hasQuery || entries.length > 0) && (
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    {hasQuery && (
+                        <button
+                            type="button"
+                            data-testid="empty-state-clear-query"
+                            onClick={onClearQuery}
+                            className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+                        >
+                            <X size={11} />
+                            Clear search
+                        </button>
+                    )}
                     {entries.map((entry) => (
                         <button
                             key={entry.key}
@@ -2164,6 +2188,14 @@ function JobsContent() {
         setSearchError(null);
         setDetailSheetOpen(false);
         setMode("browse");
+        // Review fix — these two used to rely entirely on the URL-reconcile
+        // effect (keyed on `searchParams`) re-deriving them a tick later
+        // from `DEFAULT_URL_STATE` below (which carries neither `sort=fit`
+        // nor a `job` id): correct in the end, but explicit here matches
+        // every other field in this function and removes the one-frame gap
+        // where local state and the fresh URL disagree.
+        setFitActive(false);
+        setSelectedId(null);
         applyUrlState(DEFAULT_URL_STATE, "replace");
     };
 
@@ -2446,6 +2478,11 @@ function JobsContent() {
                             <EmptyResults
                                 entries={activeEntries}
                                 onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
+                                query={query}
+                                onClearQuery={() => {
+                                    setQuery("");
+                                    applyUrlState(buildUrlState({ q: "" }), "replace");
+                                }}
                                 ghostRevealCount={ghostRevealCount}
                                 onRevealGhosts={() => onHideGhosts(false)}
                             />
