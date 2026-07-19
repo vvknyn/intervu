@@ -67,7 +67,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
-    shouldClearDeadLinkUrl,
+    shouldClearStaleJobUrl,
 } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
@@ -1120,6 +1120,12 @@ function JobsContent() {
                 // unreachable (verified empirically: it rendered a
                 // different job's detail instead of nothing).
                 const previousSelectedId = selectedIdRef.current;
+                // Snapshot the URL's OWN `job` id at the same moment —
+                // needed below by `shouldClearStaleJobUrl` to tell "the
+                // selection that just got reassigned away came from the
+                // address bar" from "it came from local-only keyboard nav
+                // (`selectJob`, which deliberately never touches the URL)."
+                const urlJobIdAtFetchStart = searchParams.get("job");
                 const wasConfirmedBeforeThisFetch = Boolean(
                     previousSelectedId && resultRef.current?.hits.some((h) => h.id === previousSelectedId),
                 );
@@ -1164,33 +1170,46 @@ function JobsContent() {
                 setSelectedId(selection.selectedId);
                 if (!selection.preserveDeliberateDetail) {
                     setDetailSheetOpen(false);
-                    userPickedDetailRef.current = false;
                 }
-                // Round-3 review fix: once an id's free pass is spent and
-                // this fetch fell through to the ordinary hits[0] fallback,
-                // the address bar still says `job=<the dead id>` — nothing
-                // above this point ever calls `applyUrlState` for that
-                // transition (it lives inside a data-driven effect, not a
-                // user action). A refreshed or re-shared URL would
-                // otherwise keep re-landing on the same dead id forever,
-                // even though the app has already moved on locally.
-                // Clearing `jobId` here converges the URL back to ambient
-                // browsing — the URL-reconcile effect (keyed on
+                // Whichever way the selection just got reassigned away from
+                // what's in the address bar — a dead link that used its
+                // free pass (`alreadyUsedItsPass`, see the comment above),
+                // OR a filter/query change that excluded an already-open,
+                // previously-CONFIRMED job (`wasConfirmedBeforeThisFetch`,
+                // which never touches the free-pass machinery at all, since
+                // it was confirmed on its very first look) — nothing above
+                // this point ever calls `applyUrlState` for that transition
+                // (it lives inside a data-driven effect, not a user action).
+                // A refreshed or re-shared URL would otherwise keep
+                // reproducing a job the CURRENT filters exclude, or a dead
+                // one, forever, even though the pane has already moved on
+                // locally. Clearing `jobId` here converges the URL back to
+                // ambient browsing — the URL-reconcile effect (keyed on
                 // `searchParams`) then re-derives `selectedId` from the
                 // now-jobless URL, which lands on the same `hits[0]`
                 // `selection` already picked, just via the "no explicit
                 // selection" path instead of a stale explicit one.
                 //
-                // `shouldClearDeadLinkUrl` (lib/jobs/result-state.ts,
-                // unit-tested — see its own doc comment): the FIRST version
-                // of this guard read `!wasConfirmed && alreadyUsedItsPass`,
-                // which can never be true (`wasConfirmed` is itself defined
-                // as `wasConfirmedBeforeThisFetch || alreadyUsedItsPass`
-                // above, so `alreadyUsedItsPass` true always forces
-                // `wasConfirmed` true too) — reported fixed while being
-                // permanently dead code. Extracted so the predicate can't
-                // silently self-contradict like that again.
-                if (previousSelectedId && shouldClearDeadLinkUrl(alreadyUsedItsPass, foundInFreshHits)) {
+                // `shouldClearStaleJobUrl` (lib/jobs/result-state.ts,
+                // unit-tested): true exactly when there WAS an explicit
+                // prior selection, this fetch did NOT preserve it
+                // (`!selection.preserveDeliberateDetail`), and the URL — at
+                // the moment this fetch started — still names that
+                // now-abandoned id. That last check is what stops this from
+                // clobbering an unrelated open job when the reassigned
+                // selection came from local-only keyboard nav instead of the
+                // address bar. Provably subsumes the narrower
+                // `shouldClearDeadLinkUrl` predicate's own case (still kept,
+                // independently unit-tested, for its own documented
+                // history) — see `shouldClearStaleJobUrl`'s doc comment for
+                // the full reasoning.
+                if (
+                    shouldClearStaleJobUrl(
+                        urlJobIdAtFetchStart,
+                        previousSelectedId,
+                        selection.preserveDeliberateDetail,
+                    )
+                ) {
                     // Explicit `sort` override reading `fitActiveRef.current`
                     // (not the closure's own `fitActive`, which — unlike
                     // every other `buildUrlState()` field here — is NOT

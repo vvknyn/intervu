@@ -7,6 +7,7 @@ import {
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearDeadLinkUrl,
+    shouldClearStaleJobUrl,
 } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 
@@ -263,5 +264,43 @@ describe('shouldClearDeadLinkUrl', () => {
 
     it('pass not yet used, found on the very first check → do not clear', () => {
         assert.equal(shouldClearDeadLinkUrl(false, true), false);
+    });
+});
+
+// Whole-branch review finding: a filter change that excludes an
+// already-open, previously-CONFIRMED job reassigns the selection
+// (`preserveDeliberateDetail: false`) WITHOUT ever touching the free-pass
+// machinery `shouldClearDeadLinkUrl` guards — that job was confirmed on its
+// very first look, so `alreadyUsedItsPass` is always false for it, and the
+// narrow predicate above can never fire. Before this predicate existed, that
+// left `job=<excluded-id>` stuck in the address bar with no code path that
+// would ever clear it — this is the coverage that catches it: a test using
+// today's narrow `shouldClearDeadLinkUrl(false, false)` for this exact
+// scenario returns `false` (see above, "pass not yet used, still missing" —
+// wrongly, for this case), which is exactly the bug. `shouldClearStaleJobUrl`
+// is the general predicate the fetch effect now calls instead.
+describe('shouldClearStaleJobUrl', () => {
+    it('reassigned away + URL still names the old id → clear (the filter-excludes-open-job bug)', () => {
+        assert.equal(shouldClearStaleJobUrl('excluded-id', 'excluded-id', false), true);
+    });
+
+    it('reassigned away + URL already names something else (e.g. a fresh openJob push mid-flight) → do not clear', () => {
+        assert.equal(shouldClearStaleJobUrl('some-other-id', 'excluded-id', false), false);
+    });
+
+    it('reassigned away + URL has no job param at all (ambient browsing, e.g. keyboard-nav-only selection) → do not clear', () => {
+        assert.equal(shouldClearStaleJobUrl(null, 'excluded-id', false), false);
+    });
+
+    it('selection preserved (still found, or a granted free pass) → nothing to clear even if the URL matches', () => {
+        assert.equal(shouldClearStaleJobUrl('id-1', 'id-1', true), false);
+    });
+
+    it('no previous selection at all → nothing to clear', () => {
+        assert.equal(shouldClearStaleJobUrl(null, null, false), false);
+    });
+
+    it('subsumes the dead-link-used-its-pass case: reassigned away, URL still names the dead id', () => {
+        assert.equal(shouldClearStaleJobUrl('dead-id', 'dead-id', false), true);
     });
 });

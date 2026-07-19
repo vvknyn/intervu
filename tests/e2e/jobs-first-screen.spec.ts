@@ -434,6 +434,53 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page).not.toHaveURL(new RegExp(`job=${deadId}`), { timeout: 15_000 });
         await expect(page).toHaveURL(/q=engineer/);
     });
+
+    /**
+     * Whole-branch review fix — a DIFFERENT way the URL can drift, never
+     * covered by the dead-link test above: open a real, live job (confirmed
+     * present in the current hits, not a dead id), then narrow the search so
+     * that SAME job no longer matches. `resolveSelectionAfterRefresh` falls
+     * straight to its `hits[0]`-or-null fallback here — `wasConfirmed` is
+     * `true` on the very first look (the job WAS just confirmed present), so
+     * this never touches the dead-link "free pass" machinery at all, and the
+     * OLD narrow `shouldClearDeadLinkUrl(alreadyUsedItsPass, foundInFreshHits)`
+     * guard could never fire for it (`alreadyUsedItsPass` is always `false`
+     * here) — `job=<excluded-id>` stayed stuck in the address bar while the
+     * pane silently moved on, so sharing that URL reproduced a job the
+     * recipient's own filters exclude. `shouldClearStaleJobUrl` is the fix;
+     * this proves page.tsx actually wires it for THIS case, not just the
+     * dead-link one above.
+     *
+     * Deliberately queries "engineer" rather than a guaranteed-zero-hit
+     * string: investigating this fix surfaced a separate, PRE-EXISTING
+     * timing sensitivity in how quickly a browser reflects two
+     * closely-spaced `router.replace()` calls when the query also collapses
+     * results to literally zero (a full EmptyResults re-render lands at the
+     * same moment as the URL write) — reproducible on the unmodified
+     * `shouldClearDeadLinkUrl` mechanism too when engineered into that same
+     * zero-hit shape, so it's a Next.js router characteristic orthogonal to
+     * this fix, not something introduced here. "engineer" keeps the result
+     * set non-empty (broad, real corpus term) while still excluding the
+     * specific just-opened row, which is what this test needs to isolate.
+     */
+    test("a query change that excludes the open job clears job= from the URL, not just the detail pane", async ({ page }) => {
+        await page.goto("/jobs");
+        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        await firstRow.click();
+        await expect(page).toHaveURL(/job=/);
+        const openedId = new URL(page.url()).searchParams.get("job");
+        expect(openedId).toBeTruthy();
+
+        const box = page.getByPlaceholder(/live-checked roles/i);
+        await box.fill("engineer");
+        // The replace-on-type carries `job=<openedId>` forward (buildUrlState
+        // defaults jobId to whatever the URL currently holds) — the drift is
+        // only visible once the debounced re-search actually resolves below.
+        await expect(page).toHaveURL(/q=engineer/);
+
+        await expect(page).not.toHaveURL(new RegExp(`job=${openedId}(&|$)`), { timeout: 20_000 });
+        await expect(page).toHaveURL(/q=engineer/);
+    });
 });
 
 /**

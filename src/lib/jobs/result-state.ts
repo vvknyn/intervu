@@ -96,6 +96,47 @@ export function shouldClearDeadLinkUrl(alreadyUsedItsPass: boolean, foundInFresh
 }
 
 /**
+ * Whole-branch review fix — the GENERAL form of "should the URL's `job=`
+ * param be cleared after this refresh." `shouldClearDeadLinkUrl` above only
+ * catches ONE way a selection gets reassigned away (a dead link that used
+ * its free pass): it stays true. But `resolveSelectionAfterRefresh` also
+ * reassigns `preserveDeliberateDetail: false` for a DIFFERENT, more common
+ * case it was never written to cover — a filter/query change that excludes
+ * an already-open, previously-CONFIRMED job (`wasConfirmed` is `true` on
+ * its very first look, so it never touches the free-pass machinery at all).
+ * That case fell through `shouldClearDeadLinkUrl` silently: `alreadyUsedItsPass`
+ * is `false` (the id was never "unresolved"), so the old guard never fired,
+ * leaving `job=<excluded-id>` stuck in the address bar while the pane moved
+ * on to `hits[0]` — sharing that URL reproduces a job the recipient's own
+ * filters exclude, and on mobile the next reconcile pops a stale "can't
+ * confirm this role's status" sheet over the results.
+ *
+ * The general rule: clear the URL exactly when there WAS an explicit prior
+ * selection, the refresh did NOT preserve it, AND the URL (at the time this
+ * fetch started) still names that now-abandoned id — the last check is what
+ * keeps this from clobbering an unrelated open job when the reassigned
+ * selection came from local-only keyboard nav (`selectJob` in page.tsx,
+ * which deliberately never touches the URL) rather than the address bar.
+ *
+ * This provably subsumes `shouldClearDeadLinkUrl`'s own case: a dead link
+ * that used its free pass always has `preserveDeliberateDetail: false`
+ * (`resolveSelectionAfterRefresh`'s `wasConfirmed: true` branch) and the URL
+ * never changed while the id sat unconfirmed, so `urlJobId` still equals
+ * `previousSelectedId` there too — so this is now the ONE predicate
+ * page.tsx's fetch effect calls to decide "clear the URL." `shouldClearDeadLinkUrl`
+ * itself is left in place rather than deleted (out of scope for this fix;
+ * see its own round-3 review-fix history above) and stays independently
+ * unit-tested below.
+ */
+export function shouldClearStaleJobUrl(
+    urlJobId: string | null,
+    previousSelectedId: string | null,
+    preserveDeliberateDetail: boolean,
+): boolean {
+    return previousSelectedId != null && !preserveDeliberateDetail && urlJobId === previousSelectedId;
+}
+
+/**
  * Task 11 — empty state's ghost-reveal line: only worth showing when ghosts
  * are currently hidden (the first-screen default) AND the honest hidden
  * count (Task 7's `ghostHiddenCount` — `null` while unresolved, or when
