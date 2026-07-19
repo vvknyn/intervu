@@ -14,7 +14,7 @@ async function enterBrowseMode(page: Page) {
     await expect(
         page.getByRole('listbox', { name: 'Job results' })
             .or(page.getByText(/Job search is being connected/i))
-            .or(page.getByText(/No roles match those filters/i))
+            .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
             .first(),
     ).toBeVisible({ timeout: 15000 });
@@ -278,7 +278,9 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });
 
-        await expect(page.getByText(/No roles match those filters/i)).toBeVisible({ timeout: 15000 });
+        // Task 11 replaced the generic copy with "No roles match." + the
+        // active-excluder clear-chips (see jobs-first-screen.spec.ts).
+        await expect(page.getByText('No roles match.')).toBeVisible({ timeout: 15000 });
         await expect(dialog).toHaveCount(0);
     });
 });

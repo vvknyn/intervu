@@ -304,6 +304,36 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.goBack();
         await expect(box).toHaveValue("eng");
     });
+
+    /**
+     * TASK 11 — Empty states + dead-link tombstone.
+     *
+     * "zzzzunfindablezzz" + a $200k salary floor is chosen to reliably
+     * produce zero hits against the live corpus without depending on its
+     * exact contents. `activeFilterEntries` (FilterPanel.tsx) is the single
+     * source for the empty state's clear-chips — same list that drives the
+     * toolbar chips and the mobile sheet — so a salaryMin filter here always
+     * yields at least one "Clear ≥ $200k"-shaped chip, which is what the
+     * `/Clear/i` assertion targets.
+     */
+    test("zero results names the excluders and offers ghost reveal", async ({ page }) => {
+        await page.goto("/jobs?q=zzzzunfindablezzz&salary=200k");
+        await expect(page.getByText("No roles match.")).toBeVisible();
+        await expect(page.getByText(/Clear/i).first()).toBeVisible();
+    });
+
+    /**
+     * A `job` id absent from the live corpus (never assigned, or long since
+     * removed) — the URL is otherwise a plain browse, so the default
+     * unfiltered fetch loads real rows and the detail pane's "not found in
+     * loaded hits" gap (Task 5) is what this exercises. No takedown date is
+     * asserted — `PublicJob` (lib/jobs/types.ts) carries no per-job takedown
+     * timestamp, so the tombstone must never claim one.
+     */
+    test("dead job link shows an honest tombstone", async ({ page }) => {
+        await page.goto("/jobs?job=nonexistent-id-12345");
+        await expect(page.getByText("This role is no longer available.")).toBeVisible();
+    });
 });
 
 /**

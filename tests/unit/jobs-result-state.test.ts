@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
+    resolveGhostReveal,
 } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult } from '../../src/lib/jobs/types';
 
@@ -78,5 +79,30 @@ describe('resolveSelectionAfterRefresh', () => {
             selectedId: null,
             preserveDeliberateDetail: false,
         });
+    });
+});
+
+// Task 11 — empty-state ghost-reveal line gating. Covered as a pure unit
+// test rather than a third e2e case: the e2e suite runs against a real,
+// changing Meilisearch-backed corpus (see this file's own header comment),
+// and there's no filter combination that reliably guarantees "zero non-ghost
+// hits AND a positive hidden-ghost count" on live data — so the render-gating
+// RULE is proven here instead, the same way `isUnavailableJobsResult` and
+// `resolveSelectionAfterRefresh` above cover their own branches directly.
+describe('resolveGhostReveal', () => {
+    it('surfaces the count when ghosts are hidden and the count is positive', () => {
+        assert.equal(resolveGhostReveal(true, 12), 12);
+    });
+
+    it('stays null while the count is unresolved', () => {
+        assert.equal(resolveGhostReveal(true, null), null);
+    });
+
+    it('stays null when the hidden count is exactly zero', () => {
+        assert.equal(resolveGhostReveal(true, 0), null);
+    });
+
+    it('stays null once ghosts are shown, even with a stale positive count', () => {
+        assert.equal(resolveGhostReveal(false, 12), null);
     });
 });
