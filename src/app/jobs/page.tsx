@@ -64,6 +64,7 @@ import {
     isUnavailableJobsResult,
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
+    classifyExistenceCheck,
 } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
@@ -521,25 +522,28 @@ function JobDetail({
 }
 
 /**
- * Task 11 — dead-link tombstone. The selected job's id came straight off the
- * URL (deliberate deep link, stale bookmark, or a shared link) but wasn't
- * among the loaded hits once the first page for the current search
- * resolved. `PublicJob` (lib/jobs/types.ts) carries no per-job takedown
- * timestamp — verified before writing this — so the copy never claims a
- * date, only the honest fact. "See similar roles" reuses the EXACT same
- * Explore entry point as the compact toolbar button (`handleExploreClick`,
- * which itself calls the already-imported `suggestAdjacentRolesAction`)
- * rather than a second, job-specific fetch: a truly dead link only carries
- * an id in the URL, never a title/company to seed a bespoke lookup with.
+ * Task 11 — dead-link tombstone. Rendered only once a targeted existence
+ * check (see the `deadJobCheck` effect below) has actually confirmed the
+ * URL's `job` id is gone — being absent from the CURRENT page of results
+ * alone is not enough (it may just rank off page 1, or the visitor's own
+ * filters may exclude it — review fix). `PublicJob` (lib/jobs/types.ts)
+ * carries no per-job takedown timestamp — verified before writing this —
+ * so the copy never claims a date or guesses at a cause, only the fact the
+ * brief specified. "See similar roles" reuses the Explore entry point
+ * (`handleExploreClick`, which calls the already-imported
+ * `suggestAdjacentRolesAction`) rather than a second, job-specific fetch —
+ * a truly dead link only carries an id in the URL, never a title/company to
+ * seed a bespoke lookup with — via a wrapper that first clears the dead
+ * `job=` param (see `handleTombstoneSimilarRoles`): Explore only rewrites
+ * the URL when "ranked by résumé" was previously active, so a plain
+ * query-less dead link would otherwise leave `job=<dead-id>` in place and
+ * the tombstone re-asserting itself over Explore's fresh results.
  */
 function DeadJobTombstone({ onSimilarRoles, exploring }: { onSimilarRoles: () => void; exploring: boolean }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
             <WarningCircle size={22} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">This role is no longer available.</h3>
-            <p className="mt-1.5 max-w-xs text-xs text-muted-foreground">
-                It may have been filled or taken down since this link was shared.
-            </p>
             <Button variant="outline" size="sm" className="mt-4 gap-1.5" disabled={exploring} onClick={onSimilarRoles}>
                 <Compass size={14} />
                 {exploring ? "Finding similar roles…" : "See similar roles"}
@@ -654,14 +658,17 @@ function SearchPrompt({ onBrowseAll }: { onBrowseAll: () => void }) {
  * `resolveGhostReveal` (lib/jobs/result-state.ts): non-null here already
  * means hideGhosts is on and the count is positive.
  */
+/** Review fix: one source for the `activeFilterEntries` element shape, instead of spelling it out twice below. */
+type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
+
 function EmptyResults({
     entries,
     onClearEntry,
     ghostRevealCount,
     onRevealGhosts,
 }: {
-    entries: { key: string; label: string; clear: (s: FilterState) => FilterState }[];
-    onClearEntry: (entry: { key: string; label: string; clear: (s: FilterState) => FilterState }) => void;
+    entries: FilterEntry[];
+    onClearEntry: (entry: FilterEntry) => void;
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
 }) {
@@ -809,6 +816,14 @@ function JobsContent() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
+    // Task 11 review fix — records which id has already used its ONE free
+    // "preserve, don't reassign" pass in the search effect below (see
+    // `resolveSelectionAfterRefresh`'s `wasConfirmed` option in
+    // lib/jobs/result-state.ts). Never explicitly cleared: a stale value
+    // for a since-superseded id simply stops matching `previousSelectedId`
+    // once the user selects something else, which is all the "reset" this
+    // needs.
+    const firstUnresolvedDeadLinkIdRef = useRef<string | null>(null);
 
     // Live corpus size for the search placeholder ("Search 12,345 live-checked
     // roles…") and Task 8's upsell copy. Captured opportunistically from the
@@ -978,21 +993,39 @@ function JobsContent() {
                 }
                 // Task 11 — snapshot BEFORE `setResult(r)` below overwrites
                 // `resultRef.current`: was the pre-fetch selection actually
-                // confirmed present a moment ago? Distinguishes Task 5's
-                // "a live selection just dropped out of a NEW search/filter"
-                // (still handled by `resolveSelectionAfterRefresh`'s
-                // fall-back-and-close-detail below) from a URL/deep-link job
-                // id this tab has never once confirmed — e.g. mount straight
-                // onto `?job=<dead-id>`. Without this distinction,
-                // `resolveSelectionAfterRefresh` silently swaps a dead link
-                // for an unrelated `hits[0]` on the very first fetch, which
-                // is exactly the bug that made the tombstone unreachable
-                // (verified empirically: it rendered a different job's
-                // detail instead of nothing).
+                // confirmed present a moment ago? `resultRef.current.hits`
+                // is the FULL accumulated list across infinite-scroll pages
+                // (loadMore concatenates via setResult, not a separate
+                // array — verified below), so this is accurate for a
+                // selection made from page 2+, not just page 1. Distinguishes
+                // Task 5's "a live selection just dropped out of a NEW
+                // search/filter" (falls back to hits[0] + closes detail,
+                // via `resolveSelectionAfterRefresh` below) from a URL/
+                // deep-link id this tab has never once confirmed — e.g.
+                // mount straight onto `?job=<dead-id>`. Without this
+                // distinction, `resolveSelectionAfterRefresh` silently swaps
+                // a dead link for an unrelated `hits[0]` on the very first
+                // fetch, which is exactly the bug that made the tombstone
+                // unreachable (verified empirically: it rendered a
+                // different job's detail instead of nothing).
                 const previousSelectedId = selectedIdRef.current;
                 const wasConfirmedBeforeThisFetch = Boolean(
                     previousSelectedId && resultRef.current?.hits.some((h) => h.id === previousSelectedId),
                 );
+                // An unconfirmed id gets exactly ONE free pass across
+                // fetches (review fix): without this, a dead id still in
+                // the URL after the user starts a NEW search would keep
+                // re-entering the "preserve, don't reassign" branch below
+                // forever — `wasConfirmedBeforeThisFetch` can never become
+                // true for a genuinely dead id, since it will never appear
+                // in ANY result — leaving a stale mobile detail sheet stuck
+                // open across every later result set. `firstUnresolvedDeadLinkIdRef`
+                // is set (never explicitly cleared) the first time an id
+                // uses its pass; a stale value for a DIFFERENT id simply
+                // never matches, so no explicit reset is needed.
+                const alreadyUsedItsPass = previousSelectedId != null
+                    && firstUnresolvedDeadLinkIdRef.current === previousSelectedId;
+                const wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass;
                 firstPageSucceeded = true;
                 setResult(r);
                 // `searchKey === ""` is exactly the all-defaults JobsUrlState
@@ -1002,24 +1035,14 @@ function JobsContent() {
                     corpusTotalCapturedRef.current = true;
                     setCorpusTotal(r.total);
                 }
-                const stillPresent = previousSelectedId
-                    ? r.hits.some((h) => h.id === previousSelectedId)
-                    : false;
-                if (previousSelectedId && !stillPresent && !wasConfirmedBeforeThisFetch) {
-                    // Dead-link candidate: leave `selectedId` exactly as the
-                    // URL set it. `selected` (below) then correctly resolves
-                    // to null and the tombstone gate (`isDeadJob`) picks it
-                    // up — no reassignment, no detail-sheet close (mobile's
-                    // sheet was already opened by the URL-reconcile effect;
-                    // closing it here would hide the very tombstone that
-                    // effect made room for).
-                } else {
-                    const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits);
-                    setSelectedId(selection.selectedId);
-                    if (!selection.preserveDeliberateDetail) {
-                        setDetailSheetOpen(false);
-                        userPickedDetailRef.current = false;
-                    }
+                const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits, { wasConfirmed });
+                if (previousSelectedId && !wasConfirmed && selection.preserveDeliberateDetail) {
+                    firstUnresolvedDeadLinkIdRef.current = previousSelectedId;
+                }
+                setSelectedId(selection.selectedId);
+                if (!selection.preserveDeliberateDetail) {
+                    setDetailSheetOpen(false);
+                    userPickedDetailRef.current = false;
                 }
                 // Honest hidden-ghost count for the rail's toggle row (Task 7): one
                 // extra limit-1, facets-only request with hideGhosts flipped off and
@@ -1186,15 +1209,77 @@ function JobsContent() {
         return hits.find((h) => h.id === selectedId) ?? null;
     }, [hits, selectedId]);
 
-    // Task 11 — dead-link tombstone gate: a deliberate URL selection that the
-    // CURRENT search's first page has already resolved and still doesn't
-    // contain. No single-job fetch (per the controller resolution) — this
-    // reads the same `hits`/`loading` the rest of the page already tracks.
-    // `!loading` is the "resolved, not mid-fetch" gate: while a fetch for the
-    // current search key is in flight, "not found yet" and "genuinely gone"
-    // are indistinguishable, so the tombstone must wait it out rather than
-    // flash before a background refetch (e.g. a filter change) settles.
-    const isDeadJob = Boolean(selectedId) && !loading && !selected;
+    // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
+    // selection that the CURRENT search's first page has already resolved
+    // and still doesn't contain. `hits` is one PAGE=30 window of the
+    // current search, filters, and sort — being absent from it does NOT
+    // mean the role is gone; it may just rank 31st, or the visitor may be
+    // browsing under different filters than whoever shared the link. So
+    // this is only a CANDIDATE for the targeted existence check below, not
+    // a verdict — review fix, the original `isDeadJob` asserted death here
+    // directly. `!loading` is the "resolved, not mid-fetch" gate: while a
+    // fetch for the current search key is in flight, "not found yet" and
+    // "genuinely gone" are indistinguishable, so the check must wait it out
+    // rather than fire mid-refetch.
+    const isDeadJobCandidate = Boolean(selectedId) && !loading && !selected;
+
+    // Targeted existence check: one `searchJobsAction({ id, limit: 1 })`
+    // request per candidate id (no other facets/query/sort — see
+    // `JobSearchParams.id`), generation-guarded with the same
+    // `FitIntentGuard` precedent `handleRankByFit`/the sheet's live count
+    // use, so a rapid id-to-id navigation can't let a stale response land.
+    // Fires once per id: the effect's own deps skip re-firing for an
+    // unchanged (candidate id, already checked/checking) pair, and the
+    // guard inside additionally no-ops a re-entrant call. `deadJobCheck`
+    // is read against the LIVE `selectedId` at render time (below), so a
+    // stale result for a since-abandoned id can never render — no explicit
+    // cleanup needed.
+    const [deadJobCheck, setDeadJobCheck] = useState<
+        | { id: string; status: "checking" | "not_found" | "unknown" }
+        | { id: string; status: "found"; job: PublicJob }
+        | null
+    >(null);
+    const deadJobGuardRef = useRef<FitIntentGuard | null>(null);
+    if (!deadJobGuardRef.current) deadJobGuardRef.current = new FitIntentGuard();
+    useEffect(() => {
+        if (!isDeadJobCandidate || !selectedId) return;
+        if (deadJobCheck && deadJobCheck.id === selectedId) return;
+        const id = selectedId;
+        const token = deadJobGuardRef.current!.begin();
+        setDeadJobCheck({ id, status: "checking" });
+        void (async () => {
+            try {
+                const r = await searchJobsAction({ id, limit: 1, offset: 0 });
+                if (!deadJobGuardRef.current!.isCurrent(token)) return;
+                // `classifyExistenceCheck` (lib/jobs/result-state.ts,
+                // unit-tested) treats an unconfigured backend OR a failed
+                // request as "unknown" — neither confirms nor denies, so it
+                // falls back to a NON-assertive state rather than claiming
+                // the role is gone. That "unknown" branch is not
+                // hypothetical: verified live that `id = ...` currently
+                // 400s against production until the index picks up the
+                // `filterableAttributes` addition in meilisearch.ts.
+                setDeadJobCheck({ id, ...classifyExistenceCheck(id, r) });
+            } catch {
+                if (deadJobGuardRef.current!.isCurrent(token)) setDeadJobCheck({ id, status: "unknown" });
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDeadJobCandidate, selectedId]);
+
+    // Only trust `deadJobCheck` when it's answering for the CURRENTLY
+    // selected id — a still-in-flight/stale result for an abandoned id
+    // must never leak into what's rendered for the current one.
+    const deadJobResolved = deadJobCheck && deadJobCheck.id === selectedId ? deadJobCheck : null;
+    // Confirmed alive but off-page/filtered-out: render its real detail
+    // instead of asserting death. Confirmed gone: the tombstone. Still
+    // checking, or the check was inconclusive: neither — a non-assertive
+    // gap, same as the pre-Task-11 baseline.
+    const deadJobFoundJob = deadJobResolved?.status === "found" ? deadJobResolved.job : null;
+    const isDeadJobConfirmed = deadJobResolved?.status === "not_found";
+    // The job to actually render in the detail pane/sheet — `selected`
+    // (in `hits`) first, else the existence check's confirmed-alive job.
+    const detailJob = selected ?? deadJobFoundJob;
 
     const handleResultsKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -1776,6 +1861,24 @@ function JobsContent() {
         }
     };
 
+    // Task 11 review fix — the tombstone's "See similar roles" can't just
+    // call `handleExploreClick` bare: the common dead link is a bare
+    // `/jobs?job=<id>` with no query, so `job=<dead-id>` is still the URL's
+    // `job` param when this fires. `activateExplore` (above) only rewrites
+    // the URL when "ranked by résumé" was active, so for this — the
+    // overwhelmingly common — path it would leave `job=<dead-id>` in the
+    // address bar untouched while local `query`/`mode` moved on to Explore;
+    // the still-present dead id then re-triggers the existence-check
+    // candidacy and the tombstone re-asserts itself over Explore's fresh
+    // results. Clearing the job selection first (local state + URL) avoids
+    // that: `selectedId` becomes null, so `isDeadJobCandidate` goes false
+    // and any in-flight/stale `deadJobCheck` for the old id stops matching.
+    const handleTombstoneSimilarRoles = () => {
+        setSelectedId(null);
+        applyUrlState(buildUrlState({ jobId: null }), "replace");
+        void handleExploreClick();
+    };
+
     const enterBrowse = () => {
         clearPendingGate();
         setExploreTitles([]);
@@ -2165,25 +2268,25 @@ function JobsContent() {
                                 <aside
                                     role="region"
                                     aria-label={
-                                        selected
-                                            ? `Job details: ${decodeText(selected.title)} at ${cleanCompany(selected.company) || "Unknown company"}`
+                                        detailJob
+                                            ? `Job details: ${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company) || "Unknown company"}`
                                             : "Job details"
                                     }
                                     className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
                                 >
-                                    {selected ? (
+                                    {detailJob ? (
                                         <JobDetail
-                                            key={selected.id}
-                                            job={selected}
-                                            applied={appliedIds.has(selected.id)}
-                                            applying={applyingId === selected.id}
-                                            onTailor={() => handleTailor(selected)}
-                                            onOpenPosting={() => handleOpenPosting(selected)}
-                                            onMarkApplied={() => handleMarkApplied(selected)}
-                                            onPrep={() => handlePrep(selected)}
+                                            key={detailJob.id}
+                                            job={detailJob}
+                                            applied={appliedIds.has(detailJob.id)}
+                                            applying={applyingId === detailJob.id}
+                                            onTailor={() => handleTailor(detailJob)}
+                                            onOpenPosting={() => handleOpenPosting(detailJob)}
+                                            onMarkApplied={() => handleMarkApplied(detailJob)}
+                                            onPrep={() => handlePrep(detailJob)}
                                         />
-                                    ) : isDeadJob ? (
-                                        <DeadJobTombstone onSimilarRoles={() => void handleExploreClick()} exploring={exploring} />
+                                    ) : isDeadJobConfirmed ? (
+                                        <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} exploring={exploring} />
                                     ) : null}
                                 </aside>
                             </div>
@@ -2232,19 +2335,19 @@ function JobsContent() {
             >
                 <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
                     <SheetTitle className="sr-only">
-                        {selected ? `${decodeText(selected.title)} at ${cleanCompany(selected.company)}` : "Job details"}
+                        {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
-                    {selected ? (
+                    {detailJob ? (
                         <>
                             <JobDetail
-                                key={selected.id}
-                                job={selected}
-                                applied={appliedIds.has(selected.id)}
-                                applying={applyingId === selected.id}
-                                onTailor={() => handleTailor(selected)}
-                                onOpenPosting={() => handleOpenPosting(selected)}
-                                onMarkApplied={() => handleMarkApplied(selected)}
-                                onPrep={() => handlePrep(selected)}
+                                key={detailJob.id}
+                                job={detailJob}
+                                applied={appliedIds.has(detailJob.id)}
+                                applying={applyingId === detailJob.id}
+                                onTailor={() => handleTailor(detailJob)}
+                                onOpenPosting={() => handleOpenPosting(detailJob)}
+                                onMarkApplied={() => handleMarkApplied(detailJob)}
+                                onPrep={() => handlePrep(detailJob)}
                             />
                             {/* Task 10 — thumb-zone sticky bar. Reuses the SAME
                                 onOpenPosting/onPrep handlers passed to JobDetail
@@ -2252,11 +2355,11 @@ function JobsContent() {
                                 live at the top and scroll out of view on a long
                                 description; this keeps Apply/Prep reachable. */}
                             <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-                                {selected.apply_url && (
+                                {detailJob.apply_url && (
                                     <Button
                                         variant="outline"
                                         className="flex-1 gap-1.5"
-                                        onClick={() => handleOpenPosting(selected)}
+                                        onClick={() => handleOpenPosting(detailJob)}
                                     >
                                         <ArrowSquareOut size={16} />
                                         Apply ↗
@@ -2265,16 +2368,16 @@ function JobsContent() {
                                 <Button
                                     variant="outline"
                                     className="flex-1 gap-1.5"
-                                    onClick={() => handlePrep(selected)}
+                                    onClick={() => handlePrep(detailJob)}
                                 >
                                     <Lightning size={14} weight="fill" />
                                     Prep for this
                                 </Button>
                             </div>
                         </>
-                    ) : isDeadJob ? (
+                    ) : isDeadJobConfirmed ? (
                         <div className="p-4">
-                            <DeadJobTombstone onSimilarRoles={() => void handleExploreClick()} exploring={exploring} />
+                            <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} exploring={exploring} />
                         </div>
                     ) : null}
                 </SheetContent>

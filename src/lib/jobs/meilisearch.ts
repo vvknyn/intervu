@@ -31,6 +31,16 @@ export const JOBS_INDEX_SETTINGS = {
     "source",
     "vacancy_status",
     "posted_ts",
+    // Task 11 — the dead-link existence check (`JobSearchParams.id`, below)
+    // needs `id = "..."` to be a legal filter. VERIFIED LIVE (2026-07-19)
+    // against the production index that Meilisearch's primary key is NOT
+    // automatically filterable — the search-only key also can't reach
+    // GET /documents/{id} (403, out of its scope) or /indexes/{id} (403) —
+    // so this addition is CODE-ONLY until the sync worker re-provisions the
+    // live index with it. Until then, `id = ...` filters 400 and the
+    // existence check safely degrades to "unknown" (non-assertive) rather
+    // than lying — see `classifyExistenceCheck` in lib/jobs/result-state.ts.
+    "id",
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
@@ -79,6 +89,17 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
  */
 export function buildFilter(p: JobSearchParams, legacy = false): string[] {
   const f: string[] = ['vacancy_status != "closed"'];
+  // Task 11 — existence check: requires "id" in `filterableAttributes`
+  // (JOBS_INDEX_SETTINGS above) — Meilisearch's primary key is NOT
+  // automatically filterable, verified live against production (it 400s
+  // with `invalid_search_filter` until the live index is re-provisioned
+  // with the setting above). Until then this filter clause makes the
+  // request fail, which `searchMeili` surfaces as an "unavailable" result —
+  // the caller (`classifyExistenceCheck`, lib/jobs/result-state.ts) treats
+  // that as "unknown" and renders nothing rather than asserting death. Every
+  // other clause below is skipped for this request by construction (the
+  // caller passes only `{ id, limit, offset }`) — see `JobSearchParams.id`.
+  if (p.id) f.push(`id = ${JSON.stringify(p.id)}`);
   const facets = p.facets ?? {};
   for (const key of FACETABLE_KEYS) {
     const vals = facets[key];

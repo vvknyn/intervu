@@ -87,6 +87,16 @@ export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
 /** Search request shape shared across every backend + the server action. */
 export interface JobSearchParams {
   q?: string;
+  /**
+   * Task 11 — narrow a search to a single known id (the jobs/page.tsx
+   * dead-link existence check: "does this exact posting still exist,"
+   * independent of the CURRENT filters/query/sort/pagination window). Every
+   * other field is normally omitted alongside this one — see
+   * `buildFilter`/`passBase` in the two backends for how it composes (both
+   * still apply the baseline `vacancy_status != "closed"` invariant, which
+   * is deliberate: a closed vacancy is exactly "no longer available").
+   */
+  id?: string;
   /** Selected facet values: facetKey → values (OR within a key, AND across keys). */
   facets?: Partial<Record<FacetKey, string[]>>;
   /** Minimum salary — matches jobs paying at least this at the top or bottom of the band. */
