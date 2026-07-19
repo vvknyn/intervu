@@ -22,9 +22,19 @@ function nextPostedBucket(current: PostedBucket | undefined): PostedBucket | und
     return POSTED_CHIP_CYCLE[(idx + 1) % POSTED_CHIP_CYCLE.length];
 }
 
-function nextSalaryPreset(current: number): number {
-    const idx = SALARY_PRESETS.findIndex((s) => s.value === current);
-    return SALARY_PRESETS[(idx + 1) % SALARY_PRESETS.length].value;
+/**
+ * Steps to the next preset ABOVE `current`, wrapping to "Any" past the top —
+ * generic over any starting value, not just the five exact preset amounts.
+ * Review fix (2026-07-19): the prior `findIndex`-based cycle returned -1 for
+ * an off-ladder `salaryMin` (e.g. `?salaryMin=75000` from a hand-edited or
+ * legacy URL), and `(-1 + 1) % length === 0` landed on "Any" — the first tap
+ * CLEARED the filter instead of stepping up. Finding the next preset whose
+ * value exceeds `current` handles every off-ladder value the same way,
+ * without special-casing any one of them.
+ */
+export function nextSalaryPreset(current: number): number {
+    const next = SALARY_PRESETS.find((s) => s.value > current);
+    return next ? next.value : SALARY_PRESETS[0].value;
 }
 
 /**
@@ -105,7 +115,14 @@ export function FilterChipsRow({
     const remoteValue = pickRemoteFacetValue(distribution);
     const remoteActive = remoteValue != null && (state.facets.work_type ?? []).includes(remoteValue);
     const salaryActive = state.salaryMin > 0;
-    const salaryLabel = SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label;
+    // Review fix: an off-ladder `salaryMin` has no exact SALARY_PRESETS match
+    // — falling all the way back to the inert "Salary" label left the chip
+    // rendering ACTIVE (highlighted) while reading as if nothing were
+    // selected. Falls back to a derived "$Nk+" (matching the presets' own
+    // label style) instead, generic over any value, not just a known one.
+    const salaryLabel = salaryActive
+        ? (SALARY_PRESETS.find((s) => s.value === state.salaryMin)?.label ?? `$${Math.round(state.salaryMin / 1000)}k+`)
+        : undefined;
 
     return (
         <div
@@ -127,7 +144,7 @@ export function FilterChipsRow({
                 Remote
             </Chip>
             <Chip active={salaryActive} onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}>
-                {salaryActive && salaryLabel ? salaryLabel : "Salary"}
+                {salaryLabel ?? "Salary"}
                 <CaretDown size={11} weight="bold" />
             </Chip>
             <Chip active={activeCount > 0} onClick={onOpenSheet}>

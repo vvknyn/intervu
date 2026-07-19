@@ -88,6 +88,23 @@ export interface FilterState {
 }
 
 /**
+ * The all-filters-cleared FilterState. `hideGhosts: true` is the product
+ * default (ghosts hidden by default) — the one field here that ISN'T just
+ * "off"/empty like the rest — so this is exported and shared by `clearAll`
+ * AND the mobile sheet's `pendingClearAll` (page.tsx), plus this file's own
+ * tests, instead of three literals that could quietly drift (review fix,
+ * 2026-07-19 — the exact risk `toggleFacetValue` was already extracted to
+ * prevent, just for the "cleared" literal instead of the toggle mechanics).
+ */
+export const PRISTINE_FILTER_STATE: FilterState = {
+    facets: {},
+    salaryMin: 0,
+    visaOnly: false,
+    postedBucket: undefined,
+    hideGhosts: true,
+};
+
+/**
  * Pure add/remove-from-array toggle for one facet key's selected values.
  * Shared by the desktop mutator (`toggleFacet`, page.tsx) and Task 10's
  * mobile sheet pending-state mutator, so there is exactly one place that

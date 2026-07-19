@@ -1,8 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { activeFilterEntries, toggleFacetValue, type FilterState } from "../../src/components/jobs/FilterPanel";
+import {
+    activeFilterEntries,
+    toggleFacetValue,
+    PRISTINE_FILTER_STATE,
+    type FilterState,
+} from "../../src/components/jobs/FilterPanel";
 
-const base: FilterState = { facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined, hideGhosts: true };
+// Review fix (2026-07-19): was a locally-duplicated literal — now the same
+// exported constant page.tsx's `clearAll`/`pendingClearAll` consume, so this
+// test would fail if either of THOSE ever drifted from it, not just prove
+// the literal is internally consistent with itself.
+const base: FilterState = PRISTINE_FILTER_STATE;
 
 test("pristine state has no active entries (hideGhosts default is not 'active')", () => {
     assert.equal(activeFilterEntries(base).length, 0);

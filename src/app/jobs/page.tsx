@@ -46,7 +46,13 @@ import {
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor } from "@/lib/jobs/badges";
-import { FilterPanel, activeFilterEntries, toggleFacetValue, type FilterState } from "@/components/jobs/FilterPanel";
+import {
+    FilterPanel,
+    activeFilterEntries,
+    toggleFacetValue,
+    PRISTINE_FILTER_STATE,
+    type FilterState,
+} from "@/components/jobs/FilterPanel";
 import { FilterChipsRow } from "@/components/jobs/FilterChipsRow";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -78,6 +84,7 @@ import {
     type UrlSort,
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
+import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -627,6 +634,11 @@ function JobsContent() {
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
+    // Declared here (not down near `clearAll`/the rail JSX, where it used to
+    // live) so the search effect below can read ONE `filterState` for this
+    // render instead of five separate primitives — review fix, 2026-07-19,
+    // needed so `buildJobSearchPayload` has a single FilterState to take.
+    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/activeChips/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -866,13 +878,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    q: query.trim() || undefined,
-                    facets,
-                    salaryMin: salaryMin || undefined,
-                    visaOnly: visaOnly || undefined,
-                    postedBucket,
-                    hideGhosts,
-                    sort: sortOverride ?? undefined,
+                    ...buildJobSearchPayload(filterState, query, sortOverride),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -912,13 +918,11 @@ function JobsContent() {
                 // rather than a bespoke guard class.
                 if (hideGhosts) {
                     searchJobsAction({
-                        q: query.trim() || undefined,
-                        facets: { ...facets, ghost_badge: undefined },
-                        salaryMin: salaryMin || undefined,
-                        visaOnly: visaOnly || undefined,
-                        postedBucket,
-                        hideGhosts: false,
-                        sort: sortOverride ?? undefined,
+                        ...buildJobSearchPayload(
+                            { ...filterState, facets: { ...filterState.facets, ghost_badge: undefined }, hideGhosts: false },
+                            query,
+                            sortOverride,
+                        ),
                         withFacets: true,
                         limit: 1,
                         offset: 0,
@@ -1207,10 +1211,8 @@ function JobsContent() {
         );
     };
 
-    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
-
     const clearAll = () => {
-        applyFilterState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined, hideGhosts: true });
+        applyFilterState(PRISTINE_FILTER_STATE);
     };
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
@@ -1238,8 +1240,7 @@ function JobsContent() {
     const pendingPostedBucket = (v: PostedBucket | undefined) =>
         setPendingFilterState((prev) => ({ ...prev, postedBucket: v }));
     const pendingHideGhosts = (v: boolean) => setPendingFilterState((prev) => ({ ...prev, hideGhosts: v }));
-    const pendingClearAll = () =>
-        setPendingFilterState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined, hideGhosts: true });
+    const pendingClearAll = () => setPendingFilterState(PRISTINE_FILTER_STATE);
     const pendingActiveCount = activeFilterEntries(pendingFilterState).length;
 
     // Snapshot the live filters into the sheet's scratch state on open —
@@ -1270,18 +1271,19 @@ function JobsContent() {
     const sheetCountGuardRef = useRef<FitIntentGuard | null>(null);
     if (!sheetCountGuardRef.current) sheetCountGuardRef.current = new FitIntentGuard();
     useEffect(() => {
-        if (!filterSheetOpen) return;
+        // `begin()` runs on EVERY effect re-run, including the one triggered
+        // by the sheet CLOSING — not just while open. Review fix (2026-07-19):
+        // with `begin()` only called past the early return below, closing the
+        // sheet mid-request never advanced the guard, so a still-in-flight
+        // count from the just-discarded session stayed "current" and could
+        // land after a fresh re-open had already reseeded `sheetCount` —
+        // clobbering the honest just-opened value with a stale one.
         const token = sheetCountGuardRef.current!.begin();
+        if (!filterSheetOpen) return;
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    q: query.trim() || undefined,
-                    facets: pendingFilterState.facets,
-                    salaryMin: pendingFilterState.salaryMin || undefined,
-                    visaOnly: pendingFilterState.visaOnly || undefined,
-                    postedBucket: pendingFilterState.postedBucket,
-                    hideGhosts: pendingFilterState.hideGhosts,
-                    sort: sortOverride ?? undefined,
+                    ...buildJobSearchPayload(pendingFilterState, query, sortOverride),
                     limit: 1,
                     offset: 0,
                 });

@@ -325,13 +325,45 @@ test.describe("mobile", () => {
         await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
     });
 
-    test("sheet count matches applied result count", async ({ page }) => {
+    // Review fix (2026-07-19): the original version read `applyBtn.textContent()`
+    // immediately after opening — inside the 250ms debounce window — so it
+    // compared the value `openFilterSheet` SEEDED (from `result?.total`,
+    // before any edit) to itself. It could not fail. This rewrite actually
+    // edits a pending filter inside the sheet, waits for the button's number
+    // to change (proof the debounced re-count fired), THEN applies and checks
+    // the applied page shows that same (post-edit) number.
+    test("sheet count reflects a debounced pending-filter change and matches the applied result", async ({ page }) => {
         await page.goto("/jobs");
         await page.getByText("All (", { exact: false }).click();
+
         const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
-        const n = (await applyBtn.textContent())!.replace(/\D/g, "");
+        await expect(applyBtn).toBeVisible();
+        const seeded = (await applyBtn.textContent())!.replace(/\D/g, "");
+
+        // Toggle a PENDING filter inside the sheet — resolution #3: this must
+        // only move the debounced count, never the applied page behind it.
+        await page
+            .getByRole("region", { name: "Job filters" })
+            .getByRole("button", { name: "Last week" })
+            .click();
+
+        // Poll until the button's number actually changes from the open-time
+        // seed — the debounce is 250ms plus a real round trip.
+        await expect
+            .poll(async () => (await applyBtn.textContent())?.replace(/\D/g, ""), { timeout: 10_000 })
+            .not.toBe(seeded);
+        const settled = (await applyBtn.textContent())!.replace(/\D/g, "");
+
         await applyBtn.click();
-        await expect(page.getByText(new RegExp(`${Number(n).toLocaleString()}|${n}`)).first()).toBeVisible();
+        // Wait for the sheet to fully leave the DOM before reading the
+        // applied page's count — Radix's exit animation keeps the closing
+        // sheet (and the just-read `settled` text inside it) mounted for a
+        // beat, and a same-text page-wide search could otherwise match that
+        // stale, departing element instead of the real applied-page count.
+        await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toHaveCount(0);
+        await expect(
+            page.getByText(new RegExp(`${Number(settled).toLocaleString()}|${settled}`)).first(),
+        ).toBeVisible();
     });
 
     // Resolution #5: exact scroll restoration is flaky under the list's

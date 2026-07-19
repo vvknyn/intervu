@@ -198,9 +198,13 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(filters).toBeVisible();
         await expect(results).toBeVisible();
         await expect(detail).toBeVisible();
-        // The mobile "Filters" toggle button is lg:hidden now too — it must not
-        // coexist with the always-visible rail.
-        await expect(page.getByRole('button', { name: /Filters/ })).toHaveCount(0);
+        // Review fix (2026-07-19): asserting the deleted mobile "Filters"
+        // button was absent stopped being meaningful once Task 10 removed it
+        // everywhere — the assertion could no longer fail at any viewport.
+        // Retargeted at the thing that's actually `lg:hidden` now: Task 10's
+        // quick-filter chips row must not coexist with the always-visible
+        // rail at lg+.
+        await expect(page.getByRole('group', { name: 'Quick filters' })).toHaveCount(0);
 
         const documentMetrics = await page.evaluate(() => ({
             height: document.documentElement.scrollHeight,
