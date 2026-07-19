@@ -397,7 +397,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
         // A NEW search changes searchKey, firing fetch 2 with the SAME dead
         // id still the previous selection (typing never touches `job=`).
-        const box = page.getByRole("textbox").first();
+        const box = page.getByPlaceholder(/live-checked roles/i);
         await box.fill("engineer");
         await expect(page).toHaveURL(/q=engineer/);
 
