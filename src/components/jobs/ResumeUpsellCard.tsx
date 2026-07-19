@@ -12,8 +12,18 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
  * state, no extra wiring needed here.
  *
  * `count` is the honest, resolver-derived corpus size (lib/jobs/corpus-
- * count.ts) — never a raw, possibly Meilisearch-capped `total` — so a
- * capped Meilisearch total can no longer print here as if it were exact.
+ * count.ts) — never a raw, possibly Meilisearch-capped `total` — and is
+ * `null` for any deep link that already carries a query/filter on first
+ * load (page.tsx only captures it from the all-defaults search); the copy
+ * below reads naturally either way, no dangling number or double space.
+ *
+ * Whole-branch review fix — the copy used to promise "rank all N roles by
+ * fit," which `applyFit` (jobs/page.tsx) doesn't do: it narrows the search
+ * to a résumé-derived query + a seniority facet and lets ordinary relevance
+ * ranking sort the matches, exactly like typing a search would — it does
+ * not produce a complete ranking of the whole corpus. "Match against" below
+ * describes what actually happens (a search evaluated across the live
+ * corpus) without claiming completeness it can't back up.
  */
 export function ResumeUpsellCard({
     count,
@@ -32,7 +42,9 @@ export function ResumeUpsellCard({
                 className="flex flex-1 items-center gap-2 text-left font-medium text-brand hover:underline"
             >
                 <ArrowUp size={14} className="shrink-0" />
-                Upload your résumé to rank all {count ? formatCorpusCount(count) : ""} roles by fit — free
+                {count
+                    ? `Upload your résumé to match against ${formatCorpusCount(count)} live roles by fit — free`
+                    : "Upload your résumé to match roles by fit — free"}
             </button>
             <button
                 type="button"

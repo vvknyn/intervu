@@ -238,12 +238,16 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("upsell card shows once and dismissal survives reload", async ({ page }) => {
         await page.goto("/jobs");
-        const card = page.getByText("rank all", { exact: false });
+        // "Upload your résumé" is the ResumeUpsellCard's own distinctive CTA
+        // text (verified unique on this page) — not tied to the exact
+        // "match against N roles" / "match roles" wording, which varies
+        // depending on whether the honest corpus count has resolved yet.
+        const card = page.getByText("Upload your résumé", { exact: false });
         await expect(card).toBeVisible();
         await page.getByRole("button", { name: /dismiss|✕/i }).first().click();
         await expect(card).not.toBeVisible();
         await page.reload();
-        await expect(page.getByText("rank all", { exact: false })).not.toBeVisible();
+        await expect(page.getByText("Upload your résumé", { exact: false })).not.toBeVisible();
     });
 
     // Resolution #2: `formatRelativeAge` (Task 3, locked) has no space before
