@@ -368,7 +368,7 @@ export function DashboardContainer() {
         const resumeDataToText = (rd: any): string => {
             const textParts: string[] = [];
             if (rd.profile) {
-                textParts.push(`${rd.profile.profession || ''} | ${rd.profile.email || ''} | ${rd.profile.location || ''}`);
+                textParts.push(`${rd.profile.name || rd.profile.profession || ''} | ${rd.profile.email || ''} | ${rd.profile.location || ''}`);
             }
             if (rd.generatedSummary) {
                 textParts.push(`SUMMARY:\n${rd.generatedSummary}`);

@@ -39,6 +39,7 @@ export function CoverLetterStep({ draft, onUpdate }: CoverLetterStepProps) {
             // Build resume content from base resume
             const resumeContent = draft.baseResume
                 ? `
+                    Candidate Name: ${draft.baseResume.profile.name}
                     Profession: ${draft.baseResume.profile.profession}
                     Summary: ${draft.baseResume.generatedSummary}
                     Experience: ${draft.baseResume.experience.map(e => `${e.role} at ${e.company}: ${e.description}`).join('\n')}

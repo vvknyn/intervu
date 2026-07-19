@@ -220,7 +220,7 @@ export function ResumeTailoringStep({ draft, onUpdate, resumeData, resumeLoading
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground">
-                                {resumeData.profile?.profession || "Resume loaded"}
+                                {resumeData.profile?.name || resumeData.profile?.profession || "Resume loaded"}
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 {resumeData.experience?.length || 0} experience entries

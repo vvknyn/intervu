@@ -6,6 +6,7 @@ import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, 
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 
 /**
  * Fetch structured resume data from database
@@ -26,9 +27,19 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
         }
 
         const docData = doc.data();
+        const resumeData = docData?.resume_data as ResumeData | undefined;
+
+        // Backward-compat: profiles saved before the name/profession split have
+        // the candidate's name sitting in `profession` (see profile-migration.ts).
+        // Reshape at this single read chokepoint so every caller sees the current
+        // shape; the migrated data is persisted back automatically the next time
+        // the user saves.
+        if (resumeData?.profile) {
+            resumeData.profile = migrateLegacyProfile(resumeData.profile);
+        }
 
         return {
-            data: docData?.resume_data as ResumeData | undefined,
+            data: resumeData,
             source: docData?.resume_import_source,
             confidence: docData?.resume_import_confidence
         };
@@ -107,7 +118,10 @@ function resumeDataToText(data: ResumeData): string {
     // Profile
     if (data.profile) {
         const p = data.profile;
-        parts.push(`Name/Contact: ${p.profession} | ${p.email} | ${p.location}`);
+        parts.push(`Name/Contact: ${p.name || p.profession} | ${p.email} | ${p.location}`);
+        if (p.profession) {
+            parts.push(`Profession: ${p.profession}`);
+        }
     }
 
     // Summary
@@ -164,7 +178,7 @@ export async function parseResumeWithAI(
             """
 
             EXTRACT:
-            1. Profile: profession (use FULL NAME), yearsOfExperience (number), location, email, phone, linkedin.
+            1. Profile: name (candidate's FULL NAME), profession (their job title / target role, e.g. "Product & Platform Lead" — NOT their name), yearsOfExperience (number), location, email, phone, linkedin.
             2. Experience: company, role, dates, description (preserve bullets as single string).
             3. Skills: grouped by category.
             4. Education: degree, institution, year.
@@ -173,7 +187,7 @@ export async function parseResumeWithAI(
             RETURN JSON:
             {
                 "parsed": {
-                    "profile": { "profession": "Full Name", "yearsOfExperience": 5, "location": "City", "email": "email@example.com", "phone": "Phone", "linkedin": "URL" },
+                    "profile": { "name": "Full Name", "profession": "Job Title", "yearsOfExperience": 5, "location": "City", "email": "email@example.com", "phone": "Phone", "linkedin": "URL" },
                     "experience": [{ "id": "exp-1", "company": "Company", "role": "Title", "dates": "2020-Present", "description": "• Point 1\\n• Point 2" }],
                     "competencies": [{ "category": "Tech Stack", "skills": ["Skill1", "Skill2"] }],
                     "education": [{ "id": "edu-1", "degree": "Degree", "institution": "School", "year": "2020" }],
@@ -251,6 +265,7 @@ export async function parseResumeWithAI(
         // Validate and sanitize the parsed data
         const parsed: ResumeData = {
             profile: {
+                name: result.parsed.profile?.name || "",
                 profession: result.parsed.profile?.profession || "",
                 yearsOfExperience,
                 location: result.parsed.profile?.location || "",

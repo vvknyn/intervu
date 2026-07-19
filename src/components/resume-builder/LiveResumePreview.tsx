@@ -319,7 +319,7 @@ export function LiveResumePreview(props: LiveResumePreviewProps) {
                 {/* Header - Compact */}
                 <SectionWrapper id="header" className="text-center pb-1 mb-1.5 border-b border-gray-400">
                     <h1 className="text-[18px] font-bold mb-0 tracking-wide">
-                        {data.profile.profession || "Your Name"}
+                        {data.profile.name || "Your Name"}
                     </h1>
                     <div className="text-[9.5px] text-gray-700">
                         {[

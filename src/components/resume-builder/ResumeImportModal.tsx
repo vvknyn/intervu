@@ -369,6 +369,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride }:
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
+                                    <Label className="text-xs">Name</Label>
+                                    <Input
+                                        value={editedData.profile.name || ""}
+                                        onChange={(e) => updateProfile('name', e.target.value)}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
                                     <Label className="text-xs">Profession</Label>
                                     <Input
                                         value={editedData.profile.profession}

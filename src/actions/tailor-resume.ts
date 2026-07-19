@@ -347,7 +347,7 @@ export async function saveTailoredVersion(
         const originalExperience = input.originalExperience || [];
         const originalCompetencies = input.originalCompetencies || [];
         const originalProfile = input.originalProfile || {
-            profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: ''
+            name: '', profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: ''
         };
         const originalEducation = input.originalEducation || [];
 
@@ -435,7 +435,7 @@ export async function fetchTailoredVersions(): Promise<{ data?: TailoredResumeVe
             originalSummary: row.original_summary,
             originalExperience: row.original_experience,
             originalCompetencies: row.original_competencies,
-            originalProfile: row.original_profile || { profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: '' },  // Added with fallback
+            originalProfile: row.original_profile || { name: '', profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: '' },  // Added with fallback
             originalEducation: row.original_education || [],  // Added with fallback
             sectionOrder: row.section_order,                   // Added
             tailoredSummary: row.tailored_summary,
