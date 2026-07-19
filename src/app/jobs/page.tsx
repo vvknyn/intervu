@@ -59,6 +59,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -929,7 +930,19 @@ function JobsContent() {
     // `corpusTotalCapturedRef` makes that one-shot regardless of effect
     // re-runs. A deep link that already carries filters on first load never
     // fills this in; the placeholder just stays generic.
-    const [corpusTotal, setCorpusTotal] = useState<number | null>(null);
+    //
+    // Whole-branch review fix — this used to store the raw `r.total`, which
+    // is `body.totalHits ?? body.estimatedTotalHits` straight off
+    // Meilisearch (see searchMeili, lib/jobs/meilisearch.ts), both capped by
+    // `JOBS_INDEX_SETTINGS.pagination.maxTotalHits` (100,000). Verified live:
+    // the real corpus is ~1.77M docs, so that cap was being printed as an
+    // exact fact — "Search 100,000 live-checked roles…" — right next to the
+    // UNCAPPED "N hidden ghosts" figure elsewhere on this page, two numbers
+    // on different denominators presented as if they were comparable. Now
+    // stores the resolved `CorpusCount` (lib/jobs/corpus-count.ts) instead,
+    // so every consumer renders through `formatCorpusCount` and a capped
+    // value can only ever show as a floor ("100,000+"), never a bare number.
+    const [corpusCount, setCorpusCount] = useState<CorpusCount | null>(null);
     const corpusTotalCapturedRef = useRef(false);
 
     // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
@@ -1131,7 +1144,7 @@ function JobsContent() {
                 // via the ref so this never fires again once captured.
                 if (!corpusTotalCapturedRef.current && searchKey === "") {
                     corpusTotalCapturedRef.current = true;
-                    setCorpusTotal(r.total);
+                    setCorpusCount(resolveCorpusCount(r, MAX_REACHABLE));
                 }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits, { wasConfirmed });
                 // Review fix: gate on the id ACTUALLY being absent from this
@@ -1488,6 +1501,14 @@ function JobsContent() {
     const total = result?.total ?? 0;
     const hasMore =
         result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
+    // Honest display count for THIS search's result total (result-count
+    // toolbar text + the end-of-list line below) — distinct from `total`
+    // above, which stays the raw Meili value on purpose: `hasMore`'s
+    // pagination-boundary math is correct either way (whether `total` is
+    // exact or capped, `hits.length < total` and `hits.length < MAX_REACHABLE`
+    // both still hold), so only the DISPLAY sites route through the honest
+    // resolver — see corpus-count.ts's header comment.
+    const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
 
     // Observer handle stays stable; the generation coordinator owns request guards.
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -1548,7 +1569,7 @@ function JobsContent() {
     // Stable identity for `SearchAutocomplete`'s `suggest` prop (review fix,
     // Task 9): an inline arrow here would get a NEW reference on every
     // render of this component (which re-renders often — loading, result,
-    // corpusTotal capture, loadingMore all live here), and the box's
+    // corpusCount capture, loadingMore all live here), and the box's
     // debounce effect used to key off that reference. `suggestJobsAction`
     // and `mapToSuggestions` are both stable (server action import + a
     // module-level pure function), so `[]` deps are correct — this callback
@@ -2202,8 +2223,8 @@ function JobsContent() {
                     onSearch={() => applyUrlState(buildUrlState({ q: query }), "push")}
                     suggest={suggestForBox}
                     placeholder={
-                        corpusTotal != null
-                            ? `Search ${corpusTotal.toLocaleString()} live-checked roles…`
+                        corpusCount != null
+                            ? `Search ${formatCorpusCount(corpusCount)} live-checked roles…`
                             : "Search live-checked roles…"
                     }
                     className="h-11 bg-card"
@@ -2324,7 +2345,7 @@ function JobsContent() {
                 )}
                 {!loading && result?.configured && (
                     <span className="text-[13px] text-muted-foreground">
-                        {result.total.toLocaleString()} {result.total === 1 ? "role" : "roles"}
+                        {formatCorpusCount(totalCount)} {totalCount.value === 1 ? "role" : "roles"}
                         {fitActive ? " · ranked by fit" : sortCountSuffix(effectiveSort, hasQuery)}
                     </span>
                 )}
@@ -2460,7 +2481,7 @@ function JobsContent() {
                                                     row,
                                                     <ResumeUpsellCard
                                                         key="resume-upsell"
-                                                        total={corpusTotal}
+                                                        count={corpusCount}
                                                         onUpload={handleUploadClick}
                                                         onDismiss={dismissUpsell}
                                                     />,
@@ -2480,8 +2501,8 @@ function JobsContent() {
                                         </div>
                                     ) : (
                                         <p className="py-6 text-center text-xs text-muted-foreground/70">
-                                            You&apos;ve reached the end — {total.toLocaleString()}{" "}
-                                            {total === 1 ? "role" : "roles"}.
+                                            You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
+                                            {totalCount.value === 1 ? "role" : "roles"}.
                                         </p>
                                     )}
                                 </div>
