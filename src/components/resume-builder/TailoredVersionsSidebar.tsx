@@ -336,7 +336,7 @@ export function TailoredVersionsSidebar({ isOpen, onClose, currentVersionId, app
             originalSummary: resumeData.generatedSummary || '',
             originalExperience: resumeData.experience || [],
             originalCompetencies: resumeData.competencies || [],
-            originalProfile: resumeData.profile || { profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: '' },
+            originalProfile: resumeData.profile || { name: '', profession: '', yearsOfExperience: 0, location: '', email: '', phone: '', linkedin: '' },
             originalEducation: resumeData.education || [],
             sectionOrder: resumeData.sectionOrder,
 

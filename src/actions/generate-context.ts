@@ -165,10 +165,18 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
 
             console.log(`[DEBUG] Fetching ${label} with ${config.provider}:${config.model}...`);
 
+            // Anchor the model's date reasoning to the real current date. Without this,
+            // the model falls back to its training-cutoff notion of "now" — e.g. flagging
+            // a recently-started role as "in the future", or under-counting years of
+            // experience. This is the single seam every JSON prompt in the app routes
+            // through (fetchJSON), so fixing it here covers all callers, not just resume
+            // parsing — do not re-inject a date line at individual call sites.
+            const todayLine = `Today's date is ${new Date().toISOString().slice(0, 10)}. Use it as "now" for any date reasoning (e.g. years of experience, or whether a role/date is past, current, or future).`;
+
             // 60s Global Timeout for Generation (provider handles its own rate limiting)
             const response = await withTimeout(
                 provider.generate({
-                    system: "You are an expert technical interviewer and career coach. Return ONLY valid JSON.",
+                    system: `You are an expert technical interviewer and career coach. Return ONLY valid JSON. ${todayLine}`,
                     prompt: prompt + "\n\nCRITICAL: Return ONLY valid JSON. No markdown formatting.",
                     json: true
                 }),
@@ -203,7 +211,7 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
                     await delay(1000);
                     const retryResponse = await withTimeout(
                         provider.generate({
-                            system: "You output invalid JSON last time. Output purely raw JSON key-value pairs.",
+                            system: `You output invalid JSON last time. Output purely raw JSON key-value pairs. ${todayLine}`,
                             prompt: prompt,
                             json: true
                         }),

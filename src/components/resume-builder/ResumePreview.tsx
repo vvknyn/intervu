@@ -62,15 +62,9 @@ export function ResumePreview({ data, update }: ResumePreviewProps) {
                 {/* Header */}
                 <header className="text-center space-y-2 mb-8">
                     <h1 className="text-3xl font-bold uppercase tracking-widest text-gray-900 border-b-2 border-black pb-2 mb-4">
-                        {data.profile.profession || "YOUR NAME"}
+                        {data.profile.name || "YOUR NAME"}
                     </h1>
                     <div className="flex justify-center flex-wrap gap-x-4 text-sm text-gray-700">
-                        {/* Name is missing in profile object based on prompt requirements, user didn't ask for name field :) 
-                 I'll use Profession as title, and maybe I should have asked for Name in Step 1.
-                 I'll just assume "Candidate" or wait for feedback. The skill asks for "Header: Name...".
-                 I missed "Name" in Profile fields in implementation plan because user prompt logic said "Profile: profession, yoe, location...".
-                 I will add a placeholder.
-             */}
                         <span>{data.profile.location}</span>
                         <span>•</span>
                         <span>{data.profile.phone}</span>

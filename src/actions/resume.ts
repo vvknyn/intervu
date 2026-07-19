@@ -5,6 +5,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
+import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 
 /**
  * Fetch structured resume data from database
@@ -25,9 +27,19 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
         }
 
         const docData = doc.data();
+        const resumeData = docData?.resume_data as ResumeData | undefined;
+
+        // Backward-compat: profiles saved before the name/profession split have
+        // the candidate's name sitting in `profession` (see profile-migration.ts).
+        // Reshape at this single read chokepoint so every caller sees the current
+        // shape; the migrated data is persisted back automatically the next time
+        // the user saves.
+        if (resumeData?.profile) {
+            resumeData.profile = migrateLegacyProfile(resumeData.profile);
+        }
 
         return {
-            data: docData?.resume_data as ResumeData | undefined,
+            data: resumeData,
             source: docData?.resume_import_source,
             confidence: docData?.resume_import_confidence
         };
@@ -106,7 +118,10 @@ function resumeDataToText(data: ResumeData): string {
     // Profile
     if (data.profile) {
         const p = data.profile;
-        parts.push(`Name/Contact: ${p.profession} | ${p.email} | ${p.location}`);
+        parts.push(`Name/Contact: ${p.name || p.profession} | ${p.email} | ${p.location}`);
+        if (p.profession) {
+            parts.push(`Profession: ${p.profession}`);
+        }
     }
 
     // Summary
@@ -163,7 +178,7 @@ export async function parseResumeWithAI(
             """
 
             EXTRACT:
-            1. Profile: profession (use FULL NAME), yearsOfExperience (number), location, email, phone, linkedin.
+            1. Profile: name (candidate's FULL NAME), profession (their job title / target role, e.g. "Product & Platform Lead" — NOT their name), yearsOfExperience (number), location, email, phone, linkedin.
             2. Experience: company, role, dates, description (preserve bullets as single string).
             3. Skills: grouped by category.
             4. Education: degree, institution, year.
@@ -172,7 +187,7 @@ export async function parseResumeWithAI(
             RETURN JSON:
             {
                 "parsed": {
-                    "profile": { "profession": "Full Name", "yearsOfExperience": 5, "location": "City", "email": "email@example.com", "phone": "Phone", "linkedin": "URL" },
+                    "profile": { "name": "Full Name", "profession": "Job Title", "yearsOfExperience": 5, "location": "City", "email": "email@example.com", "phone": "Phone", "linkedin": "URL" },
                     "experience": [{ "id": "exp-1", "company": "Company", "role": "Title", "dates": "2020-Present", "description": "• Point 1\\n• Point 2" }],
                     "competencies": [{ "category": "Tech Stack", "skills": ["Skill1", "Skill2"] }],
                     "education": [{ "id": "edu-1", "degree": "Degree", "institution": "School", "year": "2020" }],
@@ -224,25 +239,41 @@ export async function parseResumeWithAI(
         console.log("[Resume] LLM Response Keys:", result.parsed ? Object.keys(result.parsed) : "No parsed object");
         console.log("[Resume] Extracted Summary Raw:", result.parsed.generatedSummary || result.parsed.summary || result.parsed.professionalSummary || "MISSING");
 
+        // Experience is derived first (ahead of profile) because years-of-experience
+        // is computed from it below, not trusted from the model.
+        const experience: ResumeExperience[] = Array.isArray(result.parsed.experience)
+            ? result.parsed.experience.map((exp: any, idx: number) => ({
+                id: exp.id || `exp-${idx + 1}`,
+                company: exp.company || "",
+                role: exp.role || "",
+                dates: exp.dates || "",
+                description: normalizeDescription(exp.description || "")
+            }))
+            : [];
+
+        // Years of experience is computed in code from the parsed work-history dates,
+        // never trusted from the model — an arithmetic result that drifts with the
+        // model's training-cutoff notion of "now" is a lying value (e.g. it once
+        // computed Feb 2013 -> "now" as 12 when the real answer was 13). The model's
+        // own number is kept ONLY as a fallback for the rare case where no experience
+        // entry had a parseable date.
+        const computedYoE = computeYearsOfExperience(experience, new Date());
+        const yearsOfExperience = computedYoE !== null
+            ? computedYoE
+            : Number(result.parsed.profile?.yearsOfExperience) || 0;
+
         // Validate and sanitize the parsed data
         const parsed: ResumeData = {
             profile: {
+                name: result.parsed.profile?.name || "",
                 profession: result.parsed.profile?.profession || "",
-                yearsOfExperience: Number(result.parsed.profile?.yearsOfExperience) || 0,
+                yearsOfExperience,
                 location: result.parsed.profile?.location || "",
                 email: result.parsed.profile?.email || "",
                 phone: result.parsed.profile?.phone || "",
                 linkedin: result.parsed.profile?.linkedin || ""
             },
-            experience: Array.isArray(result.parsed.experience)
-                ? result.parsed.experience.map((exp: any, idx: number) => ({
-                    id: exp.id || `exp-${idx + 1}`,
-                    company: exp.company || "",
-                    role: exp.role || "",
-                    dates: exp.dates || "",
-                    description: normalizeDescription(exp.description || "")
-                }))
-                : [],
+            experience,
             competencies: Array.isArray(result.parsed.competencies)
                 ? result.parsed.competencies.map((comp: any) => ({
                     category: comp.category || "Skills",

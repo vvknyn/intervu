@@ -15,6 +15,7 @@ function mk(
 ): ResumeData {
     return {
         profile: {
+            name: '',
             profession: '',
             yearsOfExperience: 0,
             location: '',

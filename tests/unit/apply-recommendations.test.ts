@@ -12,6 +12,7 @@ import type { ResumeData, TailoringRecommendation } from '@/types/resume';
 function baseResume(overrides: Partial<ResumeData> = {}): ResumeData {
     return {
         profile: {
+            name: 'Jane Doe',
             profession: 'Software Engineer',
             yearsOfExperience: 5,
             location: 'NYC',

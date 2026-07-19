@@ -18,7 +18,7 @@ export const exportToDocx = async (data: ResumeData) => {
         new Paragraph({
             children: [
                 new TextRun({
-                    text: data.profile.profession || "Your Name",
+                    text: data.profile.name || "Your Name",
                     font: FONT_FAMILY,
                     size: NAME_FONT_SIZE,
                     bold: true,
@@ -199,8 +199,9 @@ export const exportToDocx = async (data: ResumeData) => {
     });
 
     const blob = await Packer.toBlob(doc);
-    const fileName = data.profile.profession
-        ? `${data.profile.profession.replace(/\s+/g, '_')}_Resume.docx`
+    const fileNameBase = data.profile.name || data.profile.profession;
+    const fileName = fileNameBase
+        ? `${fileNameBase.replace(/\s+/g, '_')}_Resume.docx`
         : "Resume.docx";
     saveAs(blob, fileName);
 };

@@ -303,9 +303,9 @@ export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI
                         <Input
                             id="name"
                             placeholder="Your full name"
-                            value={data.profile.profession || ""}
+                            value={data.profile.name || ""}
                             onChange={(e) => onUpdate({
-                                profile: { ...data.profile, profession: e.target.value }
+                                profile: { ...data.profile, name: e.target.value }
                             })}
                         />
                     </div>

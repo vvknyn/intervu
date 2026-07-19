@@ -1,4 +1,5 @@
 export interface ResumeProfile {
+    name: string;
     profession: string;
     yearsOfExperience: number;
     location: string;

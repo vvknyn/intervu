@@ -26,6 +26,7 @@ import { toast, confirmToast } from "@/lib/toast";
 
 const INITIAL_DATA: ResumeData = {
     profile: {
+        name: "",
         profession: "",
         yearsOfExperience: 0,
         location: "",
