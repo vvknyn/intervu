@@ -72,6 +72,30 @@ export function resolveSelectionAfterRefresh(
 }
 
 /**
+ * Task 11 review fix — should the dead-link `job=` URL param be cleared
+ * after this fetch? True exactly when a previously-unconfirmed id's ONE
+ * free pass (see `ResolveSelectionOptions.wasConfirmed`'s doc comment) was
+ * consumed by THIS fetch — i.e. the id had already used its pass before
+ * this fetch started, and it is STILL absent from the fresh hits.
+ *
+ * Extracted as a standalone, unit-tested predicate because the inline
+ * version of this shipped BROKEN: it read `!wasConfirmed && alreadyUsedItsPass`,
+ * but the caller defines `wasConfirmed = wasConfirmedBeforeThisFetch ||
+ * alreadyUsedItsPass` — so `alreadyUsedItsPass` being true ALWAYS forces
+ * `wasConfirmed` true, making `!wasConfirmed && alreadyUsedItsPass` a
+ * logical contradiction that can never be true. The branch was reported
+ * fixed while being permanently dead code; caught only by a reviewer
+ * tracing the predicate against its own definitions by hand. Taking the
+ * two RAW, non-derived facts as separate parameters — rather than the
+ * already-OR'd `wasConfirmed` — makes that specific self-contradiction
+ * structurally impossible here, and a unit test proves the true branch is
+ * actually reachable (the exact gap that let the bug ship unnoticed).
+ */
+export function shouldClearDeadLinkUrl(alreadyUsedItsPass: boolean, foundInFreshHits: boolean): boolean {
+    return alreadyUsedItsPass && !foundInFreshHits;
+}
+
+/**
  * Task 11 — empty state's ghost-reveal line: only worth showing when ghosts
  * are currently hidden (the first-screen default) AND the honest hidden
  * count (Task 7's `ghostHiddenCount` — `null` while unresolved, or when
@@ -134,6 +158,24 @@ export type ExistenceCheckStatus =
  * construction (the function's LAST line, not a special-cased branch),
  * so a future new failure mode can't silently reintroduce this bug by
  * being routed to the wrong default again.
+ *
+ * `!result.note` enumerated (review fix — is this check load-bearing today,
+ * and will it stay correct once the id-filterable reindex lands?): traced
+ * every `JobSearchResult` constructor across lib/jobs/{search,meilisearch,
+ * snapshot-preview}.ts. A `configured:true, backend:"meilisearch"` result
+ * carries a `.note` in exactly ONE case — `search.ts`'s outer `catch`, when
+ * `searchMeili` throws (e.g. TODAY's `id`-not-filterable 400, or any other
+ * request failure) — never on ANY successful return, including the
+ * `posted_ts` legacy-retry success path (`searchMeili`'s success object has
+ * no `note` field at all; the retry's `console.warn` is server-side only,
+ * never reaches the client). So `!result.note` is doing real, necessary
+ * work RIGHT NOW (it's what keeps today's live 400 from being misread as
+ * proof of absence) and imposes no dormancy risk after the reindex: a
+ * successful post-reindex response is exactly as note-free as every
+ * successful response today. `getJobsBackendStatus()`'s own "Meilisearch
+ * index" string (search.ts) is a red herring — that function is never
+ * called by `searchJobs`'s meilisearch path, so its note never reaches a
+ * `JobSearchResult` at all.
  */
 export function classifyExistenceCheck(id: string, result: JobSearchResult): ExistenceCheckStatus {
     const job = result.hits.find((h) => h.id === id) ?? null;

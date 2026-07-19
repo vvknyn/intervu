@@ -66,6 +66,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
+    shouldClearDeadLinkUrl,
 } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
@@ -1127,21 +1128,51 @@ function JobsContent() {
                     setDetailSheetOpen(false);
                     userPickedDetailRef.current = false;
                 }
-                // Review fix: once an id's free pass is spent and this fetch
-                // fell through to the ordinary hits[0] fallback, the address
-                // bar still says `job=<the dead id>` — nothing above this
-                // point ever calls `applyUrlState` for that transition (it
-                // lives inside a data-driven effect, not a user action). A
-                // refreshed or re-shared URL would otherwise keep re-landing
-                // on the same dead id forever, even though the app has
-                // already moved on locally. Clearing `jobId` here converges
-                // the URL back to ambient browsing — the URL-reconcile
-                // effect (keyed on `searchParams`) then re-derives
-                // `selectedId` from the now-jobless URL, which lands on the
-                // same `hits[0]` `selection` already picked, just via the
-                // "no explicit selection" path instead of a stale explicit one.
-                if (previousSelectedId && !wasConfirmed && !foundInFreshHits && alreadyUsedItsPass) {
-                    applyUrlState(buildUrlState({ jobId: null }), "replace");
+                // Round-3 review fix: once an id's free pass is spent and
+                // this fetch fell through to the ordinary hits[0] fallback,
+                // the address bar still says `job=<the dead id>` — nothing
+                // above this point ever calls `applyUrlState` for that
+                // transition (it lives inside a data-driven effect, not a
+                // user action). A refreshed or re-shared URL would
+                // otherwise keep re-landing on the same dead id forever,
+                // even though the app has already moved on locally.
+                // Clearing `jobId` here converges the URL back to ambient
+                // browsing — the URL-reconcile effect (keyed on
+                // `searchParams`) then re-derives `selectedId` from the
+                // now-jobless URL, which lands on the same `hits[0]`
+                // `selection` already picked, just via the "no explicit
+                // selection" path instead of a stale explicit one.
+                //
+                // `shouldClearDeadLinkUrl` (lib/jobs/result-state.ts,
+                // unit-tested — see its own doc comment): the FIRST version
+                // of this guard read `!wasConfirmed && alreadyUsedItsPass`,
+                // which can never be true (`wasConfirmed` is itself defined
+                // as `wasConfirmedBeforeThisFetch || alreadyUsedItsPass`
+                // above, so `alreadyUsedItsPass` true always forces
+                // `wasConfirmed` true too) — reported fixed while being
+                // permanently dead code. Extracted so the predicate can't
+                // silently self-contradict like that again.
+                if (previousSelectedId && shouldClearDeadLinkUrl(alreadyUsedItsPass, foundInFreshHits)) {
+                    // Explicit `sort` override reading `fitActiveRef.current`
+                    // (not the closure's own `fitActive`, which — unlike
+                    // every other `buildUrlState()` field here — is NOT
+                    // covered by `searchKey`, so it's the one field that
+                    // could have drifted during this fetch's debounce +
+                    // network round trip without cancelling/superseding
+                    // this generation. Every other field `buildUrlState()`
+                    // reads (q/facets/salaryMin/visaOnly/postedBucket/
+                    // hideGhosts/sortOverride) IS in `searchKey`'s
+                    // dependency list, so any change to them would have
+                    // invalidated this generation via the
+                    // `isCurrentGeneration` check at the top of this
+                    // callback — this code would never have reached here.
+                    applyUrlState(
+                        buildUrlState({
+                            jobId: null,
+                            sort: fitActiveRef.current ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
+                        }),
+                        "replace",
+                    );
                 }
                 // Honest hidden-ghost count for the rail's toggle row (Task 7): one
                 // extra limit-1, facets-only request with hideGhosts flipped off and
@@ -1397,7 +1428,15 @@ function JobsContent() {
     // with "not confirmed dead," that's exactly the non-assertive gap
     // `DeadJobUnresolved` (below) now fills instead of rendering nothing.
     const showUnresolvedDetail = isDeadJobCandidate && !isDeadJobConfirmed;
-    const isDeadJobChecking = deadJobResolved?.status === "checking";
+    // Round-3 review fix: `deadJobResolved` is null (not just status
+    // "checking") for the one render between `isDeadJobCandidate` flipping
+    // true and the existence-check effect's OWN first `setDeadJobCheck({
+    // status: "checking" })` call landing — a real, reachable gap, not a
+    // hypothetical one (effects run strictly after the render that
+    // triggered them). Without treating `null` as "checking" too, that one
+    // frame painted the "can't confirm" copy — implying a completed,
+    // inconclusive check — before any check had even started.
+    const isDeadJobChecking = !deadJobResolved || deadJobResolved.status === "checking";
     // Review fix — the tombstone/unresolved CTA can only genuinely deliver
     // "similar roles" when a usable résumé is already on hand (the SAME bar
     // the résumé-upsell card uses, `resumeIsUsable`): with no résumé,
@@ -2009,13 +2048,29 @@ function JobsContent() {
     // ungated browse of live roles (`enterBrowse`, the same helper
     // `SearchPrompt`'s "or browse all live roles" already uses) —
     // `SimilarRolesCta` labels the button to match whichever this resolves to.
+    //
+    // Third review fix — CTA-ordering: `enterBrowse()` clears `query`/
+    // `facets` LOCALLY only (`setQuery("")`/`setFacets({})`), it never
+    // touches the URL. Reordering the two calls alone wouldn't fix a stale
+    // address bar either — `buildUrlState()` still reads THIS render's
+    // `query`/`facets` closure regardless of call order within the same
+    // synchronous handler, since React state setters don't apply
+    // mid-function. So a visitor mid-search (`?q=eng`) clicking this CTA
+    // used to end up with an EMPTY query box (state cleared) but `?q=eng`
+    // still sitting in the address bar (URL never told about the clear) —
+    // the same "closure doesn't see its own pending update" class as the
+    // `fitActiveRef` fix a few lines up, just for `enterBrowse`'s fields
+    // instead of `fitActive`. Fixed by mirroring `enterBrowse`'s exact
+    // local writes (`q`/`facets`) as EXPLICIT overrides in the SAME
+    // `applyUrlState` call, rather than relying on a second implicit read.
     const handleTombstoneSimilarRoles = () => {
         setSelectedId(null);
-        applyUrlState(buildUrlState({ jobId: null }), "replace");
         if (canShowSimilarRoles) {
+            applyUrlState(buildUrlState({ jobId: null }), "replace");
             void handleExploreClick();
         } else {
             enterBrowse();
+            applyUrlState(buildUrlState({ jobId: null, q: "", facets: {} }), "replace");
         }
     };
 

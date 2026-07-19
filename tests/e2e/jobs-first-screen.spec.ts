@@ -372,6 +372,41 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
                 .or(page.getByText("Checking this role…")),
         ).toBeVisible({ timeout: 15_000 });
     });
+
+    /**
+     * Round-3 review fix — proves the "dead id's one free pass gets spent,
+     * URL clears" branch (`shouldClearDeadLinkUrl`, lib/jobs/result-state.ts;
+     * called from the search effect in page.tsx) actually executes in a
+     * real browser. This is a direct response to two prior rounds where a
+     * fix was reported done while its own guard condition could never be
+     * true — first an e2e that asserted a CTA without ever clicking it,
+     * then this exact predicate shipped as a self-contradiction
+     * (`!wasConfirmed && alreadyUsedItsPass`, impossible given
+     * `wasConfirmed`'s own definition). A unit test on the extracted
+     * predicate proves the LOGIC; this proves page.tsx actually WIRES it —
+     * a genuinely dead id, left in the URL, must have `job=` cleared once a
+     * SECOND search still can't find it (its first fetch already spent the
+     * one free "preserve" pass; see `firstUnresolvedDeadLinkIdRef`).
+     */
+    test("dead id's job= param clears from the URL once a second search still can't find it", async ({ page }) => {
+        const deadId = `nonexistent-id-urlclear-${Date.now()}`;
+        await page.goto(`/jobs?job=${deadId}`);
+        // Fetch 1 resolves (real rows load) — grants the id its one free pass.
+        await expect(page.locator("[data-testid=job-row]").first()).toBeVisible({ timeout: 10_000 });
+        await expect(page).toHaveURL(new RegExp(`job=${deadId}`));
+
+        // A NEW search changes searchKey, firing fetch 2 with the SAME dead
+        // id still the previous selection (typing never touches `job=`).
+        const box = page.getByRole("textbox").first();
+        await box.fill("engineer");
+        await expect(page).toHaveURL(/q=engineer/);
+
+        // Fetch 2 still can't find it → the pass is already spent →
+        // shouldClearDeadLinkUrl(true, false) → the URL converges to
+        // ambient browsing, `job=` gone, `q=engineer` preserved.
+        await expect(page).not.toHaveURL(new RegExp(`job=${deadId}`), { timeout: 15_000 });
+        await expect(page).toHaveURL(/q=engineer/);
+    });
 });
 
 /**

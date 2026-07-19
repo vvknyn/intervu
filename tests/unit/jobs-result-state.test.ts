@@ -6,6 +6,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
+    shouldClearDeadLinkUrl,
 } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 
@@ -170,10 +171,16 @@ describe('classifyExistenceCheck', () => {
         );
     });
 
-    it('not_found: a configured, successful search returned zero hits', () => {
+    // Review fix — hits present but NONE match the requested id: a sign the
+    // query got mis-scoped (e.g. the `id` filter silently didn't apply and
+    // a broader search ran instead) rather than proof the role is gone.
+    // `isCompleteAndClean` already requires `hits.length === 0`, which this
+    // fails, but that branch previously had no direct test of its own.
+    it('unknown: hits present but none match the id — a mis-scoped query is not proof of absence', () => {
+        const other = { id: 'other-id', title: 'Unrelated Role' } as unknown as PublicJob;
         assert.deepEqual(
-            classifyExistenceCheck('abc-123', result({ hits: [], total: 0 })),
-            { status: 'not_found' },
+            classifyExistenceCheck('abc-123', result({ hits: [other], total: 1 })),
+            { status: 'unknown' },
         );
     });
 
@@ -230,5 +237,31 @@ describe('classifyExistenceCheck', () => {
 describe('DEAD_JOB_TOMBSTONE_TEXT', () => {
     it('matches the controller-mandated copy exactly — no date, no guessed cause', () => {
         assert.equal(DEAD_JOB_TOMBSTONE_TEXT, 'This role is no longer available.');
+    });
+});
+
+// Round-3 review fix — proves the corrected predicate can actually be true.
+// The shipped-but-dead version of this logic (`!wasConfirmed &&
+// alreadyUsedItsPass` inline in page.tsx) was a contradiction against its
+// own `wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass`
+// definition and could never fire — reported fixed while being permanently
+// unreachable. This full 2×2 matrix is the concrete, mechanical check that
+// would have caught it: case 1 below is the ONLY one that's `true`, and it
+// corresponds exactly to "an id already used its pass and is still missing."
+describe('shouldClearDeadLinkUrl', () => {
+    it('pass already used + still missing from fresh hits → clear the URL', () => {
+        assert.equal(shouldClearDeadLinkUrl(true, false), true);
+    });
+
+    it('pass already used but NOW found → do not clear (nothing stale to fix)', () => {
+        assert.equal(shouldClearDeadLinkUrl(true, true), false);
+    });
+
+    it('pass not yet used, still missing (the first, granted pass) → do not clear yet', () => {
+        assert.equal(shouldClearDeadLinkUrl(false, false), false);
+    });
+
+    it('pass not yet used, found on the very first check → do not clear', () => {
+        assert.equal(shouldClearDeadLinkUrl(false, true), false);
     });
 });
