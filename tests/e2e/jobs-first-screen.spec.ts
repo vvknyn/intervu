@@ -305,3 +305,44 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(box).toHaveValue("eng");
     });
 });
+
+/**
+ * TASK 10 — Mobile: chips row, sheet live count, detail sticky bar.
+ *
+ * Below-lg viewport (390x844). The chips row absorbs the old standalone
+ * mobile "Filters" button (see jobs-search-polish.spec.ts's
+ * TC-JOBS-LAYOUT-002B, updated in the same commit) — its "All (n)" chip now
+ * opens a bottom Sheet with a live, debounced result count instead of the
+ * old bounded inline overlay.
+ */
+test.describe("mobile", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("chips row is visible and opens the sheet with a live count", async ({ page }) => {
+        await page.goto("/jobs");
+        await expect(page.getByText("All (", { exact: false })).toBeVisible();
+        await page.getByText("All (", { exact: false }).click();
+        await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
+    });
+
+    test("sheet count matches applied result count", async ({ page }) => {
+        await page.goto("/jobs");
+        await page.getByText("All (", { exact: false }).click();
+        const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
+        const n = (await applyBtn.textContent())!.replace(/\D/g, "");
+        await applyBtn.click();
+        await expect(page.getByText(new RegExp(`${Number(n).toLocaleString()}|${n}`)).first()).toBeVisible();
+    });
+
+    // Resolution #5: exact scroll restoration is flaky under the list's
+    // virtualization/infinite-scroll, so this asserts a <200px tolerance
+    // rather than pixel-exact equality.
+    test("system back closes detail and preserves scroll", async ({ page }) => {
+        await page.goto("/jobs");
+        await page.mouse.wheel(0, 1500);
+        const y = await page.evaluate(() => window.scrollY);
+        await page.locator("[data-testid=job-row], main li").nth(5).click();
+        await page.goBack();
+        expect(Math.abs((await page.evaluate(() => window.scrollY)) - y)).toBeLessThan(200);
+    });
+});

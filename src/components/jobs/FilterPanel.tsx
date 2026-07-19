@@ -23,7 +23,12 @@ const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
     },
 };
 
-const SALARY_PRESETS = [
+/**
+ * Exported for Task 10's mobile "Salary ▾" chip, which cycles through this
+ * SAME list rather than re-declaring its own — one preset ladder, not two
+ * that could drift.
+ */
+export const SALARY_PRESETS = [
     { label: "Any", value: 0 },
     { label: "$50k+", value: 50_000 },
     { label: "$100k+", value: 100_000 },
@@ -80,6 +85,26 @@ export interface FilterState {
     postedBucket: PostedBucket | undefined;
     /** First-screen default true (hide `likely_ghost` postings) — mirrors the URL's `ghosts` param. */
     hideGhosts: boolean;
+}
+
+/**
+ * Pure add/remove-from-array toggle for one facet key's selected values.
+ * Shared by the desktop mutator (`toggleFacet`, page.tsx) and Task 10's
+ * mobile sheet pending-state mutator, so there is exactly one place that
+ * knows how a facet-value selection list mutates — not two copies that can
+ * drift on, e.g., whether removing the last value deletes the key.
+ */
+export function toggleFacetValue(
+    facets: Partial<Record<FacetKey, string[]>>,
+    key: FacetKey,
+    value: string,
+): Partial<Record<FacetKey, string[]>> {
+    const cur = facets[key] ?? [];
+    const nextValues = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
+    const next = { ...facets };
+    if (nextValues.length) next[key] = nextValues;
+    else delete next[key];
+    return next;
 }
 
 /**

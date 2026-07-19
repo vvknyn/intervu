@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
     MagnifyingGlass,
-    Funnel,
     X,
     Check,
     MapPin,
@@ -47,7 +46,8 @@ import {
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor } from "@/lib/jobs/badges";
-import { FilterPanel, activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
+import { FilterPanel, activeFilterEntries, toggleFacetValue, type FilterState } from "@/components/jobs/FilterPanel";
+import { FilterChipsRow } from "@/components/jobs/FilterChipsRow";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
@@ -643,7 +643,22 @@ function JobsContent() {
     // stale fit claim even via the post-auth replay path.
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
-    const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+    // Task 10: mobile filter sheet. `pendingFilterState` is a scratch copy of
+    // FilterState the sheet mutates locally — it never touches the URL/live
+    // state until "Show N roles" is tapped (resolution #3). Seeded from the
+    // URL like every other field above; `openFilterSheet` (below, once
+    // `filterState` exists) re-snapshots it from the live state on each open.
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [pendingFilterState, setPendingFilterState] = useState<FilterState>({
+        facets: initialUrlState.facets,
+        salaryMin: initialUrlState.salaryMin,
+        visaOnly: initialUrlState.visaOnly,
+        postedBucket: initialUrlState.postedBucket,
+        hideGhosts: initialUrlState.hideGhosts,
+    });
+    // Live, debounced "Show N roles" count for the sheet's apply button —
+    // reflects `pendingFilterState`, not the applied filters.
+    const [sheetCount, setSheetCount] = useState<number | null>(null);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1145,11 +1160,7 @@ function JobsContent() {
     // Every filter/sort mutation below routes through `applyUrlState` with
     // `"replace"` — a filter toggle must never grow browser history.
     const toggleFacet = (key: FacetKey, value: string) => {
-        const cur = facets[key] ?? [];
-        const nextValues = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
-        const nextFacets = { ...facets };
-        if (nextValues.length) nextFacets[key] = nextValues;
-        else delete nextFacets[key];
+        const nextFacets = toggleFacetValue(facets, key, value);
         setFacets(nextFacets);
         applyUrlState(buildUrlState({ facets: nextFacets }), "replace");
     };
@@ -1212,6 +1223,77 @@ function JobsContent() {
         label: entry.label,
         onRemove: () => applyFilterState(entry.clear(filterState)),
     }));
+
+    // Task 10 — mobile filter sheet. Every pending mutator below mirrors one
+    // of the LIVE mutators above (toggleFacet/applySalaryMin/applyVisaOnly/
+    // applyPostedBucket/onHideGhosts) field-for-field, but writes into
+    // `pendingFilterState` instead of local+URL state — the sheet's own
+    // FilterPanel instance passes these as its callback props, so toggling
+    // inside the sheet can only ever change pending state + the live count
+    // (resolution #3), never the applied filters.
+    const pendingToggleFacet = (key: FacetKey, value: string) =>
+        setPendingFilterState((prev) => ({ ...prev, facets: toggleFacetValue(prev.facets, key, value) }));
+    const pendingSalaryMin = (v: number) => setPendingFilterState((prev) => ({ ...prev, salaryMin: v }));
+    const pendingVisaOnly = (v: boolean) => setPendingFilterState((prev) => ({ ...prev, visaOnly: v }));
+    const pendingPostedBucket = (v: PostedBucket | undefined) =>
+        setPendingFilterState((prev) => ({ ...prev, postedBucket: v }));
+    const pendingHideGhosts = (v: boolean) => setPendingFilterState((prev) => ({ ...prev, hideGhosts: v }));
+    const pendingClearAll = () =>
+        setPendingFilterState({ facets: {}, salaryMin: 0, visaOnly: false, postedBucket: undefined, hideGhosts: true });
+    const pendingActiveCount = activeFilterEntries(pendingFilterState).length;
+
+    // Snapshot the live filters into the sheet's scratch state on open —
+    // seeding `sheetCount` from the already-known live total too, so the
+    // apply button reads correctly on the very first paint instead of a
+    // blank/placeholder state until the debounced re-count below resolves.
+    const openFilterSheet = () => {
+        setPendingFilterState(filterState);
+        setSheetCount(result?.total ?? null);
+        setFilterSheetOpen(true);
+    };
+    // Tapping "Show N roles" is the ONLY thing that commits pending state —
+    // reuses `applyFilterState` verbatim (the same funnel clearAll/chip-
+    // remove already share), so there is exactly one place that turns a
+    // FilterState into local state + a URL replace.
+    const applyPendingFilters = () => {
+        applyFilterState(pendingFilterState);
+        setFilterSheetOpen(false);
+    };
+
+    // Sheet live count (resolution #2): 250ms-debounced re-count as pending
+    // filters change while the sheet is open. Reuses `FitIntentGuard`
+    // verbatim rather than adding a bespoke guard class — it's already the
+    // generic "one monotonic counter, no ticket bookkeeping" shape this
+    // needs (fit-intent.ts), just guarding a different async race (a stale
+    // count response landing after a newer pending edit) than its
+    // sort-menu origin. A fresh instance, independent of `fitIntentRef`.
+    const sheetCountGuardRef = useRef<FitIntentGuard | null>(null);
+    if (!sheetCountGuardRef.current) sheetCountGuardRef.current = new FitIntentGuard();
+    useEffect(() => {
+        if (!filterSheetOpen) return;
+        const token = sheetCountGuardRef.current!.begin();
+        const t = setTimeout(async () => {
+            try {
+                const r = await searchJobsAction({
+                    q: query.trim() || undefined,
+                    facets: pendingFilterState.facets,
+                    salaryMin: pendingFilterState.salaryMin || undefined,
+                    visaOnly: pendingFilterState.visaOnly || undefined,
+                    postedBucket: pendingFilterState.postedBucket,
+                    hideGhosts: pendingFilterState.hideGhosts,
+                    sort: sortOverride ?? undefined,
+                    limit: 1,
+                    offset: 0,
+                });
+                if (!sheetCountGuardRef.current!.isCurrent(token)) return;
+                if (!isUnavailableJobsResult(r)) setSheetCount(r.total);
+            } catch {
+                /* best-effort — the apply button keeps its last-known count */
+            }
+        }, 250);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filterSheetOpen, pendingFilterState, query, sortOverride]);
 
     // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
     // LOCAL state (no new mount fetch — see the state block above). A user
@@ -1716,21 +1798,9 @@ function JobsContent() {
                 </div>
             )}
 
-            {/* Toolbar: mobile Filters button + active-filter chips + count */}
+            {/* Toolbar: active-filter chips + count (Task 10 moved the mobile
+                Filters button into the chips row below — its "All (n)" chip). */}
             <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 lg:hidden"
-                    onClick={() => setShowFiltersMobile((v) => !v)}
-                >
-                    <Funnel size={14} /> Filters
-                    {activeCount > 0 && (
-                        <span className="ml-0.5 rounded-full bg-brand/15 px-1.5 text-[11px] font-semibold text-brand">
-                            {activeCount}
-                        </span>
-                    )}
-                </Button>
                 {activeChips.map((c, i) => (
                     <button
                         key={i}
@@ -1816,6 +1886,19 @@ function JobsContent() {
                 )}
             </div>
 
+            {/* Task 10 — mobile quick-filter chips row. Absorbs the old
+                standalone mobile "Filters" button: `onOpenSheet` opens the
+                new bottom Sheet below instead of the old bounded overlay. */}
+            <FilterChipsRow
+                state={filterState}
+                distribution={result?.facetDistribution}
+                activeCount={activeCount}
+                onPostedBucket={applyPostedBucket}
+                onToggleFacet={toggleFacet}
+                onSalaryMin={applySalaryMin}
+                onOpenSheet={openFilterSheet}
+            />
+
             {result?.preview && result.note && (
                 <div className="mb-4 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                     {result.note}
@@ -1878,16 +1961,9 @@ function JobsContent() {
                     >
                         {filterPanel}
                     </aside>
-                    {/* <lg only: rail is hidden, so Filters opens a bounded overlay instead (Task 7 — was lg–xl). */}
-                    {showFiltersMobile && (
-                        <aside
-                            role="region"
-                            aria-label="Job filters"
-                            className="max-h-[40vh] min-h-0 overflow-y-auto overscroll-contain rounded-xl bg-background shadow-lg custom-scrollbar lg:hidden"
-                        >
-                            {filterPanel}
-                        </aside>
-                    )}
+                    {/* <lg only: rail is hidden — the chips row's "All (n)" opens the
+                        mobile filter Sheet instead (Task 10, was a bounded inline
+                        overlay through Task 7). */}
 
                     {/* lg: two-pane list/detail workspace; lg also adds the filter pane (Task 7 — was xl). */}
                     <div className="flex min-h-0 flex-col">
@@ -2023,17 +2099,86 @@ function JobsContent() {
                         {selected ? `${decodeText(selected.title)} at ${cleanCompany(selected.company)}` : "Job details"}
                     </SheetTitle>
                     {selected ? (
-                        <JobDetail
-                            key={selected.id}
-                            job={selected}
-                            applied={appliedIds.has(selected.id)}
-                            applying={applyingId === selected.id}
-                            onTailor={() => handleTailor(selected)}
-                            onOpenPosting={() => handleOpenPosting(selected)}
-                            onMarkApplied={() => handleMarkApplied(selected)}
-                            onPrep={() => handlePrep(selected)}
-                        />
+                        <>
+                            <JobDetail
+                                key={selected.id}
+                                job={selected}
+                                applied={appliedIds.has(selected.id)}
+                                applying={applyingId === selected.id}
+                                onTailor={() => handleTailor(selected)}
+                                onOpenPosting={() => handleOpenPosting(selected)}
+                                onMarkApplied={() => handleMarkApplied(selected)}
+                                onPrep={() => handlePrep(selected)}
+                            />
+                            {/* Task 10 — thumb-zone sticky bar. Reuses the SAME
+                                onOpenPosting/onPrep handlers passed to JobDetail
+                                just above (no new handlers) — JobDetail's own CTAs
+                                live at the top and scroll out of view on a long
+                                description; this keeps Apply/Prep reachable. */}
+                            <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+                                {selected.apply_url && (
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 gap-1.5"
+                                        onClick={() => handleOpenPosting(selected)}
+                                    >
+                                        <ArrowSquareOut size={16} />
+                                        Apply ↗
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 gap-1.5"
+                                    onClick={() => handlePrep(selected)}
+                                >
+                                    <Lightning size={14} weight="fill" />
+                                    Prep for this
+                                </Button>
+                            </div>
+                        </>
                     ) : null}
+                </SheetContent>
+            </Sheet>
+            {/* Task 10 — mobile filter sheet. Pending-state FilterPanel instance:
+                same component/model as the rail + chips row, wired to the
+                pendingFilterState mutators above (see resolution #3). Tapping
+                "Show N roles" applies via `applyFilterState` and closes;
+                dismissing (X/overlay/swipe/Esc) discards the pending edits. */}
+            <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                <SheetContent
+                    side="bottom"
+                    className="flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl p-0"
+                >
+                    <SheetTitle className="sr-only">Filters</SheetTitle>
+                    <div
+                        role="region"
+                        aria-label="Job filters"
+                        className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-4 pt-10"
+                    >
+                        <FilterPanel
+                            distribution={result?.facetDistribution}
+                            state={pendingFilterState}
+                            activeCount={pendingActiveCount}
+                            onToggleFacet={pendingToggleFacet}
+                            onSalaryMin={pendingSalaryMin}
+                            onVisaOnly={pendingVisaOnly}
+                            onPostedBucket={pendingPostedBucket}
+                            onClearAll={pendingClearAll}
+                            hideGhosts={pendingFilterState.hideGhosts}
+                            onHideGhosts={pendingHideGhosts}
+                            // Best-effort reuse of the APPLIED filters' honest
+                            // ghost-hidden count (Task 7) rather than a second
+                            // debounced count request scoped to pending state —
+                            // matches this count's existing "fire and forget,
+                            // omit the suffix rather than block" contract.
+                            ghostHiddenCount={ghostHiddenCount}
+                        />
+                    </div>
+                    <div className="shrink-0 border-t border-border bg-card p-3">
+                        <Button className="w-full" onClick={applyPendingFilters}>
+                            {sheetCount != null ? `Show ${sheetCount.toLocaleString()} roles` : "Show roles"}
+                        </Button>
+                    </div>
                 </SheetContent>
             </Sheet>
         </PageLayout>

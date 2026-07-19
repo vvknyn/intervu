@@ -209,9 +209,12 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
     });
 
-    test('TC-JOBS-LAYOUT-002B: below lg, Filters still opens a bounded independently scrolling overlay', async ({ page }) => {
-        // Coverage for the overlay mechanism itself (showFiltersMobile), whose
-        // trigger threshold Task 7 moved down to <1024px alongside the rail.
+    test('TC-JOBS-LAYOUT-002B: below lg, the chips row opens a bounded independently scrolling filter sheet', async ({ page }) => {
+        // Coverage for the overlay mechanism, whose trigger threshold Task 7
+        // moved down to <1024px alongside the rail. Task 10 absorbed the old
+        // standalone "Filters" button + `showFiltersMobile` inline overlay
+        // into the mobile chips row's "All (n)" chip, which now opens a
+        // bottom Sheet instead — same breakpoint, new trigger + mechanism.
         await page.setViewportSize({ width: 900, height: 768 });
         await enterBrowseMode(page);
 
@@ -222,7 +225,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(results).toBeVisible();
         await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
 
-        await page.getByRole('button', { name: /Filters/ }).click();
+        await page.getByText('All (', { exact: false }).click();
         const filterOverlay = page.getByRole('region', { name: 'Job filters' });
         await expect(filterOverlay).toBeVisible();
         const overlayMetrics = await filterOverlay.evaluate((node) => ({
