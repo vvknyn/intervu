@@ -230,20 +230,78 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted
     // `role="listbox" aria-label="Job results"` (browse mode), so an
-    // unqualified `getByRole("listbox")` would both strict-mode-fail (2
-    // matches) AND — worse — pass vacuously via `.first()` even if the
-    // suggestions dropdown never rendered. Naming the query after the
-    // dropdown's own `aria-label="Search suggestions"` fixes both: it can
-    // only match the element under test.
-    test("typing shows suggestions; Enter searches without reload", async ({ page }) => {
+    // unqualified `getByRole("listbox")` (the brief's literal snippet — it
+    // carries no `.first()`) strict-mode-fails: 2 elements match. Naming the
+    // query after the dropdown's own `aria-label="Search suggestions"` fixes
+    // that collision — it can only match the element under test. The
+    // `.or([data-suggestions])` is kept only for forward-compat with a
+    // future local-source (no `suggest` prop) caller that might mark its
+    // dropdown that way instead; it never matches today.
+    test("typing shows suggestions; Enter searches without a full page reload", async ({ page }) => {
         await page.goto("/jobs");
         const box = page.getByRole("textbox").first();
         await box.fill("engineer");
         await expect(
             page.getByRole("listbox", { name: "Search suggestions" }).or(page.locator("[data-suggestions]"))
         ).toBeVisible();
-        const nav = page.waitForURL(/q=engineer/);
+        await expect(page).toHaveURL(/q=engineer/);
+
+        // A marker on `window` distinguishes "no reload" from "reload": a
+        // full page navigation gets a fresh JS context and wipes this,
+        // whereas an App Router client transition (or no navigation at all,
+        // if the URL is already correct — see the same-URL guard in
+        // `applyUrlState`, page.tsx) does not. The URL alone can't tell
+        // these apart, since it ends up `?q=engineer` either way.
+        await page.evaluate(() => {
+            (window as unknown as { __e2eNoReloadMarker?: boolean }).__e2eNoReloadMarker = true;
+        });
         await box.press("Enter");
-        await nav; // URL updated client-side (no full navigation)
+        await expect(page.getByRole("listbox", { name: "Search suggestions" })).toBeHidden();
+        await expect(page).toHaveURL(/q=engineer/);
+        expect(
+            await page.evaluate(() => (window as unknown as { __e2eNoReloadMarker?: boolean }).__e2eNoReloadMarker),
+        ).toBe(true);
+    });
+
+    // TASK 9 review fix — the CRITICAL push contract had vacuous coverage:
+    // typing already writes `?q=X` via `replace`, so asserting the URL alone
+    // around an Enter press can't tell push from a no-op (in fact, for a
+    // plain Enter with nothing changed since typing, push IS now correctly a
+    // no-op — see the same-URL guard in `applyUrlState`). Picking a
+    // suggestion is the scenario that genuinely exercises `push`: the
+    // suggestion's text differs from what was typed, so the target can never
+    // equal the URL the guard is comparing against. Verified empirically
+    // (throwaway diagnostic, not committed) against the real dev server:
+    // `window.history.length` increments by exactly 1 across ArrowDown+Enter
+    // here, and stays flat across a plain typed Enter.
+    test("ArrowDown then Enter selects a suggestion and pushes a new history entry", async ({ page }) => {
+        await page.goto("/jobs");
+        const box = page.getByRole("textbox").first();
+        await box.fill("eng");
+        const listbox = page.getByRole("listbox", { name: "Search suggestions" });
+        await expect(listbox).toBeVisible();
+
+        const firstOption = listbox.getByRole("option").first();
+        const suggestionText = ((await firstOption.textContent()) ?? "").trim();
+        expect(suggestionText.length).toBeGreaterThan(0);
+        // A real title/company from the live index for a 3-char substring
+        // essentially never comes back as literally "eng" — this is the
+        // divergence the push-vs-no-op distinction depends on.
+        expect(suggestionText.toLowerCase()).not.toBe("eng");
+
+        const historyLengthBeforeSelect = await page.evaluate(() => window.history.length);
+        await box.press("ArrowDown");
+        await box.press("Enter");
+
+        await expect(box).toHaveValue(suggestionText);
+        await expect.poll(() => page.evaluate(() => window.history.length)).toBeGreaterThan(
+            historyLengthBeforeSelect,
+        );
+
+        // Back lands on the pre-selection ("eng") state, not a fully cleared
+        // query — proving a genuine new entry was pushed on top, not a
+        // replace of the typed-state entry.
+        await page.goBack();
+        await expect(box).toHaveValue("eng");
     });
 });

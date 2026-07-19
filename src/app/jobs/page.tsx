@@ -671,8 +671,20 @@ function JobsContent() {
     // The single navigation contract Tasks 6-11 build on. `replace` for
     // filter/sort/ghost changes (no history spam); `push` for a search submit
     // or opening a job (back-button-correct).
+    //
+    // Chokepoint guard (Task 9 review): typing already `replace`s the URL to
+    // match on every keystroke, so an Enter/suggestion-pick `push` right
+    // after typing computes the SAME target that the last `replace` just
+    // wrote — without this check that's a byte-identical duplicate entry, so
+    // Back needs two presses to see anything actually different. Comparing
+    // against the browser's real current URL (not React state, which can lag
+    // a tick behind a just-applied navigation) and skipping the no-op
+    // protects every call site — present and future — not just `onSearch`.
     const applyUrlState = (next: JobsUrlState, history: "replace" | "push") => {
         const target = `${pathname}${serializeJobsUrl(next)}`;
+        if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
+            return;
+        }
         if (history === "push") router.push(target, { scroll: false });
         else router.replace(target, { scroll: false });
     };
@@ -1115,6 +1127,19 @@ function JobsContent() {
         );
         observerRef.current.observe(node);
     }, []);
+
+    // Stable identity for `SearchAutocomplete`'s `suggest` prop (review fix,
+    // Task 9): an inline arrow here would get a NEW reference on every
+    // render of this component (which re-renders often — loading, result,
+    // corpusTotal capture, loadingMore all live here), and the box's
+    // debounce effect used to key off that reference. `suggestJobsAction`
+    // and `mapToSuggestions` are both stable (server action import + a
+    // module-level pure function), so `[]` deps are correct — this callback
+    // itself never needs to change.
+    const suggestForBox = useCallback(
+        (q: string) => suggestJobsAction(q).then(mapToSuggestions),
+        [],
+    );
     useEffect(() => () => observerRef.current?.disconnect(), []);
 
     // Every filter/sort mutation below routes through `applyUrlState` with
@@ -1640,7 +1665,7 @@ function JobsContent() {
                         applyUrlState(buildUrlState({ q: v }), "replace");
                     }}
                     onSearch={() => applyUrlState(buildUrlState({ q: query }), "push")}
-                    suggest={(q) => suggestJobsAction(q).then(mapToSuggestions)}
+                    suggest={suggestForBox}
                     placeholder={
                         corpusTotal != null
                             ? `Search ${corpusTotal.toLocaleString()} live-checked roles…`

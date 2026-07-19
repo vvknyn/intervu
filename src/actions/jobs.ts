@@ -20,10 +20,12 @@ export async function getJobsFreshnessAction(): Promise<string | null> {
  * Typeahead: title/company suggestions for the search box (Task 9). Never
  * throws — degrades to `{ titles: [], companies: [] }` on any failure so
  * suggestions are purely an accelerant, never a source of user-visible error.
+ * Input capped at 200 chars, matching the neighboring `suggestAdjacentRolesAction`'s
+ * posture toward user-controlled text reaching a server action.
  */
 export async function suggestJobsAction(q: string): Promise<JobSuggestions> {
   try {
-    return await suggestJobs(q);
+    return await suggestJobs((q ?? "").slice(0, 200));
   } catch {
     return { titles: [], companies: [] };
   }

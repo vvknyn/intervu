@@ -49,45 +49,69 @@ export function SearchAutocomplete({
         return [];
     });
     const containerRef = useRef<HTMLDivElement>(null);
-    // Always holds the latest `onSearch` prop. `handleSelect` (below) changes
-    // `value` via `onChange` and then needs to call `onSearch` — but the
-    // callback the parent passes in typically closes over its own `value`
-    // state, so calling the closure captured at THIS render would search the
-    // pre-selection text. Reading through a ref that's kept current every
-    // render sidesteps that stale-closure race without changing the prop
-    // contract (mirrors the "wait a tick for state to update" comment this
-    // replaces — now correct instead of accidentally-right).
+    // Always hold the LATEST `onSearch`/`suggest` props, updated by a single
+    // no-dependency effect that runs after every render (declared first so
+    // it commits before the suggestion effect below reads it in the same
+    // flush). Two independent reasons this exists:
+    //  - `handleSelect` changes `value` via `onChange` and then needs to call
+    //    `onSearch` — but the callback the parent passes in typically closes
+    //    over its own `value` state, so calling the closure captured at THIS
+    //    render would search the pre-selection text.
+    //  - `suggest` is typically an inline arrow at the call site, so its
+    //    IDENTITY churns on every parent render even when nothing relevant
+    //    changed (loading, unrelated state). The debounce effect below keys
+    //    off `Boolean(suggest)` (presence, not identity) so that churn can't
+    //    restart the 150ms timer — but it still needs to invoke whichever
+    //    `suggest` closure is freshest when the timer actually fires.
     const onSearchRef = useRef(onSearch);
+    const suggestRef = useRef(suggest);
     useEffect(() => {
         onSearchRef.current = onSearch;
+        suggestRef.current = suggest;
     });
     // Monotonic generation guard for the async `suggest` path (same shape as
     // FitIntentGuard in app/jobs/page.tsx): only the response from the LAST
-    // request issued gets to update state, so a slow, stale response can't
-    // clobber a faster, newer one.
+    // effect run gets to update state, so a slow, stale response can't
+    // clobber a faster, newer one. Bumped from the effect's CLEANUP — every
+    // branch below (closed, empty query, and the debounced fetch) returns
+    // through it, so a hole can't reopen if a branch is added later. Bumping
+    // only inside the fetch branch (as a first pass did) left the `!isOpen`
+    // and empty-query early returns un-invalidating: type "engineer", wait
+    // >150ms for the request to fire, select-all + delete — the in-flight
+    // response still matched the (unbumped) generation and repopulated the
+    // now-empty box with "engineer" suggestions.
     const suggestGenRef = useRef(0);
 
     // Update suggestions
     useEffect(() => {
-        if (!isOpen) return;
+        const myGeneration = suggestGenRef.current;
+        const invalidate = () => {
+            suggestGenRef.current += 1;
+        };
+
+        if (!isOpen) return invalidate;
 
         if (suggest) {
             const q = value.trim();
             if (!q) {
                 setSuggestions([]);
-                return;
+                return invalidate;
             }
-            const generation = ++suggestGenRef.current;
             const timer = setTimeout(() => {
-                suggest(q)
+                const fn = suggestRef.current;
+                if (!fn) return;
+                fn(q)
                     .then((results) => {
-                        if (suggestGenRef.current === generation) setSuggestions(results);
+                        if (suggestGenRef.current === myGeneration) setSuggestions(results);
                     })
                     .catch(() => {
-                        if (suggestGenRef.current === generation) setSuggestions([]);
+                        if (suggestGenRef.current === myGeneration) setSuggestions([]);
                     });
             }, 150);
-            return () => clearTimeout(timer);
+            return () => {
+                clearTimeout(timer);
+                invalidate();
+            };
         }
 
         const timer = setTimeout(() => {
@@ -97,8 +121,26 @@ export function SearchAutocomplete({
                 setSuggestions(getSuggestions(value, history));
             }
         }, 0);
-        return () => clearTimeout(timer);
-    }, [value, history, isOpen, suggest]);
+        return () => {
+            clearTimeout(timer);
+            invalidate();
+        };
+        // `Boolean(suggest)` (presence), not `suggest` (identity) — see the
+        // `suggestRef` comment above. This is what makes the debounce mean
+        // "150ms after the last keystroke", not "150ms after the last
+        // parent render".
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value, history, isOpen, Boolean(suggest)]);
+
+    // Reset the highlighted item whenever the suggestion LIST itself changes
+    // (a new debounced/async result set, or the sync source recomputing) —
+    // otherwise a stale index left over from a longer previous list can
+    // point past the end of a shorter new one, or land on a different item
+    // than what's rendered highlighted, and Enter would silently fall
+    // through to raw-text submit instead of selecting what's shown.
+    useEffect(() => {
+        setActiveIndex(-1);
+    }, [suggestions]);
 
     // Click outside
     useEffect(() => {
