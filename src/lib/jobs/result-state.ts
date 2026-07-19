@@ -87,6 +87,18 @@ export function resolveGhostReveal(hideGhosts: boolean, ghostHiddenCount: number
     return ghostHiddenCount;
 }
 
+/**
+ * The tombstone's mandated headline (Task 11 controller resolution #1,
+ * verbatim — never a date, never a guessed cause). Exported as a constant,
+ * consumed by `DeadJobTombstone` (jobs/page.tsx), rather than living only as
+ * an inline JSX literal — review fix: the e2e coverage for it is an `.or()`
+ * alongside the non-assertive state's own copy (a dead id may resolve
+ * either way — see jobs-first-screen.spec.ts), which alone could silently
+ * keep passing even if this exact string drifted. Pinned directly here
+ * instead.
+ */
+export const DEAD_JOB_TOMBSTONE_TEXT = "This role is no longer available.";
+
 /** Outcome of the Task 11 dead-link existence check (`classifyExistenceCheck` below). */
 export type ExistenceCheckStatus =
     | { status: "found"; job: PublicJob }
@@ -103,12 +115,31 @@ export type ExistenceCheckStatus =
  * dead-link existence check (jobs/page.tsx). Extracted as a pure function —
  * the riskiest branch in the Task 11 review-fix diff — so it's directly
  * unit-testable without spinning up the 2000-line client component, mirroring
- * `resolveGhostReveal` above. `isUnavailableJobsResult` already distinguishes
- * a genuine backend failure from a valid empty result; this reuses it rather
- * than re-deriving the same check a second way.
+ * `resolveGhostReveal` above.
+ *
+ * Review fix: this must require POSITIVE PROOF of absence, not merely the
+ * absence of a recognized error. The first draft treated `not_found` as the
+ * DEFAULT for any configured, zero-hit response whose note didn't match
+ * `isUnavailableJobsResult`'s `/temporarily unavailable/i` pattern — so an
+ * error worded differently, or a configured+empty response with no note at
+ * all, silently became "proof" the role was gone. It also ignored
+ * `backend` entirely: `snapshot-preview` is a CAPPED SUBSET of the corpus
+ * (see lib/jobs/snapshot-preview.ts's own header comment — "NOT the full
+ * corpus and NOT scalable"), so an id absent from it is not evidence of
+ * anything. `not_found` now requires ALL of: a known-COMPLETE backend
+ * (`"meilisearch"` — never `"snapshot-preview"` or `"unconfigured"`), no
+ * error/degraded note of ANY kind (not just the "temporarily unavailable"
+ * shape), and zero hits. Every other combination — including a `found`
+ * check's own preconditions failing — falls through to `unknown` by
+ * construction (the function's LAST line, not a special-cased branch),
+ * so a future new failure mode can't silently reintroduce this bug by
+ * being routed to the wrong default again.
  */
 export function classifyExistenceCheck(id: string, result: JobSearchResult): ExistenceCheckStatus {
-    if (!result.configured || isUnavailableJobsResult(result)) return { status: "unknown" };
     const job = result.hits.find((h) => h.id === id) ?? null;
-    return job ? { status: "found", job } : { status: "not_found" };
+    if (job) return { status: "found", job };
+    const isCompleteAndClean =
+        result.configured && result.backend === "meilisearch" && !result.note && result.hits.length === 0;
+    if (isCompleteAndClean) return { status: "not_found" };
+    return { status: "unknown" };
 }

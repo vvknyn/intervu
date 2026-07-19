@@ -332,27 +332,24 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * ever asserted — `PublicJob` (lib/jobs/types.ts) carries no per-job
      * takedown timestamp.
      *
-     * REVIEW-FIX DEVIATION (flagged, not silently absorbed): the tombstone
-     * is meant to render only once a targeted existence check
-     * (`searchJobsAction({ id, limit: 1 })`) confirms the id is genuinely
-     * gone — not just absent from the current page/filters. Verified LIVE
-     * against production (2026-07-19) that this filter currently 400s
-     * ("Attribute `id` is not filterable") — Meilisearch's primary key is
-     * NOT auto-filterable on this index, and the search-only key can't
-     * reach GET /documents/{id} either (403, out of its scope). Until the
-     * live index is re-provisioned with `id` in `filterableAttributes`
-     * (code-side fix already landed, JOBS_INDEX_SETTINGS in
-     * lib/jobs/meilisearch.ts), EVERY existence check classifies "unknown"
-     * (`classifyExistenceCheck`, lib/jobs/result-state.ts — unit-tested
-     * against this exact production error string) — so the tombstone is
-     * currently unreachable in this environment, and so is its "See similar
-     * roles" click-through. That is the SAFE failure mode (never asserts a
-     * false death), not a regression: this test instead locks in the
-     * critical invariant the original bug violated — a dead id must never
-     * render a DIFFERENT job's detail as though it were the linked one.
-     * Once the index update lands, this test should be extended to assert
-     * the tombstone text + a similar-roles click (see the unit tests for
-     * the confirmed-dead/confirmed-alive branches in the meantime).
+     * INFRA CONTEXT (not pinned as expected behavior — 2nd review fix):
+     * the tombstone is meant to render only once a targeted existence check
+     * (`searchJobsAction({ id, limit: 1 })`) POSITIVELY confirms the id is
+     * gone (`classifyExistenceCheck`, lib/jobs/result-state.ts — requires a
+     * complete `meilisearch` backend, no error note, zero hits; anything
+     * else, including today's live 400 on `id = ...` — verified 2026-07-19,
+     * Meilisearch's primary key isn't auto-filterable on this index yet —
+     * classifies "unknown"). This test does NOT assert the tombstone is
+     * absent: pinning that would lock in the current infra gap as
+     * "expected" and go red — for the RIGHT reason — the moment someone
+     * fixes it, inviting a well-meaning revert of the very fix this whole
+     * review thread exists to land. What it DOES assert, which holds
+     * regardless of which side of that infra gap the check resolves on: a
+     * dead id must NEVER render a DIFFERENT job's detail as though it were
+     * the linked one (the original bug), and the pane must always show
+     * SOME acknowledgment the visitor asked about a specific role, never a
+     * silent blank (the regression the non-assertive `DeadJobUnresolved`
+     * state below was added to fix).
      */
     test("dead job link never renders a different job's detail in its place", async ({ page }) => {
         await page.goto("/jobs?job=nonexistent-id-12345");
@@ -361,11 +358,19 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         // … but the detail pane never claims a specific job for this id —
         // its accessible name stays the generic "Job details" (see the
         // `detailJob ? "Job details: …" : "Job details"` aria-label),
-        // never naming an unrelated job the way the original bug did.
+        // never naming an unrelated job the way the original bug did. This
+        // holds whether the existence check lands on "not_found" (the
+        // tombstone) or "unknown"/"checking" (`DeadJobUnresolved`) — neither
+        // branch ever sets `detailJob`.
         await expect(page.getByRole("region", { name: "Job details", exact: true })).toBeVisible();
-        // Nor does it currently assert the id is gone — see the deviation
-        // note above; this holds until the infra gap closes.
-        await expect(page.getByText("This role is no longer available.")).toHaveCount(0);
+        // The pane is never silently blank either way: either the tombstone
+        // or the neutral "can't confirm" state renders, both carrying the
+        // same "See similar roles"/"Browse live roles" CTA.
+        await expect(
+            page.getByText("This role is no longer available.")
+                .or(page.getByText("Can't confirm this role's status right now."))
+                .or(page.getByText("Checking this role…")),
+        ).toBeVisible({ timeout: 15_000 });
     });
 });
 

@@ -65,6 +65,7 @@ import {
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
+    DEAD_JOB_TOMBSTONE_TEXT,
 } from "@/lib/jobs/result-state";
 import { resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
@@ -522,6 +523,34 @@ function JobDetail({
 }
 
 /**
+ * Shared CTA for both dead-job detail states below. The label is honest
+ * about what actually happens on click — review fix: it used to always say
+ * "See similar roles" and call straight into `handleExploreClick`, but for
+ * a COLD visitor with no usable résumé on hand (the common case for someone
+ * following a shared link cold, not already signed into the app),
+ * `handleExploreClick` doesn't show similar roles at all — it opens a
+ * sign-in or résumé-upload gate. `canShowSimilar` (computed by the caller
+ * from `resumeIsUsable(resume)`, the SAME bar the résumé-upsell card uses)
+ * decides which promise this button actually keeps.
+ */
+function SimilarRolesCta({
+    onClick,
+    exploring,
+    canShowSimilar,
+}: {
+    onClick: () => void;
+    exploring: boolean;
+    canShowSimilar: boolean;
+}) {
+    return (
+        <Button variant="outline" size="sm" className="mt-4 gap-1.5" disabled={exploring} onClick={onClick}>
+            <Compass size={14} />
+            {exploring ? "Finding similar roles…" : canShowSimilar ? "See similar roles" : "Browse live roles"}
+        </Button>
+    );
+}
+
+/**
  * Task 11 — dead-link tombstone. Rendered only once a targeted existence
  * check (see the `deadJobCheck` effect below) has actually confirmed the
  * URL's `job` id is gone — being absent from the CURRENT page of results
@@ -529,25 +558,68 @@ function JobDetail({
  * filters may exclude it — review fix). `PublicJob` (lib/jobs/types.ts)
  * carries no per-job takedown timestamp — verified before writing this —
  * so the copy never claims a date or guesses at a cause, only the fact the
- * brief specified. "See similar roles" reuses the Explore entry point
- * (`handleExploreClick`, which calls the already-imported
- * `suggestAdjacentRolesAction`) rather than a second, job-specific fetch —
- * a truly dead link only carries an id in the URL, never a title/company to
- * seed a bespoke lookup with — via a wrapper that first clears the dead
- * `job=` param (see `handleTombstoneSimilarRoles`): Explore only rewrites
- * the URL when "ranked by résumé" was previously active, so a plain
- * query-less dead link would otherwise leave `job=<dead-id>` in place and
- * the tombstone re-asserting itself over Explore's fresh results.
+ * brief specified. The CTA (`SimilarRolesCta` above) reuses the Explore
+ * entry point when a résumé is on hand, or falls back to a plain browse
+ * otherwise — via a wrapper that first clears the dead `job=` param (see
+ * `handleTombstoneSimilarRoles`): Explore only rewrites the URL when
+ * "ranked by résumé" was previously active, so a plain query-less dead link
+ * would otherwise leave `job=<dead-id>` in place and the tombstone
+ * re-asserting itself over Explore's fresh results.
  */
-function DeadJobTombstone({ onSimilarRoles, exploring }: { onSimilarRoles: () => void; exploring: boolean }) {
+function DeadJobTombstone({
+    onSimilarRoles,
+    exploring,
+    canShowSimilar,
+}: {
+    onSimilarRoles: () => void;
+    exploring: boolean;
+    canShowSimilar: boolean;
+}) {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
             <WarningCircle size={22} className="mb-3 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">This role is no longer available.</h3>
-            <Button variant="outline" size="sm" className="mt-4 gap-1.5" disabled={exploring} onClick={onSimilarRoles}>
-                <Compass size={14} />
-                {exploring ? "Finding similar roles…" : "See similar roles"}
-            </Button>
+            <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
+            <SimilarRolesCta onClick={onSimilarRoles} exploring={exploring} canShowSimilar={canShowSimilar} />
+        </div>
+    );
+}
+
+/**
+ * Task 11 review fix — the THIRD, non-assertive detail-pane state: a
+ * deliberate URL/deep-link selection that hasn't been confirmed either way
+ * yet (`checking`) or couldn't be confirmed at all (`unknown` — the actual
+ * production reality today, see `classifyExistenceCheck`'s doc comment).
+ * Claims NOTHING about the job's status — no "available", no "gone" — only
+ * that this app can't currently say. Fixes a real regression the first
+ * review-fix pass introduced: before this, `checking`/`unknown` rendered
+ * `null` in BOTH panes — permanently blank on desktop, and on mobile a
+ * content-less bottom sheet (only the sr-only "Job details" title) sitting
+ * over the results, since the fetch path deliberately skips closing it on
+ * the id's first unresolved pass. This also covers the "confirmed alive but
+ * ranks off the current page" moment right before `deadJobFoundJob` lands.
+ */
+function DeadJobUnresolved({
+    onSimilarRoles,
+    exploring,
+    canShowSimilar,
+    checking,
+}: {
+    onSimilarRoles: () => void;
+    exploring: boolean;
+    canShowSimilar: boolean;
+    checking: boolean;
+}) {
+    return (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+            {checking ? (
+                <span className="mb-3 h-5 w-5 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+            ) : (
+                <MagnifyingGlass size={22} className="mb-3 text-muted-foreground" />
+            )}
+            <h3 className="text-sm font-semibold">
+                {checking ? "Checking this role…" : "Can't confirm this role's status right now."}
+            </h3>
+            <SimilarRolesCta onClick={onSimilarRoles} exploring={exploring} canShowSimilar={canShowSimilar} />
         </div>
     );
 }
@@ -1036,13 +1108,40 @@ function JobsContent() {
                     setCorpusTotal(r.total);
                 }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits, { wasConfirmed });
-                if (previousSelectedId && !wasConfirmed && selection.preserveDeliberateDetail) {
+                // Review fix: gate on the id ACTUALLY being absent from this
+                // fetch's fresh hits, not merely on `selection.preserveDeliberateDetail`
+                // — that flag is also true for a genuinely-FOUND id (the
+                // first branch inside `resolveSelectionAfterRefresh`), so a
+                // live page-1 deep link being checked for the first time
+                // (`wasConfirmed` false, but found immediately) was
+                // spuriously burning its one free pass on a job that was
+                // never actually missing.
+                const foundInFreshHits = previousSelectedId
+                    ? r.hits.some((h) => h.id === previousSelectedId)
+                    : false;
+                if (previousSelectedId && !wasConfirmed && !foundInFreshHits) {
                     firstUnresolvedDeadLinkIdRef.current = previousSelectedId;
                 }
                 setSelectedId(selection.selectedId);
                 if (!selection.preserveDeliberateDetail) {
                     setDetailSheetOpen(false);
                     userPickedDetailRef.current = false;
+                }
+                // Review fix: once an id's free pass is spent and this fetch
+                // fell through to the ordinary hits[0] fallback, the address
+                // bar still says `job=<the dead id>` — nothing above this
+                // point ever calls `applyUrlState` for that transition (it
+                // lives inside a data-driven effect, not a user action). A
+                // refreshed or re-shared URL would otherwise keep re-landing
+                // on the same dead id forever, even though the app has
+                // already moved on locally. Clearing `jobId` here converges
+                // the URL back to ambient browsing — the URL-reconcile
+                // effect (keyed on `searchParams`) then re-derives
+                // `selectedId` from the now-jobless URL, which lands on the
+                // same `hits[0]` `selection` already picked, just via the
+                // "no explicit selection" path instead of a stale explicit one.
+                if (previousSelectedId && !wasConfirmed && !foundInFreshHits && alreadyUsedItsPass) {
+                    applyUrlState(buildUrlState({ jobId: null }), "replace");
                 }
                 // Honest hidden-ghost count for the rail's toggle row (Task 7): one
                 // extra limit-1, facets-only request with hideGhosts flipped off and
@@ -1249,7 +1348,18 @@ function JobsContent() {
         setDeadJobCheck({ id, status: "checking" });
         void (async () => {
             try {
-                const r = await searchJobsAction({ id, limit: 1, offset: 0 });
+                // Review fix — explicit `hideGhosts: false`: this must see
+                // the WHOLE corpus, not just the non-ghost subset, or a
+                // genuinely live likely_ghost posting would classify
+                // not_found and get declared dead. Verified in
+                // `buildFilter` (lib/jobs/meilisearch.ts): an omitted
+                // `hideGhosts` is already falsy there (no ghost-exclusion
+                // clause gets added either way) — so this wasn't silently
+                // wrong today, but leaving it implicit relied on that one
+                // line never changing. Every other field (facets/q/
+                // salaryMin/visaOnly/postedBucket/sort) stays omitted on
+                // purpose — see `JobSearchParams.id`'s own doc comment.
+                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
                 if (!deadJobGuardRef.current!.isCurrent(token)) return;
                 // `classifyExistenceCheck` (lib/jobs/result-state.ts,
                 // unit-tested) treats an unconfigured backend OR a failed
@@ -1272,14 +1382,29 @@ function JobsContent() {
     // must never leak into what's rendered for the current one.
     const deadJobResolved = deadJobCheck && deadJobCheck.id === selectedId ? deadJobCheck : null;
     // Confirmed alive but off-page/filtered-out: render its real detail
-    // instead of asserting death. Confirmed gone: the tombstone. Still
-    // checking, or the check was inconclusive: neither — a non-assertive
-    // gap, same as the pre-Task-11 baseline.
+    // instead of asserting death. Confirmed gone: the tombstone.
     const deadJobFoundJob = deadJobResolved?.status === "found" ? deadJobResolved.job : null;
     const isDeadJobConfirmed = deadJobResolved?.status === "not_found";
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
     const detailJob = selected ?? deadJobFoundJob;
+    // Review fix — still checking, or the check came back inconclusive
+    // (`unknown` — the confirmed production reality until the Meilisearch
+    // index gets `id` added to `filterableAttributes`, see
+    // `classifyExistenceCheck`'s doc comment): neither confirmed dead nor
+    // confirmed alive. `isDeadJobCandidate` already encodes "a deliberate
+    // selection, first page resolved, not among the loaded hits" — combined
+    // with "not confirmed dead," that's exactly the non-assertive gap
+    // `DeadJobUnresolved` (below) now fills instead of rendering nothing.
+    const showUnresolvedDetail = isDeadJobCandidate && !isDeadJobConfirmed;
+    const isDeadJobChecking = deadJobResolved?.status === "checking";
+    // Review fix — the tombstone/unresolved CTA can only genuinely deliver
+    // "similar roles" when a usable résumé is already on hand (the SAME bar
+    // the résumé-upsell card uses, `resumeIsUsable`): with no résumé,
+    // `handleExploreClick` doesn't explore anything — it opens a sign-in or
+    // upload gate instead. `handleTombstoneSimilarRoles` (below) branches on
+    // this; `SimilarRolesCta` labels the button accordingly.
+    const canShowSimilarRoles = resumeIsUsable(resume ?? undefined);
 
     const handleResultsKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -1861,7 +1986,7 @@ function JobsContent() {
         }
     };
 
-    // Task 11 review fix — the tombstone's "See similar roles" can't just
+    // Task 11 review fix — the tombstone's "similar roles" CTA can't just
     // call `handleExploreClick` bare: the common dead link is a bare
     // `/jobs?job=<id>` with no query, so `job=<dead-id>` is still the URL's
     // `job` param when this fires. `activateExplore` (above) only rewrites
@@ -1873,10 +1998,25 @@ function JobsContent() {
     // results. Clearing the job selection first (local state + URL) avoids
     // that: `selectedId` becomes null, so `isDeadJobCandidate` goes false
     // and any in-flight/stale `deadJobCheck` for the old id stops matching.
+    //
+    // Second review fix: `handleExploreClick` is résumé-gated — with no
+    // usable résumé on hand (`canShowSimilarRoles` false, computed above),
+    // it doesn't explore anything, it opens a sign-in/upload modal. Forcing
+    // that on a cold visitor who just followed a now-dead shared link is
+    // both a bait-and-switch on the button's own label AND an unwanted
+    // gate for a low-intent moment, so this only calls into Explore when a
+    // résumé is genuinely on hand; otherwise it falls back to a plain,
+    // ungated browse of live roles (`enterBrowse`, the same helper
+    // `SearchPrompt`'s "or browse all live roles" already uses) —
+    // `SimilarRolesCta` labels the button to match whichever this resolves to.
     const handleTombstoneSimilarRoles = () => {
         setSelectedId(null);
         applyUrlState(buildUrlState({ jobId: null }), "replace");
-        void handleExploreClick();
+        if (canShowSimilarRoles) {
+            void handleExploreClick();
+        } else {
+            enterBrowse();
+        }
     };
 
     const enterBrowse = () => {
@@ -2286,7 +2426,18 @@ function JobsContent() {
                                             onPrep={() => handlePrep(detailJob)}
                                         />
                                     ) : isDeadJobConfirmed ? (
-                                        <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} exploring={exploring} />
+                                        <DeadJobTombstone
+                                            onSimilarRoles={handleTombstoneSimilarRoles}
+                                            exploring={exploring}
+                                            canShowSimilar={canShowSimilarRoles}
+                                        />
+                                    ) : showUnresolvedDetail ? (
+                                        <DeadJobUnresolved
+                                            onSimilarRoles={handleTombstoneSimilarRoles}
+                                            exploring={exploring}
+                                            canShowSimilar={canShowSimilarRoles}
+                                            checking={isDeadJobChecking}
+                                        />
                                     ) : null}
                                 </aside>
                             </div>
@@ -2377,7 +2528,20 @@ function JobsContent() {
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">
-                            <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} exploring={exploring} />
+                            <DeadJobTombstone
+                                onSimilarRoles={handleTombstoneSimilarRoles}
+                                exploring={exploring}
+                                canShowSimilar={canShowSimilarRoles}
+                            />
+                        </div>
+                    ) : showUnresolvedDetail ? (
+                        <div className="p-4">
+                            <DeadJobUnresolved
+                                onSimilarRoles={handleTombstoneSimilarRoles}
+                                exploring={exploring}
+                                canShowSimilar={canShowSimilarRoles}
+                                checking={isDeadJobChecking}
+                            />
                         </div>
                     ) : null}
                 </SheetContent>

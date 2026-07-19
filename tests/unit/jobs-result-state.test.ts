@@ -5,6 +5,7 @@ import {
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
+    DEAD_JOB_TOMBSTONE_TEXT,
 } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 
@@ -191,5 +192,43 @@ describe('classifyExistenceCheck', () => {
             ),
             { status: 'unknown' },
         );
+    });
+
+    // Review fix — the class of cases the fail-open bug missed: `not_found`
+    // must require POSITIVE proof (complete backend + clean + empty), never
+    // fall out as the default for "not an obviously-recognized error."
+    it('unknown: snapshot-preview backend with zero hits — a capped SUBSET missing an id is not proof of absence', () => {
+        assert.deepEqual(
+            classifyExistenceCheck('abc-123', result({ backend: 'snapshot-preview', hits: [], total: 0 })),
+            { status: 'unknown' },
+        );
+    });
+
+    it('unknown: configured + empty + an UNRECOGNIZED note — any note at all withholds not_found, not just the "temporarily unavailable" shape', () => {
+        assert.deepEqual(
+            classifyExistenceCheck('abc-123', result({ hits: [], total: 0, note: 'Some other degraded-mode note' })),
+            { status: 'unknown' },
+        );
+    });
+
+    it('not_found: meilisearch + empty + no note is the ONLY combination that proves absence', () => {
+        assert.deepEqual(
+            classifyExistenceCheck(
+                'abc-123',
+                result({ backend: 'meilisearch', configured: true, hits: [], total: 0, note: undefined }),
+            ),
+            { status: 'not_found' },
+        );
+    });
+});
+
+// Review fix — the mandated tombstone copy (controller resolution #1,
+// verbatim) is only exercised in e2e via an `.or()` alongside the
+// non-assertive state's own text (a dead id may classify either way against
+// the live corpus — see jobs-first-screen.spec.ts), which alone could keep
+// passing even if this exact string silently drifted. Pinned directly here.
+describe('DEAD_JOB_TOMBSTONE_TEXT', () => {
+    it('matches the controller-mandated copy exactly — no date, no guessed cause', () => {
+        assert.equal(DEAD_JOB_TOMBSTONE_TEXT, 'This role is no longer available.');
     });
 });
