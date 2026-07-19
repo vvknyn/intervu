@@ -10,7 +10,7 @@
  */
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
-import type { FacetDistribution, JobSearchParams, JobSearchResult, PublicJob } from "./types";
+import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
 
@@ -31,6 +31,16 @@ export const JOBS_INDEX_SETTINGS = {
     "source",
     "vacancy_status",
     "posted_ts",
+    // Task 11 — the dead-link existence check (`JobSearchParams.id`, below)
+    // needs `id = "..."` to be a legal filter. VERIFIED LIVE (2026-07-19)
+    // against the production index that Meilisearch's primary key is NOT
+    // automatically filterable — the search-only key also can't reach
+    // GET /documents/{id} (403, out of its scope) or /indexes/{id} (403) —
+    // so this addition is CODE-ONLY until the sync worker re-provisions the
+    // live index with it. Until then, `id = ...` filters 400 and the
+    // existence check safely degrades to "unknown" (non-assertive) rather
+    // than lying — see `classifyExistenceCheck` in lib/jobs/result-state.ts.
+    "id",
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
@@ -77,8 +87,19 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
  * fallback used when the live index doesn't have the field yet (see
  * `searchMeili`'s 400-retry). Remove the `legacy` param once the reindex lands.
  */
-function buildFilter(p: JobSearchParams, legacy = false): string[] {
+export function buildFilter(p: JobSearchParams, legacy = false): string[] {
   const f: string[] = ['vacancy_status != "closed"'];
+  // Task 11 — existence check: requires "id" in `filterableAttributes`
+  // (JOBS_INDEX_SETTINGS above) — Meilisearch's primary key is NOT
+  // automatically filterable, verified live against production (it 400s
+  // with `invalid_search_filter` until the live index is re-provisioned
+  // with the setting above). Until then this filter clause makes the
+  // request fail, which `searchMeili` surfaces as an "unavailable" result —
+  // the caller (`classifyExistenceCheck`, lib/jobs/result-state.ts) treats
+  // that as "unknown" and renders nothing rather than asserting death. Every
+  // other clause below is skipped for this request by construction (the
+  // caller passes only `{ id, limit, offset }`) — see `JobSearchParams.id`.
+  if (p.id) f.push(`id = ${JSON.stringify(p.id)}`);
   const facets = p.facets ?? {};
   for (const key of FACETABLE_KEYS) {
     const vals = facets[key];
@@ -90,6 +111,7 @@ function buildFilter(p: JobSearchParams, legacy = false): string[] {
     f.push(`(salary_max >= ${p.salaryMin} OR salary_min >= ${p.salaryMin})`);
   }
   if (p.visaOnly) f.push("visa_sponsorship = true");
+  if (p.hideGhosts) f.push('ghost_badge != "likely_ghost"');
   if (p.postedBucket && !legacy) {
     const now = Date.now();
     if (p.postedBucket === "older") {
@@ -165,6 +187,122 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     configured: true,
     facetDistribution: body.facetDistribution as FacetDistribution | undefined,
   };
+}
+
+/** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
+export async function fetchJobsLastUpdated(): Promise<string | null> {
+  const h = host();
+  if (!h) return null;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ limit: 1, sort: ["updated_at:desc"], attributesToRetrieve: ["updated_at"] }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { hits?: { updated_at?: string }[] };
+    return body.hits?.[0]?.updated_at ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Does the corpus actually carry `posted_ts`? The age-bucket filters range
+ * over that field, so a corpus where no document has it makes every bucket
+ * match nothing — a control that can only ever return an empty board.
+ *
+ * The field is declared filterable (see `JOBS_INDEX_SETTINGS`) but the sync
+ * that writes documents lives outside this repo (`/opt/jobs-sync/sync.mjs`)
+ * and has never derived it, so as of Jul 2026 population is 0%. This probes
+ * the data rather than hard-coding that state: the moment the sync starts
+ * writing `posted_ts`, the buckets light up again with no code change.
+ *
+ * Any failure answers "no" — offering a filter we cannot confirm works is
+ * the failure mode this exists to prevent.
+ */
+export async function fetchPostedDateFilterSupported(): Promise<boolean> {
+  const h = host();
+  if (!h) return false;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ limit: 0, filter: "posted_ts >= 0" }),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { totalHits?: number; estimatedTotalHits?: number };
+    return (body.totalHits ?? body.estimatedTotalHits ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure: fold raw `{ title, company }` hits into deduped, capped suggestion
+ * lists. Extracted from `fetchJobSuggestions` so the dedupe logic is
+ * unit-testable without a network call (see tests/unit/jobs-suggestions.test.ts).
+ * Titles dedupe case-insensitively (max 5); companies dedupe case-insensitively
+ * (max 3) — first-seen casing wins, blank values are dropped.
+ */
+export function dedupeJobSuggestionHits(
+  hits: Array<{ title?: string | null; company?: string | null }>,
+): JobSuggestions {
+  const titles: string[] = [];
+  const seenTitles = new Set<string>();
+  const companies: string[] = [];
+  const seenCompanies = new Set<string>();
+
+  for (const hit of hits) {
+    const title = (hit.title ?? "").trim();
+    if (title) {
+      const key = title.toLowerCase();
+      if (!seenTitles.has(key)) {
+        seenTitles.add(key);
+        if (titles.length < 5) titles.push(title);
+      }
+    }
+    const company = (hit.company ?? "").trim();
+    if (company) {
+      const key = company.toLowerCase();
+      if (!seenCompanies.has(key)) {
+        seenCompanies.add(key);
+        if (companies.length < 3) companies.push(company);
+      }
+    }
+  }
+
+  return { titles, companies };
+}
+
+const EMPTY_SUGGESTIONS: JobSuggestions = { titles: [], companies: [] };
+
+/**
+ * Read-path: title/company suggestions for the search box's typeahead
+ * (Task 9). One search call against the live index — no facet request, no
+ * counts (see `JobSuggestions` in types.ts). Never throws: an unreachable
+ * index or a malformed response degrades to no suggestions, never an error
+ * surfaced to the search box.
+ */
+export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
+  const query = q.trim();
+  const h = host();
+  if (!h || !query) return EMPTY_SUGGESTIONS;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ q: query, hitsPerPage: 20, attributesToRetrieve: ["title", "company"] }),
+    });
+    if (!res.ok) return EMPTY_SUGGESTIONS;
+    const body = (await res.json()) as { hits?: Array<{ title?: string; company?: string | null }> };
+    return dedupeJobSuggestionHits(body.hits ?? []);
+  } catch {
+    return EMPTY_SUGGESTIONS;
+  }
 }
 
 /* --------- Ingestion / admin (invoked only by the off-Vercel sync worker) --------- */

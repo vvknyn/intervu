@@ -4,29 +4,17 @@ import { test, expect, type Page } from '@playwright/test';
  * TEST GROUP: JOBS-SEARCH - /jobs search polish (sort, panes, selection)
  *
  * Environment-tolerant: works with configured Meilisearch OR unconfigured backend.
- * Seeds BROWSE mode via localStorage to skip the entry gate.
+ * There is no entry gate — /jobs renders BROWSE results on first paint for
+ * everyone (see jobs-first-screen.spec.ts) — so this just navigates straight in.
  */
 
-const ENTRY_KEY = 'intervu.jobs.entry';
-
 async function enterBrowseMode(page: Page) {
-    await page.addInitScript((key) => {
-        try {
-            window.localStorage.setItem(key, JSON.stringify({ mode: 'browse', q: '' }));
-        } catch {
-            /* storage disabled */
-        }
-    }, ENTRY_KEY);
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
-    // Gate must be gone
-    await expect(
-        page.getByRole('heading', { name: /Tailor jobs to your resume/i }),
-    ).toHaveCount(0, { timeout: 15000 });
     await expect(
         page.getByRole('listbox', { name: 'Job results' })
             .or(page.getByText(/Job search is being connected/i))
-            .or(page.getByText(/No roles match those filters/i))
+            .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
             .first(),
     ).toBeVisible({ timeout: 15000 });
@@ -34,14 +22,13 @@ async function enterBrowseMode(page: Page) {
 
 test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
     test.beforeEach(async ({ page }) => {
-        await page.addInitScript((key) => {
+        await page.addInitScript(() => {
             try {
-                window.localStorage.removeItem(key);
                 window.localStorage.clear();
             } catch {
                 /* ignore */
             }
-        }, ENTRY_KEY);
+        });
     });
 
     test('TC-JOBS-SORT-001: sort control offers three labeled options when configured', async ({ page }) => {
@@ -78,7 +65,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'Backend unconfigured — sort control absent');
         }
 
-        const searchInput = page.getByPlaceholder(/Search role/i);
+        const searchInput = page.getByPlaceholder(/live-checked roles/i);
         await searchInput.fill('engineer');
         await expect(sortTrigger).toBeVisible({ timeout: 15000 });
 
@@ -100,7 +87,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify background refresh feedback');
         }
 
-        await page.getByPlaceholder(/Search role/i).fill('engineer');
+        await page.getByPlaceholder(/live-checked roles/i).fill('engineer');
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
         await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
@@ -190,7 +177,14 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(Math.abs(after[2] - paneMetrics[2].top)).toBeLessThanOrEqual(1);
     });
 
-    test('TC-JOBS-LAYOUT-002: lg has two panes and a bounded independently scrolling filter overlay', async ({ page }) => {
+    test('TC-JOBS-LAYOUT-002: lg (1024px) now shows the filter rail directly — no overlay needed', async ({ page }) => {
+        // Task 7 moved the filter-rail visibility threshold from xl (1280px) to
+        // lg (1024px), collapsing the old "lg: two panes + overlay, xl: three
+        // panes" split into one tier: lg+ is always three panes. This test used
+        // to assert the rail was ABSENT at 1024px and had to be opened via the
+        // "Filters" button/overlay — that tier no longer exists, so the
+        // assertions below invert to match (mirrors TC-JOBS-LAYOUT-001's
+        // three-pane shape, but pinned to the boundary width itself).
         await page.setViewportSize({ width: 1024, height: 768 });
         await enterBrowseMode(page);
 
@@ -199,18 +193,43 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify lg pane geometry');
         }
 
+        const filters = page.getByRole('region', { name: 'Job filters' });
         const detail = page.getByRole('region', { name: /Job details:/ });
+        await expect(filters).toBeVisible();
         await expect(results).toBeVisible();
         await expect(detail).toBeVisible();
-        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
+        // Review fix (2026-07-19): asserting the deleted mobile "Filters"
+        // button was absent stopped being meaningful once Task 10 removed it
+        // everywhere — the assertion could no longer fail at any viewport.
+        // Retargeted at the thing that's actually `lg:hidden` now: Task 10's
+        // quick-filter chips row must not coexist with the always-visible
+        // rail at lg+.
+        await expect(page.getByRole('group', { name: 'Quick filters' })).toHaveCount(0);
 
         const documentMetrics = await page.evaluate(() => ({
             height: document.documentElement.scrollHeight,
             viewport: window.innerHeight,
         }));
         expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
+    });
 
-        await page.getByRole('button', { name: /Filters/ }).click();
+    test('TC-JOBS-LAYOUT-002B: below lg, the chips row opens a bounded independently scrolling filter sheet', async ({ page }) => {
+        // Coverage for the overlay mechanism, whose trigger threshold Task 7
+        // moved down to <1024px alongside the rail. Task 10 absorbed the old
+        // standalone "Filters" button + `showFiltersMobile` inline overlay
+        // into the mobile chips row's "All (n)" chip, which now opens a
+        // bottom Sheet instead — same breakpoint, new trigger + mechanism.
+        await page.setViewportSize({ width: 900, height: 768 });
+        await enterBrowseMode(page);
+
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        if ((await results.getByRole('option').count()) === 0) {
+            test.skip(true, 'No job rows — cannot verify sub-lg overlay geometry');
+        }
+        await expect(results).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
+
+        await page.getByText('All (', { exact: false }).click();
         const filterOverlay = page.getByRole('region', { name: 'Job filters' });
         await expect(filterOverlay).toBeVisible();
         const overlayMetrics = await filterOverlay.evaluate((node) => ({
@@ -219,10 +238,13 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         }));
         expect(overlayMetrics.overflowY).toBe('auto');
         expect(overlayMetrics.height).toBeGreaterThan(0);
-        expect(overlayMetrics.height).toBeLessThan(documentMetrics.viewport);
-        expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
-            documentMetrics.viewport + 2,
-        );
+        // Unlike TC-JOBS-LAYOUT-002 (>= lg), the page-level scroll containment
+        // (`lg:h-[...] lg:overflow-hidden` on PageLayout) doesn't apply below lg
+        // — a scrollable document is expected here. Only the overlay itself
+        // needs to be internally bounded/scrollable, which the assertions above
+        // already cover.
+        const viewportHeight = await page.evaluate(() => window.innerHeight);
+        expect(overlayMetrics.height).toBeLessThan(viewportHeight);
     });
 
     test('TC-JOBS-MOBILE-001: deliberate row tap opens bottom sheet detail', async ({ page }) => {
@@ -251,12 +273,14 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
         // Schedule a zero-result refresh, then deliberately open a still-visible
         // result during the debounce window.
-        await page.getByPlaceholder(/Search role/i).fill('zzqxvbnmnevermatches');
+        await page.getByPlaceholder(/live-checked roles/i).fill('zzqxvbnmnevermatches');
         await options.first().click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });
 
-        await expect(page.getByText(/No roles match those filters/i)).toBeVisible({ timeout: 15000 });
+        // Task 11 replaced the generic copy with "No roles match." + the
+        // active-excluder clear-chips (see jobs-first-screen.spec.ts).
+        await expect(page.getByText('No roles match.')).toBeVisible({ timeout: 15000 });
         await expect(dialog).toHaveCount(0);
     });
 });

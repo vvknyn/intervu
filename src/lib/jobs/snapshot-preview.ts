@@ -66,6 +66,11 @@ function passPostedBucket(j: PublicJob, bucket: PostedBucket | undefined): boole
 
 /** Query + salary + visa + posted-bucket predicates (the non-facet filters), always applied. */
 function passBase(j: PublicJob, p: JobSearchParams): boolean {
+  // Task 11 — existence check (see JobSearchParams.id): an ADDITIONAL AND'd
+  // clause, mirroring meilisearch.ts's `id = ...` filter push — not an
+  // early return, so this stays correct if a future caller ever combines
+  // `id` with other predicates instead of sending it alone.
+  if (p.id && j.id !== p.id) return false;
   if (p.q) {
     const hay = `${j.title} ${j.company ?? ""} ${j.location ?? ""} ${(j.tags ?? []).join(" ")}`.toLowerCase();
     if (!hay.includes(p.q.toLowerCase())) return false;

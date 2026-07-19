@@ -2,13 +2,48 @@
 
 import { createApplication } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { getJobsBackendStatus, searchJobs as runSearch } from "@/lib/jobs/search";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "@/lib/jobs/types";
+import {
+  getJobsBackendStatus,
+  getJobsLastUpdated,
+  isPostedDateFilterSupported,
+  searchJobs as runSearch,
+  suggestJobs,
+} from "@/lib/jobs/search";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 
 /** Search the jobs corpus (dispatches to whichever backend is configured). */
 export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
   return runSearch(params);
+}
+
+/** The corpus's last-updated timestamp, for the "last synced" trust stamp. */
+export async function getJobsFreshnessAction(): Promise<string | null> {
+  return getJobsLastUpdated();
+}
+
+/**
+ * Whether the corpus can support the posted-date buckets. The rail and the
+ * mobile chip hide the control when it can't, rather than offering a filter
+ * that returns an empty board.
+ */
+export async function getPostedDateFilterSupportAction(): Promise<boolean> {
+  return isPostedDateFilterSupported();
+}
+
+/**
+ * Typeahead: title/company suggestions for the search box (Task 9). Never
+ * throws — degrades to `{ titles: [], companies: [] }` on any failure so
+ * suggestions are purely an accelerant, never a source of user-visible error.
+ * Input capped at 200 chars, matching the neighboring `suggestAdjacentRolesAction`'s
+ * posture toward user-controlled text reaching a server action.
+ */
+export async function suggestJobsAction(q: string): Promise<JobSuggestions> {
+  try {
+    return await suggestJobs((q ?? "").slice(0, 200));
+  } catch {
+    return { titles: [], companies: [] };
+  }
 }
 
 /**

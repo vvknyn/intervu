@@ -7,9 +7,15 @@
  * Server-only (touches server env + the Subspace client). Call via the
  * `@/actions/jobs` server actions from client components.
  */
-import { hasMeilisearch, searchMeili } from "./meilisearch";
+import {
+  fetchJobSuggestions,
+  fetchJobsLastUpdated,
+  fetchPostedDateFilterSupported,
+  hasMeilisearch,
+  searchMeili,
+} from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind } from "./types";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
 export function activeBackend(): JobsBackendKind {
   if (hasMeilisearch()) return "meilisearch";
@@ -59,4 +65,36 @@ export async function searchJobs(p: JobSearchParams): Promise<JobSearchResult> {
     configured: false,
     note: getJobsBackendStatus().note,
   };
+}
+
+/** The corpus's last-updated timestamp, for the "last synced" trust stamp. Meilisearch-only for now. */
+export async function getJobsLastUpdated(): Promise<string | null> {
+  if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
+  return null;
+}
+
+/**
+ * Can the corpus support age-bucket filtering? Only the Meilisearch backend
+ * range-filters `posted_ts`; the snapshot preview holds an in-memory slice
+ * with no filter engine, so it answers "no" rather than offering a control
+ * that silently does nothing.
+ */
+export async function isPostedDateFilterSupported(): Promise<boolean> {
+  if (activeBackend() === "meilisearch") return fetchPostedDateFilterSupported();
+  return false;
+}
+
+/**
+ * Typeahead dispatcher (Task 9): title/company suggestions for the search
+ * box. Meilisearch-only — the snapshot-preview backend has no search
+ * endpoint of its own to suggest from, so it degrades to empty rather than
+ * scanning its in-memory slice. Never throws.
+ */
+export async function suggestJobs(q: string): Promise<JobSuggestions> {
+  try {
+    if (activeBackend() === "meilisearch") return await fetchJobSuggestions(q);
+  } catch {
+    // fall through to empty — suggestions must never surface an error
+  }
+  return { titles: [], companies: [] };
 }
