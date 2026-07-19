@@ -20,6 +20,33 @@ import { test, expect } from '@playwright/test';
  * copy that a future card could also contain.
  */
 
+// Task 12 review fix — warm the dev server's /jobs route ONCE before any
+// test in this file runs. Turbopack's dev-mode compile cache can be wiped
+// (observed: "filesystem cache has been deleted because we previously
+// detected an internal error"), and the very first hit after that pays a
+// full cold compile — enough to blow a normal test's assertion timeout,
+// while every hit afterward is fast (same process, cache now warm). That
+// was landing as a flaky/hard-failing FIRST test in this file — not a
+// product regression (the same assertion passes reliably once warm) and not
+// something a longer per-test timeout should paper over everywhere. Pay the
+// cold-compile cost exactly once, here, with a timeout generous enough to
+// absorb it, before the real tests (and their normal timeouts) run.
+test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+        await page.goto('/jobs');
+        await page
+            .locator('[data-job-row]')
+            .or(page.getByText(/being connected/i))
+            .or(page.getByText(/No roles match/i))
+            .or(page.getByText(/temporarily unavailable/i))
+            .first()
+            .waitFor({ state: 'visible', timeout: 60_000 });
+    } finally {
+        await page.close();
+    }
+});
+
 test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     test.beforeEach(async ({ page }) => {
         await page.addInitScript(() => {
