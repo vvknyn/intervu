@@ -208,10 +208,16 @@ function salaryText(j: PublicJob): string | null {
  * `posted_ts` (via `derivePostedTs`) rather than the raw `posted_at` string so
  * a future-dated posting (measured live: sentinels like 2030-01-31) never
  * renders as "today" — it falls back to `first_seen_at` instead.
+ *
+ * `now` is threaded in by the caller (JobRow, from JobsContent's single
+ * per-render-pass `nowMs`) rather than sampled here with `Date.now()` — this
+ * function runs from JobRow's render body, so an internal clock read would
+ * be exactly the impure-render-call class `react-hooks/purity` flags at
+ * `badgeFor`'s call site, just one level removed from the component itself.
  */
-function postedAge(ts: number | null): string | null {
+function postedAge(ts: number | null, now: number): string | null {
     if (ts == null) return null;
-    const days = Math.floor((Date.now() - ts) / 86_400_000);
+    const days = Math.floor((now - ts) / 86_400_000);
     if (days <= 0) return "today";
     if (days === 1) return "1d";
     if (days < 30) return `${days}d`;
@@ -268,19 +274,22 @@ function JobRow({
     job,
     active,
     onClick,
+    now,
 }: {
     job: PublicJob;
     active: boolean;
     onClick: () => void;
+    /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
+    now: number;
 }) {
     const postedTs = derivePostedTs(job);
-    const age = postedAge(postedTs);
+    const age = postedAge(postedTs, now);
     const sal = salaryText(job);
     // Task 8 row badge: clear → "✓ live {age}" (from updated_at), caution →
     // "⚠ {daysOpen} days open" (from posted_ts), likely_ghost → "✕ likely
     // ghost", unscored → null (renders nothing, same as the old
     // `GHOST_META[job.ghost_badge] &&` gate this replaces).
-    const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, Date.now());
+    const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, now);
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
@@ -790,6 +799,22 @@ function JobsContent() {
     // navigation (Back/Forward), a typed address bar, or an external link all
     // fully reconstruct the screen, not just the selected job.
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Review fix (2026-07-19) — ONE "now" for this entire render pass,
+    // seeded once via useState's lazy initializer (the documented-sanctioned
+    // way to do one-time impure work during render — see React's "components
+    // and hooks must be idempotent" doc the `react-hooks/purity` lint rule
+    // links to) instead of `Date.now()` being called directly inside render
+    // (JobRow's `postedAge`/`badgeFor`) or inside JSX (the freshness stamp's
+    // `isStale`/`formatRelativeAge`). Threading a single value down means the
+    // row badge's age and the freshness stamp's age can never disagree about
+    // what instant "now" was for this paint, and render stays pure — the
+    // exact defect `react-hooks/purity` flagged at the old `badgeFor` call
+    // site (line ~283) and Task 8's review separately flagged as "dual
+    // Date.now() per row render" (postedAge's own internal call was the
+    // second one, never caught by the linter because it's one level removed
+    // from the render body, but the same bug).
+    const [nowMs] = useState(() => Date.now());
 
     const [query, setQuery] = useState(initialUrlState.q);
     const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>(initialUrlState.facets);
@@ -1672,7 +1697,6 @@ function JobsContent() {
             }
         }, 250);
         return () => clearTimeout(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filterSheetOpen, pendingFilterState, query, sortOverride]);
 
     // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
@@ -2307,10 +2331,10 @@ function JobsContent() {
                 {lastUpdated !== undefined && (
                     <span
                         className="text-xs tabular-nums text-muted-foreground data-[stale=true]:text-amber-600 dark:data-[stale=true]:text-amber-400"
-                        data-stale={isStale(lastUpdated, Date.now())}
+                        data-stale={isStale(lastUpdated, nowMs)}
                         title={lastUpdated ?? "freshness unknown"}
                     >
-                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, Date.now())}` : "freshness unknown"}
+                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
                     </span>
                 )}
             </div>
@@ -2423,6 +2447,7 @@ function JobsContent() {
                                                     job={job}
                                                     active={selected?.id === job.id}
                                                     onClick={() => openJob(job.id)}
+                                                    now={nowMs}
                                                 />
                                             );
                                             // After the FIRST row only (idx 0) — `hits` is the
