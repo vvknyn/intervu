@@ -103,6 +103,7 @@ export function FilterChipsRow({
     onToggleFacet,
     onSalaryMin,
     onOpenSheet,
+    postedDateSupported,
 }: {
     state: FilterState;
     distribution: FacetDistribution | undefined;
@@ -111,6 +112,8 @@ export function FilterChipsRow({
     onToggleFacet: (key: FacetKey, value: string) => void;
     onSalaryMin: (v: number) => void;
     onOpenSheet: () => void;
+    /** False when the corpus carries no `posted_ts` — the chip is hidden rather than offered dead. */
+    postedDateSupported: boolean;
 }) {
     const remoteValue = pickRemoteFacetValue(distribution);
     const remoteActive = remoteValue != null && (state.facets.work_type ?? []).includes(remoteValue);
@@ -130,10 +133,15 @@ export function FilterChipsRow({
             aria-label="Quick filters"
             className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-            <Chip active={!!state.postedBucket} onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}>
-                {state.postedBucket ? postedBucketLabel(state.postedBucket) : "Posted"}
-                <CaretDown size={11} weight="bold" />
-            </Chip>
+            {/* Same rule as the rail's "Date posted" section: no control when the
+                corpus can't answer it. Both surfaces read one flag so they can't
+                disagree about what's offerable. */}
+            {postedDateSupported && (
+                <Chip active={!!state.postedBucket} onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}>
+                    {state.postedBucket ? postedBucketLabel(state.postedBucket) : "Posted"}
+                    <CaretDown size={11} weight="bold" />
+                </Chip>
+            )}
             <Chip
                 active={remoteActive}
                 disabled={remoteValue == null}

@@ -159,23 +159,30 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * first paint" test above) rather than a pre-filtered URL, so this test
      * isn't sensitive to how many roles currently fall in the 7-day bucket.
      */
-    test("back after opening a job and applying a posted-bucket filter restores the prior state", async ({ page }) => {
+    test("back after opening a job and applying a filter restores the prior state", async ({ page }) => {
         await page.goto("/jobs");
         const firstRow = page.locator("[data-testid=job-row], main li").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
-        await expect(page).not.toHaveURL(/posted=/);
+        await expect(page).not.toHaveURL(/salary=/);
 
-        const postedButton = page
+        // Salary, not the posted buckets: the age filters are hidden whenever the
+        // corpus carries no `posted_ts` (see `isPostedDateFilterSupported`), and
+        // this test is about history semantics — filter writes `replace` and keeps
+        // the open job, Back unwinds both — not about which facet does the writing.
+        const salaryButton = page
             .getByRole("region", { name: "Job filters" })
-            .getByRole("button", { name: "Last week" });
-        await postedButton.click();
-        await expect(page).toHaveURL(/posted=7d/);
+            .getByRole("button", { name: "$100k+" });
+        await salaryButton.click();
+        await expect(page).toHaveURL(/salary=100k/);
         await expect(page).toHaveURL(/job=/); // replace preserves the open job
-        await expect(page.getByTestId("active-filter-chip").filter({ hasText: "Last week" })).toBeVisible();
+        // The rail's button reads "$100k+" but the active chip renders the
+        // shared `activeFilterEntries` label, "≥ $100k" — deliberately different
+        // formats, so assert the chip's own string rather than the button's.
+        await expect(page.getByTestId("active-filter-chip").filter({ hasText: "≥ $100k" })).toBeVisible();
 
         await page.goBack();
-        await expect(page).not.toHaveURL(/posted=7d/);
+        await expect(page).not.toHaveURL(/salary=100k/);
         await expect(page).not.toHaveURL(/job=/);
         await expect(page.getByTestId("active-filter-chip")).toHaveCount(0);
     });
@@ -534,9 +541,14 @@ test.describe("mobile", () => {
 
         // Toggle a PENDING filter inside the sheet — resolution #3: this must
         // only move the debounced count, never the applied page behind it.
+        // The filter has to narrow BELOW Meilisearch's `maxTotalHits` cap or the
+        // count saturates and can't be observed changing. Measured live against
+        // the corpus: unfiltered, "$100k+", "$150k+" and "remote" all report the
+        // capped 100,000; "$200k+" reports ~64k. Posted buckets aren't an option
+        // either — hidden whenever the corpus lacks `posted_ts`.
         await page
             .getByRole("region", { name: "Job filters" })
-            .getByRole("button", { name: "Last week" })
+            .getByRole("button", { name: "$200k+" })
             .click();
 
         // Poll until the button's number actually changes from the open-time

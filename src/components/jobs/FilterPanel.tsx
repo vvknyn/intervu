@@ -214,6 +214,7 @@ export function FilterPanel({
     hideGhosts,
     onHideGhosts,
     ghostHiddenCount,
+    postedDateSupported,
 }: {
     distribution: FacetDistribution | undefined;
     state: FilterState;
@@ -226,6 +227,8 @@ export function FilterPanel({
     hideGhosts: boolean;
     onHideGhosts: (v: boolean) => void;
     ghostHiddenCount: number | null;
+    /** False when the corpus carries no `posted_ts` — the age buckets are hidden rather than offered dead. */
+    postedDateSupported: boolean;
 }) {
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -296,25 +299,30 @@ export function FilterPanel({
             </div>
 
             <div className="min-h-0 flex-1">
-                {/* Date posted — recency is a primary job-seeker filter, so it leads. */}
-                <Section title="Date posted" collapsed={collapsed.posted} onToggle={() => toggleCollapse("posted")}>
-                    <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
-                        {POSTED_BUCKET_PRESETS.map((o) => (
-                            <button
-                                key={o.label}
-                                onClick={() => onPostedBucket(o.value)}
-                                className={cn(
-                                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                                    state.postedBucket === o.value
-                                        ? "border-brand/40 bg-brand/10 text-brand"
-                                        : "border-border bg-card text-muted-foreground hover:border-brand/30",
-                                )}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
-                    </div>
-                </Section>
+                {/* Date posted — recency is a primary job-seeker filter, so it leads.
+                    Hidden when the corpus carries no `posted_ts`, since every bucket
+                    would return an empty board; it reappears on its own once the data
+                    supports it (see `isPostedDateFilterSupported`). */}
+                {postedDateSupported && (
+                    <Section title="Date posted" collapsed={collapsed.posted} onToggle={() => toggleCollapse("posted")}>
+                        <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
+                            {POSTED_BUCKET_PRESETS.map((o) => (
+                                <button
+                                    key={o.label}
+                                    onClick={() => onPostedBucket(o.value)}
+                                    className={cn(
+                                        "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                                        state.postedBucket === o.value
+                                            ? "border-brand/40 bg-brand/10 text-brand"
+                                            : "border-border bg-card text-muted-foreground hover:border-brand/30",
+                                    )}
+                                >
+                                    {o.label}
+                                </button>
+                            ))}
+                        </div>
+                    </Section>
+                )}
 
                 {/* Work type — promoted out of the generic facet loop (PROMOTED_GROUPS). */}
                 {renderFacetSection("work_type")}

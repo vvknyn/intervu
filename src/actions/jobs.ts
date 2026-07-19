@@ -2,7 +2,13 @@
 
 import { createApplication } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { getJobsBackendStatus, getJobsLastUpdated, searchJobs as runSearch, suggestJobs } from "@/lib/jobs/search";
+import {
+  getJobsBackendStatus,
+  getJobsLastUpdated,
+  isPostedDateFilterSupported,
+  searchJobs as runSearch,
+  suggestJobs,
+} from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 
@@ -14,6 +20,15 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
 /** The corpus's last-updated timestamp, for the "last synced" trust stamp. */
 export async function getJobsFreshnessAction(): Promise<string | null> {
   return getJobsLastUpdated();
+}
+
+/**
+ * Whether the corpus can support the posted-date buckets. The rail and the
+ * mobile chip hide the control when it can't, rather than offering a filter
+ * that returns an empty board.
+ */
+export async function getPostedDateFilterSupportAction(): Promise<boolean> {
+  return isPostedDateFilterSupported();
 }
 
 /**

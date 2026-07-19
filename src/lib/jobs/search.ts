@@ -7,7 +7,13 @@
  * Server-only (touches server env + the Subspace client). Call via the
  * `@/actions/jobs` server actions from client components.
  */
-import { fetchJobSuggestions, fetchJobsLastUpdated, hasMeilisearch, searchMeili } from "./meilisearch";
+import {
+  fetchJobSuggestions,
+  fetchJobsLastUpdated,
+  fetchPostedDateFilterSupported,
+  hasMeilisearch,
+  searchMeili,
+} from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
@@ -65,6 +71,17 @@ export async function searchJobs(p: JobSearchParams): Promise<JobSearchResult> {
 export async function getJobsLastUpdated(): Promise<string | null> {
   if (activeBackend() === "meilisearch") return fetchJobsLastUpdated();
   return null;
+}
+
+/**
+ * Can the corpus support age-bucket filtering? Only the Meilisearch backend
+ * range-filters `posted_ts`; the snapshot preview holds an in-memory slice
+ * with no filter engine, so it answers "no" rather than offering a control
+ * that silently does nothing.
+ */
+export async function isPostedDateFilterSupported(): Promise<boolean> {
+  if (activeBackend() === "meilisearch") return fetchPostedDateFilterSupported();
+  return false;
 }
 
 /**

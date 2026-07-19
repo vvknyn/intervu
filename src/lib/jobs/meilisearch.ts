@@ -209,6 +209,38 @@ export async function fetchJobsLastUpdated(): Promise<string | null> {
 }
 
 /**
+ * Does the corpus actually carry `posted_ts`? The age-bucket filters range
+ * over that field, so a corpus where no document has it makes every bucket
+ * match nothing — a control that can only ever return an empty board.
+ *
+ * The field is declared filterable (see `JOBS_INDEX_SETTINGS`) but the sync
+ * that writes documents lives outside this repo (`/opt/jobs-sync/sync.mjs`)
+ * and has never derived it, so as of Jul 2026 population is 0%. This probes
+ * the data rather than hard-coding that state: the moment the sync starts
+ * writing `posted_ts`, the buckets light up again with no code change.
+ *
+ * Any failure answers "no" — offering a filter we cannot confirm works is
+ * the failure mode this exists to prevent.
+ */
+export async function fetchPostedDateFilterSupported(): Promise<boolean> {
+  const h = host();
+  if (!h) return false;
+  try {
+    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ limit: 0, filter: "posted_ts >= 0" }),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { totalHits?: number; estimatedTotalHits?: number };
+    return (body.totalHits ?? body.estimatedTotalHits ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Pure: fold raw `{ title, company }` hits into deduped, capped suggestion
  * lists. Extracted from `fetchJobSuggestions` so the dedupe logic is
  * unit-testable without a network call (see tests/unit/jobs-suggestions.test.ts).

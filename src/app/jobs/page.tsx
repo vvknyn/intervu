@@ -40,6 +40,7 @@ import {
     markJobAppliedAction,
     suggestAdjacentRolesAction,
     getJobsFreshnessAction,
+    getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -971,6 +972,26 @@ function JobsContent() {
             })
             .catch(() => {
                 if (!cancelled) setLastUpdated(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // Can the corpus answer an age-bucket question at all? The buckets range over
+    // `posted_ts`, which the external sync has never written — so every bucket
+    // returns an empty board. Probed once per session rather than hard-coded, so
+    // the control returns by itself the day the data does. Defaults to hidden:
+    // until we've confirmed it works, we don't offer it.
+    const [postedDateSupported, setPostedDateSupported] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        getPostedDateFilterSupportAction()
+            .then((ok) => {
+                if (!cancelled) setPostedDateSupported(ok);
+            })
+            .catch(() => {
+                if (!cancelled) setPostedDateSupported(false);
             });
         return () => {
             cancelled = true;
@@ -2208,6 +2229,7 @@ function JobsContent() {
     const filterPanel = (
         <FilterPanel
             distribution={result?.facetDistribution}
+            postedDateSupported={postedDateSupported}
             state={filterState}
             activeCount={activeCount}
             onToggleFacet={toggleFacet}
@@ -2401,6 +2423,7 @@ function JobsContent() {
             <FilterChipsRow
                 state={filterState}
                 distribution={result?.facetDistribution}
+                postedDateSupported={postedDateSupported}
                 activeCount={activeCount}
                 onPostedBucket={applyPostedBucket}
                 onToggleFacet={toggleFacet}
@@ -2703,6 +2726,7 @@ function JobsContent() {
                     >
                         <FilterPanel
                             distribution={result?.facetDistribution}
+                            postedDateSupported={postedDateSupported}
                             state={pendingFilterState}
                             activeCount={pendingActiveCount}
                             onToggleFacet={pendingToggleFacet}
