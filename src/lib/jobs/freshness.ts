@@ -2,6 +2,19 @@
  * box sync cadence is repaired — retune here, nowhere else. */
 export const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How many days a "clear / no ghost signals" row can go without a re-check
+ * before that verdict stops being an honest CURRENT claim (`checkFreshness`,
+ * badges.ts). Deliberately a much longer horizon than `STALE_THRESHOLD_MS`
+ * above: that 24h bar drives the tighter "✓ live" vs "checked" row-badge
+ * TEXT split and the corpus-wide "last synced" stamp, where a single missed
+ * sync cycle doesn't make a "clear" classification dishonest. Going a full
+ * month without a re-check does — verified live 2026-07-19: rows last
+ * checked 99-112 days ago still rendered a green "No ghost signals" panel
+ * next to a dead apply link.
+ */
+export const STALE_CHECK_DAYS = 30;
+
 export function formatRelativeAge(iso: string, nowMs: number): string {
     const ms = Math.max(0, nowMs - Date.parse(iso));
     if (ms < 60_000) return "just now";
