@@ -7,8 +7,23 @@
  * — keeping that derivation here, decoupled from React/Next client deps,
  * makes it unit-testable without a DOM.
  */
-import { formatRelativeAge, STALE_THRESHOLD_MS } from "./freshness";
+import { formatRelativeAge, isStale, STALE_CHECK_DAYS, STALE_THRESHOLD_MS } from "./freshness";
 import type { GhostBadge } from "./types";
+
+const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
+
+/**
+ * Is a "clear" (no-ghost-signals) verdict still backed by a CURRENT check?
+ * `updated_at` older than `STALE_CHECK_DAYS`, missing, or unparseable all
+ * count as stale — a "clear" call from a month-plus-old check isn't a
+ * current one, however green it still looks. Exported and unit-tested
+ * (tests/unit/jobs-badges.test.ts) so the row badge's text, the row badge's
+ * color, and the detail-panel "No ghost signals" banner all read the SAME
+ * verdict and can never disagree about which side of "stale" a job is on.
+ */
+export function checkFreshness(updatedAt: string | null, nowMs: number): "fresh" | "stale" {
+    return isStale(updatedAt, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
+}
 
 /**
  * Whole days between `postedTs` and `nowMs`, floored at 0 (clock-skew /
@@ -25,12 +40,13 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  *   clear        → "✓ live {age}" ONLY when updated_at is within
  *                  STALE_THRESHOLD_MS (freshness.ts — the same constant that
  *                  drives the toolbar's amber `isStale` stamp) of `now`.
- *                  Past that threshold, or when updated_at is missing/
- *                  unparseable, the data can't back a liveness claim: render
- *                  the neutral "checked {age}" (or bare "checked" with no
- *                  age at all) instead. One shared threshold means the row
- *                  badge and the toolbar stamp can never contradict each
- *                  other — that drift was the defect being fixed.
+ *                  Past that threshold but within STALE_CHECK_DAYS, or when
+ *                  updated_at is missing/unparseable, the data can't back a
+ *                  liveness claim: render the neutral "checked {age}" (or
+ *                  bare "checked" with no age at all) instead. Past
+ *                  STALE_CHECK_DAYS (`checkFreshness` above), even "checked"
+ *                  overstates it — "last seen {age}" (or "not recently
+ *                  verified" with no parseable age).
  *   caution      → "⚠ {daysOpen} days open" (daysOpen derived from posted_ts)
  *   likely_ghost → "✕ likely ghost" (visibility is filtering's job, not this
  *                  function's — it only decides the TEXT for a badge that's
@@ -45,10 +61,16 @@ export function badgeFor(
 ): string | null {
     switch (ghostBadge) {
         case "clear": {
-            if (updatedAt == null) return "checked";
-            const parsed = Date.parse(updatedAt);
-            if (Number.isNaN(parsed)) return "checked";
-            const age = formatRelativeAge(updatedAt, nowMs);
+            if (checkFreshness(updatedAt, nowMs) === "stale") {
+                const parsed = updatedAt == null ? NaN : Date.parse(updatedAt);
+                return Number.isNaN(parsed)
+                    ? "not recently verified"
+                    : `last seen ${formatRelativeAge(updatedAt as string, nowMs)}`;
+            }
+            // "fresh" guarantees updatedAt parses (checkFreshness treats
+            // null/unparseable as stale) — no null/NaN fallback needed here.
+            const parsed = Date.parse(updatedAt as string);
+            const age = formatRelativeAge(updatedAt as string, nowMs);
             return nowMs - parsed > STALE_THRESHOLD_MS ? `checked ${age}` : `✓ live ${age}`;
         }
         case "caution": {

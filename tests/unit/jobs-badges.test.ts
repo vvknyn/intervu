@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { badgeFor, daysOpenFrom } from "../../src/lib/jobs/badges";
-import { STALE_THRESHOLD_MS } from "../../src/lib/jobs/freshness";
+import { badgeFor, checkFreshness, daysOpenFrom } from "../../src/lib/jobs/badges";
+import { STALE_CHECK_DAYS, STALE_THRESHOLD_MS } from "../../src/lib/jobs/freshness";
 
 const NOW = Date.parse("2026-07-18T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
+const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
 
 test("clear badge carries a live age when updated_at is within the freshness threshold", () => {
     assert.equal(badgeFor("clear", ago(30_000), null, NOW), "✓ live just now");
@@ -27,27 +28,42 @@ test("clear badge just over the freshness threshold drops the live claim", () =>
     assert.equal(badgeFor("clear", ago(STALE_THRESHOLD_MS + 1), null, NOW), "checked 1d ago");
 });
 
-test("clear badge far over the freshness threshold (98d — the real production case) drops the live claim", () => {
-    assert.equal(badgeFor("clear", ago(98 * 86_400_000), null, NOW), "checked 98d ago");
+test("clear badge within STALE_CHECK_DAYS but past the live threshold still says 'checked'", () => {
+    assert.equal(badgeFor("clear", ago(22 * 86_400_000), null, NOW), "checked 22d ago");
 });
 
-test("clear badge: two distinct over-threshold ages both render 'checked', never 'live'", () => {
-    const a = badgeFor("clear", ago(22 * 86_400_000), null, NOW);
-    const b = badgeFor("clear", ago(98 * 86_400_000), null, NOW);
-    assert.equal(a, "checked 22d ago");
-    assert.equal(b, "checked 98d ago");
-    assert.notEqual(a, b);
-    for (const text of [a, b]) {
-        assert.ok(text && !text.includes("live"), `expected no liveness claim, got "${text}"`);
-    }
+// Phase 1-a #5 (production bug this fixes): a "clear" verdict from a
+// STALE_CHECK_DAYS+ -old check overstates it even as neutral "checked" text
+// — it drops to "last seen {age}" instead. 98d is the real production case
+// (rows last checked 99-112 days ago still rendering a green "checked"
+// badge next to a dead apply link).
+test("clear badge far over STALE_CHECK_DAYS (98d — the real production case) drops to 'last seen', never 'checked' or 'live'", () => {
+    const text = badgeFor("clear", ago(98 * 86_400_000), null, NOW);
+    assert.equal(text, "last seen 98d ago");
+    assert.ok(text && !text.includes("live") && !text.includes("checked"));
 });
 
-test("clear badge falls back to the neutral form (no liveness claim) when updated_at is missing", () => {
-    assert.equal(badgeFor("clear", null, null, NOW), "checked");
+test("clear badge just under STALE_CHECK_DAYS still says 'checked'", () => {
+    assert.equal(badgeFor("clear", ago(STALE_CHECK_MS - 1), null, NOW), "checked 29d ago");
 });
 
-test("clear badge falls back to the neutral form when updated_at is unparseable", () => {
-    assert.equal(badgeFor("clear", "not-a-date", null, NOW), "checked");
+test("clear badge just over STALE_CHECK_DAYS switches to 'last seen'", () => {
+    assert.equal(badgeFor("clear", ago(STALE_CHECK_MS + 1), null, NOW), "last seen 30d ago");
+});
+
+test("clear badge falls back to 'not recently verified' when updated_at is missing", () => {
+    assert.equal(badgeFor("clear", null, null, NOW), "not recently verified");
+});
+
+test("clear badge falls back to 'not recently verified' when updated_at is unparseable", () => {
+    assert.equal(badgeFor("clear", "not-a-date", null, NOW), "not recently verified");
+});
+
+test("checkFreshness: fresh within STALE_CHECK_DAYS, stale beyond it, stale for missing/unparseable", () => {
+    assert.equal(checkFreshness(ago(STALE_CHECK_MS - 1), NOW), "fresh");
+    assert.equal(checkFreshness(ago(STALE_CHECK_MS + 1), NOW), "stale");
+    assert.equal(checkFreshness(null, NOW), "stale");
+    assert.equal(checkFreshness("not-a-date", NOW), "stale");
 });
 
 test("caution badge reports days-open derived from posted_ts", () => {

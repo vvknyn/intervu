@@ -36,16 +36,17 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
-    searchJobsAction,
+    searchJobsAction as searchJobsActionRaw,
     markJobAppliedAction,
     suggestAdjacentRolesAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
+import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
-import { badgeFor } from "@/lib/jobs/badges";
+import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
 import {
     FilterPanel,
     activeFilterEntries,
@@ -73,6 +74,7 @@ import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type GhostBadge,
+    type JobSearchParams,
     type JobSearchResult,
     type JobSortMode,
     type PostedBucket,
@@ -85,6 +87,7 @@ import {
     urlSortToMode,
     withSortCleared,
     composeExploreActivationUrlState,
+    shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
@@ -103,6 +106,21 @@ import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { ResumeData } from "@/types/resume";
+
+/**
+ * Every `/jobs` search-action call in this page goes through this one
+ * rebinding, not the raw import — a single chokepoint (writing-lean-code
+ * rule 3) rather than wrapping each of this file's several call sites
+ * individually. See settle-guard.ts for why: an edge-level 503 can drop a
+ * Server Action POST without ever resolving OR rejecting on the client,
+ * which — unguarded — leaves whichever call made it stuck (most visibly,
+ * the first-page search's `loading` spinner, since its `finally` never
+ * runs). A timeout rejects instead, so every existing catch block here
+ * (already routing thrown errors into `searchError` → the Retry UI) handles
+ * it for free.
+ */
+const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
+    withSettleGuard(searchJobsActionRaw(params));
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -132,6 +150,30 @@ const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: string; 
     },
     unscored: null,
 };
+
+/**
+ * Neutral "hasn't been re-checked" stand-in for `GHOST_META.clear` (Phase
+ * 1-a #5) — same shape, used instead of it whenever `checkFreshness` says
+ * the check backing a "clear" verdict is stale. Keeps the positive, green
+ * "no ghost signals" claim from surviving past the point the data behind it
+ * stopped being current (the observed bug: a green badge on a 99-112-day-old
+ * check sitting next to a dead apply link).
+ */
+const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
+    label: "Not recently verified",
+    cls: STATUS_PILL.intv,
+    dot: "bg-st-intv/60",
+    explain: "This posting hasn't been re-checked recently — we can't confirm it's still active. Worth a quick sanity-check before you apply.",
+};
+
+/**
+ * Single chokepoint for which `GHOST_META` entry a job's row badge AND
+ * detail-panel banner render from — so the two surfaces can never disagree
+ * about whether a "clear" verdict is still current.
+ */
+function ghostMetaFor(ghostBadge: GhostBadge, stale: boolean) {
+    return ghostBadge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[ghostBadge];
+}
 
 function prettyEnum(s: string | null | undefined): string {
     if (!s || s === "unknown") return "";
@@ -228,11 +270,14 @@ function postedAge(ts: number | null, now: number): string | null {
 
 // `text` is the compact row-badge string from `badgeFor` (lib/jobs/badges.ts)
 // — a pure function of (ghost_badge, updated_at, posted_ts, now), unit-tested
-// in tests/unit/jobs-badges.test.ts. GHOST_META still owns the styling
+// in tests/unit/jobs-badges.test.ts. `ghostMetaFor` still owns the styling
 // (cls/dot) and the longer descriptive copy used elsewhere (JobDetail's
-// banner); this chip only renders the short row-level text.
-function GhostChip({ badge, text }: { badge: GhostBadge; text: string }) {
-    const meta = GHOST_META[badge];
+// banner); this chip only renders the short row-level text. `stale` (Phase
+// 1-a #5) is `checkFreshness(job.updated_at, now) === "stale"` — same input
+// class `badgeFor` already used to decide `text`, so the color and the text
+// can never disagree about whether a "clear" verdict is current.
+function GhostChip({ badge, text, stale }: { badge: GhostBadge; text: string; stale: boolean }) {
+    const meta = ghostMetaFor(badge, stale);
     if (!meta) return null;
     return (
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.cls)}>
@@ -297,6 +342,7 @@ function JobRow({
     // (renders nothing, same as the old `GHOST_META[job.ghost_badge] &&`
     // gate this replaces).
     const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, now);
+    const badgeStale = checkFreshness(job.updated_at, now) === "stale";
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
@@ -336,7 +382,7 @@ function JobRow({
                     </div>
                     {badgeText && (
                         <div className="mt-2.5">
-                            <GhostChip badge={job.ghost_badge} text={badgeText} />
+                            <GhostChip badge={job.ghost_badge} text={badgeText} stale={badgeStale} />
                         </div>
                     )}
                 </div>
@@ -387,6 +433,7 @@ function JobDescription({ blocks }: { blocks: DescBlock[] }) {
 
 function JobDetail({
     job,
+    now,
     onTailor,
     onOpenPosting,
     onMarkApplied,
@@ -395,6 +442,8 @@ function JobDetail({
     applying,
 }: {
     job: PublicJob;
+    /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
+    now: number;
     onTailor: () => void;
     onOpenPosting: () => void;
     onMarkApplied: () => void;
@@ -402,7 +451,8 @@ function JobDetail({
     applied: boolean;
     applying: boolean;
 }) {
-    const ghost = GHOST_META[job.ghost_badge];
+    const staleCheck = checkFreshness(job.updated_at, now) === "stale";
+    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
     const [descExpanded, setDescExpanded] = useState(false);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
@@ -464,7 +514,7 @@ function JobDetail({
             <div className="p-6">
                 {ghost && (
                     <div className={cn("mb-5 flex items-start gap-2.5 rounded-xl border p-3.5", ghost.cls)}>
-                        {job.ghost_badge === "clear" ? (
+                        {job.ghost_badge === "clear" && !staleCheck ? (
                             <ShieldCheck size={18} className="mt-0.5 shrink-0" weight="fill" />
                         ) : (
                             <WarningCircle size={18} className="mt-0.5 shrink-0" weight="fill" />
@@ -847,6 +897,10 @@ function JobsContent() {
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/activeChips/clearAll. See `resolveUrlSort` for the sort=fit handling.
     const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
+    // Previous-render snapshot of `query`, read by the sort-reset effect
+    // below (`shouldResetSortOnQueryChange`) to tell "a new query just
+    // arrived" from "everything else about this render changed".
+    const lastQueryRef = useRef(query);
     // "Ranked by your résumé" — mirrors `sort=fit` in the URL. Kept separate
     // from `sortOverride` (a real backend `JobSortMode`) because "fit" isn't
     // one; the backend sort stays whatever `resolveUrlSort` resolves it to
@@ -1118,7 +1172,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, backendSort),
+                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -1276,6 +1330,7 @@ function JobsContent() {
                             { ...filterState, facets: { ...filterState.facets, ghost_badge: undefined }, hideGhosts: false },
                             query,
                             backendSort,
+                            postedDateSupported,
                         ),
                         withFacets: true,
                         limit: 1,
@@ -1325,14 +1380,22 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchKey, searchRetry]);
 
-    // Relevance is meaningless without a query — drop the override rather than send it.
+    // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
+    // starts on Best match rather than silently inheriting whatever sort was
+    // active for a different (or absent) prior query — see
+    // `shouldResetSortOnQueryChange`'s doc comment for the two triggers this
+    // unifies (a changed non-empty query, or an emptied query that only
+    // makes "relevance" meaningless). Depends on `query` alone, so a facet/
+    // salary/visa/ghost change never resets an explicit sort.
     useEffect(() => {
-        if (!hasQuery && sortOverride === "relevance") {
+        const prevQuery = lastQueryRef.current;
+        lastQueryRef.current = query;
+        if (shouldResetSortOnQueryChange(prevQuery, query, sortOverride)) {
             setSortOverride(null);
             applyUrlState(buildUrlState({ sort: null }), "replace");
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasQuery, sortOverride]);
+    }, [query, sortOverride]);
 
     // Keyboard-only highlight (ArrowUp/ArrowDown in the results list).
     // Deliberately local-only: it must not touch the URL (no history spam)
@@ -1584,7 +1647,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1611,8 +1674,13 @@ function JobsContent() {
         // callback to regenerate on every render for no behavioral gain.
         // Same precedent as `searchKey`'s effect above, which serializes a
         // superset of these same fields for an identical reason.
+        // `postedDateSupported` added (Phase 1-a #4): `buildJobSearchPayload`
+        // now reads it directly to decide whether `postedBucket` is even
+        // eligible to ship, independent of whatever `backendSort` happens to
+        // be — so this callback must regenerate when it changes, same as
+        // every other field `buildJobSearchPayload` reads from this render.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -1771,7 +1839,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(pendingFilterState, query, backendSort),
+                    ...buildJobSearchPayload(pendingFilterState, query, backendSort, postedDateSupported),
                     limit: 1,
                     offset: 0,
                 });
@@ -1784,8 +1852,10 @@ function JobsContent() {
         return () => clearTimeout(t);
         // `backendSort` rather than the raw `sortOverride`: it also carries the
         // date-sort coercion, so the pending count re-runs if the support probe
-        // resolves while the sheet is open.
-    }, [filterSheetOpen, pendingFilterState, query, backendSort]);
+        // resolves while the sheet is open. `postedDateSupported` is ALSO
+        // listed directly (Phase 1-a #4): `buildJobSearchPayload` reads it to
+        // gate `postedBucket` independent of whatever `backendSort` is.
+    }, [filterSheetOpen, pendingFilterState, query, backendSort, postedDateSupported]);
 
     // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
     // LOCAL state (no new mount fetch — see the state block above). A user
@@ -2601,6 +2671,7 @@ function JobsContent() {
                                         <JobDetail
                                             key={detailJob.id}
                                             job={detailJob}
+                                            now={nowMs}
                                             applied={appliedIds.has(detailJob.id)}
                                             applying={applyingId === detailJob.id}
                                             onTailor={() => handleTailor(detailJob)}
@@ -2676,6 +2747,7 @@ function JobsContent() {
                             <JobDetail
                                 key={detailJob.id}
                                 job={detailJob}
+                                now={nowMs}
                                 applied={appliedIds.has(detailJob.id)}
                                 applying={applyingId === detailJob.id}
                                 onTailor={() => handleTailor(detailJob)}

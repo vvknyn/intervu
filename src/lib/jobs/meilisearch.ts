@@ -74,6 +74,62 @@ function adminKey(): string {
   return process.env.MEILISEARCH_ADMIN_KEY || process.env.MEILISEARCH_API_KEY || "";
 }
 
+/** Per-attempt timeout for a read-path Meilisearch call. Single knob — retune
+ * here, nowhere else. */
+export const MEILI_FETCH_TIMEOUT_MS = 8_000;
+/** Delay before the one bounded retry. Short: this is recovering from a blip,
+ * not backing off from sustained load. */
+const MEILI_RETRY_BACKOFF_MS = 300;
+
+/**
+ * Pure retry-policy decision: given the HTTP status a Meilisearch call came
+ * back with, is it worth the one bounded retry `meiliFetch` allows? Only
+ * 5xx — the server told us something transient went wrong. A 4xx means the
+ * REQUEST is wrong (bad filter syntax, auth, …); retrying ships the
+ * identical wrong request again and just burns the timeout budget. Network-
+ * level failures (thrown before any status exists — DNS, connection
+ * refused, our own AbortController timeout) are a separate, always-retry
+ * branch in `meiliFetch` and never reach this function.
+ */
+export function isRetryableMeiliFailure(status: number): boolean {
+  return status >= 500;
+}
+
+async function meiliFetchOnce(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MEILI_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Chokepoint: every outbound Meilisearch READ-PATH call (search, suggestions,
+ * freshness stamp, date-filter-support probe) funnels through here — never
+ * call `fetch` directly for one of these, and never add a bespoke timeout/
+ * retry at an individual call site (see writing-lean-code rule 3: class-wide
+ * fix at the chokepoint, not per-instance). Adds a per-attempt
+ * AbortController timeout plus ONE bounded retry on the failure classes a
+ * retry can plausibly fix (network-level throw, or 5xx per
+ * `isRetryableMeiliFailure`) — never on 4xx. Deliberately scoped to the read
+ * path: the ingestion/admin functions below (off-Vercel sync worker, admin
+ * key, bulk PUT/DELETE) run on their own schedule outside any Vercel
+ * request and are out of scope for a client-request-time resilience fix.
+ */
+async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    const res = await meiliFetchOnce(url, init);
+    if (res.ok || !isRetryableMeiliFailure(res.status)) return res;
+    await new Promise((r) => setTimeout(r, MEILI_RETRY_BACKOFF_MS));
+    return meiliFetchOnce(url, init);
+  } catch {
+    await new Promise((r) => setTimeout(r, MEILI_RETRY_BACKOFF_MS));
+    return meiliFetchOnce(url, init);
+  }
+}
+
 /** Age-bucket → milliseconds lookback, used for both `posted_ts` filtering and derivation. */
 const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "older">, number> = {
   "1d": 1 * 86_400_000,
@@ -149,7 +205,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
   const post = (legacy: boolean) =>
-    fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
@@ -194,7 +250,7 @@ export async function fetchJobsLastUpdated(): Promise<string | null> {
   const h = host();
   if (!h) return null;
   try {
-    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
@@ -208,33 +264,63 @@ export async function fetchJobsLastUpdated(): Promise<string | null> {
   }
 }
 
+/** Population floor for trusting `posted_ts` (fraction of `numberOfDocuments`
+ * that carry the field). Config PRESENCE lies: the field can be declared in
+ * `filterableAttributes` (see `JOBS_INDEX_SETTINGS`) and legally filterable
+ * while 0 — or a token handful — of documents actually carry it, so a bare
+ * `> 0` headcount check passes on a corpus where every real bucket still
+ * 0-results. 0.5% is a coarse "meaningfully populated, not a rounding error"
+ * bar, not a precision target. */
+export const POSTED_TS_POPULATION_THRESHOLD = 0.005;
+
 /**
- * Does the corpus actually carry `posted_ts`? The age-bucket filters range
- * over that field, so a corpus where no document has it makes every bucket
- * match nothing — a control that can only ever return an empty board.
+ * Pure: does a `populated`/`total` split clear the population bar? Split out
+ * from `fetchPostedDateFilterSupported` so the threshold logic is
+ * unit-testable without a network call.
+ */
+export function isPostedTsPopulationSufficient(populated: number, total: number): boolean {
+  if (total <= 0) return false;
+  return populated > 0 && populated / total > POSTED_TS_POPULATION_THRESHOLD;
+}
+
+/**
+ * Does the corpus actually carry `posted_ts` at a population that makes the
+ * age-bucket filters meaningful? The buckets range-filter over that field, so
+ * a corpus where it's unpopulated (or populated on a token few documents)
+ * makes every bucket match nothing, or next to nothing — a control that
+ * looks live but functions as an empty board.
  *
  * The field is declared filterable (see `JOBS_INDEX_SETTINGS`) but the sync
- * that writes documents lives outside this repo (`/opt/jobs-sync/sync.mjs`)
- * and has never derived it, so as of Jul 2026 population is 0%. This probes
- * the data rather than hard-coding that state: the moment the sync starts
- * writing `posted_ts`, the buckets light up again with no code change.
+ * that writes documents lives outside this repo (`/opt/jobs-sync/sync.mjs`);
+ * as of Jul 2026 population was 0%. This probes the data rather than
+ * hard-coding that state: the moment the sync starts writing `posted_ts` at
+ * real volume, the buckets light up again with no code change. Two
+ * zero-cost (`limit: 0`) search-key-scoped counts — total corpus size and
+ * `posted_ts`-populated size — rather than the Meilisearch `/stats` endpoint:
+ * verified live (see `JOBS_INDEX_SETTINGS`'s `id` comment) that the
+ * search-only key this module reads with 403s on non-search endpoints.
  *
- * Any failure answers "no" — offering a filter we cannot confirm works is
- * the failure mode this exists to prevent.
+ * Any failure, or an insufficient population per `isPostedTsPopulationSufficient`,
+ * answers "no" — offering a filter we cannot confirm works is the failure
+ * mode this exists to prevent.
  */
 export async function fetchPostedDateFilterSupported(): Promise<boolean> {
   const h = host();
   if (!h) return false;
-  try {
-    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+  const count = async (filter?: string): Promise<number> => {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ limit: 0, filter: "posted_ts >= 0" }),
+      body: JSON.stringify(filter ? { limit: 0, filter } : { limit: 0 }),
     });
-    if (!res.ok) return false;
+    if (!res.ok) throw new Error(`posted_ts population probe failed: ${res.status}`);
     const body = (await res.json()) as { totalHits?: number; estimatedTotalHits?: number };
-    return (body.totalHits ?? body.estimatedTotalHits ?? 0) > 0;
+    return body.totalHits ?? body.estimatedTotalHits ?? 0;
+  };
+  try {
+    const [total, populated] = await Promise.all([count(), count("posted_ts >= 0")]);
+    return isPostedTsPopulationSufficient(populated, total);
   } catch {
     return false;
   }
@@ -291,7 +377,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
   const h = host();
   if (!h || !query) return EMPTY_SUGGESTIONS;
   try {
-    const res = await fetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",

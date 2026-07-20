@@ -26,18 +26,30 @@ import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
  * function's output at the time, but nothing enforced that staying true —
  * `loadMore` now builds from this function too, so all four call sites can
  * no longer drift from each other.
+ *
+ * `postedDateSupported` (Phase 1-a): whether the corpus can currently back
+ * `postedBucket` with real data (see `fetchPostedDateFilterSupported`). A
+ * `postedBucket` can be sitting in `state` from a stale URL/bookmark even
+ * when the corpus can't answer it — the picker UI already hides itself in
+ * that case (`postedDateSupported` gates `FilterPanel`/`FilterChipsRow`
+ * too), but the REQUEST needs the same gate: `buildFilter` in
+ * meilisearch.ts honors `postedBucket` unconditionally, so an ungated
+ * request would range-filter over a field with ~no data and silently
+ * 0-result every hit. Same signal, same chokepoint, so the picker and the
+ * request can never disagree about whether the bucket is real.
  */
 export function buildJobSearchPayload(
     state: FilterState,
     query: string,
     sort: JobSortMode | null | undefined,
+    postedDateSupported: boolean,
 ): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort"> {
     return {
         q: query.trim() || undefined,
         facets: state.facets,
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
-        postedBucket: state.postedBucket,
+        postedBucket: postedDateSupported ? state.postedBucket : undefined,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
     };

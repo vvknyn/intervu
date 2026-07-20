@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     parseJobsUrl, serializeJobsUrl, DEFAULT_URL_STATE, urlSortToMode, withSortCleared,
-    composeExploreActivationUrlState,
+    composeExploreActivationUrlState, shouldResetSortOnQueryChange,
 } from "../../src/lib/jobs/url-state";
 
 test("all-defaults serializes to empty string", () => {
@@ -113,4 +113,30 @@ test("composeExploreActivationUrlState (2nd case) preserves every field it doesn
         facets: {},
         sort: null,
     });
+});
+
+// Phase 1-a #3: the class-fix for the observed first-search wrong-order bug
+// — a query changing to a genuinely different, non-empty value always resets
+// an explicit sort back to auto (Best match), regardless of which sort was
+// active or why.
+test("shouldResetSortOnQueryChange resets for a changed non-empty query, any override", () => {
+    assert.equal(shouldResetSortOnQueryChange("", "engineer", "newest"), true);
+    assert.equal(shouldResetSortOnQueryChange("designer", "engineer", "salary_desc"), true);
+    assert.equal(shouldResetSortOnQueryChange("designer", "engineer", "relevance"), true);
+});
+
+test("shouldResetSortOnQueryChange is a no-op when there is no override to reset", () => {
+    assert.equal(shouldResetSortOnQueryChange("", "engineer", null), false);
+});
+
+test("shouldResetSortOnQueryChange never resets for an unchanged query (filter-only changes)", () => {
+    assert.equal(shouldResetSortOnQueryChange("engineer", "engineer", "salary_desc"), false);
+    assert.equal(shouldResetSortOnQueryChange("  engineer  ", "engineer", "salary_desc"), false);
+});
+
+test("shouldResetSortOnQueryChange: emptying the query only resets a 'relevance' override, not others", () => {
+    assert.equal(shouldResetSortOnQueryChange("engineer", "", "relevance"), true);
+    assert.equal(shouldResetSortOnQueryChange("engineer", "  ", "relevance"), true);
+    assert.equal(shouldResetSortOnQueryChange("engineer", "", "salary_desc"), false);
+    assert.equal(shouldResetSortOnQueryChange("engineer", "", "newest"), false);
 });
