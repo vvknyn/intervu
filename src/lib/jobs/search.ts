@@ -15,6 +15,7 @@ import {
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
+import { applyQueryUnderstanding } from "./query-understanding";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
 export function activeBackend(): JobsBackendKind {
@@ -44,7 +45,8 @@ export function getJobsBackendStatus(): {
   };
 }
 
-export async function searchJobs(p: JobSearchParams): Promise<JobSearchResult> {
+export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult> {
+  const p = applyQueryUnderstanding(raw);
   const backend = activeBackend();
   try {
     if (backend === "meilisearch") return await searchMeili(p);
