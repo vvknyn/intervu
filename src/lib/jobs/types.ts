@@ -136,6 +136,9 @@ export interface JobSearchResult {
   note?: string;
   /** True when results are a capped preview rather than the full searchable corpus. */
   preview?: boolean;
+  /** True when the title/company precision pass was thin and the result was
+   *  widened to a description-wide search (see searchMeili's two-pass). */
+  widened?: boolean;
   /** Per-facet value→count for the active result set, when `withFacets` was requested. */
   facetDistribution?: FacetDistribution;
 }
