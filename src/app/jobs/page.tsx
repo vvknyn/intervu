@@ -43,7 +43,7 @@ import {
     getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
-import { withSettleGuard } from "@/lib/jobs/settle-guard";
+import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
@@ -86,14 +86,13 @@ import {
     DEFAULT_URL_STATE,
     urlSortToMode,
     withSortCleared,
-    composeExploreActivationUrlState,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
-import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -121,6 +120,18 @@ import type { ResumeData } from "@/types/resume";
  */
 const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
     withSettleGuard(searchJobsActionRaw(params));
+
+/**
+ * Same chokepoint shape as `searchJobsAction` above, for Explore's AI-
+ * suggestion call — the other Server Action on this page that can hang
+ * without ever resolving/rejecting. See `EXPLORE_SUGGEST_TIMEOUT_MS`
+ * (settle-guard.ts) for why it gets a longer, separately-named deadline
+ * instead of reusing `ACTION_SETTLE_TIMEOUT_MS`.
+ */
+const suggestAdjacentRoles = (
+    input: Parameters<typeof suggestAdjacentRolesAction>[0],
+): ReturnType<typeof suggestAdjacentRolesAction> =>
+    withSettleGuard(suggestAdjacentRolesAction(input), EXPLORE_SUGGEST_TIMEOUT_MS);
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -1087,9 +1098,26 @@ function JobsContent() {
     // Which results mode we're in, the resume backing Match/Explore, the
     // import modal, and the in-flight Explore call + its suggested titles.
     const [mode, setMode] = useState<Mode>("browse");
+    // Mirrors `mode` for read access from the URL-reconcile effect below
+    // (keyed on `[searchParams]` only, so it deliberately reads stale
+    // closures for everything else — same idiom as `fitActiveRef`).
+    const modeRef = useRef(mode);
+    modeRef.current = mode;
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [importOpen, setImportOpen] = useState(false);
-    const [exploring, setExploring] = useState(false);
+    // Raw in-flight flag, written only by `runExplore`. Never read directly
+    // outside this file's own derivation of `exploring` below — every
+    // consumer (the toolbar button, the tombstone/empty-state CTAs) reads
+    // the DERIVED `exploring` const instead, which also accounts for a
+    // superseding action.
+    const [exploringRaw, setExploringRaw] = useState(false);
+    // Set when `runExplore`'s AI-suggestion call times out or throws (see
+    // `EXPLORE_SUGGEST_TIMEOUT_MS`) — distinct from the action's own
+    // `res.error` sentinels (auth/credits/no-suggestions), which already
+    // have a graceful degrade path. This is the unexpected-failure case, so
+    // it gets a real, visible error state instead of a silent fallback —
+    // rendered as a band in the results area (below) with Retry + Browse.
+    const [exploreFailed, setExploreFailed] = useState(false);
     const [exploreTitles, setExploreTitles] = useState<string[]>([]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
@@ -1165,6 +1193,9 @@ function JobsContent() {
         let firstPageSucceeded = false;
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
+        // Any new search (query/facet/sort/etc. change) supersedes a stale
+        // Explore failure band — the user has already moved on.
+        setExploreFailed(false);
         setLoadingMore(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
@@ -1444,14 +1475,27 @@ function JobsContent() {
         const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
         const currentKey = serializeJobsUrl({ ...current, jobId: null });
         if (parsedKey !== currentKey) {
-            setQuery(parsed.q);
-            // Facets are an object, not a primitive — a same-content-but-new-
-            // reference set would still be a needless render, so gate it on
-            // serialized equality rather than setting unconditionally.
-            const facetsChanged =
-                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
-                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
-            if (facetsChanged) setFacets(parsed.facets);
+            // Explore is ephemeral, non-URL state (`activateExplore` below
+            // deliberately writes a browse-default URL — empty q, no
+            // facets — while local `query`/`facets` hold the real explore-
+            // derived values, by design). Re-deriving q/facets from the URL
+            // here while explore is active would immediately stomp that
+            // local state back to the URL's empty defaults — undoing
+            // Explore the instant `activateExplore`'s OWN url-reset write
+            // reaches this effect. `modeRef` (not the `mode` closure — this
+            // effect only depends on `[searchParams]`) reads the latest
+            // value. Every other field below stays reconciled unconditionally:
+            // none of them are part of Explore's ephemeral contract.
+            if (modeRef.current !== "explore") {
+                setQuery(parsed.q);
+                // Facets are an object, not a primitive — a same-content-but-new-
+                // reference set would still be a needless render, so gate it on
+                // serialized equality rather than setting unconditionally.
+                const facetsChanged =
+                    serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
+                    serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
+                if (facetsChanged) setFacets(parsed.facets);
+            }
             setSalaryMin(parsed.salaryMin);
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
@@ -1999,11 +2043,17 @@ function JobsContent() {
     }, []);
 
     // Which résumé-driven action (if any) should auto-run the moment the
-    // résumé importer completes — set right before `handleUploadClick()` by
-    // `handleRankByFit`/`handleExploreClick`'s no-usable-résumé fallback.
-    // `clearPendingGate` (below) resets it on every alternate path/dismiss,
-    // same invariant as `pendingRef`: only the latest intent survives.
-    const resumeActionAfterImportRef = useRef<"fit" | "explore" | null>(null);
+    // résumé importer completes — set BY `handleUploadClick` itself (below),
+    // the one chokepoint every /jobs upload entry point routes through, so a
+    // future entry point can't forget to wire this (the bug this ref exists
+    // to prevent: the upsell card used to call `handleUploadClick` bare, so
+    // an upload from THAT entry point queued nothing and silently did
+    // nothing on completion). `fitToken` pins the `fitIntentRef` generation
+    // at the moment "fit" was queued — see `handleUploadClick`'s doc
+    // comment for why. `clearPendingGate` (below) resets it on every
+    // alternate path/dismiss, same invariant as `pendingRef`: only the
+    // latest intent survives.
+    const resumeActionAfterImportRef = useRef<{ kind: "fit"; fitToken: number } | { kind: "explore" } | null>(null);
 
     // Guards `handleRankByFit`'s async résumé fetch against being superseded
     // by a LATER sort choice (fit again, or any other sort option) made
@@ -2012,6 +2062,40 @@ function JobsContent() {
     // (review fix, 2026-07-18)
     const fitIntentRef = useRef<FitIntentGuard | null>(null);
     if (!fitIntentRef.current) fitIntentRef.current = new FitIntentGuard();
+
+    // Same guard, dedicated to Explore's own async gap: `runExplore` awaits
+    // the (now deadline-bound, up to `EXPLORE_SUGGEST_TIMEOUT_MS`) AI-suggest
+    // call before committing results. Without this, a slow/timed-out explore
+    // that finally settles after the user has already moved on — to "Rank by
+    // fit" (`applyFit`), a plain browse (`enterBrowse`), or "Start over"
+    // (`startOver`), all of which bump this same guard — would clobber
+    // whatever they're looking at now. `begin()` at the top of `runExplore`
+    // also means a second Explore click supersedes an in-flight first one.
+    const exploreIntentRef = useRef<FitIntentGuard | null>(null);
+    if (!exploreIntentRef.current) exploreIntentRef.current = new FitIntentGuard();
+
+    // Which `exploreIntentRef` generation `exploringRaw` currently belongs
+    // to — set by `runExplore` the moment it begins. Read by the `exploring`
+    // derivation directly below.
+    const exploringTokenRef = useRef<number | null>(null);
+
+    // The spinner/disabled-state every caller actually reads (the toolbar
+    // Explore button, the tombstone/empty-state CTAs). Deriving it — rather
+    // than scattering a clear-the-flag call into every superseding handler
+    // (applyFit, enterBrowse/enterBrowseAndSync, startOver, typing
+    // mid-explore) — is the chokepoint fix: ALL of those already call
+    // `exploreIntentRef.current!.begin()` to supersede a stale in-flight
+    // explore (see the doc comment above); this just reads that same guard
+    // instead of writing to it a second time, so `exploring` goes false the
+    // instant any of them fires, not just when `runExplore`'s own `finally`
+    // eventually runs (previously: up to `EXPLORE_SUGGEST_TIMEOUT_MS`, 25s,
+    // during which the button stayed disabled/spinning over whatever the
+    // user actually navigated to). A future superseding action gets this
+    // for free just by bumping the existing guard — no new call site to
+    // remember. `exploringRaw` still requires `runExplore`'s OWN
+    // `setExploringRaw(false)` in `finally` for the ordinary end-of-request
+    // case, which this derivation alone doesn't cover.
+    const exploring = exploringRaw && exploreIntentRef.current!.isCurrent(exploringTokenRef.current ?? -1);
 
     // Closes the gap between a click and `exploring` actually flipping true
     // (that state only flips inside `runExplore`, well after
@@ -2053,6 +2137,9 @@ function JobsContent() {
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
+        // Supersede a stale in-flight Explore before this résumé-driven mode
+        // takes over — see `exploreIntentRef`'s doc comment above.
+        exploreIntentRef.current!.begin();
         setExploreTitles([]);
         setMode("browse");
         setFacets(f);
@@ -2072,36 +2159,46 @@ function JobsContent() {
 
     // Shared "explore results are now showing" step for both the AI-suggested
     // path and the skill-based broaden fallback in `runExplore` below. Also
-    // clears any stale "ranked by résumé" framing — chip, Select label, and
-    // `sort=fit` in the URL — since Explore's query no longer reflects the
-    // fit pipeline once this runs. Mirrors `applyFit`'s own cross-clear of
-    // `exploreTitles` in the opposite direction. Reads `fitActiveRef` (not
-    // the `fitActive` closure) so this stays correct even invoked through
-    // `maybeReplay`'s stable, first-render-captured `runExplore` reference.
-    // (review fix, 2026-07-18 — Explore used to leave the fit chip/Select
-    // label/URL sort stuck after activating.)
+    // clears any stale "ranked by résumé" framing locally (the chip, the
+    // Select's label) since Explore's query no longer reflects the fit
+    // pipeline once this runs. Reads `fitActiveRef` (not the `fitActive`
+    // closure) so this stays correct even invoked through `maybeReplay`'s
+    // stable, first-render-captured `runExplore` reference.
     //
-    // The URL write goes through `composeExploreActivationUrlState` (pure,
-    // unit-tested in lib/jobs/url-state.ts), not a bare `buildUrlState()` —
-    // `setQuery`/`setFacets` just above are async state setters, so
-    // `buildUrlState()` alone would still read this render's pre-explore
-    // closure (the STALE résumé q/facets), not the values just set.
-    // `composeExploreActivationUrlState` sidesteps that by construction: it
-    // always OVERWRITES q/facets/sort in its own body from the `exploreQuery`
-    // argument, regardless of what the snapshot it's given contains for
-    // those fields — so it can't reproduce this bug even if a future caller
-    // forgets to pass overrides into `buildUrlState()` itself. (2nd review
-    // fix, 2026-07-18 — the first pass fixed WHERE fit gets cleared but not
-    // this staleness.)
+    // EXPLORE IS EPHEMERAL, SESSION-ONLY STATE (design decision, 2026-07-21
+    // review) — the URL deliberately does NOT represent it. The prior
+    // design (writing the derived `q` to the URL, gated on
+    // `fitActiveRef.current`) had two proven bugs: (1) the write only fired
+    // when clearing a STALE fit claim, so the far more common path —
+    // Explore from plain browse — left the address bar completely
+    // unmoved, silently desynced from what was actually showing; (2) even
+    // when it DID fire, `mode` itself was never URL-represented, so
+    // reloading a "synced" explore URL landed on `mode === "browse"` and
+    // rendered the derived query VERBATIM in the search box — contradicting
+    // this file's own task-(b) fix (never show query soup). Persisting
+    // `mode` in the URL to close that gap would need a new param, a
+    // reconcile-effect change, and a back-compat story — too much surface
+    // for this fix. Ephemeral is the smaller, honest alternative: a refresh
+    // or a shared link during Explore always lands on plain browse (30d
+    // default) — truthful, since the URL never claimed to be showing
+    // explore results in the first place.
+    //
+    // The write below always resets q/facets/sort to browse-default via
+    // EXPLICIT overrides (not gated on `fitActiveRef` — that gate is
+    // exactly what left the address bar stale in the common path above).
+    // `jobId` is left alone (`buildUrlState`'s own default: whatever the
+    // URL currently holds). On an already-default URL (the common case)
+    // this is a no-op — `applyUrlState`'s own same-URL guard skips writing.
+    // The URL-reconcile effect (keyed on `[searchParams]`, `modeRef` gate)
+    // is what keeps this write from immediately stomping the `query`/
+    // `facets` state just set above back to the URL's now-empty values.
     const activateExplore = (q: string, titles: string[]) => {
         setExploreTitles(titles);
         setFacets({});
         setQuery(q);
         setMode("explore");
-        if (fitActiveRef.current) {
-            setFitActive(false);
-            applyUrlState(composeExploreActivationUrlState(buildUrlState(), q), "replace");
-        }
+        if (fitActiveRef.current) setFitActive(false);
+        applyUrlState(buildUrlState({ q: "", facets: {}, sort: null }), "replace");
     };
 
     // Explore: ask the model for adjacent titles (1 credit). On auth →
@@ -2121,49 +2218,84 @@ function JobsContent() {
 
     // The authenticated Explore work. Reads no mutable component state beyond
     // its `r` argument + stable setters, so it is safe to invoke from the
-    // stable-identity `maybeReplay` closure. A server-reported auth error
-    // (session expired) re-queues + reopens auth.
+    // stable-identity `maybeReplay` closure.
+    //
+    // The AI-suggest call goes through `suggestAdjacentRoles` (this file's
+    // `withSettleGuard` chokepoint, `EXPLORE_SUGGEST_TIMEOUT_MS`), so the
+    // `await` below is now GUARANTEED to settle — closing the class of "the
+    // request never resolves and the spinner never stops" (prod bug: infinite
+    // "Finding live roles…"). `finally` unconditionally clears `exploringRaw`,
+    // so there is no path out of THIS function that leaves loading stuck. A
+    // DIFFERENT action superseding this one (applyFit/enterBrowse/startOver/
+    // typing mid-explore, all of which bump `exploreIntentRef`) is handled
+    // separately — see the `exploring` derivation below, not here.
+    //
+    // The branching itself (success / auth / credits-or-soft-error fallback /
+    // no-fallback-possible / hard failure) is `resolveExploreOutcome`
+    // (lib/jobs/resume-match.ts) — a pure function, unit-tested there. Explore
+    // is auth-gated, so this path can't be exercised by an anonymous browser
+    // check; the pure-function extraction is what makes it verifiable at all.
+    // `settled: null` (timeout or thrown rejection) maps to `"failed"`, a
+    // real visible error band (`exploreFailed`) — never silently reported as
+    // one of the action's own soft-error sentinels below it (no-lying-
+    // fallbacks: a hung request isn't a "no suggestions" case).
     const runExplore = async (r: ResumeData) => {
-        setExploring(true);
+        const token = exploreIntentRef.current!.begin();
+        // Recorded so the `exploring` derivation (below) can tell whether
+        // THIS specific attempt is still the current one.
+        exploringTokenRef.current = token;
+        setExploringRaw(true);
+        setExploreFailed(false);
         try {
-            const res = await suggestAdjacentRolesAction({
-                profession: r.profile?.profession ?? "",
-                skills: topSkills(r, 12),
-                seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
-            });
-            if (res.error) {
-                if (classifySentinel(res.error) === "auth") {
+            let settled: Awaited<ReturnType<typeof suggestAdjacentRolesAction>> | null;
+            try {
+                settled = await suggestAdjacentRoles({
+                    profession: r.profile?.profession ?? "",
+                    skills: topSkills(r, 12),
+                    seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
+                });
+            } catch {
+                settled = null;
+            }
+            if (!exploreIntentRef.current!.isCurrent(token)) return;
+            const outcome = resolveExploreOutcome(
+                settled,
+                r,
+                settled?.error ? classifySentinel(settled.error) : null,
+            );
+            switch (outcome.kind) {
+                case "failed":
+                    setExploreFailed(true);
+                    return;
+                case "auth":
                     pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
                     openAuth();
                     return;
-                }
-                const { q } = buildExploreBroadenQuery(r);
-                if (!q) {
+                case "no-fallback":
                     toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
                     return;
-                }
-                activateExplore(q, []);
-                toast.info(
-                    classifySentinel(res.error) === "credits"
-                        ? "Out of AI credits — showing skill-based matches instead."
-                        : "Showing roles related to your skills.",
-                );
-                return;
+                case "fallback":
+                    activateExplore(outcome.q, []);
+                    toast.info(
+                        outcome.credits
+                            ? "Out of AI credits — showing skill-based matches instead."
+                            : "Showing roles related to your skills.",
+                    );
+                    return;
+                case "success":
+                    activateExplore(outcome.q, outcome.titles);
+                    return;
             }
-            const titles = res.titles ?? [];
-            const q = titles.join(" ");
-            activateExplore(q, titles);
         } finally {
-            setExploring(false);
+            setExploringRaw(false);
         }
     };
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
-    // `handleUploadClick` upload-gate) and apply fit the moment it completes
-    // (see `handleImport`'s `resumeActionAfterImportRef` check). The ref is
-    // set AFTER `handleUploadClick()` runs, not before — that call's own
-    // `clearPendingGate()` would otherwise wipe it immediately.
+    // `handleUploadClick` upload-gate, defaulting to a "fit" continuation —
+    // see its doc comment) and apply fit the moment it completes (see
+    // `handleImport`'s `resumeActionAfterImportRef` check).
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -2181,7 +2313,6 @@ function JobsContent() {
             return;
         }
         handleUploadClick();
-        resumeActionAfterImportRef.current = "fit";
     };
 
     // Compact Explore button beside the search input. Same on-demand résumé
@@ -2200,8 +2331,7 @@ function JobsContent() {
                 await enterExplore(r);
                 return;
             }
-            handleUploadClick();
-            resumeActionAfterImportRef.current = "explore";
+            handleUploadClick("explore");
         } finally {
             exploreInFlightRef.current = false;
         }
@@ -2251,12 +2381,14 @@ function JobsContent() {
             applyUrlState(buildUrlState({ jobId: null }), "replace");
             void handleExploreClick();
         } else {
-            enterBrowse();
-            applyUrlState(buildUrlState({ jobId: null, q: "", facets: {} }), "replace");
+            enterBrowseAndSync({ jobId: null });
         }
     };
 
     const enterBrowse = () => {
+        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
+        // comment above.
+        exploreIntentRef.current!.begin();
         clearPendingGate();
         setExploreTitles([]);
         setFacets({});
@@ -2264,8 +2396,53 @@ function JobsContent() {
         setMode("browse");
     };
 
-    const handleUploadClick = () => {
+    // `enterBrowse()` only touches LOCAL state — every caller that means to
+    // abandon a non-default query/facets (Explore's error-band escape, the
+    // "Exploring…" chip's dismiss, the tombstone's ungated fallback above)
+    // pairs it with the SAME explicit `q`/`facets` URL override, so the
+    // address bar can't lag behind local state (the closure-staleness class
+    // `handleTombstoneSimilarRoles` used to hit before this was extracted —
+    // see the CTA-ordering review-fix history on that function). `overrides`
+    // lets the tombstone also clear `jobId`, which the other two callers
+    // don't need.
+    const enterBrowseAndSync = (overrides: Partial<JobsUrlState> = {}) => {
+        enterBrowse();
+        applyUrlState(buildUrlState({ q: "", facets: {}, ...overrides }), "replace");
+    };
+
+    // THE single entry point for opening the résumé importer from this page —
+    // every caller (sort menu "Rank by fit", the compact Explore button, the
+    // upsell card's "Upload résumé", any future one) must go through this,
+    // not `setImportOpen(true)` directly, because this is also the one place
+    // that queues `resumeActionAfterImportRef` — what `handleImport` (below)
+    // runs once the upload actually completes. Bug this fixes: the upsell
+    // card used to call `handleUploadClick` bare with no follow-up wiring,
+    // so an upload started FROM the card queued nothing — the modal closed
+    // and nothing visibly happened, no re-rank, no chip (user-reported).
+    //
+    // Defaults to `"fit"` — product contract: ANY upload initiated from
+    // /jobs ends in ranked results, not a silent no-op. `handleExploreClick`
+    // is the one caller that overrides it to `"explore"`; every other
+    // caller (including the upsell card) gets the default for free, so a
+    // future entry point can't forget this by construction.
+    //
+    // `clearPendingGate()` runs FIRST (it zeroes this same ref), so the
+    // queue write below has to come after it, not before.
+    //
+    // For `"fit"`, `fitIntentRef.current!.begin()` pins the CURRENT guard
+    // generation into the queued continuation (`fitToken`) — `handleImport`
+    // checks it's still current before applying. Without this, a sort
+    // choice made WHILE the upload modal is still open (which bumps this
+    // same guard — see the Select's `onValueChange` below — but does NOT
+    // clear this ref) would get silently clobbered once the upload finally
+    // completes, minutes later. `"explore"` doesn't need an equivalent: the
+    // eventual `enterExplore`→`runExplore` call begins its OWN fresh
+    // `exploreIntentRef` token when it actually runs, which already
+    // supersedes anything stale by construction.
+    const handleUploadClick = (intent: "fit" | "explore" = "fit") => {
         clearPendingGate();
+        resumeActionAfterImportRef.current =
+            intent === "fit" ? { kind: "fit", fitToken: fitIntentRef.current!.begin() } : { kind: "explore" };
         if (!user) {
             pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
             openAuth();
@@ -2279,20 +2456,33 @@ function JobsContent() {
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
-        // Rank-by-fit / Explore queued this import because no usable résumé
-        // was on hand yet — finish what they asked for now that one exists.
+        // `handleUploadClick` queued this because no usable résumé was on
+        // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
-        if (queuedAction === "fit") applyFit(data);
-        else if (queuedAction === "explore") void enterExplore(data);
+        if (queuedAction?.kind === "fit") {
+            // Stale-guard check (see `handleUploadClick`'s doc comment): a
+            // sort choice made while the modal was open must win, not this.
+            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+        } else if (queuedAction?.kind === "explore") {
+            void enterExplore(data);
+        }
     };
 
     const startOver = () => {
+        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
+        // comment above.
+        exploreIntentRef.current!.begin();
         setExploreTitles([]);
         setFacets({});
         setSalaryMin(0);
         setVisaOnly(false);
-        setPostedBucket(undefined);
+        // References the shared default (PRISTINE_FILTER_STATE), not a
+        // literal — "30d" is now the fresh-load default, and this is the ONE
+        // reset path that doesn't already go through `applyFilterState`
+        // (clearAll/pendingClearAll do), so it's the one place that could
+        // silently drift from it.
+        setPostedBucket(PRISTINE_FILTER_STATE.postedBucket);
         setSortOverride(null);
         setHideGhosts(true);
         setQuery("");
@@ -2356,8 +2546,33 @@ function JobsContent() {
             {/* Search + Explore */}
             <div className="mb-3.5 flex shrink-0 items-center gap-2">
                 <SearchAutocomplete
-                    value={query}
+                    // Explore mode's `query` state carries the résumé-derived
+                    // search string (AI-suggested titles, capped — see
+                    // `capExploreTerms`), which used to render raw in this box:
+                    // an unreadable wall of query soup. The dismissible
+                    // "Exploring roles adjacent to your résumé" chip below
+                    // communicates that state instead; the box itself shows
+                    // empty-with-placeholder while explore is active.
+                    //
+                    // Explore is ephemeral, session-only state — the URL
+                    // deliberately does NOT represent it (see `activateExplore`'s
+                    // doc comment): a refresh or a shared link during Explore
+                    // lands on plain browse, never on this derived query. So
+                    // gating just the DISPLAYED value on mode wouldn't be enough
+                    // on its own — the box's `value` here and the URL are both
+                    // intentionally out of sync with the underlying `query`
+                    // state while exploring, by design, not by omission.
+                    value={mode === "explore" ? "" : query}
                     onChange={(v) => {
+                        if (mode === "explore") {
+                            // A manual edit is the user taking over from
+                            // Explore — supersede any stale in-flight explore
+                            // (see `exploreIntentRef`) before dropping back to
+                            // an ordinary browse-mode query.
+                            exploreIntentRef.current!.begin();
+                            setMode("browse");
+                            setExploreTitles([]);
+                        }
                         setQuery(v);
                         // Continuous input is filter-like — `replace`, not `push` (a
                         // "push" per keystroke would make the back button undo one
@@ -2442,6 +2657,18 @@ function JobsContent() {
                         className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
                     >
                         Ranked by your résumé
+                        <X size={12} />
+                    </button>
+                )}
+                {/* Mirrors the "Ranked by your résumé" chip above — communicates
+                    explore mode without rendering its derived query raw in the
+                    search box (see the box's `value` comment above). */}
+                {mode === "explore" && (
+                    <button
+                        onClick={() => enterBrowseAndSync()}
+                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
+                    >
+                        Exploring roles adjacent to your résumé
                         <X size={12} />
                     </button>
                 )}
@@ -2555,6 +2782,30 @@ function JobsContent() {
                     </p>
                     <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
                 </div>
+            ) : exploreFailed ? (
+                <div
+                    role="alert"
+                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                >
+                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                    <h3 className="text-lg font-semibold">Couldn&apos;t finish exploring — try again</h3>
+                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                        The request took too long or failed. Try again, or browse the live board instead.
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                            onClick={() => void handleExploreClick()}
+                        >
+                            Retry
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => enterBrowseAndSync()}>
+                            Browse all roles
+                        </Button>
+                    </div>
+                </div>
             ) : blockingError ? (
                 <div
                     role="alert"
@@ -2634,7 +2885,14 @@ function JobsContent() {
                                                     <ResumeUpsellCard
                                                         key="resume-upsell"
                                                         count={corpusCount}
-                                                        onUpload={handleUploadClick}
+                                                        // Explicit no-arg call, not a bare
+                                                        // `handleUploadClick` reference — `onUpload`'s
+                                                        // own type is `() => void`, but wiring it to a
+                                                        // DOM `onClick` (ResumeUpsellCard.tsx) means
+                                                        // React would otherwise pass the click event
+                                                        // through as `handleUploadClick`'s first
+                                                        // argument, clobbering its `intent` param.
+                                                        onUpload={() => handleUploadClick()}
                                                         onDismiss={dismissUpsell}
                                                     />,
                                                 ];
@@ -2727,6 +2985,7 @@ function JobsContent() {
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
+                confirmLabel="Rank my jobs"
             />
             <Sheet
                 open={detailSheetOpen}

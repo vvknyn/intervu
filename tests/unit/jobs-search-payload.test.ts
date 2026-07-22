@@ -52,6 +52,21 @@ test("postedBucket is dropped when the corpus doesn't support date filtering, ev
     assert.equal(p.postedBucket, undefined);
 });
 
+// Phase 1-a #? (30d default): the fresh-visit default now sits IN
+// PRISTINE_FILTER_STATE.postedBucket ("30d") rather than being absent, so
+// this same gate is what stops it from silently 0-result-ing every visitor
+// on a corpus that can't back it — critical, not just the explicit-bucket
+// case above.
+test("the 30d default passes through when date filtering is supported", () => {
+    const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", true);
+    assert.equal(p.postedBucket, "30d");
+});
+
+test("the 30d default is coerced away (not sent) when date filtering is unsupported", () => {
+    const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", false);
+    assert.equal(p.postedBucket, undefined);
+});
+
 test("null/undefined sort becomes undefined; an explicit sort passes through", () => {
     assert.equal(buildJobSearchPayload(PRISTINE_FILTER_STATE, "", null, true).sort, undefined);
     assert.equal(buildJobSearchPayload(PRISTINE_FILTER_STATE, "", undefined, true).sort, undefined);

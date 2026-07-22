@@ -25,12 +25,22 @@ interface ResumeImportModalProps {
     onClose: () => void;
     onImport: (data: ResumeData, source: 'pdf' | 'docx' | 'text', confidence: number) => void;
     configOverride?: Partial<ProviderConfig>;
+    /**
+     * Label for the final review-step's confirm button. This modal is
+     * shared between the resume-builder (where "Apply to Resume" means
+     * "apply these parsed fields to the resume document you're editing" —
+     * the default here, keeping that flow byte-identical) and /jobs
+     * (src/app/jobs/page.tsx), where "Apply to Resume" is confusing
+     * builder jargon that also doesn't describe what actually happens next
+     * (fit-ranking the job list) — that caller passes "Rank my jobs".
+     */
+    confirmLabel?: string;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
 type InputMethod = 'file' | 'paste';
 
-export function ResumeImportModal({ isOpen, onClose, onImport, configOverride }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, confirmLabel = "Apply to Resume" }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -589,7 +599,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride }:
                             </Button>
                             <Button onClick={handleConfirm}>
                                 <Check size={16} className="mr-2" />
-                                Apply to Resume
+                                {confirmLabel}
                             </Button>
                         </>
                     ) : (

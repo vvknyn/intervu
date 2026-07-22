@@ -100,7 +100,7 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: undefined,
+    postedBucket: "30d",
     hideGhosts: true,
 };
 
@@ -183,11 +183,17 @@ export function activeFilterEntries(
         });
     }
 
-    if (state.postedBucket) {
+    // "30d" is now the default (product decision) — like `hideGhosts`, the
+    // default itself isn't an active choice and gets no chip. Anything ELSE
+    // is, INCLUDING explicit "Any" (`undefined`): with a non-empty default,
+    // picking "Any" is a deliberate departure from it, not a neutral resting
+    // state, so it earns its own chip rather than rendering nothing.
+    // "Clear" always returns to the shared default, not to "Any".
+    if (state.postedBucket !== PRISTINE_FILTER_STATE.postedBucket) {
         entries.push({
             key: "postedBucket",
-            label: postedBucketLabel(state.postedBucket),
-            clear: (s) => ({ ...s, postedBucket: undefined }),
+            label: state.postedBucket ? postedBucketLabel(state.postedBucket) : "Any date",
+            clear: (s) => ({ ...s, postedBucket: PRISTINE_FILTER_STATE.postedBucket }),
         });
     }
 
