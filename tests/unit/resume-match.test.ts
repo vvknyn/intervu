@@ -5,6 +5,7 @@ import {
     buildMatchQuery,
     topSkills,
     buildExploreBroadenQuery,
+    resolveExploreOutcome,
 } from '../../src/lib/jobs/resume-match';
 import type { ResumeData } from '../../src/types/resume';
 
@@ -92,5 +93,57 @@ describe('buildExploreBroadenQuery', () => {
     });
     it('returns empty q when there are no skills', () => {
         assert.equal(buildExploreBroadenQuery(mk({ profession: 'X', yearsOfExperience: 3 })).q, '');
+    });
+});
+
+// Explore is auth-gated (src/app/jobs/page.tsx's `runExplore`), so its
+// success/error branching can't be exercised by an anonymous browser check —
+// this pure extraction is what makes the class of bug in the prod screenshot
+// (infinite "Finding live roles…" spinner) verifiable at all: `settled: null`
+// is what a timeout/thrown rejection from the settle-guarded suggest call
+// (`EXPLORE_SUGGEST_TIMEOUT_MS`) collapses to.
+describe('resolveExploreOutcome', () => {
+    const resume = mk({ profession: 'Backend Engineer', yearsOfExperience: 9 }, [
+        { category: 'Tech', skills: ['Go', 'Kafka', 'AWS', 'Docker', 'Kubernetes'] },
+    ]);
+
+    it('settled: null (timeout or thrown rejection) → failed, never a silent fallback', () => {
+        assert.deepEqual(resolveExploreOutcome(null, resume, null), { kind: 'failed' });
+    });
+
+    it('success: q is the joined titles, verbatim', () => {
+        const titles = ['A Title', 'B Title', 'C Title'];
+        assert.deepEqual(resolveExploreOutcome({ titles }, resume, null), {
+            kind: 'success',
+            q: 'A Title B Title C Title',
+            titles,
+        });
+    });
+
+    it('res.error + auth sentinel → auth, regardless of whether a fallback query exists', () => {
+        assert.deepEqual(resolveExploreOutcome({ error: 'AUTH_REQUIRED: sign in' }, resume, 'auth'), {
+            kind: 'auth',
+        });
+    });
+
+    it('res.error + credits sentinel → fallback with credits: true', () => {
+        assert.deepEqual(resolveExploreOutcome({ error: 'OUT_OF_CREDITS' }, resume, 'credits'), {
+            kind: 'fallback',
+            q: 'Go Kafka AWS Docker Kubernetes',
+            credits: true,
+        });
+    });
+
+    it('res.error, no sentinel (e.g. NO_SUGGESTIONS) → fallback with credits: false', () => {
+        assert.deepEqual(resolveExploreOutcome({ error: 'NO_SUGGESTIONS' }, resume, null), {
+            kind: 'fallback',
+            q: 'Go Kafka AWS Docker Kubernetes',
+            credits: false,
+        });
+    });
+
+    it('res.error + no skills to fall back on → no-fallback', () => {
+        const bare = mk({ profession: '', yearsOfExperience: 0 });
+        assert.deepEqual(resolveExploreOutcome({ error: 'NO_SUGGESTIONS' }, bare, null), { kind: 'no-fallback' });
     });
 });

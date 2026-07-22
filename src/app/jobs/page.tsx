@@ -43,7 +43,7 @@ import {
     getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
-import { withSettleGuard } from "@/lib/jobs/settle-guard";
+import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
@@ -93,7 +93,7 @@ import {
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
-import { buildMatchQuery, buildExploreBroadenQuery, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -121,6 +121,18 @@ import type { ResumeData } from "@/types/resume";
  */
 const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
     withSettleGuard(searchJobsActionRaw(params));
+
+/**
+ * Same chokepoint shape as `searchJobsAction` above, for Explore's AI-
+ * suggestion call — the other Server Action on this page that can hang
+ * without ever resolving/rejecting. See `EXPLORE_SUGGEST_TIMEOUT_MS`
+ * (settle-guard.ts) for why it gets a longer, separately-named deadline
+ * instead of reusing `ACTION_SETTLE_TIMEOUT_MS`.
+ */
+const suggestAdjacentRoles = (
+    input: Parameters<typeof suggestAdjacentRolesAction>[0],
+): ReturnType<typeof suggestAdjacentRolesAction> =>
+    withSettleGuard(suggestAdjacentRolesAction(input), EXPLORE_SUGGEST_TIMEOUT_MS);
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -1090,6 +1102,13 @@ function JobsContent() {
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [exploring, setExploring] = useState(false);
+    // Set when `runExplore`'s AI-suggestion call times out or throws (see
+    // `EXPLORE_SUGGEST_TIMEOUT_MS`) — distinct from the action's own
+    // `res.error` sentinels (auth/credits/no-suggestions), which already
+    // have a graceful degrade path. This is the unexpected-failure case, so
+    // it gets a real, visible error state instead of a silent fallback —
+    // rendered as a band in the results area (below) with Retry + Browse.
+    const [exploreFailed, setExploreFailed] = useState(false);
     const [exploreTitles, setExploreTitles] = useState<string[]>([]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
@@ -1165,6 +1184,9 @@ function JobsContent() {
         let firstPageSucceeded = false;
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
+        // Any new search (query/facet/sort/etc. change) supersedes a stale
+        // Explore failure band — the user has already moved on.
+        setExploreFailed(false);
         setLoadingMore(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
@@ -2013,6 +2035,17 @@ function JobsContent() {
     const fitIntentRef = useRef<FitIntentGuard | null>(null);
     if (!fitIntentRef.current) fitIntentRef.current = new FitIntentGuard();
 
+    // Same guard, dedicated to Explore's own async gap: `runExplore` awaits
+    // the (now deadline-bound, up to `EXPLORE_SUGGEST_TIMEOUT_MS`) AI-suggest
+    // call before committing results. Without this, a slow/timed-out explore
+    // that finally settles after the user has already moved on — to "Rank by
+    // fit" (`applyFit`), a plain browse (`enterBrowse`), or "Start over"
+    // (`startOver`), all of which bump this same guard — would clobber
+    // whatever they're looking at now. `begin()` at the top of `runExplore`
+    // also means a second Explore click supersedes an in-flight first one.
+    const exploreIntentRef = useRef<FitIntentGuard | null>(null);
+    if (!exploreIntentRef.current) exploreIntentRef.current = new FitIntentGuard();
+
     // Closes the gap between a click and `exploring` actually flipping true
     // (that state only flips inside `runExplore`, well after
     // `resolveUsableResume()`'s await resolves) — without this, a rapid
@@ -2053,6 +2086,9 @@ function JobsContent() {
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
+        // Supersede a stale in-flight Explore before this résumé-driven mode
+        // takes over — see `exploreIntentRef`'s doc comment above.
+        exploreIntentRef.current!.begin();
         setExploreTitles([]);
         setMode("browse");
         setFacets(f);
@@ -2121,38 +2157,68 @@ function JobsContent() {
 
     // The authenticated Explore work. Reads no mutable component state beyond
     // its `r` argument + stable setters, so it is safe to invoke from the
-    // stable-identity `maybeReplay` closure. A server-reported auth error
-    // (session expired) re-queues + reopens auth.
+    // stable-identity `maybeReplay` closure.
+    //
+    // The AI-suggest call goes through `suggestAdjacentRoles` (this file's
+    // `withSettleGuard` chokepoint, `EXPLORE_SUGGEST_TIMEOUT_MS`), so the
+    // `await` below is now GUARANTEED to settle — closing the class of "the
+    // request never resolves and the spinner never stops" (prod bug: infinite
+    // "Finding live roles…"). `finally` unconditionally clears `exploring`,
+    // so there is no path out of this function that leaves loading stuck.
+    //
+    // The branching itself (success / auth / credits-or-soft-error fallback /
+    // no-fallback-possible / hard failure) is `resolveExploreOutcome`
+    // (lib/jobs/resume-match.ts) — a pure function, unit-tested there. Explore
+    // is auth-gated, so this path can't be exercised by an anonymous browser
+    // check; the pure-function extraction is what makes it verifiable at all.
+    // `settled: null` (timeout or thrown rejection) maps to `"failed"`, a
+    // real visible error band (`exploreFailed`) — never silently reported as
+    // one of the action's own soft-error sentinels below it (no-lying-
+    // fallbacks: a hung request isn't a "no suggestions" case).
     const runExplore = async (r: ResumeData) => {
+        const token = exploreIntentRef.current!.begin();
         setExploring(true);
+        setExploreFailed(false);
         try {
-            const res = await suggestAdjacentRolesAction({
-                profession: r.profile?.profession ?? "",
-                skills: topSkills(r, 12),
-                seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
-            });
-            if (res.error) {
-                if (classifySentinel(res.error) === "auth") {
+            let settled: Awaited<ReturnType<typeof suggestAdjacentRolesAction>> | null;
+            try {
+                settled = await suggestAdjacentRoles({
+                    profession: r.profile?.profession ?? "",
+                    skills: topSkills(r, 12),
+                    seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
+                });
+            } catch {
+                settled = null;
+            }
+            if (!exploreIntentRef.current!.isCurrent(token)) return;
+            const outcome = resolveExploreOutcome(
+                settled,
+                r,
+                settled?.error ? classifySentinel(settled.error) : null,
+            );
+            switch (outcome.kind) {
+                case "failed":
+                    setExploreFailed(true);
+                    return;
+                case "auth":
                     pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
                     openAuth();
                     return;
-                }
-                const { q } = buildExploreBroadenQuery(r);
-                if (!q) {
+                case "no-fallback":
                     toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
                     return;
-                }
-                activateExplore(q, []);
-                toast.info(
-                    classifySentinel(res.error) === "credits"
-                        ? "Out of AI credits — showing skill-based matches instead."
-                        : "Showing roles related to your skills.",
-                );
-                return;
+                case "fallback":
+                    activateExplore(outcome.q, []);
+                    toast.info(
+                        outcome.credits
+                            ? "Out of AI credits — showing skill-based matches instead."
+                            : "Showing roles related to your skills.",
+                    );
+                    return;
+                case "success":
+                    activateExplore(outcome.q, outcome.titles);
+                    return;
             }
-            const titles = res.titles ?? [];
-            const q = titles.join(" ");
-            activateExplore(q, titles);
         } finally {
             setExploring(false);
         }
@@ -2251,17 +2317,33 @@ function JobsContent() {
             applyUrlState(buildUrlState({ jobId: null }), "replace");
             void handleExploreClick();
         } else {
-            enterBrowse();
-            applyUrlState(buildUrlState({ jobId: null, q: "", facets: {} }), "replace");
+            enterBrowseAndSync({ jobId: null });
         }
     };
 
     const enterBrowse = () => {
+        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
+        // comment above.
+        exploreIntentRef.current!.begin();
         clearPendingGate();
         setExploreTitles([]);
         setFacets({});
         setQuery("");
         setMode("browse");
+    };
+
+    // `enterBrowse()` only touches LOCAL state — every caller that means to
+    // abandon a non-default query/facets (Explore's error-band escape, the
+    // "Exploring…" chip's dismiss, the tombstone's ungated fallback above)
+    // pairs it with the SAME explicit `q`/`facets` URL override, so the
+    // address bar can't lag behind local state (the closure-staleness class
+    // `handleTombstoneSimilarRoles` used to hit before this was extracted —
+    // see the CTA-ordering review-fix history on that function). `overrides`
+    // lets the tombstone also clear `jobId`, which the other two callers
+    // don't need.
+    const enterBrowseAndSync = (overrides: Partial<JobsUrlState> = {}) => {
+        enterBrowse();
+        applyUrlState(buildUrlState({ q: "", facets: {}, ...overrides }), "replace");
     };
 
     const handleUploadClick = () => {
@@ -2288,6 +2370,9 @@ function JobsContent() {
     };
 
     const startOver = () => {
+        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
+        // comment above.
+        exploreIntentRef.current!.begin();
         setExploreTitles([]);
         setFacets({});
         setSalaryMin(0);
@@ -2554,6 +2639,30 @@ function JobsContent() {
                         signal that flags postings that aren&apos;t really hiring.
                     </p>
                     <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
+                </div>
+            ) : exploreFailed ? (
+                <div
+                    role="alert"
+                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                >
+                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                    <h3 className="text-lg font-semibold">Couldn&apos;t finish exploring — try again</h3>
+                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                        The request took too long or failed. Try again, or browse the live board instead.
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                            onClick={() => void handleExploreClick()}
+                        >
+                            Retry
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => enterBrowseAndSync()}>
+                            Browse all roles
+                        </Button>
+                    </div>
                 </div>
             ) : blockingError ? (
                 <div
