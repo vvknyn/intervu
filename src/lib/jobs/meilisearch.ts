@@ -14,6 +14,30 @@ import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestion
 
 export const JOBS_INDEX = "jobs";
 
+/**
+ * Curated query synonyms (spec §6.4). Conservative by design: only
+ * unambiguous industry abbreviations. "pm" fans out to both of its common
+ * meanings and lets ranking sort it out. Applied to the live index by
+ * scripts/apply-synonyms.mjs (synonyms-only PUT — no reindex cost);
+ * ⚠ the box-side sync worker holds its own settings copy, so a box
+ * reprovision can wipe these — reconcile there when S1 ships (spec §9).
+ */
+export const JOBS_SYNONYMS: Record<string, string[]> = {
+  swe: ["software engineer"],
+  "software engineer": ["swe"],
+  sre: ["site reliability engineer"],
+  "site reliability engineer": ["sre"],
+  pm: ["product manager", "project manager"],
+  k8s: ["kubernetes"],
+  kubernetes: ["k8s"],
+  ml: ["machine learning"],
+  "machine learning": ["ml"],
+  ux: ["user experience"],
+  qa: ["quality assurance"],
+  hr: ["human resources"],
+  devops: ["dev ops"],
+};
+
 /** Index settings for the jobs index. Applied by the sync worker on (re)provision. */
 export const JOBS_INDEX_SETTINGS = {
   searchableAttributes: ["title", "company", "description", "location", "tags"],
@@ -44,6 +68,7 @@ export const JOBS_INDEX_SETTINGS = {
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
+  synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
   // Facet values must sort by COUNT, not the Meili default (alpha). With alpha,
