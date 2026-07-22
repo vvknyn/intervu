@@ -2021,11 +2021,17 @@ function JobsContent() {
     }, []);
 
     // Which résumé-driven action (if any) should auto-run the moment the
-    // résumé importer completes — set right before `handleUploadClick()` by
-    // `handleRankByFit`/`handleExploreClick`'s no-usable-résumé fallback.
-    // `clearPendingGate` (below) resets it on every alternate path/dismiss,
-    // same invariant as `pendingRef`: only the latest intent survives.
-    const resumeActionAfterImportRef = useRef<"fit" | "explore" | null>(null);
+    // résumé importer completes — set BY `handleUploadClick` itself (below),
+    // the one chokepoint every /jobs upload entry point routes through, so a
+    // future entry point can't forget to wire this (the bug this ref exists
+    // to prevent: the upsell card used to call `handleUploadClick` bare, so
+    // an upload from THAT entry point queued nothing and silently did
+    // nothing on completion). `fitToken` pins the `fitIntentRef` generation
+    // at the moment "fit" was queued — see `handleUploadClick`'s doc
+    // comment for why. `clearPendingGate` (below) resets it on every
+    // alternate path/dismiss, same invariant as `pendingRef`: only the
+    // latest intent survives.
+    const resumeActionAfterImportRef = useRef<{ kind: "fit"; fitToken: number } | { kind: "explore" } | null>(null);
 
     // Guards `handleRankByFit`'s async résumé fetch against being superseded
     // by a LATER sort choice (fit again, or any other sort option) made
@@ -2226,10 +2232,9 @@ function JobsContent() {
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
-    // `handleUploadClick` upload-gate) and apply fit the moment it completes
-    // (see `handleImport`'s `resumeActionAfterImportRef` check). The ref is
-    // set AFTER `handleUploadClick()` runs, not before — that call's own
-    // `clearPendingGate()` would otherwise wipe it immediately.
+    // `handleUploadClick` upload-gate, defaulting to a "fit" continuation —
+    // see its doc comment) and apply fit the moment it completes (see
+    // `handleImport`'s `resumeActionAfterImportRef` check).
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -2247,7 +2252,6 @@ function JobsContent() {
             return;
         }
         handleUploadClick();
-        resumeActionAfterImportRef.current = "fit";
     };
 
     // Compact Explore button beside the search input. Same on-demand résumé
@@ -2266,8 +2270,7 @@ function JobsContent() {
                 await enterExplore(r);
                 return;
             }
-            handleUploadClick();
-            resumeActionAfterImportRef.current = "explore";
+            handleUploadClick("explore");
         } finally {
             exploreInFlightRef.current = false;
         }
@@ -2346,8 +2349,39 @@ function JobsContent() {
         applyUrlState(buildUrlState({ q: "", facets: {}, ...overrides }), "replace");
     };
 
-    const handleUploadClick = () => {
+    // THE single entry point for opening the résumé importer from this page —
+    // every caller (sort menu "Rank by fit", the compact Explore button, the
+    // upsell card's "Upload résumé", any future one) must go through this,
+    // not `setImportOpen(true)` directly, because this is also the one place
+    // that queues `resumeActionAfterImportRef` — what `handleImport` (below)
+    // runs once the upload actually completes. Bug this fixes: the upsell
+    // card used to call `handleUploadClick` bare with no follow-up wiring,
+    // so an upload started FROM the card queued nothing — the modal closed
+    // and nothing visibly happened, no re-rank, no chip (user-reported).
+    //
+    // Defaults to `"fit"` — product contract: ANY upload initiated from
+    // /jobs ends in ranked results, not a silent no-op. `handleExploreClick`
+    // is the one caller that overrides it to `"explore"`; every other
+    // caller (including the upsell card) gets the default for free, so a
+    // future entry point can't forget this by construction.
+    //
+    // `clearPendingGate()` runs FIRST (it zeroes this same ref), so the
+    // queue write below has to come after it, not before.
+    //
+    // For `"fit"`, `fitIntentRef.current!.begin()` pins the CURRENT guard
+    // generation into the queued continuation (`fitToken`) — `handleImport`
+    // checks it's still current before applying. Without this, a sort
+    // choice made WHILE the upload modal is still open (which bumps this
+    // same guard — see the Select's `onValueChange` below — but does NOT
+    // clear this ref) would get silently clobbered once the upload finally
+    // completes, minutes later. `"explore"` doesn't need an equivalent: the
+    // eventual `enterExplore`→`runExplore` call begins its OWN fresh
+    // `exploreIntentRef` token when it actually runs, which already
+    // supersedes anything stale by construction.
+    const handleUploadClick = (intent: "fit" | "explore" = "fit") => {
         clearPendingGate();
+        resumeActionAfterImportRef.current =
+            intent === "fit" ? { kind: "fit", fitToken: fitIntentRef.current!.begin() } : { kind: "explore" };
         if (!user) {
             pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
             openAuth();
@@ -2361,12 +2395,17 @@ function JobsContent() {
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
-        // Rank-by-fit / Explore queued this import because no usable résumé
-        // was on hand yet — finish what they asked for now that one exists.
+        // `handleUploadClick` queued this because no usable résumé was on
+        // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
-        if (queuedAction === "fit") applyFit(data);
-        else if (queuedAction === "explore") void enterExplore(data);
+        if (queuedAction?.kind === "fit") {
+            // Stale-guard check (see `handleUploadClick`'s doc comment): a
+            // sort choice made while the modal was open must win, not this.
+            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+        } else if (queuedAction?.kind === "explore") {
+            void enterExplore(data);
+        }
     };
 
     const startOver = () => {
@@ -2778,7 +2817,14 @@ function JobsContent() {
                                                     <ResumeUpsellCard
                                                         key="resume-upsell"
                                                         count={corpusCount}
-                                                        onUpload={handleUploadClick}
+                                                        // Explicit no-arg call, not a bare
+                                                        // `handleUploadClick` reference — `onUpload`'s
+                                                        // own type is `() => void`, but wiring it to a
+                                                        // DOM `onClick` (ResumeUpsellCard.tsx) means
+                                                        // React would otherwise pass the click event
+                                                        // through as `handleUploadClick`'s first
+                                                        // argument, clobbering its `intent` param.
+                                                        onUpload={() => handleUploadClick()}
                                                         onDismiss={dismissUpsell}
                                                     />,
                                                 ];
@@ -2871,6 +2917,7 @@ function JobsContent() {
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
+                confirmLabel="Rank my jobs"
             />
             <Sheet
                 open={detailSheetOpen}
