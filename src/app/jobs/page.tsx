@@ -2377,7 +2377,12 @@ function JobsContent() {
         setFacets({});
         setSalaryMin(0);
         setVisaOnly(false);
-        setPostedBucket(undefined);
+        // References the shared default (PRISTINE_FILTER_STATE), not a
+        // literal — "30d" is now the fresh-load default, and this is the ONE
+        // reset path that doesn't already go through `applyFilterState`
+        // (clearAll/pendingClearAll do), so it's the one place that could
+        // silently drift from it.
+        setPostedBucket(PRISTINE_FILTER_STATE.postedBucket);
         setSortOverride(null);
         setHideGhosts(true);
         setQuery("");

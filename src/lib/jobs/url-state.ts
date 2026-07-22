@@ -77,12 +77,18 @@ export function shouldResetSortOnQueryChange(
     return nextTrimmed !== prevQuery.trim();
 }
 
+/**
+ * Fresh-visit default (product decision): `postedBucket` is "30d" rather
+ * than unset. `undefined` still means "no filter" (an explicit "Any" — see
+ * `parseJobsUrl`/`serializeJobsUrl` below), it's just no longer the DEFAULT
+ * a bare `/jobs` visit lands on.
+ */
 export const DEFAULT_URL_STATE: JobsUrlState = {
     q: "",
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: undefined,
+    postedBucket: "30d",
     hideGhosts: true,
     sort: null,
     jobId: null,
@@ -123,8 +129,19 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
         const values = raw.split(",").map((v) => v.trim()).filter(Boolean);
         if (values.length) s.facets[key] = values;
     }
+    // Absent `posted` param → leave `s.postedBucket` at whatever it was
+    // seeded from (`DEFAULT_URL_STATE.postedBucket`, "30d"): the default IS
+    // the no-param case now. An explicit "Any" needs its own encoding since
+    // it can no longer piggyback on absence — `posted=any` is a real,
+    // distinguishable choice that maps to internal `undefined` ("no
+    // filter" — the pre-existing meaning of undefined everywhere else this
+    // field is read, e.g. `buildJobSearchPayload`). Any other recognized
+    // bucket parses exactly as before (back-compat for existing `posted=7d`
+    // links etc.); an unrecognized value is dropped, same as always.
     const posted = sp.get("posted");
-    if (posted && (POSTED_VALUES as readonly string[]).includes(posted)) {
+    if (posted === "any") {
+        s.postedBucket = undefined;
+    } else if (posted && (POSTED_VALUES as readonly string[]).includes(posted)) {
         s.postedBucket = posted as PostedBucket;
     }
     const salary = sp.get("salary");
@@ -145,7 +162,12 @@ export function serializeJobsUrl(s: JobsUrlState): string {
         const values = s.facets[key];
         if (values?.length) sp.set(param, values.join(","));
     }
-    if (s.postedBucket) sp.set("posted", s.postedBucket);
+    // Mirrors `parseJobsUrl`'s encoding: `undefined` (explicit "Any") must
+    // round-trip as a real param now that it's no longer the default —
+    // omitting it would silently read back as "30d" on reload. The default
+    // itself ("30d") stays omitted, same as any other default field here.
+    if (s.postedBucket === undefined) sp.set("posted", "any");
+    else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);
     if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);
     if (s.visaOnly) sp.set("visa", "1");
     if (!s.hideGhosts) sp.set("ghosts", "show");

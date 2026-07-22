@@ -35,6 +35,40 @@ test("junk params and junk values are dropped", () => {
     assert.deepEqual(s, { ...DEFAULT_URL_STATE, facets: { work_type: ["remote"] } });
 });
 
+// Product decision: fresh visits default to "30d" instead of unset. Encoding
+// (chosen so absence stays the default and "no filter" gets its own,
+// distinguishable representation): no `posted` param → the default ("30d");
+// `posted=any` → no filter (`undefined`, the pre-existing meaning of
+// undefined everywhere `postedBucket` is read); any other recognized bucket
+// parses exactly as before (back-compat).
+test("absent posted param parses to the 30d default", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("")).postedBucket, "30d");
+    assert.equal(parseJobsUrl(new URLSearchParams("q=sre")).postedBucket, "30d");
+});
+
+test("posted=any parses to no filter (undefined), not the default", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=any")).postedBucket, undefined);
+});
+
+test("back-compat: posted=7d (and other existing buckets) parse unchanged", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=7d")).postedBucket, "7d");
+    assert.equal(parseJobsUrl(new URLSearchParams("posted=older")).postedBucket, "older");
+});
+
+test("serializeJobsUrl omits posted for the 30d default", () => {
+    assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, q: "sre" }), "?q=sre");
+});
+
+test("serializeJobsUrl writes posted=any for an explicit no-filter state", () => {
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined });
+    assert.equal(url, "?posted=any");
+});
+
+test("posted=any round-trips through serialize + parse", () => {
+    const s = { ...DEFAULT_URL_STATE, postedBucket: undefined };
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+});
+
 test("ghosts=show flips the hide default", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("ghosts=show")).hideGhosts, false);
     assert.equal(parseJobsUrl(new URLSearchParams("")).hideGhosts, true);
