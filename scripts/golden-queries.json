@@ -1,0 +1,20 @@
+{
+  "queries": [
+    { "q": "senior backend engineer", "expect": "backend|back.end|server|platform engineer" },
+    { "q": "marketing", "expect": "marketing" },
+    { "q": "stripe", "expect": ".", "expectCompany": "stripe" },
+    { "q": "product manager remote", "expect": "product manager" },
+    { "q": "data engineer", "expect": "data engineer" },
+    { "q": "frontend developer", "expect": "front.?end|ui engineer|web developer" },
+    { "q": "machine learning engineer", "expect": "machine learning|ml engineer" },
+    { "q": "devops", "expect": "devops|dev ops|platform|infrastructure|reliability" },
+    { "q": "sales development representative", "expect": "sales development|sdr" },
+    { "q": "ux designer", "expect": "ux|user experience|product design" },
+    { "q": "software engineer new york", "expect": "software engineer" },
+    { "q": "staff software engineer", "expect": "software engineer" },
+    { "q": "customer success manager", "expect": "customer success" },
+    { "q": "accountant", "expect": "accountant|accounting" },
+    { "q": "swe", "expect": "software engineer|swe" },
+    { "q": "k8s", "expect": "kubernetes|k8s|devops|platform|infrastructure" }
+  ]
+}
