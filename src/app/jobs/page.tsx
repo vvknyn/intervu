@@ -2441,8 +2441,26 @@ function JobsContent() {
             {/* Search + Explore */}
             <div className="mb-3.5 flex shrink-0 items-center gap-2">
                 <SearchAutocomplete
-                    value={query}
+                    // Explore mode's `query` state carries the résumé-derived
+                    // search string (AI-suggested titles, capped — see
+                    // `capExploreTerms`), which used to render raw in this box:
+                    // an unreadable wall of query soup. The dismissible
+                    // "Exploring roles adjacent to your résumé" chip below
+                    // communicates that state instead; the box itself shows
+                    // empty-with-placeholder while explore is active. The URL
+                    // still carries the real `q` (state honesty is unchanged) —
+                    // only the DISPLAYED value is gated on mode.
+                    value={mode === "explore" ? "" : query}
                     onChange={(v) => {
+                        if (mode === "explore") {
+                            // A manual edit is the user taking over from
+                            // Explore — supersede any stale in-flight explore
+                            // (see `exploreIntentRef`) before dropping back to
+                            // an ordinary browse-mode query.
+                            exploreIntentRef.current!.begin();
+                            setMode("browse");
+                            setExploreTitles([]);
+                        }
                         setQuery(v);
                         // Continuous input is filter-like — `replace`, not `push` (a
                         // "push" per keystroke would make the back button undo one
@@ -2527,6 +2545,18 @@ function JobsContent() {
                         className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
                     >
                         Ranked by your résumé
+                        <X size={12} />
+                    </button>
+                )}
+                {/* Mirrors the "Ranked by your résumé" chip above — communicates
+                    explore mode without rendering its derived query raw in the
+                    search box (see the box's `value` comment above). */}
+                {mode === "explore" && (
+                    <button
+                        onClick={() => enterBrowseAndSync()}
+                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
+                    >
+                        Exploring roles adjacent to your résumé
                         <X size={12} />
                     </button>
                 )}

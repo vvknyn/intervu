@@ -14,8 +14,8 @@
  * `resolveExploreOutcome` extends this file's scope slightly — it's not a
  * `{q, facets}` derivation, but the pure decision behind Explore's own
  * success/auth/fallback/failure branching, kept here so it stays testable
- * alongside the query builder it calls (`buildExploreBroadenQuery`) without
- * a network/timer mock.
+ * alongside the query builders it calls (`buildExploreBroadenQuery`,
+ * `capExploreTerms`) without a network/timer mock.
  *
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
@@ -64,11 +64,38 @@ export function topSkills(resume: ResumeData, n = 8): string[] {
 }
 
 /**
+ * Cap an ORDERED list of explore-query candidates — AI-suggested adjacent
+ * titles, or the skills-only fallback below — to the `max` most significant
+ * (earliest-ranked) entries. Both callers already hand this a
+ * significance-ordered list (the LLM ranks titles by relevance; `topSkills`
+ * walks the résumé's own competency order), so keeping a short prefix keeps
+ * the query's most meaningful terms.
+ *
+ * Meilisearch treats a space-joined query as an OR across every term, so
+ * joining all 6-8 suggested titles (or a longer skills list) widens the
+ * match instead of narrowing it — measured failure: 15 joined terms surfaced
+ * a 100k-hit relevance mush instead of a tight adjacency signal. Deduping
+ * case-insensitively here also stops a repeated term from silently eating
+ * one of the 4 slots.
+ */
+export function capExploreTerms(terms: string[], max = 4): string[] {
+    const out: string[] = [];
+    for (const raw of terms) {
+        const term = (raw ?? "").trim();
+        if (!term) continue;
+        if (out.some((t) => t.toLowerCase() === term.toLowerCase())) continue;
+        out.push(term);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
+/**
  * Explore fallback: skills-only, role/seniority dropped → a wider, related net.
  * Used when the AI adjacency call fails or returns nothing.
  */
 export function buildExploreBroadenQuery(resume: ResumeData): DerivedQuery {
-    return { q: topSkills(resume, 6).join(" "), facets: {} };
+    return { q: capExploreTerms(topSkills(resume, 6)).join(" "), facets: {} };
 }
 
 /** What `runExplore` (src/app/jobs/page.tsx) should do with a settled Explore attempt. */
@@ -110,5 +137,9 @@ export function resolveExploreOutcome(
         return { kind: "fallback", q, credits: sentinel === "credits" };
     }
     const titles = settled.titles ?? [];
-    return { kind: "success", q: titles.join(" "), titles };
+    // Cap the QUERY to the 4 most significant terms (see `capExploreTerms`) —
+    // `titles` itself stays uncapped in the outcome, since the caller's
+    // "Exploring: [chip per title]" row is a different concern (each chip
+    // narrows to ONE title on click, so it wants every suggested title).
+    return { kind: "success", q: capExploreTerms(titles).join(" "), titles };
 }

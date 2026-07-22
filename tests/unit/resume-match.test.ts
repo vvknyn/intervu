@@ -4,6 +4,7 @@ import {
     seniorityFromYears,
     buildMatchQuery,
     topSkills,
+    capExploreTerms,
     buildExploreBroadenQuery,
     resolveExploreOutcome,
 } from '../../src/lib/jobs/resume-match';
@@ -84,6 +85,36 @@ describe('topSkills', () => {
     });
 });
 
+describe('capExploreTerms', () => {
+    it('caps an over-long list to the 4 most significant (earliest-ranked) terms', () => {
+        // Measured failure case: joining every AI-suggested title (6-8,
+        // often multi-word) produced a 100k-hit relevance mush.
+        const titles = [
+            'Senior Backend Engineer',
+            'Platform Engineering Manager',
+            'DevOps Team Lead',
+            'Site Reliability Engineer',
+            'Infrastructure Architect',
+            'Staff Software Engineer',
+        ];
+        assert.deepEqual(capExploreTerms(titles), [
+            'Senior Backend Engineer',
+            'Platform Engineering Manager',
+            'DevOps Team Lead',
+            'Site Reliability Engineer',
+        ]);
+    });
+    it('dedupes case-insensitively and trims, without spending a slot on a repeat', () => {
+        assert.deepEqual(capExploreTerms(['Go', ' go ', 'Kafka', 'AWS', 'Docker']), ['Go', 'Kafka', 'AWS', 'Docker']);
+    });
+    it('passes a short list through unchanged', () => {
+        assert.deepEqual(capExploreTerms(['Go', 'Kafka']), ['Go', 'Kafka']);
+    });
+    it('respects a custom max', () => {
+        assert.deepEqual(capExploreTerms(['a', 'b', 'c', 'd'], 2), ['a', 'b']);
+    });
+});
+
 describe('buildExploreBroadenQuery', () => {
     it('joins top skills into a single broadened query', () => {
         const r = mk({ profession: 'Backend Engineer', yearsOfExperience: 9 }, [
@@ -93,6 +124,12 @@ describe('buildExploreBroadenQuery', () => {
     });
     it('returns empty q when there are no skills', () => {
         assert.equal(buildExploreBroadenQuery(mk({ profession: 'X', yearsOfExperience: 3 })).q, '');
+    });
+    it('caps a long skills list to 4 terms in the emitted query', () => {
+        const r = mk({ profession: 'Backend Engineer', yearsOfExperience: 9 }, [
+            { category: 'Tech', skills: ['Go', 'Kafka', 'AWS', 'Docker', 'Kubernetes', 'Postgres'] },
+        ]);
+        assert.equal(buildExploreBroadenQuery(r).q, 'Go Kafka AWS Docker');
     });
 });
 
@@ -111,11 +148,11 @@ describe('resolveExploreOutcome', () => {
         assert.deepEqual(resolveExploreOutcome(null, resume, null), { kind: 'failed' });
     });
 
-    it('success: q is the joined titles, verbatim', () => {
-        const titles = ['A Title', 'B Title', 'C Title'];
+    it('success: q is capped to 4 terms, but titles itself stays uncapped (for the per-title chip row)', () => {
+        const titles = ['A Title', 'B Title', 'C Title', 'D Title', 'E Title'];
         assert.deepEqual(resolveExploreOutcome({ titles }, resume, null), {
             kind: 'success',
-            q: 'A Title B Title C Title',
+            q: 'A Title B Title C Title D Title',
             titles,
         });
     });
@@ -129,7 +166,7 @@ describe('resolveExploreOutcome', () => {
     it('res.error + credits sentinel → fallback with credits: true', () => {
         assert.deepEqual(resolveExploreOutcome({ error: 'OUT_OF_CREDITS' }, resume, 'credits'), {
             kind: 'fallback',
-            q: 'Go Kafka AWS Docker Kubernetes',
+            q: 'Go Kafka AWS Docker',
             credits: true,
         });
     });
@@ -137,7 +174,7 @@ describe('resolveExploreOutcome', () => {
     it('res.error, no sentinel (e.g. NO_SUGGESTIONS) → fallback with credits: false', () => {
         assert.deepEqual(resolveExploreOutcome({ error: 'NO_SUGGESTIONS' }, resume, null), {
             kind: 'fallback',
-            q: 'Go Kafka AWS Docker Kubernetes',
+            q: 'Go Kafka AWS Docker',
             credits: false,
         });
     });
