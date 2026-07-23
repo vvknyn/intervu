@@ -23,13 +23,14 @@ const hanken = Hanken_Grotesk({
 
 const SITE_URL = "https://intervu.cc";
 const SITE_TITLE = "Intervu";
-const SITE_DESCRIPTION =
-  "Your job application workspace — manage resumes, applications, and interview prep in one place. Bring your own API key. No subscriptions.";
+// Reused verbatim from the jobs page's own <PageHeader> copy (src/app/page.tsx)
+// now that jobs is the root experience — no new marketing copy per PR 1.
+const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk before you spend time on them.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: SITE_TITLE,
+    default: "Find jobs",
     template: "%s · Intervu",
   },
   description: SITE_DESCRIPTION,

@@ -108,7 +108,7 @@ import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { ResumeData } from "@/types/resume";
 
 /**
- * Every `/jobs` search-action call in this page goes through this one
+ * Every search-action call on this page goes through this one
  * rebinding, not the raw import — a single chokepoint (writing-lean-code
  * rule 3) rather than wrapping each of this file's several call sites
  * individually. See settle-guard.ts for why: an edge-level 503 can drop a
@@ -2394,7 +2394,7 @@ function JobsContent() {
 
     // Task 11 review fix — the tombstone's "similar roles" CTA can't just
     // call `handleExploreClick` bare: the common dead link is a bare
-    // `/jobs?job=<id>` with no query, so `job=<dead-id>` is still the URL's
+    // `/?job=<id>` with no query, so `job=<dead-id>` is still the URL's
     // `job` param when this fires. `activateExplore` (above) only rewrites
     // the URL when "ranked by résumé" was active, so for this — the
     // overwhelmingly common — path it would leave `job=<dead-id>` in the
