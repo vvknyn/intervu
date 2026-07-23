@@ -20,6 +20,7 @@ import { SecureStorage } from "@/lib/security";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { SETTINGS_MESSAGES, OUTPUT_PREF_DESCRIPTIONS } from "@/lib/copy";
 import { ModelSettings } from "@/components/settings/ModelSettings";
+import { FeedbackModal } from "@/components/modals/FeedbackModal";
 
 interface OutputPreferences {
     strategyLength: "brief" | "standard" | "detailed";
@@ -485,6 +486,17 @@ export function SettingsContainer() {
                         )}
                     </div>
                 </section>
+
+                {/* Feedback — lived in the old sidebar footer (AppShell),
+                    which is gone post-flip; signed-in users reach it from the
+                    TopBar avatar menu, everyone can reach it here. */}
+                <div className="pt-2">
+                    <FeedbackModal>
+                        <button className="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">
+                            Send feedback
+                        </button>
+                    </FeedbackModal>
+                </div>
 
                 {/* Delete Account Confirmation Dialog */}
                 <Dialog open={showDeleteDialog} onOpenChange={(open) => {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CaretDown, SignIn } from "@phosphor-icons/react";
+import { CaretDown, Moon, SignIn, Sun } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, type User } from "@/lib/firebase/client-auth";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
+import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -29,6 +30,37 @@ function VMark({ size = 26 }: { size?: number }) {
             />
         </svg>
     );
+}
+
+// Dark mode ported from AppShell's footer toggle: same class-on-<html> flip,
+// same "intervu-dark" persistence key (which layout.tsx's no-flash inline
+// script reads before paint). Only the React wiring differs — AppShell read
+// the class into state in a mount effect, which the react-hooks lint now
+// rejects (set-state-in-effect); useSyncExternalStore is the equivalent
+// hydration-safe shape: server snapshot false = what SSR renders, the client
+// snapshot reads the real class, toggleDark writes then notifies.
+const darkListeners = new Set<() => void>();
+function subscribeDark(onChange: () => void) {
+    darkListeners.add(onChange);
+    return () => darkListeners.delete(onChange);
+}
+function getDarkSnapshot(): boolean {
+    return document.documentElement.classList.contains("dark");
+}
+function getDarkServerSnapshot(): boolean {
+    return false;
+}
+function toggleDark() {
+    const root = document.documentElement;
+    const next = !root.classList.contains("dark");
+    if (next) root.classList.add("dark");
+    else root.classList.remove("dark");
+    try {
+        localStorage.setItem("intervu-dark", next ? "1" : "0");
+    } catch {
+        /* ignore */
+    }
+    darkListeners.forEach((cb) => cb());
 }
 
 function initialsOf(user: User): string {
@@ -60,6 +92,7 @@ export function TopBar() {
     const pathname = usePathname();
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
+    const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
     const sessionRefreshed = useRef(false);
 
     useEffect(() => {
@@ -108,6 +141,15 @@ export function TopBar() {
                     All jobs
                 </Link>
 
+                <button
+                    onClick={toggleDark}
+                    data-testid="topbar-theme"
+                    title={dark ? "Switch to light mode" : "Switch to dark mode"}
+                    className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                    {dark ? <Sun size={17} className="shrink-0" /> : <Moon size={17} className="shrink-0" />}
+                </button>
+
                 {user ? (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -137,6 +179,16 @@ export function TopBar() {
                                     <Link href={item.href}>{item.label}</Link>
                                 </DropdownMenuItem>
                             ))}
+                            <DropdownMenuSeparator />
+                            {/* preventDefault keeps the menu mounted while the
+                                feedback dialog (whose Radix root lives inside
+                                this content via FeedbackModal) is open —
+                                closing the menu would unmount the dialog. */}
+                            <FeedbackModal>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                    Feedback
+                                </DropdownMenuItem>
+                            </FeedbackModal>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 ) : (
