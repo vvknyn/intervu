@@ -75,7 +75,7 @@ export function invalidatePursuitsCache(): void {
 export async function syncGuestPursuitsToServer(): Promise<void> {
     const guests = listGuestPursuits();
     if (guests.length === 0) return;
-    await Promise.all(
+    const results = await Promise.all(
         guests.map((g) =>
             g.job_id
                 ? upsertPursuitForJob(
@@ -92,7 +92,15 @@ export async function syncGuestPursuitsToServer(): Promise<void> {
                 : createManualPursuit({ company: g.company_name, position: g.position, status: g.status }),
         ),
     );
-    clearGuestPursuits();
+    // Server actions return {error} rather than throwing, so Promise.all never
+    // rejects — clearing unconditionally here would delete the guest's pursuits
+    // on a transient server failure. Only clear once every row actually landed;
+    // a partial failure leaves the store intact and the next load retries
+    // (upserts are idempotent by job_id; manual rows may briefly duplicate on
+    // retry, which beats silent loss).
+    if (results.every((r) => !r?.error)) {
+        clearGuestPursuits();
+    }
     invalidatePursuitsCache();
 }
 
