@@ -14,6 +14,30 @@ import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestion
 
 export const JOBS_INDEX = "jobs";
 
+/**
+ * Curated query synonyms (spec §6.4). Conservative by design: only
+ * unambiguous industry abbreviations. "pm" fans out to both of its common
+ * meanings and lets ranking sort it out. Applied to the live index by
+ * scripts/apply-synonyms.mjs (synonyms-only PUT — no reindex cost);
+ * ⚠ the box-side sync worker holds its own settings copy, so a box
+ * reprovision can wipe these — reconcile there when S1 ships (spec §9).
+ */
+export const JOBS_SYNONYMS: Record<string, string[]> = {
+  swe: ["software engineer"],
+  "software engineer": ["swe"],
+  sre: ["site reliability engineer"],
+  "site reliability engineer": ["sre"],
+  pm: ["product manager", "project manager"],
+  k8s: ["kubernetes"],
+  kubernetes: ["k8s"],
+  ml: ["machine learning"],
+  "machine learning": ["ml"],
+  ux: ["user experience"],
+  qa: ["quality assurance"],
+  hr: ["human resources"],
+  devops: ["dev ops"],
+};
+
 /** Index settings for the jobs index. Applied by the sync worker on (re)provision. */
 export const JOBS_INDEX_SETTINGS = {
   searchableAttributes: ["title", "company", "description", "location", "tags"],
@@ -44,6 +68,7 @@ export const JOBS_INDEX_SETTINGS = {
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
+  synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
   // Facet values must sort by COUNT, not the Meili default (alpha). With alpha,
@@ -180,7 +205,33 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
   return f;
 }
 
-function searchBody(p: JobSearchParams, legacy: boolean) {
+/** Title-first precision pass fields (spec §6.1). `tags` deliberately excluded —
+ *  measured sparse (2026-07-21); `description` is the wide-pass fallback only. */
+export const PRECISION_SEARCH_ATTRIBUTES = ["title", "company"] as const;
+/** Pass-1 result floor below which the wide pass runs. Spec §6.1 default. */
+export const WIDEN_THRESHOLD = 10;
+
+/** Pure widen policy: only a real query can widen (no-query browses are already wide). */
+export function shouldWidenSearch(pass1Total: number, q: string): boolean {
+  return Boolean(q.trim()) && pass1Total < WIDEN_THRESHOLD;
+}
+
+/** Explicit shape so call sites and tests can touch optional fields under tsc. */
+export interface MeiliSearchBody {
+  q: string;
+  filter: string[];
+  facets?: string[];
+  hitsPerPage: number;
+  page: number;
+  sort?: string[];
+  attributesToSearchOn?: string[];
+}
+
+export function buildSearchBody(
+  p: JobSearchParams,
+  legacy: boolean,
+  attributesToSearchOn?: readonly string[],
+): MeiliSearchBody {
   return {
     q: p.q ?? "",
     filter: buildFilter(p, legacy),
@@ -189,10 +240,13 @@ function searchBody(p: JobSearchParams, legacy: boolean) {
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
     sort: buildMeiliSort(p, legacy),
+    ...(attributesToSearchOn ? { attributesToSearchOn: [...attributesToSearchOn] } : {}),
   };
 }
 
-/** Read-path: search the jobs index. */
+/** Read-path: search the jobs index. Two-pass (spec §6.1): a title/company
+ *  precision pass first; if it comes back thin for a real query, one wide
+ *  (description-included) pass, flagged `widened` so the UI can say so. */
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -204,45 +258,57 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       note: "MEILISEARCH_HOST not set",
     };
   }
-  const post = (legacy: boolean) =>
-    meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-      cache: "no-store",
-      body: JSON.stringify(searchBody(p, legacy)),
-    });
 
-  let res = await post(false);
-  if (!res.ok && res.status === 400) {
-    const text = await res.text().catch(() => "");
-    // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
-    // (the settings PATCH + reindex run on the sync box, separately from this
-    // deploy). Retry once without it instead of 400ing every search. Safe to
-    // delete this branch once that reindex has landed.
-    if (/posted_ts/i.test(text)) {
-      console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
-      res = await post(true);
-    } else {
+  const runPass = async (attributesToSearchOn?: readonly string[]): Promise<JobSearchResult> => {
+    const post = (legacy: boolean) =>
+      meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+        cache: "no-store",
+        body: JSON.stringify(buildSearchBody(p, legacy, attributesToSearchOn)),
+      });
+
+    let res = await post(false);
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
+      // (the settings PATCH + reindex run on the sync box, separately from this
+      // deploy). Retry once without it instead of 400ing every search. Safe to
+      // delete this branch once that reindex has landed.
+      if (/posted_ts/i.test(text)) {
+        console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
+        res = await post(true);
+      } else {
+        throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+      }
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
       throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
     }
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
-  }
-  const body = (await res.json()) as {
-    hits: PublicJob[];
-    estimatedTotalHits?: number;
-    totalHits?: number;
-    facetDistribution?: Record<string, Record<string, number>>;
+    const body = (await res.json()) as {
+      hits: PublicJob[];
+      estimatedTotalHits?: number;
+      totalHits?: number;
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: body.hits ?? [],
+      total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
+      backend: "meilisearch",
+      configured: true,
+      facetDistribution: body.facetDistribution as FacetDistribution | undefined,
+    };
   };
-  return {
-    hits: body.hits ?? [],
-    total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
-    backend: "meilisearch",
-    configured: true,
-    facetDistribution: body.facetDistribution as FacetDistribution | undefined,
-  };
+
+  const q = (p.q ?? "").trim();
+  if (!q) return runPass(); // browse mode: already wide, single pass
+  const precise = await runPass(PRECISION_SEARCH_ATTRIBUTES);
+  if (!shouldWidenSearch(precise.total, q)) return precise;
+  const wide = await runPass();
+  // The widened flag is honest signal, not decoration: only claim it when
+  // widening actually surfaced more than the precision pass had.
+  return wide.total > precise.total ? { ...wide, widened: true } : precise;
 }
 
 /** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */

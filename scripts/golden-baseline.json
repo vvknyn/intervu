@@ -1,0 +1,369 @@
+{
+  "note": "after = titles-only precision pass (S1). Observed 2026-07-22: while the box Meili task queue is wedged (2h+ documentAdditionOrUpdate, 400+ enqueued), per-run scores fluctuate transiently (one run scored 0.850 with rows that scored 1.0 minutes later). Re-measure after queue drains. Synonyms enqueued as task 382470, not yet applied at measurement time.",
+  "before": {
+    "generatedAt": "2026-07-22T01:36:44.209Z",
+    "mode": "default",
+    "mean": 0.4375,
+    "perQuery": [
+      {
+        "q": "senior backend engineer",
+        "precisionAt5": 0,
+        "top5": [
+          "Associate Partner Manager | Talkdesk2",
+          "Reliability Maintenance Technician - Doncaster , RME | Amazon",
+          "Field Engineer, Wind MCE | Pearceservices",
+          "Senior Technical Integrator | The Boeing Company",
+          "Oncology Account Manager/Sr. OAM - Memphis, TN | genmab"
+        ]
+      },
+      {
+        "q": "marketing",
+        "precisionAt5": 0.2,
+        "top5": [
+          "Associate Partner Manager | Talkdesk2",
+          "Head of Marketing | Dakota",
+          "Field Engineer, Wind MCE | Pearceservices",
+          "Regulatory Affairs Specialist | GB08 Arch UK Biocides Limited",
+          "Enterprise Associate - Ad Sales | Doordashusa"
+        ]
+      },
+      {
+        "q": "stripe",
+        "precisionAt5": 0.8,
+        "top5": [
+          "Head of Sales, Stripe Billing - APAC | Stripe",
+          "Staff Product Manager, Stripe Apps and Extensibility Platform | Stripe",
+          "Head of Learning & Quality, Stripe Delivery Center | Stripe",
+          "Staff Frontend Engineer, Stripe Dashboard | Stripe",
+          "FOREMAN - SEAL & STRIPE | Bonnessinc"
+        ]
+      },
+      {
+        "q": "product manager remote",
+        "precisionAt5": 0,
+        "top5": [
+          "Head of Marketing | Dakota",
+          "Operations Manager, Global Markets Team | Clinton Health Access Initiative",
+          "Account Executive | Nexhealth",
+          "Principal Account Executive - Egypt | Cyber-Ark Software (UK) Limited",
+          "Senior Product Marketing Manager | Faire"
+        ]
+      },
+      {
+        "q": "data engineer",
+        "precisionAt5": 0.8,
+        "top5": [
+          "External Job Posting Title Senior Systems Architect / Data Engineer | peraton",
+          "Data Engineer (H/F) | ALTEN",
+          "Senior Full stack AI Developer (Python & Angular/React) | Intact Financial Corporation",
+          "Senior Data Engineer | Pattern",
+          "Data Engineer | Kbr"
+        ]
+      },
+      {
+        "q": "frontend developer",
+        "precisionAt5": 1,
+        "top5": [
+          "Angular Frontend Developer | Eurofins",
+          "Angular Frontend Developer | Eurofins",
+          "Senior Frontend Developer - Transaction Management Platform - Latin America (Remote) | Clara",
+          "Frontend Developer | Adree",
+          "Sr. Frontend Developer - Angular| Cleveland, OH | Photon"
+        ]
+      },
+      {
+        "q": "machine learning engineer",
+        "precisionAt5": 0.2,
+        "top5": [
+          "Senior Product Marketing Manager | Faire",
+          "Data Solutions Engineer 3 | NDIN-Adobe Systems India Private Limited",
+          "Director SW Engineering (ML Engineering and Platform) | Palo Alto Networks, Inc.",
+          "Senior Data Engineer | Pattern",
+          "Data Engineer | Kbr"
+        ]
+      },
+      {
+        "q": "devops",
+        "precisionAt5": 1,
+        "top5": [
+          "Senior Software Engineer - DevOps | DevOps",
+          "DevOps Engineer | Averydennison",
+          "DevOps Specialist | TEAMSYSTEM SPA",
+          "DevOps/Automation Software Engineer III | JPMorgan Chase & Co",
+          "DEVOPS & CI/CD PLATFORM ENGINEER - VOIS | vodafone"
+        ]
+      },
+      {
+        "q": "sales development representative",
+        "precisionAt5": 0,
+        "top5": [
+          "Medical Representative (Vlaams-Brabant) | BE08 (FCRS = BE008) Sandoz NV",
+          "Retail Key Holder | W2B Skechers USA Retail, LLC",
+          "Therapeutic Specialist - HBV - Houston, Austin, San Antonio | Gilead",
+          "Retail Sales Associate | W2B Skechers USA Retail, LLC",
+          "Retail Sales Associate | skechers"
+        ]
+      },
+      {
+        "q": "ux designer",
+        "precisionAt5": 1,
+        "top5": [
+          "UX Designer | Modernizing Medicine, Inc.",
+          "UX Designer | Rumble",
+          "UX Designer | Epos",
+          "UX Designer | Google",
+          "UX Designer | Autodesk"
+        ]
+      },
+      {
+        "q": "software engineer new york",
+        "precisionAt5": 0,
+        "top5": [
+          "Associate Partner Manager | Talkdesk2",
+          "Quality Production Spclst (Material Review Board) | The Boeing Company",
+          "Account Executive | Nexhealth",
+          "Principal Account Executive - Egypt | Cyber-Ark Software (UK) Limited",
+          "Accounting Specialist | Carat Colombia S.A.S."
+        ]
+      },
+      {
+        "q": "staff software engineer",
+        "precisionAt5": 0,
+        "top5": [
+          "Occupational Therapy Assistant | (Boulder Post Acute) Mesa Vista Healthcare, LLC.",
+          "Operations Manager, Global Markets Team | Clinton Health Access Initiative",
+          "Nurse Practitioner or Physician Assistant (Far Rockaway / Breezy Point) | Ennoblecare",
+          "Floor Technician-Sky Harbor Terminal 4 | velociti services",
+          "Automotive Technician | TX06 Bridgestone Retail Operations, LLC."
+        ]
+      },
+      {
+        "q": "customer success manager",
+        "precisionAt5": 0,
+        "top5": [
+          "Associate Partner Manager | Talkdesk2",
+          "Quality Production Spclst (Material Review Board) | The Boeing Company",
+          "Service Plumber - Orlando | CoolToday",
+          "Head of Marketing | Dakota",
+          "Reliability Maintenance Technician - Doncaster , RME | Amazon"
+        ]
+      },
+      {
+        "q": "accountant",
+        "precisionAt5": 0,
+        "top5": [
+          "Floor Technician-Sky Harbor Terminal 4 | velociti services",
+          "Bilingual Italian/English Senior Associate (Audit & Tax) | r\u00f6dl usa",
+          "UX/UI Designer | NU USA Northeastern University",
+          "Associate Banker | BMO Bank N.A.",
+          "Therapeutic Specialist - HBV - Houston, Austin, San Antonio | Gilead"
+        ]
+      },
+      {
+        "q": "swe",
+        "precisionAt5": 1,
+        "top5": [
+          "SWE Fellow - Human Frontier Collective (US) | Scaleai",
+          "SWE - Bachelors Pipeline (NCG) | Palo Alto Networks, Inc.",
+          "SWE Infrastructure Specialist (Java) \u2013 Freelance AI Trainer Project | Agency",
+          "SWE-Software Eng & Development | Kla",
+          "Swedish Legal Counsel | Dxctechnology"
+        ]
+      },
+      {
+        "q": "k8s",
+        "precisionAt5": 1,
+        "top5": [
+          "OS / K8s Systems Engineer | Baseten",
+          "Engineering Manager - Python and K8s | Canonical",
+          "Premium Support Engineer - Linux/K8s/German speaking | Suse",
+          "Backend Developer K3s K8s Docker | HALLIBURTON",
+          "Staff Site Reliability Engineer (K8s platform) | Okta"
+        ]
+      }
+    ]
+  },
+  "after": {
+    "generatedAt": "2026-07-22T01:55:21.766Z",
+    "mode": "titles-only",
+    "mean": 0.9875,
+    "perQuery": [
+      {
+        "q": "senior backend engineer",
+        "precisionAt5": 1,
+        "top5": [
+          "Senior Backend Engineer | FIS Management Services LLC",
+          "Senior Backend Engineer | Tebi",
+          "Senior Backend Engineer | Gongio",
+          "Senior Backend Engineer | Vantageanalytics",
+          "Senior Backend Engineer | Ww"
+        ]
+      },
+      {
+        "q": "marketing",
+        "precisionAt5": 1,
+        "top5": [
+          "Marketing Operations Expert \u2013 Japanese speaking | Accenture",
+          "Marketing Manager | Optimadermatologycareers",
+          "Marketing Manager - Product | Cohort",
+          "Marketing Manager, APBC | RA Asia Pac Business Ctr (SGP)",
+          "Marketing Operations Manager | Alphasense"
+        ]
+      },
+      {
+        "q": "stripe",
+        "precisionAt5": 0.8,
+        "top5": [
+          "Head of Sales, Stripe Billing - APAC | Stripe",
+          "Staff Product Manager, Stripe Apps and Extensibility Platform | Stripe",
+          "Head of Learning & Quality, Stripe Delivery Center | Stripe",
+          "Staff Frontend Engineer, Stripe Dashboard | Stripe",
+          "FOREMAN - SEAL & STRIPE | Bonnessinc"
+        ]
+      },
+      {
+        "q": "product manager remote",
+        "precisionAt5": 1,
+        "top5": [
+          "Product Manager (Remote) | Nebula",
+          "Product Manager (Remote) | Decilegroup",
+          "Product Manager (Remote) | icf",
+          "Product Manager (Remote) | RealPage, Inc.",
+          "Product Manager (Remote) | Teaching Strategies"
+        ]
+      },
+      {
+        "q": "data engineer",
+        "precisionAt5": 1,
+        "top5": [
+          "Data Engineer | Kbr",
+          "Data Engineer | Barclays",
+          "Data Engineer | Interworks",
+          "Data Engineer | Crumbl",
+          "Data Engineer | Datatonic"
+        ]
+      },
+      {
+        "q": "frontend developer",
+        "precisionAt5": 1,
+        "top5": [
+          "Frontend Developer | Adree",
+          "Frontend developer | DHL eCommerce (Netherlands) B.V.",
+          "Frontend Developer | Freeday",
+          "Frontend Developer | sajoom.zohorecruit.com",
+          "Frontend Developer | Mayflower"
+        ]
+      },
+      {
+        "q": "machine learning engineer",
+        "precisionAt5": 1,
+        "top5": [
+          "Machine Learning Engineer | Arena",
+          "Machine Learning Engineer | Covar",
+          "Machine Learning Engineer | Devsinc 17",
+          "Machine Learning Engineer | Radformation",
+          "Machine Learning Engineer | Physicsx"
+        ]
+      },
+      {
+        "q": "devops",
+        "precisionAt5": 1,
+        "top5": [
+          "Senior Software Engineer - DevOps | DevOps",
+          "DevOps Engineer | Averydennison",
+          "DevOps Specialist | TEAMSYSTEM SPA",
+          "DevOps/Automation Software Engineer III | JPMorgan Chase & Co",
+          "DEVOPS & CI/CD PLATFORM ENGINEER - VOIS | vodafone"
+        ]
+      },
+      {
+        "q": "sales development representative",
+        "precisionAt5": 1,
+        "top5": [
+          "Sales Development Representative | hpe",
+          "Sales Development Representative | Savills",
+          "French-Speaking Sales Development Representative (SDR) - SaaS / IT | Huzzle",
+          "Sales Development Representative | Cloudflare",
+          "Sales Development Representative - Health | Huzzle"
+        ]
+      },
+      {
+        "q": "ux designer",
+        "precisionAt5": 1,
+        "top5": [
+          "UX Designer | Modernizing Medicine, Inc.",
+          "UX Designer | Rumble",
+          "UX Designer | Epos",
+          "UX Designer | Google",
+          "UX Designer | Autodesk"
+        ]
+      },
+      {
+        "q": "software engineer new york",
+        "precisionAt5": 1,
+        "top5": [
+          "Software Engineer, Backend (New-York) | Mistral",
+          "Senior Software Engineer | RFCUNY Research Foundation of the City University of New York",
+          "Software Engineer | vero insurance new zealand",
+          "Software Engineer (.NET / React) | New Como Ltd",
+          "Senior Software Engineer | vero insurance new zealand"
+        ]
+      },
+      {
+        "q": "staff software engineer",
+        "precisionAt5": 1,
+        "top5": [
+          "Staff Software Engineer | Ontra",
+          "Staff Software Engineer | Tabs",
+          "Staff Software Engineer | CBA Services Private Limited",
+          "Staff Software Engineer | Check",
+          "Staff Software Engineer | Henry Schein One LLC"
+        ]
+      },
+      {
+        "q": "customer success manager",
+        "precisionAt5": 1,
+        "top5": [
+          "Customer Success Manager - Colombia | Insiderone",
+          "Customer Success Manager | MD Integrations",
+          "Customer Success Manager | Openloophealth",
+          "Customer Success Manager | NextPatient",
+          "Customer Success Manager, Japan | Monotype"
+        ]
+      },
+      {
+        "q": "accountant",
+        "precisionAt5": 1,
+        "top5": [
+          "Accountant | Axos Business Center, Corp",
+          "Accountant | Advocates",
+          "Accountant | T-Mobile USA, Inc.",
+          "Accountant | Velocityelectronics",
+          "Accountant | Pavago"
+        ]
+      },
+      {
+        "q": "swe",
+        "precisionAt5": 1,
+        "top5": [
+          "SWE Fellow - Human Frontier Collective (US) | Scaleai",
+          "SWE - Bachelors Pipeline (NCG) | Palo Alto Networks, Inc.",
+          "SWE Infrastructure Specialist (Java) \u2013 Freelance AI Trainer Project | Agency",
+          "SWE-Software Eng & Development | Kla",
+          "SWE - Distributed | Achira"
+        ]
+      },
+      {
+        "q": "k8s",
+        "precisionAt5": 1,
+        "top5": [
+          "OS / K8s Systems Engineer | Baseten",
+          "Engineering Manager - Python and K8s | Canonical",
+          "Premium Support Engineer - Linux/K8s/German speaking | Suse",
+          "Backend Developer K3s K8s Docker | HALLIBURTON",
+          "Staff Site Reliability Engineer (K8s platform) | Okta"
+        ]
+      }
+    ]
+  }
+}

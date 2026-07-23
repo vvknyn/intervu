@@ -2724,6 +2724,11 @@ function JobsContent() {
                         {fitActive ? " · ranked by fit" : sortCountSuffix(effectiveSort, hasQuery)}
                     </span>
                 )}
+                {!loading && result?.widened && (
+                    <span className="text-xs text-muted-foreground" data-testid="widened-note">
+                        Few exact title matches — also showing broader matches.
+                    </span>
+                )}
                 {lastUpdated !== undefined && (
                     <span
                         className="text-xs tabular-nums text-muted-foreground data-[stale=true]:text-amber-600 dark:data-[stale=true]:text-amber-400"
