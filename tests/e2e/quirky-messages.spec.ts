@@ -37,18 +37,18 @@ test.describe('COPY - Quirky Messages Tests', () => {
   });
 
   /**
-   * TC-COPY-002: Applications login required page shows quirky heading
+   * TC-COPY-002: Yours login required page shows quirky heading
    *
-   * When visiting /applications as a guest, the login required screen
+   * When visiting /yours as a guest, the login required screen
    * should display the quirky heading from LOGIN_REQUIRED.applications.
    */
-  test('TC-COPY-002: Applications login required shows quirky heading', async ({ page }) => {
+  test('TC-COPY-002: Yours login required shows quirky heading', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();
     });
 
-    await page.goto('/applications');
+    await page.goto('/yours');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 

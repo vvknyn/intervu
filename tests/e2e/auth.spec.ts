@@ -135,9 +135,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/resume-builder');
     await expect(page).toHaveURL('/resume-builder');
 
-    // Can access applications without auth
-    await page.goto('/applications');
-    await expect(page).toHaveURL('/applications');
+    // Can access yours without auth
+    await page.goto('/yours');
+    await expect(page).toHaveURL('/yours');
 
     // Can access settings without auth
     await page.goto('/settings');

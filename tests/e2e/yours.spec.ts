@@ -1,0 +1,176 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * TEST GROUP: YOURS - Pursuit List & Detail Tests
+ *
+ * Replaces applications.spec.ts (jobs-first-bloom PR 2, spec §4/§5): the
+ * kanban status-grid tracker at /applications is gone — /applications 301s
+ * to /yours, a next-action-first list of "pursuits" (src/app/yours/page.tsx,
+ * src/app/yours/[id]/page.tsx). No auth wall: guests write pursuits to
+ * localStorage (`intervu.pursuits.guest`, src/lib/pursuits/guest-store.ts)
+ * and see them the same as a signed-in user reading Firestore — these tests
+ * exercise the guest path since no login fixture exists in this suite.
+ */
+
+/** A minimal, valid guest pursuit matching `Pursuit` (src/lib/pursuits/types.ts). */
+function seedGuestPursuit(overrides: Partial<Record<string, unknown>> = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: 'guest-e2e-1',
+    user_id: 'guest',
+    company_name: 'Acme Corp',
+    position: 'Staff Engineer',
+    status: 'interested',
+    job_id: 'job-e2e-1',
+    job_snapshot: {
+      title: 'Staff Engineer',
+      company: 'Acme Corp',
+      location: 'Remote',
+      description: 'Build things.',
+      apply_url: 'https://example.com/jobs/1',
+    },
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+
+test.describe('YOURS - Redirect', () => {
+  test('TC-YOURS-000: /applications redirects to /yours', async ({ page }) => {
+    await page.goto('/applications');
+    await expect(page).toHaveURL('/yours');
+  });
+
+  test('TC-YOURS-000b: /applications?view=new preserves the query param through the redirect', async ({ page }) => {
+    await page.goto('/applications?view=new');
+    await expect(page).toHaveURL('/yours?view=new');
+  });
+});
+
+test.describe('YOURS - Guest, no pursuits', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+  });
+
+  /**
+   * TC-YOURS-001: Yours page loads
+   */
+  test('TC-YOURS-001: Yours page loads', async ({ page }) => {
+    await page.goto('/yours');
+    await expect(page).toHaveURL('/yours');
+    await expect(page.locator('h1:has-text("Yours")')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=404')).not.toBeVisible();
+  });
+
+  /**
+   * TC-YOURS-002: Guest with nothing local sees a login prompt, not an empty list
+   */
+  test('TC-YOURS-002: Guest empty state shows a login prompt', async ({ page }) => {
+    await page.goto('/yours');
+    await expect(page.getByTestId('yours-guest-empty')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+  });
+
+  /**
+   * TC-YOURS-003: TopBar "Yours" link is hidden until a pursuit exists
+   * (visibility-iff-data, spec §2 — no flags, the shared hook decides).
+   */
+  test('TC-YOURS-003: TopBar Yours link is hidden with zero pursuits', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('topbar-yours')).not.toBeVisible();
+  });
+
+  /**
+   * TC-YOURS-004: A bogus pursuit id shows the not-found state, not a crash
+   */
+  test('TC-YOURS-004: Unknown pursuit id shows not-found', async ({ page }) => {
+    await page.goto('/yours/does-not-exist');
+    await expect(page.getByTestId('pursuit-not-found')).toBeVisible({ timeout: 10000 });
+  });
+});
+
+test.describe('YOURS - Guest, one seeded pursuit', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate((seed) => {
+      localStorage.clear();
+      localStorage.setItem('intervu.pursuits.guest', JSON.stringify([seed]));
+    }, seedGuestPursuit());
+  });
+
+  /**
+   * TC-YOURS-005: Seeded pursuit renders as a next-action row
+   */
+  test('TC-YOURS-005: Pursuit row shows company, role, and next action', async ({ page }) => {
+    await page.goto('/yours');
+    const row = page.getByTestId('pursuit-row').first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await expect(row).toContainText('Acme Corp');
+    await expect(row).toContainText('Staff Engineer');
+    await expect(row).toContainText('Tailor your resume to this role');
+  });
+
+  /**
+   * TC-YOURS-006: TopBar "Yours" link appears once a pursuit exists
+   */
+  test('TC-YOURS-006: TopBar Yours link appears with a pursuit present', async ({ page }) => {
+    await page.goto('/');
+    const link = page.getByTestId('topbar-yours');
+    await expect(link).toBeVisible({ timeout: 10000 });
+    await expect(link).toHaveAttribute('href', '/yours');
+  });
+
+  /**
+   * TC-YOURS-007: Clicking a row opens the pursuit detail page
+   */
+  test('TC-YOURS-007: Row click navigates to the pursuit detail page', async ({ page }) => {
+    await page.goto('/yours');
+    await page.getByTestId('pursuit-row').first().click();
+    await expect(page).toHaveURL('/yours/guest-e2e-1');
+    await expect(page.getByTestId('pursuit-stage')).toBeVisible({ timeout: 10000 });
+  });
+
+  /**
+   * TC-YOURS-008: "Add manually" reaches the existing application wizard
+   */
+  test('TC-YOURS-008: Add manually opens the wizard', async ({ page }) => {
+    await page.goto('/yours');
+    await page.getByRole('button', { name: /add manually/i }).click();
+    await expect(page).toHaveURL('/yours?view=new');
+    await expect(page.locator('h2:has-text("Job Details")')).toBeVisible({ timeout: 10000 });
+  });
+
+  /**
+   * TC-YOURS-009: An ended pursuit (rejected/withdrawn) renders dimmed under
+   * an "Ended" divider, never in red (spec §3/§5).
+   */
+  test('TC-YOURS-009: Ended pursuit sorts under the Ended divider', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate((seed) => {
+      localStorage.setItem(
+        'intervu.pursuits.guest',
+        JSON.stringify([seed, { ...seed, id: 'guest-e2e-2', company_name: 'Old Co', status: 'rejected' }]),
+      );
+    }, seedGuestPursuit());
+
+    await page.goto('/yours');
+    await expect(page.locator('text=Ended')).toBeVisible({ timeout: 10000 });
+    const rows = page.getByTestId('pursuit-row');
+    await expect(rows).toHaveCount(2);
+    // Ended row renders after the active one.
+    await expect(rows.last()).toContainText('Old Co');
+  });
+});
+
+test.describe('YOURS - Mobile', () => {
+  test('TC-YOURS-010: Yours page is usable on mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('/yours');
+
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('text=404')).not.toBeVisible();
+  });
+});

@@ -76,7 +76,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * Verifies all main pages can be scrolled vertically.
    */
   test('TC-MOBILE-004: All pages are scrollable on mobile', async ({ page }) => {
-    const pages = ['/', '/resume-builder', '/resume-tailor', '/applications', '/settings'];
+    const pages = ['/', '/resume-builder', '/resume-tailor', '/yours', '/settings'];
 
     for (const p of pages) {
       await page.goto(p);
@@ -131,7 +131,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * Verifies modals display correctly on mobile viewport.
    */
   test('TC-MOBILE-007: Modals are mobile-friendly', async ({ page }) => {
-    await page.goto('/applications');
+    await page.goto('/yours');
 
     // Open add modal
     const addButton = page.locator('button:has-text("Add"), button:has-text("Track"), button:has-text("New")').first();

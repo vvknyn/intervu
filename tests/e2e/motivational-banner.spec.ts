@@ -31,19 +31,19 @@ test.describe('BANNER - Motivational Banner Tests', () => {
   });
 
   /**
-   * TC-BANNER-002: Banner appears on applications page
+   * TC-BANNER-002: Banner appears on yours page
    */
-  test('TC-BANNER-002: Banner appears on applications page', async ({ page }) => {
+  test('TC-BANNER-002: Banner appears on yours page', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'test-key-123' }));
     });
 
-    await page.goto('/applications');
+    await page.goto('/yours');
     await page.waitForLoadState('networkidle');
 
     // Verify page loads without errors
-    await expect(page.locator('text=Applications')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Yours')).toBeVisible({ timeout: 10000 });
   });
 
   /**

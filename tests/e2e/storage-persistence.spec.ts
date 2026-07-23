@@ -35,8 +35,8 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
         const keys = await page.evaluate(() => localStorage.getItem('guest_api_keys'));
         expect(keys).toContain('gsk_test_key_abc123');
 
-        // Navigate to applications
-        await page.goto('/applications');
+        // Navigate to yours
+        await page.goto('/yours');
         await page.waitForLoadState('networkidle');
 
         const keys2 = await page.evaluate(() => localStorage.getItem('guest_api_keys'));
@@ -69,7 +69,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
         const theme2 = await page.evaluate(() => localStorage.getItem('interview-os-theme'));
         expect(theme2).toBe('dark');
 
-        await page.goto('/applications');
+        await page.goto('/yours');
         const theme3 = await page.evaluate(() => localStorage.getItem('interview-os-theme'));
         expect(theme3).toBe('dark');
     });

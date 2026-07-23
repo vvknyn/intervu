@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  * Tests all navigation paths and page accessibility across the application.
  * Post-flip (jobs-first-bloom PR 1): `/` is jobs search, `/prep` is interview
  * prep, and the old 6-item sidebar is gone — nav destinations (Prep, Resumes,
- * Applications, Library, Settings) live in the signed-in avatar's dropdown
+ * Yours, Library, Settings) live in the signed-in avatar's dropdown
  * menu (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
  * default state in these tests, no login fixture here — only see the
  * wordmark, "All jobs" (data-testid="topbar-alljobs"), and "Log in"
@@ -57,19 +57,19 @@ test.describe('NAV - Navigation Tests', () => {
   });
 
   /**
-   * TC-NAV-003: Navigate to Applications via avatar menu
+   * TC-NAV-003: Navigate to Yours via avatar menu
    *
-   * Opens the signed-in avatar dropdown and clicks Applications.
+   * Opens the signed-in avatar dropdown and clicks Yours.
    * No-ops when signed out.
    */
-  test('TC-NAV-003: Navigate to Applications via avatar menu', async ({ page }) => {
+  test('TC-NAV-003: Navigate to Yours via avatar menu', async ({ page }) => {
     await page.goto('/');
 
     const avatar = page.getByTestId('topbar-avatar');
     if (await avatar.isVisible()) {
       await avatar.click();
-      await page.getByRole('menuitem', { name: 'Applications' }).click();
-      await expect(page).toHaveURL('/applications');
+      await page.getByRole('menuitem', { name: 'Yours' }).click();
+      await expect(page).toHaveURL('/yours');
     }
   });
 
@@ -155,7 +155,7 @@ test.describe('NAV - Navigation Tests', () => {
       { url: '/prep', title: 'Intervu' },
       { url: '/resume-builder', title: 'Resume' },
       { url: '/resume-tailor', title: 'Tailor' },
-      { url: '/applications', title: 'Application' },
+      { url: '/yours', title: 'Yours' },
       { url: '/settings', title: 'Settings' },
     ];
 
