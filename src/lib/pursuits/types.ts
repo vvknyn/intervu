@@ -94,6 +94,27 @@ export function hasReachedStage(p: Pursuit, stage: PursuitStage): boolean {
     return stageRank(p.status) >= stageRank(stage);
 }
 
+/** The current stage, in words — /yours is typography, not badges (spec §2,
+ *  §5: "no pill confetti, no badges... Status is typography"). */
+export function stageLabel(p: Pursuit): string {
+    switch (p.status) {
+        case "interested":
+            return "Interested";
+        case "resume_ready":
+            return "Resume ready";
+        case "applied":
+            return "Applied";
+        case "interviewing":
+            return p.interview_date ? "Interview scheduled" : "Interviewing";
+        case "offer":
+            return "Offer";
+        case "rejected":
+            return "Not moving forward";
+        case "withdrawn":
+            return "Withdrawn";
+    }
+}
+
 /** The one next step a pursuit's stage implies — never three tool offers at
  *  once (spec §3 "stage choreography"). Pure map, no I/O. */
 export function nextAction(

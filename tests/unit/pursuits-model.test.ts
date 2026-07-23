@@ -8,6 +8,8 @@ import {
     buildJobSnapshot,
     hasReachedStage,
     stageRank,
+    stageLabel,
+    PURSUIT_STAGES,
     type Pursuit,
     type PursuitStage,
 } from "../../src/lib/pursuits/types";
@@ -160,6 +162,16 @@ test("mergeGuestPursuit fills a missing snapshot/interview_date from guest witho
     });
     const merged2 = mergeGuestPursuit(existingWithSnapshot, guestWithSnapshot);
     assert.equal(merged2.job_snapshot?.title, "Original", "existing snapshot is not clobbered by a redundant guest one");
+});
+
+/* --------------------------------- stageLabel --------------------------------- */
+
+test("stageLabel returns a non-empty word for every stage, no raw enum leaking through", () => {
+    for (const status of PURSUIT_STAGES) {
+        const label = stageLabel(makePursuit({ status }));
+        assert.ok(label.length > 0, status);
+        assert.notEqual(label, status, `"${status}" should be rendered as words, not the raw enum value`);
+    }
 });
 
 /* --------------------------------- buildJobSnapshot --------------------------------- */
