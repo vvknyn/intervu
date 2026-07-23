@@ -9,19 +9,19 @@ import { test, expect } from '@playwright/test';
 
 test.describe('COPY - Quirky Messages Tests', () => {
   /**
-   * TC-COPY-001: Library login required page shows quirky heading
+   * TC-COPY-001: Stories login required page shows quirky heading
    *
-   * When visiting /library as a guest, the login required screen
-   * should display the quirky heading from LOGIN_REQUIRED.library.
+   * When visiting /stories as a guest, the login required screen
+   * should display the quirky heading from LOGIN_REQUIRED.stories.
    */
-  test('TC-COPY-001: Library login required shows quirky heading', async ({ page }) => {
+  test('TC-COPY-001: Stories login required shows quirky heading', async ({ page }) => {
     // Clear auth state to ensure guest mode
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();
     });
 
-    await page.goto('/library');
+    await page.goto('/stories');
     await page.waitForLoadState('networkidle');
 
     // Should show the quirky heading "Your stories need a home"

@@ -82,6 +82,13 @@ const nextConfig: NextConfig = {
         destination: "/yours",
         permanent: true,
       },
+      // Library folded into Stories (jobs-first-bloom PR 3). Query params
+      // (e.g. ?tab=sources) pass through automatically.
+      {
+        source: "/library",
+        destination: "/stories",
+        permanent: true,
+      },
     ];
   },
 };

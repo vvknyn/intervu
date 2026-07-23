@@ -78,7 +78,7 @@ const NAV_DESTINATIONS = [
     { label: "Prep", href: "/prep" },
     { label: "Resumes", href: "/resume-builder" },
     { label: "Yours", href: "/yours" },
-    { label: "Library", href: "/library" },
+    { label: "Stories", href: "/stories" },
     { label: "Settings", href: "/settings" },
 ];
 

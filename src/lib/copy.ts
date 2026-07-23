@@ -145,10 +145,10 @@ export const CONFIRM_CLOSE = {
 };
 
 // ---------------------------------------------------------------------------
-// Login Required screens (library, applications)
+// Login Required screens (stories, applications)
 // ---------------------------------------------------------------------------
 export const LOGIN_REQUIRED = {
-    library: {
+    stories: {
         headings: [
             "Your stories need a home",
             "STAR stories without a login? That's just talking to yourself",

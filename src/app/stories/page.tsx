@@ -18,18 +18,18 @@ import { fetchProfile } from "@/actions/profile";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 
-function LibraryLoading() {
+function StoriesLoading() {
     return (
         <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
                 <div className="w-8 h-8 border-2 border-brand/20 border-t-brand rounded-full animate-spin" />
-                <p className="text-muted-foreground text-sm">Loading library...</p>
+                <p className="text-muted-foreground text-sm">Loading stories...</p>
             </div>
         </div>
     );
 }
 
-function LibraryContent() {
+function StoriesContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -83,7 +83,7 @@ function LibraryContent() {
                 const { data: sourcesData } = await fetchSources();
                 if (sourcesData) setSources(sourcesData);
             } catch (e) {
-                console.error("Failed to load library data", e);
+                console.error("Failed to load stories data", e);
             } finally {
                 setLoading(false);
             }
@@ -114,7 +114,7 @@ function LibraryContent() {
             <PageLayout
                 header={
                     <PageHeader
-                        title="Library"
+                        title="Stories"
                     />
                 }
             >
@@ -123,10 +123,10 @@ function LibraryContent() {
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H56V56H216V200ZM184,80a8,8,0,0,1,8-8h0a8,8,0,0,1,8,8v64a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8ZM80,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,96Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,128Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,160Z"></path></svg>
                     </div>
                     <h2 className="text-xl font-semibold tracking-tight mb-2">
-                        {pickRandom(LOGIN_REQUIRED.library.headings)}
+                        {pickRandom(LOGIN_REQUIRED.stories.headings)}
                     </h2>
                     <p className="text-muted-foreground max-w-[400px] mb-8 text-sm">
-                        {pickRandom(LOGIN_REQUIRED.library.subtexts)}
+                        {pickRandom(LOGIN_REQUIRED.stories.subtexts)}
                     </p>
 
                     <Button
@@ -148,7 +148,7 @@ function LibraryContent() {
         <PageLayout
             header={
                 <PageHeader
-                    title="Library"
+                    title="Stories"
                     actions={
                         <>
                             <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
@@ -187,10 +187,10 @@ function LibraryContent() {
     );
 }
 
-export default function LibraryPage() {
+export default function StoriesPage() {
     return (
-        <Suspense fallback={<LibraryLoading />}>
-            <LibraryContent />
+        <Suspense fallback={<StoriesLoading />}>
+            <StoriesContent />
         </Suspense>
     );
 }
