@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { FitIntentGuard } from '../../src/lib/jobs/fit-intent';
 
-// Review fix (2026-07-18): `handleRankByFit` (src/app/jobs/page.tsx) awaits
+// Review fix (2026-07-18): `handleRankByFit` (src/app/page.tsx) awaits
 // an async résumé fetch before applying fit. Without this guard, picking a
 // different sort — or fit again — mid-fetch let a stale résumé fetch
 // silently overwrite the user's newer choice once it resolved late.

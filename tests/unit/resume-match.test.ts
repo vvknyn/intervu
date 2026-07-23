@@ -133,7 +133,7 @@ describe('buildExploreBroadenQuery', () => {
     });
 });
 
-// Explore is auth-gated (src/app/jobs/page.tsx's `runExplore`), so its
+// Explore is auth-gated (src/app/page.tsx's `runExplore`), so its
 // success/error branching can't be exercised by an anonymous browser check —
 // this pure extraction is what makes the class of bug in the prod screenshot
 // (infinite "Finding live roles…" spinner) verifiable at all: `settled: null`

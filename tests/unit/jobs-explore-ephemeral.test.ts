@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 /**
  * "Grep-proof" class-fix regression test for Explore's URL contract in
- * src/app/jobs/page.tsx (design decision, 2026-07-21 review).
+ * src/app/page.tsx (design decision, 2026-07-21 review).
  *
  * Two proven bugs in the prior design (persisting Explore's derived query to
  * the URL): (1) the write was gated on `fitActiveRef.current`, so the COMMON
@@ -29,7 +29,7 @@ import { join } from "node:path";
  * that make the design hold, reading the actual page.tsx source — same
  * methodology as tests/unit/jobs-upload-continuation.test.ts.
  */
-const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "../../src/app/page.tsx"), "utf8");
 
 function section(startMarker: string, endMarker: string): string {
     const start = SOURCE.indexOf(startMarker);

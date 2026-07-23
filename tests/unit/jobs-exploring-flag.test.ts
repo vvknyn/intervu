@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 /**
  * "Grep-proof" class-fix regression test for the Explore spinner/disabled-
- * state in src/app/jobs/page.tsx.
+ * state in src/app/page.tsx.
  *
  * Bug: `exploring` was raw state, set/cleared ONLY inside `runExplore`'s own
  * `finally`. But `applyFit`, `enterBrowse`/`enterBrowseAndSync`, `startOver`,
@@ -20,7 +20,7 @@ import { join } from "node:path";
  * uses source-text assertions for page.tsx's un-exported closures (no
  * component-render test harness).
  */
-const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "../../src/app/page.tsx"), "utf8");
 
 test("exploring is derived from exploreIntentRef's current generation, not raw state read directly", () => {
     assert.match(

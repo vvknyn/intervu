@@ -84,7 +84,7 @@ test("urlSortToMode maps salary to salary_desc and passes fit through", () => {
 // never linger, claimed by the URL, once the chip is dismissed. (Explore
 // taking over the query used to share this too — it no longer does: Explore
 // is ephemeral, non-URL state as of the 2026-07-21 design decision, see
-// `activateExplore`'s doc comment in src/app/jobs/page.tsx.)
+// `activateExplore`'s doc comment in src/app/page.tsx.)
 test("withSortCleared strips sort while preserving every other field", () => {
     const s = {
         ...DEFAULT_URL_STATE,
