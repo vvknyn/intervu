@@ -157,8 +157,16 @@ export default function PursuitDetailPage() {
 
                     {action.kind === "prep" && (
                         <Button asChild className="gap-2">
+                            {/* `round` is required for DashboardContainer's URL-restore
+                                gate to load into a session (see its `urlCompany && urlPosition
+                                && urlRound && urlSearched` check) — a pursuit doesn't track a
+                                round, so this defaults it the same way the job-detail "Prep for
+                                this" entry point does (src/app/page.tsx `handlePrep`).
+                                `pursuitId` is jobs-first-bloom PR3 §3 stage wiring: it's what
+                                lets DashboardContainer mirror this session durably onto the
+                                pursuit and stamp `last_prepped_at`. */}
                             <Link
-                                href={`/prep?company=${encodeURIComponent(pursuit.company_name)}&position=${encodeURIComponent(pursuit.position)}&searched=true`}
+                                href={`/prep?company=${encodeURIComponent(pursuit.company_name)}&position=${encodeURIComponent(pursuit.position)}&round=Technical&searched=true&pursuitId=${encodeURIComponent(pursuit.id)}`}
                             >
                                 <Lightning size={16} weight="fill" />
                                 {action.label}

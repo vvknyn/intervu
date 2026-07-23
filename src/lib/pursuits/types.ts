@@ -16,6 +16,7 @@
  */
 
 import type { PublicJob } from "@/lib/jobs/types";
+import { formatRelativeAge } from "@/lib/jobs/freshness";
 
 /**
  * Ordered least → most advanced. `rejected`/`withdrawn` sort last by design:
@@ -62,6 +63,20 @@ export function buildJobSnapshot(job: PublicJob): JobSnapshot {
     };
 }
 
+/** Snapshot for a pursuit created from the search seed line (spec §3
+ *  "outside interviews") — typed company/role only, no live listing behind
+ *  it. Mirrors `buildJobSnapshot`'s shape so tailor/prep read either kind of
+ *  pursuit identically. */
+export function buildManualPursuitSnapshot(company: string, position: string): JobSnapshot {
+    return {
+        title: position,
+        company,
+        location: null,
+        description: null,
+        apply_url: "",
+    };
+}
+
 export interface Pursuit {
     id: string;
     company_name: string;
@@ -81,6 +96,10 @@ export interface Pursuit {
     job_id?: string | null;
     job_snapshot?: JobSnapshot | null;
     interview_date?: string;
+    /** ISO timestamp of the most recent prep session run against this
+     *  pursuit (spec §3 stage 4) — set by `recordPursuitPrepVisit`
+     *  (actions/pursuit-prep.ts), read back by `stageLabel` below. */
+    last_prepped_at?: string;
 }
 
 /** `rejected` | `withdrawn` render as a dimmed "Ended" — data keeps its
@@ -95,8 +114,10 @@ export function hasReachedStage(p: Pursuit, stage: PursuitStage): boolean {
 }
 
 /** The current stage, in words — /yours is typography, not badges (spec §2,
- *  §5: "no pill confetti, no badges... Status is typography"). */
-export function stageLabel(p: Pursuit): string {
+ *  §5: "no pill confetti, no badges... Status is typography"). `nowMs`
+ *  defaults to `Date.now()` but is overridable so this stays a pure,
+ *  unit-testable function despite rendering a relative "prepped Nd ago". */
+export function stageLabel(p: Pursuit, nowMs: number = Date.now()): string {
     switch (p.status) {
         case "interested":
             return "Interested";
@@ -104,8 +125,10 @@ export function stageLabel(p: Pursuit): string {
             return "Resume ready";
         case "applied":
             return "Applied";
-        case "interviewing":
-            return p.interview_date ? "Interview scheduled" : "Interviewing";
+        case "interviewing": {
+            const base = p.interview_date ? "Interview scheduled" : "Interviewing";
+            return p.last_prepped_at ? `${base} — prepped ${formatRelativeAge(p.last_prepped_at, nowMs)}` : base;
+        }
         case "offer":
             return "Offer";
         case "rejected":

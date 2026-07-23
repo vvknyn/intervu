@@ -10,6 +10,8 @@ import {
   isRevealGenerationFailure,
   resolveSessionJobContext,
   sessionJobContextText,
+  pickNewerSessionState,
+  type PrepSessionState,
 } from "../../src/lib/prep/session-progress";
 import { buildPrepJobContextFromLegacy } from "../../src/lib/prep/job-context";
 
@@ -433,5 +435,43 @@ describe("resolveSessionJobContext", () => {
     assert.equal(restored.content.originalJd, undefined);
     assert.equal(sessionJobContextText(state), "");
     assert.equal(restored.interview.sessionMode, "learn");
+  });
+});
+
+/* --------------------------------- pickNewerSessionState --------------------------------- */
+// Durable-prep recency decision (jobs-first bloom PR3, spec §3) — the pure
+// merge rule `lib/prep/pursuit-prep-sync.ts` hydrates from. See that file's
+// own doc comment for why the I/O stays there and this stays here.
+
+function stateAt(updatedAt: string): PrepSessionState {
+  return { ...startSession("learn"), updatedAt };
+}
+
+describe("pickNewerSessionState", () => {
+  it("returns server when local is absent", () => {
+    const server = stateAt("2026-07-20T00:00:00.000Z");
+    assert.equal(pickNewerSessionState(null, server), server);
+  });
+
+  it("returns null when both are absent", () => {
+    assert.equal(pickNewerSessionState(null, null), null);
+  });
+
+  it("returns local when server is absent", () => {
+    const local = stateAt("2026-07-20T00:00:00.000Z");
+    assert.equal(pickNewerSessionState(local, null), local);
+  });
+
+  it("picks whichever side has the newer updatedAt", () => {
+    const older = stateAt("2026-07-19T00:00:00.000Z");
+    const newer = stateAt("2026-07-20T00:00:00.000Z");
+    assert.equal(pickNewerSessionState(older, newer), newer, "newer server copy wins");
+    assert.equal(pickNewerSessionState(newer, older), newer, "newer local copy wins");
+  });
+
+  it("a tie goes to the server copy", () => {
+    const local = stateAt("2026-07-20T00:00:00.000Z");
+    const server = stateAt("2026-07-20T00:00:00.000Z");
+    assert.equal(pickNewerSessionState(local, server), server);
   });
 });

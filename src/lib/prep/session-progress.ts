@@ -408,3 +408,22 @@ export function parseSessionState(raw: string): PrepSessionState | null {
     return null;
   }
 }
+
+/**
+ * Durable-prep recency decision (jobs-first bloom PR3, spec §3): given the
+ * fast localStorage copy and the pursuit's durable server copy of the same
+ * session, pick the one to hydrate from. Either side may be absent (a new
+ * device has no local copy; a session with no pursuit context has no server
+ * copy) — presence alone decides those cases. When both exist, the newer
+ * `updatedAt` wins; a tie favors the server copy ("server wins when newer").
+ * Pure — the actual localStorage/Firestore I/O lives in
+ * `lib/prep/pursuit-prep-sync.ts`, which is the only caller.
+ */
+export function pickNewerSessionState(
+  local: PrepSessionState | null,
+  server: PrepSessionState | null,
+): PrepSessionState | null {
+  if (!local) return server;
+  if (!server) return local;
+  return Date.parse(server.updatedAt) >= Date.parse(local.updatedAt) ? server : local;
+}

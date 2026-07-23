@@ -36,7 +36,6 @@ import { listCachedPlans, listResumableSessions, getPreferredView, setPreferredV
 import type { PrepSessionMode } from "@/lib/prep/session-progress";
 import {
     prepSessionReducer,
-    serializeSessionState,
     parseSessionState,
     sessionStorageKey,
     resolveSessionJobContext,
@@ -54,6 +53,7 @@ import {
     type PendingPrepStartPayload,
     type PendingPrepState,
 } from "@/lib/prep/pending-prep-actions";
+import { loadPrepProgress, savePrepProgress, markPursuitPrepVisited } from "@/lib/prep/pursuit-prep-sync";
 import { PrepLanding } from "@/components/prep/PrepLanding";
 import { PrepSetupFlow } from "@/components/prep/PrepSetupFlow";
 import { PrepModeSelection, type PrepEntitlement } from "@/components/prep/PrepModeSelection";
@@ -152,6 +152,14 @@ export function DashboardContainer() {
     const [prepEntitlement, setPrepEntitlement] = useState<PrepEntitlement | null>(null);
     const [prepEntitlementLoading, setPrepEntitlementLoading] = useState(false);
     const [activePlanCacheKey, setActivePlanCacheKey] = useState<string | null>(null);
+    // The pursuit this prep session durably mirrors onto (jobs-first-bloom PR3
+    // §3 — /yours/[id]'s "Prep for this interview" link). Only ever set from
+    // the `pursuitId` URL param; cleared for any entry point that doesn't
+    // carry pursuit context (clean landing, opening a cached plan / resuming
+    // a session from the landing list — neither tracks a pursuitId) so a
+    // stale id from a PRIOR pursuit-linked visit can never leak into an
+    // unrelated session's durable-sync writes.
+    const [pursuitId, setPursuitId] = useState<string | null>(null);
     const [prepSessionState, setPrepSessionState] = useState<PrepSessionState | null>(null);
     const [prepSummarySnapshot, setPrepSummarySnapshot] = useState<{
         summary: PrepSessionSummary;
@@ -561,6 +569,7 @@ export function DashboardContainer() {
             const urlPosition = searchParams.get('position');
             const urlRound = searchParams.get('round');
             const urlSearched = searchParams.get('searched');
+            const urlPursuitId = searchParams.get('pursuitId');
             const isCleanHome = searchParams.toString() === '';
 
             // If navigating to clean "/" (Home), reset to home view
@@ -568,6 +577,7 @@ export function DashboardContainer() {
                 setHasSearched(false);
                 setPrepPhase("landing");
                 setShowSearchPlans(false);
+                setPursuitId(null);
             }
 
             // Restore dashboard state from localStorage (only on clean home with no URL override)
@@ -595,6 +605,7 @@ export function DashboardContainer() {
                 setSearchQuery(`${urlCompany}, ${urlPosition}, ${urlRound}`);
                 setHasSearched(true);
                 setPrepPhase("package");
+                setPursuitId(urlPursuitId);
 
                 // Try to load from cache
                 let restoredJobUrl = "";
@@ -682,23 +693,21 @@ export function DashboardContainer() {
         setAuthPopoverOpen(true);
     };
 
+    // Both dispatchers route their write through `savePrepProgress` (jobs-first-
+    // bloom PR3 §3) instead of a direct localStorage.setItem — that's the
+    // chokepoint that ALSO mirrors onto the pursuit's durable copy when
+    // signed in with a pursuitId, and is a no-op beyond localStorage
+    // otherwise (see pursuit-prep-sync.ts's doc comment).
     const dispatchPrepSession = useCallback((action: PrepSessionAction) => {
         setPrepSessionState((prev) => {
             const next = prepSessionReducer(prev, action);
             if (next) {
-                try {
-                    localStorage.setItem(
-                        sessionStorageKey(next.planCacheKey),
-                        serializeSessionState(next),
-                    );
-                } catch {
-                    /* ignore storage errors */
-                }
+                savePrepProgress(next, pursuitId, !!user);
                 setResumableSessions(listResumableSessions());
             }
             return next;
         });
-    }, []);
+    }, [pursuitId, user]);
 
     const applyPrepSessionActions = useCallback((actions: PrepSessionAction[]) => {
         setPrepSessionState((prev) => {
@@ -707,19 +716,12 @@ export function DashboardContainer() {
                 next = prepSessionReducer(next, action);
             }
             if (next) {
-                try {
-                    localStorage.setItem(
-                        sessionStorageKey(next.planCacheKey),
-                        serializeSessionState(next),
-                    );
-                } catch {
-                    /* ignore storage errors */
-                }
+                savePrepProgress(next, pursuitId, !!user);
                 setResumableSessions(listResumableSessions());
             }
             return next;
         });
-    }, []);
+    }, [pursuitId, user]);
 
     const handleSummaryOpenPackage = () => {
         setHasSearched(true);
@@ -860,45 +862,52 @@ export function DashboardContainer() {
         }
 
         sessionInitRef.current = planCacheKey;
+        // Snapshot pursuitId/signed-in for this init pass — see `loadPrepProgress`'s
+        // hydration below, which is async and must not read a value that could
+        // have changed by the time it resolves.
+        const pid = pursuitId;
+        const signedIn = !!user;
 
-        try {
-            const raw = localStorage.getItem(sessionStorageKey(planCacheKey));
-            const parsed = raw ? parseSessionState(raw) : null;
+        void (async () => {
+            // Local-first, reconciled against the pursuit's durable copy when
+            // signed in with a pursuitId (jobs-first-bloom PR3 §3) — see
+            // pursuit-prep-sync.ts. Byte-for-byte the old direct-localStorage
+            // read when there's no pursuit context (guest, or a standalone
+            // /prep visit): `loadPrepProgress` returns `readLocal` unchanged
+            // in that case.
+            const parsed = await loadPrepProgress(planCacheKey, pid, signedIn);
+            // A newer init pass already took over (planCacheKey changed
+            // again while this await was in flight) — drop this result.
+            if (sessionInitRef.current !== planCacheKey) return;
+
             if (parsed && parsed.planCacheKey === planCacheKey) {
                 setPrepSessionState(parsed);
                 const restoredCtx = resolveSessionJobContext(parsed, company, position, round);
                 setPrepJobContext(restoredCtx);
                 setJobContext(sessionJobContextText(parsed));
+                if (pid) markPursuitPrepVisited(pid);
                 return;
             }
-        } catch {
-            /* ignore corrupt storage */
-        }
 
-        const allQuestions = [
-            ...questionsData.questions,
-            ...(systemDesignData?.questions ?? []),
-        ];
-        const questionIds = allQuestions.map((q) => q.id);
-        const mode: PrepSessionMode = prepJobContext.interview.sessionMode ?? "learn";
-        const initial = prepSessionReducer(null, {
-            type: "START",
-            planCacheKey,
-            mode,
-            questionIds,
-            jobContext: prepJobContext,
-        });
-        setPrepSessionState(initial);
-        if (initial) {
-            try {
-                localStorage.setItem(
-                    sessionStorageKey(planCacheKey),
-                    serializeSessionState(initial),
-                );
-            } catch {
-                /* ignore */
+            const allQuestions = [
+                ...questionsData.questions,
+                ...(systemDesignData?.questions ?? []),
+            ];
+            const questionIds = allQuestions.map((q) => q.id);
+            const mode: PrepSessionMode = prepJobContext.interview.sessionMode ?? "learn";
+            const initial = prepSessionReducer(null, {
+                type: "START",
+                planCacheKey,
+                mode,
+                questionIds,
+                jobContext: prepJobContext,
+            });
+            setPrepSessionState(initial);
+            if (initial) {
+                savePrepProgress(initial, pid, signedIn);
+                if (pid) markPursuitPrepVisited(pid);
             }
-        }
+        })();
     }, [
         prepPhase,
         questionsData,
@@ -909,6 +918,8 @@ export function DashboardContainer() {
         prepJobContext.interview.sessionMode,
         prepSessionState?.planCacheKey,
         currentPlanCacheKey,
+        pursuitId,
+        user,
     ]);
 
     const runPrepStart = async (payload: PendingPrepStartPayload) => {
@@ -2030,6 +2041,12 @@ export function DashboardContainer() {
         setSearchQuery(`${item.company}, ${item.position}, ${item.round}`);
         setHasSearched(true);
         setPrepPhase("package");
+        // CachedPlanListItem carries no pursuit context — this bypasses the
+        // pursuitId-aware session-init effect below entirely (it stamps
+        // sessionInitRef itself), so any stale pursuitId from a PRIOR
+        // pursuit-linked visit must not leak into this unrelated session's
+        // durable-sync writes.
+        setPursuitId(null);
 
         const cached = await loadEnhancedCache(item.company, item.position, item.round, {
             cacheKey: item.cacheKey,
@@ -2071,6 +2088,8 @@ export function DashboardContainer() {
         setRound(session.round);
         setSearchQuery(`${session.company}, ${session.position}, ${session.round}`);
         setHasSearched(false);
+        // Same reasoning as handleOpenPackage above — no pursuit context here.
+        setPursuitId(null);
 
         const cached = await loadEnhancedCache(session.company, session.position, session.round, {
             cacheKey: planCacheKey,

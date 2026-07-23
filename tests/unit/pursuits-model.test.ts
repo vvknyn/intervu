@@ -6,6 +6,7 @@ import {
     isEnded,
     mergeGuestPursuit,
     buildJobSnapshot,
+    buildManualPursuitSnapshot,
     hasReachedStage,
     stageRank,
     stageLabel,
@@ -217,4 +218,43 @@ test("buildJobSnapshot lifts exactly the fields a pursuit needs to remember", ()
         description: null,
         apply_url: "https://acme.test/apply",
     });
+});
+
+/* --------------------------------- buildManualPursuitSnapshot --------------------------------- */
+// The search seed line's snapshot build (spec §3 "outside interviews") —
+// typed company/role only, no live listing behind it.
+
+test("buildManualPursuitSnapshot mirrors buildJobSnapshot's shape with the fields a typed seed has", () => {
+    const snapshot = buildManualPursuitSnapshot("Acme", "Staff Engineer");
+    assert.deepEqual(snapshot, {
+        title: "Staff Engineer",
+        company: "Acme",
+        location: null,
+        description: null,
+        apply_url: "",
+    });
+});
+
+/* --------------------------------- stageLabel + last_prepped_at --------------------------------- */
+
+test("stageLabel appends a relative prepped-age only once last_prepped_at is set", () => {
+    const notPrepped = makePursuit({ status: "interviewing" });
+    assert.equal(stageLabel(notPrepped), "Interviewing");
+
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const prepped = makePursuit({
+        status: "interviewing",
+        last_prepped_at: "2026-07-21T00:00:00.000Z",
+    });
+    assert.equal(stageLabel(prepped, now), "Interviewing — prepped 2d ago");
+});
+
+test("stageLabel keeps the interview_date wording and appends prepped-age on top of it", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const p = makePursuit({
+        status: "interviewing",
+        interview_date: "2026-08-01T00:00:00.000Z",
+        last_prepped_at: "2026-07-22T00:00:00.000Z",
+    });
+    assert.equal(stageLabel(p, now), "Interview scheduled — prepped 1d ago");
 });
