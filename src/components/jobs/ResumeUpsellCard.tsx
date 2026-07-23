@@ -5,7 +5,7 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 
 /**
  * Dismissible, single-row upsell shown after the FIRST job row (see the list
- * render in src/app/jobs/page.tsx) when the visitor hasn't dismissed it and
+ * render in src/app/page.tsx) when the visitor hasn't dismissed it and
  * has no usable résumé on hand yet. `onUpload` reuses the existing
  * `handleUploadClick` path — same auth-gate/import flow as the toolbar's fit
  * CTA — so a successful import hides this card reactively via `resume`

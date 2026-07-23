@@ -70,7 +70,7 @@ export function SearchAutocomplete({
         suggestRef.current = suggest;
     });
     // Monotonic generation guard for the async `suggest` path (same shape as
-    // FitIntentGuard in app/jobs/page.tsx): only the response from the LAST
+    // FitIntentGuard in app/page.tsx): only the response from the LAST
     // effect run gets to update state, so a slow, stale response can't
     // clobber a faster, newer one. Bumped from the effect's CLEANUP — every
     // branch below (closed, empty query, and the debounced fetch) returns

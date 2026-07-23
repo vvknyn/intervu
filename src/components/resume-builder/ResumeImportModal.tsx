@@ -30,7 +30,7 @@ interface ResumeImportModalProps {
      * shared between the resume-builder (where "Apply to Resume" means
      * "apply these parsed fields to the resume document you're editing" —
      * the default here, keeping that flow byte-identical) and /jobs
-     * (src/app/jobs/page.tsx), where "Apply to Resume" is confusing
+     * (src/app/page.tsx), where "Apply to Resume" is confusing
      * builder jargon that also doesn't describe what actually happens next
      * (fit-ranking the job list) — that caller passes "Rank my jobs".
      */
