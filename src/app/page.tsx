@@ -49,7 +49,13 @@ import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { rememberSearch, loadRecentSearches, saveRecentSearches, clearRecentSearches } from "@/lib/jobs/recent-searches";
+import {
+    subscribeRecentSearches,
+    getRecentSearchesSnapshot,
+    getRecentSearchesServerSnapshot,
+    recordRecentSearch,
+    clearAllRecentSearches,
+} from "@/lib/jobs/recent-searches";
 import {
     FilterPanel,
     activeFilterEntries,
@@ -893,50 +899,6 @@ function PrepMovedNote() {
             </button>
         </div>
     );
-}
-
-// Recent-searches store (S2). Same useSyncExternalStore shape as
-// PrepMovedNote above — localStorage is a client-only external system, so
-// the server snapshot (empty) matches SSR and the real list applies after
-// hydration with no mismatch. `recentSearchesCache` is the one boxed
-// reference `getRecentSearchesSnapshot` hands back; a write replaces it and
-// notifies, so subscribers only re-render on an actual change — an unboxed
-// `loadRecentSearches()` call from `getSnapshot` would return a fresh array
-// reference every call and loop.
-const EMPTY_RECENT_SEARCHES: string[] = [];
-let recentSearchesCache: string[] | null = null;
-const recentSearchesListeners = new Set<() => void>();
-function notifyRecentSearchesChanged() {
-    recentSearchesListeners.forEach((cb) => cb());
-}
-function subscribeRecentSearches(onChange: () => void) {
-    recentSearchesListeners.add(onChange);
-    return () => recentSearchesListeners.delete(onChange);
-}
-function getRecentSearchesSnapshot(): string[] {
-    if (recentSearchesCache == null) recentSearchesCache = loadRecentSearches();
-    return recentSearchesCache;
-}
-function getRecentSearchesServerSnapshot(): string[] {
-    return EMPTY_RECENT_SEARCHES;
-}
-/** Fold a submitted query into the store (pure `rememberSearch`, lib/jobs/
- *  recent-searches.ts) and persist — the one write path, used by both a
- *  typed submit and a recent-chip click. No-ops (no cache write, no notify)
- *  when `rememberSearch` itself no-ops (empty/1-char query). */
-function recordRecentSearch(q: string): void {
-    const current = getRecentSearchesSnapshot();
-    const next = rememberSearch(current, q);
-    if (next === current) return;
-    recentSearchesCache = next;
-    saveRecentSearches(next);
-    notifyRecentSearchesChanged();
-}
-/** The landing state's "×" — wipes the store entirely. */
-function clearAllRecentSearches(): void {
-    recentSearchesCache = EMPTY_RECENT_SEARCHES;
-    clearRecentSearches();
-    notifyRecentSearchesChanged();
 }
 
 const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {

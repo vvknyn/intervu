@@ -106,3 +106,17 @@ test("loadRecentSearches degrades to [] on a non-array value rather than throwin
         assert.deepEqual(loadRecentSearches(), []);
     });
 });
+
+test("loadRecentSearches caps legacy over-long history at the store max (incumbent key held up to 10)", () => {
+    withFakeStorage(() => {
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["q1", "q2", "q3", "q4", "q5"]));
+        assert.deepEqual(loadRecentSearches(), ["q1", "q2", "q3"]);
+    });
+});
+
+test("loadRecentSearches drops non-string entries from a mixed legacy array", () => {
+    withFakeStorage(() => {
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["q1", 42, null, "q2"]));
+        assert.deepEqual(loadRecentSearches(), ["q1", "q2"]);
+    });
+});

@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
+import {
+    subscribeRecentSearches,
+    getRecentSearchesSnapshot,
+    getRecentSearchesServerSnapshot,
+} from "@/lib/jobs/recent-searches";
 import { cn } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
@@ -40,14 +45,17 @@ export function SearchAutocomplete({
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
-    const [history, setHistory] = useState<string[]>(() => {
-        if (typeof window === 'undefined') return [];
-        try {
-            const saved = localStorage.getItem("interview-os-recent-searches");
-            if (saved) return JSON.parse(saved);
-        } catch (e) { console.error(e); }
-        return [];
-    });
+    // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
+    // same store the jobs page's landing chips render, so the dropdown
+    // history and the chips can never disagree. Read-only here: recording
+    // happens at the caller's search-commit chokepoint (the `onSearch`
+    // handler), which covers every commit path through this component —
+    // typed Enter and suggestion picks both funnel out through `onSearch`.
+    const history = useSyncExternalStore(
+        subscribeRecentSearches,
+        getRecentSearchesSnapshot,
+        getRecentSearchesServerSnapshot,
+    );
     const containerRef = useRef<HTMLDivElement>(null);
     // Always hold the LATEST `onSearch`/`suggest` props, updated by a single
     // no-dependency effect that runs after every render (declared first so
@@ -179,14 +187,10 @@ export function SearchAutocomplete({
         onChange(text);
         setIsOpen(false);
 
-        // History bookkeeping is part of the local (non-`suggest`) source —
-        // skip it when an external provider is wired in so a jobs-search pick
-        // doesn't pollute the shared prep-search recents bucket.
-        if (!suggest) {
-            const newHistory = [text, ...history.filter(h => h !== text)].slice(0, 10);
-            setHistory(newHistory);
-            localStorage.setItem("interview-os-recent-searches", JSON.stringify(newHistory));
-        }
+        // No history bookkeeping here — the shared store (see the `history`
+        // read above) is written once per COMMITTED search at the caller's
+        // `onSearch` chokepoint, which this select funnels into below, so a
+        // pick and a typed Enter are recorded identically.
 
         // Wait a tick so the parent's re-render (triggered by the `onChange`
         // above) lands before we search — `onSearchRef` always holds the
