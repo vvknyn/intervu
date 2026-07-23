@@ -48,6 +48,8 @@ import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-g
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
+import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { rememberSearch, loadRecentSearches, saveRecentSearches, clearRecentSearches } from "@/lib/jobs/recent-searches";
 import {
     FilterPanel,
     activeFilterEntries,
@@ -280,6 +282,12 @@ function postedAge(ts: number | null, now: number): string | null {
     return months < 12 ? `${months}mo` : `${Math.floor(months / 12)}y`;
 }
 
+/** Compact "Jul 23"-style date for JobDetail's relisted disclosure sentence —
+ *  the one place S2 names a calendar date rather than a relative age. */
+function shortDate(ms: number): string {
+    return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 // `text` is the compact row-badge string from `badgeFor` (lib/jobs/badges.ts)
 // — a pure function of (ghost_badge, updated_at, posted_ts, now), unit-tested
 // in tests/unit/jobs-badges.test.ts. `ghostMetaFor` still owns the styling
@@ -295,6 +303,40 @@ function GhostChip({ badge, text, stale }: { badge: GhostBadge; text: string; st
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.cls)}>
             <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
             {text}
+        </span>
+    );
+}
+
+/**
+ * S2 — posting-freshness row chip, same visual family as `GhostChip` (a
+ * sibling signal, not a replacement: ghost-risk and posting-freshness are
+ * independent axes over independent evidence). `kind`/`firstSeenMs` come
+ * from `classifyPostingFreshness` (lib/jobs/posting-freshness.ts) — this
+ * component only renders text/color, no date/threshold logic. HONESTY RULE:
+ * the badge states an observable fact ("Fresh", "Relisted"); the underlying
+ * dates live in JobDetail's facts line, never asserted here.
+ */
+function PostingFreshnessChip({
+    kind,
+    firstSeenMs,
+    now,
+}: {
+    kind: "fresh" | "relisted" | null;
+    firstSeenMs: number | null;
+    now: number;
+}) {
+    if (!kind) return null;
+    const cls = kind === "fresh" ? STATUS_PILL.offer : STATUS_PILL.intv;
+    const dot = kind === "fresh" ? "bg-st-offer" : "bg-st-intv/80";
+    const age = kind === "fresh" ? postedAge(firstSeenMs, now) : null;
+    return (
+        <span
+            data-testid="posting-freshness-badge"
+            data-kind={kind}
+            className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}
+        >
+            <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+            {kind === "fresh" ? (age ? `Fresh · ${age}` : "Fresh") : "Relisted"}
         </span>
     );
 }
@@ -355,6 +397,9 @@ function JobRow({
     // gate this replaces).
     const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, now);
     const badgeStale = checkFreshness(job.updated_at, now) === "stale";
+    // S2 — posting freshness/relist, an independent axis from the ghost badge
+    // above (see PostingFreshnessChip's doc comment).
+    const freshness = classifyPostingFreshness(job, now);
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     return (
         <button
@@ -392,9 +437,10 @@ function JobRow({
                             </span>
                         )}
                     </div>
-                    {badgeText && (
-                        <div className="mt-2.5">
-                            <GhostChip badge={job.ghost_badge} text={badgeText} stale={badgeStale} />
+                    {(badgeText || freshness.kind) && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            {badgeText && <GhostChip badge={job.ghost_badge} text={badgeText} stale={badgeStale} />}
+                            <PostingFreshnessChip kind={freshness.kind} firstSeenMs={freshness.firstSeenMs} now={now} />
                         </div>
                     )}
                 </div>
@@ -465,6 +511,13 @@ function JobDetail({
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
+    // S2 — HONESTY RULE: the row badge states a fact ("Fresh"/"Relisted");
+    // this facts line is where the underlying dates it's based on live.
+    const freshness = classifyPostingFreshness(job, now);
+    const postedRelative =
+        freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), now) : null;
+    const firstSeenRelative =
+        freshness.firstSeenMs != null ? formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), now) : null;
     const [descExpanded, setDescExpanded] = useState(false);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
@@ -489,6 +542,22 @@ function JobDetail({
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
                         </div>
+                        {(postedRelative || firstSeenRelative) && (
+                            <div className="mt-1 text-sm text-muted-foreground">
+                                {[
+                                    postedRelative ? `Posted ${postedRelative}` : null,
+                                    firstSeenRelative ? `First seen by us ${firstSeenRelative}` : null,
+                                ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
+                                    <div className="mt-0.5">
+                                        Listed as new on {shortDate(freshness.postedMs)}, but this role first
+                                        appeared {firstSeenRelative} — often a repost.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {facts.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {facts.map((f, i) => (
@@ -826,6 +895,50 @@ function PrepMovedNote() {
     );
 }
 
+// Recent-searches store (S2). Same useSyncExternalStore shape as
+// PrepMovedNote above — localStorage is a client-only external system, so
+// the server snapshot (empty) matches SSR and the real list applies after
+// hydration with no mismatch. `recentSearchesCache` is the one boxed
+// reference `getRecentSearchesSnapshot` hands back; a write replaces it and
+// notifies, so subscribers only re-render on an actual change — an unboxed
+// `loadRecentSearches()` call from `getSnapshot` would return a fresh array
+// reference every call and loop.
+const EMPTY_RECENT_SEARCHES: string[] = [];
+let recentSearchesCache: string[] | null = null;
+const recentSearchesListeners = new Set<() => void>();
+function notifyRecentSearchesChanged() {
+    recentSearchesListeners.forEach((cb) => cb());
+}
+function subscribeRecentSearches(onChange: () => void) {
+    recentSearchesListeners.add(onChange);
+    return () => recentSearchesListeners.delete(onChange);
+}
+function getRecentSearchesSnapshot(): string[] {
+    if (recentSearchesCache == null) recentSearchesCache = loadRecentSearches();
+    return recentSearchesCache;
+}
+function getRecentSearchesServerSnapshot(): string[] {
+    return EMPTY_RECENT_SEARCHES;
+}
+/** Fold a submitted query into the store (pure `rememberSearch`, lib/jobs/
+ *  recent-searches.ts) and persist — the one write path, used by both a
+ *  typed submit and a recent-chip click. No-ops (no cache write, no notify)
+ *  when `rememberSearch` itself no-ops (empty/1-char query). */
+function recordRecentSearch(q: string): void {
+    const current = getRecentSearchesSnapshot();
+    const next = rememberSearch(current, q);
+    if (next === current) return;
+    recentSearchesCache = next;
+    saveRecentSearches(next);
+    notifyRecentSearchesChanged();
+}
+/** The landing state's "×" — wipes the store entirely. */
+function clearAllRecentSearches(): void {
+    recentSearchesCache = EMPTY_RECENT_SEARCHES;
+    clearRecentSearches();
+    notifyRecentSearchesChanged();
+}
+
 const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {
     explore: { label: "Exploring adjacent roles", Icon: Compass },
     browse: { label: "Browsing all live roles", Icon: Briefcase },
@@ -1016,6 +1129,12 @@ function JobsContent() {
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
+    // S2 — recent-searches chips on the empty-query landing state.
+    const recentSearches = useSyncExternalStore(
+        subscribeRecentSearches,
+        getRecentSearchesSnapshot,
+        getRecentSearchesServerSnapshot,
+    );
 
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
@@ -1055,6 +1174,15 @@ function JobsContent() {
         }
         if (history === "push") router.push(target, { scroll: false });
         else router.replace(target, { scroll: false });
+    };
+
+    // Single chokepoint for a SUBMITTED (not per-keystroke) search — the
+    // search box's Enter/suggestion-pick and a recent-search chip click both
+    // route through here, so both record the query the same way.
+    const submitSearch = (q: string) => {
+        setQuery(q);
+        recordRecentSearch(q);
+        applyUrlState(buildUrlState({ q }), "push");
     };
 
     const [result, setResult] = useState<JobSearchResult | null>(null);
@@ -2654,7 +2782,7 @@ function JobsContent() {
                         // suggestion) uses `push` instead — see `onSearch` below.
                         applyUrlState(buildUrlState({ q: v }), "replace");
                     }}
-                    onSearch={() => applyUrlState(buildUrlState({ q: query }), "push")}
+                    onSearch={() => submitSearch(query)}
                     suggest={suggestForBox}
                     placeholder={
                         corpusCount != null
@@ -2681,6 +2809,33 @@ function JobsContent() {
                     Explore
                 </Button>
             </div>
+
+            {/* S2 — recent searches: quiet chips shown only on the empty-query
+                landing state (browse mode, nothing typed yet, store non-empty). */}
+            {mode === "browse" && !query.trim() && recentSearches.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-0.5 text-xs text-muted-foreground">Recent:</span>
+                    {recentSearches.map((q) => (
+                        <button
+                            key={q}
+                            type="button"
+                            data-testid="recent-search-chip"
+                            onClick={() => submitSearch(q)}
+                            className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+                        >
+                            {q}
+                        </button>
+                    ))}
+                    <button
+                        type="button"
+                        aria-label="Clear recent searches"
+                        onClick={() => clearAllRecentSearches()}
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+            )}
 
             {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
             {mode === "explore" && exploreTitles.length > 0 && (
