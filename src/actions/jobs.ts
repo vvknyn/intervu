@@ -1,6 +1,6 @@
 "use server";
 
-import { createApplication } from "@/actions/application";
+import { createApplication, upsertPursuitForJob } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
 import {
   getJobsBackendStatus,
@@ -113,16 +113,39 @@ export async function jobsBackendStatusAction(): Promise<{
 
 /**
  * Track a job the user is applying to — the "apply → track" step of the loop.
- * Creates an application row (status "applied") in the user's tracker. Applying
- * itself is a deep-link out to the posting; this records that they did.
+ * Creates/advances the pursuit (stage "applied") in the user's tracker.
+ * Applying itself is a deep-link out to the posting; this records that they
+ * did. Generalizes onto the same find-or-create-by-job_id chokepoint
+ * `goAfterJobAction` uses (`upsertPursuitForJob`) when the caller has a
+ * `jobId` — so marking a job the user already went after applied advances
+ * that same pursuit instead of creating a second row. `jobId` is optional so
+ * a caller without one (predating the pursuit job_id linkage) still gets
+ * the original plain-create behavior.
  */
 export async function markJobAppliedAction(input: {
   company: string;
   title: string;
   applyUrl: string;
+  jobId?: string;
 }): Promise<{ data?: { id: string }; error?: string }> {
   const parsed = validate(markJobAppliedSchema, input);
   if (!parsed.ok) return { error: parsed.error };
+
+  if (parsed.data.jobId) {
+    const res = await upsertPursuitForJob(
+      {
+        job_id: parsed.data.jobId,
+        title: parsed.data.title,
+        company: parsed.data.company,
+        location: null,
+        description: null,
+        apply_url: parsed.data.applyUrl ?? "",
+      },
+      "applied",
+    );
+    if (res.error) return { error: res.error };
+    return { data: { id: res.data!.id } };
+  }
 
   const res = await createApplication({
     company_name: parsed.data.company,

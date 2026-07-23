@@ -3,33 +3,23 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
-import { validate, updateApplicationSchema } from "@/lib/validation";
+import { validate, updateApplicationSchema, upsertPursuitSchema } from "@/lib/validation";
+import { mergeGuestPursuit, type JobSnapshot, type Pursuit as PursuitType, type PursuitStage } from "@/lib/pursuits/types";
+import type { PublicJob } from "@/lib/jobs/types";
 
-export type ApplicationStatus = 'applied' | 'interviewing' | 'offer' | 'rejected' | 'withdrawn';
-
-export interface Application {
-    id: string;
-    company_name: string;
-    position: string;
-    job_url?: string;
-    applied_at?: string;
-    status: ApplicationStatus;
-    resume_version_id?: string;
-    cover_letter?: string;
-    user_id: string;
-    created_at: string;
-    updated_at: string;
-    resume_version?: {
-        version_name: string;
-    } | null;
-}
+// `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
+// of truth for this collection's shape. Re-exported under their original
+// names here so existing importers of `Application`/`ApplicationStatus`
+// don't need to change.
+type Application = PursuitType;
+export type { Application, PursuitStage as ApplicationStatus };
 
 export interface CreateApplicationData {
     company_name: string;
     position: string;
     job_url?: string;
     applied_at?: string;
-    status: ApplicationStatus;
+    status: PursuitStage;
     resume_version_id?: string;
     cover_letter?: string;
 }
@@ -39,9 +29,10 @@ export interface UpdateApplicationData {
     position?: string;
     job_url?: string;
     applied_at?: string;
-    status?: ApplicationStatus;
+    status?: PursuitStage;
     resume_version_id?: string;
     cover_letter?: string;
+    interview_date?: string;
 }
 
 export async function getApplications() {
@@ -121,7 +112,7 @@ export async function createApplication(application: CreateApplicationData) {
         const docRef = await db.collection("applications").add(docData);
         const data = { id: docRef.id, ...docData };
 
-        revalidatePath('/applications');
+        revalidatePath('/yours');
         return { data };
     } catch (error: any) {
         console.error("Error creating application:", error);
@@ -162,12 +153,110 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
         const updated = await docRef.get();
         const data = { id: updated.id, ...updated.data() };
 
-        revalidatePath('/applications');
+        revalidatePath('/yours');
         return { data };
     } catch (error: any) {
         console.error("Error updating application:", error);
         return { error: error.message || "Failed to update application" };
     }
+}
+
+/**
+ * The find-or-create-by-job_id chokepoint every "this job is now (at least)
+ * this far along" write funnels through — `goAfterJobAction` (stage
+ * "interested") and `markJobAppliedAction` (stage "applied", see
+ * actions/jobs.ts) both call this instead of writing the collection
+ * directly, so there is exactly one place that decides "does a pursuit for
+ * this job already exist, and if so does this write actually advance it."
+ *
+ * Reuses `mergeGuestPursuit` for that decision — the same "keep the more
+ * advanced stage" rule the guest→auth merge uses — so a re-click (or a
+ * stale mark-applied firing after the user already tailored/interviewed)
+ * can never regress an already-advanced pursuit.
+ */
+export async function upsertPursuitForJob(
+    job: JobSnapshot & { job_id: string },
+    stage: PursuitStage,
+): Promise<{ data?: Application; error?: string }> {
+    try {
+        const user = await getServerUser();
+        if (!user) return { error: "User not authenticated" };
+
+        const parsed = validate(upsertPursuitSchema, { ...job, stage });
+        if (!parsed.ok) return { error: parsed.error };
+
+        const db = getAdminDb();
+        const existingSnap = await db
+            .collection("applications")
+            .where("user_id", "==", user.uid)
+            .where("job_id", "==", parsed.data.job_id)
+            .limit(1)
+            .get();
+
+        const now = new Date().toISOString();
+        const snapshot: JobSnapshot = {
+            title: parsed.data.title,
+            company: parsed.data.company,
+            location: parsed.data.location,
+            description: parsed.data.description,
+            apply_url: parsed.data.apply_url,
+        };
+
+        if (!existingSnap.empty) {
+            const doc = existingSnap.docs[0];
+            const existing = { id: doc.id, ...doc.data() } as Application;
+            const merged = mergeGuestPursuit(existing, {
+                ...existing,
+                status: parsed.data.stage,
+                job_snapshot: snapshot,
+            });
+            await doc.ref.update({
+                status: merged.status,
+                job_snapshot: merged.job_snapshot ?? null,
+                updated_at: now,
+            });
+            revalidatePath("/yours");
+            return { data: { ...merged, updated_at: now } };
+        }
+
+        const docData = {
+            user_id: user.uid,
+            company_name: snapshot.company ?? "",
+            position: snapshot.title,
+            job_url: snapshot.apply_url || undefined,
+            status: parsed.data.stage,
+            job_id: parsed.data.job_id,
+            job_snapshot: snapshot,
+            created_at: now,
+            updated_at: now,
+        };
+        // The Admin SDK rejects `undefined` field values.
+        const clean = Object.fromEntries(Object.entries(docData).filter(([, v]) => v !== undefined));
+
+        const docRef = await db.collection("applications").add(clean);
+        revalidatePath("/yours");
+        return { data: { id: docRef.id, ...clean } as Application };
+    } catch (error: any) {
+        console.error("Error upserting pursuit:", error);
+        return { error: error.message || "Failed to save pursuit" };
+    }
+}
+
+/** "Go after this job" (spec §3) — the single verb on every job page.
+ *  Always stage "interested"; `upsertPursuitForJob` handles a job the user
+ *  already progressed further on (never downgrades). */
+export async function goAfterJobAction(job: PublicJob): Promise<{ data?: Application; error?: string }> {
+    return upsertPursuitForJob(
+        {
+            job_id: job.id,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            description: job.description,
+            apply_url: job.apply_url,
+        },
+        "interested",
+    );
 }
 
 export async function deleteApplication(id: string) {
@@ -187,7 +276,7 @@ export async function deleteApplication(id: string) {
 
         await docRef.delete();
 
-        revalidatePath('/applications');
+        revalidatePath('/yours');
         return { success: true };
     } catch (error: any) {
         console.error("Error deleting application:", error);

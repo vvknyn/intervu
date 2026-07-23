@@ -64,7 +64,13 @@ export const optionalHttpUrl = z
   .optional()
   .or(z.literal("").transform(() => undefined));
 
+// The pursuit stage union (jobs-first bloom PR2, spec §3) — this WIDENS the
+// same `status` field the five original statuses already lived on, so old
+// `applications` docs remain valid without a migration. `applicationStatus`
+// stays exported under its original name for existing importers.
 export const applicationStatus = z.enum([
+  "interested",
+  "resume_ready",
   "applied",
   "interviewing",
   "offer",
@@ -74,11 +80,14 @@ export const applicationStatus = z.enum([
 
 /* --------------------------------- Action input schemas --------------------------------- */
 
-/** markJobAppliedAction input. */
+/** markJobAppliedAction input. `jobId` is optional so existing callers that
+ *  predate the pursuit job_id linkage keep working unchanged (falls back to
+ *  a plain create — see actions/jobs.ts). */
 export const markJobAppliedSchema = z.object({
   company: nonEmptyString(200),
   title: nonEmptyString(300),
   applyUrl: optionalHttpUrl,
+  jobId: optionalString(200),
 });
 
 /** updateApplication `updates` payload — every field optional, but no unknown keys. */
@@ -91,8 +100,28 @@ export const updateApplicationSchema = z
     status: applicationStatus.optional(),
     resume_version_id: optionalString(200),
     cover_letter: optionalString(50000),
+    interview_date: optionalString(64),
   })
   .strict();
+
+/** A job snapshot captured at go-after time (spec §3) — carried on the
+ *  pursuit so tailor/prep survive the listing expiring out of Meilisearch.
+ *  Nullability mirrors `PublicJob`'s own fields. */
+const jobSnapshotShape = {
+  title: nonEmptyString(300),
+  company: z.string().trim().max(200).nullable(),
+  location: z.string().trim().max(200).nullable(),
+  description: z.string().trim().max(20000).nullable(),
+  apply_url: z.string().trim().max(2048),
+};
+
+/** upsertPursuitForJob input — the find-or-create-by-job_id chokepoint
+ *  shared by goAfterJobAction and markJobAppliedAction. */
+export const upsertPursuitSchema = z.object({
+  job_id: nonEmptyString(200),
+  ...jobSnapshotShape,
+  stage: applicationStatus,
+});
 
 /** A single provider API key save (profile.ts saveProviderApiKey). */
 export const saveProviderApiKeySchema = z.object({

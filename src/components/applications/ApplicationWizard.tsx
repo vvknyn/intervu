@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Check, Briefcase, FileText, Envelope, Eye, X, ArrowsClockwise } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { fetchResumeData } from "@/actions/resume";
+import type { PursuitStage } from "@/lib/pursuits/types";
 
 // Step Components
 import { JobDetailsStep } from "./steps/JobDetailsStep";
@@ -33,7 +34,7 @@ export interface ApplicationDraft {
 
     // Step 4: Review
     applicationDate?: string;
-    status?: 'applied' | 'interviewing' | 'offer' | 'rejected' | 'withdrawn';
+    status?: PursuitStage;
 }
 
 // --- Session cache helpers ---
