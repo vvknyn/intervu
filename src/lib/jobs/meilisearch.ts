@@ -8,6 +8,7 @@
  * ingestion/admin uses the admin key and is only ever invoked by the off-Vercel
  * sync worker — never at request time.
  */
+import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PublicJob } from "./types";
@@ -484,11 +485,6 @@ export async function applyIndexSettings(): Promise<void> {
   });
 }
 
-/** Sanity floor for `derivePostedTs` — anything before this is treated as junk. */
-const POSTED_TS_FLOOR = Date.parse("2000-01-01T00:00:00Z");
-/** Clock-skew / timezone grace before a timestamp counts as "in the future". */
-const POSTED_TS_FUTURE_GRACE_MS = 24 * 60 * 60 * 1000;
-
 /**
  * Derive a sanitized, numeric "posted" timestamp (epoch ms) for a job. Meilisearch
  * range operators are numeric-only, so the raw ISO `posted_at` string can't be
@@ -499,21 +495,14 @@ const POSTED_TS_FUTURE_GRACE_MS = 24 * 60 * 60 * 1000;
  * (2030-01-31, 2026-12-31) that sit at the head of a naive `posted_at:desc`
  * sort. `first_seen_at` is 0% null and 0% future, so it's the fallback.
  *
- * A timestamp is accepted only if it parses, is on/after 2000-01-01, and is not
- * more than 24h in the future (small clock-skew grace, not a loophole for
- * sentinels months out).
+ * Sanitization (parses, on/after 2000-01-01, not more than 24h in the future)
+ * is `sanitizeTimestamp` (./posting-freshness) — the ONE sanitizer shared with
+ * the UI-side freshness/relist classification, so ingest-side and UI-side
+ * reads always agree on what counts as a usable date.
  */
 export function derivePostedTs(job: { posted_at?: string | null; first_seen_at?: string | null }): number | null {
   const now = Date.now();
-  const sane = (iso: string | null | undefined): number | null => {
-    if (!iso) return null;
-    const t = Date.parse(iso);
-    if (!Number.isFinite(t)) return null;
-    if (t < POSTED_TS_FLOOR) return null;
-    if (t > now + POSTED_TS_FUTURE_GRACE_MS) return null;
-    return t;
-  };
-  return sane(job.posted_at) ?? sane(job.first_seen_at) ?? null;
+  return sanitizeTimestamp(job.posted_at, now) ?? sanitizeTimestamp(job.first_seen_at, now) ?? null;
 }
 
 export async function upsertJobs(jobs: PublicJob[]): Promise<void> {
