@@ -68,7 +68,11 @@ export const JOBS_INDEX_SETTINGS = {
     "id",
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
-  rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness"],
+  // "posted_ts:desc" is the FINAL rule: recency is the tiebreak among
+  // equally-relevant hits, never a substitute for relevance — the six rules
+  // ahead of it (words..exactness) always decide first. Applied to the live
+  // index by scripts/apply-ranking-rules.mjs (narrow PUT, no reindex cost).
+  rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
