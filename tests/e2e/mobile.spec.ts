@@ -34,24 +34,17 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
   });
 
   /**
-   * TC-MOBILE-002: Mobile menu is accessible
+   * TC-MOBILE-002: Top bar is accessible on mobile
    *
-   * Verifies the hamburger menu opens on mobile.
+   * Post-flip (jobs-first-bloom PR 1), there's no hamburger drawer or
+   * bottom tab bar — the TopBar itself is the only shell chrome, responsive
+   * at every width. Verifies it, and its "All jobs" link, render on mobile.
    */
-  test('TC-MOBILE-002: Mobile menu is accessible', async ({ page }) => {
+  test('TC-MOBILE-002: Top bar is accessible on mobile', async ({ page }) => {
     await page.goto('/');
 
-    // Look for hamburger/menu button
-    const menuButton = page.locator('button[class*="lg:hidden"], button:has([class*="hamburger"]), header button').first();
-
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-      await page.waitForTimeout(300);
-
-      // Menu content should appear
-      const menuContent = page.locator('[role="dialog"], [class*="fixed"], nav');
-      await expect(menuContent.first()).toBeVisible();
-    }
+    await expect(page.getByTestId('topbar')).toBeVisible();
+    await expect(page.getByTestId('topbar-alljobs')).toBeVisible();
   });
 
   /**

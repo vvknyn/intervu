@@ -4,14 +4,20 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: NAV - Navigation Tests
  *
  * Tests all navigation paths and page accessibility across the application.
- * These tests verify that users can reach all pages and that basic routing works.
+ * Post-flip (jobs-first-bloom PR 1): `/` is jobs search, `/prep` is interview
+ * prep, and the old 6-item sidebar is gone — nav destinations (Prep, Resumes,
+ * Applications, Library, Settings) live in the signed-in avatar's dropdown
+ * menu (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
+ * default state in these tests, no login fixture here — only see the
+ * wordmark, "All jobs" (data-testid="topbar-alljobs"), and "Log in"
+ * (data-testid="topbar-login"), so menu-driven navigation tests below are
+ * conditional on the avatar being visible.
  */
-
 test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-001: Home page loads successfully
    *
-   * Verifies the main dashboard/home page loads with core elements:
+   * Verifies the root (jobs search) page loads with core elements:
    * - Logo and brand name "Intervu"
    * - Search input field
    * - Analyze button
@@ -34,90 +40,98 @@ test.describe('NAV - Navigation Tests', () => {
   });
 
   /**
-   * TC-NAV-002: Navigate to Resume Builder via menu
+   * TC-NAV-002: Navigate to Resume Builder via avatar menu
    *
-   * Opens the navigation menu and clicks Resume Builder link.
-   * Verifies successful navigation to /resume-builder page.
+   * Opens the signed-in avatar dropdown and clicks Resumes.
+   * No-ops when signed out (avatar isn't rendered — see file header).
    */
-  test('TC-NAV-002: Navigate to Resume Builder via menu', async ({ page }) => {
+  test('TC-NAV-002: Navigate to Resume Builder via avatar menu', async ({ page }) => {
     await page.goto('/');
 
-    // Open navigation menu
-    await page.locator('button:has-text("Menu")').click();
-
-    // Click Resume Builder link
-    await page.locator('text=Resume Builder').click();
-
-    // Verify navigation
-    await expect(page).toHaveURL('/resume-builder');
+    const avatar = page.getByTestId('topbar-avatar');
+    if (await avatar.isVisible()) {
+      await avatar.click();
+      await page.getByRole('menuitem', { name: 'Resumes' }).click();
+      await expect(page).toHaveURL('/resume-builder');
+    }
   });
 
   /**
-   * TC-NAV-003: Navigate to Resume Tailor via menu
+   * TC-NAV-003: Navigate to Applications via avatar menu
    *
-   * Opens the navigation menu and clicks Resume Tailor link.
-   * Verifies successful navigation to /resume-tailor page.
+   * Opens the signed-in avatar dropdown and clicks Applications.
+   * No-ops when signed out.
    */
-  test('TC-NAV-003: Navigate to Resume Tailor via menu', async ({ page }) => {
+  test('TC-NAV-003: Navigate to Applications via avatar menu', async ({ page }) => {
     await page.goto('/');
 
-    // Open navigation menu
-    await page.locator('button:has-text("Menu")').click();
-
-    // Click Resume Tailor link
-    await page.locator('text=Resume Tailor').click();
-
-    // Verify navigation
-    await expect(page).toHaveURL('/resume-tailor');
+    const avatar = page.getByTestId('topbar-avatar');
+    if (await avatar.isVisible()) {
+      await avatar.click();
+      await page.getByRole('menuitem', { name: 'Applications' }).click();
+      await expect(page).toHaveURL('/applications');
+    }
   });
 
   /**
-   * TC-NAV-004: Navigate to Applications via menu
+   * TC-NAV-004: Navigate to Settings via avatar menu
    *
-   * Opens the navigation menu and clicks Applications link.
-   * Verifies successful navigation to /applications page.
+   * Opens the signed-in avatar dropdown and clicks Settings.
+   * No-ops when signed out.
    */
-  test('TC-NAV-004: Navigate to Applications via menu', async ({ page }) => {
+  test('TC-NAV-004: Navigate to Settings via avatar menu', async ({ page }) => {
     await page.goto('/');
 
-    // Open navigation menu
-    await page.locator('button:has-text("Menu")').click();
-
-    // Click Applications link
-    await page.locator('text=Applications').click();
-
-    // Verify navigation
-    await expect(page).toHaveURL('/applications');
+    const avatar = page.getByTestId('topbar-avatar');
+    if (await avatar.isVisible()) {
+      await avatar.click();
+      await page.getByRole('menuitem', { name: 'Settings' }).click();
+      await expect(page).toHaveURL('/settings');
+    }
   });
 
   /**
-   * TC-NAV-005: Navigate to Settings via menu
+   * TC-NAV-005: Navigate to Prep via avatar menu
    *
-   * Opens the navigation menu and clicks Settings link.
-   * Verifies successful navigation to /settings page.
+   * Opens the signed-in avatar dropdown and clicks Prep.
+   * No-ops when signed out.
    */
-  test('TC-NAV-005: Navigate to Settings via menu', async ({ page }) => {
+  test('TC-NAV-005: Navigate to Prep via avatar menu', async ({ page }) => {
     await page.goto('/');
 
-    // Open navigation menu
-    await page.locator('button:has-text("Menu")').click();
-
-    // Click Settings link
-    await page.locator('text=Settings').click();
-
-    // Verify navigation
-    await expect(page).toHaveURL('/settings');
+    const avatar = page.getByTestId('topbar-avatar');
+    if (await avatar.isVisible()) {
+      await avatar.click();
+      await page.getByRole('menuitem', { name: 'Prep' }).click();
+      await expect(page).toHaveURL('/prep');
+    }
   });
 
   /**
-   * TC-NAV-006: Logo click returns to home
+   * TC-NAV-005b: Navigate to Library via avatar menu
    *
-   * From any page, clicking the logo should return to home page.
+   * Opens the signed-in avatar dropdown and clicks Library.
+   * No-ops when signed out.
    */
-  test('TC-NAV-006: Logo click returns to home', async ({ page }) => {
+  test('TC-NAV-005b: Navigate to Library via avatar menu', async ({ page }) => {
+    await page.goto('/');
+
+    const avatar = page.getByTestId('topbar-avatar');
+    if (await avatar.isVisible()) {
+      await avatar.click();
+      await page.getByRole('menuitem', { name: 'Library' }).click();
+      await expect(page).toHaveURL('/library');
+    }
+  });
+
+  /**
+   * TC-NAV-006: Wordmark click returns to jobs root
+   *
+   * From any page, clicking the TopBar wordmark should return to `/`.
+   */
+  test('TC-NAV-006: Wordmark click returns to jobs root', async ({ page }) => {
     await page.goto('/settings');
 
-    // Look for home link or logo
     const homeLink = page.locator('a[href="/"]').first();
 
     if (await homeLink.isVisible()) {
@@ -138,6 +152,7 @@ test.describe('NAV - Navigation Tests', () => {
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
       { url: '/', title: 'Intervu' },
+      { url: '/prep', title: 'Intervu' },
       { url: '/resume-builder', title: 'Resume' },
       { url: '/resume-tailor', title: 'Tailor' },
       { url: '/applications', title: 'Application' },
@@ -155,13 +170,13 @@ test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-008: Dashboard redirect works
    *
-   * /dashboard should redirect to / (home page).
+   * /dashboard should redirect to /prep (bookmarks belong to prep users;
+   * `/` is jobs now).
    */
   test('TC-NAV-008: Dashboard redirect works', async ({ page }) => {
     await page.goto('/dashboard');
 
-    // Should redirect to home
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/prep');
   });
 
   /**
@@ -176,7 +191,7 @@ test.describe('NAV - Navigation Tests', () => {
     // Go back
     await page.goBack();
 
-    // Should be at home
+    // Should be back at the jobs root
     await expect(page).toHaveURL('/');
   });
 });
