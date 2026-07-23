@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
     MagnifyingGlass,
     X,
@@ -751,6 +752,60 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
     if (!d) return false;
     if ((d.profile?.profession ?? "").trim()) return true;
     return (d.competencies ?? []).some((c) => (c.skills ?? []).some((s) => (s ?? "").trim()));
+}
+
+const PREP_MOVED_DISMISSED_KEY = "intervu.flip.note.dismissed";
+
+/**
+ * One-time note for returning prep users after the jobs-first flip (PR 1):
+ * prep moved from `/` to `/prep`. Detects prior prep usage by localStorage
+ * key prefix — `src/lib/prep/session-progress.ts` and `plan-list.ts` both
+ * write keys under `intervu_prep_` — so jobs-only and brand-new visitors
+ * never see it. Client-only: no server state, no cookies.
+ */
+function PrepMovedNote() {
+    const [visible, setVisible] = useState(false);
+
+    useEffect(() => {
+        try {
+            const dismissed = localStorage.getItem(PREP_MOVED_DISMISSED_KEY) != null;
+            const hadPrep = Object.keys(localStorage).some((k) => k.startsWith("intervu_prep_"));
+            setVisible(!dismissed && hadPrep);
+        } catch {
+            // localStorage unavailable (private mode, etc.) — nothing to
+            // detect, so stay silent rather than guess.
+        }
+    }, []);
+
+    if (!visible) return null;
+
+    const dismiss = () => {
+        try {
+            localStorage.setItem(PREP_MOVED_DISMISSED_KEY, "1");
+        } catch {
+            /* best-effort — worst case the note reappears next visit */
+        }
+        setVisible(false);
+    };
+
+    return (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
+            <span>
+                Interview prep moved — it now lives at{" "}
+                <Link href="/prep" className="font-medium text-foreground underline underline-offset-2">
+                    /prep
+                </Link>
+                .
+            </span>
+            <button
+                onClick={dismiss}
+                aria-label="Dismiss"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+            >
+                <X size={14} />
+            </button>
+        </div>
+    );
 }
 
 const MODE_META: Record<Mode, { label: string; Icon: typeof Target }> = {
@@ -2539,6 +2594,7 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
+                <PrepMovedNote />
                 <div className="shrink-0">
                     <ModeBar mode={mode} onStartOver={startOver} />
                 </div>
