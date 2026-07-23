@@ -21,6 +21,7 @@ import {
     CaretRight,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import {
@@ -44,9 +45,9 @@ import {
     getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
-import { goAfterJobAction } from "@/actions/application";
+import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
-import { addGuestPursuit } from "@/lib/pursuits/guest-store";
+import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -1036,6 +1037,85 @@ function EmptyResults({
     );
 }
 
+/**
+ * The search seed line (spec §3 "outside interviews"): ALWAYS present below
+ * the results pane — for the visitor who's already mid-interview-loop
+ * somewhere, not job hunting on this page at all. Collapsed to a single
+ * quiet line by default (it must not compete with the results above it);
+ * one click expands the two-field form in place. Submitting creates an
+ * "interviewing"-stage pursuit with no job_id (typed company/role only, no
+ * live listing behind it — same shape `buildManualPursuitSnapshot` gives
+ * every other manual pursuit) and the caller routes straight into /prep for
+ * it — see `handleSeedSubmit` below.
+ */
+function SearchSeedLine({
+    onSubmit,
+    submitting,
+}: {
+    onSubmit: (company: string, position: string) => void;
+    submitting: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [company, setCompanyInput] = useState("");
+    const [position, setPositionInput] = useState("");
+
+    if (!open) {
+        return (
+            <div data-testid="prep-seed-line" className="shrink-0 border-t border-border py-3 text-center">
+                <button
+                    type="button"
+                    onClick={() => setOpen(true)}
+                    className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    Already interviewing somewhere? <span className="font-medium text-brand">Prep for it.</span>
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <form
+            data-testid="prep-seed-form"
+            onSubmit={(e) => {
+                e.preventDefault();
+                const c = company.trim();
+                const p = position.trim();
+                if (!c || !p) return;
+                onSubmit(c, p);
+            }}
+            className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-border py-3"
+        >
+            <span className="text-[13px] text-muted-foreground">Already interviewing somewhere?</span>
+            <Input
+                value={company}
+                onChange={(e) => setCompanyInput(e.target.value)}
+                placeholder="Company"
+                required
+                aria-label="Company"
+                className="h-8 w-36 text-[13px]"
+            />
+            <Input
+                value={position}
+                onChange={(e) => setPositionInput(e.target.value)}
+                placeholder="Role"
+                required
+                aria-label="Role"
+                className="h-8 w-40 text-[13px]"
+            />
+            <Button type="submit" size="sm" disabled={submitting} className="h-8">
+                {submitting ? "Prepping…" : "Prep for it"}
+            </Button>
+            <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+            >
+                Cancel
+            </button>
+        </form>
+    );
+}
+
 function JobsContent() {
     const router = useRouter();
     const pathname = usePathname();
@@ -1285,6 +1365,7 @@ function JobsContent() {
     const { byJobId: pursuitsByJobId } = usePursuits();
     const [applyingId, setApplyingId] = useState<string | null>(null);
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
+    const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
@@ -2201,6 +2282,55 @@ function JobsContent() {
                 }
             } finally {
                 setGoingAfterId(null);
+            }
+        })();
+    };
+
+    // The search seed line (spec §3 "outside interviews") — same signed-out
+    // vs. signed-in split as `handleGoAfter` above, but there's no job_id to
+    // find-or-create by (`createManualPursuit`/`addManualGuestPursuit` always
+    // create), and unlike go-after this always routes on to /prep once the
+    // pursuit exists — `round` defaults to "Technical" for the same reason
+    // `handlePrep` above does: DashboardContainer's URL-restore only loads a
+    // session when company/position/round/searched are ALL present.
+    const handleSeedSubmit = (company: string, position: string) => {
+        const goToPrep = (pursuitId: string) => {
+            const p = new URLSearchParams();
+            p.set("company", company);
+            p.set("position", position);
+            p.set("round", "Technical");
+            p.set("searched", "true");
+            p.set("pursuitId", pursuitId);
+            router.push(`/prep?${p.toString()}`);
+        };
+
+        if (!user) {
+            goToPrep(addManualGuestPursuit(company, position).id);
+            return;
+        }
+
+        void (async () => {
+            setSeedSubmitting(true);
+            try {
+                const res = await createManualPursuit({ company, position });
+                if (res.error || !res.data) {
+                    if (classifySentinel(res.error) === "auth") {
+                        setAuthOpen(true);
+                    } else {
+                        toast.error(`Could not save: ${res.error ?? "Failed to create pursuit"}`);
+                    }
+                    return;
+                }
+                invalidatePursuitsCache();
+                goToPrep(res.data.id);
+            } catch (e) {
+                if (classifySentinel(e) === "auth") {
+                    setAuthOpen(true);
+                } else {
+                    toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+                }
+            } finally {
+                setSeedSubmitting(false);
             }
         })();
     };
@@ -3232,6 +3362,7 @@ function JobsContent() {
                 </div>
             )}
             </div>
+                <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                 </div>
             </>
 

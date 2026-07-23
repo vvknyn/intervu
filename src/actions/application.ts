@@ -3,8 +3,14 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
-import { validate, updateApplicationSchema, upsertPursuitSchema } from "@/lib/validation";
-import { mergeGuestPursuit, type JobSnapshot, type Pursuit as PursuitType, type PursuitStage } from "@/lib/pursuits/types";
+import { validate, updateApplicationSchema, upsertPursuitSchema, createManualPursuitSchema } from "@/lib/validation";
+import {
+    mergeGuestPursuit,
+    buildManualPursuitSnapshot,
+    type JobSnapshot,
+    type Pursuit as PursuitType,
+    type PursuitStage,
+} from "@/lib/pursuits/types";
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
@@ -257,6 +263,51 @@ export async function goAfterJobAction(job: PublicJob): Promise<{ data?: Applica
         },
         "interested",
     );
+}
+
+/**
+ * The search seed line (spec §3 "outside interviews"): "Already interviewing
+ * somewhere? Prep for it." creates a pursuit straight from typed company/role
+ * — no job card, no job_id. Unlike `upsertPursuitForJob` there is nothing to
+ * find-or-create by, so this always creates (same company + role twice is
+ * two distinct pursuits, per spec §7).
+ *
+ * `status` defaults to "interviewing" (the seed line's own stage). It's
+ * overridable so `syncGuestPursuitsToServer` (use-pursuits.ts) can carry a
+ * guest's manual pursuit through at whatever stage they'd already advanced
+ * it to before signing in, rather than resetting it back to "interviewing".
+ */
+export async function createManualPursuit(
+    input: { company: string; position: string; status?: PursuitStage },
+): Promise<{ data?: Application; error?: string }> {
+    try {
+        const user = await getServerUser();
+        if (!user) return { error: "User not authenticated" };
+
+        const parsed = validate(createManualPursuitSchema, input);
+        if (!parsed.ok) return { error: parsed.error };
+
+        const db = getAdminDb();
+        const now = new Date().toISOString();
+        const snapshot = buildManualPursuitSnapshot(parsed.data.company, parsed.data.position);
+        const docData = {
+            user_id: user.uid,
+            company_name: snapshot.company ?? "",
+            position: snapshot.title,
+            status: parsed.data.status ?? "interviewing",
+            job_id: null,
+            job_snapshot: snapshot,
+            created_at: now,
+            updated_at: now,
+        };
+
+        const docRef = await db.collection("applications").add(docData);
+        revalidatePath("/yours");
+        return { data: { id: docRef.id, ...docData } as Application };
+    } catch (error) {
+        console.error("Error creating manual pursuit:", error);
+        return { error: error instanceof Error ? error.message : "Failed to create pursuit" };
+    }
 }
 
 export async function deleteApplication(id: string) {

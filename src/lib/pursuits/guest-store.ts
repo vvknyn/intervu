@@ -10,7 +10,7 @@
  */
 
 import type { Pursuit, PursuitStage } from "./types";
-import { mergeGuestPursuit, buildJobSnapshot } from "./types";
+import { mergeGuestPursuit, buildJobSnapshot, buildManualPursuitSnapshot } from "./types";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const STORAGE_KEY = "intervu.pursuits.guest";
@@ -90,6 +90,29 @@ export function addGuestPursuit(job: PublicJob, status: PursuitStage = "interest
     const next = i === -1 ? [...list, merged] : list.map((p, idx) => (idx === i ? merged : p));
     write(next);
     return merged;
+}
+
+/**
+ * Guest counterpart to `createManualPursuit` (actions/application.ts) — the
+ * search seed line (spec §3 "outside interviews"). Always adds a new
+ * pursuit: unlike `addGuestPursuit` there is no job_id to find-or-create by,
+ * so a repeat seed submission is a distinct pursuit by design.
+ */
+export function addManualGuestPursuit(company: string, position: string): Pursuit {
+    const now = new Date().toISOString();
+    const pursuit: Pursuit = {
+        id: newGuestId("manual"),
+        user_id: "guest",
+        company_name: company,
+        position,
+        status: "interviewing",
+        job_id: null,
+        job_snapshot: buildManualPursuitSnapshot(company, position),
+        created_at: now,
+        updated_at: now,
+    };
+    write([...read(), pursuit]);
+    return pursuit;
 }
 
 /** Patch an existing guest pursuit by id (e.g. setting an interview date). */

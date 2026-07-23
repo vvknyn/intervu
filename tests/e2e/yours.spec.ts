@@ -163,6 +163,56 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
   });
 });
 
+test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
+  /**
+   * TC-YOURS-011/012: the search seed line (jobs-first-bloom PR3, spec §3
+   * "outside interviews") — an always-present quiet line under the jobs
+   * results on `/` for a visitor who's already interviewing somewhere else.
+   * Guest path: `addManualGuestPursuit` (src/lib/pursuits/guest-store.ts)
+   * writes straight to the same `intervu.pursuits.guest` localStorage key
+   * `seedGuestPursuit` above seeds directly, so a submitted seed shows up on
+   * /yours exactly like any other guest pursuit.
+   */
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+  });
+
+  test('TC-YOURS-011: submitting the seed line creates a guest pursuit and routes to /prep', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByTestId('prep-seed-line')).toBeVisible({ timeout: 10000 });
+    await page.getByTestId('prep-seed-line').click();
+
+    const form = page.getByTestId('prep-seed-form');
+    await expect(form).toBeVisible();
+    await form.getByLabel('Company').fill('Globex');
+    await form.getByLabel('Role').fill('Product Manager');
+    await form.getByRole('button', { name: 'Prep for it' }).click();
+
+    await expect(page).toHaveURL(/\/prep\?.*company=Globex.*/);
+    await expect(page).toHaveURL(/pursuitId=/);
+    await expect(page).toHaveURL(/searched=true/);
+  });
+
+  test('TC-YOURS-012: a seed-line pursuit shows up on /yours as interviewing', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('prep-seed-line').click();
+    const form = page.getByTestId('prep-seed-form');
+    await form.getByLabel('Company').fill('Initech');
+    await form.getByLabel('Role').fill('Backend Engineer');
+    await form.getByRole('button', { name: 'Prep for it' }).click();
+    await expect(page).toHaveURL(/\/prep\?/);
+
+    await page.goto('/yours');
+    const row = page.getByTestId('pursuit-row').first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await expect(row).toContainText('Initech');
+    await expect(row).toContainText('Backend Engineer');
+    await expect(row).toContainText('Prep for this interview');
+  });
+});
+
 test.describe('YOURS - Mobile', () => {
   test('TC-YOURS-010: Yours page is usable on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });

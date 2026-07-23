@@ -123,6 +123,18 @@ export const upsertPursuitSchema = z.object({
   stage: applicationStatus,
 });
 
+/** createManualPursuit input (the search seed line, spec §3 "outside
+ *  interviews") — no job_id, no snapshot fields: just the two typed inputs.
+ *  `status` is optional (defaults to "interviewing" — the seed line's own
+ *  stage) so the guest→auth merge (`syncGuestPursuitsToServer`) can also
+ *  route a manual guest pursuit through this same create chokepoint without
+ *  losing whatever stage the guest already advanced it to. */
+export const createManualPursuitSchema = z.object({
+  company: nonEmptyString(200),
+  position: nonEmptyString(300),
+  status: applicationStatus.optional(),
+});
+
 /** A single provider API key save (profile.ts saveProviderApiKey). */
 export const saveProviderApiKeySchema = z.object({
   provider: z.enum(["openrouter", "groq"]),

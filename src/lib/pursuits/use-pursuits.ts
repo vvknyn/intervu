@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { getApplications, upsertPursuitForJob } from "@/actions/application";
+import { getApplications, upsertPursuitForJob, createManualPursuit } from "@/actions/application";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { listGuestPursuits, clearGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
@@ -60,27 +60,36 @@ export function invalidatePursuitsCache(): void {
 }
 
 /**
- * Merge-at-sign-in (spec §3, §7): push every guest pursuit to the server —
- * `upsertPursuitForJob` keeps whichever stage is more advanced per job_id —
+ * Merge-at-sign-in (spec §3, §7): push every guest pursuit to the server,
  * then clear local storage. Callers (root page, /yours) guard this behind
  * their own `useRef` so it runs at most once per page load.
+ *
+ * Two shapes, two chokepoints: a job-linked guest pursuit goes through
+ * `upsertPursuitForJob`, which keeps whichever stage is more advanced per
+ * job_id. A manual (search-seed-line, no job_id) guest pursuit has nothing
+ * to find-or-create by — same as its own server-side creation path — so it
+ * goes through `createManualPursuit` instead, carrying the guest's current
+ * `status` through rather than resetting to "interviewing" (a job_id-less
+ * guest pursuit used to be silently dropped here entirely).
  */
 export async function syncGuestPursuitsToServer(): Promise<void> {
-    const guests = listGuestPursuits().filter((g): g is Pursuit & { job_id: string } => !!g.job_id);
+    const guests = listGuestPursuits();
     if (guests.length === 0) return;
     await Promise.all(
         guests.map((g) =>
-            upsertPursuitForJob(
-                {
-                    job_id: g.job_id,
-                    title: g.job_snapshot?.title ?? g.position,
-                    company: g.job_snapshot?.company ?? g.company_name,
-                    location: g.job_snapshot?.location ?? null,
-                    description: g.job_snapshot?.description ?? null,
-                    apply_url: g.job_snapshot?.apply_url ?? g.job_url ?? "",
-                },
-                g.status,
-            ),
+            g.job_id
+                ? upsertPursuitForJob(
+                      {
+                          job_id: g.job_id,
+                          title: g.job_snapshot?.title ?? g.position,
+                          company: g.job_snapshot?.company ?? g.company_name,
+                          location: g.job_snapshot?.location ?? null,
+                          description: g.job_snapshot?.description ?? null,
+                          apply_url: g.job_snapshot?.apply_url ?? g.job_url ?? "",
+                      },
+                      g.status,
+                  )
+                : createManualPursuit({ company: g.company_name, position: g.position, status: g.status }),
         ),
     );
     clearGuestPursuits();
