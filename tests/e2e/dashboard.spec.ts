@@ -26,7 +26,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Verifies the search bar accepts and displays user input.
    */
   test('TC-DASH-001: Search bar accepts input', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -43,7 +43,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Verifies the analyze button is visible on the page.
    */
   test('TC-DASH-002: Analyze button is visible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     // Verify there are buttons on the page
@@ -57,7 +57,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Pressing Enter in the search field should trigger the analyze action.
    */
   test('TC-DASH-003: Search with Enter key triggers analyze', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -79,7 +79,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * When no search has been performed, the brand name should be visible.
    */
   test('TC-DASH-004: Empty search state shows brand', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     // Landing: session-first home shows brand and primary CTA
@@ -93,18 +93,17 @@ test.describe('DASH - Dashboard Tests', () => {
   });
 
   /**
-   * TC-DASH-005: Navigation rail is visible on desktop
+   * TC-DASH-005: Top bar is visible on desktop
    *
-   * The page should have a navigation rail on desktop viewports.
+   * The page should have the shell's top bar on desktop viewports.
+   * (Was a side-rail nav pre-flip — the sidebar is deleted, not hidden.)
    */
-  test('TC-DASH-005: Navigation rail is visible on desktop', async ({ page }) => {
+  test('TC-DASH-005: Top bar is visible on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
-    // Desktop: side rail nav should be visible
-    const nav = page.locator('nav[data-tour="nav-menu"]');
-    await expect(nav).toBeVisible();
+    await expect(page.getByTestId('topbar')).toBeVisible();
   });
 
   /**
@@ -113,7 +112,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * The page should have buttons in the header/nav area.
    */
   test('TC-DASH-006: Page has buttons', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
 
     // Page should have buttons
     const buttons = page.locator('button');
@@ -127,7 +126,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * The page should have proper structure.
    */
   test('TC-DASH-007: Page structure is intact', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
 
     // Page should have body content
     await expect(page.locator('body')).toBeVisible();
@@ -139,7 +138,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * User can fill search and click buttons.
    */
   test('TC-DASH-008: Search and button interaction', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -167,7 +166,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Clearing storage should not break the page.
    */
   test('TC-DASH-009: Page handles empty storage gracefully', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
@@ -186,7 +185,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Navigating with URL parameters should not error.
    */
   test('TC-DASH-010: URL params are accepted', async ({ page }) => {
-    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.goto('/prep?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
 
     // Page should load without errors
     await expect(page).toHaveURL(/company=Apple/);
@@ -199,7 +198,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Session-first landing should show the primary Start CTA.
    */
   test('TC-DASH-PREP-001: Clean home shows Start new preparation', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('prep-start-new')).toBeVisible();
@@ -212,7 +211,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Legacy searched=true URLs should load without error and show prep content.
    */
   test('TC-DASH-PREP-002: Legacy URL loads prep content', async ({ page }) => {
-    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.goto('/prep?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/company=Apple/);
@@ -230,7 +229,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Legacy searched=true URLs should open the prep package path, not session-first landing.
    */
   test('TC-DASH-PREP-003: Legacy URL shows package-first content', async ({ page }) => {
-    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.goto('/prep?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/company=Apple/);
@@ -248,7 +247,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * When a cached plan is present, the Session | Prep package switch should appear.
    */
   test('TC-DASH-PREP-004: View switch visible when plan loaded', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       function getCacheKey(company: string, position: string, round: string) {
         const normalized = `${company.toLowerCase()}_${position.toLowerCase()}_${round.toLowerCase()}`;
@@ -283,7 +282,7 @@ test.describe('DASH - Dashboard Tests', () => {
       }));
     });
 
-    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.goto('/prep?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('prep-view-switch')).toBeVisible({ timeout: 10000 });
@@ -297,7 +296,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Navigating home after loading a plan should not show the package switch on landing/setup.
    */
   test('TC-DASH-PREP-005: View switch hidden on clean home landing', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       function getCacheKey(company: string, position: string, round: string) {
         const normalized = `${company.toLowerCase()}_${position.toLowerCase()}_${round.toLowerCase()}`;
@@ -345,11 +344,11 @@ test.describe('DASH - Dashboard Tests', () => {
       }));
     });
 
-    await page.goto('/?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
+    await page.goto('/prep?company=Apple&position=iOS%20Engineer&round=Onsite&searched=true');
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('prep-view-switch')).toBeVisible({ timeout: 10000 });
 
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('prep-start-new')).toBeVisible();
@@ -360,23 +359,22 @@ test.describe('DASH - Dashboard Tests', () => {
   });
 
   /**
-   * TC-DASH-011: Mobile bottom tab bar works
+   * TC-DASH-011: Mobile top bar works
    *
-   * On mobile viewport, bottom tab bar should be accessible.
+   * On mobile viewport, the shell's top bar should be accessible.
+   * (Was the bottom tab bar pre-flip — no mobile-nav replacement in PR 1.)
    */
-  test('TC-DASH-011: Mobile bottom tab bar works', async ({ page }) => {
+  test('TC-DASH-011: Mobile top bar works', async ({ page }) => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     // Session-first landing should be functional on mobile
     await expect(page.getByTestId('prep-start-new')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
 
-    // Bottom nav should be visible
-    const bottomNav = page.locator('nav.lg\\:hidden');
-    await expect(bottomNav).toBeVisible();
+    await expect(page.getByTestId('topbar')).toBeVisible();
   });
 
   /**
@@ -385,7 +383,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Search input should have helpful placeholder text.
    */
   test('TC-DASH-012: Search placeholder text is visible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -400,7 +398,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * Session-first landing should render even when guest keys are cleared.
    */
   test('TC-DASH-013: Landing works without guest API keys', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.removeItem('guest_api_keys');
       localStorage.removeItem('guest_api_key');
@@ -418,7 +416,7 @@ test.describe('DASH - Dashboard Tests', () => {
    * When an API key is configured, the nudge should not be shown.
    */
   test('TC-DASH-014: Connect your AI nudge hidden when keys exist', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_12345' }));
     });
@@ -443,7 +441,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Guest user can search for a technical interview position.
    */
   test('TC-DASH-SEARCH-001: Guest search with technical position', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_12345678901234' }));
     });
@@ -468,7 +466,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Guest user can search for a behavioral interview position.
    */
   test('TC-DASH-SEARCH-002: Guest search with behavioral position', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_12345678901234' }));
     });
@@ -491,7 +489,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Guest user can search for a non-technical position type.
    */
   test('TC-DASH-SEARCH-003: Guest search with non-technical position', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_12345678901234' }));
     });
@@ -514,7 +512,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Searching without an API key should prompt the user to connect.
    */
   test('TC-DASH-SEARCH-004: Search without API key proceeds without connect modal', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.evaluate(() => {
       localStorage.removeItem('guest_api_keys');
       localStorage.removeItem('guest_api_key');
@@ -541,7 +539,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Queries like "Company, Position" should default to Technical round.
    */
   test('TC-DASH-SEARCH-005: Two-part query defaults correctly', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -560,7 +558,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * A single word should be treated as company name with defaults.
    */
   test('TC-DASH-SEARCH-006: Single word query parses as company', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -579,7 +577,7 @@ test.describe('DASH-SEARCH - Search Workflow Tests', () => {
    * Queries with commas should parse instantly without showing loading.
    */
   test('TC-DASH-SEARCH-007: Comma-separated query parses instantly', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -608,7 +606,7 @@ test.describe('DASH-API - API Key Configuration Tests', () => {
    * User gets prompted to connect when analyzing without a key.
    */
   test('TC-DASH-API-001: Analyze without guest API key does not require connect modal', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await page.evaluate(() => {
@@ -636,7 +634,7 @@ test.describe('DASH-API - API Key Configuration Tests', () => {
    * Saved API keys should persist across page reloads.
    */
   test('TC-DASH-API-002: API keys persist in localStorage', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
 
     // Set API key in localStorage
     await page.evaluate(() => {
@@ -733,7 +731,7 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    * The optional job posting URL input should be visible.
    */
   test('TC-DASH-CTX-001: Job URL input is visible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -749,7 +747,7 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    * User can toggle between URL input and text area.
    */
   test('TC-DASH-CTX-002: Can switch between URL and text mode', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -772,7 +770,7 @@ test.describe('DASH-CONTEXT - Optional Context Input Tests', () => {
    * URL input should accept and store values.
    */
   test('TC-DASH-CTX-003: Job context accepts URL input', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await openSearchPlans(page);
@@ -797,7 +795,7 @@ test.describe('DASH-PROGRESS - Progressive Loading Tests', () => {
    * Dashboard should become visible after initial sections complete.
    */
   test('TC-DASH-PROG-001: Dashboard appears progressively', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     // Set API key to enable analysis
