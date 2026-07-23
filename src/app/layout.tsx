@@ -30,7 +30,7 @@ const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk befor
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Find jobs",
+    default: "Intervu — Find jobs",
     template: "%s · Intervu",
   },
   description: SITE_DESCRIPTION,
