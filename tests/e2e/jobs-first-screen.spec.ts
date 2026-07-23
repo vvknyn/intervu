@@ -34,7 +34,7 @@ import { test, expect } from '@playwright/test';
 test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     try {
-        await page.goto('/jobs');
+        await page.goto('/');
         await page
             .locator('[data-job-row]')
             .or(page.getByText(/being connected/i))
@@ -59,7 +59,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     });
 
     test('anonymous first paint shows job rows — no gate, no interaction', async ({ page }) => {
-        await page.goto('/jobs');
+        await page.goto('/');
 
         // Structural gate check: the ASK screen's "No, I'll search" button
         // must never render — it existed only in JobsEntryGate, now deleted.
@@ -86,20 +86,20 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
                 /* private mode / storage disabled */
             }
         });
-        await page.goto('/jobs');
+        await page.goto('/');
         await page.waitForTimeout(500);
         expect(await page.evaluate(() => localStorage.getItem('intervu.jobs.entry'))).toBeNull();
     });
 
     test("deep link reconstructs the exact screen", async ({ page }) => {
-        await page.goto("/jobs?q=engineer&work=remote&posted=7d&salary=150k");
+        await page.goto("/?q=engineer&work=remote&posted=7d&salary=150k");
         await expect(page.getByRole("textbox").first()).toHaveValue("engineer");
         // Active filter chips reflect the URL (chip text per existing chips loop at page.tsx:1254-1263):
         await expect(page.getByText("Remote", { exact: false }).first()).toBeVisible();
     });
 
     test("opening a job pushes a URL; back closes the detail", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         const firstRow = page.locator("[data-testid=job-row], main li").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
@@ -108,7 +108,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     });
 
     test("refresh reproduces the same results state", async ({ page }) => {
-        await page.goto("/jobs?posted=7d");
+        await page.goto("/?posted=7d");
         const countBefore = await page.getByText(/roles|results/i).first().textContent();
         await page.reload();
         await expect(page.getByText(/roles|results/i).first()).toHaveText(countBefore ?? "");
@@ -125,7 +125,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * parsed field, not just `job`, so Back always matches the address bar.
      */
     test("back after opening a job and editing the query restores the URL's query, not the edited one", async ({ page }) => {
-        await page.goto("/jobs?q=engineer");
+        await page.goto("/?q=engineer");
         const searchInput = page.getByRole("textbox").first();
         await expect(searchInput).toHaveValue("engineer");
 
@@ -153,14 +153,14 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * push — mirroring the reviewer's push-then-replace pattern for a
      * non-`q` field, carrying `job=` along since `buildUrlState()` defaults
      * `jobId` to whatever the URL currently holds). Back must unwind past
-     * BOTH: the URL reverts to the bare `/jobs` entry, and the screen must
+     * BOTH: the URL reverts to the bare `/` entry, and the screen must
      * match — no `posted` filter, no active chip, no open detail. Starts
      * from the unfiltered default view (always has rows, per the "anonymous
      * first paint" test above) rather than a pre-filtered URL, so this test
      * isn't sensitive to how many roles currently fall in the 7-day bucket.
      */
     test("back after opening a job and applying a filter restores the prior state", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         const firstRow = page.locator("[data-testid=job-row], main li").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
@@ -191,7 +191,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * TASK 6 — Trust toolbar: corpus-count placeholder, freshness stamp, fit sort.
      */
     test("placeholder carries the live corpus count", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         // Captured off the first real search response (250ms debounce + a live
         // Meilisearch round-trip, never a dedicated count request — see
         // controller resolution #2), so a synchronous `getAttribute()` right
@@ -203,7 +203,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     });
 
     test("freshness stamp renders relative age", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         // `formatRelativeAge` (Task 3, locked — see its own unit test) formats
         // "6 min ago" WITH a space before the unit but "2h ago"/"3d ago"
         // WITHOUT one. `\s?` (not a mandatory literal space) covers both.
@@ -215,7 +215,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // which jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002 already target
     // via `getByRole('combobox', { name: /Sort results/i })`. Mirrored here.
     test("sort menu offers Rank by fit", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         await page.getByRole("combobox", { name: /Sort results/i }).click();
         await expect(page.getByText("Rank by fit", { exact: false })).toBeVisible();
     });
@@ -231,7 +231,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("desktop 1100px shows the filter rail with the ghost toggle, no click needed", async ({ page }) => {
         await page.setViewportSize({ width: 1100, height: 800 });
-        await page.goto("/jobs");
+        await page.goto("/");
 
         const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
@@ -244,7 +244,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * NOT dismissed AND NOT resumeIsUsable(local resume state)).
      */
     test("upsell card shows once and dismissal survives reload", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         // "Upload your résumé" is the ResumeUpsellCard's own distinctive CTA
         // text (verified unique on this page) — not tied to the exact
         // "match against N roles" / "match roles" wording, which varies
@@ -271,7 +271,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // renders a real age-bearing badge, just not which side of the
     // threshold today's data happens to fall on.
     test("clear rows carry an age-bearing freshness badge", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         await expect(
             page.getByText(/(✓ live|checked) (just now|\d+ min ago|\d+h ago|\d+d ago)/).first(),
         ).toBeVisible();
@@ -287,7 +287,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // future local-source (no `suggest` prop) caller that might mark its
     // dropdown that way instead; it never matches today.
     test("typing shows suggestions; Enter searches without a full page reload", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         const box = page.getByRole("textbox").first();
         await box.fill("engineer");
         await expect(
@@ -324,7 +324,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // `window.history.length` increments by exactly 1 across ArrowDown+Enter
     // here, and stays flat across a plain typed Enter.
     test("ArrowDown then Enter selects a suggestion and pushes a new history entry", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         const box = page.getByRole("textbox").first();
         await box.fill("eng");
         const listbox = page.getByRole("listbox", { name: "Search suggestions" });
@@ -368,7 +368,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * so it never actually proved OUR chip rendered.
      */
     test("zero results names the excluders and offers ghost reveal", async ({ page }) => {
-        await page.goto("/jobs?q=zzzzunfindablezzz&salary=200k");
+        await page.goto("/?q=zzzzunfindablezzz&salary=200k");
         await expect(page.getByText("No roles match.")).toBeVisible();
         await expect(page.getByTestId("empty-state-clear-chip").first()).toBeVisible();
     });
@@ -401,7 +401,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * state below was added to fix).
      */
     test("dead job link never renders a different job's detail in its place", async ({ page }) => {
-        await page.goto("/jobs?job=nonexistent-id-12345");
+        await page.goto("/?job=nonexistent-id-12345");
         // Real rows load (proves the page didn't just stall) …
         await expect(page.locator("[data-testid=job-row]").first()).toBeVisible({ timeout: 10_000 });
         // … but the detail pane never claims a specific job for this id —
@@ -439,7 +439,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("dead id's job= param clears from the URL once a second search still can't find it", async ({ page }) => {
         const deadId = `nonexistent-id-urlclear-${Date.now()}`;
-        await page.goto(`/jobs?job=${deadId}`);
+        await page.goto(`/?job=${deadId}`);
         // Fetch 1 resolves (real rows load) — grants the id its one free pass.
         await expect(page.locator("[data-testid=job-row]").first()).toBeVisible({ timeout: 10_000 });
         await expect(page).toHaveURL(new RegExp(`job=${deadId}`));
@@ -486,7 +486,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * specific just-opened row, which is what this test needs to isolate.
      */
     test("a query change that excludes the open job clears job= from the URL, not just the detail pane", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         const firstRow = page.locator("[data-testid=job-row], main li").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
@@ -518,7 +518,7 @@ test.describe("mobile", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
     test("chips row is visible and opens the sheet with a live count", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         await expect(page.getByText("All (", { exact: false })).toBeVisible();
         await page.getByText("All (", { exact: false }).click();
         await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
@@ -532,7 +532,7 @@ test.describe("mobile", () => {
     // to change (proof the debounced re-count fired), THEN applies and checks
     // the applied page shows that same (post-edit) number.
     test("sheet count reflects a debounced pending-filter change and matches the applied result", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         await page.getByText("All (", { exact: false }).click();
 
         const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
@@ -574,7 +574,7 @@ test.describe("mobile", () => {
     // virtualization/infinite-scroll, so this asserts a <200px tolerance
     // rather than pixel-exact equality.
     test("system back closes detail and preserves scroll", async ({ page }) => {
-        await page.goto("/jobs");
+        await page.goto("/");
         await page.mouse.wheel(0, 1500);
         const y = await page.evaluate(() => window.scrollY);
         await page.locator("[data-testid=job-row], main li").nth(5).click();
