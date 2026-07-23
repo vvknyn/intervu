@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
-import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
+import { TopBar } from "@/components/layout/TopBar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
@@ -81,7 +81,8 @@ export default function RootLayout({
         />
         <ThemeProvider>
           <TourProvider>
-            <AppShellWrapper>{children}</AppShellWrapper>
+            <TopBar />
+            {children}
             <TourOverlay />
             <TourTrigger />
             <Toaster />
