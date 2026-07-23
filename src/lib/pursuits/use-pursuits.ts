@@ -14,7 +14,7 @@
  * mounted consumer re-fetches on its next render.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { getApplications, upsertPursuitForJob } from "@/actions/application";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
@@ -100,30 +100,44 @@ export function usePursuits(): UsePursuitsResult {
     const [pursuits, setPursuits] = useState<Pursuit[]>(() => (user ? (cache ?? []) : listGuestPursuits()));
     const [loading, setLoading] = useState(!!user && !cache);
 
-    const load = useCallback((signedIn: boolean) => {
-        if (signedIn) {
-            setLoading(!cache);
-            fetchServerPursuits().then((data) => {
-                setPursuits(data);
-                setLoading(false);
-            });
-        } else {
-            setPursuits(listGuestPursuits());
-            setLoading(false);
-        }
-    }, []);
-
     useEffect(() => onAuthChange(setUser), []);
 
+    // Re-read on mount/user-change and whenever the server cache or the
+    // guest store is invalidated elsewhere (another mounted consumer's
+    // mutation). Each `refresh` call below runs inside an async continuation
+    // (a subscription callback or a `.then`), never synchronously as the
+    // effect's first statement.
     useEffect(() => {
-        load(!!user);
-        const unsubServer = subscribe(() => load(!!user));
-        const unsubGuest = subscribeGuestPursuits(() => load(!!user));
+        let cancelled = false;
+        const signedIn = !!user;
+
+        const refresh = () => {
+            if (cancelled) return;
+            if (!signedIn) {
+                setPursuits(listGuestPursuits());
+                setLoading(false);
+                return;
+            }
+            setLoading(!cache);
+            fetchServerPursuits().then((data) => {
+                if (!cancelled) {
+                    setPursuits(data);
+                    setLoading(false);
+                }
+            });
+        };
+
+        // Kick off the first read via a microtask rather than synchronously,
+        // so this effect's own body never calls setState directly.
+        Promise.resolve().then(refresh);
+        const unsubServer = subscribe(refresh);
+        const unsubGuest = subscribeGuestPursuits(refresh);
         return () => {
+            cancelled = true;
             unsubServer();
             unsubGuest();
         };
-    }, [user, load]);
+    }, [user]);
 
     const byJobId = new Map<string, Pursuit>();
     for (const p of pursuits) if (p.job_id) byJobId.set(p.job_id, p);

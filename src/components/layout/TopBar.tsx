@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CaretDown, Moon, SignIn, Sun } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, type User } from "@/lib/firebase/client-auth";
+import { usePursuits } from "@/lib/pursuits/use-pursuits";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
@@ -76,7 +77,7 @@ function initialsOf(user: User): string {
 const NAV_DESTINATIONS = [
     { label: "Prep", href: "/prep" },
     { label: "Resumes", href: "/resume-builder" },
-    { label: "Applications", href: "/applications" },
+    { label: "Yours", href: "/yours" },
     { label: "Library", href: "/library" },
     { label: "Settings", href: "/settings" },
 ];
@@ -94,6 +95,9 @@ export function TopBar() {
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
     const sessionRefreshed = useRef(false);
+    // Visibility-iff-data (spec §2): "Yours" only renders once a pursuit
+    // exists, auth'd fetch or guest store either way — one shared hook, no flags.
+    const { hasAny: hasPursuits } = usePursuits();
 
     useEffect(() => {
         const unsubscribe = onAuthChange((u) => {
@@ -140,6 +144,16 @@ export function TopBar() {
                 >
                     All jobs
                 </Link>
+
+                {hasPursuits && (
+                    <Link
+                        href="/yours"
+                        data-testid="topbar-yours"
+                        className="text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        Yours
+                    </Link>
+                )}
 
                 <button
                     onClick={toggleDark}

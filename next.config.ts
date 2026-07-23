@@ -75,6 +75,13 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: true,
       },
+      // The applications tracker became the pursuit list (jobs-first-bloom
+      // PR 2). Query params (e.g. ?view=new) pass through automatically.
+      {
+        source: "/applications",
+        destination: "/yours",
+        permanent: true,
+      },
     ];
   },
 };

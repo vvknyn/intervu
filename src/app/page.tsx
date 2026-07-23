@@ -44,6 +44,10 @@ import {
     getPostedDateFilterSupportAction,
     suggestJobsAction,
 } from "@/actions/jobs";
+import { goAfterJobAction } from "@/actions/application";
+import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import { addGuestPursuit } from "@/lib/pursuits/guest-store";
+import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
@@ -502,8 +506,11 @@ function JobDetail({
     onOpenPosting,
     onMarkApplied,
     onPrep,
+    onGoAfter,
     applied,
     applying,
+    pursuit,
+    goingAfter,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -512,8 +519,12 @@ function JobDetail({
     onOpenPosting: () => void;
     onMarkApplied: () => void;
     onPrep: () => void;
+    onGoAfter: () => void;
     applied: boolean;
     applying: boolean;
+    /** The existing pursuit for this job, if the user already went after it. */
+    pursuit: Pursuit | undefined;
+    goingAfter: boolean;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
@@ -580,8 +591,24 @@ function JobDetail({
                     </div>
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                    <Button onClick={onTailor} className="gap-2">
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                    {/* The one verb (spec §2/§3): "Go after this job" is the primary
+                        action. Once a pursuit exists, it becomes a quiet confirmation
+                        link instead — pressing it again would be meaningless. */}
+                    {pursuit ? (
+                        <Link
+                            href={`/yours/${pursuit.id}`}
+                            className="text-sm font-medium text-brand hover:underline"
+                        >
+                            In Yours ✓ — view
+                        </Link>
+                    ) : (
+                        <Button onClick={onGoAfter} disabled={goingAfter} className="gap-2">
+                            <Check size={16} weight="bold" />
+                            {goingAfter ? "Saving…" : "Go after this job"}
+                        </Button>
+                    )}
+                    <Button variant="outline" onClick={onTailor} className="gap-2">
                         <Sparkle size={16} weight="fill" />
                         Apply with tailored resume
                     </Button>
@@ -1253,8 +1280,12 @@ function JobsContent() {
 
     const [user, setUser] = useState<User | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
-    const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
+    // Replaces the old session-only `appliedIds` state (forgot on reload) —
+    // one shared, cached fetch that also serves TopBar and /yours.
+    const { byJobId: pursuitsByJobId } = usePursuits();
     const [applyingId, setApplyingId] = useState<string | null>(null);
+    const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
+    const guestPursuitSyncRef = useRef(false);
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
@@ -1778,6 +1809,7 @@ function JobsContent() {
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
     const detailJob = selected ?? deadJobFoundJob;
+    const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
     // Review fix — still checking, or the check came back inconclusive
     // (`unknown` — the confirmed production reality until the Meilisearch
     // index gets `id` added to `filterableAttributes`, see
@@ -2108,6 +2140,7 @@ function JobsContent() {
                 company: job.company ?? "",
                 title: job.title,
                 applyUrl: job.apply_url,
+                jobId: job.id,
             });
             if (res.error) {
                 // Session may have expired between login and save → reopen auth.
@@ -2118,7 +2151,7 @@ function JobsContent() {
                 }
                 return;
             }
-            setAppliedIds((prev) => new Set(prev).add(job.id));
+            invalidatePursuitsCache();
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 setAuthOpen(true);
@@ -2136,6 +2169,40 @@ function JobsContent() {
             return;
         }
         void doMarkApplied(job);
+    };
+
+    // "Go after this job" (spec §3) — the one verb, no auth wall: signed out
+    // writes straight to the guest store (merged at sign-in, see
+    // `guestPursuitSyncRef` below); signed in calls the server chokepoint.
+    const handleGoAfter = (job: PublicJob) => {
+        if (!user) {
+            addGuestPursuit(job);
+            return;
+        }
+        void (async () => {
+            setGoingAfterId(job.id);
+            try {
+                const res = await goAfterJobAction(job);
+                if (res.error) {
+                    // Session may have expired between login and save → reopen auth.
+                    if (classifySentinel(res.error) === "auth") {
+                        setAuthOpen(true);
+                    } else {
+                        toast.error(`Could not save: ${res.error}`);
+                    }
+                    return;
+                }
+                invalidatePursuitsCache();
+            } catch (e) {
+                if (classifySentinel(e) === "auth") {
+                    setAuthOpen(true);
+                } else {
+                    toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+                }
+            } finally {
+                setGoingAfterId(null);
+            }
+        })();
     };
 
     // Run whatever the user queued before signing in — exactly once, and ONLY
@@ -2189,6 +2256,14 @@ function JobsContent() {
     useEffect(() => {
         if (user) maybeReplay();
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
+
+    // Guest→auth pursuit merge (spec §3/§7) — at most once per load.
+    useEffect(() => {
+        if (user && !guestPursuitSyncRef.current) {
+            guestPursuitSyncRef.current = true;
+            void syncGuestPursuitsToServer();
+        }
     }, [user]);
 
     /* ----------------------------- resume-driven actions ----------------------------- */
@@ -3126,12 +3201,15 @@ function JobsContent() {
                                             key={detailJob.id}
                                             job={detailJob}
                                             now={nowMs}
-                                            applied={appliedIds.has(detailJob.id)}
+                                            applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                             applying={applyingId === detailJob.id}
                                             onTailor={() => handleTailor(detailJob)}
                                             onOpenPosting={() => handleOpenPosting(detailJob)}
                                             onMarkApplied={() => handleMarkApplied(detailJob)}
                                             onPrep={() => handlePrep(detailJob)}
+                                            onGoAfter={() => handleGoAfter(detailJob)}
+                                            pursuit={detailPursuit}
+                                            goingAfter={goingAfterId === detailJob.id}
                                         />
                                     ) : isDeadJobConfirmed ? (
                                         <DeadJobTombstone
@@ -3203,12 +3281,15 @@ function JobsContent() {
                                 key={detailJob.id}
                                 job={detailJob}
                                 now={nowMs}
-                                applied={appliedIds.has(detailJob.id)}
+                                applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                 applying={applyingId === detailJob.id}
                                 onTailor={() => handleTailor(detailJob)}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
+                                onGoAfter={() => handleGoAfter(detailJob)}
+                                pursuit={detailPursuit}
+                                goingAfter={goingAfterId === detailJob.id}
                             />
                             {/* Task 10 — thumb-zone sticky bar. Reuses the SAME
                                 onOpenPosting/onPrep handlers passed to JobDetail
