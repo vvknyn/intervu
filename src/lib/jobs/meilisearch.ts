@@ -221,6 +221,23 @@ export function shouldWidenSearch(pass1Total: number, q: string): boolean {
   return Boolean(q.trim()) && pass1Total < WIDEN_THRESHOLD;
 }
 
+/**
+ * Latency budget for attempting the wide pass (2026-07-24 incident): the Meili
+ * box came under bulk-job load and pass 1 alone was taking ~4s. The two-pass
+ * design ran pass 1 then pass 2 sequentially — at ~4s each, that's ~8s,
+ * blowing the client's 15s settle guard and producing a prod outage page. A
+ * slow pass 1 is the signal that the box is under load right now, so it
+ * forfeits the wide pass rather than doubling down: honest thin-but-fast
+ * beats a timeout.
+ */
+export const WIDE_PASS_LATENCY_BUDGET_MS = 4_000;
+
+/** Pure: widen only when pass 1 says it's worth it AND pass 1 was fast enough
+ *  to leave room in the latency budget for a second sequential call. */
+export function shouldAttemptWidePass(pass1Ms: number, pass1Total: number, q: string): boolean {
+  return shouldWidenSearch(pass1Total, q) && pass1Ms <= WIDE_PASS_LATENCY_BUDGET_MS;
+}
+
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
 export interface MeiliSearchBody {
   q: string;
@@ -250,8 +267,10 @@ export function buildSearchBody(
 }
 
 /** Read-path: search the jobs index. Two-pass (spec §6.1): a title/company
- *  precision pass first; if it comes back thin for a real query, one wide
- *  (description-included) pass, flagged `widened` so the UI can say so. */
+ *  precision pass first; if it comes back thin for a real query AND pass 1
+ *  finished within `WIDE_PASS_LATENCY_BUDGET_MS`, one wide (description-
+ *  included) pass, flagged `widened` so the UI can say so. A slow pass 1
+ *  forfeits the wide pass — see `shouldAttemptWidePass`. */
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -308,8 +327,10 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 
   const q = (p.q ?? "").trim();
   if (!q) return runPass(); // browse mode: already wide, single pass
+  const pass1Start = Date.now();
   const precise = await runPass(PRECISION_SEARCH_ATTRIBUTES);
-  if (!shouldWidenSearch(precise.total, q)) return precise;
+  const pass1Ms = Date.now() - pass1Start;
+  if (!shouldAttemptWidePass(pass1Ms, precise.total, q)) return precise;
   const wide = await runPass();
   // The widened flag is honest signal, not decoration: only claim it when
   // widening actually surfaced more than the precision pass had.
