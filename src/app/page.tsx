@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -756,6 +756,35 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
 
 const PREP_MOVED_DISMISSED_KEY = "intervu.flip.note.dismissed";
 
+// PrepMovedNote reads localStorage — a client-only external system — so it's
+// wired through useSyncExternalStore rather than a mount effect + setState:
+// the server snapshot (false) matches what SSR renders, and the real value
+// applies on the client without a hydration mismatch. `dismiss()` below
+// writes localStorage then notifies this one listener set directly, since
+// nothing else needs to react to the flag changing.
+const prepMovedListeners = new Set<() => void>();
+function notifyPrepMovedChanged() {
+    prepMovedListeners.forEach((cb) => cb());
+}
+function subscribePrepMoved(onChange: () => void) {
+    prepMovedListeners.add(onChange);
+    return () => prepMovedListeners.delete(onChange);
+}
+function getPrepMovedSnapshot(): boolean {
+    try {
+        const dismissed = localStorage.getItem(PREP_MOVED_DISMISSED_KEY) != null;
+        const hadPrep = Object.keys(localStorage).some((k) => k.startsWith("intervu_prep_"));
+        return !dismissed && hadPrep;
+    } catch {
+        // localStorage unavailable (private mode, etc.) — nothing to detect,
+        // so stay silent rather than guess.
+        return false;
+    }
+}
+function getPrepMovedServerSnapshot(): boolean {
+    return false;
+}
+
 /**
  * One-time note for returning prep users after the jobs-first flip (PR 1):
  * prep moved from `/` to `/prep`. Detects prior prep usage by localStorage
@@ -764,18 +793,7 @@ const PREP_MOVED_DISMISSED_KEY = "intervu.flip.note.dismissed";
  * never see it. Client-only: no server state, no cookies.
  */
 function PrepMovedNote() {
-    const [visible, setVisible] = useState(false);
-
-    useEffect(() => {
-        try {
-            const dismissed = localStorage.getItem(PREP_MOVED_DISMISSED_KEY) != null;
-            const hadPrep = Object.keys(localStorage).some((k) => k.startsWith("intervu_prep_"));
-            setVisible(!dismissed && hadPrep);
-        } catch {
-            // localStorage unavailable (private mode, etc.) — nothing to
-            // detect, so stay silent rather than guess.
-        }
-    }, []);
+    const visible = useSyncExternalStore(subscribePrepMoved, getPrepMovedSnapshot, getPrepMovedServerSnapshot);
 
     if (!visible) return null;
 
@@ -785,7 +803,7 @@ function PrepMovedNote() {
         } catch {
             /* best-effort — worst case the note reappears next visit */
         }
-        setVisible(false);
+        notifyPrepMovedChanged();
     };
 
     return (

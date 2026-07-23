@@ -265,7 +265,7 @@ test.describe('NAVIGATION - Complete Matrix', () => {
                     await page.waitForURL(new RegExp(to.path.replace('/', '\\/')), { timeout: 5000 });
                     success++;
                     console.log(`✓ ${from.name} → ${to.name}`);
-                } catch (e) {
+                } catch {
                     console.log(`✗ ${from.name} → ${to.name}`);
                 }
             }
