@@ -92,6 +92,11 @@ export function TopBar() {
                 <span className="text-[17px] font-bold tracking-[-0.4px] leading-none">
                     inter<b className="text-brand font-bold">vu</b>
                 </span>
+                {/* The app's one BETA badge — see DashboardContainer.tsx's prep
+                    title, which deliberately doesn't repeat it. */}
+                <span className="self-start mt-1 text-[8.5px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground/80">
+                    beta
+                </span>
             </Link>
 
             <div className="flex items-center gap-4">

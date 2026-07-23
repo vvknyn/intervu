@@ -2295,7 +2295,7 @@ export function DashboardContainer() {
                             </Button>
                         </div>
                     )}
-                    {/* Title — the single BETA badge lives in the sidebar lockup (AppShell). */}
+                    {/* Title — the single BETA badge lives in the top bar (TopBar). */}
                     <div className="mb-12 text-center">
                         <div className="mb-3">
                             <h1 className="text-[40px] sm:text-[56px] font-semibold tracking-tighter leading-none">
