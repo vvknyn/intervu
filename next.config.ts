@@ -66,6 +66,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // Jobs flipped to root (jobs-first-bloom PR 1). Query params (e.g.
+      // ?job=<id>) pass through automatically — Next preserves them on 301s.
+      {
+        source: "/jobs",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

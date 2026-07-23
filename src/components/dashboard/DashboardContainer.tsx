@@ -1970,7 +1970,7 @@ export function DashboardContainer() {
         setPrepPhase("landing");
         setShowSearchPlans(false);
         setSearchError(null);
-        router.push("/");
+        router.push("/prep");
     };
 
 
