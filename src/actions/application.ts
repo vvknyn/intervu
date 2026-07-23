@@ -87,9 +87,9 @@ export async function getApplications() {
         }
 
         return { data: applications };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error fetching applications:", error);
-        return { error: error.message || "Failed to fetch applications" };
+        return { error: error instanceof Error ? error.message : "Failed to fetch applications" };
     }
 }
 
@@ -114,9 +114,9 @@ export async function createApplication(application: CreateApplicationData) {
 
         revalidatePath('/yours');
         return { data };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error creating application:", error);
-        return { error: error.message || "Failed to create application" };
+        return { error: error instanceof Error ? error.message : "Failed to create application" };
     }
 }
 
@@ -155,9 +155,9 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
 
         revalidatePath('/yours');
         return { data };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error updating application:", error);
-        return { error: error.message || "Failed to update application" };
+        return { error: error instanceof Error ? error.message : "Failed to update application" };
     }
 }
 
@@ -236,9 +236,9 @@ export async function upsertPursuitForJob(
         const docRef = await db.collection("applications").add(clean);
         revalidatePath("/yours");
         return { data: { id: docRef.id, ...clean } as Application };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error upserting pursuit:", error);
-        return { error: error.message || "Failed to save pursuit" };
+        return { error: error instanceof Error ? error.message : "Failed to save pursuit" };
     }
 }
 
@@ -278,8 +278,8 @@ export async function deleteApplication(id: string) {
 
         revalidatePath('/yours');
         return { success: true };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error deleting application:", error);
-        return { error: error.message || "Failed to delete application" };
+        return { error: error instanceof Error ? error.message : "Failed to delete application" };
     }
 }

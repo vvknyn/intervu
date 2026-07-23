@@ -1,5 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import type { PublicJob } from "../../src/lib/jobs/types";
 
 /**
  * guest-store.ts is a "use client" module that talks to `localStorage`
@@ -23,7 +24,8 @@ class FakeLocalStorage {
     }
 }
 
-(globalThis as any).localStorage = new FakeLocalStorage();
+const fakeLocalStorage = new FakeLocalStorage();
+(globalThis as unknown as { localStorage: FakeLocalStorage }).localStorage = fakeLocalStorage;
 
 // Static import is safe here (unlike a top-level `await import(...)`, which
 // `tsx`'s CJS transform rejects): the module only touches `localStorage`
@@ -38,7 +40,7 @@ import {
     updateGuestPursuit,
 } from "../../src/lib/pursuits/guest-store";
 
-function makeJob(id: string, overrides: Record<string, unknown> = {}) {
+function makeJob(id: string, overrides: Partial<PublicJob> = {}): PublicJob {
     return {
         id,
         title: "Senior Engineer",
@@ -80,7 +82,7 @@ test("hasAnyGuestPursuits is false on an empty store", () => {
 
 test("addGuestPursuit round-trips through localStorage", () => {
     const job = makeJob("j1");
-    const added = addGuestPursuit(job as any, "interested");
+    const added = addGuestPursuit(job, "interested");
     assert.equal(added.job_id, "j1");
     assert.equal(added.status, "interested");
 
@@ -93,8 +95,8 @@ test("addGuestPursuit round-trips through localStorage", () => {
 
 test("addGuestPursuit for the same job_id upgrades stage instead of duplicating", () => {
     const job = makeJob("j1");
-    addGuestPursuit(job as any, "interested");
-    addGuestPursuit(job as any, "interviewing");
+    addGuestPursuit(job, "interested");
+    addGuestPursuit(job, "interviewing");
 
     const list = listGuestPursuits();
     assert.equal(list.length, 1, "same job_id should not create a second row");
@@ -103,8 +105,8 @@ test("addGuestPursuit for the same job_id upgrades stage instead of duplicating"
 
 test("addGuestPursuit for the same job_id never downgrades stage", () => {
     const job = makeJob("j1");
-    addGuestPursuit(job as any, "interviewing");
-    addGuestPursuit(job as any, "interested");
+    addGuestPursuit(job, "interviewing");
+    addGuestPursuit(job, "interested");
 
     const list = listGuestPursuits();
     assert.equal(list.length, 1);
@@ -112,8 +114,8 @@ test("addGuestPursuit for the same job_id never downgrades stage", () => {
 });
 
 test("removeGuestPursuit removes only the targeted row", () => {
-    const a = addGuestPursuit(makeJob("j1") as any, "interested");
-    addGuestPursuit(makeJob("j2") as any, "interested");
+    const a = addGuestPursuit(makeJob("j1"), "interested");
+    addGuestPursuit(makeJob("j2"), "interested");
 
     removeGuestPursuit(a.id);
 
@@ -123,7 +125,7 @@ test("removeGuestPursuit removes only the targeted row", () => {
 });
 
 test("updateGuestPursuit patches an existing row and bumps updated_at", () => {
-    const added = addGuestPursuit(makeJob("j1") as any, "applied");
+    const added = addGuestPursuit(makeJob("j1"), "applied");
     const before = added.updated_at;
 
     const updated = updateGuestPursuit(added.id, { status: "interviewing", interview_date: "2026-08-01T00:00:00.000Z" });
@@ -139,13 +141,13 @@ test("updateGuestPursuit returns null for an unknown id", () => {
 });
 
 test("clearGuestPursuits empties the store", () => {
-    addGuestPursuit(makeJob("j1") as any, "interested");
+    addGuestPursuit(makeJob("j1"), "interested");
     clearGuestPursuits();
     assert.deepEqual(listGuestPursuits(), []);
     assert.equal(hasAnyGuestPursuits(), false);
 });
 
 test("a corrupt localStorage value degrades to an empty list rather than throwing", () => {
-    (globalThis as any).localStorage.setItem("intervu.pursuits.guest", "{not json");
+    fakeLocalStorage.setItem("intervu.pursuits.guest", "{not json");
     assert.deepEqual(listGuestPursuits(), []);
 });
