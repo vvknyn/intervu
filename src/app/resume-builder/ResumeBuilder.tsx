@@ -420,10 +420,10 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                     title="Resume Builder"
                     backButton={
                         (source === 'applications' || source === 'new-application') ? (
-                            <Link href="/applications">
+                            <Link href="/yours">
                                 <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
                                     <ArrowLeft size={16} />
-                                    <span className="hidden sm:inline">Back to Applications</span>
+                                    <span className="hidden sm:inline">Back to Yours</span>
                                     <span className="sm:hidden">Back</span>
                                 </Button>
                             </Link>
@@ -494,7 +494,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                     Open Sidebar
                                 </Button>
                             )}
-                            <Link href="/applications" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                            <Link href="/yours" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
                                 Skip & Return
                                 <ArrowRight size={12} />
                             </Link>

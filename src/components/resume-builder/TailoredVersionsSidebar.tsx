@@ -374,7 +374,7 @@ export function TailoredVersionsSidebar({ isOpen, onClose, currentVersionId, app
 
             // Redirect back to applications if coming from wizard flow
             if (isNewApplication || applicationId) {
-                router.push('/applications');
+                router.push('/yours');
                 return;
             }
 

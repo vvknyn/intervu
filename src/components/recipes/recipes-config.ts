@@ -51,7 +51,7 @@ export const RECIPES: Recipe[] = [
         type: "navigate",
         priority: 1,
         estimatedMinutes: 5,
-        navigateTo: "/applications?view=new",
+        navigateTo: "/yours?view=new",
         showWhen: (ctx) => ctx.hasResume,
     },
     {

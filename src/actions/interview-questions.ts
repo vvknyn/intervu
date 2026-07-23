@@ -65,8 +65,8 @@ export async function addInterviewQuestion(input: {
         const docRef = await db.collection("interview_questions").add(docData);
         const data = { id: docRef.id, ...docData };
 
-        revalidatePath("/applications");
-        revalidatePath(`/applications?id=${input.applicationId}`);
+        revalidatePath("/yours");
+        revalidatePath(`/yours/${input.applicationId}`);
 
         return { data };
     } catch (error: any) {
@@ -119,7 +119,7 @@ export async function deleteInterviewQuestion(id: string) {
 
         await docRef.delete();
 
-        revalidatePath('/applications');
+        revalidatePath('/yours');
         return { success: true };
     } catch (error: any) {
         console.error("Error deleting question:", error);

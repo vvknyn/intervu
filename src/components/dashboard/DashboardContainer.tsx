@@ -780,7 +780,7 @@ export function DashboardContainer() {
     ) : null;
 
     const handleSummaryGoToApplication = () => {
-        router.push("/applications");
+        router.push("/yours");
     };
 
     const handleSummaryViewStarred = () => {
