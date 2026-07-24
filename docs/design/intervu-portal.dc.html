@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5F0;-webkit-font-smoothing:antialiased}
+a{color:#0E6B4C;text-decoration:none}a:hover{color:#0A4F38;text-decoration:underline}
+@keyframes ivPulse{0%{box-shadow:0 0 0 0 rgba(15,138,98,.45)}70%{box-shadow:0 0 0 6px rgba(15,138,98,0)}100%{box-shadow:0 0 0 0 rgba(15,138,98,0)}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif" data-screen-label="Intervu — Find jobs">
+  <div style="display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 56px;background:#FBFAF6;border-bottom:1px solid #E5E2D8">
+    <div style="display:flex;align-items:center;gap:36px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:500;letter-spacing:-.02em">inter<span style="font-weight:700">vu</span></span>
+        <span style="font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;border:1px solid #DCD8CB;border-radius:4px;padding:2px 6px">beta</span>
+      </div>
+      <div style="display:flex;gap:26px;font-size:14.5px;font-weight:500">
+        <span onClick="{{ goJobs }}" style="color:{{ navJobsFg }};border-bottom:2px solid {{ navJobsLine }};padding:20px 0 18px;cursor:pointer">Find jobs</span>
+        <span onClick="{{ goTracker }}" style="color:{{ navTrackerFg }};border-bottom:2px solid {{ navTrackerLine }};padding:20px 0 18px;cursor:pointer">Tracker</span>
+        <span onClick="{{ goResume }}" style="color:{{ navResumeFg }};border-bottom:2px solid {{ navResumeLine }};padding:20px 0 18px;cursor:pointer">Resume</span>
+        <span onClick="{{ goPrep }}" style="color:{{ navPrepFg }};border-bottom:2px solid {{ navPrepLine }};padding:20px 0 18px;cursor:pointer">Interview prep</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="font-family:'Spline Sans Mono',monospace;font-size:12px;color:#6E695B">2,318 live roles</span>
+      <div style="width:34px;height:34px;border-radius:50%;background:#1C1B16;color:#FBFAF6;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;letter-spacing:.04em">RD</div>
+    </div>
+  </div>
+
+  <sc-if value="{{ pageJobs }}" hint-placeholder-val="{{ true }}"><div data-screen-label="Find jobs">
+  <div style="padding:36px 56px 20px;border-bottom:1px solid #E5E2D8;background:#FBFAF6">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px">
+      <div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:34px;font-weight:600;letter-spacing:-.025em;line-height:1.1">Find work that's real.</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:13px;color:#6E695B;margin-top:8px">Every listing checked for ghost-job risk · 412 flagged this week</div>
+      </div>
+      <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;font-weight:500;color:#0E6B4C;border:1px solid #BFDCCB;border-radius:8px;padding:9px 14px;cursor:pointer;background:#FFFFFF;white-space:nowrap;flex:none" style-hover="background:#EDF6F0">⏰ Save this search as alert</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr .9fr .9fr auto;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:10px;padding:0 16px;height:50px">
+        <span style="color:#8A8574;font-size:15px">⌕</span>
+        <span style="font-size:15px;font-weight:500">Technical Account Manager</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:10px;padding:0 16px;height:50px">
+        <span style="font-size:14.5px;color:#3E3B30">Toronto, ON · CAN</span><span style="color:#8A8574;font-size:11px">▾</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:10px;padding:0 16px;height:50px">
+        <span style="font-size:14.5px;color:#3E3B30">Hybrid + Remote</span><span style="color:#8A8574;font-size:11px">▾</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;background:#1C1B16;color:#FBFAF6;border-radius:10px;padding:0 30px;height:50px;font-size:15px;font-weight:600;cursor:pointer" style-hover="background:#33312A">Search</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:500;background:#1C1B16;color:#FBFAF6;border:1px solid #1C1B16;border-radius:100px;padding:7px 14px;cursor:pointer">No ghost risk ✓</span>
+      <span style="font-size:13px;font-weight:500;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:100px;padding:7px 14px;color:#3E3B30;cursor:pointer" style-hover="border-color:#1C1B16">New this week</span>
+      <span style="font-size:13px;font-weight:500;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:100px;padding:7px 14px;color:#3E3B30;cursor:pointer" style-hover="border-color:#1C1B16">Easy apply</span>
+      <span style="font-size:13px;font-weight:500;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:100px;padding:7px 14px;color:#3E3B30;cursor:pointer" style-hover="border-color:#1C1B16">Salary listed</span>
+      <span style="font-size:13px;font-weight:500;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:100px;padding:7px 14px;color:#3E3B30;cursor:pointer" style-hover="border-color:#1C1B16">Senior level</span>
+      <span style="font-size:13px;font-weight:500;padding:7px 6px;color:#6E695B;cursor:pointer">All filters ⚙</span>
+      <span style="flex:1"></span>
+      <span style="font-size:13px;color:#8A8574;cursor:pointer" style-hover="color:#1C1B16">Reset</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 350px;gap:28px;padding:28px 56px 64px;max-width:1440px;box-sizing:border-box">
+    <div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:600">Top matches <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;font-weight:400;color:#6E695B;margin-left:8px;white-space:nowrap">{{ matchLabel }}</span></div>
+        <div style="display:flex;gap:2px;background:#EDEBE2;border-radius:8px;padding:3px;flex:none">
+          <span onClick="{{ sortFresh }}" style="font-family:'Spline Sans Mono',monospace;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;background:{{ freshBg }};color:{{ freshFg }};box-shadow:{{ freshShadow }};white-space:nowrap">freshest</span>
+          <span onClick="{{ sortPay }}" style="font-family:'Spline Sans Mono',monospace;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;background:{{ payBg }};color:{{ payFg }};box-shadow:{{ payShadow }};white-space:nowrap">top pay</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ jobs }}" as="job" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:46px 1fr auto;gap:18px;align-items:center;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 22px;cursor:pointer;transition:border-color .15s,box-shadow .15s" style-hover="border-color:#C9C4B4;box-shadow:0 2px 10px rgba(28,27,22,.06)">
+            <div style="width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;background:{{ job.logoBg }};color:{{ job.logoFg }}">{{ job.initial }}</div>
+            <div style="min-width:0">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:16.5px;font-weight:600;letter-spacing:-.01em">{{ job.title }}</span>
+                <sc-if value="{{ job.easyApply }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-family:'Spline Sans Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6E695B;border:1px dashed #C9C4B4;border-radius:4px;padding:2px 6px">easy apply</span>
+                </sc-if>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px;font-size:13.5px;color:#6E695B;flex-wrap:wrap">
+                <span style="font-weight:500;color:#3E3B30">{{ job.company }}</span>
+                <span>{{ job.locMode }}</span>
+                <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">{{ job.salary }}</span>
+                <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">{{ job.level }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:9px">
+                <span style="width:7px;height:7px;border-radius:50%;background:{{ job.flagDotColor }};animation:{{ job.flagAnim }}"></span>
+                <span style="font-family:'Spline Sans Mono',monospace;font-size:12px;font-weight:500;color:{{ job.flagFg }}">{{ job.flagLabel }}</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span onClick="{{ job.toggleSave }}" style="font-size:19px;color:{{ job.heartColor }};cursor:pointer;line-height:1">{{ job.heartGlyph }}</span>
+                <span style="font-size:13.5px;font-weight:600;background:#FFFFFF;color:#1C1B16;border:1.5px solid #1C1B16;border-radius:8px;padding:8px 18px;cursor:pointer" style-hover="background:#1C1B16;color:#FBFAF6">Apply</span>
+              </div>
+              <span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574">{{ job.posted }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="text-align:center;margin-top:18px">
+        <span style="font-family:'Spline Sans Mono',monospace;font-size:13px;color:#6E695B;border:1px solid #DCD8CB;border-radius:8px;padding:10px 22px;cursor:pointer;background:#FFFFFF;display:inline-block" style-hover="border-color:#1C1B16;color:#1C1B16">Show 40 more matches ↓</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 22px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+          <span style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600">Your pipeline</span>
+          <a href="#" style="font-size:12.5px;font-weight:500">Open tracker →</a>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px">
+          <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0">
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">0</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8A8574;margin-top:2px">Saved</div>
+          </div>
+          <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#EDF6F0;border:1px solid #BFDCCB">
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#0E6B4C">9</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#0E6B4C;margin-top:2px">Applied</div>
+          </div>
+          <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0">
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">0</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8A8574;margin-top:2px">Interview</div>
+          </div>
+          <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0">
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">0</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8A8574;margin-top:2px">Offer</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;padding-top:12px;border-top:1px solid #EDEBE2">
+            <span style="width:7px;height:7px;border-radius:50%;background:#B3452F;flex:none"></span>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Technical Product Owner · TripArc</div>
+              <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#B3452F;margin-top:1px">listing went inactive · 12d ago</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:7px;height:7px;border-radius:50%;background:#0F8A62;flex:none"></span>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sr. Technical Account Manager · Highspot</div>
+              <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B;margin-top:1px">applied 4d ago · role still live</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:7px;height:7px;border-radius:50%;background:#0F8A62;flex:none"></span>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Customer Success Manager · Zip</div>
+              <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B;margin-top:1px">applied 6d ago · role still live</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#1C1B16;color:#FBFAF6;border-radius:12px;padding:20px 22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#3ECF8E;animation:ivPulse 2s infinite"></span>
+          <span style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600">Ghost radar</span>
+        </div>
+        <div style="font-size:13.5px;line-height:1.55;color:#CBC7B8">Of 64 TAM listings in Toronto this month, <span style="color:#FBFAF6;font-weight:600">17 showed ghost-risk signals</span> — reposted loops, 45+ day staleness, or no tracked hires. We flag them so you don't waste applications.</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574;margin-top:12px">last sweep · today 06:00 EST</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:600">Weekly alert</div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:3px">TAM · Toronto · no-ghost only</div>
+        </div>
+        <div style="width:40px;height:23px;border-radius:100px;background:#0F8A62;position:relative;cursor:pointer;flex:none"><span style="position:absolute;top:2.5px;right:2.5px;width:18px;height:18px;border-radius:50%;background:#FFFFFF"></span></div>
+      </div>
+    </div>
+  </div>
+  </div></sc-if>
+
+  <sc-if value="{{ pageTracker }}" hint-placeholder-val="{{ false }}"><div style="padding:32px 56px 64px;max-width:1440px;box-sizing:border-box" data-screen-label="Tracker">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:28px;font-weight:600;letter-spacing:-.02em">Application tracker</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:#6E695B;margin-top:6px">9 applications · last 90 days</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <span style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#3E3B30;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:9px 14px;cursor:pointer">Job status <span style="color:#8A8574;font-size:10px">▾</span></span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#3E3B30;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:9px 14px;cursor:pointer">Last 90 days <span style="color:#8A8574;font-size:10px">▾</span></span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:26px">
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:16px 20px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700">22%</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8A8574;margin-top:4px">Response rate</div>
+        <div style="font-size:12.5px;color:#6E695B;margin-top:6px">2 of 9 heard back</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:16px 20px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700">6 days</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8A8574;margin-top:4px">Median first reply</div>
+        <div style="font-size:12.5px;color:#6E695B;margin-top:6px">for roles that responded</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:16px 20px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700;color:#B3452F">3</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8A8574;margin-top:4px">Went inactive</div>
+        <div style="font-size:12.5px;color:#6E695B;margin-top:6px">listing closed or ghosted</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:16px 20px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700">0</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8A8574;margin-top:4px">Interviews</div>
+        <div style="font-size:12.5px;color:#6E695B;margin-top:6px">median wait for TAM: 11d</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:13.5px;font-weight:600">Saved</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:#EDEBE2;border-radius:100px;padding:2px 8px;color:#6E695B">0</span></div>
+        <div style="border:1.5px dashed #DCD8CB;border-radius:10px;padding:26px 18px;text-align:center">
+          <div style="font-size:13px;color:#8A8574;line-height:1.5">Nothing saved yet — tap ♡ on a match to park it here.</div>
+          <div style="margin-top:10px"><a href="#" onClick="{{ goJobs }}" style="font-size:12.5px;font-weight:500">Browse matches →</a></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:13.5px;font-weight:600">Applied</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:#E6F1EC;border-radius:100px;padding:2px 8px;color:#0E6B4C">9</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="background:#FFFFFF;border:1px solid #ECC9C0;border-radius:10px;padding:14px 16px;cursor:pointer" style-hover="box-shadow:0 2px 10px rgba(28,27,22,.06)">
+            <div style="font-size:14px;font-weight:600;line-height:1.35">Technical Product Owner (AI & Agentic Systems)</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:4px">TripArc · applied 12d ago</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="width:6px;height:6px;border-radius:50%;background:#B3452F"></span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#B3452F">listing inactive — archive?</span></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:10px;padding:14px 16px;cursor:pointer" style-hover="box-shadow:0 2px 10px rgba(28,27,22,.06)">
+            <div style="font-size:14px;font-weight:600;line-height:1.35">Sr. Technical Account Manager — Remote</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:4px">Highspot · applied 4d ago</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="width:6px;height:6px;border-radius:50%;background:#0F8A62"></span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#0E6B4C">recruiter viewed 1d ago</span></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:10px;padding:14px 16px;cursor:pointer" style-hover="box-shadow:0 2px 10px rgba(28,27,22,.06)">
+            <div style="font-size:14px;font-weight:600;line-height:1.35">Customer Success Manager, Enterprise</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:4px">Zip · applied 6d ago</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="width:6px;height:6px;border-radius:50%;background:#0F8A62"></span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#0E6B4C">role still live</span></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:10px;padding:14px 16px;cursor:pointer" style-hover="box-shadow:0 2px 10px rgba(28,27,22,.06)">
+            <div style="font-size:14px;font-weight:600;line-height:1.35">Technical Account Manager</div>
+            <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:4px">Samsara · applied 8d ago</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px"><span style="width:6px;height:6px;border-radius:50%;background:#0F8A62"></span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#0E6B4C">role still live</span></div>
+          </div>
+          <div style="text-align:center;padding:4px 0"><a href="#" style="font-family:'Spline Sans Mono',monospace;font-size:12px">show 5 more ↓</a></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:13.5px;font-weight:600">Interviewing</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:#EDEBE2;border-radius:100px;padding:2px 8px;color:#6E695B">0</span></div>
+        <div style="border:1.5px dashed #DCD8CB;border-radius:10px;padding:26px 18px;text-align:center">
+          <div style="font-size:13px;color:#8A8574;line-height:1.5">No interviews yet. Median wait for TAM roles is 11 days — your oldest live application is 8 days in.</div>
+          <div style="margin-top:10px"><a href="#" onClick="{{ goPrep }}" style="font-size:12.5px;font-weight:500">Prep while you wait →</a></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:13.5px;font-weight:600">Offer</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;background:#EDEBE2;border-radius:100px;padding:2px 8px;color:#6E695B">0</span></div>
+        <div style="border:1.5px dashed #DCD8CB;border-radius:10px;padding:26px 18px;text-align:center">
+          <div style="font-size:13px;color:#8A8574;line-height:1.5">Offers land here — with comp benchmarks for the role when they do.</div>
+        </div>
+      </div>
+    </div>
+  </div></sc-if>
+
+  <sc-if value="{{ pageResume }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:1fr 350px;gap:28px;padding:32px 56px 64px;max-width:1440px;box-sizing:border-box" data-screen-label="Resume">
+    <div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px">
+        <div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:28px;font-weight:600;letter-spacing:-.02em">Resume</div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:#6E695B;margin-top:6px">2 versions · synced to your applications</div>
+        </div>
+        <span style="font-size:13.5px;font-weight:600;background:#1C1B16;color:#FBFAF6;border-radius:8px;padding:9px 18px;cursor:pointer" style-hover="background:#33312A">Export PDF</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:18px">
+        <div style="flex:1;background:#FFFFFF;border:1.5px solid #1C1B16;border-radius:12px;padding:14px 18px;cursor:pointer">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:14px;font-weight:600">TAM — Base</span><span style="font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:#EDEBE2;border-radius:4px;padding:2px 7px;color:#3E3B30">default</span></div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:5px">updated 3d ago · ATS score 94</div>
+        </div>
+        <div style="flex:1;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:14px 18px;cursor:pointer" style-hover="border-color:#C9C4B4">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:14px;font-weight:600">Tailored — Highspot Sr. TAM</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#0E6B4C;font-weight:600">87% match</span></div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:5px">created 4d ago · sent with application</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #DCD8CB;border-radius:12px;padding:14px 20px;cursor:pointer;color:#8A8574;font-size:13px;font-weight:500" style-hover="color:#1C1B16;border-color:#1C1B16">+ New version</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:40px 48px;box-shadow:0 2px 14px rgba(28,27,22,.05)">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:700;letter-spacing:-.02em">Riley Dawson</div>
+        <div style="font-size:14.5px;color:#3E3B30;margin-top:4px">Technical Account Manager — SaaS & API platforms</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574;margin-top:8px">Toronto, ON · riley.dawson@intervu.cc · linkedin.com/in/rileydawson</div>
+        <div style="height:1px;background:#EDEBE2;margin:22px 0"></div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;margin-bottom:14px">Experience</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600">Senior Technical Account Manager · Vantage Cloud</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574">2022 — 2026</span></div>
+        <ul style="margin:8px 0 0;padding-left:20px;font-size:13.5px;line-height:1.65;color:#3E3B30">
+          <li>Owned a $4.2M ARR book of 28 enterprise accounts; 96% gross retention across 3 renewal cycles.</li>
+          <li>Led API-integration onboarding for 40+ customers, cutting median time-to-first-value from 6 weeks to 11 days.</li>
+          <li>Ran quarterly business reviews with C-level stakeholders; expanded 9 accounts by a combined $860K.</li>
+        </ul>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:18px"><span style="font-size:15px;font-weight:600">Technical Account Manager · Northbeam Systems</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574">2019 — 2022</span></div>
+        <ul style="margin:8px 0 0;padding-left:20px;font-size:13.5px;line-height:1.65;color:#3E3B30">
+          <li>First TAM hire; built the escalation playbook now used across a 12-person post-sales org.</li>
+          <li>Recovered 6 at-risk accounts ($1.1M ARR) through root-cause reviews with engineering.</li>
+        </ul>
+        <div style="height:1px;background:#EDEBE2;margin:22px 0"></div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;margin-bottom:12px">Skills</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12.5px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:100px;padding:5px 12px">REST & GraphQL APIs</span>
+          <span style="font-size:12.5px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:100px;padding:5px 12px">Salesforce</span>
+          <span style="font-size:12.5px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:100px;padding:5px 12px">SQL</span>
+          <span style="font-size:12.5px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:100px;padding:5px 12px">Escalation management</span>
+          <span style="font-size:12.5px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:100px;padding:5px 12px">Renewals & expansion</span>
+        </div>
+        <div style="height:1px;background:#EDEBE2;margin:22px 0"></div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;margin-bottom:10px">Education</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px;font-weight:500">BSc Computer Science · University of Waterloo</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574">2015 — 2019</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 22px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:4px">Tailoring check</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-bottom:14px">vs. Sr. TAM @ Highspot</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px"><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:700;color:#0E6B4C">87%</span><span style="font-size:12.5px;color:#6E695B">keyword match</span></div>
+        <div style="height:6px;background:#EDEBE2;border-radius:100px;margin-bottom:16px"><div style="width:87%;height:6px;background:#0F8A62;border-radius:100px"></div></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Missing from your resume</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          <span style="font-size:12px;border:1px dashed #C98A1B;color:#92600A;border-radius:100px;padding:4px 11px">Gainsight</span>
+          <span style="font-size:12px;border:1px dashed #C98A1B;color:#92600A;border-radius:100px;padding:4px 11px">SOC 2 reporting</span>
+          <span style="font-size:12px;border:1px dashed #C98A1B;color:#92600A;border-radius:100px;padding:4px 11px">Sales-engineering handoff</span>
+        </div>
+        <span style="display:block;text-align:center;font-size:13px;font-weight:600;border:1.5px solid #1C1B16;border-radius:8px;padding:9px 0;cursor:pointer" style-hover="background:#1C1B16;color:#FBFAF6">Work these in</span>
+      </div>
+      <div style="background:#1C1B16;color:#FBFAF6;border-radius:12px;padding:20px 22px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:10px">ATS scan</div>
+        <div style="font-size:13.5px;line-height:1.55;color:#CBC7B8"><span style="color:#3ECF8E;font-weight:600">18 of 19 checks pass.</span> One warning: date ranges in the Northbeam role use an en-dash format some older parsers misread.</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574;margin-top:12px">scanned · today 06:00 EST</div>
+      </div>
+    </div>
+  </div></sc-if>
+
+  <sc-if value="{{ pagePrep }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:1fr 350px;gap:28px;padding:32px 56px 64px;max-width:1440px;box-sizing:border-box" data-screen-label="Interview prep">
+    <div>
+      <div style="margin-bottom:18px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:28px;font-weight:600;letter-spacing:-.02em">Interview prep</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:#6E695B;margin-top:6px">built for your target: Sr. Technical Account Manager</div>
+      </div>
+      <div style="background:#1C1B16;color:#FBFAF6;border-radius:12px;padding:26px 30px;display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:18px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:8px;height:8px;border-radius:50%;background:#3ECF8E;animation:ivPulse 2s infinite"></span><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:600">Mock interview — 30 min</span></div>
+          <div style="font-size:13.5px;line-height:1.55;color:#CBC7B8;max-width:520px">A recruiter-style phone screen for Sr. TAM roles: account ownership, escalation walkthroughs, and one live troubleshooting scenario. Scored against real screen rubrics.</div>
+        </div>
+        <span style="flex:none;font-size:14px;font-weight:600;background:#3ECF8E;color:#0C2B1E;border-radius:8px;padding:11px 24px;cursor:pointer" style-hover="background:#5BDBA4">Start session</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
+        <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 20px;cursor:pointer" style-hover="border-color:#C9C4B4;box-shadow:0 2px 10px rgba(28,27,22,.06)">
+          <div style="font-size:14.5px;font-weight:600">Behavioral — STAR</div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin:6px 0 12px">8 of 24 questions done</div>
+          <div style="height:5px;background:#EDEBE2;border-radius:100px"><div style="width:33%;height:5px;background:#0F8A62;border-radius:100px"></div></div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 20px;cursor:pointer" style-hover="border-color:#C9C4B4;box-shadow:0 2px 10px rgba(28,27,22,.06)">
+          <div style="font-size:14.5px;font-weight:600">Technical — TAM scenarios</div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin:6px 0 12px">3 of 18 questions done</div>
+          <div style="height:5px;background:#EDEBE2;border-radius:100px"><div style="width:17%;height:5px;background:#0F8A62;border-radius:100px"></div></div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 20px;cursor:pointer" style-hover="border-color:#C9C4B4;box-shadow:0 2px 10px rgba(28,27,22,.06)">
+          <div style="font-size:14.5px;font-weight:600">Case — escalation walkthrough</div>
+          <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin:6px 0 12px">0 of 6 cases done</div>
+          <div style="height:5px;background:#EDEBE2;border-radius:100px"><div style="width:0%;height:5px;background:#0F8A62;border-radius:100px"></div></div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 24px">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:14px">Recent sessions</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <div><div style="font-size:14px;font-weight:500">Behavioral drill · 20 min</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:2px">yesterday · strongest: conflict stories · weakest: quantifying impact</div></div>
+            <div style="display:flex;align-items:center;gap:14px;flex:none"><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700">7.8<span style="font-size:12px;color:#8A8574;font-weight:400">/10</span></span><a href="#" style="font-size:12.5px;font-weight:500">Review notes</a></div>
+          </div>
+          <div style="height:1px;background:#EDEBE2"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <div><div style="font-size:14px;font-weight:500">Phone-screen mock · 30 min</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:2px">Jul 18 · strongest: product empathy · weakest: salary question</div></div>
+            <div style="display:flex;align-items:center;gap:14px;flex:none"><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700">6.9<span style="font-size:12px;color:#8A8574;font-weight:400">/10</span></span><a href="#" style="font-size:12.5px;font-weight:500">Review notes</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 22px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px"><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600">Story bank</span><span style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B">2 of 4 ready</span></div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#0F8A62;flex:none"></span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Churn save at scale</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B">ready · used in 2 sessions</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#0F8A62;flex:none"></span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Cross-team API launch</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B">ready</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#C98A1B;flex:none"></span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Conflict with eng lead</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#92600A">draft — no metrics yet</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#DCD8CB;flex:none"></span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Metric turnaround</div><div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574">missing — <a href="#">draft it →</a></div></div></div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 22px">
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;margin-bottom:10px">Question of the day</div>
+        <div style="font-size:14.5px;font-weight:500;line-height:1.5">“A customer's integration broke after your release, and they're threatening to churn. Walk me through your first hour.”</div>
+        <span style="display:block;text-align:center;font-size:13px;font-weight:600;border:1.5px solid #1C1B16;border-radius:8px;padding:9px 0;cursor:pointer;margin-top:14px" style-hover="background:#1C1B16;color:#FBFAF6">Draft answer</span>
+      </div>
+    </div>
+  </div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;hideGhostRisk&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { saved: {}, sort: 'fresh', page: 'jobs' };
+  static JOBS = [
+    { id: 'hs', company: 'Highspot', title: 'Sr. Technical Account Manager', initial: 'H', logoBg: '#E8EDF6', logoFg: '#2B4A7E', locMode: 'Remote · Canada', salary: '$145–175K CAD', level: 'Senior', posted: '2h ago', freshness: 2, pay: 175, easyApply: true, flag: 'live', flagLabel: 'Live — verified 2h ago' },
+    { id: 'tu1', company: 'Tulip', title: 'Observability Tech Lead', initial: 'T', logoBg: '#EFE8F6', logoFg: '#5B3A8E', locMode: 'Hybrid · Somerville, MA', salary: '$160–200K USD', level: 'Senior', posted: '28min ago', freshness: 0.5, pay: 200, easyApply: true, flag: 'live', flagLabel: 'Live — verified 28min ago' },
+    { id: 'zip', company: 'Zip', title: 'Customer Success Manager, Enterprise', initial: 'Z', logoBg: '#E6F1EC', logoFg: '#0E6B4C', locMode: 'Hybrid · Toronto, ON', salary: '$120–150K CAD', level: 'Mid–Senior', posted: '1d ago', freshness: 24, pay: 150, easyApply: false, flag: 'live', flagLabel: 'Live — verified today' },
+    { id: 'sh', company: 'Shield AI', title: 'Senior Proposal Manager (R5381)', initial: 'S', logoBg: '#1C1B16', logoFg: '#FBFAF6', locMode: 'In-office · 3 locations', salary: '$86–128K USD', level: 'Senior', posted: '4h ago', freshness: 4, pay: 128, easyApply: false, flag: 'warn', flagLabel: 'Ghost risk — reposted 4× in 90 days', risk: true },
+    { id: 'ta', company: 'TripArc', title: 'Technical Product Owner (AI & Agentic Systems)', initial: 'T', logoBg: '#F6EDE4', logoFg: '#8E5B2B', locMode: 'Hybrid · Toronto, ON', salary: 'salary not listed', level: 'Senior', posted: '47d ago', freshness: 1128, pay: 0, easyApply: false, flag: 'high', flagLabel: 'High ghost risk — stale 47d, no tracked hires', risk: true },
+    { id: 'tu2', company: 'Tulip', title: 'Senior Site Reliability Engineer', initial: 'T', logoBg: '#EFE8F6', logoFg: '#5B3A8E', locMode: 'Hybrid · Somerville, MA', salary: '$160–200K USD', level: 'Senior', posted: '28min ago', freshness: 0.5, pay: 200, easyApply: true, flag: 'live', flagLabel: 'Live — verified 28min ago' }
+  ];
+  renderVals() {
+    const FLAG = {
+      live: { fg: '#0E6B4C', dot: '#0F8A62', anim: 'ivPulse 2s infinite' },
+      warn: { fg: '#92600A', dot: '#C98A1B', anim: 'none' },
+      high: { fg: '#B3452F', dot: '#B3452F', anim: 'none' }
+    };
+    let list = Component.JOBS.slice();
+    if (this.props.hideGhostRisk ?? false) list = list.filter(j => !j.risk);
+    const sort = this.state.sort;
+    list.sort((a, b) => sort === 'pay' ? b.pay - a.pay : a.freshness - b.freshness);
+    const jobs = list.map(j => {
+      const f = FLAG[j.flag], saved = !!this.state.saved[j.id];
+      return Object.assign({}, j, {
+        flagFg: f.fg, flagDotColor: f.dot, flagAnim: f.anim,
+        heartGlyph: saved ? '♥' : '♡', heartColor: saved ? '#B3452F' : '#8A8574',
+        toggleSave: (e) => { e.stopPropagation(); this.setState(s => ({ saved: Object.assign({}, s.saved, { [j.id]: !s.saved[j.id] }) })); }
+      });
+    });
+    const pg = this.state.page;
+    const nv = k => pg === k ? { f: '#1C1B16', l: '#0F8A62' } : { f: '#6E695B', l: 'transparent' };
+    const on = { bg: '#FFFFFF', fg: '#1C1B16', sh: '0 1px 3px rgba(28,27,22,.12)' }, off = { bg: 'transparent', fg: '#6E695B', sh: 'none' };
+    const fr = sort === 'fresh' ? on : off, py = sort === 'pay' ? on : off;
+    return {
+      jobs, matchLabel: jobs.length + ' of 64 · TAM · Toronto',
+      sortFresh: () => this.setState({ sort: 'fresh' }), sortPay: () => this.setState({ sort: 'pay' }),
+      freshBg: fr.bg, freshFg: fr.fg, freshShadow: fr.sh, payBg: py.bg, payFg: py.fg, payShadow: py.sh,
+      pageJobs: pg === 'jobs', pageTracker: pg === 'tracker', pageResume: pg === 'resume', pagePrep: pg === 'prep',
+      goJobs: () => this.setState({ page: 'jobs' }), goTracker: () => this.setState({ page: 'tracker' }),
+      goResume: () => this.setState({ page: 'resume' }), goPrep: () => this.setState({ page: 'prep' }),
+      navJobsFg: nv('jobs').f, navJobsLine: nv('jobs').l, navTrackerFg: nv('tracker').f, navTrackerLine: nv('tracker').l,
+      navResumeFg: nv('resume').f, navResumeLine: nv('resume').l, navPrepFg: nv('prep').f, navPrepLine: nv('prep').l
+    };
+  }
+}
+</script>
+</body>
+</html>
