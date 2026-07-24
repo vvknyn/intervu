@@ -86,7 +86,7 @@ export async function getJobsLastUpdated(): Promise<string | null> {
  * with no filter engine, so it answers "no" rather than offering a control
  * that silently does nothing.
  */
-export async function isPostedDateFilterSupported(): Promise<boolean> {
+export async function isPostedDateFilterSupported(): Promise<boolean | null> {
   if (activeBackend() === "meilisearch") return fetchPostedDateFilterSupported();
   return false;
 }

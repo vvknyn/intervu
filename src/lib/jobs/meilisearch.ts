@@ -394,11 +394,15 @@ export function isPostedTsPopulationSufficient(populated: number, total: number)
  * verified live (see `JOBS_INDEX_SETTINGS`'s `id` comment) that the
  * search-only key this module reads with 403s on non-search endpoints.
  *
- * Any failure, or an insufficient population per `isPostedTsPopulationSufficient`,
- * answers "no" — offering a filter we cannot confirm works is the failure
- * mode this exists to prevent.
+ * Returns `null` when the probe itself fails (network/5xx/timeout): that is
+ * "unknown", NOT "unsupported". The distinction is load-bearing — probe
+ * failure correlates with box degradation, and answering "no" then made the
+ * app DROP its default 30d posted filter and send match-all+facets browse
+ * queries (the heaviest shape) exactly when Meilisearch was least able to
+ * serve them (Jul 24 incident). Only a SUCCESSFUL probe that measures an
+ * insufficient population answers `false` and hides the buckets.
  */
-export async function fetchPostedDateFilterSupported(): Promise<boolean> {
+export async function fetchPostedDateFilterSupported(): Promise<boolean | null> {
   const h = host();
   if (!h) return false;
   const count = async (filter?: string): Promise<number> => {
@@ -416,7 +420,7 @@ export async function fetchPostedDateFilterSupported(): Promise<boolean> {
     const [total, populated] = await Promise.all([count(), count("posted_ts >= 0")]);
     return isPostedTsPopulationSufficient(populated, total);
   } catch {
-    return false;
+    return null;
   }
 }
 

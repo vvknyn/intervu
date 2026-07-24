@@ -38,3 +38,32 @@ test("isPostedTsPopulationSufficient treats an empty/unknown corpus as unsupport
     assert.equal(isPostedTsPopulationSufficient(0, 0), false);
     assert.equal(isPostedTsPopulationSufficient(5, 0), false);
 });
+
+// Jul 24 incident: the probe answering "no" on its OWN failure made the app
+// drop the default 30d posted filter and send match-all+facets browse queries
+// exactly when the box was degraded. Probe failure must be "unknown" (null),
+// never "unsupported" (false) — only a successful measurement may demote.
+test("fetchPostedDateFilterSupported: probe failure is null (unknown), success measures population", async (t) => {
+    process.env.MEILISEARCH_HOST = "https://meili.test";
+    process.env.MEILISEARCH_SEARCH_KEY = "k";
+    const { fetchPostedDateFilterSupported } = await import("../../src/lib/jobs/meilisearch");
+
+    t.mock.method(globalThis, "fetch", async () => {
+        throw new Error("ECONNRESET");
+    });
+    assert.equal(await fetchPostedDateFilterSupported(), null, "network failure → unknown");
+
+    let call = 0;
+    t.mock.method(globalThis, "fetch", async () => ({
+        ok: true,
+        json: async () => ({ totalHits: call++ === 0 ? 1_000_000 : 900_000 }),
+    }));
+    assert.equal(await fetchPostedDateFilterSupported(), true, "measured sufficient → supported");
+
+    let call2 = 0;
+    t.mock.method(globalThis, "fetch", async () => ({
+        ok: true,
+        json: async () => ({ totalHits: call2++ === 0 ? 1_000_000 : 0 }),
+    }));
+    assert.equal(await fetchPostedDateFilterSupported(), false, "measured zero population → unsupported");
+});

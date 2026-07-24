@@ -1318,20 +1318,24 @@ function JobsContent() {
         };
     }, []);
 
-    // Can the corpus answer an age-bucket question at all? The buckets range over
-    // `posted_ts`, which the external sync has never written — so every bucket
-    // returns an empty board. Probed once per session rather than hard-coded, so
-    // the control returns by itself the day the data does. Defaults to hidden:
-    // until we've confirmed it works, we don't offer it.
-    const [postedDateSupported, setPostedDateSupported] = useState(false);
+    // Can the corpus answer an age-bucket question? Optimistic default: the
+    // sync writes `posted_ts` at full population (verified Jul 2026), and the
+    // fresh-visit default filter is `posted=30d` — starting `false` made every
+    // first load (and every load while the probe was in flight or failing)
+    // ship the match-all browse instead, the corpus's heaviest query shape.
+    // The probe now demotes ONLY on a successful measurement of insufficient
+    // population (regression guard); `null` (probe failed — unknown) keeps
+    // the optimistic default rather than stripping the filter exactly when
+    // the box is degraded (Jul 24 incident).
+    const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
         let cancelled = false;
         getPostedDateFilterSupportAction()
             .then((ok) => {
-                if (!cancelled) setPostedDateSupported(ok);
+                if (!cancelled && ok !== null) setPostedDateSupported(ok);
             })
             .catch(() => {
-                if (!cancelled) setPostedDateSupported(false);
+                /* transport failure — unknown; keep the optimistic default */
             });
         return () => {
             cancelled = true;
