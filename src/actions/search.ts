@@ -5,8 +5,6 @@ import { AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { quickParseSearchQuery, ParsedSearch } from "@/lib/search-utils";
 
-export type { ParsedSearch } from "@/lib/search-utils";
-
 // Server-side parse with LLM fallback
 export async function parseSearchQuery(query: string, modelConfig?: Partial<ProviderConfig>): Promise<ParsedSearch | null> {
     if (!query || !query.trim()) return null;
