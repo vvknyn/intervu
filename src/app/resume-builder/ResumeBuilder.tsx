@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ResumeData, TailoredResumeVersion } from "@/types/resume";
@@ -8,21 +8,20 @@ import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { SaveVersionModal } from "@/components/resume-builder/SaveVersionModal";
 import { TailoredVersionsSidebar as TailoringSidebar } from "@/components/resume-builder/TailoredVersionsSidebar";
-import { ArrowLeft, Sparkle, ArrowsClockwise, Check, FloppyDisk, Info, ArrowRight, SidebarSimple } from "@phosphor-icons/react";
-import { fetchProfile } from "@/actions/profile";
+import { VersionCardsRow } from "@/components/resume-builder/VersionCardsRow";
+import { TailoringSidebarCard } from "@/components/resume-builder/TailoringSidebarCard";
+import { ArrowLeft, ArrowsClockwise, Check, FloppyDisk, Info, ArrowRight, SidebarSimple, Sparkle } from "@phosphor-icons/react";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions, saveTailoredVersion, SaveVersionInput } from "@/actions/tailor-resume";
-import { ProviderConfig } from "@/lib/llm/types";
-import { Header } from "@/components/layout/Header";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { onAuthChange, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { useDebouncedCallback } from "use-debounce";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { SecureStorage } from "@/lib/security";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { toast, confirmToast } from "@/lib/toast";
+import { printResume } from "@/lib/resume/print-resume";
 
 const INITIAL_DATA: ResumeData = {
     profile: {
@@ -62,11 +61,13 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [saveVersionModalOpen, setSaveVersionModalOpen] = useState(false);
     const [tailoringSidebarOpen, setTailoringSidebarOpen] = useState(openTailoring || false);
-    const [versionsCount, setVersionsCount] = useState(0);
+    // Single source of truth for both the version count (versionsToggle badge)
+    // and the version cards row / tailoring sidebar (hub layout) — those need
+    // the real names/timestamps/recommendations, not just a count.
+    const [versions, setVersions] = useState<TailoredResumeVersion[]>([]);
     const [originalData, setOriginalData] = useState<ResumeData | null>(null);
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-    const pendingSaveRef = useRef<ResumeData | null>(null);
 
     // Listen for auth state changes
     useEffect(() => {
@@ -117,17 +118,15 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
             let resumeLoaded = false;
 
             // Fetch tailored versions once if user is authenticated
-            let versions: any[] | undefined;
+            let versions: TailoredResumeVersion[] | undefined;
             if (user) {
                 console.log("[ResumeBuilder] Fetching tailored versions...");
                 const versionsResult = await fetchTailoredVersions();
                 versions = versionsResult.data;
                 console.log("[ResumeBuilder] Fetched versions:", versions?.length);
 
-                // Update count immediately
-                if (versions) {
-                    setVersionsCount(versions.length);
-                }
+                // Update immediately
+                setVersions(versions ?? []);
             }
 
             // Priority 1: If tailored mode, load that specific version
@@ -260,8 +259,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
             const { data: versions } = await fetchTailoredVersions();
 
             if (versions) {
-                // Update the count
-                setVersionsCount(versions.length);
+                setVersions(versions);
 
                 // If we're viewing a version that no longer exists, navigate
                 if (isTailoredMode && versionId) {
@@ -351,10 +349,10 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
             throw new Error(result.error);
         }
 
-        // Refresh versions count and dispatch event for sidebar to refresh
+        // Refresh versions and dispatch event for sidebar to refresh
         const { data: versions } = await fetchTailoredVersions();
         if (versions) {
-            setVersionsCount(versions.length);
+            setVersions(versions);
         }
 
         // Dispatch event to refresh sidebar
@@ -410,28 +408,14 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
         );
     }
 
+    // The version currently being viewed, for the sidebar's Tailoring card —
+    // undefined both when the base resume is active and when the requested
+    // version hasn't loaded (or was deleted) yet.
+    const selectedVersion = isTailoredMode ? versions.find((v) => v.id === versionId) : undefined;
+    const versionCount = versions.length + 1; // +1 for the base resume
+
     return (
-        <PageLayout
-            fullWidth
-            header={
-                <Header
-                    user={user}
-                    showSearch={false}
-                    title="Resume Builder"
-                    backButton={
-                        (source === 'applications' || source === 'new-application') ? (
-                            <Link href="/yours">
-                                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                                    <ArrowLeft size={16} />
-                                    <span className="hidden sm:inline">Back to Yours</span>
-                                    <span className="sm:hidden">Back</span>
-                                </Button>
-                            </Link>
-                        ) : undefined
-                    }
-                />
-            }
-        >
+        <PageLayout fullWidth>
             <div className="px-4 sm:px-6 pt-4">
                 <MotivationalBanner />
             </div>
@@ -529,73 +513,106 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 </div>
             )}
 
-            {/* Main Editor */}
-            <div data-tour="resume-editor">
-                <ResumeEditor
-                    data={data}
-                    onUpdate={updateData}
-                    onClear={clearData}
-                    onImport={() => {
-                        if (user) {
-                            setImportModalOpen(true);
-                        } else {
-                            setAuthPopoverOpen(true);
-                        }
-                    }}
-                    syncStatus={syncStatus}
-                    originalData={originalData} // Pass for diff highlighting
-                    isTailoredMode={isTailoredMode}
-                    versionsToggle={
-                        <div className="flex items-center gap-2">
-                            {/* Save Version Button */}
-                            <button
-                                data-tour="resume-import"
-                                onClick={() => {
-                                    if (user) {
-                                        setSaveVersionModalOpen(true);
-                                    } else {
-                                        setAuthPopoverOpen(true);
-                                    }
-                                }}
-                                className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
-                                title={user ? "Save current resume as a version" : "Sign in to save versions"}
-                            >
-                                <FloppyDisk size={15} weight="fill" className="text-muted-foreground group-hover:text-brand shrink-0 transition-colors" />
-                                <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                    <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
-                                        Save
-                                    </span>
-                                </span>
-                            </button>
-
-                            {/* Tailor Resume / View Versions Button */}
-                            <button
-                                data-tour="resume-tailor"
-                                onClick={() => {
-                                    if (user) {
-                                        setTailoringSidebarOpen(true);
-                                    } else {
-                                        setAuthPopoverOpen(true);
-                                    }
-                                }}
-                                className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
-                                title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
-                            >
-                                <Sparkle size={15} weight="fill" className="text-brand shrink-0" />
-                                <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                    <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
-                                        {versionsCount > 0 ? "Versions" : "Tailor"}
-                                    </span>
-                                </span>
-                                {versionsCount > 0 && user && (
-                                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand/10 text-brand text-xs font-semibold">
-                                        {versionsCount}
-                                    </span>
-                                )}
-                            </button>
+            {/* Resume hub: header + version cards + paper preview, with a
+                persistent Tailoring sidebar — PORTAL-REDESIGN-SPEC.md, Page:
+                Resume. The editor/preview itself keeps its existing split-pane
+                logic (ResumeEditor internals untouched); this just frames it. */}
+            <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-7 px-4 pb-16 pt-6 sm:px-6 lg:grid-cols-[1fr_350px] lg:px-14">
+                <div className="min-w-0">
+                    <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h1 className="font-display text-[26px] font-semibold tracking-[-0.02em] sm:text-[28px]">
+                                Resume
+                            </h1>
+                            <p className="mt-1.5 font-mono text-xs text-muted-foreground">
+                                {versionCount} version{versionCount === 1 ? "" : "s"}
+                            </p>
                         </div>
-                    }
-                />
+                        <button
+                            onClick={printResume}
+                            className="rounded-md bg-foreground px-[18px] py-2.5 text-[13.5px] font-semibold text-background transition-colors hover:bg-foreground/85"
+                        >
+                            Export PDF
+                        </button>
+                    </div>
+
+                    <VersionCardsRow versions={versions} activeVersionId={versionId} />
+
+                    <div
+                        data-tour="resume-editor"
+                        className="overflow-hidden rounded-xl border border-border shadow-[var(--shadow-md)]"
+                    >
+                        <ResumeEditor
+                            data={data}
+                            onUpdate={updateData}
+                            onClear={clearData}
+                            onImport={() => {
+                                if (user) {
+                                    setImportModalOpen(true);
+                                } else {
+                                    setAuthPopoverOpen(true);
+                                }
+                            }}
+                            syncStatus={syncStatus}
+                            originalData={originalData} // Pass for diff highlighting
+                            isTailoredMode={isTailoredMode}
+                            versionsToggle={
+                                <div className="flex items-center gap-2">
+                                    {/* Save Version Button */}
+                                    <button
+                                        data-tour="resume-import"
+                                        onClick={() => {
+                                            if (user) {
+                                                setSaveVersionModalOpen(true);
+                                            } else {
+                                                setAuthPopoverOpen(true);
+                                            }
+                                        }}
+                                        className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                        title={user ? "Save current resume as a version" : "Sign in to save versions"}
+                                    >
+                                        <FloppyDisk size={15} weight="fill" className="text-muted-foreground group-hover:text-brand shrink-0 transition-colors" />
+                                        <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
+                                            <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
+                                                Save
+                                            </span>
+                                        </span>
+                                    </button>
+
+                                    {/* Tailor Resume / View Versions Button */}
+                                    <button
+                                        data-tour="resume-tailor"
+                                        onClick={() => {
+                                            if (user) {
+                                                setTailoringSidebarOpen(true);
+                                            } else {
+                                                setAuthPopoverOpen(true);
+                                            }
+                                        }}
+                                        className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                        title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
+                                    >
+                                        <Sparkle size={15} weight="fill" className="text-brand shrink-0" />
+                                        <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
+                                            <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
+                                                {versions.length > 0 ? "Versions" : "Tailor"}
+                                            </span>
+                                        </span>
+                                        {versions.length > 0 && user && (
+                                            <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand/10 text-brand text-xs font-semibold">
+                                                {versions.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
+                            }
+                        />
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    <TailoringSidebarCard version={selectedVersion} />
+                </div>
             </div>
 
             {/* Import Modal */}
