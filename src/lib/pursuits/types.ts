@@ -161,6 +161,56 @@ export function nextAction(
     }
 }
 
+/** Which /yours board column (and stat-card bucket) a pursuit belongs to
+ *  (portal redesign spec, "Page: Tracker (/yours)"): Saved = interested +
+ *  resume_ready, Closed = rejected + withdrawn, everything else is its own
+ *  column. Same switch shape as `stageLabel`/`nextAction` — a new
+ *  `PursuitStage` is caught by the compiler here too, so the board can never
+ *  silently drop a stage into no column. Single source for both the board
+ *  grouping and the stat-card counts, so they can't disagree. */
+export type BoardColumn = "saved" | "applied" | "interviewing" | "offer" | "closed";
+
+export function boardColumn(p: Pursuit): BoardColumn {
+    switch (p.status) {
+        case "interested":
+        case "resume_ready":
+            return "saved";
+        case "applied":
+            return "applied";
+        case "interviewing":
+            return "interviewing";
+        case "offer":
+            return "offer";
+        case "rejected":
+        case "withdrawn":
+            return "closed";
+    }
+}
+
+/** The one real timestamp worth showing on a board card, phrased for its
+ *  stage (spec: "mono '{stage-appropriate timestamp}' (applied_at,
+ *  interview_date, created_at)"). `nowMs` is overridable for the same reason
+ *  as `stageLabel`'s — pure and unit-testable despite rendering a relative
+ *  age. Falls back to `updated_at`/`created_at` wherever the stage's own
+ *  timestamp field is optional and unset, rather than rendering nothing. */
+export function boardTimestampLabel(p: Pursuit, nowMs: number = Date.now()): string {
+    switch (p.status) {
+        case "interested":
+        case "resume_ready":
+            return `saved ${formatRelativeAge(p.created_at, nowMs)}`;
+        case "applied":
+            return `applied ${formatRelativeAge(p.applied_at ?? p.created_at, nowMs)}`;
+        case "interviewing":
+            return p.interview_date
+                ? `interview ${new Date(p.interview_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                : `since ${formatRelativeAge(p.updated_at, nowMs)}`;
+        case "offer":
+        case "rejected":
+        case "withdrawn":
+            return `since ${formatRelativeAge(p.updated_at, nowMs)}`;
+    }
+}
+
 /** Ordering for the /yours list (spec §5): pursuits with an upcoming
  *  interview first (soonest `interview_date` first, undated interviews
  *  last-among-interviewing), then the rest of the active pursuits by
