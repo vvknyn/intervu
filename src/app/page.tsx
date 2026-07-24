@@ -489,7 +489,7 @@ function JobCard({
         >
             <CompanyInitialTile name={job.company} className="h-11 w-11" />
             <div className="min-w-0">
-                <span className="block truncate text-[15px] font-semibold tracking-tight">{decodeText(job.title)}</span>
+                <span data-testid="job-title" className="block truncate text-[15px] font-semibold tracking-tight">{decodeText(job.title)}</span>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
                     <span className="font-medium text-foreground">{cleanCompany(job.company) || "Unknown company"}</span>
                     {workLoc && <span>{workLoc}</span>}
