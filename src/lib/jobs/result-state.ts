@@ -1,6 +1,15 @@
 import type { JobSearchResult, PublicJob } from "./types";
 
 /**
+ * The ONLY copy shown when search fails — server catch (search.ts) and client
+ * transport catch (page.tsx) both use it. Raw error messages (Next RSC digest
+ * text, fetch internals) reached prod users twice on Jul 24; internals go to
+ * logs, never into this string.
+ */
+export const SEARCH_UNAVAILABLE_MESSAGE =
+    "The search index didn't respond. This usually clears within a minute — try again.";
+
+/**
  * The dispatcher returns configured backend failures as an empty result with
  * `unavailable: true`. Keep that state distinct from a successful empty query.
  * Existing hits are never considered unavailable so background refresh errors

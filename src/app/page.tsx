@@ -82,6 +82,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
+    SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
 } from "@/lib/jobs/result-state";
 import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
@@ -1655,8 +1656,8 @@ function JobsContent() {
                 }
             } catch (e) {
                 if (!cancelled) {
-                    const msg = e instanceof Error ? e.message : String(e);
-                    setSearchError(msg);
+                    console.error("[jobs-search] action transport error:", e);
+                    setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
                     // A thrown transport error is not an unconfigured backend
                     // or a successful empty result. Preserve prior data (if
                     // any) and let the explicit error state own first load.
