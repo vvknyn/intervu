@@ -25,9 +25,17 @@ describe('isUnavailableJobsResult', () => {
     it('classifies a configured service-unavailable response as an error', () => {
         assert.equal(
             isUnavailableJobsResult(
-                result({ note: 'Job search is temporarily unavailable: upstream timed out' }),
+                result({ unavailable: true, note: "The search index didn't respond." }),
             ),
             true,
+        );
+    });
+
+    it('classifies on the flag regardless of note wording — or with no note at all', () => {
+        assert.equal(isUnavailableJobsResult(result({ unavailable: true })), true);
+        assert.equal(
+            isUnavailableJobsResult(result({ note: 'Job search is temporarily unavailable' })),
+            false,
         );
     });
 
@@ -40,7 +48,8 @@ describe('isUnavailableJobsResult', () => {
             isUnavailableJobsResult(
                 result({
                     hits: [{ id: 'existing' } as JobSearchResult['hits'][number]],
-                    note: 'Job search is temporarily unavailable',
+                    unavailable: true,
+                    note: "The search index didn't respond.",
                 }),
             ),
             false,
@@ -215,6 +224,13 @@ describe('classifyExistenceCheck', () => {
     it('unknown: configured + empty + an UNRECOGNIZED note — any note at all withholds not_found, not just the "temporarily unavailable" shape', () => {
         assert.deepEqual(
             classifyExistenceCheck('abc-123', result({ hits: [], total: 0, note: 'Some other degraded-mode note' })),
+            { status: 'unknown' },
+        );
+    });
+
+    it('unknown: the unavailable flag alone (no note) also withholds not_found', () => {
+        assert.deepEqual(
+            classifyExistenceCheck('abc-123', result({ hits: [], total: 0, unavailable: true })),
             { status: 'unknown' },
         );
     });

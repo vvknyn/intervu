@@ -52,12 +52,16 @@ export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult>
     if (backend === "meilisearch") return await searchMeili(p);
     if (backend === "snapshot-preview") return await searchSnapshotPreview(p);
   } catch (e) {
+    // The raw error goes to server logs only — messages like Next's RSC
+    // digest text are internals, not copy a job seeker should ever read.
+    console.error("[jobs-search] backend error:", e);
     return {
       hits: [],
       total: 0,
       backend,
       configured: true,
-      note: `Job search is temporarily unavailable: ${e instanceof Error ? e.message : String(e)}`,
+      unavailable: true,
+      note: "The search index didn't respond. This usually clears within a minute — try again.",
     };
   }
   return {

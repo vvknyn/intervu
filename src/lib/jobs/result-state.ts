@@ -2,16 +2,12 @@ import type { JobSearchResult, PublicJob } from "./types";
 
 /**
  * The dispatcher returns configured backend failures as an empty result with
- * an unavailable note. Keep that state distinct from a successful empty query.
+ * `unavailable: true`. Keep that state distinct from a successful empty query.
  * Existing hits are never considered unavailable so background refresh errors
  * can leave the current list visible.
  */
 export function isUnavailableJobsResult(result: JobSearchResult): boolean {
-    return (
-        result.configured &&
-        result.hits.length === 0 &&
-        /temporarily unavailable/i.test(result.note ?? "")
-    );
+    return result.configured && result.hits.length === 0 && result.unavailable === true;
 }
 
 export interface SelectionAfterRefresh {
@@ -222,7 +218,11 @@ export function classifyExistenceCheck(id: string, result: JobSearchResult): Exi
     const job = result.hits.find((h) => h.id === id) ?? null;
     if (job) return { status: "found", job };
     const isCompleteAndClean =
-        result.configured && result.backend === "meilisearch" && !result.note && result.hits.length === 0;
+        result.configured &&
+        result.backend === "meilisearch" &&
+        !result.note &&
+        !result.unavailable &&
+        result.hits.length === 0;
     if (isCompleteAndClean) return { status: "not_found" };
     return { status: "unknown" };
 }

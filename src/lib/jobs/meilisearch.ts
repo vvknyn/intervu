@@ -72,7 +72,9 @@ export const JOBS_INDEX_SETTINGS = {
   // equally-relevant hits, never a substitute for relevance — the six rules
   // ahead of it (words..exactness) always decide first. Applied to the live
   // index by scripts/apply-ranking-rules.mjs (narrow PUT, no reindex cost).
-  rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness", "posted_ts:desc"],
+  // Meili 1.45's canonical rule names (live GET returns attributeRank /
+  // wordPosition — the legacy attribute/position names predate it).
+  rankingRules: ["words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },

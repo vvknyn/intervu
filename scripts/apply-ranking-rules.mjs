@@ -5,8 +5,8 @@
  * trigger a multi-hour reindex of ~1.8M docs — that re-provision belongs to
  * the box's sync worker, not this script.
  *
- *   node scripts/apply-ranking-rules.mjs             # apply the 7-rule set
- *   node scripts/apply-ranking-rules.mjs --rollback  # restore the 6-rule default
+ *   node scripts/apply-ranking-rules.mjs             # apply the 8-rule set
+ *   node scripts/apply-ranking-rules.mjs --rollback  # restore the 7-rule default
  *
  * Env: MEILISEARCH_HOST + MEILISEARCH_ADMIN_KEY (or box names MEILI_URL /
  * MEILI_ADMIN_KEY). Reads .env.local; admin key is usually NOT there — export
@@ -36,9 +36,11 @@ if (!HOST || !KEY) {
 // export is the source of truth; update both together. "posted_ts:desc" is
 // the FINAL rule: recency is the tiebreak among equally-relevant hits, never
 // a substitute for relevance.
-const RANKING_RULES = ["words", "typo", "proximity", "attribute", "sort", "exactness", "posted_ts:desc"];
+// Meili 1.45's canonical rule names — a live GET returns attributeRank /
+// wordPosition, not the legacy attribute/position forms.
+const RANKING_RULES = ["words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness", "posted_ts:desc"];
 // Meilisearch's built-in default (what --rollback restores).
-const DEFAULT_RANKING_RULES = ["words", "typo", "proximity", "attribute", "sort", "exactness"];
+const DEFAULT_RANKING_RULES = ["words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness"];
 
 const rollback = process.argv.includes("--rollback");
 const payload = rollback ? DEFAULT_RANKING_RULES : RANKING_RULES;

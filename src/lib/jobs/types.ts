@@ -134,6 +134,8 @@ export interface JobSearchResult {
   configured: boolean;
   /** Human-readable note for unconfigured / preview / degraded states. */
   note?: string;
+  /** True when a configured backend threw — a failed search, not an empty one. */
+  unavailable?: boolean;
   /** True when results are a capped preview rather than the full searchable corpus. */
   preview?: boolean;
   /** True when the title/company precision pass was thin and the result was
