@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Hanken_Grotesk } from "next/font/google";
+import { Bricolage_Grotesque, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/layout/TopBar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -8,17 +8,25 @@ import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
 import { Toaster } from "@/lib/toast";
 
-// Hanken Grotesk is the UI typeface (see globals.css --font-sans); we no longer
-// ship Geist Sans. Geist Mono is kept for code/monospace surfaces.
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Portal redesign typeface trio (see globals.css --font-sans/--font-mono/
+// --font-display). Bricolage Grotesque carries headlines/wordmark/numerals,
+// Spline Sans is body/UI, Spline Sans Mono is meta lines/labels/timestamps.
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
-// Intervu design-system typeface
-const hanken = Hanken_Grotesk({
-  variable: "--font-hanken",
+const splineSans = Spline_Sans({
+  variable: "--font-spline-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const splineSansMono = Spline_Sans_Mono({
+  variable: "--font-spline-sans-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 const SITE_URL = "https://intervu.cc";
@@ -71,7 +79,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistMono.variable} ${hanken.variable} antialiased`}
+        className={`${bricolage.variable} ${splineSans.variable} ${splineSansMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}
