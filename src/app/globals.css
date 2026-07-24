@@ -307,6 +307,14 @@ h4 {
   }
 }
 
+/* Utility wiring `ivPulse` above — shared by the job-card "Live — verified"
+   flag dot and the Ghost-radar card header dot (both jobs/page.tsx-adjacent)
+   so there is one class, not two inline `animation` declarations. Covered by
+   the blanket `prefers-reduced-motion` animation-duration override below. */
+.iv-pulse {
+  animation: ivPulse 2s infinite;
+}
+
 /* Staggered animation delays */
 .delay-100 {
   animation-delay: 0.1s;

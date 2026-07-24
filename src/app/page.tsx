@@ -19,6 +19,8 @@ import {
     Compass,
     ArrowLeft,
     CaretRight,
+    Heart,
+    Gear,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +36,6 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { PageLayout } from "@/components/layout/PageLayout";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
@@ -52,7 +53,7 @@ import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
-import { badgeFor, checkFreshness } from "@/lib/jobs/badges";
+import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import {
     subscribeRecentSearches,
@@ -65,13 +66,16 @@ import {
     FilterPanel,
     activeFilterEntries,
     toggleFacetValue,
+    isNoiseFacetValue,
+    facetValueLabel,
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
-import { FilterChipsRow } from "@/components/jobs/FilterChipsRow";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyLogo, CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
+import { PipelineCard } from "@/components/jobs/PipelineCard";
+import { GhostRadarCard } from "@/components/jobs/GhostRadarCard";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
@@ -277,11 +281,11 @@ function salaryText(j: PublicJob): string | null {
  * a future-dated posting (measured live: sentinels like 2030-01-31) never
  * renders as "today" — it falls back to `first_seen_at` instead.
  *
- * `now` is threaded in by the caller (JobRow, from JobsContent's single
+ * `now` is threaded in by the caller (JobCard, from JobsContent's single
  * per-render-pass `nowMs`) rather than sampled here with `Date.now()` — this
- * function runs from JobRow's render body, so an internal clock read would
- * be exactly the impure-render-call class `react-hooks/purity` flags at
- * `badgeFor`'s call site, just one level removed from the component itself.
+ * function runs from JobCard's render body, so an internal clock read would
+ * be exactly the impure-render-call class `react-hooks/purity` flags at a
+ * pure-derivation call site, just one level removed from the component itself.
  */
 function postedAge(ts: number | null, now: number): string | null {
     if (ts == null) return null;
@@ -299,73 +303,118 @@ function shortDate(ms: number): string {
     return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// `text` is the compact row-badge string from `badgeFor` (lib/jobs/badges.ts)
-// — a pure function of (ghost_badge, updated_at, posted_ts, now), unit-tested
-// in tests/unit/jobs-badges.test.ts. `ghostMetaFor` still owns the styling
-// (cls/dot) and the longer descriptive copy used elsewhere (JobDetail's
-// banner); this chip only renders the short row-level text. `stale` (Phase
-// 1-a #5) is `checkFreshness(job.updated_at, now) === "stale"` — same input
-// class `badgeFor` already used to decide `text`, so the color and the text
-// can never disagree about whether a "clear" verdict is current.
-function GhostChip({ badge, text, stale }: { badge: GhostBadge; text: string; stale: boolean }) {
-    const meta = ghostMetaFor(badge, stale);
-    if (!meta) return null;
-    return (
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.cls)}>
-            <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
-            {text}
-        </span>
-    );
+/**
+ * Job-CARD flag row (portal redesign spec: one dot + one mono label per
+ * card, composed from real signals only — replaces the old two-chip
+ * GhostChip + PostingFreshnessChip pairing, which is now JobDetail-banner-
+ * only territory via `ghostMetaFor`). Reuses the exact same pure primitives
+ * `ghostMetaFor`/the old badge machinery were already built on
+ * (`checkFreshness`, `formatRelativeAge`, `classifyPostingFreshness`,
+ * `daysOpenFrom`) — this function only decides the composed TEXT + tone,
+ * never re-derives a signal itself.
+ */
+type FlagTone = "live" | "warn" | "danger" | "faint";
+interface FlagRow {
+    tone: FlagTone;
+    pulse: boolean;
+    label: string;
+}
+const FLAG_TONE_CLASS: Record<FlagTone, { dot: string; text: string }> = {
+    live: { dot: "bg-live", text: "text-live" },
+    warn: { dot: "bg-warn-dot", text: "text-warn" },
+    danger: { dot: "bg-destructive", text: "text-destructive" },
+    faint: { dot: "bg-faint", text: "text-faint" },
+};
+
+/** "relisted" (a stated fact from `classifyPostingFreshness`) wins over a
+ *  plain staleness count — both are real signals, but a relist is the more
+ *  specific/explanatory one when both happen to be present. `null` when
+ *  neither signal fires — callers fall back to a generic qualifier-free
+ *  label rather than inventing one. */
+function ghostQualifier(job: PublicJob, now: number): string | null {
+    if (classifyPostingFreshness(job, now).kind === "relisted") return "relisted";
+    const days = daysOpenFrom(derivePostedTs(job), now);
+    return days != null ? `stale ${days}d` : null;
+}
+
+function flagRowFor(job: PublicJob, now: number): FlagRow {
+    const updatedAt = job.updated_at;
+    const ageText = updatedAt && !Number.isNaN(Date.parse(updatedAt)) ? formatRelativeAge(updatedAt, now) : null;
+    switch (job.ghost_badge) {
+        case "clear": {
+            if (checkFreshness(updatedAt, now) === "fresh") {
+                return { tone: "live", pulse: true, label: ageText ? `Live — verified ${ageText}` : "Live — verified" };
+            }
+            return { tone: "live", pulse: false, label: ageText ? `checked ${ageText}` : "checked" };
+        }
+        case "caution": {
+            const q = ghostQualifier(job, now);
+            return { tone: "warn", pulse: false, label: q ? `Ghost risk — ${q}` : "Ghost risk — caution flag" };
+        }
+        case "likely_ghost": {
+            const q = ghostQualifier(job, now);
+            return { tone: "danger", pulse: false, label: q ? `High ghost risk — ${q}` : "High ghost risk — flagged" };
+        }
+        case "unscored":
+        default:
+            return { tone: "faint", pulse: false, label: "not yet scored" };
+    }
 }
 
 /**
- * S2 — posting-freshness row chip, same visual family as `GhostChip` (a
- * sibling signal, not a replacement: ghost-risk and posting-freshness are
- * independent axes over independent evidence). `kind`/`firstSeenMs` come
- * from `classifyPostingFreshness` (lib/jobs/posting-freshness.ts) — this
- * component only renders text/color, no date/threshold logic. HONESTY RULE:
- * the badge states an observable fact ("Fresh", "Relisted"); the underlying
- * dates live in JobDetail's facts line, never asserted here.
+ * Sort segmented control segment (results header) — three fixed segments
+ * sharing one active/inactive visual, matching the mock's chip-bg control.
  */
-function PostingFreshnessChip({
-    kind,
-    firstSeenMs,
-    now,
+function SortSegment({
+    active,
+    onClick,
+    children,
 }: {
-    kind: "fresh" | "relisted" | null;
-    firstSeenMs: number | null;
-    now: number;
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
 }) {
-    if (!kind) return null;
-    const cls = kind === "fresh" ? STATUS_PILL.offer : STATUS_PILL.intv;
-    const dot = kind === "fresh" ? "bg-st-offer" : "bg-st-intv/80";
-    const age = kind === "fresh" ? postedAge(firstSeenMs, now) : null;
     return (
-        <span
-            data-testid="posting-freshness-badge"
-            data-kind={kind}
-            className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={cn(
+                "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+                active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
         >
-            <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
-            {kind === "fresh" ? (age ? `Fresh · ${age}` : "Fresh") : "Relisted"}
-        </span>
+            {children}
+        </button>
     );
 }
 
-function sortModeLabel(mode: JobSortMode, hasQuery: boolean): string {
-    if (mode === "salary_desc") return "Salary high to low";
-    if (mode === "newest") return "Date posted";
-    if (hasQuery) return "Best match";
-    // Relevance with no query is the corpus's default order. It only reaches
-    // this state when the date sort was coerced away (`coerceSortToSupported`),
-    // so it must NOT keep claiming "Date posted" — that was the mislabel.
-    return "Default order";
-}
-
-function sortCountSuffix(mode: JobSortMode, hasQuery: boolean): string {
-    if (mode === "salary_desc") return " · highest salary first";
-    if (mode === "newest") return " · newest first";
-    return hasQuery ? " · best match" : "";
+/** Trust-toolbar pill (hero band) — shared active/inactive visual for the
+ *  four real-filter toggles (ghost risk / new this week / salary / senior). */
+function FilterPill({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={cn(
+                "rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+                active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border-strong bg-card text-text-2 hover:border-foreground",
+            )}
+        >
+            {children}
+        </button>
+    );
 }
 
 /**
@@ -383,80 +432,109 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
     ];
 }
 
-/* ----------------------------- job row ----------------------------- */
+/* ----------------------------- job card ----------------------------- */
 
-function JobRow({
+function JobCard({
     job,
     active,
     onClick,
     now,
+    pursuit,
+    goingAfter,
+    onGoAfter,
+    onOpenPosting,
 }: {
     job: PublicJob;
     active: boolean;
     onClick: () => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
+    /** The existing pursuit for this job, if the user already went after it — drives the filled heart. */
+    pursuit: Pursuit | undefined;
+    goingAfter: boolean;
+    onGoAfter: () => void;
+    onOpenPosting: () => void;
 }) {
     const postedTs = derivePostedTs(job);
     const age = postedAge(postedTs, now);
     const sal = salaryText(job);
-    // Task 8 row badge: clear → "✓ live {age}" when updated_at is within
-    // STALE_THRESHOLD_MS, else the neutral "checked {age}" (staleness fix —
-    // see badgeFor's own doc comment), caution → "⚠ {daysOpen} days open"
-    // (from posted_ts), likely_ghost → "✕ likely ghost", unscored → null
-    // (renders nothing, same as the old `GHOST_META[job.ghost_badge] &&`
-    // gate this replaces).
-    const badgeText = badgeFor(job.ghost_badge, job.updated_at, postedTs, now);
-    const badgeStale = checkFreshness(job.updated_at, now) === "stale";
-    // S2 — posting freshness/relist, an independent axis from the ghost badge
-    // above (see PostingFreshnessChip's doc comment).
-    const freshness = classifyPostingFreshness(job, now);
+    const level = prettyEnum(job.experience_level);
+    const workLoc = [prettyEnum(job.work_type), locationText(job)].filter(Boolean).join(" · ");
+    const flag = flagRowFor(job, now);
+    const toneCls = FLAG_TONE_CLASS[flag.tone];
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
+    const saved = Boolean(pursuit);
     return (
-        <button
-            type="button"
+        <div
             role="option"
+            tabIndex={0}
             aria-selected={active}
             aria-label={`View ${accessibleName}`}
             data-job-row
             data-testid="job-row"
             onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
             className={cn(
-                "block w-full rounded-xl border p-4 text-left transition-all",
+                "grid cursor-pointer grid-cols-[auto_1fr] items-start gap-3.5 rounded-xl border p-4 text-left transition-all sm:grid-cols-[auto_1fr_auto] sm:items-center",
                 active
-                    ? "border-brand/50 bg-brand/5 shadow-sm ring-1 ring-brand/25 border-l-[3px] border-l-brand"
+                    ? "border-brand/50 bg-brand/5 shadow-sm ring-1 ring-brand/25"
                     : "border-border bg-card hover:border-brand/30 hover:shadow-sm",
             )}
         >
-            <div className="flex items-start gap-3">
-                <CompanyLogo domain={job.company_domain} name={job.company} size="sm" />
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                        <span className="truncate text-sm font-semibold">{decodeText(job.title)}</span>
-                        {age && <span className="shrink-0 text-xs text-muted-foreground">{age}</span>}
-                    </div>
-                    <div className="mt-0.5 truncate text-[13px] text-muted-foreground">
-                        {cleanCompany(job.company) || "Unknown company"}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                            <MapPin size={13} /> {locationText(job)}
-                        </span>
-                        {sal && (
-                            <span className="inline-flex items-center gap-1">
-                                <CurrencyDollar size={13} /> {sal}
-                            </span>
-                        )}
-                    </div>
-                    {(badgeText || freshness.kind) && (
-                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                            {badgeText && <GhostChip badge={job.ghost_badge} text={badgeText} stale={badgeStale} />}
-                            <PostingFreshnessChip kind={freshness.kind} firstSeenMs={freshness.firstSeenMs} now={now} />
-                        </div>
-                    )}
+            <CompanyInitialTile name={job.company} className="h-11 w-11" />
+            <div className="min-w-0">
+                <span className="block truncate text-[15px] font-semibold tracking-tight">{decodeText(job.title)}</span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
+                    <span className="font-medium text-foreground">{cleanCompany(job.company) || "Unknown company"}</span>
+                    {workLoc && <span>{workLoc}</span>}
+                    <span className="font-mono text-xs">{sal ?? "salary not listed"}</span>
+                    {level && <span className="font-mono text-xs">{level}</span>}
+                </div>
+                <div className="mt-2 flex items-center gap-1.5">
+                    <span className={cn("h-[7px] w-[7px] shrink-0 rounded-full", toneCls.dot, flag.pulse && "iv-pulse")} />
+                    <span className={cn("font-mono text-xs font-medium", toneCls.text)}>{flag.label}</span>
                 </div>
             </div>
-        </button>
+            <div className="col-span-2 flex items-center justify-between gap-3 pt-1 sm:col-span-1 sm:flex-col sm:items-end sm:justify-start sm:gap-2.5 sm:pt-0">
+                <div className="flex items-center gap-2.5">
+                    <button
+                        type="button"
+                        aria-label={saved ? "Saved to your pipeline" : "Save this job"}
+                        aria-pressed={saved}
+                        disabled={goingAfter}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onGoAfter();
+                        }}
+                        className={cn(
+                            "leading-none transition-colors disabled:opacity-50",
+                            saved ? "text-brand" : "text-muted-foreground hover:text-foreground",
+                        )}
+                    >
+                        <Heart size={19} weight={saved ? "fill" : "regular"} />
+                    </button>
+                    {job.apply_url && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPosting();
+                            }}
+                        >
+                            Apply
+                        </Button>
+                    )}
+                </div>
+                {age && <span className="font-mono text-[11px] text-faint">{age}</span>}
+            </div>
+        </div>
     );
 }
 
@@ -1135,12 +1213,12 @@ function JobsContent() {
     // way to do one-time impure work during render — see React's "components
     // and hooks must be idempotent" doc the `react-hooks/purity` lint rule
     // links to) instead of `Date.now()` being called directly inside render
-    // (JobRow's `postedAge`/`badgeFor`) or inside JSX (the freshness stamp's
+    // (JobCard's `postedAge`/`flagRowFor`) or inside JSX (the freshness stamp's
     // `isStale`/`formatRelativeAge`). Threading a single value down means the
     // row badge's age and the freshness stamp's age can never disagree about
     // what instant "now" was for this paint, and render stays pure — the
-    // exact defect `react-hooks/purity` flagged at the old `badgeFor` call
-    // site (line ~283) and Task 8's review separately flagged as "dual
+    // exact defect `react-hooks/purity` flagged at the old row-badge call
+    // site and Task 8's review separately flagged as "dual
     // Date.now() per row render" (postedAge's own internal call was the
     // second one, never caught by the linter because it's one level removed
     // from the render body, but the same bug).
@@ -1161,7 +1239,7 @@ function JobsContent() {
     const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
-    // activeCount/activeChips/clearAll. See `resolveUrlSort` for the sort=fit handling.
+    // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
     const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
     // Previous-render snapshot of `query`, read by the sort-reset effect
     // below (`shouldResetSortOnQueryChange`) to tell "a new query just
@@ -1783,20 +1861,21 @@ function JobsContent() {
         // reactive source of truth. Row click pushes it (`openJob`); this
         // picks it back up on mount (deep link), on browser back/forward
         // (popstate needs no bespoke handling — Next's router already
-        // updates `searchParams`), and closes the mobile sheet when `job`
-        // disappears (detail close calls `router.back()`, see the Sheet
-        // below). Deliberately unconditional (not gated behind the subset
-        // check above) — a job-only URL change must still update selection
-        // even when nothing else in the subset changed.
+        // updates `searchParams`), and opens/closes the detail sheet when
+        // `job` appears/disappears (detail close calls `router.back()`, see
+        // the Sheet below). Deliberately unconditional (not gated behind the
+        // subset check above) — a job-only URL change must still update
+        // selection even when nothing else in the subset changed.
+        //
+        // Portal redesign: the sheet is now the ONLY detail surface at every
+        // breakpoint (the old lg+ three-pane layout's inline detail column
+        // is gone — the new design has no room reserved for one), so this
+        // used to gate on `matchMedia("(max-width: 1023px)")`; that gate is
+        // dropped, not just hidden, since a desktop viewport opening the
+        // sheet is now the intended behavior, not a mobile-only fallback.
         const jobId = parsed.jobId;
         setSelectedId(jobId);
-        if (jobId) {
-            if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
-                setDetailSheetOpen(true);
-            }
-        } else {
-            setDetailSheetOpen(false);
-        }
+        setDetailSheetOpen(Boolean(jobId));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -2044,10 +2123,6 @@ function JobsContent() {
         setSalaryMin(v);
         applyUrlState(buildUrlState({ salaryMin: v }), "replace");
     };
-    const applyVisaOnly = (v: boolean) => {
-        setVisaOnly(v);
-        applyUrlState(buildUrlState({ visaOnly: v }), "replace");
-    };
     const applyPostedBucket = (v: PostedBucket | undefined) => {
         setPostedBucket(v);
         applyUrlState(buildUrlState({ postedBucket: v }), "replace");
@@ -2087,24 +2162,22 @@ function JobsContent() {
     };
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
-    // active" — the toolbar chips below, the count badges (mobile Filters
-    // button + rail's "Clear all (N)"), and Tasks 10-11's sheet/empty state
-    // all read from it so they can never disagree.
+    // active" — the "All filters (N)" pill's count, the empty state's
+    // per-filter clear chips, and the sheet's own count all read from it so
+    // they can never disagree.
     const activeEntries = activeFilterEntries(filterState);
     const activeCount = activeEntries.length;
-    const activeChips = activeEntries.map((entry) => ({
-        label: entry.label,
-        onRemove: () => applyFilterState(entry.clear(filterState)),
-    }));
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
     // "hideGhosts && ghostHiddenCount > 0" rule the controller specified.
     const ghostRevealCount = resolveGhostReveal(hideGhosts, ghostHiddenCount);
 
-    // Task 10 — mobile filter sheet. Every pending mutator below mirrors one
-    // of the LIVE mutators above (toggleFacet/applySalaryMin/applyVisaOnly/
-    // applyPostedBucket/onHideGhosts) field-for-field, but writes into
+    // Task 10 — filter sheet (portal redesign: the ONLY filter surface at
+    // every breakpoint now — see the "All filters" pill above). Every
+    // pending mutator below mirrors one of the LIVE mutators above
+    // (toggleFacet/applySalaryMin/applyPostedBucket/onHideGhosts) field-for-
+    // field, but writes into
     // `pendingFilterState` instead of local+URL state — the sheet's own
     // FilterPanel instance passes these as its callback props, so toggling
     // inside the sheet can only ever change pending state + the live count
@@ -2872,32 +2945,294 @@ function JobsContent() {
     const blockingError = searchError != null && hits.length === 0;
     const backgroundError = searchError != null && hits.length > 0;
 
-    const filterPanel = (
-        <FilterPanel
-            distribution={result?.facetDistribution}
-            postedDateSupported={postedDateSupported}
-            state={filterState}
-            activeCount={activeCount}
-            onToggleFacet={toggleFacet}
-            onSalaryMin={applySalaryMin}
-            onVisaOnly={applyVisaOnly}
-            onPostedBucket={applyPostedBucket}
-            onClearAll={clearAll}
-            hideGhosts={hideGhosts}
-            onHideGhosts={onHideGhosts}
-            ghostHiddenCount={ghostHiddenCount}
-        />
-    );
+    // Hero search row's location/mode selects (spec: "no city-level filter
+    // exists — do NOT fake one") — single-value pickers over the real
+    // `location_country`/`work_type` facets, sharing the exact toggle
+    // mechanics `toggleFacet` already uses, just replacing (not adding to)
+    // whatever was selected for that key, since a plain <select> can only
+    // hold one value at a time.
+    const setSingleFacet = (key: FacetKey, value: string | null) => {
+        const nextFacets = { ...facets, [key]: value ? [value] : undefined };
+        setFacets(nextFacets);
+        applyUrlState(buildUrlState({ facets: nextFacets }), "replace");
+    };
+    const facetOptions = (key: FacetKey): { value: string; label: string; count: number }[] =>
+        Object.entries(result?.facetDistribution?.[key] ?? {})
+            .filter(([v]) => !isNoiseFacetValue(key, v))
+            .sort((a, b) => b[1] - a[1])
+            .map(([value, count]) => ({ value, label: facetValueLabel(key, value), count }));
+    const countryOptions = facetOptions("location_country");
+    const workTypeOptions = facetOptions("work_type");
+
+    // Hero subline stat (spec: "if cheaply available"). `ghostHiddenCount`
+    // already exists for the rail's "N hidden" toggle copy — reusing it here
+    // rather than a second corpus-wide count means the subline always
+    // matches what THIS search is actually hiding, and costs no extra fetch.
+    const heroSubline =
+        ghostHiddenCount != null && ghostHiddenCount > 0
+            ? `Every listing checked for ghost-job risk · ${ghostHiddenCount.toLocaleString()} flagged right now`
+            : "Every listing checked for ghost-job risk.";
+
+    // Trust-toolbar pills (spec: "each mapped to existing JobsUrlState
+    // only"). Each toggle mirrors the shape `toggleFacet`/`applyPostedBucket`/
+    // `applySalaryMin`/`onHideGhosts` already use elsewhere on this page —
+    // no parallel filter-mutation path, just a second, quicker entry point
+    // onto the SAME state those mutators own.
+    const seniorActive = (facets.experience_level ?? []).includes("senior");
+    const salary100kActive = salaryMin >= 100_000;
+    const newThisWeekActive = postedBucket === "7d";
+
+    // Sort segmented control (results header). `chooseSort` mirrors the old
+    // Select's onValueChange for a real backend `JobSortMode`; "best match"
+    // collapses TWO of the old dropdown's options into one segment (spec:
+    // "plus best match ← relevance/fit so no existing mode is lost") — with
+    // a query, that's plain relevance; with none, "best match" IS "ranked by
+    // your résumé" (the old separate "Rank by fit" option), since relevance
+    // has nothing to rank without a query.
+    const chooseSort = (nextMode: JobSortMode) => {
+        fitIntentRef.current!.begin();
+        setFitActive(false);
+        setSortOverride(nextMode);
+        applyUrlState(buildUrlState({ sort: modeToUrlSort(nextMode) }), "replace");
+    };
+    const chooseBestMatch = () => {
+        if (hasQuery) chooseSort("relevance");
+        else void handleRankByFit();
+    };
+    const bestMatchActive = fitActive || (!fitActive && effectiveSort === "relevance");
 
     return (
         <PageLayout
             fullWidth
-            className="w-full max-w-[1700px] px-4 py-6 sm:px-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden"
+            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden lg:px-14"
             header={
-                <PageHeader
-                    title="Find jobs"
-                    description="Search live roles — flagged for ghost-job risk before you spend time on them."
-                />
+                <div className="border-b border-border bg-surface">
+                    <div className="mx-auto max-w-[1700px] px-4 pb-5 pt-7 sm:px-6 lg:px-14 lg:pt-9">
+                        <div className="mb-5">
+                            <h1 className="font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.025em] sm:text-[34px]">
+                                Find work that&apos;s real.
+                            </h1>
+                            <p className="mt-2 font-mono text-[13px] text-muted-foreground">{heroSubline}</p>
+                        </div>
+
+                        {/* Search row: query + Explore, location (location_country
+                            facet), work mode (work_type facet), Search submit. */}
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[1.6fr_.9fr_.9fr_auto]">
+                            <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-1">
+                                <SearchAutocomplete
+                                    // Explore mode's `query` state carries the résumé-derived
+                                    // search string (AI-suggested titles, capped — see
+                                    // `capExploreTerms`), which used to render raw in this box:
+                                    // an unreadable wall of query soup. The dismissible
+                                    // "Exploring roles adjacent to your résumé" chip below
+                                    // communicates that state instead; the box itself shows
+                                    // empty-with-placeholder while explore is active.
+                                    //
+                                    // Explore is ephemeral, session-only state — the URL
+                                    // deliberately does NOT represent it (see `activateExplore`'s
+                                    // doc comment): a refresh or a shared link during Explore
+                                    // lands on plain browse, never on this derived query. So
+                                    // gating just the DISPLAYED value on mode wouldn't be enough
+                                    // on its own — the box's `value` here and the URL are both
+                                    // intentionally out of sync with the underlying `query`
+                                    // state while exploring, by design, not by omission.
+                                    value={mode === "explore" ? "" : query}
+                                    onChange={(v) => {
+                                        if (mode === "explore") {
+                                            // A manual edit is the user taking over from
+                                            // Explore — supersede any stale in-flight explore
+                                            // (see `exploreIntentRef`) before dropping back to
+                                            // an ordinary browse-mode query.
+                                            exploreIntentRef.current!.begin();
+                                            setMode("browse");
+                                            setExploreTitles([]);
+                                        }
+                                        setQuery(v);
+                                        // Continuous input is filter-like — `replace`, not `push` (a
+                                        // "push" per keystroke would make the back button undo one
+                                        // character at a time). Discrete submit (Enter, or picking a
+                                        // suggestion) uses `push` instead — see `onSearch` below.
+                                        applyUrlState(buildUrlState({ q: v }), "replace");
+                                    }}
+                                    onSearch={() => submitSearch(query)}
+                                    suggest={suggestForBox}
+                                    placeholder={
+                                        corpusCount != null
+                                            ? `Search ${formatCorpusCount(corpusCount)} live-checked roles…`
+                                            : "Search live-checked roles…"
+                                    }
+                                    className="h-11 bg-card"
+                                    containerClassName="min-w-0 flex-1"
+                                />
+                                {/* Re-homed from the old entry-gate's "Explore adjacent roles" choice.
+                                    Credit/auth gating (enterExplore/runExplore) is reused verbatim. */}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 shrink-0 gap-1.5"
+                                    disabled={exploring}
+                                    onClick={() => void handleExploreClick()}
+                                >
+                                    {exploring ? (
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                                    ) : (
+                                        <Compass size={16} />
+                                    )}
+                                    Explore
+                                </Button>
+                            </div>
+                            <Select
+                                value={facets.location_country?.[0] ?? "__any__"}
+                                onValueChange={(v) => setSingleFacet("location_country", v === "__any__" ? null : v)}
+                            >
+                                <SelectTrigger className="h-11 bg-card text-[14.5px]" aria-label="Location">
+                                    <SelectValue placeholder="Any location" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__any__">Any location</SelectItem>
+                                    {countryOptions.map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={facets.work_type?.[0] ?? "__any__"}
+                                onValueChange={(v) => setSingleFacet("work_type", v === "__any__" ? null : v)}
+                            >
+                                <SelectTrigger className="h-11 bg-card text-[14.5px]" aria-label="Work mode">
+                                    <SelectValue placeholder="Any work mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__any__">Any work mode</SelectItem>
+                                    {workTypeOptions.map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button type="button" className="h-11 px-8" onClick={() => submitSearch(query)}>
+                                Search
+                            </Button>
+                        </div>
+
+                        {/* S2 — recent searches: quiet chips shown only on the empty-query
+                            landing state (browse mode, nothing typed yet, store non-empty). */}
+                        {mode === "browse" && !query.trim() && recentSearches.length > 0 && (
+                            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                                <span className="mr-0.5 text-xs text-muted-foreground">Recent:</span>
+                                {recentSearches.map((q) => (
+                                    <button
+                                        key={q}
+                                        type="button"
+                                        data-testid="recent-search-chip"
+                                        onClick={() => submitSearch(q)}
+                                        className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+                                    >
+                                        {q}
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    aria-label="Clear recent searches"
+                                    onClick={() => clearAllRecentSearches()}
+                                    className="text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
+                        {mode === "explore" && exploreTitles.length > 0 && (
+                            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                                <span className="mr-0.5 text-xs text-muted-foreground">Exploring:</span>
+                                {exploreTitles.map((t) => {
+                                    const active = query.trim() === t;
+                                    return (
+                                        <button
+                                            key={t}
+                                            onClick={() => setQuery(active ? exploreTitles.join(" ") : t)}
+                                            className={cn(
+                                                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                                                active
+                                                    ? "border-brand bg-brand/10 text-brand"
+                                                    : "border-border text-muted-foreground hover:border-brand/40 hover:text-foreground",
+                                            )}
+                                        >
+                                            {t}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Trust-toolbar pills (spec: each mapped to existing JobsUrlState
+                            only — no facet/filter this page can show that the "All filters"
+                            sheet can't also reach). */}
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                            <FilterPill active={hideGhosts} onClick={() => onHideGhosts(!hideGhosts)}>
+                                No ghost risk ✓
+                            </FilterPill>
+                            <FilterPill
+                                active={newThisWeekActive}
+                                onClick={() =>
+                                    applyPostedBucket(newThisWeekActive ? PRISTINE_FILTER_STATE.postedBucket : "7d")
+                                }
+                            >
+                                New this week
+                            </FilterPill>
+                            <FilterPill
+                                active={salary100kActive}
+                                onClick={() => applySalaryMin(salary100kActive ? 0 : 100_000)}
+                            >
+                                Salary $100K+
+                            </FilterPill>
+                            <FilterPill active={seniorActive} onClick={() => toggleFacet("experience_level", "senior")}>
+                                Senior level
+                            </FilterPill>
+                            <button
+                                type="button"
+                                onClick={openFilterSheet}
+                                className="inline-flex items-center gap-1 px-1 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                                <Gear size={14} />
+                                All filters{activeCount > 0 ? ` (${activeCount})` : ""}
+                            </button>
+                            {fitActive && (
+                                <button
+                                    onClick={clearFit}
+                                    className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
+                                >
+                                    Ranked by your résumé
+                                    <X size={12} />
+                                </button>
+                            )}
+                            {/* Mirrors the "Ranked by your résumé" chip above — communicates
+                                explore mode without rendering its derived query raw in the
+                                search box (see the box's `value` comment above). */}
+                            {mode === "explore" && (
+                                <button
+                                    onClick={() => enterBrowseAndSync()}
+                                    className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
+                                >
+                                    Exploring roles adjacent to your résumé
+                                    <X size={12} />
+                                </button>
+                            )}
+                            <span className="flex-1" />
+                            <button
+                                type="button"
+                                onClick={clearAll}
+                                className="text-[13px] text-faint transition-colors hover:text-foreground"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
             }
         >
             <>
@@ -2908,354 +3243,154 @@ function JobsContent() {
                     Skip to results
                 </a>
                 <PrepMovedNote />
-                <div className="shrink-0">
+                <div className="shrink-0 pt-6">
                     <ModeBar mode={mode} onStartOver={startOver} />
                 </div>
-                <div className="flex min-h-0 flex-col lg:flex-1">
-            {/* Search + Explore */}
-            <div className="mb-3.5 flex shrink-0 items-center gap-2">
-                <SearchAutocomplete
-                    // Explore mode's `query` state carries the résumé-derived
-                    // search string (AI-suggested titles, capped — see
-                    // `capExploreTerms`), which used to render raw in this box:
-                    // an unreadable wall of query soup. The dismissible
-                    // "Exploring roles adjacent to your résumé" chip below
-                    // communicates that state instead; the box itself shows
-                    // empty-with-placeholder while explore is active.
-                    //
-                    // Explore is ephemeral, session-only state — the URL
-                    // deliberately does NOT represent it (see `activateExplore`'s
-                    // doc comment): a refresh or a shared link during Explore
-                    // lands on plain browse, never on this derived query. So
-                    // gating just the DISPLAYED value on mode wouldn't be enough
-                    // on its own — the box's `value` here and the URL are both
-                    // intentionally out of sync with the underlying `query`
-                    // state while exploring, by design, not by omission.
-                    value={mode === "explore" ? "" : query}
-                    onChange={(v) => {
-                        if (mode === "explore") {
-                            // A manual edit is the user taking over from
-                            // Explore — supersede any stale in-flight explore
-                            // (see `exploreIntentRef`) before dropping back to
-                            // an ordinary browse-mode query.
-                            exploreIntentRef.current!.begin();
-                            setMode("browse");
-                            setExploreTitles([]);
-                        }
-                        setQuery(v);
-                        // Continuous input is filter-like — `replace`, not `push` (a
-                        // "push" per keystroke would make the back button undo one
-                        // character at a time). Discrete submit (Enter, or picking a
-                        // suggestion) uses `push` instead — see `onSearch` below.
-                        applyUrlState(buildUrlState({ q: v }), "replace");
-                    }}
-                    onSearch={() => submitSearch(query)}
-                    suggest={suggestForBox}
-                    placeholder={
-                        corpusCount != null
-                            ? `Search ${formatCorpusCount(corpusCount)} live-checked roles…`
-                            : "Search live-checked roles…"
-                    }
-                    className="h-11 bg-card"
-                    containerClassName="min-w-0 flex-1"
-                />
-                {/* Re-homed from the old entry-gate's "Explore adjacent roles" choice.
-                    Credit/auth gating (enterExplore/runExplore) is reused verbatim. */}
-                <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 shrink-0 gap-1.5"
-                    disabled={exploring}
-                    onClick={() => void handleExploreClick()}
-                >
-                    {exploring ? (
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
-                    ) : (
-                        <Compass size={16} />
-                    )}
-                    Explore
-                </Button>
-            </div>
-
-            {/* S2 — recent searches: quiet chips shown only on the empty-query
-                landing state (browse mode, nothing typed yet, store non-empty). */}
-            {mode === "browse" && !query.trim() && recentSearches.length > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                    <span className="mr-0.5 text-xs text-muted-foreground">Recent:</span>
-                    {recentSearches.map((q) => (
-                        <button
-                            key={q}
-                            type="button"
-                            data-testid="recent-search-chip"
-                            onClick={() => submitSearch(q)}
-                            className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
-                        >
-                            {q}
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        aria-label="Clear recent searches"
-                        onClick={() => clearAllRecentSearches()}
-                        className="text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        <X size={12} />
-                    </button>
-                </div>
-            )}
-
-            {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
-            {mode === "explore" && exploreTitles.length > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                    <span className="mr-0.5 text-xs text-muted-foreground">Exploring:</span>
-                    {exploreTitles.map((t) => {
-                        const active = query.trim() === t;
-                        return (
-                            <button
-                                key={t}
-                                onClick={() => setQuery(active ? exploreTitles.join(" ") : t)}
-                                className={cn(
-                                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                                    active
-                                        ? "border-brand bg-brand/10 text-brand"
-                                        : "border-border text-muted-foreground hover:border-brand/40 hover:text-foreground",
-                                )}
-                            >
-                                {t}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Toolbar: active-filter chips + count (Task 10 moved the mobile
-                Filters button into the chips row below — its "All (n)" chip). */}
-            <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
-                {activeChips.map((c, i) => (
-                    <button
-                        key={i}
-                        data-testid="active-filter-chip"
-                        onClick={c.onRemove}
-                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
-                    >
-                        {c.label}
-                        <X size={12} />
-                    </button>
-                ))}
-                {activeChips.length > 0 && (
-                    <button onClick={clearAll} className="text-xs text-muted-foreground hover:text-foreground">
-                        Clear all
-                    </button>
-                )}
-                {fitActive && (
-                    <button
-                        onClick={clearFit}
-                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
-                    >
-                        Ranked by your résumé
-                        <X size={12} />
-                    </button>
-                )}
-                {/* Mirrors the "Ranked by your résumé" chip above — communicates
-                    explore mode without rendering its derived query raw in the
-                    search box (see the box's `value` comment above). */}
-                {mode === "explore" && (
-                    <button
-                        onClick={() => enterBrowseAndSync()}
-                        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand"
-                    >
-                        Exploring roles adjacent to your résumé
-                        <X size={12} />
-                    </button>
-                )}
-                <span className="flex-1" />
-                {result?.configured && (
-                    <Select
-                        value={fitActive ? "fit" : effectiveSort}
-                        onValueChange={(v) => {
-                            if (v === "fit") {
-                                void handleRankByFit();
-                                return;
-                            }
-                            // Any OTHER sort choice also supersedes an
-                            // in-flight `handleRankByFit` résumé fetch, not
-                            // just re-picking fit — see fit-intent.ts.
-                            fitIntentRef.current!.begin();
-                            const nextMode = v as JobSortMode;
-                            setFitActive(false);
-                            setSortOverride(nextMode);
-                            applyUrlState(buildUrlState({ sort: modeToUrlSort(nextMode) }), "replace");
-                        }}
-                    >
-                        <SelectTrigger
-                            size="sm"
-                            className="h-8 w-auto min-w-[9.5rem] gap-1.5 border-border bg-card px-2.5 text-xs"
-                            aria-label="Sort results"
-                        >
-                            <span className="text-muted-foreground">Sort:</span>
-                            <SelectValue>{fitActive ? "Rank by fit" : sortModeLabel(effectiveSort, hasQuery)}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent align="end">
-                            <SelectItem value="relevance" disabled={!hasQuery}>
-                                Best match
-                            </SelectItem>
-                            {/* Offered only when the corpus can honour it — sorting on
-                                `posted_ts` is a silent no-op while that field is unwritten
-                                (see `coerceSortToSupported`). Returns on its own with the data. */}
-                            {postedDateSupported && <SelectItem value="newest">Date posted</SelectItem>}
-                            <SelectItem value="salary_desc">Salary high to low</SelectItem>
-                            <SelectItem value="fit">Rank by fit</SelectItem>
-                        </SelectContent>
-                    </Select>
-                )}
-                {loading && hits.length > 0 && (
-                    <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
-                        Updating…
-                    </span>
-                )}
-                {!loading && result?.configured && (
-                    <span className="text-[13px] text-muted-foreground">
-                        {formatCorpusCount(totalCount)} {totalCount.value === 1 ? "role" : "roles"}
-                        {fitActive ? " · ranked by fit" : sortCountSuffix(effectiveSort, hasQuery)}
-                    </span>
-                )}
-                {!loading && result?.widened && (
-                    <span className="text-xs text-muted-foreground" data-testid="widened-note">
-                        Few exact title matches — also showing broader matches.
-                    </span>
-                )}
-                {lastUpdated !== undefined && (
-                    <span
-                        className="text-xs tabular-nums text-muted-foreground data-[stale=true]:text-amber-600 dark:data-[stale=true]:text-amber-400"
-                        data-stale={isStale(lastUpdated, nowMs)}
-                        title={lastUpdated ?? "freshness unknown"}
-                    >
-                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
-                    </span>
-                )}
-            </div>
-
-            {/* Task 10 — mobile quick-filter chips row. Absorbs the old
-                standalone mobile "Filters" button: `onOpenSheet` opens the
-                new bottom Sheet below instead of the old bounded overlay. */}
-            <FilterChipsRow
-                state={filterState}
-                distribution={result?.facetDistribution}
-                postedDateSupported={postedDateSupported}
-                activeCount={activeCount}
-                onPostedBucket={applyPostedBucket}
-                onToggleFacet={toggleFacet}
-                onSalaryMin={applySalaryMin}
-                onOpenSheet={openFilterSheet}
-            />
-
-            {result?.preview && result.note && (
-                <div className="mb-4 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
-                    {result.note}
-                </div>
-            )}
-
-            {backgroundError && (
-                <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-sm text-destructive">
-                    <span>{searchError}</span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 border-destructive/30 text-destructive hover:bg-destructive/10"
-                        onClick={() => setSearchRetry((n) => n + 1)}
-                    >
-                        Retry
-                    </Button>
-                </div>
-            )}
-
-            <div className="min-h-0 flex-1">
-            {notConnected ? (
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                        <MagnifyingGlass size={26} />
-                    </div>
-                    <h3 className="mb-1.5 text-lg font-semibold">Job search is being connected</h3>
-                    <p className="mx-auto mb-1 max-w-md text-sm text-muted-foreground">
-                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the ghost-job
-                        signal that flags postings that aren&apos;t really hiring.
-                    </p>
-                    <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
-                </div>
-            ) : exploreFailed ? (
-                <div
-                    role="alert"
-                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
-                >
-                    <WarningCircle size={28} className="mb-3 text-destructive" />
-                    <h3 className="text-lg font-semibold">Couldn&apos;t finish exploring — try again</h3>
-                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                        The request took too long or failed. Try again, or browse the live board instead.
-                    </p>
-                    <div className="mt-4 flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                            onClick={() => void handleExploreClick()}
-                        >
-                            Retry
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => enterBrowseAndSync()}>
-                            Browse all roles
-                        </Button>
-                    </div>
-                </div>
-            ) : blockingError ? (
-                <div
-                    role="alert"
-                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
-                >
-                    <WarningCircle size={28} className="mb-3 text-destructive" />
-                    <h3 className="text-lg font-semibold">Job search is temporarily unavailable</h3>
-                    <p className="mt-1 max-w-md text-sm text-muted-foreground">{searchError}</p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10"
-                        onClick={() => setSearchRetry((n) => n + 1)}
-                    >
-                        Retry
-                    </Button>
-                </div>
-            ) : (
-                <div className="relative grid h-full min-h-0 gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
-                    {/* lg+: visible filter/list/detail three-pane workspace (Task 7 — was xl). */}
-                    <aside
-                        role="region"
-                        aria-label="Job filters"
-                        className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
-                    >
-                        {filterPanel}
-                    </aside>
-                    {/* <lg only: rail is hidden — the chips row's "All (n)" opens the
-                        mobile filter Sheet instead (Task 10, was a bounded inline
-                        overlay through Task 7). */}
-
-                    {/* lg: two-pane list/detail workspace; lg also adds the filter pane (Task 7 — was xl). */}
+                <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_340px]">
                     <div className="flex min-h-0 flex-col">
-                        {loading && hits.length === 0 ? (
-                            <JobsListSplash />
-                        ) : hits.length === 0 ? (
-                            <EmptyResults
-                                entries={activeEntries}
-                                onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
-                                query={query}
-                                onClearQuery={() => {
-                                    setQuery("");
-                                    applyUrlState(buildUrlState({ q: "" }), "replace");
-                                }}
-                                ghostRevealCount={ghostRevealCount}
-                                onRevealGhosts={() => onHideGhosts(false)}
-                            />
-                        ) : (
-                            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+                        {/* Results header: title + real count + sort segmented control. */}
+                        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                            <div className="flex items-baseline gap-2.5">
+                                <h2 className="font-display text-lg font-semibold">Top matches</h2>
+                                {!loading && result?.configured && (
+                                    <span className="font-mono text-xs text-muted-foreground">
+                                        {hits.length.toLocaleString()} of {formatCorpusCount(totalCount)} ·{" "}
+                                        {hasQuery ? query : "all roles"}
+                                    </span>
+                                )}
+                            </div>
+                            {result?.configured && (
+                                <div className="flex items-center gap-0.5 rounded-lg bg-chip p-0.5">
+                                    {postedDateSupported && (
+                                        <SortSegment
+                                            active={!fitActive && effectiveSort === "newest"}
+                                            onClick={() => chooseSort("newest")}
+                                        >
+                                            freshest
+                                        </SortSegment>
+                                    )}
+                                    <SortSegment
+                                        active={!fitActive && effectiveSort === "salary_desc"}
+                                        onClick={() => chooseSort("salary_desc")}
+                                    >
+                                        top pay
+                                    </SortSegment>
+                                    <SortSegment active={bestMatchActive} onClick={chooseBestMatch}>
+                                        best match
+                                    </SortSegment>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mb-4 flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
+                            {loading && hits.length > 0 && (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+                                    Updating…
+                                </span>
+                            )}
+                            {!loading && result?.widened && (
+                                <span data-testid="widened-note">Few exact title matches — also showing broader matches.</span>
+                            )}
+                            {lastUpdated !== undefined && (
+                                <span
+                                    className="tabular-nums data-[stale=true]:text-amber-600 dark:data-[stale=true]:text-amber-400"
+                                    data-stale={isStale(lastUpdated, nowMs)}
+                                    title={lastUpdated ?? "freshness unknown"}
+                                >
+                                    {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
+                                </span>
+                            )}
+                        </div>
+
+                        {result?.preview && result.note && (
+                            <div className="mb-4 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                {result.note}
+                            </div>
+                        )}
+
+                        {backgroundError && (
+                            <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-sm text-destructive">
+                                <span>{searchError}</span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 border-destructive/30 text-destructive hover:bg-destructive/10"
+                                    onClick={() => setSearchRetry((n) => n + 1)}
+                                >
+                                    Retry
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="min-h-0 flex-1">
+                            {notConnected ? (
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 py-20 text-center">
+                                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                                        <MagnifyingGlass size={26} />
+                                    </div>
+                                    <h3 className="mb-1.5 text-lg font-semibold">Job search is being connected</h3>
+                                    <p className="mx-auto mb-1 max-w-md text-sm text-muted-foreground">
+                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the ghost-job
+                                        signal that flags postings that aren&apos;t really hiring.
+                                    </p>
+                                    <p className="mx-auto max-w-md text-xs text-muted-foreground/70">{result?.note}</p>
+                                </div>
+                            ) : exploreFailed ? (
+                                <div
+                                    role="alert"
+                                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                                >
+                                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                                    <h3 className="text-lg font-semibold">Couldn&apos;t finish exploring — try again</h3>
+                                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                                        The request took too long or failed. Try again, or browse the live board instead.
+                                    </p>
+                                    <div className="mt-4 flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                                            onClick={() => void handleExploreClick()}
+                                        >
+                                            Retry
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => enterBrowseAndSync()}>
+                                            Browse all roles
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : blockingError ? (
+                                <div
+                                    role="alert"
+                                    className="flex h-full flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center"
+                                >
+                                    <WarningCircle size={28} className="mb-3 text-destructive" />
+                                    <h3 className="text-lg font-semibold">Job search is temporarily unavailable</h3>
+                                    <p className="mt-1 max-w-md text-sm text-muted-foreground">{searchError}</p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-4 border-destructive/30 text-destructive hover:bg-destructive/10"
+                                        onClick={() => setSearchRetry((n) => n + 1)}
+                                    >
+                                        Retry
+                                    </Button>
+                                </div>
+                            ) : loading && hits.length === 0 ? (
+                                <JobsListSplash />
+                            ) : hits.length === 0 ? (
+                                <EmptyResults
+                                    entries={activeEntries}
+                                    onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
+                                    query={query}
+                                    onClearQuery={() => {
+                                        setQuery("");
+                                        applyUrlState(buildUrlState({ q: "" }), "replace");
+                                    }}
+                                    ghostRevealCount={ghostRevealCount}
+                                    onRevealGhosts={() => onHideGhosts(false)}
+                                />
+                            ) : (
                                 <div
                                     id="jobs-results-list"
                                     tabIndex={0}
@@ -3267,12 +3402,16 @@ function JobsContent() {
                                     <div className="space-y-2.5 pr-1">
                                         {hits.flatMap((job, idx) => {
                                             const row = (
-                                                <JobRow
+                                                <JobCard
                                                     key={job.id}
                                                     job={job}
                                                     active={selected?.id === job.id}
                                                     onClick={() => openJob(job.id)}
                                                     now={nowMs}
+                                                    pursuit={pursuitsByJobId.get(job.id)}
+                                                    goingAfter={goingAfterId === job.id}
+                                                    onGoAfter={() => handleGoAfter(job)}
+                                                    onOpenPosting={() => handleOpenPosting(job)}
                                                 />
                                             );
                                             // After the FIRST row only (idx 0) — `hits` is the
@@ -3301,13 +3440,28 @@ function JobsContent() {
                                             return [row];
                                         })}
                                     </div>
+                                    {/* Restyled "Show N more ↓" (spec) on the SAME infinite-scroll
+                                        mechanism as before: `sentinelRef` still auto-fires on
+                                        scroll-into-view, and the element is now ALSO a real button
+                                        (`loadMore` is idempotent — guarded by
+                                        `paginationRef`/`loadingMore` — so a click racing an
+                                        in-flight auto-load is a safe no-op) for anyone who'd rather
+                                        tap than scroll. */}
                                     {hasMore ? (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-6">
-                                            {loadingMore && (
+                                            {loadingMore ? (
                                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
                                                     Loading more roles…
                                                 </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void loadMore()}
+                                                    className="inline-flex items-center rounded-lg border border-border-strong bg-card px-5 py-2.5 font-mono text-[13px] text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                                                >
+                                                    Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more matches ↓
+                                                </button>
                                             )}
                                         </div>
                                     ) : (
@@ -3317,52 +3471,20 @@ function JobsContent() {
                                         </p>
                                     )}
                                 </div>
-                                <aside
-                                    role="region"
-                                    aria-label={
-                                        detailJob
-                                            ? `Job details: ${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company) || "Unknown company"}`
-                                            : "Job details"
-                                    }
-                                    className="hidden min-h-0 overflow-y-auto overscroll-contain custom-scrollbar lg:block"
-                                >
-                                    {detailJob ? (
-                                        <JobDetail
-                                            key={detailJob.id}
-                                            job={detailJob}
-                                            now={nowMs}
-                                            applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                                            applying={applyingId === detailJob.id}
-                                            onTailor={() => handleTailor(detailJob)}
-                                            onOpenPosting={() => handleOpenPosting(detailJob)}
-                                            onMarkApplied={() => handleMarkApplied(detailJob)}
-                                            onPrep={() => handlePrep(detailJob)}
-                                            onGoAfter={() => handleGoAfter(detailJob)}
-                                            pursuit={detailPursuit}
-                                            goingAfter={goingAfterId === detailJob.id}
-                                        />
-                                    ) : isDeadJobConfirmed ? (
-                                        <DeadJobTombstone
-                                            onSimilarRoles={handleTombstoneSimilarRoles}
-                                            exploring={exploring}
-                                            canShowSimilar={canShowSimilarRoles}
-                                        />
-                                    ) : showUnresolvedDetail ? (
-                                        <DeadJobUnresolved
-                                            onSimilarRoles={handleTombstoneSimilarRoles}
-                                            exploring={exploring}
-                                            canShowSimilar={canShowSimilarRoles}
-                                            checking={isDeadJobChecking}
-                                        />
-                                    ) : null}
-                                </aside>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                        <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                     </div>
-                </div>
-            )}
-            </div>
-                <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
+
+                    {/* Sidebar: real pipeline counts + this search's ghost-risk stats
+                        (spec cuts the mock's Weekly-alert card entirely — no alert
+                        backend). Detail now opens exclusively via the Sheet below, at
+                        every breakpoint — the old lg+ three-pane layout's inline detail
+                        column is gone, so this column is free for the sidebar. */}
+                    <aside className="flex flex-col gap-4 pb-4 lg:overflow-y-auto lg:pb-6">
+                        <PipelineCard nowMs={nowMs} />
+                        <GhostRadarCard distribution={result?.facetDistribution} total={totalCount} />
+                    </aside>
                 </div>
             </>
 
