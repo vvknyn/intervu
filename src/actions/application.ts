@@ -14,11 +14,12 @@ import {
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
-// of truth for this collection's shape. Re-exported under their original
-// names here so existing importers of `Application`/`ApplicationStatus`
-// don't need to change.
+// of truth for this collection's shape. Kept as a local alias for this
+// module's internal use only — NOT exported. A "use server" module may only
+// export async functions; a `export type {...}` re-export here survives
+// Turbopack's server-action codegen as a broken runtime binding (importers
+// must pull the type from @/lib/pursuits/types directly).
 type Application = PursuitType;
-export type { Application, PursuitStage as ApplicationStatus };
 
 export interface CreateApplicationData {
     company_name: string;

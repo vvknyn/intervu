@@ -1,6 +1,7 @@
 "use client";
 
-import { Application, deleteApplication } from "@/actions/application";
+import { deleteApplication } from "@/actions/application";
+import type { Pursuit as Application } from "@/lib/pursuits/types";
 import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
