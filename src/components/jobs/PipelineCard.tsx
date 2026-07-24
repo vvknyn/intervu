@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
-import { orderPursuits, type Pursuit } from "@/lib/pursuits/types";
+import { boardColumn, orderPursuits, type BoardColumn, type Pursuit } from "@/lib/pursuits/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { applicationStatusTone } from "@/lib/ui/status-tokens";
 import { cn } from "@/lib/utils";
@@ -18,11 +18,13 @@ const DOT_CLASS: Record<ReturnType<typeof applicationStatusTone>, string> = {
     closed: "bg-st-closed",
 };
 
-const STAGE_TILES: { label: string; match: (p: Pursuit) => boolean }[] = [
-    { label: "Saved", match: (p) => p.status === "interested" || p.status === "resume_ready" },
-    { label: "Applied", match: (p) => p.status === "applied" },
-    { label: "Interview", match: (p) => p.status === "interviewing" },
-    { label: "Offer", match: (p) => p.status === "offer" },
+/** Same stage buckets as the /yours board (`boardColumn`, single source of
+ *  truth) — this card just shows a subset (no "closed" tile) and its own labels. */
+const STAGE_TILES: { label: string; column: BoardColumn }[] = [
+    { label: "Saved", column: "saved" },
+    { label: "Applied", column: "applied" },
+    { label: "Interview", column: "interviewing" },
+    { label: "Offer", column: "offer" },
 ];
 
 function pursuitTitle(p: Pursuit): string {
@@ -77,7 +79,7 @@ export function PipelineCard({ nowMs }: { nowMs: number }) {
             </div>
             <div className="mb-4 grid grid-cols-4 gap-1.5">
                 {STAGE_TILES.map((tile) => {
-                    const count = pursuits.filter(tile.match).length;
+                    const count = pursuits.filter((p) => boardColumn(p) === tile.column).length;
                     const active = count > 0;
                     return (
                         <div
