@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CaretDown, Moon, SignIn, Sun } from "@phosphor-icons/react";
-import { onAuthChange, refreshSession, type User } from "@/lib/firebase/client-auth";
-import { usePursuits } from "@/lib/pursuits/use-pursuits";
+import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
@@ -16,22 +16,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-/** The brand mark — the V of inter·vu, cut as a rising checkmark. Carries the accent. */
-function VMark({ size = 26 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 40 40" role="img" aria-label="intervu" className="shrink-0">
-            <path
-                d="M9 13 L19 28 L31 7"
-                fill="none"
-                stroke="rgb(var(--brand))"
-                strokeWidth={4.4}
-                strokeLinecap="square"
-                strokeLinejoin="miter"
-            />
-        </svg>
-    );
-}
 
 // Dark mode ported from AppShell's footer toggle: same class-on-<html> flip,
 // same "intervu-dark" persistence key (which layout.tsx's no-flash inline
@@ -73,18 +57,39 @@ function initialsOf(user: User): string {
     return src.slice(0, 2).toUpperCase();
 }
 
-/** Destinations that lived in the old sidebar — now dropdown entries under the avatar. */
+/**
+ * Secondary dropdown entries under the avatar (spec: "credits, Stories,
+ * Settings, Feedback, sign out"). Prep/Resumes/Tracker moved out — they're
+ * now top-level tabs in NAV_TABS, so keeping them here too would be a
+ * redundant second path to the same three destinations.
+ */
 const NAV_DESTINATIONS = [
-    { label: "Prep", href: "/prep" },
-    { label: "Resumes", href: "/resume-builder" },
-    { label: "Yours", href: "/yours" },
     { label: "Stories", href: "/stories" },
     { label: "Settings", href: "/settings" },
 ];
 
 /**
- * The whole shell, post-flip: a wordmark, one link back to the jobs root,
- * and an auth-conditional avatar/login affordance. Replaces `AppShell` +
+ * The four always-visible top-level tabs (portal redesign spec — Tracker is
+ * no longer gated on `hasPursuits`). `match` decides the active (ink text +
+ * live-green underline) state from the current pathname; `testId` preserves
+ * the pre-redesign `data-testid`s where one already existed on the
+ * equivalent link (topbar-alljobs, topbar-yours).
+ */
+const NAV_TABS: { label: string; href: string; testId: string; match: (pathname: string) => boolean }[] = [
+    { label: "Find jobs", href: "/", testId: "topbar-alljobs", match: (p) => p === "/" },
+    { label: "Tracker", href: "/yours", testId: "topbar-yours", match: (p) => p.startsWith("/yours") },
+    {
+        label: "Resume",
+        href: "/resume-builder",
+        testId: "topbar-resume",
+        match: (p) => p.startsWith("/resume-builder"),
+    },
+    { label: "Interview prep", href: "/prep", testId: "topbar-prep", match: (p) => p.startsWith("/prep") },
+];
+
+/**
+ * The whole shell, post-flip: a wordmark, the four primary tabs, and an
+ * auth-conditional avatar/login affordance. Replaces `AppShell` +
  * `AppShellWrapper` (deleted 6-item sidebar + mobile tab bar) — pure
  * inversion, no new nav concepts. Auth-state handling (session-cookie
  * refresh on first sign-in) is the same logic `AppShellWrapper` used to own.
@@ -95,9 +100,6 @@ export function TopBar() {
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
     const sessionRefreshed = useRef(false);
-    // Visibility-iff-data (spec §2): "Yours" only renders once a pursuit
-    // exists, auth'd fetch or guest store either way — one shared hook, no flags.
-    const { hasAny: hasPursuits } = usePursuits();
 
     useEffect(() => {
         const unsubscribe = onAuthChange((u) => {
@@ -119,42 +121,58 @@ export function TopBar() {
     const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
     if (hideNav) return null;
 
+    // Same pattern as SettingsContainer's handleSignOut: clear locally-cached
+    // secrets, sign out of Firebase (which also clears the session cookie),
+    // then hard-navigate so every client store resets.
+    const handleSignOut = async () => {
+        SecureStorage.clear();
+        await signOut();
+        window.location.href = "/";
+    };
+
     return (
         <header
             data-testid="topbar"
-            className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6"
+            className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6"
         >
-            <Link href="/" className="flex items-center gap-2">
-                <VMark size={26} />
-                <span className="text-[17px] font-bold tracking-[-0.4px] leading-none">
-                    inter<b className="text-brand font-bold">vu</b>
-                </span>
-                {/* The app's one BETA badge — see DashboardContainer.tsx's prep
-                    title, which deliberately doesn't repeat it. */}
-                <span className="self-start mt-1 text-[8.5px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground/80">
-                    beta
-                </span>
-            </Link>
-
-            <div className="flex items-center gap-4">
-                <Link
-                    href="/"
-                    data-testid="topbar-alljobs"
-                    className="text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    All jobs
+            <div className="flex min-w-0 items-center gap-6 sm:gap-9">
+                <Link href="/" className="flex shrink-0 items-baseline gap-2">
+                    <span className="font-display text-[19px] font-medium leading-none tracking-[-0.02em] sm:text-[21px]">
+                        inter<span className="font-bold">vu</span>
+                    </span>
+                    {/* The app's one BETA badge — see DashboardContainer.tsx's prep
+                        title, which deliberately doesn't repeat it. */}
+                    <span className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
+                        beta
+                    </span>
                 </Link>
 
-                {hasPursuits && (
-                    <Link
-                        href="/yours"
-                        data-testid="topbar-yours"
-                        className="text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        Yours
-                    </Link>
-                )}
+                <nav
+                    aria-label="Primary"
+                    className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto text-[14.5px] font-medium sm:gap-6"
+                >
+                    {NAV_TABS.map((tab) => {
+                        const active = tab.match(pathname);
+                        return (
+                            <Link
+                                key={tab.href}
+                                href={tab.href}
+                                data-testid={tab.testId}
+                                aria-current={active ? "page" : undefined}
+                                className={`shrink-0 whitespace-nowrap border-b-2 py-5 transition-colors ${
+                                    active
+                                        ? "border-live text-foreground"
+                                        : "border-transparent text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                {tab.label}
+                            </Link>
+                        );
+                    })}
+                </nav>
+            </div>
 
+            <div className="flex shrink-0 items-center gap-3">
                 <button
                     onClick={toggleDark}
                     data-testid="topbar-theme"
@@ -203,6 +221,8 @@ export function TopBar() {
                                     Feedback
                                 </DropdownMenuItem>
                             </FeedbackModal>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={handleSignOut}>Sign out</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 ) : (
