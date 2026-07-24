@@ -15,6 +15,7 @@ import {
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
 import { applyQueryUnderstanding } from "./query-understanding";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
@@ -61,7 +62,7 @@ export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult>
       backend,
       configured: true,
       unavailable: true,
-      note: "The search index didn't respond. This usually clears within a minute — try again.",
+      note: SEARCH_UNAVAILABLE_MESSAGE,
     };
   }
   return {
@@ -85,7 +86,7 @@ export async function getJobsLastUpdated(): Promise<string | null> {
  * with no filter engine, so it answers "no" rather than offering a control
  * that silently does nothing.
  */
-export async function isPostedDateFilterSupported(): Promise<boolean> {
+export async function isPostedDateFilterSupported(): Promise<boolean | null> {
   if (activeBackend() === "meilisearch") return fetchPostedDateFilterSupported();
   return false;
 }

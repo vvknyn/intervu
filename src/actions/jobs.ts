@@ -27,7 +27,7 @@ export async function getJobsFreshnessAction(): Promise<string | null> {
  * mobile chip hide the control when it can't, rather than offering a filter
  * that returns an empty board.
  */
-export async function getPostedDateFilterSupportAction(): Promise<boolean> {
+export async function getPostedDateFilterSupportAction(): Promise<boolean | null> {
   return isPostedDateFilterSupported();
 }
 
