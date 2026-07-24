@@ -10,6 +10,8 @@ import {
     hasReachedStage,
     stageRank,
     stageLabel,
+    boardColumn,
+    boardTimestampLabel,
     PURSUIT_STAGES,
     type Pursuit,
     type PursuitStage,
@@ -257,4 +259,61 @@ test("stageLabel keeps the interview_date wording and appends prepped-age on top
         last_prepped_at: "2026-07-22T00:00:00.000Z",
     });
     assert.equal(stageLabel(p, now), "Interview scheduled — prepped 1d ago");
+});
+
+/* --------------------------------- boardColumn --------------------------------- */
+
+test("boardColumn buckets every stage into exactly one /yours board column", () => {
+    const cases: Array<[PursuitStage, string]> = [
+        ["interested", "saved"],
+        ["resume_ready", "saved"],
+        ["applied", "applied"],
+        ["interviewing", "interviewing"],
+        ["offer", "offer"],
+        ["rejected", "closed"],
+        ["withdrawn", "closed"],
+    ];
+    for (const [status, column] of cases) {
+        assert.equal(boardColumn(makePursuit({ status })), column, `stage ${status} should land in column ${column}`);
+    }
+});
+
+/* --------------------------------- boardTimestampLabel --------------------------------- */
+
+test("boardTimestampLabel reads created_at for saved stages", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const p = makePursuit({ status: "interested", created_at: "2026-07-20T00:00:00.000Z" });
+    assert.equal(boardTimestampLabel(p, now), "saved 3d ago");
+});
+
+test("boardTimestampLabel reads applied_at when set, falls back to created_at otherwise", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const withAppliedAt = makePursuit({
+        status: "applied",
+        created_at: "2026-07-01T00:00:00.000Z",
+        applied_at: "2026-07-21T00:00:00.000Z",
+    });
+    assert.equal(boardTimestampLabel(withAppliedAt, now), "applied 2d ago");
+
+    const noAppliedAt = makePursuit({ status: "applied", created_at: "2026-07-21T00:00:00.000Z" });
+    assert.equal(boardTimestampLabel(noAppliedAt, now), "applied 2d ago");
+});
+
+test("boardTimestampLabel formats an absolute date from interview_date when set", () => {
+    const p = makePursuit({ status: "interviewing", interview_date: "2026-08-01T00:00:00.000Z" });
+    assert.equal(boardTimestampLabel(p), `interview ${new Date("2026-08-01T00:00:00.000Z").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+});
+
+test("boardTimestampLabel falls back to updated_at when interviewing has no interview_date yet", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const p = makePursuit({ status: "interviewing", updated_at: "2026-07-22T00:00:00.000Z" });
+    assert.equal(boardTimestampLabel(p, now), "since 1d ago");
+});
+
+test("boardTimestampLabel reads updated_at for closed/resting stages (offer, rejected, withdrawn)", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    for (const status of ["offer", "rejected", "withdrawn"] as PursuitStage[]) {
+        const p = makePursuit({ status, updated_at: "2026-07-20T00:00:00.000Z" });
+        assert.equal(boardTimestampLabel(p, now), "since 3d ago", status);
+    }
 });
