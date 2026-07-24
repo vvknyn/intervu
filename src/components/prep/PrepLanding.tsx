@@ -109,6 +109,7 @@ export function PrepLanding({
                   return (
                     <button
                       key={session.planCacheKey}
+                      data-testid="prep-recent-session-row"
                       onClick={() => onResume(session.planCacheKey)}
                       className="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 text-left transition-colors first:pt-0 last:pb-0 hover:bg-muted/40"
                     >
