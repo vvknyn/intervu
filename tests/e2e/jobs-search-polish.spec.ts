@@ -195,11 +195,23 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(optionName).toMatch(/^View /);
         const title = (await second.getByTestId('job-title').textContent())!.trim();
 
+        // Everything after the click uses a TEST-ID locator, not the role one.
+        // Opening the detail sheet makes it modal, and a modal marks the rest
+        // of the page aria-hidden — measured: role=option resolves 30 before
+        // the click and 0 after, while the same rows still resolve by test id.
+        // So `second` (a getByRole locator) is unresolvable from here on; that
+        // is correct accessibility behaviour, not a regression, and asserting
+        // through it can only ever time out.
+        const secondByTestId = page.getByTestId('job-row').nth(1);
         await second.click();
-        await expect(second).toHaveAttribute('aria-selected', 'true');
+        await expect(secondByTestId).toHaveAttribute('aria-selected', 'true');
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
-        await expect(dialog.getByRole('heading', { level: 2 }).first()).toHaveText(title);
+        // NOT `.first()`: the sheet's own accessible label is an sr-only <h2>
+        // ("<title> at <company>", required by Radix Dialog), so the first
+        // level-2 heading in the dialog is that label rather than the visible
+        // job heading — matching it against the bare title could only fail.
+        await expect(dialog.locator('h2:not(.sr-only)').first()).toHaveText(title);
     });
 
     // Portal redesign rewrite: the old lg+ three-pane layout (filters |
