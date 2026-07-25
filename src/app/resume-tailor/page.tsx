@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ResumeData, JobAnalysis, TailoringRecommendation, TailoredResumeVersion } from "@/types/resume";
@@ -12,6 +12,8 @@ import { ArrowRight, Sparkle, CircleNotch, Info as InfoIcon, Warning, X, ArrowsC
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { analyzeJobRequirements, generateTailoringRecommendations, saveTailoredVersion } from "@/actions/tailor-resume";
+import { usePursuits } from "@/lib/pursuits/use-pursuits";
+import { resolvePostingText, readAutoTailorCache, writeAutoTailorCache } from "@/lib/resume/auto-tailor";
 import { fetchResumeData } from "@/actions/resume";
 import { applyRecommendations } from "@/lib/resume/apply-recommendations";
 import { fetchProfile } from "@/actions/profile";
@@ -34,6 +36,8 @@ function ResumeTailorContent() {
     const router = useRouter();
     const prefilledCompany = searchParams.get("company");
     const prefilledPosition = searchParams.get("position");
+    const pursuitId = searchParams.get("pursuit");
+    const { pursuits } = usePursuits();
 
     const [resumeData, setResumeData] = useState<ResumeData | null>(null);
     const [jobInput, setJobInput] = useState("");
@@ -99,6 +103,67 @@ function ResumeTailorContent() {
         }
     }, [prefilledCompany, prefilledPosition]);
 
+    /**
+     * Arriving from a pursuit (/yours/[id] → `?pursuit=<id>`): analyse the
+     * posting and produce recommendations without asking for a click. The
+     * pursuit already knows which role this is; making the user paste it back
+     * was the reason this screen felt like a dead end.
+     *
+     * Three things this must not do, all of which cost real money or trust:
+     *
+     *  - Run more than once per pursuit. The guard is a ref, not state, so a
+     *    re-render can't retrigger it, and `pursuits` changing identity (it
+     *    reloads) can't either.
+     *  - Run without a résumé. There is nothing to tailor, so it stays out of
+     *    the way and lets the page's own no-résumé state stand — never a
+     *    spinner that resolves into nothing.
+     *  - Analyse text that isn't the posting. Company + position alone is a
+     *    label, not a job description; an "analysis" of it would look like a
+     *    result while being worthless. If no real posting text can be
+     *    resolved, the manual path stays, prefilled.
+     *
+     * Results are cached for the session so back-navigation re-opens what you
+     * already paid for instead of re-billing two model calls. The cache is
+     * per-session by design — a pursuit's posting can change underneath us,
+     * and this screen is not the right place to own durable analysis state.
+     */
+    const autoRanFor = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!pursuitId || !resumeData) return;
+        if (autoRanFor.current === pursuitId) return;
+        const pursuit = pursuits.find((p) => p.id === pursuitId);
+        if (!pursuit) return; // list still loading, or an id that isn't ours
+
+        autoRanFor.current = pursuitId;
+
+        void (async () => {
+            const cached = readAutoTailorCache(pursuitId);
+            if (cached) {
+                setJobAnalysis(cached.analysis);
+                setRecommendations(cached.recommendations);
+                setSheetState({ isOpen: true, view: "recommendations" });
+                return;
+            }
+
+            const posting = await resolvePostingText(pursuit);
+            if (pursuit.job_url) setJobUrl(pursuit.job_url);
+            if (!posting) {
+                setJobInput(`Looking for job posting information for ${pursuit.company_name} ${pursuit.position}`.trim());
+                return;
+            }
+            setJobInput(posting);
+
+            const analysis = await handleAnalyzeJob(posting);
+            if (!analysis) return; // analyse failed; its own error is already on screen
+            const recs = await generateFrom(analysis);
+            if (recs) writeAutoTailorCache(pursuitId, analysis, recs);
+        })();
+        // `handleAnalyzeJob`/`generateFrom` are redefined every render but are
+        // guarded by the ref above, so listing them would only add churn.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pursuitId, pursuits, resumeData]);
+
     const [sheetState, setSheetState] = useState<{ isOpen: boolean; view: 'analysis' | 'recommendations' }>({
         isOpen: false,
         view: 'analysis'
@@ -136,21 +201,30 @@ function ResumeTailorContent() {
                 setJobAnalysis(result.data);
                 setRecommendations([]); // Clear old recommendations
                 setSheetState({ isOpen: true, view: 'analysis' });
+                // Returned as well as stored: a caller that wants to chain
+                // straight into recommendations can't read the state it just
+                // set (same tick), and re-deriving it would mean a second
+                // billed analysis of the same posting.
+                return result.data;
             }
         } catch (e: any) {
             setError(e.message || "Failed to analyze job posting");
         } finally {
             setIsAnalyzing(false);
         }
+        return null;
     };
 
-    const handleGenerateRecommendations = async () => {
+    /**
+     * Recommendations for an analysis the caller already holds. Split out of
+     * `handleGenerateRecommendations` so the auto-tailor path can hand its own
+     * analysis straight in — an optional-override parameter would sit on a
+     * function wired to onClick, where React passes the click event as the
+     * first argument.
+     */
+    const generateFrom = async (analysis: JobAnalysis) => {
         if (!resumeData) {
             setError(RESUME_MESSAGES.noResumeData);
-            return;
-        }
-        if (!jobAnalysis) {
-            setError(RESUME_MESSAGES.analyzeFirst);
             return;
         }
 
@@ -162,19 +236,29 @@ function ResumeTailorContent() {
         // Let's keep it simple: Stay in analysis view with loading button, then switch.
 
         try {
-            const result = await generateTailoringRecommendations(resumeData, jobAnalysis);
+            const result = await generateTailoringRecommendations(resumeData, analysis);
 
             if (result.error) {
                 setError(result.error);
             } else if (result.data) {
                 setRecommendations(result.data);
                 setSheetState({ isOpen: true, view: 'recommendations' });
+                return result.data;
             }
         } catch (e: any) {
             setError(e.message || "Failed to generate recommendations");
         } finally {
             setIsGenerating(false);
         }
+        return null;
+    };
+
+    const handleGenerateRecommendations = async () => {
+        if (!jobAnalysis) {
+            setError(RESUME_MESSAGES.analyzeFirst);
+            return;
+        }
+        await generateFrom(jobAnalysis);
     };
 
     const [activeVersionId, setActiveVersionId] = useState<string | null>(null);

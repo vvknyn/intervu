@@ -11,7 +11,16 @@ import { test, expect, type Page } from '@playwright/test';
 async function enterBrowseMode(page: Page) {
     // Portal redesign flipped jobs to the root route (`/jobs` now 301s here —
     // next.config.ts's `redirects()`); going straight there skips the hop.
-    await page.goto('/');
+    //
+    // Some intent is now required to reach the ledger at all: `/` with nothing
+    // asked for renders the ask screen instead of browsing the corpus. The
+    // intent used here is a FILTER (`posted=any`, i.e. no date restriction)
+    // rather than a query, because a query would also change what these suites
+    // measure — relevance ranking would displace the default "freshest" sort,
+    // and TC-JOBS-SORT-001/002 assert precisely that default. A filter leaves
+    // the query empty and the sort untouched, so this stays the old
+    // browse-everything landing in every respect the tests care about.
+    await page.goto('/?posted=any');
     await page.waitForLoadState('networkidle');
     await expect(
         page.getByRole('listbox', { name: 'Job results' })
@@ -41,6 +50,38 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
     // combobox was. "top pay" and "best match" always render when
     // configured; "freshest" only when `postedDateSupported` — guarded
     // separately rather than folded into the top-level configured check.
+    /**
+     * A multi-word role search must not answer with rows that matched only one
+     * of its words.
+     *
+     * Meilisearch's default `matchingStrategy` is "last", which drops query
+     * words from the end until something matches. Observed live: "Technical
+     * Account Manager" returned Reliability Maintenance Technician, Field
+     * Engineer and Senior Developer — rows that matched "Technical" alone (and
+     * some only inside a description). `searchMeili` now searches with "all"
+     * and relaxes to "last" only after strict matching returns nothing.
+     *
+     * Asserted structurally rather than by naming expected employers: the
+     * corpus is live and its top hits change. What must hold is that visible
+     * titles relate to the query — the failure mode was titles sharing NO
+     * distinctive word with it.
+     */
+    test('TC-JOBS-RELEVANCE-001: a multi-word role search returns rows that match its words', async ({ page }) => {
+        await page.goto('/?q=Technical%20Account%20Manager');
+        await page.waitForLoadState('networkidle');
+
+        const rows = page.getByTestId('job-row');
+        if ((await rows.count()) === 0) {
+            test.skip(true, 'No rows for this query in the current corpus');
+        }
+
+        const titles = (await rows.allInnerTexts()).join(' ').toLowerCase();
+
+        // "account" and "manager" are the words the broken ladder dropped;
+        // matching on "technical" alone was the whole bug.
+        expect(titles).toMatch(/account|manager/);
+    });
+
     test('TC-JOBS-SORT-001: sort segments offer freshest / top pay / best match when configured', async ({ page }) => {
         await enterBrowseMode(page);
 

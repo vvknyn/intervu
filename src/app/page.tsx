@@ -5,18 +5,10 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     MagnifyingGlass,
-    Check,
-    MapPin,
-    CurrencyDollar,
-    Briefcase,
-    Target,
     ArrowSquareOut,
     WarningCircle,
-    ShieldCheck,
     Lightning,
-    Sparkle,
     Compass,
-    CaretRight,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +44,13 @@ import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import {
+    prettyEnum,
+    decodeText,
+    cleanCompany,
+    locationText,
+    salaryText,
+} from "@/lib/jobs/presentation";
+import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
@@ -68,7 +67,8 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { JobDetail } from "@/components/jobs/JobDetail";
+import { JobsAsk } from "@/components/jobs/JobsAsk";
 import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
 import { PipelineCard } from "@/components/jobs/PipelineCard";
 import { GhostRadarCard } from "@/components/jobs/GhostRadarCard";
@@ -88,7 +88,6 @@ import {
 import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     type FacetKey,
-    type GhostBadge,
     type JobSearchParams,
     type JobSearchResult,
     type JobSortMode,
@@ -115,10 +114,8 @@ import {
     takeReplay,
     type PendingState,
 } from "@/lib/jobs/pending-actions";
-import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
-import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -150,78 +147,6 @@ const suggestAdjacentRoles = (
 
 /* ----------------------------- helpers ----------------------------- */
 
-// Ghost-badge presentation. Colors route through the shared status-token
-// chokepoint (lib/ui/status-tokens.ts): caution/likely_ghost → intv (amber),
-// clear → offer (green). Token classes carry both light + dark values, so the
-// per-state dark: overrides are no longer needed.
-const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: string; explain: string } | null> = {
-    likely_ghost: {
-        label: "Possible ghost job",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv",
-        explain:
-            "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
-    },
-    caution: {
-        label: "Worth verifying",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv/80",
-        explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
-    },
-    clear: {
-        label: "No ghost signals",
-        cls: STATUS_PILL.offer,
-        dot: "bg-st-offer",
-        explain: "No ghost-risk signals — this posting looks active.",
-    },
-    unscored: null,
-};
-
-/**
- * Neutral "hasn't been re-checked" stand-in for `GHOST_META.clear` (Phase
- * 1-a #5) — same shape, used instead of it whenever `checkFreshness` says
- * the check backing a "clear" verdict is stale. Keeps the positive, green
- * "no ghost signals" claim from surviving past the point the data behind it
- * stopped being current (the observed bug: a green badge on a 99-112-day-old
- * check sitting next to a dead apply link).
- */
-const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
-    label: "Not recently verified",
-    cls: STATUS_PILL.intv,
-    dot: "bg-st-intv/60",
-    explain: "This posting hasn't been re-checked recently — we can't confirm it's still active. Worth a quick sanity-check before you apply.",
-};
-
-/**
- * Single chokepoint for which `GHOST_META` entry a job's row badge AND
- * detail-panel banner render from — so the two surfaces can never disagree
- * about whether a "clear" verdict is still current.
- */
-function ghostMetaFor(ghostBadge: GhostBadge, stale: boolean) {
-    return ghostBadge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[ghostBadge];
-}
-
-function prettyEnum(s: string | null | undefined): string {
-    if (!s || s === "unknown") return "";
-    return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Decode URL-encoded source data (e.g. "Wisdom%20AI" → "Wisdom AI") safely. */
-function decodeText(s: string | null | undefined): string {
-    if (!s) return "";
-    if (!s.includes("%")) return s;
-    try {
-        return decodeURIComponent(s);
-    } catch {
-        return s.replace(/%20/g, " ");
-    }
-}
-
-/** Company names sometimes carry a leading req/location code (e.g. "USA102 Acme Inc"). Strip it. */
-function cleanCompany(s: string | null | undefined): string {
-    return decodeText(s).replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
-}
-
 /** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
 function modeToUrlSort(mode: JobSortMode): UrlSort {
     return mode === "salary_desc" ? "salary" : mode;
@@ -246,32 +171,6 @@ function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
     return mode === "fit" ? null : mode;
 }
 
-function locationText(j: PublicJob): string {
-    if (j.location) return decodeText(j.location);
-    const parts = [j.location_city, j.location_state, j.location_country].map(decodeText).filter(Boolean);
-    if (parts.length) return parts.join(", ");
-    if (j.work_type === "remote") return "Remote";
-    return "Location not listed";
-}
-
-const SALARY_PERIOD: Record<string, string> = {
-    yearly: "yr", year: "yr", annual: "yr", annually: "yr",
-    hourly: "hr", hour: "hr", monthly: "mo", month: "mo", weekly: "wk", daily: "day",
-};
-
-function salaryText(j: PublicJob): string | null {
-    if (j.salary_min == null && j.salary_max == null) return null;
-    const cur = j.salary_currency ? `${j.salary_currency} ` : "";
-    const period = j.salary_period ? SALARY_PERIOD[j.salary_period.toLowerCase()] ?? j.salary_period : "";
-    const per = period ? `/${period}` : "";
-    const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`);
-    if (j.salary_min != null && j.salary_max != null) {
-        return `${cur}${fmt(j.salary_min)}–${fmt(j.salary_max)}${per}`;
-    }
-    const one = (j.salary_min ?? j.salary_max) as number;
-    return `${cur}${fmt(one)}${per}`;
-}
-
 /**
  * Format a sanitized posted timestamp as a relative age. Takes the epoch-ms
  * `posted_ts` (via `derivePostedTs`) rather than the raw `posted_at` string so
@@ -292,12 +191,6 @@ function postedAge(ts: number | null, now: number): string | null {
     if (days < 30) return `${days}d`;
     const months = Math.floor(days / 30);
     return months < 12 ? `${months}mo` : `${Math.floor(months / 12)}y`;
-}
-
-/** Compact "Jul 23"-style date for JobDetail's relisted disclosure sentence —
- *  the one place S2 names a calendar date rather than a relative age. */
-function shortDate(ms: number): string {
-    return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /**
@@ -549,247 +442,9 @@ function JobCard({
 
 /* ------------------------- description renderer ------------------------- */
 
-/** Render structured description blocks (heading / para / list). Descriptions
- *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
- *  the structure. See lib/jobs/format-description.ts. */
-function JobDescription({ blocks }: { blocks: DescBlock[] }) {
-    return (
-        <div className="text-[13.5px] leading-relaxed text-muted-foreground">
-            {blocks.map((b, i) => {
-                if (b.type === "heading") {
-                    return (
-                        <h4
-                            key={i}
-                            className="mb-1.5 mt-4 text-[12px] font-semibold uppercase tracking-[0.06em] text-foreground first:mt-0"
-                        >
-                            {b.text}
-                        </h4>
-                    );
-                }
-                if (b.type === "list") {
-                    return (
-                        <ul key={i} className="mb-3 list-disc space-y-1 pl-5 last:mb-0">
-                            {(b.items ?? []).map((it, j) => (
-                                <li key={j}>{it}</li>
-                            ))}
-                        </ul>
-                    );
-                }
-                return (
-                    <p key={i} className="mb-3 whitespace-pre-line last:mb-0">
-                        {b.text}
-                    </p>
-                );
-            })}
-        </div>
-    );
-}
 
 /* ----------------------------- detail panel ----------------------------- */
 
-function JobDetail({
-    job,
-    now,
-    onTailor,
-    onOpenPosting,
-    onMarkApplied,
-    onPrep,
-    onGoAfter,
-    applied,
-    applying,
-    pursuit,
-    goingAfter,
-}: {
-    job: PublicJob;
-    /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
-    now: number;
-    onTailor: () => void;
-    onOpenPosting: () => void;
-    onMarkApplied: () => void;
-    onPrep: () => void;
-    onGoAfter: () => void;
-    applied: boolean;
-    applying: boolean;
-    /** The existing pursuit for this job, if the user already went after it. */
-    pursuit: Pursuit | undefined;
-    goingAfter: boolean;
-}) {
-    const staleCheck = checkFreshness(job.updated_at, now) === "stale";
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
-    // S2 — HONESTY RULE: the row badge states a fact ("Fresh"/"Relisted");
-    // this facts line is where the underlying dates it's based on live.
-    const freshness = classifyPostingFreshness(job, now);
-    const postedRelative =
-        freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), now) : null;
-    const firstSeenRelative =
-        freshness.firstSeenMs != null ? formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), now) : null;
-    const [descExpanded, setDescExpanded] = useState(false);
-    const blocks = useMemo(() => formatDescription(job.description), [job.description]);
-    // Long descriptions are clamped behind a "Show more" toggle so the sticky
-    // detail panel doesn't run thousands of pixels tall.
-    const collapsible = (job.description?.length ?? 0) > 700;
-    const facts: { icon: React.ReactNode; label: string }[] = [];
-    if (prettyEnum(job.work_type)) facts.push({ icon: <MapPin size={13} />, label: prettyEnum(job.work_type) });
-    if (prettyEnum(job.employment_type))
-        facts.push({ icon: <Briefcase size={13} />, label: prettyEnum(job.employment_type) });
-    if (prettyEnum(job.experience_level))
-        facts.push({ icon: <Target size={13} />, label: prettyEnum(job.experience_level) });
-    const sal = salaryText(job);
-    if (sal) facts.push({ icon: <CurrencyDollar size={13} />, label: sal });
-
-    return (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <div className="border-b border-border p-6">
-                <div className="flex items-start gap-4">
-                    <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-xl font-bold leading-tight tracking-tight">{decodeText(job.title)}</h2>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                            {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
-                        </div>
-                        {(postedRelative || firstSeenRelative) && (
-                            <div className="mt-1 text-sm text-muted-foreground">
-                                {[
-                                    postedRelative ? `Posted ${postedRelative}` : null,
-                                    firstSeenRelative ? `First seen by us ${firstSeenRelative}` : null,
-                                ]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                                    <div className="mt-0.5">
-                                        Listed as new on {shortDate(freshness.postedMs)}, but this role first
-                                        appeared {firstSeenRelative} — often a repost.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {facts.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {facts.map((f, i) => (
-                                    <span
-                                        key={i}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
-                                    >
-                                        {f.icon}
-                                        {f.label}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                    {/* The one verb (spec §2/§3): "Go after this job" is the primary
-                        action. Once a pursuit exists, it becomes a quiet confirmation
-                        link instead — pressing it again would be meaningless. */}
-                    {pursuit ? (
-                        <Link
-                            href={`/yours/${pursuit.id}`}
-                            className="text-sm font-medium text-brand hover:underline"
-                        >
-                            In Yours ✓ — view
-                        </Link>
-                    ) : (
-                        <Button onClick={onGoAfter} disabled={goingAfter} className="gap-2">
-                            <Check size={16} weight="bold" />
-                            {goingAfter ? "Saving…" : "Go after this job"}
-                        </Button>
-                    )}
-                    <Button variant="outline" onClick={onTailor} className="gap-2">
-                        <Sparkle size={16} weight="fill" />
-                        Apply with tailored resume
-                    </Button>
-                    {job.apply_url && (
-                        <Button variant="outline" onClick={onOpenPosting} className="gap-2">
-                            <ArrowSquareOut size={16} />
-                            Open posting
-                        </Button>
-                    )}
-                    <Button variant="outline" onClick={onMarkApplied} disabled={applied || applying} className="gap-2">
-                        <Check size={16} />
-                        {applied ? "Tracked" : applying ? "Saving…" : "Mark as applied"}
-                    </Button>
-                </div>
-            </div>
-
-            <div className="p-6">
-                {ghost && (
-                    <div className={cn("mb-5 flex items-start gap-2.5 rounded-xl border p-3.5", ghost.cls)}>
-                        {job.ghost_badge === "clear" && !staleCheck ? (
-                            <ShieldCheck size={18} className="mt-0.5 shrink-0" weight="fill" />
-                        ) : (
-                            <WarningCircle size={18} className="mt-0.5 shrink-0" weight="fill" />
-                        )}
-                        <div>
-                            <div className="text-[13px] font-semibold">{ghost.label}</div>
-                            <div className="mt-0.5 text-xs leading-relaxed opacity-90">{ghost.explain}</div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="mb-5">
-                    <div className="mb-2 text-[13px] font-semibold">About this role</div>
-                    {blocks.length > 0 ? (
-                        <>
-                            <div className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}>
-                                <JobDescription blocks={blocks} />
-                                {collapsible && !descExpanded && (
-                                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
-                                )}
-                            </div>
-                            {collapsible && (
-                                <button
-                                    onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-xs font-medium text-brand hover:underline"
-                                >
-                                    {descExpanded ? "Show less" : "Show full description"}
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
-                            No description was captured for this role.{" "}
-                            {job.apply_url ? (
-                                <>
-                                    Use <span className="font-medium text-foreground">Open posting</span> to read the
-                                    full details on the employer&apos;s site.
-                                </>
-                            ) : (
-                                "Try the original posting for full details."
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {job.tags && job.tags.length > 0 && (
-                    <>
-                        <div className="mb-2.5 text-[13px] font-semibold">Keywords from the posting</div>
-                        <div className="flex flex-wrap gap-2">
-                            {job.tags.slice(0, 16).map((tag) => (
-                                <span
-                                    key={tag}
-                                    className="rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
-                                >
-                                    {decodeText(tag)}
-                                </span>
-                            ))}
-                        </div>
-                    </>
-                )}
-
-                <button
-                    onClick={onPrep}
-                    className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
-                >
-                    <Lightning size={14} weight="fill" />
-                    Prep for interview at {cleanCompany(job.company) || "this company"}
-                    <CaretRight size={13} />
-                </button>
-            </div>
-        </div>
-    );
-}
 
 /**
  * Shared CTA for both dead-job detail states below. The label is honest
@@ -1542,8 +1197,76 @@ function JobsContent() {
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported],
     );
 
+    /**
+     * The first screen asks for a role instead of listing the corpus.
+     *
+     * True only when there is genuinely nothing to search on: browse mode, no
+     * query, no active filter, no résumé ranking. A filter on its own IS intent
+     * — someone who picked "Remote" has told us what they want, and answering
+     * that with "what role are you after?" would be obtuse — so filters keep
+     * the ledger.
+     *
+     * Note this also removes the empty-query browse from every cold visit,
+     * which was the most expensive query the app issues (whole corpus, ranked,
+     * with facet distribution) and the one implicated in the search-unavailable
+     * incidents. What replaces it is a `limit: 1, withFacets: false` probe used
+     * only to learn the corpus total for the search line's placeholder.
+     */
+    const showAsk =
+        mode === "browse" && !query.trim() && !fitActive && activeFilterEntries(filterState).length === 0;
+
+    /**
+     * How big is the corpus — asked once, on its own, for the search line's
+     * placeholder ("Search 330,053 live-checked roles…").
+     *
+     * This used to piggyback on the landing browse, capturing `total` whenever
+     * `searchKey === ""`. That worked only because an empty query always ran a
+     * search; now it doesn't, and a visitor who arrives with a filter or a
+     * query would never have produced the all-defaults search that capture
+     * depended on. It's a separate question from "what did the user search",
+     * so it's now a separate request: default filters, no query, no facets.
+     *
+     * Facets are requested deliberately, not out of habit: Meilisearch caps
+     * `totalHits` at `pagination.maxTotalHits`, and `resolveCorpusCount`
+     * recovers the real number by summing the `ghost_badge` facet
+     * distribution, which is NOT capped. Without them the placeholder degrades
+     * to "100,000+" — honest, but a floor rather than the real size.
+     *
+     * Failure leaves the count null rather than pinning a number we didn't get
+     * — the placeholder already reads correctly without one.
+     */
+    useEffect(() => {
+        if (corpusTotalCapturedRef.current) return;
+        corpusTotalCapturedRef.current = true;
+        void searchJobsAction({
+            ...buildJobSearchPayload(PRISTINE_FILTER_STATE, "", backendSort, postedDateSupported),
+            withFacets: true,
+            limit: 1,
+            offset: 0,
+        }).then((r) => {
+            if (isUnavailableJobsResult(r)) {
+                corpusTotalCapturedRef.current = false;
+                return;
+            }
+            setCorpusCount(resolveCorpusCount(r, MAX_REACHABLE));
+        });
+        // Deliberately mount-only: the corpus size doesn't depend on this
+        // session's filters, and re-asking per keystroke would be a second
+        // search behind every search.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [postedDateSupported]);
+
     // Debounced search on query / facet / salary / visa changes.
     useEffect(() => {
+        if (showAsk) {
+            // Nothing to search. Drop any previous result so returning to an
+            // empty query lands back on the ask rather than stale rows.
+            setLoading(false);
+            setSearchError(null);
+            setResult(null);
+            return;
+        }
+
         let cancelled = false;
         let firstPageSucceeded = false;
         const generation = paginationRef.current!.beginFirstPage();
@@ -1614,13 +1337,6 @@ function JobsContent() {
                 const wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass;
                 firstPageSucceeded = true;
                 setResult(r);
-                // `searchKey === ""` is exactly the all-defaults JobsUrlState
-                // (ignoring jobId) — the same subset it's built from. One-shot
-                // via the ref so this never fires again once captured.
-                if (!corpusTotalCapturedRef.current && searchKey === "") {
-                    corpusTotalCapturedRef.current = true;
-                    setCorpusCount(resolveCorpusCount(r, MAX_REACHABLE));
-                }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits, { wasConfirmed });
                 // Review fix: gate on the id ACTUALLY being absent from this
                 // fetch's fresh hits, not merely on `selection.preserveDeliberateDetail`
@@ -1764,7 +1480,7 @@ function JobsContent() {
         // covers — the dead `"search"`-mode branch that used to justify
         // `mode` being here directly is gone (whole-branch review fix).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry]);
+    }, [searchKey, searchRetry, showAsk]);
 
     // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
     // starts on Best match rather than silently inheriting whatever sort was
@@ -3070,6 +2786,10 @@ function JobsContent() {
                                 }
                                 className="h-9 rounded-none border-0 border-b border-border-strong bg-transparent px-0 text-[16px] shadow-none focus-visible:border-foreground focus-visible:ring-0 focus-visible:shadow-none"
                                 containerClassName="min-w-0 flex-1"
+                                /* The ask points at this line rather than shipping its
+                                   own input, so the line takes focus when it's what the
+                                   screen is asking for. */
+                                autoFocus={showAsk}
                             />
                             <div className="flex shrink-0 items-center gap-4 pb-0.5">
                                 {/* Re-homed from the old entry-gate's "Explore adjacent roles"
@@ -3262,14 +2982,23 @@ function JobsContent() {
                     Skip to results
                 </a>
                 <PrepMovedNote />
-                <div className="shrink-0 pt-5">
-                    <ModeBar mode={mode} onStartOver={startOver} />
-                </div>
+                {/* Nothing has been asked for yet, so there is no mode to name and
+                    nothing to start over from. */}
+                {!showAsk && (
+                    <div className="shrink-0 pt-5">
+                        <ModeBar mode={mode} onStartOver={startOver} />
+                    </div>
+                )}
                 <div className="grid min-h-0 flex-1 gap-8 lg:grid-cols-[1fr_300px]">
                     <div className="flex min-h-0 flex-col">
                         {/* Result count (spec: "N roles · M flagged this search") + sort
-                            trio — both mono, both above the column-head rule. */}
-                        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs text-muted-foreground">
+                            trio — both mono, both above the column-head rule. Every one
+                            of them describes a result set, so none of them render before
+                            there is one. */}
+                        <div className={cn(
+                            "mb-2 flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs text-muted-foreground",
+                            showAsk && "hidden",
+                        )}>
                             <span>{resultCountLine}</span>
                             {result?.configured && (
                                 <div className="flex items-center gap-3">
@@ -3353,7 +3082,9 @@ function JobsContent() {
                             keeps holding if a sibling (header, notice) is ever added
                             alongside the pane in this wrapper. */}
                         <div className="flex min-h-0 flex-1 flex-col">
-                            {notConnected ? (
+                            {showAsk ? (
+                                <JobsAsk corpusCount={corpusCount} onUpload={() => handleUploadClick()} />
+                            ) : notConnected ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
@@ -3500,7 +3231,7 @@ function JobsContent() {
                         breakpoint. */}
                     <aside className="flex flex-col gap-6 border-t border-border pb-4 pt-5 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pb-6 lg:pl-6 lg:pt-0">
                         <PipelineCard nowMs={nowMs} />
-                        <GhostRadarCard distribution={result?.facetDistribution} total={totalCount} />
+                        {!showAsk && <GhostRadarCard distribution={result?.facetDistribution} total={totalCount} />}
                     </aside>
                 </div>
             </>

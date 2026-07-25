@@ -241,8 +241,16 @@ export function shouldAttemptWidePass(pass1Ms: number, pass1Total: number, q: st
 }
 
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
+/**
+ * "all" requires every query word to match; "last" is Meilisearch's default,
+ * which drops words from the end until something matches. We search strictly
+ * and relax deliberately — never the other way round.
+ */
+export type MatchingStrategy = "all" | "last";
+
 export interface MeiliSearchBody {
   q: string;
+  matchingStrategy: MatchingStrategy;
   filter: string[];
   facets?: string[];
   hitsPerPage: number;
@@ -255,9 +263,18 @@ export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
   attributesToSearchOn?: readonly string[],
+  matchingStrategy: MatchingStrategy = "all",
 ): MeiliSearchBody {
   return {
     q: p.q ?? "",
+    // Meilisearch's DEFAULT is "last", which drops query words from the end
+    // until something matches. For a three-word role that means a search for
+    // "Technical Account Manager" is allowed to answer with documents that
+    // only matched "Technical" — observed live: Maintenance Technician and
+    // Laboratory Technician rows filling a Technical-Account-Manager search.
+    // Requiring every word is the honest default; `searchMeili` relaxes to
+    // "last" only after strict matching has genuinely found nothing.
+    matchingStrategy,
     filter: buildFilter(p, legacy),
     facets: p.withFacets ? [...FACETABLE_KEYS] : undefined,
     // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
@@ -285,13 +302,16 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
-  const runPass = async (attributesToSearchOn?: readonly string[]): Promise<JobSearchResult> => {
+  const runPass = async (
+    attributesToSearchOn?: readonly string[],
+    matchingStrategy: MatchingStrategy = "all",
+  ): Promise<JobSearchResult> => {
     const post = (legacy: boolean) =>
       meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
         cache: "no-store",
-        body: JSON.stringify(buildSearchBody(p, legacy, attributesToSearchOn)),
+        body: JSON.stringify(buildSearchBody(p, legacy, attributesToSearchOn, matchingStrategy)),
       });
 
     let res = await post(false);
@@ -336,7 +356,17 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   const wide = await runPass();
   // The widened flag is honest signal, not decoration: only claim it when
   // widening actually surfaced more than the precision pass had.
-  return wide.total > precise.total ? { ...wide, widened: true } : precise;
+  const best = wide.total > precise.total ? { ...wide, widened: true } : precise;
+  if (best.total > 0) return best;
+
+  // Every word matched nothing anywhere — only now drop back to
+  // Meilisearch's word-dropping default, so a long or unusual query still
+  // returns its best partial matches instead of an empty screen. Reaching
+  // here means strict matching already came back empty, so this can only add
+  // results, never displace better ones. Flagged `widened` because partial
+  // matches are exactly what that flag exists to disclose.
+  const relaxed = await runPass(undefined, "last");
+  return relaxed.total > 0 ? { ...relaxed, widened: true } : best;
 }
 
 /** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
