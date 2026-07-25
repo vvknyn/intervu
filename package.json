@@ -16,7 +16,7 @@
     "test:session": "playwright test tests/e2e/interview-session.spec.ts",
     "test:resume": "playwright test tests/e2e/resume-builder.spec.ts",
     "test:tailor": "playwright test tests/e2e/resume-tailor.spec.ts",
-    "test:apps": "playwright test tests/e2e/applications.spec.ts",
+    "test:apps": "playwright test tests/e2e/yours.spec.ts",
     "test:settings": "playwright test tests/e2e/settings.spec.ts",
     "test:mobile": "playwright test tests/e2e/mobile.spec.ts",
     "test:privacy": "playwright test tests/e2e/privacy-account.spec.ts",

@@ -94,13 +94,21 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     test("deep link reconstructs the exact screen", async ({ page }) => {
         await page.goto("/?q=engineer&work=remote&posted=7d&salary=150k");
         await expect(page.getByRole("textbox").first()).toHaveValue("engineer");
-        // Active filter chips reflect the URL (chip text per existing chips loop at page.tsx:1254-1263):
+        // Portal redesign: individual active-filter chips no longer render in
+        // a toolbar row (consolidated into the "All filters (N)" pill — see
+        // the "back after opening a job and applying a filter" test below).
+        // The URL→state round-trip for a facet is instead proven by its
+        // effect: every returned card is remote (workLoc line, JobCard in
+        // page.tsx), OR — zero hits — the empty state's own clear-chip names
+        // it ("Clear Remote", activeFilterEntries via EmptyResults). Either
+        // way "Remote" is on the page; which branch fires depends only on
+        // whether the live corpus has a remote "engineer" match right now.
         await expect(page.getByText("Remote", { exact: false }).first()).toBeVisible();
     });
 
     test("opening a job pushes a URL; back closes the detail", async ({ page }) => {
         await page.goto("/");
-        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        const firstRow = page.getByTestId("job-row").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
         await page.goBack();
@@ -129,7 +137,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         const searchInput = page.getByRole("textbox").first();
         await expect(searchInput).toHaveValue("engineer");
 
-        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        const firstRow = page.getByTestId("job-row").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
         await expect(page).toHaveURL(/q=engineer/);
@@ -158,33 +166,45 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * from the unfiltered default view (always has rows, per the "anonymous
      * first paint" test above) rather than a pre-filtered URL, so this test
      * isn't sensitive to how many roles currently fall in the 7-day bucket.
+     *
+     * Portal redesign rewrite: the always-visible desktop rail this test used
+     * to mutate directly is gone — every filter now lives behind the "All
+     * filters" pill's Sheet, and a tap inside it only edits PENDING state
+     * (page.tsx's `pendingFilterState`) until "Show N roles" commits it via
+     * the same `applyFilterState`/`replace` funnel the old rail used. The
+     * per-filter removable chip is gone too (consolidated into the pill's
+     * own "(N)" count, `activeFilterEntries.length` — still the single
+     * source of truth, just surfaced differently), so this now asserts that
+     * count instead of a standalone chip's text.
      */
     test("back after opening a job and applying a filter restores the prior state", async ({ page }) => {
         await page.goto("/");
-        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        const firstRow = page.getByTestId("job-row").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
         await expect(page).not.toHaveURL(/salary=/);
+        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
 
         // Salary, not the posted buckets: the age filters are hidden whenever the
         // corpus carries no `posted_ts` (see `isPostedDateFilterSupported`), and
         // this test is about history semantics — filter writes `replace` and keeps
         // the open job, Back unwinds both — not about which facet does the writing.
-        const salaryButton = page
-            .getByRole("region", { name: "Job filters" })
-            .getByRole("button", { name: "$100k+" });
-        await salaryButton.click();
+        await page.getByRole("button", { name: /All filters/ }).click();
+        const filters = page.getByRole("region", { name: "Job filters" });
+        await expect(filters).toBeVisible();
+        await filters.getByRole("button", { name: "$100k+" }).click();
+        await page.getByRole("button", { name: /Show [\d,]+ roles/ }).click();
+
         await expect(page).toHaveURL(/salary=100k/);
         await expect(page).toHaveURL(/job=/); // replace preserves the open job
-        // The rail's button reads "$100k+" but the active chip renders the
-        // shared `activeFilterEntries` label, "≥ $100k" — deliberately different
-        // formats, so assert the chip's own string rather than the button's.
-        await expect(page.getByTestId("active-filter-chip").filter({ hasText: "≥ $100k" })).toBeVisible();
+        // The sheet's own button reads "$100k+"; the pill's active count comes
+        // from the shared `activeFilterEntries` — same source, different surface.
+        await expect(page.getByRole("button", { name: "All filters (1)", exact: true })).toBeVisible();
 
         await page.goBack();
         await expect(page).not.toHaveURL(/salary=100k/);
         await expect(page).not.toHaveURL(/job=/);
-        await expect(page.getByTestId("active-filter-chip")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
     });
 
     /**
@@ -210,28 +230,62 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page.getByText(/updated (just now|\d+\s?(min|h|d)?\s?ago)/i)).toBeVisible();
     });
 
-    // Resolution #4: the sort control's accessible name is "Sort results"
-    // (SelectTrigger's aria-label at page.tsx) — not the visible text "Sort:",
-    // which jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002 already target
-    // via `getByRole('combobox', { name: /Sort results/i })`. Mirrored here.
-    test("sort menu offers Rank by fit", async ({ page }) => {
+    // Portal redesign rewrite: the "Sort results" combobox (with its own
+    // "Rank by fit" dropdown item) is gone — sort is now three plain
+    // `SortSegment` buttons (page.tsx: freshest / top pay / best match, see
+    // jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002). "The old Match mode
+    // is gone: 'Rank by fit' is no longer a [dropdown option]" per page.tsx's
+    // own comment — with no query, "best match" IS the résumé-rank action
+    // (`chooseBestMatch` → `handleRankByFit`), which for an anonymous session
+    // with no résumé on hand falls through to the résumé importer
+    // (`confirmLabel="Rank my jobs"` is that same flow's own continuation).
+    test("best match with no query opens the résumé-rank import flow", async ({ page }) => {
         await page.goto("/");
-        await page.getByRole("combobox", { name: /Sort results/i }).click();
-        await expect(page.getByText("Rank by fit", { exact: false })).toBeVisible();
+        await page.getByRole("button", { name: "best match" }).click();
+        await expect(page.getByRole("dialog", { name: /Import Resume/i })).toBeVisible();
+    });
+
+    // Task 6/7 + the Jul 24 incident fix (fd42534): the fresh-visit default
+    // filter is `posted=30d`, kept OFF the URL and out of the "All filters"
+    // pill's count (`activeFilterEntries` treats the default as a resting
+    // state, not a user override — FilterPanel.tsx) so it doesn't read as an
+    // active choice. The one place it must still be visible is the sheet's
+    // own Date Posted presets, where "Last 30 days" should show as selected.
+    test("All filters sheet reflects the 30d posted-date default when supported", async ({ page }) => {
+        await page.goto("/");
+        await expect(page).not.toHaveURL(/posted=/);
+        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
+
+        await page.getByRole("button", { name: /All filters/ }).click();
+        const filters = page.getByRole("region", { name: "Job filters" });
+        await expect(filters).toBeVisible();
+
+        const last30 = filters.getByRole("button", { name: "Last 30 days" });
+        if ((await last30.count()) === 0) {
+            test.skip(true, "Corpus carries no posted_ts — age buckets hidden (isPostedDateFilterSupported)");
+            return;
+        }
+        await expect(last30).toHaveAttribute("aria-pressed", "true");
     });
 
     /**
-     * TASK 7 — Filter rail: promotion, More group, ghost toggle, 1024px
-     * threshold. 1100px sits between the OLD xl (1280px) and NEW lg (1024px)
-     * thresholds, so this specifically proves the rail moved to lg — it would
-     * fail under the pre-Task-7 xl:-gated rail. No click required: first paint
-     * must already show it (mirrors TC-JOBS-LAYOUT-002 in
-     * jobs-search-polish.spec.ts, which asserts the same thing pinned to the
-     * 1024px boundary itself).
+     * TASK 7 — Filter rail history: promotion, More group, ghost toggle.
+     * Portal redesign rewrite: the always-visible lg+ rail this test used to
+     * pin at 1100px is gone at EVERY width now — filters live only behind
+     * the pills row's "All filters" sheet (FilterChipsRow, the old rail
+     * component, is dead code — not rendered anywhere in page.tsx; see
+     * jobs-search-polish.spec.ts's TC-JOBS-LAYOUT-002). This now proves the
+     * inverse: no filters region without a click, then the ghost toggle
+     * inside the sheet once opened.
      */
-    test("desktop 1100px shows the filter rail with the ghost toggle, no click needed", async ({ page }) => {
+    test("desktop 1100px: filters live behind the All filters sheet, ghost toggle included", async ({ page }) => {
         await page.setViewportSize({ width: 1100, height: 800 });
         await page.goto("/");
+
+        await expect(page.getByRole("region", { name: "Job filters" })).toHaveCount(0);
+        const trigger = page.getByRole("button", { name: /All filters/ });
+        await expect(trigger).toBeVisible();
+        await trigger.click();
 
         const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
@@ -403,15 +457,18 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     test("dead job link never renders a different job's detail in its place", async ({ page }) => {
         await page.goto("/?job=nonexistent-id-12345");
         // Real rows load (proves the page didn't just stall) …
-        await expect(page.locator("[data-testid=job-row]").first()).toBeVisible({ timeout: 10_000 });
-        // … but the detail pane never claims a specific job for this id —
-        // its accessible name stays the generic "Job details" (see the
-        // `detailJob ? "Job details: …" : "Job details"` aria-label),
-        // never naming an unrelated job the way the original bug did. This
+        await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 10_000 });
+        // … but the detail sheet never claims a specific job for this id —
+        // its accessible name (the sr-only `SheetTitle`) stays the generic
+        // "Job details" (see the `detailJob ? \`${title} at ${company}\` :
+        // "Job details"` text at page.tsx), never naming an unrelated job the
+        // way the original bug did. Detail now opens exclusively via the
+        // bottom Sheet (role="dialog", Radix wires aria-labelledby to
+        // SheetTitle) at every breakpoint — no more inline "region". This
         // holds whether the existence check lands on "not_found" (the
         // tombstone) or "unknown"/"checking" (`DeadJobUnresolved`) — neither
         // branch ever sets `detailJob`.
-        await expect(page.getByRole("region", { name: "Job details", exact: true })).toBeVisible();
+        await expect(page.getByRole("dialog", { name: "Job details", exact: true })).toBeVisible();
         // The pane is never silently blank either way: either the tombstone
         // or the neutral "can't confirm" state renders, both carrying the
         // same "See similar roles"/"Browse live roles" CTA.
@@ -441,7 +498,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         const deadId = `nonexistent-id-urlclear-${Date.now()}`;
         await page.goto(`/?job=${deadId}`);
         // Fetch 1 resolves (real rows load) — grants the id its one free pass.
-        await expect(page.locator("[data-testid=job-row]").first()).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 10_000 });
         await expect(page).toHaveURL(new RegExp(`job=${deadId}`));
 
         // A NEW search changes searchKey, firing fetch 2 with the SAME dead
@@ -487,7 +544,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("a query change that excludes the open job clears job= from the URL, not just the detail pane", async ({ page }) => {
         await page.goto("/");
-        const firstRow = page.locator("[data-testid=job-row], main li").first();
+        const firstRow = page.getByTestId("job-row").first();
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
         const openedId = new URL(page.url()).searchParams.get("job");
@@ -506,21 +563,22 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 });
 
 /**
- * TASK 10 — Mobile: chips row, sheet live count, detail sticky bar.
+ * TASK 10 — Mobile: filter sheet trigger, sheet live count, detail sticky bar.
  *
- * Below-lg viewport (390x844). The chips row absorbs the old standalone
- * mobile "Filters" button (see jobs-search-polish.spec.ts's
- * TC-JOBS-LAYOUT-002B, updated in the same commit) — its "All (n)" chip now
- * opens a bottom Sheet with a live, debounced result count instead of the
- * old bounded inline overlay.
+ * Below-lg viewport (390x844). Portal redesign superseded Task 10's own
+ * mobile-only chips row ("All (n)") — FilterChipsRow is dead code, not
+ * rendered anywhere in page.tsx. The pills row's "All filters" pill is now
+ * the ONE filter-sheet trigger at every breakpoint, mobile included; it
+ * still opens the same bottom Sheet with a live, debounced result count.
  */
 test.describe("mobile", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test("chips row is visible and opens the sheet with a live count", async ({ page }) => {
+    test("All filters pill is visible and opens the sheet with a live count", async ({ page }) => {
         await page.goto("/");
-        await expect(page.getByText("All (", { exact: false })).toBeVisible();
-        await page.getByText("All (", { exact: false }).click();
+        const trigger = page.getByRole("button", { name: /All filters/ });
+        await expect(trigger).toBeVisible();
+        await trigger.click();
         await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
     });
 
@@ -533,7 +591,7 @@ test.describe("mobile", () => {
     // the applied page shows that same (post-edit) number.
     test("sheet count reflects a debounced pending-filter change and matches the applied result", async ({ page }) => {
         await page.goto("/");
-        await page.getByText("All (", { exact: false }).click();
+        await page.getByRole("button", { name: /All filters/ }).click();
 
         const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
         await expect(applyBtn).toBeVisible();
@@ -577,7 +635,7 @@ test.describe("mobile", () => {
         await page.goto("/");
         await page.mouse.wheel(0, 1500);
         const y = await page.evaluate(() => window.scrollY);
-        await page.locator("[data-testid=job-row], main li").nth(5).click();
+        await page.getByTestId("job-row").nth(5).click();
         await page.goBack();
         expect(Math.abs((await page.evaluate(() => window.scrollY)) - y)).toBeLessThan(200);
     });

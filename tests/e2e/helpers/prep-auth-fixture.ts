@@ -79,7 +79,9 @@ export async function openPrepModeScreen(
   position: string,
   round: string,
 ) {
-  await page.goto('/');
+  // Portal redesign flip: interview prep lives at /prep, root `/` is now the
+  // jobs page (jobs-first-bloom PR1, "prep at /prep").
+  await page.goto('/prep');
   await page.waitForLoadState('networkidle');
 
   await page.getByTestId('prep-start-new').click();

@@ -14,6 +14,7 @@ import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
 import { toast } from "@/lib/toast";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
+import { printResume } from "@/lib/resume/print-resume";
 
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
@@ -47,26 +48,6 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
 
     // Portal target for the print copy only exists client-side.
     const mounted = useMounted();
-
-    // Native print, not canvas rasterization. The on-screen preview sits
-    // inside a scale() transform wrapper (see the mobile zoom wrapper below),
-    // which corrupts browser print — so a separate, untransformed, portaled
-    // copy (#resume-print-root) is what actually gets printed; see the
-    // scoped `@media print` rule in globals.css.
-    const handlePrint = () => {
-        const root = document.documentElement;
-        root.classList.add("printing-resume");
-        let cleaned = false;
-        const cleanup = () => {
-            if (cleaned) return;
-            cleaned = true;
-            root.classList.remove("printing-resume");
-        };
-        window.addEventListener("afterprint", cleanup, { once: true });
-        // Safety net: `afterprint` doesn't fire reliably in every browser.
-        setTimeout(cleanup, 5000);
-        window.print();
-    };
 
     const handleGenerateWithAI = (section: string) => {
         setCurrentAISection(section);
@@ -143,9 +124,11 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
     const [mobileTab, setMobileTab] = useState<'preview' | 'edit'>('edit');
 
     return (
-        <div className="min-h-screen bg-background flex flex-col">
+        // Sized to fill the hub's paper-card wrapper (ResumeBuilder.tsx) rather
+        // than a full viewport — this component used to BE the whole page.
+        <div className="flex h-[78vh] min-h-[600px] flex-col bg-card">
             {/* Toolbar */}
-            <div className="border-b border-border bg-background z-40">
+            <div className="border-b border-border bg-card z-40">
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2 min-w-0">
                         {syncStatus === 'saving' && (
@@ -204,7 +187,7 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
 
                         {/* Print / PDF Button */}
                         <button
-                            onClick={handlePrint}
+                            onClick={printResume}
                             className="group hidden sm:inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
                         >
                             <Printer size={15} weight="bold" className="text-muted-foreground group-hover:text-brand shrink-0" />

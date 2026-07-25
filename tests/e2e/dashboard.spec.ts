@@ -202,7 +202,8 @@ test.describe('DASH - Dashboard Tests', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('prep-start-new')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start new preparation' })).toBeVisible();
+    // Portal redesign spec ("Page: Interview prep") renamed the CTA copy.
+    await expect(page.getByRole('button', { name: 'Start session' })).toBeVisible();
   });
 
   /**

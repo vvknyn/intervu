@@ -110,7 +110,8 @@ async function openLegacyPackageView(page: Page) {
     round: FIXTURE_ROUND,
     searched: 'true',
   });
-  await page.goto(`/?${params.toString()}`);
+  // Portal redesign flip: prep lives at /prep now, not root (see openPrepModeScreen).
+  await page.goto(`/prep?${params.toString()}`);
   await page.waitForLoadState('networkidle');
 }
 
@@ -130,13 +131,17 @@ test.describe('SESSION - Interview Session P0', () => {
    * TC-SESSION-001: Landing shows Start and setup → mode flow
    */
   test('TC-SESSION-001: landing shows Start', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('prep-start-new')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start new preparation' })).toBeVisible();
+    // Portal redesign spec ("Page: Interview prep") renamed the CTA copy.
+    await expect(page.getByRole('button', { name: 'Start session' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Search plans' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Resume recent session' })).toBeVisible();
+    // No generic "Resume recent session" affordance anymore — the Recent
+    // sessions card only renders (per real session) once one actually
+    // exists (spec §"Page: Interview prep", no invented data); this test
+    // starts from a clean localStorage, so there's nothing to resume yet.
 
     await page.getByTestId('prep-start-new').click();
     await expect(page.getByText('Role details')).toBeVisible();
@@ -211,10 +216,12 @@ test.describe('SESSION - Interview Session P0', () => {
   test('TC-SESSION-002: fixture plan + session restore shows counter', async ({ page }) => {
     await injectPlanAndSession(page);
 
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('button', { name: 'Resume recent session' }).click();
+    // Recent sessions card renders one real row per cached session (spec:
+    // no generic "Resume recent session" affordance).
+    await page.getByTestId('prep-recent-session-row').click();
 
     await expect(page.getByTestId('prep-session-question-counter')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('prep-session-question-counter')).toHaveText('Question 1 of 2');
@@ -242,9 +249,9 @@ test.describe('SESSION - Interview Session P0', () => {
       },
     });
 
-    await page.goto('/');
+    await page.goto('/prep');
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: 'Resume recent session' }).click();
+    await page.getByTestId('prep-recent-session-row').click();
 
     await expect(page.getByTestId('prep-session-question-counter')).toHaveText('Question 2 of 2', {
       timeout: 10000,

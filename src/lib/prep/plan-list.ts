@@ -1,7 +1,7 @@
 import type { CachedInterviewData } from "@/lib/interview-cache";
 import { InterviewCache } from "@/lib/interview-cache";
-import type { PrepSessionMode } from "@/lib/prep/session-progress";
-import { parseSessionState } from "@/lib/prep/session-progress";
+import type { PrepSessionMode, PrepSessionSummary } from "@/lib/prep/session-progress";
+import { buildSessionSummary, parseSessionState } from "@/lib/prep/session-progress";
 
 const INTERVIEW_PREP_CACHE_KEY = "interview_prep_cache";
 const SESSION_STORAGE_PREFIX = "intervu_prep_session_v1_";
@@ -26,6 +26,10 @@ export interface ResumableSessionItem {
   company: string;
   position: string;
   round: string;
+  /** Real per-session progress/score, computed from the same parsed state
+   * this item is built from — see `buildSessionSummary` (session-progress.ts). */
+  summary: PrepSessionSummary;
+  totalQuestions: number;
 }
 
 let testCacheOverride: Record<string, CachedInterviewData> | null = null;
@@ -169,6 +173,8 @@ export function listResumableSessions(): ResumableSessionItem[] {
       mode: state.mode,
       updatedAt: state.updatedAt,
       ...meta,
+      summary: buildSessionSummary(state),
+      totalQuestions: state.questionIds.length,
     });
   }
 

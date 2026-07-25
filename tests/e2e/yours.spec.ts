@@ -59,7 +59,9 @@ test.describe('YOURS - Guest, no pursuits', () => {
   test('TC-YOURS-001: Yours page loads', async ({ page }) => {
     await page.goto('/yours');
     await expect(page).toHaveURL('/yours');
-    await expect(page.locator('h1:has-text("Yours")')).toBeVisible({ timeout: 10000 });
+    // Guest/empty renders the PageHeader title "Tracker"; the populated board
+    // renders its own "Application tracker" h1 — both contain "Tracker".
+    await expect(page.locator('h1:has-text("Tracker")')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=404')).not.toBeVisible();
   });
 
@@ -68,17 +70,23 @@ test.describe('YOURS - Guest, no pursuits', () => {
    */
   test('TC-YOURS-002: Guest empty state shows a login prompt', async ({ page }) => {
     await page.goto('/yours');
-    await expect(page.getByTestId('yours-guest-empty')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+    const empty = page.getByTestId('yours-guest-empty');
+    await expect(empty).toBeVisible({ timeout: 10000 });
+    // Scoped to the empty-state card: the signed-out TopBar also renders its
+    // own "Log in" button, so an unscoped lookup is ambiguous.
+    await expect(empty.getByRole('button', { name: 'Log in' })).toBeVisible();
   });
 
   /**
-   * TC-YOURS-003: TopBar "Yours" link is hidden until a pursuit exists
-   * (visibility-iff-data, spec §2 — no flags, the shared hook decides).
+   * TC-YOURS-003: TopBar "Tracker" tab is always visible, even with zero
+   * pursuits (portal redesign spec, "Shell (TopBar)" — no longer conditional
+   * on hasPursuits; all 4 tabs are always-visible now).
    */
-  test('TC-YOURS-003: TopBar Yours link is hidden with zero pursuits', async ({ page }) => {
+  test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByTestId('topbar-yours')).not.toBeVisible();
+    const link = page.getByTestId('topbar-yours');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '/yours');
   });
 
   /**
@@ -138,14 +146,19 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await page.goto('/yours');
     await page.getByRole('button', { name: /add manually/i }).click();
     await expect(page).toHaveURL('/yours?view=new');
-    await expect(page.locator('h2:has-text("Job Details")')).toBeVisible({ timeout: 10000 });
+    // The wizard shell repeats the current step name in a mobile-only header
+    // (`md:hidden`, pre-existing, predates this pass), so "Job Details"
+    // renders as two h2s — `:visible` picks whichever one the viewport shows.
+    await expect(page.locator('h2:has-text("Job Details"):visible')).toBeVisible({ timeout: 10000 });
   });
 
   /**
    * TC-YOURS-009: An ended pursuit (rejected/withdrawn) renders dimmed under
-   * an "Ended" divider, never in red (spec §3/§5).
+   * a collapsed "Closed (N)" details section, never in red (portal redesign
+   * spec, "Page: Tracker (/yours)" — board columns don't include closed;
+   * "Closed pursuits ... compact collapsed list under the board").
    */
-  test('TC-YOURS-009: Ended pursuit sorts under the Ended divider', async ({ page }) => {
+  test('TC-YOURS-009: Ended pursuit sorts under the Closed section', async ({ page }) => {
     await page.goto('/');
     await page.evaluate((seed) => {
       localStorage.setItem(
@@ -155,10 +168,12 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     }, seedGuestPursuit());
 
     await page.goto('/yours');
-    await expect(page.locator('text=Ended')).toBeVisible({ timeout: 10000 });
+    // "Closed" alone also names a stat-card tile above the board, so match
+    // the collapsed section's own "Closed (N)" summary text specifically.
+    await expect(page.locator('text=/Closed \\(\\d+\\)/')).toBeVisible({ timeout: 10000 });
     const rows = page.getByTestId('pursuit-row');
     await expect(rows).toHaveCount(2);
-    // Ended row renders after the active one.
+    // Closed row renders after the active board card.
     await expect(rows.last()).toContainText('Old Co');
   });
 });

@@ -316,6 +316,12 @@ export function FilterPanel({
                                 <button
                                     key={o.label}
                                     onClick={() => onPostedBucket(o.value)}
+                                    // Exposes the selected bucket (incl. the silent "30d"
+                                    // default — see PRISTINE_FILTER_STATE) as real ARIA
+                                    // state instead of visual-only styling, mirroring the
+                                    // sort segmented control's aria-pressed (page.tsx's
+                                    // SortSegment) for this same single-select shape.
+                                    aria-pressed={state.postedBucket === o.value}
                                     className={cn(
                                         "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
                                         state.postedBucket === o.value

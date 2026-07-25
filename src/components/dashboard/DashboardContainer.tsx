@@ -2149,6 +2149,7 @@ export function DashboardContainer() {
                 <PrepLanding
                     cachedPlans={cachedPlans}
                     resumableSessions={resumableSessions}
+                    stories={stories}
                     onStartNew={() => {
                         setPrepJobContext(emptyPrepJobContext("", "", ""));
                         setPrepPhase("setup");

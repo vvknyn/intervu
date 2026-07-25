@@ -5,6 +5,12 @@ import { test, expect } from '@playwright/test';
  *
  * Tests the subtle motivational banner component across pages,
  * including display, dismissal, and settings integration.
+ *
+ * Portal redesign: the banner mock (docs/design/intervu-portal.dc.html) has
+ * no motivational-banner element on the jobs (/) or tracker (/yours) pages —
+ * neither page renders <MotivationalBanner/> anymore. It's still rendered
+ * on /resume-builder (unchanged this pass), so the generic mechanism tests
+ * (dismiss/TTL/settings-toggle) run there instead of on `/`.
  */
 
 // The banner uses the group/banner class — locate via its unique structure
@@ -12,7 +18,7 @@ const bannerSelector = '.group\\/banner';
 
 test.describe('BANNER - Motivational Banner Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.evaluate(() => {
       localStorage.removeItem('banner_disabled');
       localStorage.removeItem('banner_dismissed_until');
@@ -20,10 +26,10 @@ test.describe('BANNER - Motivational Banner Tests', () => {
   });
 
   /**
-   * TC-BANNER-001: Banner appears on home page
+   * TC-BANNER-001: Banner appears on resume builder page
    */
-  test('TC-BANNER-001: Banner appears on home page', async ({ page }) => {
-    await page.goto('/');
+  test('TC-BANNER-001: Banner appears on resume builder page', async ({ page }) => {
+    await page.goto('/resume-builder');
     await page.waitForLoadState('networkidle');
 
     const banner = page.locator(bannerSelector);
@@ -31,26 +37,22 @@ test.describe('BANNER - Motivational Banner Tests', () => {
   });
 
   /**
-   * TC-BANNER-002: Banner appears on yours page
+   * TC-BANNER-002: Banner is intentionally absent on the tracker page
+   * (portal redesign — jobs/tracker mocks carry no banner element).
    */
-  test('TC-BANNER-002: Banner appears on yours page', async ({ page }) => {
-    await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'test-key-123' }));
-    });
-
+  test('TC-BANNER-002: Banner does not render on the tracker page', async ({ page }) => {
     await page.goto('/yours');
     await page.waitForLoadState('networkidle');
 
-    // Verify page loads without errors
-    await expect(page.locator('text=Yours')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1:has-text("Tracker")')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(bannerSelector)).toHaveCount(0);
   });
 
   /**
    * TC-BANNER-003: Dismiss sets localStorage TTL
    */
   test('TC-BANNER-003: Dismiss sets localStorage TTL', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.waitForLoadState('networkidle');
 
     const dismissBtn = page.locator('button[aria-label="Dismiss"]');
@@ -73,12 +75,12 @@ test.describe('BANNER - Motivational Banner Tests', () => {
    * TC-BANNER-004: Banner hidden when permanent flag is set
    */
   test('TC-BANNER-004: Banner hidden when permanent flag is set', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.evaluate(() => {
       localStorage.setItem('banner_disabled', 'true');
     });
 
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
 
@@ -90,13 +92,13 @@ test.describe('BANNER - Motivational Banner Tests', () => {
    * TC-BANNER-005: Banner reappears after TTL expires
    */
   test('TC-BANNER-005: Banner reappears after TTL expires', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.evaluate(() => {
       const expired = Date.now() - 60 * 60 * 1000;
       localStorage.setItem('banner_dismissed_until', String(expired));
     });
 
-    await page.goto('/');
+    await page.goto('/resume-builder');
     await page.waitForLoadState('networkidle');
 
     const banner = page.locator(bannerSelector);
