@@ -10,7 +10,6 @@ import { SaveVersionModal } from "@/components/resume-builder/SaveVersionModal";
 import { TailoredVersionsSidebar as TailoringSidebar } from "@/components/resume-builder/TailoredVersionsSidebar";
 import { VersionCardsRow } from "@/components/resume-builder/VersionCardsRow";
 import { TailoringSidebarCard } from "@/components/resume-builder/TailoringSidebarCard";
-import { Check, Info, ArrowRight, SidebarSimple } from "@phosphor-icons/react";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions, saveTailoredVersion, SaveVersionInput } from "@/actions/tailor-resume";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -442,57 +441,47 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 </div>
             )}
 
-            {/* Wizard Flow Context Banner */}
+            {/* Wizard Flow Context Banner — editorial pass: a ruled band (no
+                tinted panel), actions as underlined text, steps as a plain
+                mono sequence with the in-progress step in ink and the rest
+                muted (same shape as TailoringSidebarCard/VersionCardsRow). */}
             {source === 'applications' && applicationId && !isTailoredMode && (
-                <div className="bg-brand/5 border-b border-brand/20 px-4 py-3">
+                <div className="border-y border-border px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                            <Info size={18} weight="duotone" className="text-brand shrink-0" />
-                            <p className="text-sm font-medium text-foreground">Tailor your resume for this application</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <p className="text-[13px] font-medium text-foreground">Tailor your resume for this application</p>
+                        <div className="flex items-center gap-4 shrink-0">
                             {!tailoringSidebarOpen && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="gap-1.5 text-xs"
+                                <button
                                     onClick={() => setTailoringSidebarOpen(true)}
+                                    className="font-mono text-[12px] text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
                                 >
-                                    <SidebarSimple size={14} weight="duotone" />
-                                    Open Sidebar
-                                </Button>
+                                    open sidebar
+                                </button>
                             )}
-                            <Link href="/yours" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-                                Skip & Return
-                                <ArrowRight size={12} />
+                            <Link
+                                href="/yours"
+                                className="font-mono text-[12px] text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                            >
+                                skip &amp; return
                             </Link>
                         </div>
                     </div>
-                    {/* Step progress indicators */}
-                    <div className="flex items-center gap-2 mt-2.5 text-xs flex-wrap">
-                        {/* Step 1: Upload resume */}
-                        <div className={`flex items-center gap-1.5 ${(data.profile?.profession || data.experience?.length || data.generatedSummary) ? 'text-green-600 dark:text-green-400' : 'text-foreground font-medium'}`}>
-                            {(data.profile?.profession || data.experience?.length || data.generatedSummary) ? (
-                                <span className="w-4.5 h-4.5 rounded-full bg-green-500 text-white flex items-center justify-center">
-                                    <Check size={10} weight="bold" />
+                    {/* Step sequence: 1 done once real resume data exists, 2
+                        current only once the sidebar is open, 3 always
+                        pending — same completion checks as before, restyled. */}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px]">
+                        {[
+                            { label: "upload resume", done: Boolean(data.profile?.profession || data.experience?.length || data.generatedSummary), current: false },
+                            { label: "paste job posting", done: false, current: tailoringSidebarOpen },
+                            { label: "save tailored version", done: false, current: false },
+                        ].map((step, i, steps) => (
+                            <span key={step.label} className="flex items-center gap-1.5">
+                                <span className={step.done || step.current ? "text-foreground" : "text-muted-foreground"}>
+                                    {step.done ? "✓" : i + 1} {step.label}
                                 </span>
-                            ) : (
-                                <span className="w-4.5 h-4.5 rounded-full bg-brand text-white flex items-center justify-center text-[10px] font-bold">1</span>
-                            )}
-                            <span>Upload resume</span>
-                        </div>
-                        <ArrowRight size={10} className="text-muted-foreground/50 shrink-0" />
-                        {/* Step 2: Open sidebar & paste job posting */}
-                        <div className={`flex items-center gap-1.5 ${tailoringSidebarOpen ? 'text-brand font-medium' : 'text-muted-foreground'}`}>
-                            <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-bold ${tailoringSidebarOpen ? 'bg-brand text-white' : 'bg-muted-foreground/20 text-muted-foreground'}`}>2</span>
-                            <span>Paste job posting</span>
-                        </div>
-                        <ArrowRight size={10} className="text-muted-foreground/50 shrink-0" />
-                        {/* Step 3: Save tailored version */}
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <span className="w-4.5 h-4.5 rounded-full bg-muted-foreground/20 text-muted-foreground flex items-center justify-center text-[10px] font-bold">3</span>
-                            <span>Save tailored version</span>
-                        </div>
+                                {i < steps.length - 1 && <span className="text-muted-foreground/50">·</span>}
+                            </span>
+                        ))}
                     </div>
                 </div>
             )}
