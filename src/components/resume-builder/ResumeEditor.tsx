@@ -8,14 +8,12 @@ import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
 import { AIWritingModal } from "./AIWritingModal";
 import { Button } from "@/components/ui/button";
-import { Trash, Upload, DownloadSimple, CloudArrowUp, CloudSlash, CloudCheck, Check, Printer } from "@phosphor-icons/react";
 import { generateSummary, generateExperienceBullets } from "@/actions/generate-resume-content";
 import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
 import { toast } from "@/lib/toast";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 import { printResume } from "@/lib/resume/print-resume";
-
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
 
@@ -127,108 +125,72 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
         // Sized to fill the hub's paper-card wrapper (ResumeBuilder.tsx) rather
         // than a full viewport — this component used to BE the whole page.
         <div className="flex h-[78vh] min-h-[600px] flex-col bg-card">
-            {/* Toolbar */}
+            {/* Toolbar — mono text affordances, no bordered/pill buttons
+                (editorial pass). Sync status reuses the same verdict tones
+                the ledger's VERDICT CELL uses (live = saved, risk = error)
+                rather than colored cloud icons. */}
             <div className="border-b border-border bg-card z-40">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 min-w-0">
-                        {syncStatus === 'saving' && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <CloudArrowUp size={12} weight="bold" className="animate-pulse" />
-                                Saving...
-                            </span>
-                        )}
-                        {syncStatus === 'saved' && (
-                            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                <CloudCheck size={12} weight="bold" />
-                                Saved
-                            </span>
-                        )}
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-11 flex items-center justify-between gap-4 font-mono text-[11.5px]">
+                    <div className="min-w-0 truncate">
+                        {syncStatus === 'saving' && <span className="text-muted-foreground">saving…</span>}
+                        {syncStatus === 'saved' && <span className="text-verdict-live">saved</span>}
                         {syncStatus === 'offline' && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <CloudSlash size={12} weight="bold" />
-                                Saved on this device &mdash; <a href="/login" className="underline hover:text-foreground transition-colors">log in</a> to sync
+                            <span className="text-muted-foreground">
+                                saved on this device — <a href="/login" className="underline underline-offset-2 hover:text-foreground transition-colors duration-100">log in</a> to sync
                             </span>
                         )}
-                        {syncStatus === 'error' && (
-                            <span className="text-xs text-destructive flex items-center gap-1">
-                                <CloudSlash size={12} weight="bold" />
-                                Sync error
-                            </span>
-                        )}
+                        {syncStatus === 'error' && <span className="text-verdict-risk">sync error</span>}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Import Button */}
+                    <div className="flex items-center gap-4 shrink-0">
                         {onImport && (
                             <button
                                 onClick={onImport}
-                                className="group hidden sm:inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                             >
-                                <Upload size={15} weight="bold" className="text-muted-foreground group-hover:text-brand shrink-0" />
-                                <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                    <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">Import</span>
-                                </span>
+                                import
                             </button>
                         )}
 
-                        {/* Clear Button */}
                         <button
                             onClick={onClear}
-                            className="group hidden sm:inline-flex items-center h-8 px-2.5 rounded-md border border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/10 transition-all duration-200"
+                            className="hidden sm:inline text-verdict-risk underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
                         >
-                            <Trash size={15} weight="regular" className="shrink-0" />
-                            <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">Clear</span>
-                            </span>
+                            clear
                         </button>
 
-                        {/* Versions Toggle */}
                         {versionsToggle}
 
-                        {/* Print / PDF Button */}
                         <button
                             onClick={printResume}
-                            className="group hidden sm:inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                            className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                         >
-                            <Printer size={15} weight="bold" className="text-muted-foreground group-hover:text-brand shrink-0" />
-                            <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">Print / PDF</span>
-                            </span>
+                            print / pdf
                         </button>
 
-                        {/* Export Button */}
                         <button
                             onClick={handleDownloadWord}
-                            className="group inline-flex items-center h-8 px-2.5 rounded-md bg-foreground text-background hover:bg-foreground/90 transition-all duration-200"
+                            className="bg-foreground px-3 py-1.5 uppercase tracking-[0.06em] text-background transition-opacity duration-100 hover:opacity-85"
                         >
-                            <DownloadSimple size={15} weight="bold" className="shrink-0" />
-                            <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">.docx</span>
-                            </span>
+                            .docx
                         </button>
                     </div>
                 </div>
 
                 {/* Mobile Tab Switcher */}
-                <div className="lg:hidden border-t border-border px-4 py-2 bg-secondary/20">
-                    <div className="grid grid-cols-2 gap-2 bg-secondary/50 p-1 rounded-lg">
+                <div className="lg:hidden border-t border-border px-4 py-2">
+                    <div className="flex items-center gap-5 font-mono text-[12px]">
                         <button
                             onClick={() => setMobileTab('edit')}
-                            className={`text-sm font-medium py-1.5 rounded-md transition-all ${mobileTab === 'edit'
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
+                            className={mobileTab === 'edit' ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}
                         >
-                            Editor
+                            editor
                         </button>
                         <button
                             onClick={() => setMobileTab('preview')}
-                            className={`text-sm font-medium py-1.5 rounded-md transition-all ${mobileTab === 'preview'
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
+                            className={mobileTab === 'preview' ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}
                         >
-                            Preview
+                            preview
                         </button>
                     </div>
                 </div>

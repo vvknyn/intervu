@@ -10,7 +10,7 @@ import { SaveVersionModal } from "@/components/resume-builder/SaveVersionModal";
 import { TailoredVersionsSidebar as TailoringSidebar } from "@/components/resume-builder/TailoredVersionsSidebar";
 import { VersionCardsRow } from "@/components/resume-builder/VersionCardsRow";
 import { TailoringSidebarCard } from "@/components/resume-builder/TailoringSidebarCard";
-import { ArrowLeft, ArrowsClockwise, Check, FloppyDisk, Info, ArrowRight, SidebarSimple, Sparkle } from "@phosphor-icons/react";
+import { Check, Info, ArrowRight, SidebarSimple } from "@phosphor-icons/react";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions, saveTailoredVersion, SaveVersionInput } from "@/actions/tailor-resume";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -402,9 +402,9 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
 
     if (!isLoaded) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
-            </div>
+            <PageLayout fullWidth>
+                <p className="px-4 py-8 font-mono text-[13px] text-muted-foreground sm:px-6">Loading your resume…</p>
+            </PageLayout>
         );
     }
 
@@ -420,41 +420,25 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 <MotivationalBanner />
             </div>
 
+            {/* Tailored-version notice — editorial pass: a ruled band in
+                verdict-caution ink (this IS the "worth verifying before you
+                treat it as your default" signal), text actions instead of
+                pill buttons, no emoji. */}
             {isTailoredMode && (
-                <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm">
-                    <span className="font-medium text-amber-900 dark:text-amber-200 text-xs sm:text-sm">📋 Tailored Version</span>
-                    <span className="text-amber-300 hidden sm:inline">|</span>
-                    <Link href="/resume-builder" className="hover:underline flex items-center text-amber-700 dark:text-amber-300 text-xs sm:text-sm">
-                        <ArrowLeft className="mr-1" size={14} />
-                        Back to Standard
-                    </Link>
-                    <span className="text-amber-300 hidden sm:inline">|</span>
-                    <button
-                        onClick={handleMakeBase}
-                        disabled={isMakingBase || madeBase}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm transition-all ${madeBase
-                            ? 'bg-green-500 text-white'
-                            : 'bg-amber-600 text-white hover:bg-amber-700'
-                            } disabled:opacity-70`}
-                    >
-                        {madeBase ? (
-                            <>
-                                <Check size={14} weight="bold" />
-                                Done!
-                            </>
-                        ) : isMakingBase ? (
-                            <>
-                                <ArrowsClockwise size={14} className="animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            <>
-                                <ArrowsClockwise size={14} weight="bold" />
-                                <span className="hidden sm:inline">Make This My Base Resume</span>
-                                <span className="sm:hidden">Make Base</span>
-                            </>
-                        )}
-                    </button>
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-border bg-verdict-caution-bg px-4 py-2 font-mono text-[12px] text-verdict-caution sm:px-6">
+                    <span className="font-medium uppercase tracking-[0.06em]">Tailored version</span>
+                    <div className="flex items-center gap-4">
+                        <Link href="/resume-builder" className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground">
+                            ← back to base
+                        </Link>
+                        <button
+                            onClick={handleMakeBase}
+                            disabled={isMakingBase || madeBase}
+                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-60"
+                        >
+                            {madeBase ? "done — now your base" : isMakingBase ? "saving…" : "make this my base"}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -521,7 +505,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 <div className="min-w-0">
                     <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3">
                         <div>
-                            <h1 className="font-display text-[26px] font-semibold tracking-[-0.02em] sm:text-[28px]">
+                            <h1 className="font-display text-[30px] font-extrabold tracking-[-0.02em] sm:text-[34px]">
                                 Resume
                             </h1>
                             <p className="mt-1.5 font-mono text-xs text-muted-foreground">
@@ -530,7 +514,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                         </div>
                         <button
                             onClick={printResume}
-                            className="rounded-md bg-foreground px-[18px] py-2.5 text-[13.5px] font-semibold text-background transition-colors hover:bg-foreground/85"
+                            className="h-9 shrink-0 bg-foreground px-5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
                         >
                             Export PDF
                         </button>
@@ -538,10 +522,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
 
                     <VersionCardsRow versions={versions} activeVersionId={versionId} />
 
-                    <div
-                        data-tour="resume-editor"
-                        className="overflow-hidden rounded-xl border border-border shadow-[var(--shadow-md)]"
-                    >
+                    <div data-tour="resume-editor" className="border-t border-border pt-5">
                         <ResumeEditor
                             data={data}
                             onUpdate={updateData}
@@ -557,8 +538,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                             originalData={originalData} // Pass for diff highlighting
                             isTailoredMode={isTailoredMode}
                             versionsToggle={
-                                <div className="flex items-center gap-2">
-                                    {/* Save Version Button */}
+                                <>
                                     <button
                                         data-tour="resume-import"
                                         onClick={() => {
@@ -568,18 +548,12 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                                 setAuthPopoverOpen(true);
                                             }
                                         }}
-                                        className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                        className="hidden text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground sm:inline"
                                         title={user ? "Save current resume as a version" : "Sign in to save versions"}
                                     >
-                                        <FloppyDisk size={15} weight="fill" className="text-muted-foreground group-hover:text-brand shrink-0 transition-colors" />
-                                        <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                            <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
-                                                Save
-                                            </span>
-                                        </span>
+                                        save
                                     </button>
 
-                                    {/* Tailor Resume / View Versions Button */}
                                     <button
                                         data-tour="resume-tailor"
                                         onClick={() => {
@@ -589,22 +563,12 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                                 setAuthPopoverOpen(true);
                                             }
                                         }}
-                                        className="group inline-flex items-center h-8 px-2.5 rounded-md border border-border hover:border-brand/50 hover:bg-brand/5 transition-all duration-200"
+                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
                                         title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
                                     >
-                                        <Sparkle size={15} weight="fill" className="text-brand shrink-0" />
-                                        <span className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-all duration-200">
-                                            <span className="overflow-hidden whitespace-nowrap text-xs font-medium pl-1.5">
-                                                {versions.length > 0 ? "Versions" : "Tailor"}
-                                            </span>
-                                        </span>
-                                        {versions.length > 0 && user && (
-                                            <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand/10 text-brand text-xs font-semibold">
-                                                {versions.length}
-                                            </span>
-                                        )}
+                                        {versions.length > 0 ? `versions (${versions.length})` : "tailor"}
                                     </button>
-                                </div>
+                                </>
                             }
                         />
                     </div>
