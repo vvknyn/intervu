@@ -247,7 +247,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         }));
         expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
 
-        await page.getByRole('button', { name: /All filters/ }).click();
+        await page.getByRole('button', { name: /filters \+/ }).click();
         await expect(page.getByRole('region', { name: 'Job filters' })).toBeVisible();
     });
 
@@ -267,7 +267,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(results).toBeVisible();
         await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
 
-        await page.getByRole('button', { name: /All filters/ }).click();
+        await page.getByRole('button', { name: /filters \+/ }).click();
         const filterOverlay = page.getByRole('region', { name: 'Job filters' });
         await expect(filterOverlay).toBeVisible();
         const overlayMetrics = await filterOverlay.evaluate((node) => ({
