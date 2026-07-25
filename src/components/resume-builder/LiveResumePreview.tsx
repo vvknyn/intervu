@@ -310,7 +310,14 @@ export function LiveResumePreview(props: LiveResumePreviewProps) {
     };
 
     return (
-        <div className={printMode ? "bg-white w-full" : "bg-white shadow-lg rounded overflow-hidden max-w-[8.5in] mx-auto"}>
+        // Editorial pass: the paper preview is the one deliberately framed
+        // element on the page — it represents a physical document. A single
+        // hairline (not the portal pass's shadow+rounded card) does that;
+        // the border is a fixed black tint rather than a theme token because
+        // the paper itself stays white in both themes (see `bg-white`
+        // below), so a dark-theme "ink" token would render near-invisible.
+        <div className={printMode ? "bg-white w-full" : "bg-white border border-black/15 max-w-[8.5in] mx-auto"}>
+
             {/* Resume Document - Tight spacing for maximum content */}
             <div
                 className={printMode ? "px-6 py-3 text-gray-900" : "px-6 py-3 min-h-[11in] text-gray-900"}
