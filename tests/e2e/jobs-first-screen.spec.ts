@@ -563,6 +563,49 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page).not.toHaveURL(new RegExp(`job=${openedId}(&|$)`), { timeout: 20_000 });
         await expect(page).toHaveURL(/q=engineer/);
     });
+
+    /**
+     * Search field chrome: nothing drawn inside the field may sit on top of
+     * where its text starts.
+     *
+     * `SearchAutocomplete` reserves room for anything it paints over the field
+     * with left padding on the `<input>` itself. Padding is a shared Tailwind
+     * axis, so a caller that restyles the field at all — the editorial pass
+     * flattened it to a bare ruled line with `px-0` — silently wins the
+     * `tailwind-merge` conflict and deletes that reservation, leaving the glyph
+     * stacked on the first word of the placeholder. Nothing failed; the class
+     * list just quietly lost `pl-12`.
+     *
+     * So this asserts the INVARIANT rather than the absence of one particular
+     * glyph: measure where the input's text actually begins (its own computed
+     * padding) and require every glyph the field paints over itself to end
+     * before that. Re-adding a leading icon is fine — re-adding one whose space
+     * isn't reserved, by any route (px-0, a smaller pl-*, a bigger icon), fails
+     * here. Dropdown glyphs are excluded by construction: the filter keeps only
+     * boxes that overlap the input's own line vertically.
+     */
+    test("no glyph painted over the search field overlaps where its text starts", async ({ page }) => {
+        await page.goto("/");
+        const box = page.getByPlaceholder(/live-checked roles/i);
+        await expect(box).toBeVisible();
+
+        const collisions = await box.evaluate((el) => {
+            const input = el as HTMLInputElement;
+            const field = input.getBoundingClientRect();
+            const textStartsAt = field.left + parseFloat(getComputedStyle(input).paddingLeft);
+            const container = input.parentElement;
+            if (!container) return [];
+            return [...container.querySelectorAll("svg")]
+                .map((glyph) => ({ glyph, rect: glyph.getBoundingClientRect() }))
+                .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+                // On the field's own line, not the dropdown stacked below it.
+                .filter(({ rect }) => rect.top < field.bottom && rect.bottom > field.top)
+                .filter(({ rect }) => rect.right > textStartsAt && rect.left < field.right)
+                .map(({ rect }) => `glyph ends at x=${Math.round(rect.right)}, text starts at x=${Math.round(textStartsAt)}`);
+        });
+
+        expect(collisions).toEqual([]);
+    });
 });
 
 /**
