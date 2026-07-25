@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, MagnifyingGlass, Package } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import type { CachedPlanListItem, ResumableSessionItem } from "@/lib/prep/plan-list";
 import type { StarStory } from "@/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
@@ -33,13 +31,68 @@ function prepLandingSubline(cachedPlans: CachedPlanListItem[], resumableSessions
   return `${packages} · ${resumableSessions.length} session${resumableSessions.length === 1 ? "" : "s"} in progress`;
 }
 
-/** Story bank's real status field is `importance` (same one StoryList badges
- * already show) — no separate "readiness" concept invented here. */
-function importanceDotClass(importance?: StarStory["importance"]): string {
-  if (importance === "high") return "bg-warn-dot";
-  if (importance === "medium") return "bg-muted-foreground";
-  return "bg-faint";
+/**
+ * Ledger-style ruled row shared by both list sections below (recent sessions,
+ * prep packages) — one row shape, not two near-identical ones (writing-lean-
+ * code rule 2: single source of truth for a repeated structural pattern).
+ */
+function RuledRow({
+  onClick,
+  testId,
+  title,
+  meta,
+  trailing,
+}: {
+  onClick: () => void;
+  testId?: string;
+  title: string;
+  meta: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-4 border-b border-border py-3 text-left transition-colors duration-100 hover:bg-muted/40"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14px] font-medium">{title}</div>
+        <div className="mt-1 truncate font-mono text-[11.5px] text-muted-foreground">{meta}</div>
+      </div>
+      {trailing && <div className="shrink-0 font-mono text-[13px] font-medium text-foreground">{trailing}</div>}
+    </button>
+  );
 }
+
+/**
+ * Honest completeness signal for the story bank glyph row. StarStory carries
+ * no "readiness" field, so this counts how many of the real content fields a
+ * row actually has — same blob-vs-STAR content shape StoryCard.tsx already
+ * uses to decide what to render — rather than reusing `importance` (a
+ * different concern: how much the story matters, not how complete it is; see
+ * writing-lean-code rule 4, one concern per field).
+ */
+type StoryReadiness = "ready" | "draft" | "missing";
+function storyReadiness(story: StarStory): StoryReadiness {
+  const fields =
+    story.type === "blob" || (!story.situation && story.content)
+      ? [story.content]
+      : [story.situation, story.task, story.action, story.result];
+  const filled = fields.filter((f) => (f ?? "").trim().length > 0).length;
+  if (filled === 0) return "missing";
+  if (filled === fields.length) return "ready";
+  return "draft";
+}
+
+/** Verdict-channel color only (anti-marker: color appears ONLY in the
+ *  verdict channel) — reuses the same tokens the jobs ledger's verdict cell
+ *  reads (`--verdict-live`/`--verdict-caution`), not a new palette. */
+const READINESS_META: Record<StoryReadiness, { glyph: string; cls: string }> = {
+  ready: { glyph: "■", cls: "text-verdict-live" },
+  draft: { glyph: "▲", cls: "text-verdict-caution" },
+  missing: { glyph: "—", cls: "text-faint" },
+};
 
 export function PrepLanding({
   onStartNew,
@@ -55,164 +108,127 @@ export function PrepLanding({
   // rationale at the same pattern's first use, src/app/page.tsx's `nowMs`.
   const [now] = useState(() => Date.now());
 
+  const hasSessions = resumableSessions.length > 0;
+  const hasPlans = cachedPlans.length > 0;
+  const storyCounts = { ready: 0, draft: 0, missing: 0 };
+  for (const story of stories) storyCounts[storyReadiness(story)]++;
+
   return (
-    <div className="w-full max-w-5xl animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr_350px]">
+    <div className="w-full max-w-5xl">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
         <div>
-          <div className="mb-[18px]">
-            <h1 className="font-display text-[28px] font-semibold tracking-tight">
-              Interview prep
-            </h1>
+          <div className="mb-7">
+            <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Interview prep</h1>
             <p className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">
               {prepLandingSubline(cachedPlans, resumableSessions)}
             </p>
           </div>
 
-          <div className="mb-[18px] flex flex-col items-start justify-between gap-6 rounded-xl bg-ink-card-bg p-6 text-ink-card-fg dark:border dark:border-ink-card-border sm:flex-row sm:items-center sm:p-7">
-            <div>
-              <div className="mb-2 font-display text-[19px] font-semibold">
-                New prep session
-              </div>
-              <p className="max-w-[520px] text-[13.5px] leading-relaxed text-ink-card-body">
-                Learn: review real questions and model answers at your own pace.
-                Practice: answer aloud and get AI critique on your responses.
-              </p>
+          <section className="border-b border-foreground pb-6">
+            <h2 className="font-display text-[19px] font-semibold">New prep session</h2>
+            <p className="mt-2 max-w-[520px] text-[13.5px] leading-relaxed text-muted-foreground">
+              Learn: review real questions and model answers at your own pace. Practice: answer aloud and get AI
+              critique on your responses.
+            </p>
+            <div className="mt-4 flex items-center gap-5">
+              <button
+                type="button"
+                onClick={onStartNew}
+                data-testid="prep-start-new"
+                className="h-9 shrink-0 bg-foreground px-5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
+              >
+                Start session
+              </button>
+              <button
+                type="button"
+                onClick={onSearch}
+                className="font-mono text-[12px] text-muted-foreground underline underline-offset-4 transition-colors duration-100 hover:text-foreground"
+              >
+                Search plans
+              </button>
             </div>
-            <Button
-              onClick={onStartNew}
-              data-testid="prep-start-new"
-              className="shrink-0 bg-ink-card-accent text-ink-card-bg hover:bg-ink-card-accent/90"
-            >
-              Start session
-              <ArrowRight size={16} weight="bold" />
-            </Button>
-          </div>
+          </section>
 
-          <div className="mb-[18px]">
-            <Button variant="outline" className="h-11 w-full sm:w-auto" onClick={onSearch}>
-              <MagnifyingGlass size={18} className="mr-2" />
-              Search plans
-            </Button>
-          </div>
-
-          {resumableSessions.length > 0 && (
-            <div className="mb-[18px] rounded-xl border border-border bg-card p-5">
-              <div className="mb-3.5 font-display text-base font-semibold">
-                Recent sessions
+          {hasSessions && (
+            <section className="mt-7">
+              <div className="border-b border-foreground pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                recent sessions
               </div>
-              <div className="flex flex-col divide-y divide-border">
+              <div>
                 {resumableSessions.slice(0, 4).map((session) => {
                   const touched = session.totalQuestions - session.summary.progress.unreviewed;
-                  const pct =
-                    session.totalQuestions > 0 ? Math.round((touched / session.totalQuestions) * 100) : 0;
                   const avg = session.summary.performance.averageScore;
                   return (
-                    <button
+                    <RuledRow
                       key={session.planCacheKey}
-                      data-testid="prep-recent-session-row"
+                      testId="prep-recent-session-row"
                       onClick={() => onResume(session.planCacheKey)}
-                      className="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 text-left transition-colors first:pt-0 last:pb-0 hover:bg-muted/40"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {session.company} · {session.position}
-                        </div>
-                        <div className="mt-0.5 truncate font-mono text-[11.5px] text-muted-foreground">
-                          {MODE_LABEL[session.mode]} · {formatRelativeAge(session.updatedAt, now)} ·{" "}
-                          {touched} of {session.totalQuestions} questions
-                        </div>
-                        <div className="mt-2 h-[5px] w-full max-w-[220px] rounded-full bg-chip">
-                          <div className="h-[5px] rounded-full bg-live" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                      {avg !== null && (
-                        <div className="shrink-0 text-right font-display text-lg font-bold">
-                          {avg.toFixed(1)}
-                          <span className="text-xs font-normal text-faint">/10</span>
-                        </div>
-                      )}
-                    </button>
+                      title={`${session.company} · ${session.position}`}
+                      meta={`${MODE_LABEL[session.mode]} · ${formatRelativeAge(session.updatedAt, now)} · ${touched}/${session.totalQuestions}`}
+                      trailing={avg !== null ? `${avg.toFixed(1)}/10` : undefined}
+                    />
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
 
-          {cachedPlans.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="px-1 text-sm font-medium text-muted-foreground">
-                Prep packages
-              </h3>
-              <div className="space-y-2">
+          {hasPlans && (
+            <section className="mt-7">
+              <div className="border-b border-foreground pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                prep packages
+              </div>
+              <div>
                 {cachedPlans.map((plan) => (
-                  <button
+                  <RuledRow
                     key={plan.cacheKey}
                     onClick={() => onOpenPackage(plan)}
-                    className={cn(
-                      "w-full text-left p-4 rounded-xl border border-border bg-card",
-                      "hover:shadow-md hover:border-border-strong transition-all duration-200",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
-                        <Package size={18} weight="duotone" className="text-brand" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">
-                          {plan.company} · {plan.position}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {plan.round}
-                        </p>
-                      </div>
-                      <ArrowRight size={14} className="text-muted-foreground/40 shrink-0" />
-                    </div>
-                  </button>
+                    title={`${plan.company} · ${plan.position}`}
+                    meta={plan.round}
+                  />
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {resumableSessions.length === 0 && cachedPlans.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No sessions yet — start your first one above.
-            </div>
+          {!hasSessions && !hasPlans && (
+            <p className="mt-7 text-[13.5px] text-muted-foreground">No sessions yet — start one above.</p>
           )}
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="mb-3.5 flex items-baseline justify-between gap-2">
-              <span className="font-display text-base font-semibold">Story bank</span>
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                {stories.length} {stories.length === 1 ? "story" : "stories"}
-              </span>
-            </div>
-            {stories.length > 0 ? (
-              <div className="flex flex-col gap-2.5">
-                {stories.slice(0, 5).map((story) => (
-                  <div key={story.id} className="flex items-center gap-2.5">
-                    <span
-                      className={cn("h-[7px] w-[7px] shrink-0 rounded-full", importanceDotClass(story.importance))}
-                    />
-                    <div className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
-                      {story.title}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No stories saved yet.</p>
-            )}
+        <aside className="border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              Story bank
+            </span>
             <Link
               href="/stories"
-              className="mt-4 block rounded-lg border border-border-strong py-2 text-center text-[13px] font-semibold transition-colors hover:bg-foreground hover:text-background"
+              className="font-mono text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
             >
-              Open story bank
+              open story bank →
             </Link>
           </div>
-        </div>
+          <p className="font-mono text-[12.5px] text-foreground">
+            {storyCounts.ready} ready · {storyCounts.draft} draft · {storyCounts.missing} missing
+          </p>
+          {stories.length > 0 ? (
+            <div className="mt-3 flex flex-col gap-2">
+              {stories.slice(0, 5).map((story) => {
+                const meta = READINESS_META[storyReadiness(story)];
+                return (
+                  <div key={story.id} className="flex items-center gap-2 text-[13px]">
+                    <span className={cn("font-mono", meta.cls)} aria-hidden="true">
+                      {meta.glyph}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{story.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 text-[13px] text-muted-foreground">No stories saved yet.</p>
+          )}
+        </aside>
       </div>
     </div>
   );

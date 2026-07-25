@@ -76,15 +76,6 @@
   --verdict-caution-bg: 245 239 225;
   --verdict-risk-bg: 246 234 230;
 
-  /* ink-card: fixed dark panel treatment, same value on both themes. No border
-     in light (the panel already contrasts against the light page) — dark
-     theme adds one via --ink-card-border below; consumers apply it with
-     `dark:border dark:border-ink-card-border` rather than unconditionally. */
-  --ink-card-bg: 22 21 19;
-  --ink-card-fg: 254 254 252;
-  --ink-card-body: 181 178 168;
-  --ink-card-accent: 94 156 126;
-
   /* Pipeline / status colors — remapped onto live/warn/danger/muted equivalents */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
@@ -177,10 +168,6 @@
   --verdict-caution-bg: 38 33 23;
   --verdict-risk-bg: 39 27 24;
 
-  /* ink-card: same fixed values as light, plus a border so it doesn't blend
-     into the near-black dark background. */
-  --ink-card-border: 51 49 44;
-
   /* Pipeline / status colors (dark) — remapped onto live/warn/danger/muted equivalents */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
@@ -254,11 +241,6 @@
   --color-verdict-live-bg: rgb(var(--verdict-live-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
-  --color-ink-card-bg: rgb(var(--ink-card-bg));
-  --color-ink-card-fg: rgb(var(--ink-card-fg));
-  --color-ink-card-body: rgb(var(--ink-card-body));
-  --color-ink-card-accent: rgb(var(--ink-card-accent));
-  --color-ink-card-border: rgb(var(--ink-card-border));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
