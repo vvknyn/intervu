@@ -200,15 +200,23 @@ export function SearchAutocomplete({
 
     return (
         <div className={cn("relative group", containerClassName)} ref={containerRef}>
-            <MagnifyingGlass
-                size={20}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground z-30 pointer-events-none"
-                weight="regular"
-            />
+            {/* No leading glyph over the field, and so no padding here reserving
+                room for one. Both halves left together on purpose: the icon used
+                to be absolutely positioned at `left-4` with `pl-12` on the input
+                holding the text clear of it, which only holds while every caller
+                leaves padding alone. Padding is one shared tailwind-merge axis,
+                so the editorial pass flattening this field to a ruled line with
+                `px-0` deleted `pl-12` as a conflict — no error, just a magnifier
+                sitting on top of the placeholder's first word. Deleting the icon
+                is also what EDITORIAL-PASS-SPEC.md asks for directly (rule 6, no
+                decorative icons; the search field is a bare document line), so
+                the coupling is gone rather than re-tuned. Reserve space
+                structurally, not with padding, if a glyph is ever wanted back —
+                jobs-first-screen.spec.ts measures the overlap either way. */}
             <Input
                 type="text"
                 placeholder={placeholder}
-                className={cn("pl-12 pr-4 relative z-20 transition-all", className)}
+                className={cn("relative z-20 transition-all", className)}
                 value={value}
                 onChange={(e) => {
                     onChange(e.target.value);
