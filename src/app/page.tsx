@@ -3092,7 +3092,7 @@ function JobsContent() {
                                 onValueChange={(v) => setSingleFacet("location_country", v === "__any__" ? null : v)}
                             >
                                 <SelectTrigger
-                                    className="h-auto gap-1 border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
+                                    className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
                                     aria-label="Location"
                                 >
                                     <SelectValue placeholder="any location" />
@@ -3111,7 +3111,7 @@ function JobsContent() {
                                 onValueChange={(v) => setSingleFacet("work_type", v === "__any__" ? null : v)}
                             >
                                 <SelectTrigger
-                                    className="h-auto gap-1 border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
+                                    className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
                                     aria-label="Work mode"
                                 >
                                     <SelectValue placeholder="any work mode" />
@@ -3285,18 +3285,25 @@ function JobsContent() {
                             )}
                         </div>
                         <div className="mb-2 flex min-h-[1.1rem] flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted-foreground">
-                            {loading && hits.length > 0 && <span>Updating…</span>}
+                            {/* Single slot for the search's live/stamped state — "updating…"
+                                while a fetch is in flight, else the corpus freshness stamp.
+                                One span, never both, so this line can't ever show two
+                                simultaneous status fragments. */}
+                            {loading && hits.length > 0 ? (
+                                <span>Updating…</span>
+                            ) : (
+                                lastUpdated !== undefined && (
+                                    <span
+                                        className="tabular-nums data-[stale=true]:text-verdict-caution"
+                                        data-stale={isStale(lastUpdated, nowMs)}
+                                        title={lastUpdated ?? "freshness unknown"}
+                                    >
+                                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
+                                    </span>
+                                )
+                            )}
                             {!loading && result?.widened && (
                                 <span data-testid="widened-note">Few exact title matches — also showing broader matches.</span>
-                            )}
-                            {lastUpdated !== undefined && (
-                                <span
-                                    className="tabular-nums data-[stale=true]:text-verdict-caution"
-                                    data-stale={isStale(lastUpdated, nowMs)}
-                                    title={lastUpdated ?? "freshness unknown"}
-                                >
-                                    {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
-                                </span>
                             )}
                         </div>
 

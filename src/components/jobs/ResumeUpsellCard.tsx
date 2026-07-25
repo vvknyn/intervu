@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUp, X } from "@phosphor-icons/react";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 
 /**
@@ -35,24 +34,26 @@ export function ResumeUpsellCard({
     onDismiss: () => void;
 }) {
     return (
-        <div className="mx-1 my-1.5 flex items-center gap-3 rounded-xl border border-dashed border-brand/40 bg-brand/5 px-3.5 py-2.5 text-sm">
-            <button
-                type="button"
-                onClick={onUpload}
-                className="flex flex-1 items-center gap-2 text-left font-medium text-brand hover:underline"
-            >
-                <ArrowUp size={14} className="shrink-0" />
+        <div className="flex items-center justify-between gap-3 border-b border-border py-2 font-mono text-xs text-muted-foreground">
+            <span>
                 {count
-                    ? `Upload your résumé to match against ${formatCorpusCount(count)} live roles by fit — free`
-                    : "Upload your résumé to match roles by fit — free"}
-            </button>
+                    ? `Match against ${formatCorpusCount(count)} live roles by fit — `
+                    : "Match roles by fit — "}
+                <button
+                    type="button"
+                    onClick={onUpload}
+                    className="text-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                    upload résumé →
+                </button>
+            </span>
             <button
                 type="button"
                 aria-label="dismiss"
                 onClick={onDismiss}
                 className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
             >
-                <X size={14} />
+                ✕
             </button>
         </div>
     );
