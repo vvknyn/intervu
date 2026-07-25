@@ -3010,7 +3010,16 @@ function JobsContent() {
     return (
         <PageLayout
             fullWidth
-            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden lg:px-14"
+            // The viewport pin belongs on the SHELL, which starts directly below
+            // the 3.5rem masthead. It used to sit on `main` instead — but `main`
+            // renders BELOW the control band, so `calc(100dvh-3.5rem)` there
+            // counted the masthead only and ignored the band, leaving the
+            // document exactly one band taller than the viewport (measured:
+            // 1051 vs 900 at 1440x900, 919 vs 768 at 1024). `main` now flexes
+            // into whatever the band leaves, so the band can wrap or grow
+            // without anyone re-deriving a height.
+            shellClassName="lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden"
+            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden lg:px-14"
             header={
                 <div className="border-b border-foreground bg-background">
                     <div className="mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6">
@@ -3332,7 +3341,18 @@ function JobsContent() {
                             </div>
                         )}
 
-                        <div className="min-h-0 flex-1">
+                        {/* Flex COLUMN, not a bare block. The results pane below is the
+                            scroller for this whole surface, and a scroller only scrolls
+                            if something gives it a definite height — as a block child it
+                            resolves to `height: auto`, grows to the full height of every
+                            loaded row, and quietly hands the overflow to `main`'s
+                            `lg:overflow-hidden` to clip. `min-h-0` doesn't save it: that
+                            only overrides `min-height: auto` on a flex/grid ITEM, which a
+                            block child isn't. Column here + `flex-1` on the pane is the
+                            same shape the detail Sheet's scroller already uses, and it
+                            keeps holding if a sibling (header, notice) is ever added
+                            alongside the pane in this wrapper. */}
+                        <div className="flex min-h-0 flex-1 flex-col">
                             {notConnected ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
@@ -3397,7 +3417,7 @@ function JobsContent() {
                                     role="listbox"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
-                                    className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
+                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
                                 >
                                     <div>
                                         {hits.flatMap((job, idx) => {

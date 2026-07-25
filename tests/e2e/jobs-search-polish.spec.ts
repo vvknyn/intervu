@@ -221,6 +221,56 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         expect(Math.abs(after[1] - paneMetrics[1].top)).toBeLessThanOrEqual(1);
     });
 
+    /**
+     * The results pane must be the thing that scrolls, and reaching its end
+     * must load the next page.
+     *
+     * TC-JOBS-LAYOUT-001 above pins document-scroll CONTAINMENT; this pins the
+     * consequence users actually feel when the same height chain breaks.
+     * Observed in production: the pane's wrapper was a bare block, so the
+     * scroller resolved to `height: auto` and grew to the height of every
+     * loaded row instead of scrolling — `main`'s `lg:overflow-hidden` clipped
+     * the surplus, the infinite-scroll sentinel sat ~1500px below the clip
+     * where no scrolling could ever reveal it, and paging simply stopped after
+     * the first page while the count line still promised 1,769 roles.
+     *
+     * Containment alone wouldn't have caught it (the document stayed nearly
+     * contained — it grew by only ~150px), which is why this asserts the pane
+     * genuinely overflows its own box AND that driving it to the bottom
+     * appends rows. Scrolling is programmatic on purpose: a wheel gesture over
+     * a pane that isn't scrollable silently scrolls an ancestor instead and
+     * would mask exactly this failure.
+     */
+    test('TC-JOBS-LAYOUT-003: the results pane scrolls itself, and reaching its end loads the next page', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await enterBrowseMode(page);
+
+        const results = page.getByRole('listbox', { name: 'Job results' });
+        const rows = results.getByRole('option');
+        const initial = await rows.count();
+        if (initial === 0) test.skip(true, 'No job rows — cannot verify pane scrolling or paging');
+
+        // The pane overflows its own box, i.e. it is the scroller. When the
+        // height chain breaks this is exactly equal, not greater.
+        const geometry = await results.evaluate((node) => ({
+            scrollH: node.scrollHeight,
+            clientH: node.clientHeight,
+            viewportH: window.innerHeight,
+        }));
+        expect(geometry.clientH).toBeLessThan(geometry.viewportH);
+        expect(geometry.scrollH).toBeGreaterThan(geometry.clientH);
+
+        // Only meaningful while more pages exist; an exhausted result set
+        // legitimately stops growing.
+        const exhausted = await page.getByText(/reached the end/i).isVisible().catch(() => false);
+        if (exhausted) test.skip(true, 'Result set already exhausted — nothing left to page');
+
+        await results.evaluate((node) => {
+            node.scrollTop = node.scrollHeight;
+        });
+        await expect.poll(() => rows.count(), { timeout: 20000 }).toBeGreaterThan(initial);
+    });
+
     // Portal redesign rewrite: Task 7's lg-rail is gone at EVERY width now —
     // filters live only behind the pills row's "All filters" sheet, mobile
     // and desktop alike (FilterChipsRow, the old rail component AND the old
