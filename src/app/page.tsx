@@ -3027,7 +3027,7 @@ function JobsContent() {
                                 while a fetch is in flight, else the corpus freshness stamp.
                                 One span, never both, so this line can't ever show two
                                 simultaneous status fragments. */}
-                            {loading && hits.length > 0 ? (
+                            {showAsk ? null : loading && hits.length > 0 ? (
                                 <span>Updating…</span>
                             ) : (
                                 lastUpdated !== undefined && (
