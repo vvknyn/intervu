@@ -14,6 +14,24 @@ export interface Theme {
 }
 
 export const themes: Record<string, Theme> = {
+  carbon: {
+    name: "carbon",
+    label: "Carbon",
+    colors: {
+      light: {
+        // editorial pass ink accent — matches --foreground/--background (paper)
+        brand: "22 21 19",
+        "brand-foreground": "254 254 252",
+        "brand-muted": "118 114 104",
+      },
+      dark: {
+        // editorial pass ink accent — matches --foreground/--background (carbon)
+        brand: "236 234 228",
+        "brand-foreground": "19 18 17",
+        "brand-muted": "138 134 123",
+      },
+    },
+  },
   green: {
     name: "green",
     label: "Green",
@@ -134,7 +152,7 @@ export const themes: Record<string, Theme> = {
 
 export const themeNames = Object.keys(themes) as (keyof typeof themes)[];
 
-export const DEFAULT_THEME = "green";
+export const DEFAULT_THEME = "carbon";
 
 export function getTheme(name: string): Theme {
   return themes[name] || themes[DEFAULT_THEME];

@@ -6,109 +6,125 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-spline-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-spline-sans-mono), ui-monospace, monospace;
-  --font-display: var(--font-bricolage), var(--font-sans);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-archivo), var(--font-sans);
 }
 
 
 :root {
-  /* Intervu design system — portal redesign palette, warm cream/ink + green accent. (light) */
-  --background: 246 245 240;
-  --foreground: 28 27 22;
-  --card: 255 255 255;
-  --card-foreground: 28 27 22;
-  --popover: 255 255 255;
-  --popover-foreground: 28 27 22;
-  /* Primary buttons are ink bg / cream text (spec), independent of --brand. */
+  /* Intervu design system — editorial pass, "paper" palette (light). Verifies
+     job listings; the UI is the inspection document, not a SaaS shell. */
+  --background: 254 254 252;
+  --foreground: 22 21 19;
+  --card: 254 254 252;
+  --card-foreground: 22 21 19;
+  --popover: 254 254 252;
+  --popover-foreground: 22 21 19;
+  /* Primary buttons are ink bg / paper text (spec), independent of --brand. */
   --primary: var(--foreground);
-  --primary-foreground: 251 250 246;
+  --primary-foreground: 254 254 252;
   --secondary: var(--chip);
-  --secondary-foreground: 28 27 22;
+  --secondary-foreground: 22 21 19;
   --muted: var(--chip);
-  --muted-foreground: 110 105 91;
+  --muted-foreground: 118 114 104;
   --accent: var(--chip);
-  --accent-foreground: 28 27 22;
-  --destructive: 179 69 47;
-  --destructive-foreground: 251 250 246;
-  --border: 229 226 216;
+  --accent-foreground: 22 21 19;
+  --destructive: 169 62 40;
+  --destructive-foreground: 254 254 252;
+  --border: 216 214 207;
   --input: var(--border-strong);
   --ring: var(--brand);
   /* Link ring to brand */
-  --radius: 0.75rem;
+  --radius: 0px;
 
-  /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
-     (lib/themes.ts) applies the same values at runtime via the user's
-     selected accent (Settings still lets them pick another). */
-  --brand: 14 107 76;
-  --brand-foreground: 251 250 246;
-  --brand-muted: 125 189 163;
+  /* Brand / links — pre-hydration default; ThemeProvider's "carbon" theme
+     (lib/themes.ts, now the default preset) applies the same ink values at
+     runtime — "green" and the other accent presets stay picklable. */
+  --brand: 22 21 19;
+  --brand-foreground: 254 254 252;
+  --brand-muted: 118 114 104;
 
   /* Surface + text levels (design system) */
-  --surface: 251 250 246;
+  --surface: 254 254 252;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 229 226 216;
-  --border-strong: 220 216 203;
-  --text-2: 62 59 48;
-  --text-3: 110 105 91;
+  --surface-3: 216 214 207;
+  --border-strong: 22 21 19;
+  --text-2: 69 66 59;
+  --text-3: 118 114 104;
 
-  /* Portal redesign accents */
-  --chip: 237 235 226;
-  --faint: 138 133 116;
-  --live: 15 138 98;
-  --green-tint-bg: 237 246 240;
-  --green-tint-bg-alt: 230 241 236;
-  --green-tint-border: 191 220 203;
-  --warn: 146 96 10;
-  --warn-dot: 201 138 27;
-  --danger-tint-border: 236 201 192;
+  /* Editorial-pass accents */
+  --chip: 237 235 228;
+  --faint: 118 114 104;
+  --live: 46 107 79;
+  --green-tint-bg: 237 243 239;
+  --green-tint-bg-alt: 230 238 233;
+  --green-tint-border: 191 212 201;
+  --warn: 154 107 16;
+  --warn-dot: 194 148 65;
+  --danger-tint-border: 235 205 196;
+
+  /* Verdict channel — the ONLY place color appears (anti-marker 8). Nav,
+     links, buttons, brand stay ink; only the ledger's verdict cell reads
+     live/caution/risk. -bg variants are optional, subtle full-row tints for
+     caution/risk rows only. */
+  --verdict-live: 46 107 79;
+  --verdict-caution: 154 107 16;
+  --verdict-risk: 169 62 40;
+  --verdict-live-bg: 237 243 239;
+  --verdict-caution-bg: 245 239 225;
+  --verdict-risk-bg: 246 234 230;
 
   /* ink-card: fixed dark panel treatment, same value on both themes. No border
      in light (the panel already contrasts against the light page) — dark
      theme adds one via --ink-card-border below; consumers apply it with
      `dark:border dark:border-ink-card-border` rather than unconditionally. */
-  --ink-card-bg: 28 27 22;
-  --ink-card-fg: 251 250 246;
-  --ink-card-body: 203 199 184;
-  --ink-card-accent: 62 207 142;
+  --ink-card-bg: 22 21 19;
+  --ink-card-fg: 254 254 252;
+  --ink-card-body: 181 178 168;
+  --ink-card-accent: 94 156 126;
 
   /* Pipeline / status colors — remapped onto live/warn/danger/muted equivalents */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
-  --st-intv: var(--warn);                 --st-intv-soft: 251 240 222;
+  --st-intv: var(--warn);                 --st-intv-soft: 245 239 225;
   --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 249 233 228;
+  --st-closed: var(--destructive);        --st-closed-soft: 246 234 230;
 
   /* Sidebar width */
   --sb-w: 250px;
 
-  /* Shadow tokens (design) */
-  --shadow-sm: 0 1px 2px rgb(16 18 27 / 0.05), 0 1px 1px rgb(16 18 27 / 0.04);
-  --shadow-md: 0 2px 4px rgb(16 18 27 / 0.04), 0 8px 24px rgb(16 18 27 / 0.06);
-  --shadow-lg: 0 12px 40px rgb(16 18 27 / 0.12), 0 4px 12px rgb(16 18 27 / 0.06);
+  /* Shadow tokens — editorial pass has no shadows (anti-marker 2). Kept as
+     named tokens (rather than deleted) since `shadow-[var(--shadow-sm)]`
+     call sites exist across untouched pages; zeroing here removes the
+     shadow everywhere at the one chokepoint instead of editing each site. */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 
 .dark {
-  /* Intervu design system — portal redesign palette (dark) */
-  --background: 20 19 15;
-  --foreground: 241 239 230;
-  --card: 32 31 25;
-  --card-foreground: 241 239 230;
-  --popover: 32 31 25;
-  --popover-foreground: 241 239 230;
-  /* Primary buttons invert: cream bg / ink text (spec). */
-  --primary: 251 250 246;
-  --primary-foreground: 28 27 22;
+  /* Intervu design system — editorial pass, "carbon" palette (dark). A
+     decision, not a dim — near-black, not a tinted-down light theme. */
+  --background: 19 18 17;
+  --foreground: 236 234 228;
+  --card: 19 18 17;
+  --card-foreground: 236 234 228;
+  --popover: 19 18 17;
+  --popover-foreground: 236 234 228;
+  /* Primary buttons invert: paper bg / ink text (spec). */
+  --primary: 236 234 228;
+  --primary-foreground: 19 18 17;
   --secondary: var(--chip);
-  --secondary-foreground: 241 239 230;
+  --secondary-foreground: 236 234 228;
   --muted: var(--chip);
-  --muted-foreground: 138 133 116;
+  --muted-foreground: 138 134 123;
   --accent: var(--chip);
-  --accent-foreground: 241 239 230;
-  --destructive: 208 106 84;
-  --destructive-foreground: 20 19 15;
-  --border: 51 49 42;
+  --accent-foreground: 236 234 228;
+  --destructive: 200 106 84;
+  --destructive-foreground: 19 18 17;
+  --border: 51 49 44;
   --input: var(--border-strong);
   --ring: var(--brand);
   /* Link ring to brand */
@@ -126,47 +142,56 @@
   --sidebar-border: 51 49 42;
   --sidebar-ring: 112 112 112;
 
-  /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
-     (lib/themes.ts) applies the same values at runtime. */
-  --brand: 62 207 142;
-  --brand-foreground: 20 19 15;
-  --brand-muted: 58 179 130;
+  /* Brand / links — pre-hydration default; ThemeProvider's "carbon" theme
+     (lib/themes.ts, now the default preset) applies the same ink values at
+     runtime — "green" and the other accent presets stay picklable. */
+  --brand: 236 234 228;
+  --brand-foreground: 19 18 17;
+  --brand-muted: 138 134 123;
 
   /* Surface + text levels (design system) */
-  --surface: 26 25 21;
+  --surface: 19 18 17;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 51 49 42;
-  --border-strong: 62 59 48;
-  --text-2: 203 199 184;
-  --text-3: 138 133 116;
+  --surface-3: 51 49 44;
+  --border-strong: 236 234 228;
+  --text-2: 181 178 168;
+  --text-3: 138 134 123;
 
-  /* Portal redesign accents */
-  --chip: 42 41 34;
-  --faint: 110 105 91;
-  --live: 62 207 142;
-  --green-tint-bg: 12 43 30;
-  --green-tint-bg-alt: 12 43 30;
-  --green-tint-border: 30 72 53;
-  --warn: 226 169 59;
-  --warn-dot: 226 169 59;
-  --danger-tint-border: 92 45 36;
+  /* Editorial-pass accents */
+  --chip: 38 36 32;
+  --faint: 138 134 123;
+  --live: 94 156 126;
+  --green-tint-bg: 27 36 32;
+  --green-tint-bg-alt: 27 36 32;
+  --green-tint-border: 46 66 57;
+  --warn: 194 148 65;
+  --warn-dot: 194 148 65;
+  --danger-tint-border: 92 51 41;
+
+  /* Verdict channel (dark) — see the light-theme comment above. */
+  --verdict-live: 94 156 126;
+  --verdict-caution: 194 148 65;
+  --verdict-risk: 200 106 84;
+  --verdict-live-bg: 27 36 32;
+  --verdict-caution-bg: 38 33 23;
+  --verdict-risk-bg: 39 27 24;
 
   /* ink-card: same fixed values as light, plus a border so it doesn't blend
      into the near-black dark background. */
-  --ink-card-border: 51 49 42;
+  --ink-card-border: 51 49 44;
 
   /* Pipeline / status colors (dark) — remapped onto live/warn/danger/muted equivalents */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
-  --st-intv: var(--warn);                 --st-intv-soft: 44 36 19;
+  --st-intv: var(--warn);                 --st-intv-soft: 38 33 23;
   --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 46 28 22;
+  --st-closed: var(--destructive);        --st-closed-soft: 39 27 24;
 
-  /* Shadow tokens (design, dark) */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 2px 6px rgb(0 0 0 / 0.3), 0 10px 28px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.55);
+  /* Shadow tokens — see the light-theme comment above; no shadows either theme. */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 
 @theme inline {
@@ -223,6 +248,12 @@
   --color-warn: rgb(var(--warn));
   --color-warn-dot: rgb(var(--warn-dot));
   --color-danger-tint-border: rgb(var(--danger-tint-border));
+  --color-verdict-live: rgb(var(--verdict-live));
+  --color-verdict-caution: rgb(var(--verdict-caution));
+  --color-verdict-risk: rgb(var(--verdict-risk));
+  --color-verdict-live-bg: rgb(var(--verdict-live-bg));
+  --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
+  --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
   --color-ink-card-bg: rgb(var(--ink-card-bg));
   --color-ink-card-fg: rgb(var(--ink-card-fg));
   --color-ink-card-body: rgb(var(--ink-card-body));
@@ -253,7 +284,7 @@ body {
   color: rgb(var(--foreground));
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.4;
   letter-spacing: -0.011em;
   font-feature-settings: "kern" 1, "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
@@ -289,30 +320,6 @@ h4 {
 
 .fade-in {
   animation: fadeIn 0.4s ease-out forwards;
-}
-
-/* Live/verified-listing pulse — a soft green ring pulse on the ghost-radar
-   "live" dot (jobs page flag row, ink-card headers). */
-@keyframes ivPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(var(--live) / 0.45);
-  }
-
-  70% {
-    box-shadow: 0 0 0 6px rgb(var(--live) / 0);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgb(var(--live) / 0);
-  }
-}
-
-/* Utility wiring `ivPulse` above — shared by the job-card "Live — verified"
-   flag dot and the Ghost-radar card header dot (both jobs/page.tsx-adjacent)
-   so there is one class, not two inline `animation` declarations. Covered by
-   the blanket `prefers-reduced-motion` animation-duration override below. */
-.iv-pulse {
-  animation: ivPulse 2s infinite;
 }
 
 /* Staggered animation delays */
