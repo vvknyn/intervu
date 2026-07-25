@@ -183,13 +183,13 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await firstRow.click();
         await expect(page).toHaveURL(/job=/);
         await expect(page).not.toHaveURL(/salary=/);
-        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
 
         // Salary, not the posted buckets: the age filters are hidden whenever the
         // corpus carries no `posted_ts` (see `isPostedDateFilterSupported`), and
         // this test is about history semantics — filter writes `replace` and keeps
         // the open job, Back unwinds both — not about which facet does the writing.
-        await page.getByRole("button", { name: /All filters/ }).click();
+        await page.getByRole("button", { name: /filters \+/ }).click();
         const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
         await filters.getByRole("button", { name: "$100k+" }).click();
@@ -199,12 +199,12 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page).toHaveURL(/job=/); // replace preserves the open job
         // The sheet's own button reads "$100k+"; the pill's active count comes
         // from the shared `activeFilterEntries` — same source, different surface.
-        await expect(page.getByRole("button", { name: "All filters (1)", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "filters + (1)", exact: true })).toBeVisible();
 
         await page.goBack();
         await expect(page).not.toHaveURL(/salary=100k/);
         await expect(page).not.toHaveURL(/job=/);
-        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
     });
 
     /**
@@ -254,9 +254,9 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     test("All filters sheet reflects the 30d posted-date default when supported", async ({ page }) => {
         await page.goto("/");
         await expect(page).not.toHaveURL(/posted=/);
-        await expect(page.getByRole("button", { name: "All filters", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
 
-        await page.getByRole("button", { name: /All filters/ }).click();
+        await page.getByRole("button", { name: /filters \+/ }).click();
         const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
 
@@ -283,7 +283,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.goto("/");
 
         await expect(page.getByRole("region", { name: "Job filters" })).toHaveCount(0);
-        const trigger = page.getByRole("button", { name: /All filters/ });
+        const trigger = page.getByRole("button", { name: /filters \+/ });
         await expect(trigger).toBeVisible();
         await trigger.click();
 
@@ -299,35 +299,38 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("upsell card shows once and dismissal survives reload", async ({ page }) => {
         await page.goto("/");
-        // "Upload your résumé" is the ResumeUpsellCard's own distinctive CTA
-        // text (verified unique on this page) — not tied to the exact
-        // "match against N roles" / "match roles" wording, which varies
-        // depending on whether the honest corpus count has resolved yet.
-        const card = page.getByText("Upload your résumé", { exact: false });
+        // "upload résumé" is the ResumeUpsellCard's own distinctive CTA text
+        // (editorial-pass restyle: "upload résumé →", verified unique on this
+        // page) — not tied to the exact "match against N roles" / "match
+        // roles" wording, which varies depending on whether the honest
+        // corpus count has resolved yet.
+        const card = page.getByText(/upload résumé/i);
         await expect(card).toBeVisible();
         await page.getByRole("button", { name: /dismiss|✕/i }).first().click();
         await expect(card).not.toBeVisible();
         await page.reload();
-        await expect(page.getByText("Upload your résumé", { exact: false })).not.toBeVisible();
+        await expect(page.getByText(/upload résumé/i)).not.toBeVisible();
     });
 
-    // Resolution #2: `formatRelativeAge` (Task 3, locked) has no space before
-    // the h/d unit ("2h ago"/"3d ago") but does before "min" ("6 min ago"),
-    // and "just now" under 60s. The regex below matches exactly those three
-    // shapes plus "just now" — no bare `\d+ ?ago` catch-all.
+    // Editorial-pass rewrite: the row badge is now the ledger's compact
+    // VERDICT CELL (page.tsx `verdictFor`/`shortAge`) — "LIVE · 2H" / "CHECKED
+    // · 3D" / "LIVE"/"CHECKED" with no age at all — not the portal pass's
+    // prose "✓ live 2h ago"/"checked 2h ago". `shortAge` mirrors
+    // `formatRelativeAge`'s own bucketing (freshness.ts) in a dense uppercase
+    // form: "NOW", "{n}M" (minutes), "{n}H", "{n}D" — no unit suffix.
     //
-    // Staleness fix: `badgeFor` only renders "✓ live" when a row's
+    // Staleness fix: `verdictFor` only renders "LIVE" when a row's
     // `updated_at` is within `STALE_THRESHOLD_MS` of now (freshness.ts) —
-    // past that it renders the neutral "checked {age}" instead, so it makes
+    // past that it renders the neutral "CHECKED" instead, so it makes
     // no liveness claim data this old can't back. Which prefix renders here
     // depends on how fresh the live jobs index actually is at test time, so
     // this assertion accepts either prefix — it still proves a `clear` row
-    // renders a real age-bearing badge, just not which side of the
+    // renders a real age-bearing verdict, just not which side of the
     // threshold today's data happens to fall on.
     test("clear rows carry an age-bearing freshness badge", async ({ page }) => {
         await page.goto("/");
         await expect(
-            page.getByText(/(✓ live|checked) (just now|\d+ min ago|\d+h ago|\d+d ago)/).first(),
+            page.getByText(/(LIVE|CHECKED) · (NOW|\d+M|\d+H|\d+D)/).first(),
         ).toBeVisible();
     });
 
@@ -576,7 +579,7 @@ test.describe("mobile", () => {
 
     test("All filters pill is visible and opens the sheet with a live count", async ({ page }) => {
         await page.goto("/");
-        const trigger = page.getByRole("button", { name: /All filters/ });
+        const trigger = page.getByRole("button", { name: /filters \+/ });
         await expect(trigger).toBeVisible();
         await trigger.click();
         await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
@@ -591,7 +594,7 @@ test.describe("mobile", () => {
     // the applied page shows that same (post-edit) number.
     test("sheet count reflects a debounced pending-filter change and matches the applied result", async ({ page }) => {
         await page.goto("/");
-        await page.getByRole("button", { name: /All filters/ }).click();
+        await page.getByRole("button", { name: /filters \+/ }).click();
 
         const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
         await expect(applyBtn).toBeVisible();

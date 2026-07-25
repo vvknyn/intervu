@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/layout/TopBar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -8,23 +8,19 @@ import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
 import { Toaster } from "@/lib/toast";
 
-// Portal redesign typeface trio (see globals.css --font-sans/--font-mono/
-// --font-display). Bricolage Grotesque carries headlines/wordmark/numerals,
-// Spline Sans is body/UI, Spline Sans Mono is meta lines/labels/timestamps.
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+// Editorial pass typeface pair (see globals.css --font-sans/--font-mono/
+// --font-display). One Archivo instance covers both display (800/900,
+// wordmark + one heading per page) and UI/body (400-600) — same family, so
+// there's one font load, not two. IBM Plex Mono carries every number,
+// timestamp, verdict, and micro-label — the page's data texture.
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-const splineSans = Spline_Sans({
-  variable: "--font-spline-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const splineSansMono = Spline_Sans_Mono({
-  variable: "--font-spline-sans-mono",
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
@@ -79,7 +75,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${bricolage.variable} ${splineSans.variable} ${splineSansMono.variable} antialiased`}
+        className={`${archivo.variable} ${ibmPlexMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}

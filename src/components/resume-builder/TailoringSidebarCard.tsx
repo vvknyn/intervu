@@ -6,65 +6,75 @@ interface TailoringSidebarCardProps {
     version: TailoredResumeVersion | undefined;
 }
 
-/** Priority → token color, pure and local: this card is the one new token-only
- * surface in the hub, so it doesn't borrow resume-tailor's raw-Tailwind-color
- * getPriorityColor (that page keeps its existing palette this pass — see
- * PORTAL-REDESIGN-SPEC.md, "/resume-tailor itself: tokens/shell inheritance
- * only"). */
-function priorityDotClass(priority: RecommendationPriority): string {
+/**
+ * Priority → verdict-channel glyph + tone (editorial pass spec: "▲ high in
+ * risk/caution ink, — low in muted", no progress bars, no colored dots).
+ * `medium` reads as the same ▲ glyph in the caution tone, one step down from
+ * `high`'s risk tone — the two-tier dot scale the mock used (destructive /
+ * warn / muted) collapses onto the ledger's existing tone vocabulary rather
+ * than inventing a third color.
+ */
+function priorityGlyph(priority: RecommendationPriority): { glyph: string; cls: string } {
     switch (priority) {
         case "high":
-            return "bg-destructive";
+            return { glyph: "▲", cls: "text-verdict-risk" };
         case "medium":
-            return "bg-warn-dot";
+            return { glyph: "▲", cls: "text-verdict-caution" };
         case "low":
-            return "bg-muted-foreground";
+            return { glyph: "—", cls: "text-muted-foreground" };
     }
 }
 
 /**
- * Sidebar: real stored TailoringRecommendations for the selected version, or
- * a plain prompt when there are none to show. CUT vs. the mock: keyword-match
- * %, missing-keyword chips, and the whole "ATS scan" card — none of those
- * fields exist on TailoredResumeVersion (PORTAL-REDESIGN-SPEC.md).
+ * Rail "Tailoring" section (editorial pass: a ruled section, same shape as
+ * PipelineCard/GhostRadarCard — border-t border-foreground + mono
+ * micro-label). Real stored TailoringRecommendations for the selected
+ * version, or a plain prompt when there are none to show. CUT vs. the mock:
+ * keyword-match %, missing-keyword chips, and the whole "ATS scan" card —
+ * none of those fields exist on TailoredResumeVersion (PORTAL-REDESIGN-SPEC.md).
  */
 export function TailoringSidebarCard({ version }: TailoringSidebarCardProps) {
     const recommendations = version?.recommendations ?? [];
 
     return (
-        <div className="rounded-xl border border-border bg-card p-5" data-testid="resume-tailoring-card">
-            <div className="font-display text-base font-semibold">Tailoring</div>
+        <div className="border-t border-foreground pt-2.5" data-testid="resume-tailoring-card">
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Tailoring</span>
 
             {version ? (
-                <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+                <p className="mt-2 font-mono text-[12.5px] text-foreground">
                     vs. {version.positionTitle} @ {version.companyName}
-                </div>
+                </p>
             ) : (
-                <p className="mt-2 text-sm text-muted-foreground">
-                    Select a tailored version to see its recommendations, or start a new one.
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                    Select a tailored version to see its recommendations, or{" "}
+                    <Link href="/resume-tailor" className="text-foreground underline underline-offset-2 hover:opacity-70">
+                        start a new one
+                    </Link>
+                    .
                 </p>
             )}
 
             {recommendations.length > 0 && (
-                <div className="mt-4 flex flex-col gap-3">
-                    {recommendations.map((rec) => (
-                        <div key={rec.id} className="flex items-start gap-2.5">
-                            <span
-                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${priorityDotClass(rec.priority)}`}
-                            />
-                            <div className="min-w-0">
-                                <div className="text-sm font-medium text-foreground">{rec.title}</div>
-                                {rec.reasoning && (
-                                    <div className="mt-0.5 text-xs text-muted-foreground">{rec.reasoning}</div>
-                                )}
+                <div className="mt-3 flex flex-col gap-2.5">
+                    {recommendations.map((rec) => {
+                        const { glyph, cls } = priorityGlyph(rec.priority);
+                        return (
+                            <div key={rec.id} className="flex items-start gap-2">
+                                <span className={`font-mono text-[12px] ${cls}`}>{glyph}</span>
+                                <div className="min-w-0">
+                                    <div className="text-[13px] font-medium text-foreground">{rec.title}</div>
+                                    {rec.reasoning && (
+                                        <div className="mt-0.5 text-[12px] text-muted-foreground">{rec.reasoning}</div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
             {version && recommendations.length === 0 && (
-                <p className="mt-3 text-sm text-muted-foreground">
+                <p className="mt-3 text-[13px] text-muted-foreground">
                     No stored recommendations for this version.
                 </p>
             )}
@@ -72,9 +82,9 @@ export function TailoringSidebarCard({ version }: TailoringSidebarCardProps) {
             <Link
                 href="/resume-tailor"
                 data-testid="resume-open-tailor"
-                className="mt-4 block rounded-md border-[1.5px] border-foreground py-2.5 text-center text-[13px] font-semibold transition-colors hover:bg-foreground hover:text-background"
+                className="mt-4 inline-block font-mono text-[12px] text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
             >
-                Open tailor →
+                open tailor →
             </Link>
         </div>
     );

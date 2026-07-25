@@ -3,10 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Buildings, CaretDown } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { PageLayout } from "@/components/layout/PageLayout";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication } from "@/actions/application";
@@ -27,61 +24,119 @@ import {
     type Pursuit,
 } from "@/lib/pursuits/types";
 
+/** Ink-rect affordance shared by every primary action on this page ("Add
+ *  manually", "Log in") — same grammar as the jobs ledger's [SEARCH]
+ *  button (src/app/page.tsx): solid ink bg, paper text, mono uppercase. */
+function InkButton({
+    onClick,
+    children,
+}: {
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="h-8 shrink-0 bg-foreground px-4 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
+        >
+            {children}
+        </button>
+    );
+}
+
+/** The page's one display moment (spec: "Archivo 800, the page's one
+ *  heading") plus a mono subtitle line — rendered identically for every
+ *  page state (loading / guest gate / populated board) via PageLayout's
+ *  `header` slot, so "Tracker" never competes with a second heading below it. */
+function TrackerHeader({ subtitle, actions }: { subtitle: React.ReactNode; actions?: React.ReactNode }) {
+    return (
+        <div className="border-b border-foreground bg-background">
+            <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-end justify-between gap-3 px-6 pb-4 pt-8 sm:px-10 lg:px-14">
+                <div>
+                    <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Tracker</h1>
+                    <div className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">{subtitle}</div>
+                </div>
+                {actions}
+            </div>
+        </div>
+    );
+}
+
+const SUMMARY_COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string }[] = [
+    { key: "saved", label: "saved" },
+    { key: "applied", label: "applied" },
+    { key: "interviewing", label: "interviewing" },
+    { key: "offer", label: "offers" },
+];
+
+/** Header subtitle: "0 saved · 0 applied · 0 interviewing · 0 offers" with
+ *  each count linked down to its board column (spec: "mono summary sentence
+ *  with linked counts"). Reads the same `groups` the board renders from, so
+ *  the two can never disagree. */
+function TrackerSummary({ groups }: { groups: Record<BoardColumn, Pursuit[]> }) {
+    return (
+        <>
+            {SUMMARY_COLUMNS.map((col, i) => (
+                <span key={col.key}>
+                    {i > 0 && " · "}
+                    <a href={`#col-${col.key}`} className="text-foreground underline-offset-2 hover:underline">
+                        {groups[col.key].length} {col.label}
+                    </a>
+                </span>
+            ))}
+        </>
+    );
+}
+
 function YoursLoading() {
     return (
-        <PageLayout fullWidth>
-            <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8 sm:px-10 lg:px-14">
-                <div className="mb-6 h-16 w-64 animate-pulse rounded-xl bg-card" />
-                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="h-40 animate-pulse rounded-xl bg-card" />
-                    ))}
-                </div>
+        <PageLayout fullWidth header={<TrackerHeader subtitle="Loading…" />}>
+            <div className="mx-auto w-full max-w-[1440px] px-6 py-8 sm:px-10 lg:px-14">
+                <p className="font-mono text-[13px] text-muted-foreground">Loading your tracker…</p>
             </div>
         </PageLayout>
     );
 }
 
-/** Column-header count chip: green tint once a column has anything in it,
- *  neutral chip while empty — mirrors the mock's Applied(9)-vs-rest
- *  treatment without inventing a separate "highlight" rule. */
-function ColumnHeader({ label, count }: { label: string; count: number }) {
+/** Column head: mono micro-label + live count, ruled with the same ink
+ *  underline the ledger's own column-head row uses. `id` is the summary
+ *  sentence's jump target. */
+function ColumnHead({ id, label, count }: { id: string; label: string; count: number }) {
     return (
-        <div className="mb-2.5 flex items-center gap-2">
-            <span className="text-[13.5px] font-semibold">{label}</span>
-            <span
-                className={cn(
-                    "rounded-full px-2 py-0.5 font-mono text-[11px]",
-                    count > 0 ? "bg-green-tint-bg text-brand" : "bg-chip text-muted-foreground",
-                )}
-            >
-                {count}
-            </span>
+        <div
+            id={id}
+            className="scroll-mt-4 border-b border-foreground px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+        >
+            {label} ({count})
         </div>
     );
 }
 
+/** One left-aligned mono sentence — no centered dashed box (anti-marker 5). */
 function EmptyColumn({ text, link }: { text: string; link?: { href: string; label: string } }) {
     return (
-        <div className="rounded-[10px] border-[1.5px] border-dashed border-border-strong px-4 py-6 text-center">
-            <div className="text-[13px] leading-relaxed text-faint">{text}</div>
+        <p className="px-3 py-3 font-mono text-[12px] leading-relaxed text-muted-foreground">
+            {text}
             {link && (
-                <div className="mt-2.5">
-                    <Link href={link.href} className="text-[12.5px] font-medium text-brand hover:underline">
+                <>
+                    {" "}
+                    <Link href={link.href} className="text-foreground underline underline-offset-2 hover:opacity-70">
                         {link.label}
                     </Link>
-                </div>
+                </>
             )}
-        </div>
+        </p>
     );
 }
 
-/** One board card. Status line comes straight from `nextAction()` — the
+/** One board entry: dense two-line text row (title+company / mono timestamp
+ *  + next-action, action underlined) — no card, no dot jewelry. The
  *  action's own `kind` (not the raw stage name) decides whether it reads as
- *  an outstanding step (live dot, brand text) or a resting state (offer,
- *  rejected, withdrawn all report kind "closed"). Ended pursuits also dim,
- *  same rule the old single-list page used. */
-function BoardCard({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void }) {
+ *  outstanding (ink, underlined) or resting (offer/rejected/withdrawn all
+ *  report kind "closed"). Ended pursuits also dim, same rule the old
+ *  single-list page used. */
+function BoardRow({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void }) {
     const action = nextAction(pursuit);
     const actionable = action.kind !== "closed";
     return (
@@ -94,17 +149,17 @@ function BoardCard({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void
                 if (e.key === "Enter" || e.key === " ") onClick();
             }}
             className={cn(
-                "cursor-pointer rounded-[10px] border border-border bg-card px-4 py-3.5 text-left transition-shadow hover:shadow-[var(--shadow-sm)]",
+                "cursor-pointer px-3 py-3 text-left transition-colors duration-100 hover:bg-muted/40",
                 isEnded(pursuit) && "opacity-60",
             )}
         >
-            <div className="text-[14px] font-semibold leading-snug">{pursuit.position}</div>
-            <div className="mt-1 truncate font-mono text-[11.5px] text-muted-foreground">
-                {pursuit.company_name} · {boardTimestampLabel(pursuit)}
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                <span className="truncate text-[13.5px] font-semibold leading-snug">{pursuit.position}</span>
+                <span className="truncate text-[12px] text-text-2">{pursuit.company_name}</span>
             </div>
-            <div className="mt-2 flex items-center gap-1.5">
-                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", actionable ? "bg-live" : "bg-faint")} />
-                <span className={cn("font-mono text-[11px]", actionable ? "text-brand" : "text-muted-foreground")}>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px]">
+                <span className="text-muted-foreground">{boardTimestampLabel(pursuit)}</span>
+                <span className={actionable ? "text-foreground underline underline-offset-2" : "text-muted-foreground"}>
                     {action.label}
                 </span>
             </div>
@@ -112,20 +167,9 @@ function BoardCard({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void
     );
 }
 
-function StatCard({ value, label }: { value: number; label: string }) {
-    return (
-        <div className="rounded-xl border border-border bg-card p-4">
-            <div className="font-display text-[26px] font-bold leading-none tracking-tight">{value}</div>
-            <div className="mt-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">
-                {label}
-            </div>
-        </div>
-    );
-}
-
 /** Groups + sorts (most-recently-updated first within each column) in one
- *  pass — the single source both the stat row and the board read, so their
- *  counts can never drift apart. */
+ *  pass — the single source both the summary sentence and the board read, so
+ *  their counts can never drift apart. */
 function groupByColumn(pursuits: Pursuit[]): Record<BoardColumn, Pursuit[]> {
     const groups: Record<BoardColumn, Pursuit[]> = { saved: [], applied: [], interviewing: [], offer: [], closed: [] };
     for (const p of pursuits) groups[boardColumn(p)].push(p);
@@ -139,7 +183,7 @@ const COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string; empty: { te
     {
         key: "saved",
         label: "Saved",
-        empty: { text: "Nothing saved yet — tap ♡ on a match to park it here.", link: { href: "/", label: "Browse matches →" } },
+        empty: { text: "Nothing saved.", link: { href: "/", label: "Save a role from the ledger →" } },
     },
     { key: "applied", label: "Applied", empty: { text: "Nothing applied yet." } },
     {
@@ -239,23 +283,21 @@ function YoursContent() {
     // pursuit).
     if (!loading && !user && pursuits.length === 0) {
         return (
-            <PageLayout header={<PageHeader title="Tracker" />}>
+            <PageLayout
+                fullWidth
+                header={<TrackerHeader subtitle="0 saved · 0 applied · 0 interviewing · 0 offers" />}
+            >
                 <div
                     data-testid="yours-guest-empty"
-                    className="flex flex-col items-center justify-center px-4 py-32 text-center"
+                    className="mx-auto w-full max-w-[1440px] px-6 py-10 text-left sm:px-10 lg:px-14"
                 >
-                    <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground">
-                        <Buildings size={32} />
-                    </div>
-                    <h2 className="mb-2 font-display text-xl font-semibold tracking-tight">
-                        {pickRandom(LOGIN_REQUIRED.applications.headings)}
-                    </h2>
-                    <p className="mb-8 max-w-[400px] text-sm text-muted-foreground">
+                    <p className="text-[14px] text-foreground">{pickRandom(LOGIN_REQUIRED.applications.headings)}</p>
+                    <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
                         {pickRandom(LOGIN_REQUIRED.applications.subtexts)}
                     </p>
-                    <Button onClick={() => setAuthPopoverOpen(true)} className="min-w-[120px]">
-                        Log in
-                    </Button>
+                    <div className="mt-4">
+                        <InkButton onClick={() => setAuthPopoverOpen(true)}>Log in</InkButton>
+                    </div>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
                 </div>
             </PageLayout>
@@ -268,43 +310,31 @@ function YoursContent() {
     const total = pursuits.length;
 
     return (
-        <PageLayout fullWidth>
-            <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8 sm:px-10 lg:px-14">
-                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <h1 className="font-display text-[28px] font-semibold tracking-tight">Application tracker</h1>
-                        <p className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">
-                            {total} pursuit{total === 1 ? "" : "s"}
-                        </p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={openWizard} className="gap-1.5">
-                        <Plus size={14} />
-                        Add manually
-                    </Button>
-                </div>
-
-                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <StatCard value={groups.applied.length} label="Applied" />
-                    <StatCard value={groups.interviewing.length} label="Interviewing" />
-                    <StatCard value={groups.offer.length} label="Offers" />
-                    <StatCard value={groups.closed.length} label="Closed" />
-                </div>
-
+        <PageLayout
+            fullWidth
+            header={
+                <TrackerHeader
+                    subtitle={<TrackerSummary groups={groups} />}
+                    actions={<InkButton onClick={openWizard}>Add manually</InkButton>}
+                />
+            }
+        >
+            <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-6 sm:px-10 lg:px-14">
                 <div
                     data-testid={total === 0 ? "yours-empty" : undefined}
-                    className="grid grid-cols-1 items-start gap-3.5 sm:grid-cols-2 xl:grid-cols-4"
+                    className="flex flex-col divide-y divide-border border border-border sm:flex-row sm:divide-x sm:divide-y-0"
                 >
                     {COLUMNS.map((col) => {
                         const cards = groups[col.key];
                         return (
-                            <div key={col.key}>
-                                <ColumnHeader label={col.label} count={cards.length} />
+                            <div key={col.key} className="min-w-0 flex-1">
+                                <ColumnHead id={`col-${col.key}`} label={col.label} count={cards.length} />
                                 {cards.length === 0 ? (
                                     <EmptyColumn text={col.empty.text} link={col.empty.link} />
                                 ) : (
-                                    <div className="flex flex-col gap-2.5">
+                                    <div className="divide-y divide-border">
                                         {cards.map((p) => (
-                                            <BoardCard key={p.id} pursuit={p} onClick={() => router.push(`/yours/${p.id}`)} />
+                                            <BoardRow key={p.id} pursuit={p} onClick={() => router.push(`/yours/${p.id}`)} />
                                         ))}
                                     </div>
                                 )}
@@ -314,12 +344,12 @@ function YoursContent() {
                 </div>
 
                 {groups.closed.length > 0 && (
-                    <details className="group mt-8 rounded-xl border border-border bg-card">
-                        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[13.5px] font-semibold">
+                    <details className="group mt-8 border-t border-foreground pt-3">
+                        <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[13px] font-medium text-foreground">
                             <span>Closed ({groups.closed.length})</span>
-                            <CaretDown size={14} className="text-muted-foreground transition-transform group-open:rotate-180" />
+                            <span className="text-muted-foreground transition-transform duration-100 group-open:rotate-180">▾</span>
                         </summary>
-                        <div className="divide-y divide-border border-t border-border">
+                        <div className="mt-2 divide-y divide-border border-t border-border">
                             {groups.closed.map((p) => (
                                 <div
                                     key={p.id}
@@ -330,16 +360,14 @@ function YoursContent() {
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter" || e.key === " ") router.push(`/yours/${p.id}`);
                                     }}
-                                    className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 opacity-60 transition-colors hover:bg-muted/40"
+                                    className="cursor-pointer px-1 py-3 text-left opacity-60 transition-colors duration-100 hover:bg-muted/40"
                                 >
-                                    <div className="min-w-0">
-                                        <div className="truncate text-[13.5px] font-medium">
-                                            {p.position}
-                                            <span className="font-normal text-muted-foreground"> — {p.company_name}</span>
-                                        </div>
-                                        <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                                            {stageLabel(p)} · {boardTimestampLabel(p)}
-                                        </div>
+                                    <div className="truncate text-[13.5px] font-medium">
+                                        {p.position}
+                                        <span className="font-normal text-text-2"> — {p.company_name}</span>
+                                    </div>
+                                    <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                                        {stageLabel(p)} · {boardTimestampLabel(p)}
                                     </div>
                                 </div>
                             ))}

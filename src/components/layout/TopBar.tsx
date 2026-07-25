@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CaretDown, Moon, SignIn, Sun } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -133,23 +132,23 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6"
+            className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-foreground bg-background px-4 sm:px-6"
         >
             <div className="flex min-w-0 items-center gap-6 sm:gap-9">
                 <Link href="/" className="flex shrink-0 items-baseline gap-2">
-                    <span className="font-display text-[19px] font-medium leading-none tracking-[-0.02em] sm:text-[21px]">
-                        inter<span className="font-bold">vu</span>
+                    <span className="font-display text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">
+                        intervu
                     </span>
                     {/* The app's one BETA badge — see DashboardContainer.tsx's prep
                         title, which deliberately doesn't repeat it. */}
-                    <span className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                         beta
                     </span>
                 </Link>
 
                 <nav
                     aria-label="Primary"
-                    className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto text-[14.5px] font-medium sm:gap-6"
+                    className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto text-[13.5px] font-medium sm:gap-6"
                 >
                     {NAV_TABS.map((tab) => {
                         const active = tab.match(pathname);
@@ -159,9 +158,9 @@ export function TopBar() {
                                 href={tab.href}
                                 data-testid={tab.testId}
                                 aria-current={active ? "page" : undefined}
-                                className={`shrink-0 whitespace-nowrap border-b-2 py-5 transition-colors ${
+                                className={`shrink-0 whitespace-nowrap border-b-2 py-[18px] transition-colors duration-100 ${
                                     active
-                                        ? "border-live text-foreground"
+                                        ? "border-foreground text-foreground"
                                         : "border-transparent text-muted-foreground hover:text-foreground"
                                 }`}
                             >
@@ -172,14 +171,13 @@ export function TopBar() {
                 </nav>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 items-center gap-4">
                 <button
                     onClick={toggleDark}
                     data-testid="topbar-theme"
-                    title={dark ? "Switch to light mode" : "Switch to dark mode"}
-                    className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="font-mono text-[12px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
                 >
-                    {dark ? <Sun size={17} className="shrink-0" /> : <Moon size={17} className="shrink-0" />}
+                    {dark ? "day" : "night"}
                 </button>
 
                 {user ? (
@@ -188,17 +186,12 @@ export function TopBar() {
                             <button
                                 data-testid="topbar-avatar"
                                 title={user.displayName || user.email || "Account"}
-                                className="flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                                className="flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
                             >
-                                <div
-                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold text-brand-foreground"
-                                    style={{
-                                        background: "linear-gradient(135deg, rgb(var(--brand) / 0.85), rgb(var(--brand)))",
-                                    }}
-                                >
+                                <div className="grid h-7 w-7 shrink-0 place-items-center border border-foreground font-mono text-[11px] font-medium text-foreground">
                                     {initialsOf(user)}
                                 </div>
-                                <CaretDown size={14} className="text-muted-foreground" />
+                                <span className="text-[10px] text-muted-foreground">▾</span>
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
@@ -229,9 +222,8 @@ export function TopBar() {
                     <button
                         data-testid="topbar-login"
                         onClick={() => setAuthPopoverOpen(true)}
-                        className="flex items-center gap-1 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                        className="text-[13px] font-medium text-muted-foreground transition-colors duration-100 hover:text-foreground"
                     >
-                        <SignIn size={16} className="shrink-0" />
                         Log in
                     </button>
                 )}
