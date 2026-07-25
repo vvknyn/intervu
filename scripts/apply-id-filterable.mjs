@@ -14,8 +14,15 @@
  *
  * WHY IT NEEDS A WINDOW
  *   Changing filterableAttributes re-indexes the whole corpus (~1.87M docs).
- *   Run it while the box serves no traffic — i.e. BEFORE cutover. Running it
- *   against the index that is live is what produced the 20s-browse incident.
+ *   The box is now LIVE (cutover completed 2026-07-25), so there is no longer
+ *   a free window — this re-index lands on the index production is reading.
+ *   Re-indexing under load is what produced the 20s-browse incident.
+ *
+ *   The sync worker also writes continuously, so `isIndexing` is rarely false
+ *   on its own. For a genuinely quiet window, pause sync first:
+ *     sudo systemctl stop meili-sync.timer     # and any embedding job
+ *     …run this…
+ *     sudo systemctl start meili-sync.timer
  *
  * SAFE BY DEFAULT
  *   Dry run unless you pass --apply. It refuses to start while the index is
@@ -28,12 +35,19 @@
  *   node scripts/apply-id-filterable.mjs --apply --force # ignore isIndexing
  *   node scripts/apply-id-filterable.mjs --rollback --apply
  *
- * Env: MEILISEARCH_HOST + MEILISEARCH_ADMIN_KEY (or box names MEILI_URL /
- * MEILI_MASTER_KEY / MEILI_ADMIN_KEY). Reads .env.local; the admin key is
- * usually NOT there — export it, or run this on the box where
- * /opt/jobs-sync/.env has it:
+ * Target: --host=… --key=… beat every environment variable, which beat
+ * .env.local. --expect-host=<substring> refuses to run unless the resolved
+ * host matches — cheap insurance against re-indexing the wrong box when two
+ * are alive during a migration.
  *
- *   set -a; . /opt/jobs-sync/.env; set +a; node apply-id-filterable.mjs --apply
+ * Env fallbacks: MEILISEARCH_HOST / MEILI_URL, and MEILISEARCH_ADMIN_KEY /
+ * MEILI_ADMIN_KEY / MEILI_MASTER_KEY. The admin key is usually NOT in
+ * .env.local — export it, or pull it from the box:
+ *
+ *   CREDS=$(ssh subspace@194.163.147.154 'set -a; . /opt/jobs-sync/.env; set +a;
+ *            printf "%s|%s" "$MEILI_URL" "$MEILI_MASTER_KEY"')
+ *   node scripts/apply-id-filterable.mjs --host="${CREDS%%|*}" --key="${CREDS##*|}" \
+ *        --expect-host=meili-box
  *
  * The filterable list is READ from the index and written back with "id"
  * appended — never a hardcoded copy, which would silently revert whatever the
@@ -44,19 +58,47 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const arg = (name) => {
+  const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
+  return hit ? hit.slice(name.length + 3) : undefined;
+};
+
+/**
+ * Anything the operator actually exported wins over the repo's .env.local.
+ *
+ * This matters more here than in a normal script: .env.local carries
+ * MEILISEARCH_HOST for the app, which is not necessarily the box you mean to
+ * re-index. Read literally, `MEILISEARCH_HOST ?? MEILI_URL` let a stale file
+ * value silently outrank an explicitly exported MEILI_URL — pointing a
+ * whole-corpus re-index at the wrong Meilisearch. Observed doing exactly that.
+ */
+const exported = { ...process.env };
+const fromFile = {};
 try {
   for (const line of readFileSync(join(here, "..", ".env.local"), "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*"?([^"\n]*)"?\s*$/);
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+    if (m) fromFile[m[1]] = m[2];
   }
 } catch {}
+const pick = (...names) => {
+  for (const n of names) if (exported[n]) return exported[n];
+  for (const n of names) if (fromFile[n]) return fromFile[n];
+  return "";
+};
 
-const HOST = (process.env.MEILISEARCH_HOST ?? process.env.MEILI_URL ?? "").replace(/\/+$/, "");
-const KEY =
-  process.env.MEILISEARCH_ADMIN_KEY ?? process.env.MEILI_ADMIN_KEY ?? process.env.MEILI_MASTER_KEY ?? "";
+const HOST = (arg("host") ?? pick("MEILISEARCH_HOST", "MEILI_URL")).replace(/\/+$/, "");
+const KEY = arg("key") ?? pick("MEILISEARCH_ADMIN_KEY", "MEILI_ADMIN_KEY", "MEILI_MASTER_KEY");
 if (!HOST || !KEY) {
-  console.error("Missing MEILISEARCH_HOST/MEILI_URL or MEILISEARCH_ADMIN_KEY/MEILI_ADMIN_KEY/MEILI_MASTER_KEY.");
+  console.error(
+    "Missing host or admin key.\n" +
+      "  --host=https://… --key=… , or export MEILISEARCH_HOST/MEILI_URL +\n" +
+      "  MEILISEARCH_ADMIN_KEY/MEILI_ADMIN_KEY/MEILI_MASTER_KEY.",
+  );
   process.exit(1);
+}
+if (arg("expect-host") && !HOST.includes(arg("expect-host"))) {
+  console.error(`REFUSING: resolved host ${HOST} does not match --expect-host=${arg("expect-host")}.`);
+  process.exit(5);
 }
 
 const INDEX = "jobs";
@@ -109,10 +151,13 @@ const main = async () => {
   if (!apply) {
     console.log(`\nWould PUT filterable-attributes (${current.length} → ${next.length}):`);
     console.log(`  ${rollback ? "removing" : "adding"}: id`);
-    console.log(`\nThis re-indexes ~${(stats.numberOfDocuments ?? 0).toLocaleString()} documents — run it BEFORE cutover.`);
+    console.log(`\nThis re-indexes ~${(stats.numberOfDocuments ?? 0).toLocaleString()} documents on a LIVE index.`);
     console.log(
       busy
-        ? "\nNOT READY: the index is still indexing. Re-run this dry run until `indexing false`, then --apply."
+        ? "\nNOT READY: the index is busy. The sync worker writes continuously, so this rarely\n" +
+          "clears by itself — pause sync (systemctl stop meili-sync.timer) plus any embedding\n" +
+          "job for a real window, then re-run. --force overrides, at the cost of stacking a\n" +
+          "full re-index on whatever is already running."
         : "\nREADY: the index is idle. Re-run with --apply.",
     );
     return;
