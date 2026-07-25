@@ -3010,7 +3010,16 @@ function JobsContent() {
     return (
         <PageLayout
             fullWidth
-            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:flex-none lg:flex-col lg:overflow-hidden lg:px-14"
+            // The viewport pin belongs on the SHELL, which starts directly below
+            // the 3.5rem masthead. It used to sit on `main` instead — but `main`
+            // renders BELOW the control band, so `calc(100dvh-3.5rem)` there
+            // counted the masthead only and ignored the band, leaving the
+            // document exactly one band taller than the viewport (measured:
+            // 1051 vs 900 at 1440x900, 919 vs 768 at 1024). `main` now flexes
+            // into whatever the band leaves, so the band can wrap or grow
+            // without anyone re-deriving a height.
+            shellClassName="lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden"
+            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden lg:px-14"
             header={
                 <div className="border-b border-foreground bg-background">
                     <div className="mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6">
