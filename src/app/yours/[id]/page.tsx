@@ -43,12 +43,13 @@ export default function PursuitDetailPage() {
      * know it's gone, or we couldn't find out.
      *
      * The third is not hypothetical. Looking a posting up by id needs `id` in
-     * the index's `filterableAttributes`, and that setting is code-only until
-     * the sync worker re-provisions the live index (lib/jobs/meilisearch.ts,
-     * verified live 2026-07-19) — so today this lookup fails outright.
-     * Collapsing that into "no longer live" would tell people a role they can
-     * still apply to is dead. `classifyExistenceCheck` is the existing
-     * chokepoint for exactly this call, and it degrades to "unknown".
+     * the index's `filterableAttributes` — index state, not repo state. That
+     * setting went live 2026-07-25 (verified: `id = "<doc>"` resolves), but it
+     * was absent for the six days before, during which this lookup failed
+     * outright, and a future re-provision can drop it again with no deploy.
+     * Collapsing "couldn't check" into "no longer live" would tell people a
+     * role they can still apply to is dead. `classifyExistenceCheck` is the
+     * existing chokepoint for exactly this call, and it degrades to "unknown".
      */
     const [detail, setDetail] = useState<{
         open: boolean;

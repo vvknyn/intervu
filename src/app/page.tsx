@@ -1384,10 +1384,9 @@ function JobsContent() {
                 // clobbering an unrelated open job when the reassigned
                 // selection came from local-only keyboard nav instead of the
                 // address bar. Provably subsumes the narrower
-                // `shouldClearDeadLinkUrl` predicate's own case (still kept,
-                // independently unit-tested, for its own documented
-                // history) — see `shouldClearStaleJobUrl`'s doc comment for
-                // the full reasoning.
+                // narrower dead-link case it replaced — see
+                // `shouldClearStaleJobUrl`'s doc comment for the full
+                // reasoning.
                 if (
                     shouldClearStaleJobUrl(
                         urlJobIdAtFetchStart,

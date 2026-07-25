@@ -76,40 +76,19 @@ export function resolveSelectionAfterRefresh(
     };
 }
 
-/**
- * Task 11 review fix — should the dead-link `job=` URL param be cleared
- * after this fetch? True exactly when a previously-unconfirmed id's ONE
- * free pass (see `ResolveSelectionOptions.wasConfirmed`'s doc comment) was
- * consumed by THIS fetch — i.e. the id had already used its pass before
- * this fetch started, and it is STILL absent from the fresh hits.
- *
- * Extracted as a standalone, unit-tested predicate because the inline
- * version of this shipped BROKEN: it read `!wasConfirmed && alreadyUsedItsPass`,
- * but the caller defines `wasConfirmed = wasConfirmedBeforeThisFetch ||
- * alreadyUsedItsPass` — so `alreadyUsedItsPass` being true ALWAYS forces
- * `wasConfirmed` true, making `!wasConfirmed && alreadyUsedItsPass` a
- * logical contradiction that can never be true. The branch was reported
- * fixed while being permanently dead code; caught only by a reviewer
- * tracing the predicate against its own definitions by hand. Taking the
- * two RAW, non-derived facts as separate parameters — rather than the
- * already-OR'd `wasConfirmed` — makes that specific self-contradiction
- * structurally impossible here, and a unit test proves the true branch is
- * actually reachable (the exact gap that let the bug ship unnoticed).
- */
-export function shouldClearDeadLinkUrl(alreadyUsedItsPass: boolean, foundInFreshHits: boolean): boolean {
-    return alreadyUsedItsPass && !foundInFreshHits;
-}
 
 /**
  * Whole-branch review fix — the GENERAL form of "should the URL's `job=`
- * param be cleared after this refresh." `shouldClearDeadLinkUrl` above only
+ * param be cleared after this refresh." The narrower dead-link predicate that
+ * preceded it only
  * catches ONE way a selection gets reassigned away (a dead link that used
  * its free pass): it stays true. But `resolveSelectionAfterRefresh` also
  * reassigns `preserveDeliberateDetail: false` for a DIFFERENT, more common
  * case it was never written to cover — a filter/query change that excludes
  * an already-open, previously-CONFIRMED job (`wasConfirmed` is `true` on
  * its very first look, so it never touches the free-pass machinery at all).
- * That case fell through `shouldClearDeadLinkUrl` silently: `alreadyUsedItsPass`
+ * That case fell through the older, narrower dead-link predicate silently:
+ * `alreadyUsedItsPass`
  * is `false` (the id was never "unresolved"), so the old guard never fired,
  * leaving `job=<excluded-id>` stuck in the address bar while the pane moved
  * on to `hits[0]` — sharing that URL reproduces a job the recipient's own
@@ -123,12 +102,12 @@ export function shouldClearDeadLinkUrl(alreadyUsedItsPass: boolean, foundInFresh
  * selection came from local-only keyboard nav (`selectJob` in page.tsx,
  * which deliberately never touches the URL) rather than the address bar.
  *
- * This provably subsumes `shouldClearDeadLinkUrl`'s own case: a dead link
+ * This provably subsumes that narrower case too: a dead link
  * that used its free pass always has `preserveDeliberateDetail: false`
  * (`resolveSelectionAfterRefresh`'s `wasConfirmed: true` branch) and the URL
  * never changed while the id sat unconfirmed, so `urlJobId` still equals
  * `previousSelectedId` there too — so this is now the ONE predicate
- * page.tsx's fetch effect calls to decide "clear the URL." `shouldClearDeadLinkUrl`
+ * page.tsx's fetch effect calls to decide "clear the URL." The narrower predicate
  * itself is left in place rather than deleted (out of scope for this fix;
  * see its own round-3 review-fix history above) and stays independently
  * unit-tested below.
