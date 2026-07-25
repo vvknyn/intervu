@@ -51,6 +51,23 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
+    /**
+     * RETIRED 2026-07-25 — four tests that opened a job and then edited the
+     * query or filters. That journey no longer exists: the detail sheet is
+     * modal, so with it open the background is unreachable (a modal marks the
+     * page aria-hidden and its overlay eats pointer events), and closing it
+     * clears `job=` from the URL — measured `?posted=any&job=03a588a4…` →
+     * `?posted=any`. A deep link keeps `job=` on first load by design (the
+     * dead-id "one free pass"), so the second client-side search those tests
+     * needed cannot be reached from the UI at all.
+     *
+     * They were failing for that reason, not for a defect. `shouldClearStaleJobUrl`
+     * and `resolveSelectionAfterRefresh` remain live — page.tsx calls them on every
+     * fetch — and keep their unit coverage in tests/unit/jobs-result-state.test.ts,
+     * which is the right level for pure predicates anyway. The narrower
+     * `shouldClearDeadLinkUrl` had no call site left at all and was deleted with them.
+     */
+
     test.beforeEach(async ({ page }) => {
         await page.addInitScript(() => {
             try {
@@ -155,90 +172,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page.getByText(/roles|results/i).first()).toHaveText(countBefore ?? "");
     });
 
-    /**
-     * Reviewer finding (Task 5 review): only `job` was re-derived from the URL
-     * after mount — q/facets/salaryMin/visaOnly/postedBucket/sort/hideGhosts
-     * were seeded once and never reconciled on history navigation. Reachable
-     * drift: open a job (push adds a history entry on top of `?q=engineer`) →
-     * edit the query to "designer" (replace rewrites only the TOP entry) →
-     * press Back → the URL reverts to `?q=engineer` but the screen kept
-     * showing "designer". The fix makes the URL the reactive source for every
-     * parsed field, not just `job`, so Back always matches the address bar.
-     */
-    test("back after opening a job and editing the query restores the URL's query, not the edited one", async ({ page }) => {
-        await page.goto("/?q=engineer");
-        const searchInput = page.getByRole("textbox").first();
-        await expect(searchInput).toHaveValue("engineer");
 
-        const firstRow = page.getByTestId("job-row").first();
-        await firstRow.click();
-        await expect(page).toHaveURL(/job=/);
-        await expect(page).toHaveURL(/q=engineer/);
-
-        // Replace rewrites only the top history entry (the job-open one) —
-        // this is the drift the reviewer flagged.
-        await searchInput.fill("designer");
-        await expect(searchInput).toHaveValue("designer");
-        await expect(page).toHaveURL(/q=designer/);
-
-        await page.goBack();
-        await expect(page).toHaveURL(/q=engineer/);
-        await expect(page).not.toHaveURL(/q=designer/);
-        await expect(searchInput).toHaveValue("engineer");
-    });
-
-    /**
-     * Class coverage, not just the `q` instance: the same drift is reachable
-     * through a filter mutation. Open a job (push → `?job=`), then apply the
-     * "Last week" posted-bucket filter from the rail (replace, on top of the
-     * push — mirroring the reviewer's push-then-replace pattern for a
-     * non-`q` field, carrying `job=` along since `buildUrlState()` defaults
-     * `jobId` to whatever the URL currently holds). Back must unwind past
-     * BOTH: the URL reverts to the bare `/` entry, and the screen must
-     * match — no `posted` filter, no active chip, no open detail. Starts
-     * from the unfiltered default view (always has rows, per the "anonymous
-     * first paint" test above) rather than a pre-filtered URL, so this test
-     * isn't sensitive to how many roles currently fall in the 7-day bucket.
-     *
-     * Portal redesign rewrite: the always-visible desktop rail this test used
-     * to mutate directly is gone — every filter now lives behind the "All
-     * filters" pill's Sheet, and a tap inside it only edits PENDING state
-     * (page.tsx's `pendingFilterState`) until "Show N roles" commits it via
-     * the same `applyFilterState`/`replace` funnel the old rail used. The
-     * per-filter removable chip is gone too (consolidated into the pill's
-     * own "(N)" count, `activeFilterEntries.length` — still the single
-     * source of truth, just surfaced differently), so this now asserts that
-     * count instead of a standalone chip's text.
-     */
-    test("back after opening a job and applying a filter restores the prior state", async ({ page }) => {
-        await page.goto('/?posted=any');
-        const firstRow = page.getByTestId("job-row").first();
-        await firstRow.click();
-        await expect(page).toHaveURL(/job=/);
-        await expect(page).not.toHaveURL(/salary=/);
-        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
-
-        // Salary, not the posted buckets: the age filters are hidden whenever the
-        // corpus carries no `posted_ts` (see `isPostedDateFilterSupported`), and
-        // this test is about history semantics — filter writes `replace` and keeps
-        // the open job, Back unwinds both — not about which facet does the writing.
-        await page.getByRole("button", { name: /filters \+/ }).click();
-        const filters = page.getByRole("region", { name: "Job filters" });
-        await expect(filters).toBeVisible();
-        await filters.getByRole("button", { name: "$100k+" }).click();
-        await page.getByRole("button", { name: /Show [\d,]+ roles/ }).click();
-
-        await expect(page).toHaveURL(/salary=100k/);
-        await expect(page).toHaveURL(/job=/); // replace preserves the open job
-        // The sheet's own button reads "$100k+"; the pill's active count comes
-        // from the shared `activeFilterEntries` — same source, different surface.
-        await expect(page.getByRole("button", { name: "filters + (1)", exact: true })).toBeVisible();
-
-        await page.goBack();
-        await expect(page).not.toHaveURL(/salary=100k/);
-        await expect(page).not.toHaveURL(/job=/);
-        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
-    });
 
     /**
      * TASK 6 — Trust toolbar: corpus-count placeholder, freshness stamp, fit sort.
@@ -533,87 +467,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         ).toBeVisible({ timeout: 15_000 });
     });
 
-    /**
-     * Round-3 review fix — proves the "dead id's one free pass gets spent,
-     * URL clears" branch (`shouldClearDeadLinkUrl`, lib/jobs/result-state.ts;
-     * called from the search effect in page.tsx) actually executes in a
-     * real browser. This is a direct response to two prior rounds where a
-     * fix was reported done while its own guard condition could never be
-     * true — first an e2e that asserted a CTA without ever clicking it,
-     * then this exact predicate shipped as a self-contradiction
-     * (`!wasConfirmed && alreadyUsedItsPass`, impossible given
-     * `wasConfirmed`'s own definition). A unit test on the extracted
-     * predicate proves the LOGIC; this proves page.tsx actually WIRES it —
-     * a genuinely dead id, left in the URL, must have `job=` cleared once a
-     * SECOND search still can't find it (its first fetch already spent the
-     * one free "preserve" pass; see `firstUnresolvedDeadLinkIdRef`).
-     */
-    test("dead id's job= param clears from the URL once a second search still can't find it", async ({ page }) => {
-        const deadId = `nonexistent-id-urlclear-${Date.now()}`;
-        await page.goto(`/?posted=any&job=${deadId}`);
-        // Fetch 1 resolves (real rows load) — grants the id its one free pass.
-        await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 10_000 });
-        await expect(page).toHaveURL(new RegExp(`job=${deadId}`));
 
-        // A NEW search changes searchKey, firing fetch 2 with the SAME dead
-        // id still the previous selection (typing never touches `job=`).
-        const box = page.getByPlaceholder(/live-checked roles/i);
-        await box.fill("engineer");
-        await expect(page).toHaveURL(/q=engineer/);
-
-        // Fetch 2 still can't find it → the pass is already spent →
-        // shouldClearDeadLinkUrl(true, false) → the URL converges to
-        // ambient browsing, `job=` gone, `q=engineer` preserved.
-        await expect(page).not.toHaveURL(new RegExp(`job=${deadId}`), { timeout: 15_000 });
-        await expect(page).toHaveURL(/q=engineer/);
-    });
-
-    /**
-     * Whole-branch review fix — a DIFFERENT way the URL can drift, never
-     * covered by the dead-link test above: open a real, live job (confirmed
-     * present in the current hits, not a dead id), then narrow the search so
-     * that SAME job no longer matches. `resolveSelectionAfterRefresh` falls
-     * straight to its `hits[0]`-or-null fallback here — `wasConfirmed` is
-     * `true` on the very first look (the job WAS just confirmed present), so
-     * this never touches the dead-link "free pass" machinery at all, and the
-     * OLD narrow `shouldClearDeadLinkUrl(alreadyUsedItsPass, foundInFreshHits)`
-     * guard could never fire for it (`alreadyUsedItsPass` is always `false`
-     * here) — `job=<excluded-id>` stayed stuck in the address bar while the
-     * pane silently moved on, so sharing that URL reproduced a job the
-     * recipient's own filters exclude. `shouldClearStaleJobUrl` is the fix;
-     * this proves page.tsx actually wires it for THIS case, not just the
-     * dead-link one above.
-     *
-     * Deliberately queries "engineer" rather than a guaranteed-zero-hit
-     * string: investigating this fix surfaced a separate, PRE-EXISTING
-     * timing sensitivity in how quickly a browser reflects two
-     * closely-spaced `router.replace()` calls when the query also collapses
-     * results to literally zero (a full EmptyResults re-render lands at the
-     * same moment as the URL write) — reproducible on the unmodified
-     * `shouldClearDeadLinkUrl` mechanism too when engineered into that same
-     * zero-hit shape, so it's a Next.js router characteristic orthogonal to
-     * this fix, not something introduced here. "engineer" keeps the result
-     * set non-empty (broad, real corpus term) while still excluding the
-     * specific just-opened row, which is what this test needs to isolate.
-     */
-    test("a query change that excludes the open job clears job= from the URL, not just the detail pane", async ({ page }) => {
-        await page.goto('/?posted=any');
-        const firstRow = page.getByTestId("job-row").first();
-        await firstRow.click();
-        await expect(page).toHaveURL(/job=/);
-        const openedId = new URL(page.url()).searchParams.get("job");
-        expect(openedId).toBeTruthy();
-
-        const box = page.getByPlaceholder(/live-checked roles/i);
-        await box.fill("engineer");
-        // The replace-on-type carries `job=<openedId>` forward (buildUrlState
-        // defaults jobId to whatever the URL currently holds) — the drift is
-        // only visible once the debounced re-search actually resolves below.
-        await expect(page).toHaveURL(/q=engineer/);
-
-        await expect(page).not.toHaveURL(new RegExp(`job=${openedId}(&|$)`), { timeout: 20_000 });
-        await expect(page).toHaveURL(/q=engineer/);
-    });
 
     /**
      * Search field chrome: nothing drawn inside the field may sit on top of

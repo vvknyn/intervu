@@ -6,7 +6,6 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     DEAD_JOB_TOMBSTONE_TEXT,
-    shouldClearDeadLinkUrl,
     shouldClearStaleJobUrl,
 } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
@@ -265,33 +264,16 @@ describe('DEAD_JOB_TOMBSTONE_TEXT', () => {
 // unreachable. This full 2×2 matrix is the concrete, mechanical check that
 // would have caught it: case 1 below is the ONLY one that's `true`, and it
 // corresponds exactly to "an id already used its pass and is still missing."
-describe('shouldClearDeadLinkUrl', () => {
-    it('pass already used + still missing from fresh hits → clear the URL', () => {
-        assert.equal(shouldClearDeadLinkUrl(true, false), true);
-    });
-
-    it('pass already used but NOW found → do not clear (nothing stale to fix)', () => {
-        assert.equal(shouldClearDeadLinkUrl(true, true), false);
-    });
-
-    it('pass not yet used, still missing (the first, granted pass) → do not clear yet', () => {
-        assert.equal(shouldClearDeadLinkUrl(false, false), false);
-    });
-
-    it('pass not yet used, found on the very first check → do not clear', () => {
-        assert.equal(shouldClearDeadLinkUrl(false, true), false);
-    });
-});
 
 // Whole-branch review finding: a filter change that excludes an
 // already-open, previously-CONFIRMED job reassigns the selection
 // (`preserveDeliberateDetail: false`) WITHOUT ever touching the free-pass
-// machinery `shouldClearDeadLinkUrl` guards — that job was confirmed on its
+// machinery the narrower dead-link predicate guarded — that job was confirmed on its
 // very first look, so `alreadyUsedItsPass` is always false for it, and the
 // narrow predicate above can never fire. Before this predicate existed, that
 // left `job=<excluded-id>` stuck in the address bar with no code path that
 // would ever clear it — this is the coverage that catches it: a test using
-// today's narrow `shouldClearDeadLinkUrl(false, false)` for this exact
+// that narrow predicate's `(false, false)` for this exact
 // scenario returns `false` (see above, "pass not yet used, still missing" —
 // wrongly, for this case), which is exactly the bug. `shouldClearStaleJobUrl`
 // is the general predicate the fetch effect now calls instead.
