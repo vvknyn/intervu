@@ -87,9 +87,54 @@ export function cleanCompany(s: string | null | undefined): string {
     return decodeText(s).replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
 }
 
+/**
+ * The corpus's raw `location` strings sometimes hold serialization accidents
+ * rather than prose — seen live on production rows 2026-07-26:
+ *
+ *   `{"country":"Canada","countryCode":"CA","city":"","region":null}`
+ *   `[object Object]`
+ *
+ * Both are upstream sync bugs (an object stringified on its way into the
+ * index), but the display layer must never print them regardless of when the
+ * corpus is cleaned. Returns readable text, or null when the string carries
+ * no human-usable location — the caller then falls through to the structured
+ * fields exactly as if `location` were absent.
+ */
+export function humanizeRawLocation(raw: string): string | null {
+    const s = raw.trim();
+    if (!s || s === "[object Object]") return null;
+    if (s.startsWith("{") || s.startsWith("[")) {
+        try {
+            const parsed: unknown = JSON.parse(s);
+            const values = Array.isArray(parsed) ? parsed : [
+                (parsed as Record<string, unknown>).city,
+                (parsed as Record<string, unknown>).region,
+                (parsed as Record<string, unknown>).state,
+                (parsed as Record<string, unknown>).country,
+            ];
+            const parts = values
+                .map((v) => (typeof v === "string" ? v.trim() : ""))
+                .filter(Boolean);
+            return parts.length ? parts.join(", ") : null;
+        } catch {
+            // Looks structural but doesn't parse — junk either way.
+            return null;
+        }
+    }
+    return s;
+}
+
 export function locationText(j: PublicJob): string {
-    if (j.location) return decodeText(j.location);
-    const parts = [j.location_city, j.location_state, j.location_country].map(decodeText).filter(Boolean);
+    if (j.location) {
+        const readable = humanizeRawLocation(decodeText(j.location));
+        if (readable) return readable;
+    }
+    // The STRUCTURED fields carry the same accident: the Toolbx doc holds
+    // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
+    // One junk class, one guard — every field goes through it.
+    const parts = [j.location_city, j.location_state, j.location_country]
+        .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
+        .filter((v): v is string => Boolean(v));
     if (parts.length) return parts.join(", ");
     if (j.work_type === "remote") return "Remote";
     return "Location not listed";
