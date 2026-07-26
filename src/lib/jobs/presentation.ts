@@ -82,9 +82,52 @@ export function decodeText(s: string | null | undefined): string {
     }
 }
 
-/** Company names sometimes carry a leading req/location code (e.g. "USA102 Acme Inc"). Strip it. */
+/** Tokenizer shared by `cleanCompany`'s subset check and the relevance-seam
+ *  matchers below — lowercase, split on anything that isn't alnum/+/#/.
+ *  (keeps "c++" and ".net" intact as single tokens). */
+function tokenize(s: string): string[] {
+    return s.toLowerCase().split(/[^a-z0-9+#.]+/i).filter(Boolean);
+}
+
+/**
+ * Company names carry two distinct kinds of upstream noise, cleaned in one
+ * pass so both a row and the detail panel see the same result (see the
+ * module doc above). Real production examples, retrieved live 2026-07-26:
+ *
+ *   "QLYS_CA Qualys Canada Ltd."              → "Qualys Canada Ltd."
+ *   "STERIS Canada Sales ULC (Canada Sales)"  → "STERIS Canada Sales ULC"
+ *   "Ingram Micro Inc. (Canada)"              → unchanged (adds information)
+ *   "inog (irish network operators group)"    → unchanged (an expansion)
+ *   "The Toronto-Dominion Bank (Canada)"      → unchanged (adds information)
+ *
+ * Two strips:
+ *   1. A leading ATS tenant code — an underscore-joined token of 2+
+ *      uppercase/digit segments (e.g. "QLYS_CA", distinct from the older
+ *      "USA102"-style req code below) — stripped only when more text follows
+ *      it, so a company whose real name IS just a code isn't hollowed out.
+ *   2. A trailing parenthetical, but ONLY when its own token set is a SUBSET
+ *      of the rest-of-name's tokens — i.e. it's a duplicate, not new
+ *      information. "(Canada Sales)" ⊆ {steris, canada, sales, ulc} strips;
+ *      "(Canada)" ⊄ {ingram, micro, inc} and "(irish network operators
+ *      group)" ⊄ {inog} both keep, because they add a fact the bare name
+ *      doesn't already carry.
+ */
 export function cleanCompany(s: string | null | undefined): string {
-    return decodeText(s).replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
+    let out = decodeText(s)
+        .replace(/^[A-Z]{2,5}\d{2,6}\s+/, "")
+        .replace(/^[A-Z0-9]{2,10}_[A-Z0-9]{2,10}\s+(?=\S)/, "")
+        .trim();
+
+    const parenMatch = out.match(/\s*\(([^()]+)\)\s*$/);
+    if (parenMatch) {
+        const rest = out.slice(0, parenMatch.index).trim();
+        const restTokens = new Set(tokenize(rest));
+        const parenTokens = tokenize(parenMatch[1]);
+        if (parenTokens.length > 0 && parenTokens.every((t) => restTokens.has(t))) {
+            out = rest;
+        }
+    }
+    return out;
 }
 
 /**
@@ -201,4 +244,40 @@ export function searchResultLine(input: {
         ? ` · updated ${formatRelativeAge(input.lastUpdated, input.nowMs)}`
         : "";
     return `${formatCorpusCount(input.count)} ${noun}${window}${updated}`;
+}
+
+/**
+ * True iff every token of `q` appears as a token in `title` — a startsWith
+ * tolerance on each pair lets "manager" match "managers" (title token
+ * startsWith query token) without pulling in unrelated titles. Both sides
+ * tokenize through the same `tokenize` helper `cleanCompany` uses, so "c++"
+ * and ".net" survive as single tokens on either side. An empty query has
+ * nothing to require, so it never counts as a match (there's no query left
+ * to have "titled" anything).
+ */
+export function titleMatchesQuery(title: string, q: string): boolean {
+    const queryTokens = tokenize(q);
+    if (queryTokens.length === 0) return false;
+    const titleTokens = tokenize(title);
+    return queryTokens.every((qt) => titleTokens.some((tt) => tt.startsWith(qt)));
+}
+
+/**
+ * The relevance seam (Task A): the index of the first title in `titles` that
+ * does NOT match `q` via `titleMatchesQuery` — the boundary between "titled
+ * it" and "mentions it" the SERP draws a line under. Returns -1 in every
+ * case where there's no seam to draw:
+ *   - `q` is empty (nothing was searched, so no title can be said to "titled it")
+ *   - `titles` is empty (nothing to seam)
+ *   - the seam would land at index 0 (no titled block at all — that's the
+ *     widened/relaxed-search note's territory, not this seam's)
+ *   - every title matches (no seam needed — the whole page IS the titled block)
+ */
+export function firstMentionIndex(titles: string[], q: string): number {
+    // No special-casing needed for an empty `q`/`titles`: `titleMatchesQuery`
+    // already returns false for an empty query (so `findIndex` lands on 0
+    // when there's a title to check), and `findIndex` on an empty array is
+    // already -1 — both collapse into the same `idx <= 0` branch below.
+    const idx = titles.findIndex((t) => !titleMatchesQuery(t, q));
+    return idx <= 0 ? -1 : idx;
 }

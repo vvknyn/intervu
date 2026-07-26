@@ -2,20 +2,11 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-
-/** Company names sometimes carry a leading req/location code (e.g. "USA102 Acme Inc"). Strip it. */
-function cleanCompany(s: string | null | undefined): string {
-    if (!s) return "";
-    let decoded = s;
-    if (decoded.includes("%")) {
-        try {
-            decoded = decodeURIComponent(decoded);
-        } catch {
-            decoded = decoded.replace(/%20/g, " ");
-        }
-    }
-    return decoded.replace(/^[A-Z]{2,5}\d{2,6}\s+/, "").trim();
-}
+// The shared chokepoint (lib/jobs/presentation.ts) — this file used to carry
+// its own private copy with a subset of the rules (URI-decode + req-code
+// strip); the canonical one now covers both plus tenant codes and duplicate
+// parentheticals, so the logo initial can never disagree with the row text.
+import { cleanCompany } from "@/lib/jobs/presentation";
 
 function companyInitial(name: string | null): string {
     const n = cleanCompany(name).trim();

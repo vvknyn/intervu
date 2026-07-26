@@ -87,8 +87,14 @@ export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult>
   const p = applyQueryUnderstanding(raw, vocab);
   const backend = activeBackend();
   try {
-    if (backend === "meilisearch") return await searchMeili(p);
-    if (backend === "snapshot-preview") return await searchSnapshotPreview(p);
+    // `effectiveQ` is spread on here rather than returned by the backends
+    // themselves — both already compute `p.q` internally (`buildSearchBody`,
+    // the snapshot filter pass), so this is the one place the RESIDUAL query
+    // (place/work-mode tokens already stripped by `applyQueryUnderstanding`
+    // above) becomes part of the public result shape, without mutating
+    // either backend's own return value.
+    if (backend === "meilisearch") return { ...(await searchMeili(p)), effectiveQ: p.q ?? "" };
+    if (backend === "snapshot-preview") return { ...(await searchSnapshotPreview(p)), effectiveQ: p.q ?? "" };
   } catch (e) {
     // The raw error goes to server logs only — messages like Next's RSC
     // digest text are internals, not copy a job seeker should ever read.
