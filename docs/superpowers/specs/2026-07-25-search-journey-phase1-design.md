@@ -284,3 +284,72 @@ Checkable within a week of the logging landing.
    the title doesn't already give.
 4. Five route-only features are **re-parented, never deleted** — and re-parenting ships as its
    own PR *before* the strip.
+
+---
+
+## Amendments from implementation (2026-07-26)
+
+The redesign shipped as ONE PR, not the planned two. What follows is what the code
+disagreed with, and why.
+
+### The re-parenting PR evaporated
+
+The plan above verified how many files import each of the five route-only components. It
+never asked what those components *do*, and on that question two of the five have no
+destination at all:
+
+| Component | Why it can't move | Outcome |
+|---|---|---|
+| `PipelineCard` | Renders an "open tracker →" link **to `/yours`**. On `/yours` it would summarise the page it sits on and link to itself. | Unmounted; module kept |
+| `GhostRadarCard` | `if (!distribution) return null` — its data is a search's facet distribution. `/yours` runs no search, so it could never draw. | Unmounted; module kept |
+| `JobsAsk` | Its content *was* the first screen ("What role are you after? Type a position in the line above"). Screen 1 is that, done properly. | Replaced |
+| `ResumeUpsellCard` | Injected after row 0. Replaced by the Screen 9 line at the foot of the read rows. | Replaced |
+| `TailorAnalysisSheet` | `page.tsx` never writes `intervu:tailor-job`, so this sheet is the **only** tailor path from search. Unmounting it would go dark. | **Kept, unchanged** |
+
+**The lesson: an import count tells you whether removing something orphans a feature. It
+cannot tell you whether the destination makes sense.** Same class of error as the
+`CompanyLogo` reversal — a verified fact answering the wrong question.
+
+### Deleting a control can strand the mode it controlled
+
+Removing the legend row and sort trio silently orphaned three escape hatches. Each was
+found by the compiler reporting a now-unused handler, not by design review:
+
+- `handleRankByFit` — a returning user with a résumé on file lost every way to rank by it.
+  Screen 9 now adapts: *use the résumé on file* when one exists, *drop your résumé* when not.
+- `clearFit` — no way to leave fit ranking.
+- The explore chip — explore blanks the search box, so its removal left unexplained results
+  over an empty box with no exit.
+
+All three now live on the result line. **A mode the user can neither see nor leave is a trap**,
+and "delete the control" is not the same as "delete the mode."
+
+### Two screens must be one tree
+
+Screen 1 and Screen 3 were first written as separate `return`s, each with its own
+`SearchAutocomplete`. React identifies a component by its position in the element tree, so
+the first keystroke unmounted one input and mounted the other — focus went with it.
+Verified live: typing "product manager" produced `?q=p`.
+
+They are now one tree whose layout changes. This is also why the route no longer uses
+`PageLayout`: its shell is genuinely its own.
+
+### "The bottom of the list" does not exist under infinite scroll
+
+Screen 9 was specified at the foot of the list. With 2,477 matches the foot is never
+reached, so it would never render. It now sits above the load-more sentinel — the foot of
+what has actually been *read*.
+
+### Ghost flags survived on rows
+
+The spec said no badges. But `hideGhosts: true` filters only `likely_ghost`, so `caution`
+and `repost` rows still appear — verified live. A flagged row that says nothing is the
+dishonest option, so the flag renders as lowercase words in the meta line
+("· caution · stale 6d"), not as a fixed-width verdict column.
+
+### Still on the route, deliberately
+
+- `SearchSeedLine` ("Already interviewing somewhere? Prep for it.") — one grey line, and the
+  only entry to the prep-seed flow. Candidate for removal, not removed silently.
+- `JobDetail` is unchanged. Screen 7 asks for one action; it currently offers six. It is
+  **shared with `/yours/[id]`**, so redesigning it is its own PR.
