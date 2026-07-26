@@ -292,8 +292,9 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
  * were competing with the title for attention while answering a question
  * nobody asks until they've opened something.
  *
- * The title dominates for a ranking reason too: pass 1 matches on `title` and
- * `company` only (`PRECISION_SEARCH_ATTRIBUTES`, lib/jobs/meilisearch.ts), so
+ * The title dominates for a ranking reason too: `searchableAttributes` order
+ * puts `title` first (JOBS_INDEX_SETTINGS, lib/jobs/meilisearch.ts), so the
+ * engine's attribute rule ranks title matches above description matches —
  * making the title the loudest thing means the eye lands on the very text the
  * engine ranked. When visual hierarchy and ranking disagree, even correct
  * results feel arbitrary.
@@ -2402,8 +2403,13 @@ function JobsContent() {
     // out loud because the redesigned route offers no control that reveals it
     // — see `searchResultLine` (lib/jobs/presentation.ts) for why an unnamed
     // window makes the count quietly wrong.
+    //
+    // Suppressed when the relaxed pass is showing (`widened`): its total counts
+    // word-dropped partial matches — printing it would caption close-match
+    // results with a number describing a different, looser query. The Screen 4
+    // sentence carries that state instead.
     const resultCountLine =
-        result?.configured && !loading
+        result?.configured && !loading && !result.widened
             ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
             : null;
 
@@ -2440,6 +2446,21 @@ function JobsContent() {
                     : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
             )}
         >
+            {/* Screen 1 covers the app masthead, which took the brand with it —
+                a stranger landed on an anonymous box (Vivek, 2026-07-26). One
+                quiet wordmark, same type treatment as the TopBar's, in the
+                masthead's own position so the transition to the results screen
+                doesn't move it. Not a control: nothing else on this screen. */}
+            {showAsk && (
+                <div className="absolute left-0 top-0 flex h-14 items-center gap-2 px-4 sm:px-6">
+                    <span className="font-display text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">
+                        intervu
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                        beta
+                    </span>
+                </div>
+            )}
             <div
                 className={cn(
                     "w-full shrink-0",
@@ -2576,18 +2597,16 @@ function JobsContent() {
                     and the tracker renders its own counts better at /yours. */}
                 <div className="flex min-h-0 flex-1 flex-col pt-4">
                     <div className="flex min-h-0 flex-col">
-                        {/* Screen 4 — thin results. The engine already widens on its
-                            own (`shouldWidenSearch`, WIDEN_THRESHOLD in
-                            lib/jobs/meilisearch.ts). All the screen adds is one honest
-                            sentence saying the words were too narrow, which hands the
-                            user the fix without asking them a question.
-
-                            No count: `JobSearchResult` reports THAT the wide pass fired,
-                            not how many the strict pass returned, so "only 4 roles" would
-                            be a number we don't have. */}
+                        {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
+                            whole-document pass matched nothing and the engine fell back
+                            to word-dropping (`shouldRelaxSearch`, lib/jobs/meilisearch.ts).
+                            One honest sentence says so; the count line is suppressed for
+                            this state (see `resultCountLine`) because the relaxed total
+                            counts word-dropped matches — a number that doesn't describe
+                            the query the user actually typed. */}
                         {!loading && result?.widened && (
                             <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
-                                Few roles are actually titled that. These mention it.
+                                Nothing matches every word of that — showing the closest matches.
                             </p>
                         )}
 

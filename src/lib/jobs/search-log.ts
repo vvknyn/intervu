@@ -11,7 +11,7 @@
  * only reason it exists is to join a search to the result it opened.
  *
  * Pure decision + builder / thin I/O, matching the house pattern
- * (`shouldWidenSearch`, `shouldDemoteActiveEmpty`): everything worth testing
+ * (`shouldRelaxSearch`, `shouldDemoteActiveEmpty`): everything worth testing
  * — truncation, defaults, what counts as a filter, what's worth logging at
  * all — is pure and needs no Firestore to assert on.
  */

@@ -216,32 +216,11 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
   return f;
 }
 
-/** Title-first precision pass fields (spec §6.1). `tags` deliberately excluded —
- *  measured sparse (2026-07-21); `description` is the wide-pass fallback only. */
-export const PRECISION_SEARCH_ATTRIBUTES = ["title", "company"] as const;
-/** Pass-1 result floor below which the wide pass runs. Spec §6.1 default. */
-export const WIDEN_THRESHOLD = 10;
-
-/** Pure widen policy: only a real query can widen (no-query browses are already wide). */
-export function shouldWidenSearch(pass1Total: number, q: string): boolean {
-  return Boolean(q.trim()) && pass1Total < WIDEN_THRESHOLD;
-}
-
-/**
- * Latency budget for attempting the wide pass (2026-07-24 incident): the Meili
- * box came under bulk-job load and pass 1 alone was taking ~4s. The two-pass
- * design ran pass 1 then pass 2 sequentially — at ~4s each, that's ~8s,
- * blowing the client's 15s settle guard and producing a prod outage page. A
- * slow pass 1 is the signal that the box is under load right now, so it
- * forfeits the wide pass rather than doubling down: honest thin-but-fast
- * beats a timeout.
- */
-export const WIDE_PASS_LATENCY_BUDGET_MS = 4_000;
-
-/** Pure: widen only when pass 1 says it's worth it AND pass 1 was fast enough
- *  to leave room in the latency budget for a second sequential call. */
-export function shouldAttemptWidePass(pass1Ms: number, pass1Total: number, q: string): boolean {
-  return shouldWidenSearch(pass1Total, q) && pass1Ms <= WIDE_PASS_LATENCY_BUDGET_MS;
+/** Pure relax policy: fall back to word-dropping only when a real query
+ *  strictly matched NOTHING. Never on merely-thin results — a query with 3
+ *  genuine all-word matches shows those 3, not 3 plus word-dropped noise. */
+export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
+  return Boolean(q.trim()) && strictTotal === 0;
 }
 
 /** Explicit shape so call sites and tests can touch optional fields under tsc. */
@@ -266,7 +245,6 @@ export interface MeiliSearchBody {
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
-  attributesToSearchOn?: readonly string[],
   matchingStrategy: MatchingStrategy = "all",
 ): MeiliSearchBody {
   return {
@@ -285,15 +263,25 @@ export function buildSearchBody(
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
     sort: buildMeiliSort(p, legacy),
-    ...(attributesToSearchOn ? { attributesToSearchOn: [...attributesToSearchOn] } : {}),
   };
 }
 
-/** Read-path: search the jobs index. Two-pass (spec §6.1): a title/company
- *  precision pass first; if it comes back thin for a real query AND pass 1
- *  finished within `WIDE_PASS_LATENCY_BUDGET_MS`, one wide (description-
- *  included) pass, flagged `widened` so the UI can say so. A slow pass 1
- *  forfeits the wide pass — see `shouldAttemptWidePass`. */
+/** Read-path: search the jobs index.
+ *
+ *  One pass over the WHOLE document — every query word must match, but it may
+ *  match anywhere in `searchableAttributes` (title, company, description,
+ *  location, tags — `JOBS_INDEX_SETTINGS`). The old title/company precision
+ *  pass treated place words as title words: "product manager canada" found
+ *  only the 24 roles literally TITLED that, while 23,813 postings matched all
+ *  three words somewhere (measured live 2026-07-26). Attribute order in
+ *  `searchableAttributes` still ranks title matches first, so precision at
+ *  the top survives without the restriction — verified: identical top-3 on
+ *  every keyword query probed.
+ *
+ *  One pass, not two, is also the latency posture the 2026-07-24 incident
+ *  bought: no sequential second request to blow the settle guard under load.
+ *  Only a strict ZERO relaxes to Meilisearch's word-dropping "last" — flagged
+ *  `widened` so the UI can disclose partial matches. */
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -307,7 +295,6 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   }
 
   const runPass = async (
-    attributesToSearchOn?: readonly string[],
     matchingStrategy: MatchingStrategy = "all",
   ): Promise<JobSearchResult> => {
     const post = (legacy: boolean) =>
@@ -315,7 +302,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
         cache: "no-store",
-        body: JSON.stringify(buildSearchBody(p, legacy, attributesToSearchOn, matchingStrategy)),
+        body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy)),
       });
 
     let res = await post(false);
@@ -351,17 +338,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   };
 
-  const q = (p.q ?? "").trim();
-  if (!q) return runPass(); // browse mode: already wide, single pass
-  const pass1Start = Date.now();
-  const precise = await runPass(PRECISION_SEARCH_ATTRIBUTES);
-  const pass1Ms = Date.now() - pass1Start;
-  if (!shouldAttemptWidePass(pass1Ms, precise.total, q)) return precise;
-  const wide = await runPass();
-  // The widened flag is honest signal, not decoration: only claim it when
-  // widening actually surfaced more than the precision pass had.
-  const best = wide.total > precise.total ? { ...wide, widened: true } : precise;
-  if (best.total > 0) return best;
+  const strict = await runPass();
+  if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
 
   // Every word matched nothing anywhere — only now drop back to
   // Meilisearch's word-dropping default, so a long or unusual query still
@@ -369,8 +347,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   // here means strict matching already came back empty, so this can only add
   // results, never displace better ones. Flagged `widened` because partial
   // matches are exactly what that flag exists to disclose.
-  const relaxed = await runPass(undefined, "last");
-  return relaxed.total > 0 ? { ...relaxed, widened: true } : best;
+  const relaxed = await runPass("last");
+  return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
 }
 
 /** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */

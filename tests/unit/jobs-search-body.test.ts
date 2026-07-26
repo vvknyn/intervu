@@ -1,45 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-    buildSearchBody,
-    PRECISION_SEARCH_ATTRIBUTES,
-    shouldAttemptWidePass,
-    shouldWidenSearch,
-    WIDE_PASS_LATENCY_BUDGET_MS,
-    WIDEN_THRESHOLD,
-} from "../../src/lib/jobs/meilisearch";
+import { buildSearchBody, shouldRelaxSearch } from "../../src/lib/jobs/meilisearch";
 
-test("buildSearchBody omits attributesToSearchOn by default", () => {
-    const body = buildSearchBody({ q: "marketing" }, false);
+test("the search body never restricts attributesToSearchOn — the whole posting is one document", () => {
+    // The old title/company precision pass treated place words as title words:
+    // "product manager canada" found only the 24 roles literally TITLED that,
+    // while 23,813 postings matched all three words somewhere (measured live
+    // 2026-07-26). Title-first ranking survives via `searchableAttributes`
+    // order, not via restricting where words may match.
+    const body = buildSearchBody({ q: "product manager canada" }, false);
     assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
 });
 
-test("buildSearchBody includes attributesToSearchOn when passed", () => {
-    const body = buildSearchBody({ q: "marketing" }, false, PRECISION_SEARCH_ATTRIBUTES);
-    assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+test("strict matching is the default — every query word must match", () => {
+    assert.equal(buildSearchBody({ q: "technical account manager" }, false).matchingStrategy, "all");
 });
 
-test("precision pass fields are title and company only (tags is sparse — measured 2026-07-21)", () => {
-    assert.deepEqual([...PRECISION_SEARCH_ATTRIBUTES], ["title", "company"]);
+test("the relax pass can be requested explicitly", () => {
+    assert.equal(buildSearchBody({ q: "x" }, false, "last").matchingStrategy, "last");
 });
 
-test("widen only when a query exists and pass 1 is thin", () => {
-    assert.equal(shouldWidenSearch(0, "marketing"), true);
-    assert.equal(shouldWidenSearch(WIDEN_THRESHOLD - 1, "marketing"), true);
-    assert.equal(shouldWidenSearch(WIDEN_THRESHOLD, "marketing"), false);
-    assert.equal(shouldWidenSearch(0, ""), false);
-    assert.equal(shouldWidenSearch(0, "   "), false);
-});
-
-test("attempt the wide pass only when thin AND pass 1 was fast enough (2026-07-24 incident)", () => {
-    // fast + thin → widen
-    assert.equal(shouldAttemptWidePass(100, 0, "marketing"), true);
-    // slow + thin → pass 1 already ate the latency budget, stay thin
-    assert.equal(shouldAttemptWidePass(WIDE_PASS_LATENCY_BUDGET_MS + 1, 0, "marketing"), false);
-    // fast + not thin → no need to widen regardless of speed
-    assert.equal(shouldAttemptWidePass(100, WIDEN_THRESHOLD, "marketing"), false);
-    // exactly at the budget boundary → still allowed (<=)
-    assert.equal(shouldAttemptWidePass(WIDE_PASS_LATENCY_BUDGET_MS, 0, "marketing"), true);
-    // empty query → never widen, regardless of speed
-    assert.equal(shouldAttemptWidePass(100, 0, ""), false);
+test("relax only when a real query strictly matched NOTHING — thin results stay strict", () => {
+    assert.equal(shouldRelaxSearch(0, "quantum optics researcher lisbon"), true);
+    // 3 genuine all-word matches must show as 3, never 3 + word-dropped noise.
+    assert.equal(shouldRelaxSearch(3, "quantum optics researcher lisbon"), false);
+    assert.equal(shouldRelaxSearch(0, ""), false, "a browse is already wide — nothing to relax");
+    assert.equal(shouldRelaxSearch(0, "   "), false);
 });
