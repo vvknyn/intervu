@@ -44,7 +44,7 @@ test("composeExploreActivationUrlState is gone — nothing in page.tsx persists 
 });
 
 test("activateExplore resets the URL to browse-default (empty q, no facets, no sort) instead of writing the derived query", () => {
-    const body = section("const activateExplore = (q: string, titles: string[]) => {", "const enterExplore = async");
+    const body = section("const activateExplore = (q: string) => {", "const enterExplore = async");
     // The `applyUrlState` call must be the LITERAL browse-default reset
     // `{ q: "", facets: {}, sort: null }` — not a derivation that could
     // smuggle the `q` parameter (the derived explore query) into the URL.
@@ -68,7 +68,15 @@ test("the search box shows empty-with-placeholder while explore mode is active �
     assert.match(SOURCE, /value=\{mode === "explore" \? "" : query\}/);
 });
 
-test("a dismissible \"Exploring roles adjacent to your résumé\" chip renders while explore mode is active", () => {
-    assert.match(SOURCE, /\{mode === "explore" && \(/);
-    assert.match(SOURCE, /Exploring roles adjacent to your résumé/);
+test("explore mode is named on screen and dismissible while it is active", () => {
+    // The Phase 1 redesign moved this from the deleted legend row onto the
+    // result line, and from a `&&` chip to the first branch of the mode
+    // ternary there. What must not change: explore mode is BOTH visible and
+    // leavable. The box blanks itself while exploring (asserted above), so
+    // without this the searcher sees unexplained results over an empty box
+    // with no way back.
+    assert.match(SOURCE, /mode === "explore" \? \(/);
+    assert.match(SOURCE, /exploring roles adjacent to your résumé/i);
+    const body = section('{mode === "explore" ? (', ") : fitActive ? (");
+    assert.match(body, /onClick=\{\(\) => enterBrowseAndSync\(\)\}/, "the label must actually leave explore mode");
 });

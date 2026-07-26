@@ -69,17 +69,27 @@ test("handleExploreClick routes its no-résumé fallback through handleUploadCli
     assert.doesNotMatch(body, /resumeActionAfterImportRef\.current\s*=/);
 });
 
-test("the résumé-upsell card wraps handleUploadClick in a no-arg closure, never passes it bare", () => {
-    // Bare `onUpload={handleUploadClick}` would let React's click event
-    // flow through as `handleUploadClick`'s first argument (`intent`),
-    // silently miscoercing "fit" into something else at runtime — the
-    // exact footgun this call site must avoid.
-    assert.match(SOURCE, /onUpload=\{\(\) => handleUploadClick\(\)\}/);
-    assert.doesNotMatch(SOURCE, /onUpload=\{handleUploadClick\}/);
+test("handleUploadClick is never handed to a handler prop bare — always wrapped", () => {
+    // Bare `onClick={handleUploadClick}` would let React's click event flow
+    // through as `handleUploadClick`'s first argument (`intent`), silently
+    // miscoercing "fit" into something else at runtime — the exact footgun
+    // every call site must avoid.
+    //
+    // Asserted against ANY handler prop rather than the old
+    // `onUpload={...}` on the résumé-upsell card: the Phase 1 redesign
+    // replaced that card with the Screen 9 résumé line, and pinning the
+    // rule to one prop name meant it stopped being checked the moment the
+    // caller moved.
+    assert.match(SOURCE, /handleUploadClick\(\)/, "expected at least one wrapped call site");
+    assert.doesNotMatch(
+        SOURCE,
+        /on[A-Z]\w*=\{handleUploadClick\}/,
+        "handleUploadClick must never be passed bare — wrap it in `() => handleUploadClick()`",
+    );
 });
 
 test("handleImport respects the fitIntentRef guard before applying a queued fit continuation", () => {
-    const body = section("const handleImport = (data: ResumeData", "const startOver = ()");
+    const body = section("const handleImport = (data: ResumeData", "const notConnected =");
     assert.match(body, /queuedAction\?\.kind === "fit"/);
     assert.match(body, /fitIntentRef\.current!\.isCurrent\(queuedAction\.fitToken\)/);
 });

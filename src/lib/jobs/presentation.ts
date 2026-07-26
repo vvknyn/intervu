@@ -1,5 +1,7 @@
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
-import type { GhostBadge, PublicJob } from "@/lib/jobs/types";
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { formatRelativeAge } from "@/lib/jobs/freshness";
+import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
 
 /**
  * Pure presentation helpers for a job posting — the vocabulary the ledger row
@@ -115,4 +117,43 @@ export function salaryText(j: PublicJob): string | null {
  *  the one place S2 names a calendar date rather than a relative age. */
 export function shortDate(ms: number): string {
     return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** How each posted-date window reads out loud. `undefined` is "any time" —
+ *  the user explicitly cleared the window, so there is nothing to disclose. */
+const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
+    "1d": "from the last 24 hours",
+    "3d": "from the last 3 days",
+    "7d": "from the last 7 days",
+    "30d": "from the last 30 days",
+    older: "posted more than 30 days ago",
+};
+
+/**
+ * The single grey line under the pinned search box.
+ *
+ * Says the posted-date window out loud. A fresh visit already filters to the
+ * last 30 days (`DEFAULT_URL_STATE.postedBucket`, url-state.ts), and the
+ * redesigned route gives the searcher no control that reveals it — so the
+ * number on screen is NOT the size of the corpus. Naming the window converts a
+ * hidden filter into a stated fact; without it the count is quietly wrong.
+ *
+ * Pure: the caller threads its own clock, so this is safe to call from a
+ * render body and can be asserted on without a fake timer.
+ */
+export function searchResultLine(input: {
+    count: CorpusCount;
+    postedBucket: PostedBucket | undefined;
+    /** Corpus sync stamp. Absent when the freshness probe hasn't answered. */
+    lastUpdated: string | null | undefined;
+    nowMs: number;
+}): string {
+    const noun = input.count.value === 1 ? "role" : "roles";
+    const window = input.postedBucket ? ` ${POSTED_WINDOW_PHRASE[input.postedBucket]}` : "";
+    // No stamp yet is not the same as a stale one: say nothing rather than
+    // claim a freshness we can't back up.
+    const updated = input.lastUpdated
+        ? ` · updated ${formatRelativeAge(input.lastUpdated, input.nowMs)}`
+        : "";
+    return `${formatCorpusCount(input.count)} ${noun}${window}${updated}`;
 }

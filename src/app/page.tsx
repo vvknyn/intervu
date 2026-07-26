@@ -14,16 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { PageLayout } from "@/components/layout/PageLayout";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
@@ -38,44 +30,29 @@ import {
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
-import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
+import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { formatRelativeAge, isStale } from "@/lib/jobs/freshness";
 import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import {
-    prettyEnum,
     decodeText,
     cleanCompany,
     locationText,
-    salaryText,
+    searchResultLine,
 } from "@/lib/jobs/presentation";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
-    clearAllRecentSearches,
 } from "@/lib/jobs/recent-searches";
-import {
-    FilterPanel,
-    activeFilterEntries,
-    toggleFacetValue,
-    isNoiseFacetValue,
-    facetValueLabel,
-    PRISTINE_FILTER_STATE,
-    type FilterState,
-} from "@/components/jobs/FilterPanel";
+import { activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
-import { JobsAsk } from "@/components/jobs/JobsAsk";
-import { ResumeUpsellCard } from "@/components/jobs/ResumeUpsellCard";
-import { PipelineCard } from "@/components/jobs/PipelineCard";
-import { GhostRadarCard } from "@/components/jobs/GhostRadarCard";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -196,14 +173,24 @@ function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
  * be exactly the impure-render-call class `react-hooks/purity` flags at a
  * pure-derivation call site, just one level removed from the component itself.
  */
-function postedAge(ts: number | null, now: number): string | null {
+/**
+ * How long a posting has been up, in words.
+ *
+ * Reads as a sentence fragment ("posted 12 days ago") rather than the ledger's
+ * old terse "12d". How long a role has sat open is the fact this product can
+ * state that most boards can't, so it is the one number on the row worth
+ * spelling out — a searcher shouldn't have to decode it.
+ */
+function postedPhrase(ts: number | null, now: number): string | null {
     if (ts == null) return null;
     const days = Math.floor((now - ts) / 86_400_000);
-    if (days <= 0) return "today";
-    if (days === 1) return "1d";
-    if (days < 30) return `${days}d`;
+    if (days <= 0) return "posted today";
+    if (days === 1) return "posted yesterday";
+    if (days < 30) return `posted ${days} days ago`;
     const months = Math.floor(days / 30);
-    return months < 12 ? `${months}mo` : `${Math.floor(months / 12)}y`;
+    if (months < 12) return `posted ${months} month${months === 1 ? "" : "s"} ago`;
+    const years = Math.floor(months / 12);
+    return `posted ${years} year${years === 1 ? "" : "s"} ago`;
 }
 
 /**
@@ -228,18 +215,6 @@ const VERDICT_TONE_CLASS: Record<FlagTone, string> = {
     warn: "text-verdict-caution",
     danger: "text-verdict-risk",
     faint: "text-faint",
-};
-/** Subtle full-row bg tint (spec: "on caution/risk only") — `live`/`faint`
- *  intentionally have no entry, so the row falls back to the plain hover bg. */
-const VERDICT_ROW_BG_CLASS: Partial<Record<FlagTone, string>> = {
-    warn: "bg-verdict-caution-bg",
-    danger: "bg-verdict-risk-bg",
-};
-const VERDICT_GLYPH: Record<FlagTone, string> = {
-    live: "■",
-    warn: "▲",
-    danger: "✕",
-    faint: "—",
 };
 
 /** "relisted" (a stated fact from `classifyPostingFreshness`) wins over a
@@ -289,38 +264,6 @@ function verdictFor(job: PublicJob, now: number): Verdict {
     }
 }
 
-/**
- * Shared active/inactive visual for every text affordance in the control
- * band — the legend line's four filter toggles AND the sort trio (spec:
- * both are "text, underlined when active"). Editorial pass replaces the
- * portal pass's two near-identical pill/segment components (`FilterPill`,
- * `SortSegment`) with this one — same toggle shape, no reason for two.
- */
-function MonoToggle({
-    active,
-    onClick,
-    children,
-}: {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
-            className={cn(
-                "font-mono text-[12px] transition-colors duration-100",
-                active
-                    ? "text-foreground underline underline-offset-4"
-                    : "text-muted-foreground hover:text-foreground",
-            )}
-        >
-            {children}
-        </button>
-    );
-}
 
 /**
  * Task 9 — typeahead: adapt `suggestJobsAction`'s plain `{ titles, companies }`
@@ -339,40 +282,49 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 
 /* ----------------------------- ledger row ----------------------------- */
 
+/**
+ * One result. Title dominant, one quiet line underneath — nothing else.
+ *
+ * The list's job is to let someone scan for the role they want, so the row
+ * carries only what that decision needs: what it is, who it's at, where, and
+ * how long it's been open. Salary, seniority, and the save/apply actions moved
+ * to the detail takeover, which already renders all three (`JobDetail`) — they
+ * were competing with the title for attention while answering a question
+ * nobody asks until they've opened something.
+ *
+ * The title dominates for a ranking reason too: pass 1 matches on `title` and
+ * `company` only (`PRECISION_SEARCH_ATTRIBUTES`, lib/jobs/meilisearch.ts), so
+ * making the title the loudest thing means the eye lands on the very text the
+ * engine ranked. When visual hierarchy and ranking disagree, even correct
+ * results feel arbitrary.
+ */
 function JobCard({
     job,
     active,
     onClick,
     now,
-    pursuit,
-    goingAfter,
-    onGoAfter,
-    onOpenPosting,
 }: {
     job: PublicJob;
     active: boolean;
     onClick: () => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
-    /** The existing pursuit for this job, if the user already went after it — drives the filled heart. */
-    pursuit: Pursuit | undefined;
-    goingAfter: boolean;
-    onGoAfter: () => void;
-    onOpenPosting: () => void;
 }) {
-    const postedTs = derivePostedTs(job);
-    const age = postedAge(postedTs, now);
-    const sal = salaryText(job);
-    const level = prettyEnum(job.experience_level);
-    const workLoc = [prettyEnum(job.work_type), locationText(job)].filter(Boolean).join(" · ");
-    const verdict = verdictFor(job, now);
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
-    const saved = Boolean(pursuit);
-    // Selection wins over the verdict tint (spec: tint is caution/risk-only
-    // background texture, not a state indicator) — falls back to no tint at
-    // all for live/unscored rows, where hover alone (below) carries the
-    // interaction feedback.
-    const rowBg = active ? "bg-muted" : VERDICT_ROW_BG_CLASS[verdict.tone];
+    const verdict = verdictFor(job, now);
+    // Ghost-flagged rows are filtered out by default (`hideGhosts: true`,
+    // url-state.ts), so this normally never fires. It fires only when the
+    // searcher has deliberately asked to see flagged postings — at which point
+    // saying nothing would be the dishonest option, not the clean one.
+    const flagged = verdict.tone === "warn" || verdict.tone === "danger";
+    const meta = [
+        cleanCompany(job.company) || "Unknown company",
+        locationText(job),
+        postedPhrase(derivePostedTs(job), now),
+    ]
+        .filter(Boolean)
+        .join(" · ");
+
     return (
         <div
             role="option"
@@ -389,65 +341,18 @@ function JobCard({
                 }
             }}
             className={cn(
-                "flex cursor-pointer flex-col gap-1 border-b border-border py-3 text-left transition-colors duration-100 hover:bg-muted/40 sm:flex-row sm:items-start sm:justify-between sm:gap-4",
-                rowBg,
+                "cursor-pointer border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40",
+                active && "bg-muted",
             )}
         >
-            <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span data-testid="job-title" className="truncate text-[15px] font-semibold tracking-tight">
-                        {decodeText(job.title)}
-                    </span>
-                    <span className="truncate text-[13px] font-medium text-text-2">
-                        {cleanCompany(job.company) || "Unknown company"}
-                    </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <div className="flex flex-wrap items-center gap-x-2.5 font-mono text-[11.5px] text-muted-foreground">
-                        {workLoc && <span>{workLoc}</span>}
-                        <span>{sal ?? "salary not listed"}</span>
-                        {level && <span>{level}</span>}
-                        {age && <span className="text-faint">{age}</span>}
-                    </div>
-                    <div className="flex items-center gap-3 font-mono text-[11.5px]">
-                        <button
-                            type="button"
-                            aria-label={saved ? "Saved to your pipeline" : "Save this job"}
-                            aria-pressed={saved}
-                            disabled={goingAfter}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onGoAfter();
-                            }}
-                            className={cn(
-                                "underline underline-offset-2 transition-colors duration-100 disabled:opacity-50",
-                                saved ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            {saved ? "saved" : "save"}
-                        </button>
-                        {job.apply_url && (
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onOpenPosting();
-                                }}
-                                className="text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                            >
-                                apply
-                            </button>
-                        )}
-                    </div>
-                </div>
+            <div data-testid="job-title" className="text-[16px] font-semibold leading-snug tracking-tight">
+                {decodeText(job.title)}
             </div>
-            <div
-                className={cn(
-                    "shrink-0 text-left font-mono text-[12px] font-medium sm:w-[150px] sm:text-right",
-                    VERDICT_TONE_CLASS[verdict.tone],
+            <div className="mt-1 font-mono text-[12px] text-muted-foreground">
+                {meta}
+                {flagged && (
+                    <span className={cn("ml-2", VERDICT_TONE_CLASS[verdict.tone])}>· {verdict.code.toLowerCase()}</span>
                 )}
-            >
-                {VERDICT_GLYPH[verdict.tone]} {verdict.code}
             </div>
         </div>
     );
@@ -568,6 +473,10 @@ const PAGE = 30;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
 
+/** Jobs opened in a session before the résumé is offered (Screen 9). Three is
+ *  the point where someone is demonstrably reading rather than glancing. */
+const RESUME_MOMENT_OPENS = 3;
+
 /** Left-aligned loading line shown while the ledger's first page loads —
  *  no centered card, no decorative icon (anti-marker 5/6). */
 function JobsListSplash() {
@@ -673,28 +582,6 @@ function PrepMovedNote() {
                 className="shrink-0 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
                 ✕
-            </button>
-        </div>
-    );
-}
-
-const MODE_META: Record<Mode, { label: string }> = {
-    explore: { label: "Exploring adjacent roles" },
-    browse: { label: "Browsing all live roles" },
-};
-
-/** Slim bar above the results that names the active mode + offers "Start over". */
-function ModeBar({ mode, onStartOver }: { mode: Mode; onStartOver: () => void }) {
-    const meta = MODE_META[mode];
-    if (!meta) return null;
-    return (
-        <div className="mb-3 flex items-center justify-between gap-2 font-mono text-xs">
-            <span className="text-foreground">{meta.label}</span>
-            <button
-                onClick={onStartOver}
-                className="text-muted-foreground transition-colors duration-100 hover:text-foreground"
-            >
-                ← Start over
             </button>
         </div>
     );
@@ -923,22 +810,6 @@ function JobsContent() {
     // stale fit claim even via the post-auth replay path.
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
-    // Task 10: mobile filter sheet. `pendingFilterState` is a scratch copy of
-    // FilterState the sheet mutates locally — it never touches the URL/live
-    // state until "Show N roles" is tapped (resolution #3). Seeded from the
-    // URL like every other field above; `openFilterSheet` (below, once
-    // `filterState` exists) re-snapshots it from the live state on each open.
-    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-    const [pendingFilterState, setPendingFilterState] = useState<FilterState>({
-        facets: initialUrlState.facets,
-        salaryMin: initialUrlState.salaryMin,
-        visaOnly: initialUrlState.visaOnly,
-        postedBucket: initialUrlState.postedBucket,
-        hideGhosts: initialUrlState.hideGhosts,
-    });
-    // Live, debounced "Show N roles" count for the sheet's apply button —
-    // reflects `pendingFilterState`, not the applied filters.
-    const [sheetCount, setSheetCount] = useState<number | null>(null);
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1016,25 +887,6 @@ function JobsContent() {
     const firstUnresolvedDeadLinkIdRef = useRef<string | null>(null);
 
     // Live corpus size for the search placeholder ("Search 12,345 live-checked
-    // roles…") and Task 8's upsell copy. Captured opportunistically from the
-    // FIRST all-defaults search response (never a dedicated count request) —
-    // `corpusTotalCapturedRef` makes that one-shot regardless of effect
-    // re-runs. A deep link that already carries filters on first load never
-    // fills this in; the placeholder just stays generic.
-    //
-    // Whole-branch review fix — this used to store the raw `r.total`, which
-    // is `body.totalHits ?? body.estimatedTotalHits` straight off
-    // Meilisearch (see searchMeili, lib/jobs/meilisearch.ts), both capped by
-    // `JOBS_INDEX_SETTINGS.pagination.maxTotalHits` (100,000). Verified live:
-    // the real corpus is ~1.77M docs, so that cap was being printed as an
-    // exact fact — "Search 100,000 live-checked roles…" — right next to the
-    // UNCAPPED "N hidden ghosts" figure elsewhere on this page, two numbers
-    // on different denominators presented as if they were comparable. Now
-    // stores the resolved `CorpusCount` (lib/jobs/corpus-count.ts) instead,
-    // so every consumer renders through `formatCorpusCount` and a capped
-    // value can only ever show as a floor ("100,000+"), never a bare number.
-    const [corpusCount, setCorpusCount] = useState<CorpusCount | null>(null);
-    const corpusTotalCapturedRef = useRef(false);
 
     // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
     // many likely_ghost postings the CURRENT filters are hiding right now.
@@ -1099,7 +951,6 @@ function JobsContent() {
     // asked for a date sort the UI isn't claiming — the two must never disagree.
     const backendSort: JobSortMode = effectiveSort;
 
-    const hasQuery = query.trim().length > 0;
 
     // A monotonic generation makes stale pagination unambiguous, including
     // reversible A→B→A query changes where signatures alone are insufficient.
@@ -1141,7 +992,6 @@ function JobsContent() {
     // it gets a real, visible error state instead of a silent fallback —
     // rendered as a band in the results area (below) with Retry + Browse.
     const [exploreFailed, setExploreFailed] = useState(false);
-    const [exploreTitles, setExploreTitles] = useState<string[]>([]);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1229,45 +1079,20 @@ function JobsContent() {
         mode === "browse" && !query.trim() && !fitActive && activeFilterEntries(filterState).length === 0;
 
     /**
-     * How big is the corpus — asked once, on its own, for the search line's
-     * placeholder ("Search 330,053 live-checked roles…").
+     * Autofocus the line on desktop only (Screen 1). On a phone, focusing on
+     * arrival throws the keyboard up over the question before it can be read —
+     * and being read is that screen's entire job.
      *
-     * This used to piggyback on the landing browse, capturing `total` whenever
-     * `searchKey === ""`. That worked only because an empty query always ran a
-     * search; now it doesn't, and a visitor who arrives with a filter or a
-     * query would never have produced the all-defaults search that capture
-     * depended on. It's a separate question from "what did the user search",
-     * so it's now a separate request: default filters, no query, no facets.
-     *
-     * Facets are requested deliberately, not out of habit: Meilisearch caps
-     * `totalHits` at `pagination.maxTotalHits`, and `resolveCorpusCount`
-     * recovers the real number by summing the `ghost_badge` facet
-     * distribution, which is NOT capped. Without them the placeholder degrades
-     * to "100,000+" — honest, but a floor rather than the real size.
-     *
-     * Failure leaves the count null rather than pinning a number we didn't get
-     * — the placeholder already reads correctly without one.
+     * Imperative rather than React's `autoFocus` prop because the viewport test
+     * can only run on the client: deriving the prop from a media query would
+     * disagree with the server-rendered markup and trip hydration.
      */
     useEffect(() => {
-        if (corpusTotalCapturedRef.current) return;
-        corpusTotalCapturedRef.current = true;
-        void searchJobsAction({
-            ...buildJobSearchPayload(PRISTINE_FILTER_STATE, "", backendSort, postedDateSupported),
-            withFacets: true,
-            limit: 1,
-            offset: 0,
-        }).then((r) => {
-            if (isUnavailableJobsResult(r)) {
-                corpusTotalCapturedRef.current = false;
-                return;
-            }
-            setCorpusCount(resolveCorpusCount(r, MAX_REACHABLE));
-        });
-        // Deliberately mount-only: the corpus size doesn't depend on this
-        // session's filters, and re-asking per keystroke would be a second
-        // search behind every search.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [postedDateSupported]);
+        if (!showAsk) return;
+        if (!window.matchMedia("(min-width: 640px)").matches) return;
+        document.querySelector<HTMLInputElement>("[data-search-line] input")?.focus();
+    }, [showAsk]);
+
 
     // Debounced search on query / facet / salary / visa changes.
     useEffect(() => {
@@ -1519,6 +1344,12 @@ function JobsContent() {
         setSelectedId(id);
     }, []);
 
+    /** Jobs opened this session — the trigger for the Screen 9 résumé moment.
+     *  Deliberately not persisted: the moment is about the reading someone is
+     *  doing right now, and a count carried across visits would fire it at
+     *  someone who just arrived. */
+    const [opensThisSession, setOpensThisSession] = useState(0);
+
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
@@ -1528,6 +1359,7 @@ function JobsContent() {
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
         void recordJobOpenedAction(lastSearchId, id, rank);
+        setOpensThisSession((n) => n + 1);
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
@@ -1849,20 +1681,6 @@ function JobsContent() {
 
     // Every filter/sort mutation below routes through `applyUrlState` with
     // `"replace"` — a filter toggle must never grow browser history.
-    const toggleFacet = (key: FacetKey, value: string) => {
-        const nextFacets = toggleFacetValue(facets, key, value);
-        setFacets(nextFacets);
-        applyUrlState(buildUrlState({ facets: nextFacets }), "replace");
-    };
-
-    const applySalaryMin = (v: number) => {
-        setSalaryMin(v);
-        applyUrlState(buildUrlState({ salaryMin: v }), "replace");
-    };
-    const applyPostedBucket = (v: PostedBucket | undefined) => {
-        setPostedBucket(v);
-        applyUrlState(buildUrlState({ postedBucket: v }), "replace");
-    };
     // Task 7: setLocal-then-applyUrlState, mirroring every other mutator here
     // (see the ordering rule in this file's header comment / composer
     // precedent in url-state.ts).
@@ -1893,104 +1711,35 @@ function JobsContent() {
         );
     };
 
-    const clearAll = () => {
-        applyFilterState(PRISTINE_FILTER_STATE);
-    };
-
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
     // active" — the "All filters (N)" pill's count, the empty state's
     // per-filter clear chips, and the sheet's own count all read from it so
     // they can never disagree.
     const activeEntries = activeFilterEntries(filterState);
-    const activeCount = activeEntries.length;
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
     // "hideGhosts && ghostHiddenCount > 0" rule the controller specified.
     const ghostRevealCount = resolveGhostReveal(hideGhosts, ghostHiddenCount);
 
-    // Task 10 — filter sheet (portal redesign: the ONLY filter surface at
-    // every breakpoint now — see the "All filters" pill above). Every
-    // pending mutator below mirrors one of the LIVE mutators above
-    // (toggleFacet/applySalaryMin/applyPostedBucket/onHideGhosts) field-for-
-    // field, but writes into
-    // `pendingFilterState` instead of local+URL state — the sheet's own
-    // FilterPanel instance passes these as its callback props, so toggling
-    // inside the sheet can only ever change pending state + the live count
-    // (resolution #3), never the applied filters.
-    const pendingToggleFacet = (key: FacetKey, value: string) =>
-        setPendingFilterState((prev) => ({ ...prev, facets: toggleFacetValue(prev.facets, key, value) }));
-    const pendingSalaryMin = (v: number) => setPendingFilterState((prev) => ({ ...prev, salaryMin: v }));
-    const pendingVisaOnly = (v: boolean) => setPendingFilterState((prev) => ({ ...prev, visaOnly: v }));
-    const pendingPostedBucket = (v: PostedBucket | undefined) =>
-        setPendingFilterState((prev) => ({ ...prev, postedBucket: v }));
-    const pendingHideGhosts = (v: boolean) => setPendingFilterState((prev) => ({ ...prev, hideGhosts: v }));
-    const pendingClearAll = () => setPendingFilterState(PRISTINE_FILTER_STATE);
-    const pendingActiveCount = activeFilterEntries(pendingFilterState).length;
 
-    // Snapshot the live filters into the sheet's scratch state on open —
-    // seeding `sheetCount` from the already-known live total too, so the
-    // apply button reads correctly on the very first paint instead of a
-    // blank/placeholder state until the debounced re-count below resolves.
-    const openFilterSheet = () => {
-        setPendingFilterState(filterState);
-        setSheetCount(result?.total ?? null);
-        setFilterSheetOpen(true);
-    };
-    // Tapping "Show N roles" is the ONLY thing that commits pending state —
-    // reuses `applyFilterState` verbatim (the same funnel clearAll/chip-
-    // remove already share), so there is exactly one place that turns a
-    // FilterState into local state + a URL replace.
-    const applyPendingFilters = () => {
-        applyFilterState(pendingFilterState);
-        setFilterSheetOpen(false);
-    };
-
-    // Sheet live count (resolution #2): 250ms-debounced re-count as pending
-    // filters change while the sheet is open. Reuses `FitIntentGuard`
-    // verbatim rather than adding a bespoke guard class — it's already the
-    // generic "one monotonic counter, no ticket bookkeeping" shape this
-    // needs (fit-intent.ts), just guarding a different async race (a stale
-    // count response landing after a newer pending edit) than its
-    // sort-menu origin. A fresh instance, independent of `fitIntentRef`.
-    const sheetCountGuardRef = useRef<FitIntentGuard | null>(null);
-    if (!sheetCountGuardRef.current) sheetCountGuardRef.current = new FitIntentGuard();
-    useEffect(() => {
-        // `begin()` runs on EVERY effect re-run, including the one triggered
-        // by the sheet CLOSING — not just while open. Review fix (2026-07-19):
-        // with `begin()` only called past the early return below, closing the
-        // sheet mid-request never advanced the guard, so a still-in-flight
-        // count from the just-discarded session stayed "current" and could
-        // land after a fresh re-open had already reseeded `sheetCount` —
-        // clobbering the honest just-opened value with a stale one.
-        const token = sheetCountGuardRef.current!.begin();
-        if (!filterSheetOpen) return;
-        const t = setTimeout(async () => {
-            try {
-                const r = await searchJobsAction({
-                    ...buildJobSearchPayload(pendingFilterState, query, backendSort, postedDateSupported),
-                    limit: 1,
-                    offset: 0,
-                });
-                if (!sheetCountGuardRef.current!.isCurrent(token)) return;
-                if (!isUnavailableJobsResult(r)) setSheetCount(r.total);
-            } catch {
-                /* best-effort — the apply button keeps its last-known count */
-            }
-        }, 250);
-        return () => clearTimeout(t);
-        // `backendSort` rather than the raw `sortOverride`: it also carries the
-        // date-sort coercion, so the pending count re-runs if the support probe
-        // resolves while the sheet is open. `postedDateSupported` is ALSO
-        // listed directly (Phase 1-a #4): `buildJobSearchPayload` reads it to
-        // gate `postedBucket` independent of whatever `backendSort` is.
-    }, [filterSheetOpen, pendingFilterState, query, backendSort, postedDateSupported]);
-
-    // Task 8 résumé upsell card gate: not dismissed AND no usable résumé in
-    // LOCAL state (no new mount fetch — see the state block above). A user
-    // with a server-side résumé they haven't loaded this session still sees
-    // the card until dismissed; accepted trade-off, not a bug.
-    const showUpsell = !upsellDismissed && !resumeIsUsable(resume ?? undefined);
+    /**
+     * Screen 9's gate — the résumé moment.
+     *
+     * Three opens deep, not dismissed, and not already ranked by fit. It fires
+     * for people who HAVE a résumé too, which is the whole reason this replaced
+     * the old card: with the sort trio gone, "rank by fit" lost its only entry
+     * point, so a returning user with a résumé on file had no way left to ask
+     * for it. Whether we ask for a résumé or offer to use the one on hand is
+     * decided at the call site — same moment, one sentence apart.
+     *
+     * `resumeIsUsable` reads LOCAL state only (no mount fetch), so someone with
+     * a server-side résumé they haven't loaded this session is offered the
+     * upload path. Accepted trade-off, not a bug.
+     */
+    const hasUsableResume = resumeIsUsable(resume ?? undefined);
+    const showResumeMoment =
+        !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
     // Open the in-place analysis slideout for a job. Tailoring is AI-backed
     // (login-gated), so prompt sign-in first and resume once authenticated.
@@ -2317,7 +2066,6 @@ function JobsContent() {
         // Supersede a stale in-flight Explore before this résumé-driven mode
         // takes over — see `exploreIntentRef`'s doc comment above.
         exploreIntentRef.current!.begin();
-        setExploreTitles([]);
         setMode("browse");
         setFacets(f);
         setQuery(q);
@@ -2369,8 +2117,7 @@ function JobsContent() {
     // The URL-reconcile effect (keyed on `[searchParams]`, `modeRef` gate)
     // is what keeps this write from immediately stomping the `query`/
     // `facets` state just set above back to the URL's now-empty values.
-    const activateExplore = (q: string, titles: string[]) => {
-        setExploreTitles(titles);
+    const activateExplore = (q: string) => {
         setFacets({});
         setQuery(q);
         setMode("explore");
@@ -2452,7 +2199,7 @@ function JobsContent() {
                     toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
                     return;
                 case "fallback":
-                    activateExplore(outcome.q, []);
+                    activateExplore(outcome.q);
                     toast.info(
                         outcome.credits
                             ? "Out of AI credits — showing skill-based matches instead."
@@ -2460,7 +2207,7 @@ function JobsContent() {
                     );
                     return;
                 case "success":
-                    activateExplore(outcome.q, outcome.titles);
+                    activateExplore(outcome.q);
                     return;
             }
         } finally {
@@ -2567,7 +2314,6 @@ function JobsContent() {
         // comment above.
         exploreIntentRef.current!.begin();
         clearPendingGate();
-        setExploreTitles([]);
         setFacets({});
         setQuery("");
         setMode("browse");
@@ -2646,353 +2392,177 @@ function JobsContent() {
         }
     };
 
-    const startOver = () => {
-        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
-        // comment above.
-        exploreIntentRef.current!.begin();
-        setExploreTitles([]);
-        setFacets({});
-        setSalaryMin(0);
-        setVisaOnly(false);
-        // References the shared default (PRISTINE_FILTER_STATE), not a
-        // literal — "30d" is now the fresh-load default, and this is the ONE
-        // reset path that doesn't already go through `applyFilterState`
-        // (clearAll/pendingClearAll do), so it's the one place that could
-        // silently drift from it.
-        setPostedBucket(PRISTINE_FILTER_STATE.postedBucket);
-        setSortOverride(null);
-        setHideGhosts(true);
-        setQuery("");
-        setSearchError(null);
-        setDetailSheetOpen(false);
-        setMode("browse");
-        // Review fix — these two used to rely entirely on the URL-reconcile
-        // effect (keyed on `searchParams`) re-deriving them a tick later
-        // from `DEFAULT_URL_STATE` below (which carries neither `sort=fit`
-        // nor a `job` id): correct in the end, but explicit here matches
-        // every other field in this function and removes the one-frame gap
-        // where local state and the fresh URL disagree.
-        setFitActive(false);
-        setSelectedId(null);
-        applyUrlState(DEFAULT_URL_STATE, "replace");
-    };
 
     const notConnected = result != null && !result.configured && result.backend === "unconfigured";
     const blockingError = searchError != null && hits.length === 0;
     const backgroundError = searchError != null && hits.length > 0;
 
-    // Hero search row's location/mode selects (spec: "no city-level filter
-    // exists — do NOT fake one") — single-value pickers over the real
-    // `location_country`/`work_type` facets, sharing the exact toggle
-    // mechanics `toggleFacet` already uses, just replacing (not adding to)
-    // whatever was selected for that key, since a plain <select> can only
-    // hold one value at a time.
-    const setSingleFacet = (key: FacetKey, value: string | null) => {
-        const nextFacets = { ...facets, [key]: value ? [value] : undefined };
-        setFacets(nextFacets);
-        applyUrlState(buildUrlState({ facets: nextFacets }), "replace");
-    };
-    const facetOptions = (key: FacetKey): { value: string; label: string; count: number }[] =>
-        Object.entries(result?.facetDistribution?.[key] ?? {})
-            .filter(([v]) => !isNoiseFacetValue(key, v))
-            .sort((a, b) => b[1] - a[1])
-            .map(([value, count]) => ({ value, label: facetValueLabel(key, value), count }));
-    const countryOptions = facetOptions("location_country");
-    const workTypeOptions = facetOptions("work_type");
 
-    // Result-count line (spec: "N roles · M flagged this search", mono, above
-    // the column heads). `ghostHiddenCount`/`totalCount` are the SAME sources
-    // the rail's "N hidden" toggle copy and corpus-count already read — no
-    // second fetch, and the line can never disagree with those.
+    // The one grey line under the pinned box. It states the posted-date window
+    // out loud because the redesigned route offers no control that reveals it
+    // — see `searchResultLine` (lib/jobs/presentation.ts) for why an unnamed
+    // window makes the count quietly wrong.
     const resultCountLine =
         result?.configured && !loading
-            ? `${formatCorpusCount(totalCount)} ${totalCount.value === 1 ? "role" : "roles"}${
-                  ghostHiddenCount != null && ghostHiddenCount > 0
-                      ? ` · ${ghostHiddenCount.toLocaleString()} flagged this search`
-                      : ""
-              }`
+            ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
             : null;
 
-    // Trust-toolbar pills (spec: "each mapped to existing JobsUrlState
-    // only"). Each toggle mirrors the shape `toggleFacet`/`applyPostedBucket`/
-    // `applySalaryMin`/`onHideGhosts` already use elsewhere on this page —
-    // no parallel filter-mutation path, just a second, quicker entry point
-    // onto the SAME state those mutators own.
-    const seniorActive = (facets.experience_level ?? []).includes("senior");
-    const salary100kActive = salaryMin >= 100_000;
-    const newThisWeekActive = postedBucket === "7d";
 
-    // Sort segmented control (results header). `chooseSort` mirrors the old
-    // Select's onValueChange for a real backend `JobSortMode`; "best match"
-    // collapses TWO of the old dropdown's options into one segment (spec:
-    // "plus best match ← relevance/fit so no existing mode is lost") — with
-    // a query, that's plain relevance; with none, "best match" IS "ranked by
-    // your résumé" (the old separate "Rank by fit" option), since relevance
-    // has nothing to rank without a query.
-    const chooseSort = (nextMode: JobSortMode) => {
-        fitIntentRef.current!.begin();
-        setFitActive(false);
-        setSortOverride(nextMode);
-        applyUrlState(buildUrlState({ sort: modeToUrlSort(nextMode) }), "replace");
-    };
-    const chooseBestMatch = () => {
-        if (hasQuery) chooseSort("relevance");
-        else void handleRankByFit();
-    };
-    const bestMatchActive = fitActive || (!fitActive && effectiveSort === "relevance");
 
+    /**
+     * The route is ONE tree with two layouts, not two trees.
+     *
+     * Screen 1 (the line) and Screen 3 (the pinned line over results) render
+     * the SAME `SearchAutocomplete` element at the same position, with only
+     * the layout around it changing. That is load-bearing, not tidiness:
+     * React keeps a component's identity by its position in the element tree,
+     * so rendering the two screens as separate returns made the first
+     * keystroke unmount the input and mount a different one. Focus went with
+     * it and the rest of the sentence was typed into nothing — verified live,
+     * "product manager" arrived as "p".
+     *
+     * Screen 1 covers the app masthead with a fixed layer rather than asking
+     * the shell to hide it: the masthead belongs to every route, and a route
+     * reaching up to reconfigure the frame around it is how one page's
+     * redesign quietly becomes every page's problem. That is also why this
+     * route no longer uses `PageLayout` — its shell is genuinely its own now.
+     */
     return (
-        <PageLayout
-            fullWidth
-            // The viewport pin belongs on the SHELL, which starts directly below
-            // the 3.5rem masthead. It used to sit on `main` instead — but `main`
-            // renders BELOW the control band, so `calc(100dvh-3.5rem)` there
-            // counted the masthead only and ignored the band, leaving the
-            // document exactly one band taller than the viewport (measured:
-            // 1051 vs 900 at 1440x900, 919 vs 768 at 1024). `main` now flexes
-            // into whatever the band leaves, so the band can wrap or grow
-            // without anyone re-deriving a height.
-            shellClassName="lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden"
-            className="w-full max-w-[1700px] px-4 pb-6 sm:px-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden lg:px-14"
-            header={
-                <div className="border-b border-foreground bg-background">
-                    <div className="mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6">
-                        {/* Document-line search: a bottom rule, not a box — the working
-                            surface starts immediately, no marketing headline above it. */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-4">
-                            <SearchAutocomplete
-                                // Explore mode's `query` state carries the résumé-derived
-                                // search string (AI-suggested titles, capped — see
-                                // `capExploreTerms`), which used to render raw in this box:
-                                // an unreadable wall of query soup. The dismissible
-                                // "Exploring roles adjacent to your résumé" legend item below
-                                // communicates that state instead; the box itself shows
-                                // empty-with-placeholder while explore is active.
-                                //
-                                // Explore is ephemeral, session-only state — the URL
-                                // deliberately does NOT represent it (see `activateExplore`'s
-                                // doc comment): a refresh or a shared link during Explore
-                                // lands on plain browse, never on this derived query. So
-                                // gating just the DISPLAYED value on mode wouldn't be enough
-                                // on its own — the box's `value` here and the URL are both
-                                // intentionally out of sync with the underlying `query`
-                                // state while exploring, by design, not by omission.
-                                value={mode === "explore" ? "" : query}
-                                onChange={(v) => {
-                                    if (mode === "explore") {
-                                        // A manual edit is the user taking over from
-                                        // Explore — supersede any stale in-flight explore
-                                        // (see `exploreIntentRef`) before dropping back to
-                                        // an ordinary browse-mode query.
-                                        exploreIntentRef.current!.begin();
-                                        setMode("browse");
-                                        setExploreTitles([]);
-                                    }
-                                    setQuery(v);
-                                    // Continuous input is filter-like — `replace`, not `push` (a
-                                    // "push" per keystroke would make the back button undo one
-                                    // character at a time). Discrete submit (Enter, or picking a
-                                    // suggestion) uses `push` instead — see `onSearch` below.
-                                    applyUrlState(buildUrlState({ q: v }), "replace");
-                                }}
-                                onSearch={() => submitSearch(query)}
-                                suggest={suggestForBox}
-                                placeholder={
-                                    corpusCount != null
-                                        ? `Search ${formatCorpusCount(corpusCount)} live-checked roles…`
-                                        : "Search live-checked roles…"
+        <div
+            className={cn(
+                "bg-background",
+                showAsk
+                    ? "fixed inset-0 z-50 flex flex-col items-center overflow-y-auto px-6"
+                    // The viewport pin lives on the SHELL, which starts below the
+                    // 3.5rem masthead. Putting it on the results pane instead
+                    // double-counts the chrome and pushes the document one band
+                    // past the viewport (measured: 1051 vs 900 at 1440x900).
+                    : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
+            )}
+        >
+            <div
+                className={cn(
+                    "w-full shrink-0",
+                    showAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-foreground",
+                )}
+            >
+                <div className={showAsk ? undefined : "mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6"}>
+                    <div data-search-line className="flex items-center gap-4">
+                        <SearchAutocomplete
+                            // Explore mode's `query` state carries the résumé-derived
+                            // search string (AI-suggested titles, capped — see
+                            // `capExploreTerms`), which used to render raw in this box:
+                            // an unreadable wall of query soup. The "exploring roles
+                            // adjacent to your résumé" affordance on the result line
+                            // communicates that state instead; the box itself shows
+                            // empty-with-placeholder while explore is active.
+                            //
+                            // Explore is ephemeral, session-only state — the URL
+                            // deliberately does NOT represent it (see `activateExplore`'s
+                            // doc comment): a refresh or a shared link during Explore
+                            // lands on plain browse, never on this derived query. So
+                            // gating just the DISPLAYED value on mode wouldn't be enough
+                            // on its own — the box's `value` here and the URL are both
+                            // intentionally out of sync with the underlying `query`
+                            // state while exploring, by design, not by omission.
+                            value={mode === "explore" ? "" : query}
+                            onChange={(v) => {
+                                if (mode === "explore") {
+                                    // A manual edit is the user taking over from
+                                    // Explore — supersede any stale in-flight explore
+                                    // (see `exploreIntentRef`) before dropping back to
+                                    // an ordinary browse-mode query.
+                                    exploreIntentRef.current!.begin();
+                                    setMode("browse");
                                 }
-                                className="h-9 rounded-none border-0 border-b border-border-strong bg-transparent px-0 text-[16px] shadow-none focus-visible:border-foreground focus-visible:ring-0 focus-visible:shadow-none"
-                                containerClassName="min-w-0 flex-1"
-                                /* The ask points at this line rather than shipping its
-                                   own input, so the line takes focus when it's what the
-                                   screen is asking for. */
-                                autoFocus={showAsk}
-                            />
-                            <div className="flex shrink-0 items-center gap-4 pb-0.5">
-                                {/* Re-homed from the old entry-gate's "Explore adjacent roles"
-                                    choice. Credit/auth gating (enterExplore/runExplore) is
-                                    reused verbatim. */}
-                                <button
-                                    type="button"
-                                    disabled={exploring}
-                                    onClick={() => void handleExploreClick()}
-                                    className="font-mono text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-50"
-                                >
-                                    {exploring ? "exploring…" : "explore"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => submitSearch(query)}
-                                    className="h-8 shrink-0 bg-foreground px-5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
-                                >
-                                    Search
-                                </button>
-                            </div>
-                        </div>
+                                setQuery(v);
+                                // Continuous input is filter-like — `replace`, not `push` (a
+                                // "push" per keystroke would make the back button undo one
+                                // character at a time). Discrete submit (Enter, or picking a
+                                // suggestion) uses `push` instead — see `onSearch` below.
+                                applyUrlState(buildUrlState({ q: v }), "replace");
+                            }}
+                            onSearch={() => submitSearch(query)}
+                            suggest={suggestForBox}
+                            placeholder="What kind of work are you looking for?"
+                            className={cn(
+                                "rounded-none border-0 border-b border-border-strong bg-transparent px-0 shadow-none focus-visible:border-foreground focus-visible:ring-0 focus-visible:shadow-none",
+                                showAsk ? "h-12 text-[19px]" : "h-10 text-[17px]",
+                            )}
+                            containerClassName="min-w-0 flex-1"
+                        />
+                    </div>
 
-                        {/* Location + work mode: inline text-selects (location_country /
-                            work_type facets — no city-level filter exists). */}
-                        <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 font-mono text-xs">
-                            <Select
-                                value={facets.location_country?.[0] ?? "__any__"}
-                                onValueChange={(v) => setSingleFacet("location_country", v === "__any__" ? null : v)}
-                            >
-                                <SelectTrigger
-                                    className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
-                                    aria-label="Location"
-                                >
-                                    <SelectValue placeholder="any location" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="__any__">Any location</SelectItem>
-                                    {countryOptions.map((o) => (
-                                        <SelectItem key={o.value} value={o.value}>
-                                            {o.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Select
-                                value={facets.work_type?.[0] ?? "__any__"}
-                                onValueChange={(v) => setSingleFacet("work_type", v === "__any__" ? null : v)}
-                            >
-                                <SelectTrigger
-                                    className="h-auto w-fit gap-1 rounded-none border-0 bg-transparent p-0 font-mono text-xs text-muted-foreground shadow-none underline underline-offset-4 hover:text-foreground data-[state=open]:text-foreground"
-                                    aria-label="Work mode"
-                                >
-                                    <SelectValue placeholder="any work mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="__any__">Any work mode</SelectItem>
-                                    {workTypeOptions.map((o) => (
-                                        <SelectItem key={o.value} value={o.value}>
-                                            {o.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* S2 — recent searches: quiet text list shown only on the
-                            empty-query landing state (browse mode, nothing typed yet,
-                            store non-empty). */}
-                        {mode === "browse" && !query.trim() && recentSearches.length > 0 && (
-                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
-                                <span>recent:</span>
-                                {recentSearches.map((q, i) => (
-                                    <span key={q} className="flex items-center gap-x-2">
-                                        {i > 0 && <span>·</span>}
-                                        <button
-                                            type="button"
-                                            data-testid="recent-search-chip"
-                                            onClick={() => submitSearch(q)}
-                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                        >
-                                            {q}
-                                        </button>
-                                    </span>
+                    {showAsk ? (
+                        /* Returning visitor: their own previous sentences, as plain
+                           grey lines. No heading, no chips — a heading would be the
+                           page talking about itself on the one screen that isn't. */
+                        recentSearches.length > 0 && (
+                            <div className="mt-6 flex flex-col items-start gap-1.5">
+                                {recentSearches.slice(0, 3).map((q) => (
+                                    <button
+                                        key={q}
+                                        type="button"
+                                        data-testid="recent-search-chip"
+                                        onClick={() => submitSearch(q)}
+                                        className="text-left text-[14px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                                    >
+                                        {q}
+                                    </button>
                                 ))}
+                            </div>
+                        )
+                    ) : (
+                        /* The one line under the box: what came back, over what window,
+                           and how fresh the corpus is. Explore lives here rather than
+                           beside the box — it is a real thing a searcher would ask for
+                           out loud ("show me roles like mine"), but it is not what they
+                           came to do, so it doesn't get to sit next to the question. */
+                        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                            <span data-testid="result-line" className="tabular-nums">
+                                {loading && hits.length > 0 ? "updating…" : resultCountLine}
+                            </span>
+                            {/* Explore and fit are MODES, and a mode the searcher can
+                                neither see nor leave is a trap. Both used to be named
+                                and dismissed from the deleted legend row; without these
+                                two branches, explore would show an empty search box over
+                                unexplained results and the only exit would be a reload.
+                                Explore is checked first: it blanks the box (see the
+                                box's `value`), so it is the more disorienting of the
+                                two to leave unlabelled. */}
+                            {mode === "explore" ? (
                                 <button
                                     type="button"
-                                    aria-label="Clear recent searches"
-                                    onClick={() => clearAllRecentSearches()}
-                                    className="transition-colors duration-100 hover:text-foreground"
+                                    onClick={() => enterBrowseAndSync()}
+                                    className="text-foreground underline underline-offset-2"
                                 >
-                                    ✕
+                                    exploring roles adjacent to your résumé ✕
                                 </button>
-                            </div>
-                        )}
-
-                        {/* Explore: AI-suggested adjacent titles — click one to narrow to it. */}
-                        {mode === "explore" && exploreTitles.length > 0 && (
-                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground">
-                                <span>exploring:</span>
-                                {exploreTitles.map((t, i) => {
-                                    const active = query.trim() === t;
-                                    return (
-                                        <span key={t} className="flex items-center gap-x-2">
-                                            {i > 0 && <span>·</span>}
-                                            <button
-                                                onClick={() => setQuery(active ? exploreTitles.join(" ") : t)}
-                                                className={cn(
-                                                    "underline underline-offset-2 transition-colors duration-100",
-                                                    active ? "text-foreground" : "hover:text-foreground",
-                                                )}
-                                            >
-                                                {t}
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Legend line (spec): active filters as underlined text with
-                            counts, same URL-state wiring as before — text affordances
-                            1:1 with the portal pass's pill row. */}
-                        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs">
-                            <MonoToggle active={hideGhosts} onClick={() => onHideGhosts(!hideGhosts)}>
-                                ghost-risk hidden{hideGhosts && ghostHiddenCount ? ` (−${ghostHiddenCount.toLocaleString()})` : ""}
-                            </MonoToggle>
-                            <MonoToggle
-                                active={newThisWeekActive}
-                                onClick={() =>
-                                    applyPostedBucket(newThisWeekActive ? PRISTINE_FILTER_STATE.postedBucket : "7d")
-                                }
-                            >
-                                new this week
-                            </MonoToggle>
-                            <MonoToggle
-                                active={salary100kActive}
-                                onClick={() => applySalaryMin(salary100kActive ? 0 : 100_000)}
-                            >
-                                salary $100k+
-                            </MonoToggle>
-                            <MonoToggle active={seniorActive} onClick={() => toggleFacet("experience_level", "senior")}>
-                                senior
-                            </MonoToggle>
-                            <button
-                                type="button"
-                                onClick={openFilterSheet}
-                                className="text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                            >
-                                filters +{activeCount > 0 ? ` (${activeCount})` : ""}
-                            </button>
-                            {fitActive && (
+                            ) : fitActive ? (
                                 <button
+                                    type="button"
                                     onClick={clearFit}
                                     className="text-foreground underline underline-offset-2"
                                 >
                                     ranked by your résumé ✕
                                 </button>
-                            )}
-                            {/* Mirrors the "ranked by your résumé" item above — communicates
-                                explore mode without rendering its derived query raw in the
-                                search box (see the box's `value` comment above). */}
-                            {mode === "explore" && (
+                            ) : (
                                 <button
-                                    onClick={() => enterBrowseAndSync()}
-                                    className="text-foreground underline underline-offset-2"
+                                    type="button"
+                                    disabled={exploring}
+                                    onClick={() => void handleExploreClick()}
+                                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-50"
                                 >
-                                    Exploring roles adjacent to your résumé ✕
+                                    {exploring ? "exploring…" : "explore roles like mine"}
                                 </button>
                             )}
-                            <span className="flex-1" />
-                            <span className="text-border-strong">|</span>
-                            <button
-                                type="button"
-                                onClick={clearAll}
-                                className="text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                            >
-                                reset
-                            </button>
                         </div>
-                    </div>
+                    )}
                 </div>
-            }
-        >
-            <>
+            </div>
+
+            {!showAsk && (
+                <main className="mx-auto flex w-full max-w-[1700px] flex-1 flex-col px-4 pb-6 sm:px-6 lg:min-h-0 lg:overflow-hidden lg:px-14">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -3000,68 +2570,26 @@ function JobsContent() {
                     Skip to results
                 </a>
                 <PrepMovedNote />
-                {/* Nothing has been asked for yet, so there is no mode to name and
-                    nothing to start over from. */}
-                {!showAsk && (
-                    <div className="shrink-0 pt-5">
-                        <ModeBar mode={mode} onStartOver={startOver} />
-                    </div>
-                )}
-                <div className="grid min-h-0 flex-1 gap-8 lg:grid-cols-[1fr_300px]">
+                {/* Single column. The rail is gone: `PipelineCard` summarised the
+                    tracker and linked to it, and `GhostRadarCard` described the
+                    current result set — neither is what someone came here to read,
+                    and the tracker renders its own counts better at /yours. */}
+                <div className="flex min-h-0 flex-1 flex-col pt-4">
                     <div className="flex min-h-0 flex-col">
-                        {/* Result count (spec: "N roles · M flagged this search") + sort
-                            trio — both mono, both above the column-head rule. Every one
-                            of them describes a result set, so none of them render before
-                            there is one. */}
-                        <div className={cn(
-                            "mb-2 flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs text-muted-foreground",
-                            showAsk && "hidden",
-                        )}>
-                            <span>{resultCountLine}</span>
-                            {result?.configured && (
-                                <div className="flex items-center gap-3">
-                                    {postedDateSupported && (
-                                        <MonoToggle
-                                            active={!fitActive && effectiveSort === "newest"}
-                                            onClick={() => chooseSort("newest")}
-                                        >
-                                            freshest
-                                        </MonoToggle>
-                                    )}
-                                    <MonoToggle
-                                        active={!fitActive && effectiveSort === "salary_desc"}
-                                        onClick={() => chooseSort("salary_desc")}
-                                    >
-                                        top pay
-                                    </MonoToggle>
-                                    <MonoToggle active={bestMatchActive} onClick={chooseBestMatch}>
-                                        best match
-                                    </MonoToggle>
-                                </div>
-                            )}
-                        </div>
-                        <div className="mb-2 flex min-h-[1.1rem] flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted-foreground">
-                            {/* Single slot for the search's live/stamped state — "updating…"
-                                while a fetch is in flight, else the corpus freshness stamp.
-                                One span, never both, so this line can't ever show two
-                                simultaneous status fragments. */}
-                            {showAsk ? null : loading && hits.length > 0 ? (
-                                <span>Updating…</span>
-                            ) : (
-                                lastUpdated !== undefined && (
-                                    <span
-                                        className="tabular-nums data-[stale=true]:text-verdict-caution"
-                                        data-stale={isStale(lastUpdated, nowMs)}
-                                        title={lastUpdated ?? "freshness unknown"}
-                                    >
-                                        {lastUpdated ? `updated ${formatRelativeAge(lastUpdated, nowMs)}` : "freshness unknown"}
-                                    </span>
-                                )
-                            )}
-                            {!loading && result?.widened && (
-                                <span data-testid="widened-note">Few exact title matches — also showing broader matches.</span>
-                            )}
-                        </div>
+                        {/* Screen 4 — thin results. The engine already widens on its
+                            own (`shouldWidenSearch`, WIDEN_THRESHOLD in
+                            lib/jobs/meilisearch.ts). All the screen adds is one honest
+                            sentence saying the words were too narrow, which hands the
+                            user the fix without asking them a question.
+
+                            No count: `JobSearchResult` reports THAT the wide pass fired,
+                            not how many the strict pass returned, so "only 4 roles" would
+                            be a number we don't have. */}
+                        {!loading && result?.widened && (
+                            <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                                Few roles are actually titled that. These mention it.
+                            </p>
+                        )}
 
                         {result?.preview && result.note && (
                             <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 font-mono text-xs text-verdict-caution">
@@ -3081,12 +2609,6 @@ function JobsContent() {
                             </div>
                         )}
 
-                        {hits.length > 0 && (
-                            <div className="flex items-center justify-between border-b border-foreground pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                                <span>role · company · terms · posted</span>
-                                <span>verdict</span>
-                            </div>
-                        )}
 
                         {/* Flex COLUMN, not a bare block. The results pane below is the
                             scroller for this whole surface, and a scroller only scrolls
@@ -3100,9 +2622,7 @@ function JobsContent() {
                             keeps holding if a sibling (header, notice) is ever added
                             alongside the pane in this wrapper. */}
                         <div className="flex min-h-0 flex-1 flex-col">
-                            {showAsk ? (
-                                <JobsAsk corpusCount={corpusCount} onUpload={() => handleUploadClick()} />
-                            ) : notConnected ? (
+                            {notConnected ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
@@ -3169,46 +2689,52 @@ function JobsContent() {
                                     className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
                                 >
                                     <div>
-                                        {hits.flatMap((job, idx) => {
-                                            const row = (
-                                                <JobCard
-                                                    key={job.id}
-                                                    job={job}
-                                                    active={selected?.id === job.id}
-                                                    onClick={() => openJob(job.id)}
-                                                    now={nowMs}
-                                                    pursuit={pursuitsByJobId.get(job.id)}
-                                                    goingAfter={goingAfterId === job.id}
-                                                    onGoAfter={() => handleGoAfter(job)}
-                                                    onOpenPosting={() => handleOpenPosting(job)}
-                                                />
-                                            );
-                                            // After the FIRST row only (idx 0) — `hits` is the
-                                            // full accumulated list across infinite-scroll pages,
-                                            // so this never re-fires for later pages and never
-                                            // renders when `hits` is empty (that branch is gated
-                                            // above by the `hits.length === 0` check).
-                                            if (idx === 0 && showUpsell) {
-                                                return [
-                                                    row,
-                                                    <ResumeUpsellCard
-                                                        key="resume-upsell"
-                                                        count={corpusCount}
-                                                        // Explicit no-arg call, not a bare
-                                                        // `handleUploadClick` reference — `onUpload`'s
-                                                        // own type is `() => void`, but wiring it to a
-                                                        // DOM `onClick` (ResumeUpsellCard.tsx) means
-                                                        // React would otherwise pass the click event
-                                                        // through as `handleUploadClick`'s first
-                                                        // argument, clobbering its `intent` param.
-                                                        onUpload={() => handleUploadClick()}
-                                                        onDismiss={dismissUpsell}
-                                                    />,
-                                                ];
-                                            }
-                                            return [row];
-                                        })}
+                                        {hits.map((job) => (
+                                            <JobCard
+                                                key={job.id}
+                                                job={job}
+                                                active={selected?.id === job.id}
+                                                onClick={() => openJob(job.id)}
+                                                now={nowMs}
+                                            />
+                                        ))}
                                     </div>
+                                    {/* Screen 9 — the résumé moment. Fires on the third job
+                                        opened this session: not a timer and not scroll depth,
+                                        because three opens is someone actually reading, and
+                                        that is the first point where ranking by fit is worth
+                                        more than the search they already know how to run.
+                                        Never a modal, never mid-scroll, dismissible for good.
+
+                                        Sits ABOVE the load-more sentinel, not below the
+                                        end-of-list line: with infinite scroll over thousands
+                                        of matches "the bottom of the list" is a place nobody
+                                        ever arrives at, so anchoring it there meant it would
+                                        never render. The foot of what has actually been READ
+                                        is the reachable equivalent. */}
+                                    {showResumeMoment && (
+                                        <div
+                                            data-testid="resume-moment"
+                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-[13.5px] text-muted-foreground"
+                                        >
+                                            <span>Want these ranked against your actual experience?</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => (hasUsableResume ? void handleRankByFit() : handleUploadClick())}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                {hasUsableResume ? "use the résumé on file" : "drop your résumé"}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={dismissUpsell}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                no thanks
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Restyled "Show N more ↓" (spec) on the SAME infinite-scroll
                                         mechanism as before: `sentinelRef` still auto-fires on
                                         scroll-into-view, and the element is now ALSO a real button
@@ -3241,18 +2767,9 @@ function JobsContent() {
                         </div>
                         <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                     </div>
-
-                    {/* Rail: real pipeline counts + this search's ghost-risk stats
-                        (spec cuts the mock's Weekly-alert card entirely — no alert
-                        backend), separated by a vertical hairline — not a card stack.
-                        Detail opens exclusively via the Sheet below, at every
-                        breakpoint. */}
-                    <aside className="flex flex-col gap-6 border-t border-border pb-4 pt-5 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pb-6 lg:pl-6 lg:pt-0">
-                        <PipelineCard nowMs={nowMs} />
-                        {!showAsk && <GhostRadarCard distribution={result?.facetDistribution} total={totalCount} />}
-                    </aside>
                 </div>
-            </>
+                </main>
+            )}
 
             <AuthPopover
                 open={authOpen}
@@ -3356,50 +2873,7 @@ function JobsContent() {
                     ) : null}
                 </SheetContent>
             </Sheet>
-            {/* Task 10 — mobile filter sheet. Pending-state FilterPanel instance:
-                same component/model as the rail + chips row, wired to the
-                pendingFilterState mutators above (see resolution #3). Tapping
-                "Show N roles" applies via `applyFilterState` and closes;
-                dismissing (X/overlay/swipe/Esc) discards the pending edits. */}
-            <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-                <SheetContent
-                    side="bottom"
-                    className="flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl p-0"
-                >
-                    <SheetTitle className="sr-only">Filters</SheetTitle>
-                    <div
-                        role="region"
-                        aria-label="Job filters"
-                        className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-4 pt-10"
-                    >
-                        <FilterPanel
-                            distribution={result?.facetDistribution}
-                            postedDateSupported={postedDateSupported}
-                            state={pendingFilterState}
-                            activeCount={pendingActiveCount}
-                            onToggleFacet={pendingToggleFacet}
-                            onSalaryMin={pendingSalaryMin}
-                            onVisaOnly={pendingVisaOnly}
-                            onPostedBucket={pendingPostedBucket}
-                            onClearAll={pendingClearAll}
-                            hideGhosts={pendingFilterState.hideGhosts}
-                            onHideGhosts={pendingHideGhosts}
-                            // Best-effort reuse of the APPLIED filters' honest
-                            // ghost-hidden count (Task 7) rather than a second
-                            // debounced count request scoped to pending state —
-                            // matches this count's existing "fire and forget,
-                            // omit the suffix rather than block" contract.
-                            ghostHiddenCount={ghostHiddenCount}
-                        />
-                    </div>
-                    <div className="shrink-0 border-t border-border bg-card p-3">
-                        <Button className="w-full" onClick={applyPendingFilters}>
-                            {sheetCount != null ? `Show ${sheetCount.toLocaleString()} roles` : "Show roles"}
-                        </Button>
-                    </div>
-                </SheetContent>
-            </Sheet>
-        </PageLayout>
+        </div>
     );
 }
 

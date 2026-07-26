@@ -38,15 +38,21 @@ test("runExplore records its guard token into exploringTokenRef before flipping 
     assert.ok(tokenIdx !== -1 && rawTrueIdx !== -1 && tokenIdx < rawTrueIdx);
 });
 
-test("every action that supersedes an in-flight explore (applyFit, enterBrowse, startOver, typing mid-explore) bumps exploreIntentRef — 5 call sites total", () => {
+test("every action that supersedes an in-flight explore (applyFit, enterBrowse, typing mid-explore) bumps exploreIntentRef — 4 call sites total", () => {
     const bumps = SOURCE.match(/exploreIntentRef\.current!\.begin\(\);/g) ?? [];
     // 1 inside runExplore itself (a fresh explore supersedes a stale one) +
-    // 4 superseding call sites (applyFit, enterBrowse, startOver, the
-    // search box's onChange) = 5. A 6th anywhere would mean a new
-    // superseding action was added without going through this same guard —
-    // and since `exploring` is DERIVED from it, that new action would
-    // automatically clear the spinner too, no separate fix needed.
-    assert.equal(bumps.length, 5, `expected 5 begin() call sites, found ${bumps.length}`);
+    // 3 superseding call sites (applyFit, enterBrowse, the pinned search
+    // box's onChange) = 4. A 5th anywhere would mean a new superseding
+    // action was added without going through this same guard — and since
+    // `exploring` is DERIVED from it, that new action would automatically
+    // clear the spinner too, no separate fix needed.
+    //
+    // Was 5 until the Phase 1 redesign removed `startOver` along with the
+    // ModeBar that was its only trigger. Clearing the query now returns the
+    // searcher to Screen 1, which is only reachable in browse mode
+    // (`showAsk` requires it), so there is no in-flight explore left to
+    // supersede on that path.
+    assert.equal(bumps.length, 4, `expected 4 begin() call sites, found ${bumps.length}`);
 });
 
 test("setExploring (the old raw setter, replaced by setExploringRaw) is not called anywhere", () => {
