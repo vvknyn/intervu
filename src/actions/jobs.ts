@@ -10,11 +10,54 @@ import {
   suggestJobs,
 } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
+import {
+  buildJobOpenEntry,
+  buildSearchLogEntry,
+  recordJobOpen,
+  recordSearch,
+  shouldLogSearch,
+} from "@/lib/jobs/search-log";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
+import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 
-/** Search the jobs corpus (dispatches to whichever backend is configured). */
-export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
-  return runSearch(params);
+/**
+ * Search the jobs corpus (dispatches to whichever backend is configured).
+ *
+ * Also emits one anonymous telemetry event per human search. The entry is
+ * built on the request (pure, cheap, and stamped with the search's own clock)
+ * but WRITTEN via `after()`, so Firestore never sits on the response path and
+ * a slow or broken log can't cost the searcher a millisecond.
+ */
+export async function searchJobsAction(
+  params: JobSearchParams,
+): Promise<JobSearchResult & { searchId: string }> {
+  const result = await runSearch(params);
+  const searchId = randomUUID();
+
+  if (shouldLogSearch(params)) {
+    const entry = buildSearchLogEntry(params, result, { searchId, now: Date.now() });
+    after(() => recordSearch(entry));
+  }
+
+  return { ...result, searchId };
+}
+
+/**
+ * Record that a searcher opened a result, and where it sat in the list.
+ *
+ * `rank` is the point of the whole exercise: what people type tells us what
+ * they want, but only which position they open tells us whether we answered.
+ * Fire-and-forget — never awaited by the UI, never able to fail an open.
+ */
+export async function recordJobOpenedAction(
+  searchId: string,
+  jobId: string,
+  rank: number,
+): Promise<void> {
+  if (!searchId || !jobId || !Number.isFinite(rank) || rank < 0) return;
+  const entry = buildJobOpenEntry(searchId, String(jobId).slice(0, 128), rank, Date.now());
+  after(() => recordJobOpen(entry));
 }
 
 /** The corpus's last-updated timestamp, for the "last synced" trust stamp. */

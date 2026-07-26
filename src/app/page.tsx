@@ -33,6 +33,7 @@ import {
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
     suggestJobsAction,
+    recordJobOpenedAction,
 } from "@/actions/jobs";
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
@@ -130,8 +131,20 @@ import type { ResumeData } from "@/types/resume";
  * (already routing thrown errors into `searchError` → the Retry UI) handles
  * it for free.
  */
+/** The id of the most recent search, so an open can be attributed to the
+ *  search that produced it. Captured HERE rather than in component state
+ *  because every search on this page — first page, retry, load-more, Explore
+ *  — already funnels through this one wrapper, and an open is only ever
+ *  attributable to the latest result set the user is looking at. */
+let lastSearchId = "";
+
 const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
-    withSettleGuard(searchJobsActionRaw(params));
+    withSettleGuard(
+        searchJobsActionRaw(params).then((r) => {
+            lastSearchId = r.searchId;
+            return r;
+        }),
+    );
 
 /**
  * Same chokepoint shape as `searchJobsAction` above, for Explore's AI-
@@ -1509,6 +1522,12 @@ function JobsContent() {
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
+        // Telemetry before navigation: the rank is only knowable against the
+        // result set currently on screen. A miss yields -1, which the action
+        // drops — so a job opened from a URL rather than a search logs nothing
+        // rather than logging a fake position.
+        const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
+        void recordJobOpenedAction(lastSearchId, id, rank);
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
