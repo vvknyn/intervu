@@ -10,13 +10,18 @@
 import {
   fetchJobSuggestions,
   fetchJobsLastUpdated,
+  fetchLocationFacetDistributions,
   fetchPostedDateFilterSupported,
   hasMeilisearch,
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
-import { applyQueryUnderstanding } from "./query-understanding";
+import {
+  applyQueryUnderstanding,
+  buildLocationVocabulary,
+  type LocationVocabulary,
+} from "./query-understanding";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 
 export function activeBackend(): JobsBackendKind {
@@ -46,8 +51,40 @@ export function getJobsBackendStatus(): {
   };
 }
 
+/**
+ * Corpus-derived place vocabulary for query understanding, cached per server
+ * instance. Stale-while-revalidate: once any vocabulary exists, searches use
+ * it immediately and a refresh runs behind them — the ONLY search that ever
+ * waits on the vocabulary fetch is a cold instance's very first one, and a
+ * failed fetch yields an empty vocabulary (place parsing just doesn't happen)
+ * that retries on a short leash rather than caching the failure for an hour.
+ */
+const VOCAB_TTL_MS = 60 * 60 * 1000;
+const VOCAB_RETRY_MS = 60 * 1000;
+let vocabCache: { vocab: LocationVocabulary; at: number } | null = null;
+let vocabInFlight: Promise<LocationVocabulary> | null = null;
+
+async function locationVocabulary(): Promise<LocationVocabulary> {
+  const ttl = vocabCache && vocabCache.vocab.byText.size > 0 ? VOCAB_TTL_MS : VOCAB_RETRY_MS;
+  if (vocabCache && Date.now() - vocabCache.at < ttl) return vocabCache.vocab;
+  if (!vocabInFlight) {
+    vocabInFlight = fetchLocationFacetDistributions()
+      .then((d) => {
+        vocabCache = { vocab: buildLocationVocabulary(d), at: Date.now() };
+        return vocabCache.vocab;
+      })
+      .finally(() => {
+        vocabInFlight = null;
+      });
+  }
+  return vocabCache ? vocabCache.vocab : vocabInFlight;
+}
+
 export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult> {
-  const p = applyQueryUnderstanding(raw);
+  // Vocabulary is only relevant when there's query text to parse — the
+  // dead-link id probe and plain browses skip the lookup entirely.
+  const vocab = (raw.q ?? "").trim() && !raw.id ? await locationVocabulary() : undefined;
+  const p = applyQueryUnderstanding(raw, vocab);
   const backend = activeBackend();
   try {
     if (backend === "meilisearch") return await searchMeili(p);

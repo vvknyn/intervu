@@ -109,10 +109,28 @@ export interface JobSearchParams {
   sort?: JobSortMode;
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
+  /**
+   * Place constraints parsed OUT of the query text (query understanding, not
+   * user-picked facets — those live in `facets`). Each entry is a literal
+   * corpus value in one location field; entries are OR'd into one clause:
+   * a job in "Toronto" OR "Canada" satisfies a "toronto canada" query.
+   * OR, not AND, is load-bearing: measured 2026-07-26, requiring
+   * city AND country drops 43–59% of genuine matches because many city rows
+   * carry no country value.
+   */
+  places?: PlaceFilter[];
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
   withFacets?: boolean;
+}
+
+/** One parsed place: which location field it lives in, and the corpus's own
+ *  casing of the value (used verbatim in the filter, so matching can never
+ *  depend on the engine's case rules). */
+export interface PlaceFilter {
+  field: "location_city" | "location_state" | "location_country";
+  value: string;
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";

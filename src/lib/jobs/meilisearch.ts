@@ -199,6 +199,11 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
     // OR within a facet, AND across facets. JSON.stringify quotes + escapes the value.
     f.push("(" + vals.map((v) => `${key} = ${JSON.stringify(v)}`).join(" OR ") + ")");
   }
+  if (p.places?.length) {
+    // One OR group across every parsed place — see `JobSearchParams.places`
+    // for why OR. Values are corpus-cased literals, quoted by JSON.stringify.
+    f.push("(" + p.places.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")");
+  }
   if (p.salaryMin && p.salaryMin > 0) {
     f.push(`(salary_max >= ${p.salaryMin} OR salary_min >= ${p.salaryMin})`);
   }
@@ -349,6 +354,38 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   // matches are exactly what that flag exists to disclose.
   const relaxed = await runPass("last");
   return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+}
+
+/** The three location fields a parsed place can constrain. */
+export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "location_country"] as const;
+
+/**
+ * Read-path: raw value→count distributions for the three location fields —
+ * the corpus-derived vocabulary behind place parsing (query-understanding.ts).
+ * One `limit: 0` request; Meilisearch returns the top values per facet (300
+ * per field observed live 2026-07-26), which covers every place people
+ * actually type — a small town missing from the vocabulary simply doesn't
+ * parse into a filter and still matches in the document text.
+ *
+ * Returns null on ANY failure — the caller treats that as "no vocabulary" and
+ * skips place parsing rather than blocking or degrading the search itself.
+ */
+export async function fetchLocationFacetDistributions(): Promise<Record<string, Record<string, number>> | null> {
+  const h = host();
+  if (!h) return null;
+  try {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ q: "", limit: 0, facets: [...LOCATION_FACET_FIELDS] }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { facetDistribution?: Record<string, Record<string, number>> };
+    return body.facetDistribution ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
