@@ -47,7 +47,13 @@ import {
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
 } from "@/lib/jobs/recent-searches";
-import { activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
+import {
+    FilterPanel,
+    activeFilterEntries,
+    toggleFacetValue,
+    PRISTINE_FILTER_STATE,
+    type FilterState,
+} from "@/components/jobs/FilterPanel";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
@@ -1717,6 +1723,22 @@ function JobsContent() {
     // per-filter clear chips, and the sheet's own count all read from it so
     // they can never disagree.
     const activeEntries = activeFilterEntries(filterState);
+    const activeCount = activeEntries.length;
+
+    /**
+     * The SERP filter panel (collapsible, Vivek 2026-07-26). Every mutator is
+     * a thin wrapper over `applyFilterState` — the ONE funnel that turns a
+     * FilterState into local state + a URL replace — so the panel can never
+     * grow a second, drifting mutation path.
+     */
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const panelToggleFacet = (key: FacetKey, value: string) =>
+        applyFilterState({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
+    const panelSalaryMin = (v: number) => applyFilterState({ ...filterState, salaryMin: v });
+    const panelVisaOnly = (v: boolean) => applyFilterState({ ...filterState, visaOnly: v });
+    const panelPostedBucket = (v: PostedBucket | undefined) =>
+        applyFilterState({ ...filterState, postedBucket: v });
+    const panelClearAll = () => applyFilterState(PRISTINE_FILTER_STATE);
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
@@ -2543,6 +2565,22 @@ function JobsContent() {
                             <span data-testid="result-line" className="tabular-nums">
                                 {loading && hits.length > 0 ? "updating…" : resultCountLine}
                             </span>
+                            <span className="flex items-baseline gap-4">
+                            {/* The filter panel's one entry point. Text, not an icon —
+                                everything on this line is a word. Active count shown so
+                                a collapsed panel can't silently constrain the list. */}
+                            <button
+                                type="button"
+                                data-testid="filters-toggle"
+                                aria-expanded={filtersOpen}
+                                onClick={() => setFiltersOpen((v) => !v)}
+                                className={cn(
+                                    "underline underline-offset-2 transition-colors duration-100 hover:text-foreground",
+                                    (filtersOpen || activeCount > 0) && "text-foreground",
+                                )}
+                            >
+                                filters{activeCount > 0 ? ` (${activeCount})` : ""} {filtersOpen ? "▴" : "▾"}
+                            </button>
                             {/* Explore and fit are MODES, and a mode the searcher can
                                 neither see nor leave is a trap. Both used to be named
                                 and dismissed from the deleted legend row; without these
@@ -2577,6 +2615,37 @@ function JobsContent() {
                                     {exploring ? "exploring…" : "explore roles like mine"}
                                 </button>
                             )}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* The collapsible filter panel (Vivek, 2026-07-26). Lives in
+                        the pinned band so it never scrolls away from the line it
+                        modifies; capped height with its own scroll so a long facet
+                        list can't push the results off screen. Same FilterPanel
+                        the old mobile sheet used, wired to the same single
+                        `applyFilterState` funnel. */}
+                    {!showAsk && filtersOpen && (
+                        <div
+                            data-testid="filters-panel"
+                            className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain custom-scrollbar border-t border-border pt-2"
+                        >
+                            <div className="max-w-md">
+                                <FilterPanel
+                                    distribution={result?.facetDistribution}
+                                    postedDateSupported={postedDateSupported}
+                                    state={filterState}
+                                    activeCount={activeCount}
+                                    onToggleFacet={panelToggleFacet}
+                                    onSalaryMin={panelSalaryMin}
+                                    onVisaOnly={panelVisaOnly}
+                                    onPostedBucket={panelPostedBucket}
+                                    onClearAll={panelClearAll}
+                                    hideGhosts={hideGhosts}
+                                    onHideGhosts={onHideGhosts}
+                                    ghostHiddenCount={ghostHiddenCount}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
