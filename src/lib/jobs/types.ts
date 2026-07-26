@@ -161,4 +161,16 @@ export interface JobSearchResult {
   widened?: boolean;
   /** Per-facet value→count for the active result set, when `withFacets` was requested. */
   facetDistribution?: FacetDistribution;
+  /**
+   * The query text actually searched, after query understanding stripped
+   * work-mode/place tokens out of the raw typed query (see
+   * `applyQueryUnderstanding` in query-understanding.ts and `searchJobs` in
+   * search.ts, which sets this from `p.q`). The client needs this — not the
+   * raw typed query — for title-relevance tiering: tiering against the RAW
+   * query would wrongly demote a title that correctly omits a place word the
+   * server already stripped (e.g. "technical account manager" residual still
+   * matches a title with no "canada" in it). Omitted on the error/unconfigured
+   * paths, where no query was ever actually searched.
+   */
+  effectiveQ?: string;
 }

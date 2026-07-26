@@ -40,6 +40,7 @@ import {
     cleanCompany,
     locationText,
     searchResultLine,
+    firstMentionIndex,
 } from "@/lib/jobs/presentation";
 import {
     subscribeRecentSearches,
@@ -48,12 +49,12 @@ import {
     recordRecentSearch,
 } from "@/lib/jobs/recent-searches";
 import {
-    FilterPanel,
     activeFilterEntries,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
+import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
@@ -1372,6 +1373,17 @@ function JobsContent() {
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
 
+    // The relevance seam (Task A) — where the "titled it" block of results
+    // ends and the "mentions it" block begins. Tiers against the SERVER's
+    // residual query (`result.effectiveQ`), not the client's `query` state:
+    // the client query can still hold place words (e.g. "canada") that query
+    // understanding already stripped server-side, and tiering against those
+    // would wrongly demote a title that correctly omits the place word.
+    const seamIndex = useMemo(
+        () => firstMentionIndex(hits.map((h) => decodeText(h.title)), result?.effectiveQ ?? ""),
+        [hits, result],
+    );
+
     // The URL is the reactive source of truth for the WHOLE screen, not just
     // `job` — this effect reconciles every parsed field back into local state
     // whenever `searchParams` changes. That covers Back/Forward, a typed
@@ -2619,33 +2631,31 @@ function JobsContent() {
                         </div>
                     )}
 
-                    {/* The collapsible filter panel (Vivek, 2026-07-26). Lives in
+                    {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
                         modifies; capped height with its own scroll so a long facet
-                        list can't push the results off screen. Same FilterPanel
-                        the old mobile sheet used, wired to the same single
-                        `applyFilterState` funnel. */}
+                        list can't push the results off screen. Editorial affordance
+                        band (SerpFilters), wired to the same single
+                        `applyFilterState` funnel the old FilterPanel card used. */}
                     {!showAsk && filtersOpen && (
                         <div
                             data-testid="filters-panel"
                             className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain custom-scrollbar border-t border-border pt-2"
                         >
-                            <div className="max-w-md">
-                                <FilterPanel
-                                    distribution={result?.facetDistribution}
-                                    postedDateSupported={postedDateSupported}
-                                    state={filterState}
-                                    activeCount={activeCount}
-                                    onToggleFacet={panelToggleFacet}
-                                    onSalaryMin={panelSalaryMin}
-                                    onVisaOnly={panelVisaOnly}
-                                    onPostedBucket={panelPostedBucket}
-                                    onClearAll={panelClearAll}
-                                    hideGhosts={hideGhosts}
-                                    onHideGhosts={onHideGhosts}
-                                    ghostHiddenCount={ghostHiddenCount}
-                                />
-                            </div>
+                            <SerpFilters
+                                distribution={result?.facetDistribution}
+                                postedDateSupported={postedDateSupported}
+                                state={filterState}
+                                activeCount={activeCount}
+                                onToggleFacet={panelToggleFacet}
+                                onSalaryMin={panelSalaryMin}
+                                onVisaOnly={panelVisaOnly}
+                                onPostedBucket={panelPostedBucket}
+                                onClearAll={panelClearAll}
+                                hideGhosts={hideGhosts}
+                                onHideGhosts={onHideGhosts}
+                                ghostHiddenCount={ghostHiddenCount}
+                            />
                         </div>
                     )}
                 </div>
@@ -2777,15 +2787,28 @@ function JobsContent() {
                                     className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
                                 >
                                     <div>
-                                        {hits.map((job) => (
-                                            <JobCard
-                                                key={job.id}
-                                                job={job}
-                                                active={selected?.id === job.id}
-                                                onClick={() => openJob(job.id)}
-                                                now={nowMs}
-                                            />
-                                        ))}
+                                        {hits.flatMap((job, i) => {
+                                            const row = (
+                                                <JobCard
+                                                    key={job.id}
+                                                    job={job}
+                                                    active={selected?.id === job.id}
+                                                    onClick={() => openJob(job.id)}
+                                                    now={nowMs}
+                                                />
+                                            );
+                                            if (i !== seamIndex) return [row];
+                                            return [
+                                                <p
+                                                    key="seam"
+                                                    data-testid="relevance-seam"
+                                                    className="border-t border-border pt-4 pb-1 mb-1 font-mono text-[11px] text-muted-foreground"
+                                                >
+                                                    that&apos;s every role titled it — the rest mention it
+                                                </p>,
+                                                row,
+                                            ];
+                                        })}
                                     </div>
                                     {/* Screen 9 — the résumé moment. Fires on the third job
                                         opened this session: not a timer and not scroll depth,
