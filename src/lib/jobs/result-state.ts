@@ -214,3 +214,54 @@ export function classifyExistenceCheck(id: string, result: JobSearchResult): Exi
     if (isCompleteAndClean) return { status: "not_found" };
     return { status: "unknown" };
 }
+
+/**
+ * The empty-query landing state (page.tsx's `emptySearchState`, unit-tested
+ * here rather than only inline in the component). An empty search must never
+ * list the whole corpus — no query, browse mode, no fit ⇒ nothing was
+ * fetched — so this decides what to show INSTEAD, one of:
+ *
+ *   - `"results"` — there's a query, a fit ranking, or Explore is active
+ *     (`mode !== "browse"`): render the ordinary results surface, nothing
+ *     to do with the empty-search states below.
+ *   - `"auto-explore"` — first landing this visit (`isInitialLoad`), the
+ *     visitor already has a usable résumé on hand (folded together with any
+ *     "would this open the sign-in gate" check by the CALLER — see page.tsx,
+ *     which only ever passes `true` here when auto-entering explore is also
+ *     auth-safe), and no prior auto-attempt has already failed. The caller
+ *     reuses the exact manual "explore roles like mine" entry point.
+ *   - `"serp-ask"` — filters are active, so the visitor has already told us
+ *     something (keep the SERP chrome up, filters editable), or a prior
+ *     auto-explore attempt didn't pan out (`exploreFailed`) and a plain
+ *     empty landing isn't the moment for the fully overlay ask again.
+ *   - `"overlay-ask"` — the genuine first-screen prompt: nothing typed, no
+ *     filters, no résumé to auto-explore with.
+ *
+ * `exploreFailed` is checked BEFORE the auto-explore gate on purpose: once
+ * an attempt has already failed, `isInitialLoad`/`hasUsableResume` alone
+ * would keep re-selecting `"auto-explore"` forever (neither flips on a
+ * failed attempt) — the page.tsx effect that drives the actual attempt only
+ * fires once per `"auto-explore"` result anyway (its own one-way latch), but
+ * this ordering is what makes the STEADY STATE after a failure land on the
+ * seeded ask instead of looping the decision.
+ */
+export type EmptySearchState = "results" | "overlay-ask" | "serp-ask" | "auto-explore";
+
+export interface EmptySearchStateInput {
+    hasQuery: boolean;
+    fitActive: boolean;
+    mode: "browse" | "explore";
+    activeFilterCount: number;
+    /** Résumé usable AND (for the auto path) any auth precondition the
+     *  caller requires already satisfied — see this function's doc comment. */
+    hasUsableResume: boolean;
+    isInitialLoad: boolean;
+    exploreFailed: boolean;
+}
+
+export function resolveEmptySearchState(input: EmptySearchStateInput): EmptySearchState {
+    if (input.mode !== "browse" || input.hasQuery || input.fitActive) return "results";
+    if (input.exploreFailed) return "serp-ask";
+    if (input.isInitialLoad && input.hasUsableResume) return "auto-explore";
+    return input.activeFilterCount > 0 ? "serp-ask" : "overlay-ask";
+}

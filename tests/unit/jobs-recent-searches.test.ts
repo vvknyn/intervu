@@ -6,6 +6,8 @@ import {
     saveRecentSearches,
     clearRecentSearches,
     RECENT_SEARCHES_KEY,
+    resolveSearchSeeds,
+    CURATED_SEARCH_SEEDS,
 } from "../../src/lib/jobs/recent-searches";
 
 /* ----------------------------- rememberSearch ----------------------------- */
@@ -119,4 +121,36 @@ test("loadRecentSearches drops non-string entries from a mixed legacy array", ()
         localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["q1", 42, null, "q2"]));
         assert.deepEqual(loadRecentSearches(), ["q1", "q2"]);
     });
+});
+
+/* ------------------------- resolveSearchSeeds (SERP-ask) ------------------------- */
+
+test("resolveSearchSeeds puts recent searches first, then backfills with curated", () => {
+    const seeds = resolveSearchSeeds(["backend engineer"], ["product manager", "software engineer"]);
+    assert.deepEqual(seeds, ["backend engineer", "product manager", "software engineer"]);
+});
+
+test("resolveSearchSeeds dedupes case-insensitively — a curated entry already in recent isn't repeated", () => {
+    const seeds = resolveSearchSeeds(["Product Manager"], ["product manager", "software engineer"]);
+    assert.deepEqual(seeds, ["Product Manager", "software engineer"]);
+});
+
+test("resolveSearchSeeds fills the curated list up to the target cap", () => {
+    const curated = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    assert.deepEqual(resolveSearchSeeds([], curated, 8), curated.slice(0, 8));
+});
+
+test("resolveSearchSeeds with no recent searches falls back to curated alone, capped at ~8 by default", () => {
+    assert.deepEqual(resolveSearchSeeds([]), CURATED_SEARCH_SEEDS);
+    assert.equal(resolveSearchSeeds([]).length, 8);
+});
+
+test("resolveSearchSeeds drops empty/whitespace-only entries from either source", () => {
+    const seeds = resolveSearchSeeds(["", "  ", "backend engineer"], ["product manager"]);
+    assert.deepEqual(seeds, ["backend engineer", "product manager"]);
+});
+
+test("resolveSearchSeeds respects a smaller target cap across both sources combined", () => {
+    const seeds = resolveSearchSeeds(["a", "b"], ["c", "d", "e"], 3);
+    assert.deepEqual(seeds, ["a", "b", "c"]);
 });

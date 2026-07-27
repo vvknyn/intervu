@@ -50,6 +50,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
+    resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
 import {
     activeFilterEntries,
@@ -70,6 +71,7 @@ import {
     resolveSelectionAfterRefresh,
     resolveGhostReveal,
     classifyExistenceCheck,
+    resolveEmptySearchState,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
@@ -1056,45 +1058,90 @@ function JobsContent() {
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported],
     );
 
-    /**
-     * The first screen asks for a role instead of listing the corpus.
-     *
-     * True only when there is genuinely nothing to search on: browse mode, no
-     * query, no active filter, no résumé ranking. A filter on its own IS intent
-     * — someone who picked "Remote" has told us what they want, and answering
-     * that with "what role are you after?" would be obtuse — so filters keep
-     * the ledger.
-     *
-     * Note this also removes the empty-query browse from every cold visit,
-     * which was the most expensive query the app issues (whole corpus, ranked,
-     * with facet distribution) and the one implicated in the search-unavailable
-     * incidents. What replaces it is a `limit: 1, withFacets: false` probe used
-     * only to learn the corpus total for the search line's placeholder.
-     */
-    const showAsk =
-        mode === "browse" && !query.trim() && !fitActive && activeFilterEntries(filterState).length === 0;
+    // Single source: résumé usable AND, for the auto-explore path below,
+    // the sign-in this actually needs already satisfied — hoisted here
+    // (instead of `resumeIsUsable(resume ?? undefined)` at each call site)
+    // so `emptySearchState`'s auto-explore gate and the two later CTA
+    // gates (`canShowSimilarRoles`/`hasUsableResume`, résumé-moment +
+    // tombstone) share one computation. `resumeIsUsable` reads LOCAL state
+    // only (no mount fetch) — see those two call sites' own doc comments
+    // for why that's an accepted trade-off, not a bug.
+    const hasUsableResume = resumeIsUsable(resume ?? undefined);
+
+    // Single source for "what filters are currently active" — the toolbar
+    // pill's count, the empty-state's per-filter clear chips, and
+    // `emptySearchState` below all read this ONE call instead of a second
+    // `activeFilterEntries(filterState)` per render.
+    const activeEntries = activeFilterEntries(filterState);
+
+    // One-way latch: false forever once either (a) this visit's query has
+    // held real text — so landing back on empty is an intentional
+    // in-session clear, never the first screen again — or (b) an
+    // auto-explore attempt has actually fired (set by the effect near
+    // `handleExploreClick` below), so an outcome that doesn't itself move
+    // query/mode/exploreFailed (e.g. `resolveExploreOutcome`'s "no-fallback"
+    // toast) can't re-select `"auto-explore"` forever. Mutated during
+    // render like `fitActiveRef`/`modeRef` above, read by both effects.
+    const initialLoadRef = useRef(true);
+    if (query.trim()) initialLoadRef.current = false;
 
     /**
-     * Autofocus the line on desktop only (Screen 1). On a phone, focusing on
-     * arrival throws the keyboard up over the question before it can be read —
-     * and being read is that screen's entire job.
+     * No query ⇒ no corpus fetch, ever — regardless of filters or
+     * `fitActive` (a résumé-derived query is never actually empty in
+     * practice, so this stays the one simple rule). Same cost rationale as
+     * the removed cold-visit browse-all below: the match-all query was the
+     * most expensive one the app issues (whole corpus, ranked, with facet
+     * distribution) and the one implicated in the search-unavailable
+     * incidents. The `limit: 1, withFacets: false` corpus-count probe used
+     * for the search line's placeholder is untouched by this.
+     */
+    const skipCorpusFetch = mode === "browse" && !query.trim();
+
+    /**
+     * The empty-query landing state (`lib/jobs/result-state.ts`,
+     * unit-tested there) — replaces the old binary `showAsk` with the four
+     * outcomes the product spec actually needs: ordinary `"results"`, the
+     * full-screen first-ask overlay, the chrome-preserving `"serp-ask"` for
+     * an already-filtered empty query, or an automatic hand-off into
+     * Explore when a usable résumé is already on hand. `page.tsx` branches
+     * on this value everywhere below instead of re-deriving the same
+     * conditions inline.
+     */
+    const emptySearchState = resolveEmptySearchState({
+        hasQuery: Boolean(query.trim()),
+        fitActive,
+        mode,
+        activeFilterCount: activeEntries.length,
+        hasUsableResume: hasUsableResume && Boolean(user),
+        isInitialLoad: initialLoadRef.current,
+        exploreFailed,
+    });
+    const isOverlayAsk = emptySearchState === "overlay-ask";
+    const isSerpAsk = emptySearchState === "serp-ask";
+
+    /**
+     * Autofocus the line on desktop only (Screen 1 — the full-screen
+     * overlay ask specifically, not the chrome-preserving SERP-ask). On a
+     * phone, focusing on arrival throws the keyboard up over the question
+     * before it can be read — and being read is that screen's entire job.
      *
-     * Imperative rather than React's `autoFocus` prop because the viewport test
-     * can only run on the client: deriving the prop from a media query would
-     * disagree with the server-rendered markup and trip hydration.
+     * Imperative rather than React's `autoFocus` prop because the viewport
+     * test can only run on the client: deriving the prop from a media
+     * query would disagree with the server-rendered markup and trip
+     * hydration.
      */
     useEffect(() => {
-        if (!showAsk) return;
+        if (!isOverlayAsk) return;
         if (!window.matchMedia("(min-width: 640px)").matches) return;
         document.querySelector<HTMLInputElement>("[data-search-line] input")?.focus();
-    }, [showAsk]);
+    }, [isOverlayAsk]);
 
 
     // Debounced search on query / facet / salary / visa changes.
     useEffect(() => {
-        if (showAsk) {
+        if (skipCorpusFetch) {
             // Nothing to search. Drop any previous result so returning to an
-            // empty query lands back on the ask rather than stale rows.
+            // empty query lands back on an ask state rather than stale rows.
             setLoading(false);
             setSearchError(null);
             setResult(null);
@@ -1313,7 +1360,7 @@ function JobsContent() {
         // covers — the dead `"search"`-mode branch that used to justify
         // `mode` being here directly is gone (whole-branch review fix).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry, showAsk]);
+    }, [searchKey, searchRetry, skipCorpusFetch]);
 
     // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
     // starts on Best match rather than silently inheriting whatever sort was
@@ -1580,8 +1627,10 @@ function JobsContent() {
     // the résumé-upsell card uses, `resumeIsUsable`): with no résumé,
     // `handleExploreClick` doesn't explore anything — it opens a sign-in or
     // upload gate instead. `handleTombstoneSimilarRoles` (below) branches on
-    // this; `SimilarRolesCta` labels the button accordingly.
-    const canShowSimilarRoles = resumeIsUsable(resume ?? undefined);
+    // this; `SimilarRolesCta` labels the button accordingly. Aliases the
+    // `hasUsableResume` hoisted above (single source — see its own comment)
+    // rather than a second `resumeIsUsable(resume ?? undefined)` call.
+    const canShowSimilarRoles = hasUsableResume;
 
     const handleResultsKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -1732,9 +1781,9 @@ function JobsContent() {
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
     // active" — the "All filters (N)" pill's count, the empty state's
-    // per-filter clear chips, and the sheet's own count all read from it so
-    // they can never disagree.
-    const activeEntries = activeFilterEntries(filterState);
+    // per-filter clear chips, `emptySearchState` above, and the sheet's own
+    // count all read from the ONE `activeEntries` hoisted earlier so they
+    // can never disagree.
     const activeCount = activeEntries.length;
 
     /**
@@ -1770,9 +1819,9 @@ function JobsContent() {
      *
      * `resumeIsUsable` reads LOCAL state only (no mount fetch), so someone with
      * a server-side résumé they haven't loaded this session is offered the
-     * upload path. Accepted trade-off, not a bug.
+     * upload path. Accepted trade-off, not a bug. `hasUsableResume` itself is
+     * hoisted near `emptySearchState` above — single source, see its comment.
      */
-    const hasUsableResume = resumeIsUsable(resume ?? undefined);
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
@@ -2296,6 +2345,31 @@ function JobsContent() {
         }
     };
 
+    // Resume auto-entry: the moment `emptySearchState` (above) decides the
+    // empty-query landing should skip both asks and hand off to Explore, do
+    // exactly that — reusing `handleExploreClick` VERBATIM, the same
+    // function the toolbar's "explore roles like mine" affordance calls, so
+    // auto-entry can never drift from a manual click's behavior (résumé
+    // resolution, the exploreInFlight double-fire guard, credits/soft-error
+    // fallback). `initialLoadRef.current = false` fires unconditionally and
+    // FIRST — before `handleExploreClick` even resolves — so an outcome
+    // that doesn't itself change query/mode/exploreFailed (e.g. a
+    // "no-fallback" toast) still lands on the seeded ask on the next
+    // render instead of re-deciding `"auto-explore"` forever; see
+    // `initialLoadRef`'s own comment above.
+    //
+    // Effect (not inline in render) because entering Explore is a real
+    // side effect (a network call, a mode/URL change) — `emptySearchState`
+    // itself stays a pure read. The dependency is the single decided
+    // string, so this fires exactly once per entry into `"auto-explore"`,
+    // never on an unrelated re-render while it holds.
+    useEffect(() => {
+        if (emptySearchState !== "auto-explore") return;
+        initialLoadRef.current = false;
+        void handleExploreClick();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [emptySearchState]);
+
     // Task 11 review fix — the tombstone's "similar roles" CTA can't just
     // call `handleExploreClick` bare: the common dead link is a bare
     // `/?job=<id>` with no query, so `job=<dead-id>` is still the URL's
@@ -2432,6 +2506,12 @@ function JobsContent() {
     const blockingError = searchError != null && hits.length === 0;
     const backgroundError = searchError != null && hits.length > 0;
 
+    // SERP-ask's tappable seeds — recent searches first, then the curated
+    // fallback list, deduped to ~8 (lib/jobs/recent-searches.ts,
+    // unit-tested). Cheap and pure, so computed unconditionally rather than
+    // gated on `isSerpAsk` — matches this file's other render-prep consts.
+    const searchSeeds = resolveSearchSeeds(recentSearches);
+
 
     // The one grey line under the pinned box. It states the posted-date window
     // out loud because the redesigned route offers no control that reveals it
@@ -2471,7 +2551,7 @@ function JobsContent() {
         <div
             className={cn(
                 "bg-background",
-                showAsk
+                isOverlayAsk
                     ? "fixed inset-0 z-50 flex flex-col items-center overflow-y-auto px-6"
                     // The viewport pin lives on the SHELL, which starts below the
                     // 3.5rem masthead. Putting it on the results pane instead
@@ -2485,7 +2565,7 @@ function JobsContent() {
                 quiet wordmark, same type treatment as the TopBar's, in the
                 masthead's own position so the transition to the results screen
                 doesn't move it. Not a control: nothing else on this screen. */}
-            {showAsk && (
+            {isOverlayAsk && (
                 <div className="absolute left-0 top-0 flex h-14 items-center gap-2 px-4 sm:px-6">
                     <span className="font-display text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">
                         intervu
@@ -2498,10 +2578,10 @@ function JobsContent() {
             <div
                 className={cn(
                     "w-full shrink-0",
-                    showAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-foreground",
+                    isOverlayAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-foreground",
                 )}
             >
-                <div className={showAsk ? undefined : "mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6"}>
+                <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6"}>
                     <div data-search-line className="flex items-center gap-4">
                         <SearchAutocomplete
                             // Explore mode's `query` state carries the résumé-derived
@@ -2542,13 +2622,13 @@ function JobsContent() {
                             placeholder="What kind of work are you looking for?"
                             className={cn(
                                 "rounded-none border-0 border-b border-border-strong bg-transparent px-0 shadow-none focus-visible:border-foreground focus-visible:ring-0 focus-visible:shadow-none",
-                                showAsk ? "h-12 text-[19px]" : "h-10 text-[17px]",
+                                isOverlayAsk ? "h-12 text-[19px]" : "h-10 text-[17px]",
                             )}
                             containerClassName="min-w-0 flex-1"
                         />
                     </div>
 
-                    {showAsk ? (
+                    {isOverlayAsk ? (
                         /* Returning visitor: their own previous sentences, as plain
                            grey lines. No heading, no chips — a heading would be the
                            page talking about itself on the one screen that isn't. */
@@ -2637,7 +2717,7 @@ function JobsContent() {
                         list can't push the results off screen. Editorial affordance
                         band (SerpFilters), wired to the same single
                         `applyFilterState` funnel the old FilterPanel card used. */}
-                    {!showAsk && filtersOpen && (
+                    {!isOverlayAsk && filtersOpen && (
                         <div
                             data-testid="filters-panel"
                             className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain custom-scrollbar border-t border-border pt-2"
@@ -2661,7 +2741,7 @@ function JobsContent() {
                 </div>
             </div>
 
-            {!showAsk && (
+            {!isOverlayAsk && (
                 <main className="mx-auto flex w-full max-w-[1700px] flex-1 flex-col px-4 pb-6 sm:px-6 lg:min-h-0 lg:overflow-hidden lg:px-14">
                 <a
                     href="#jobs-results-list"
@@ -2720,7 +2800,38 @@ function JobsContent() {
                             keeps holding if a sibling (header, notice) is ever added
                             alongside the pane in this wrapper. */}
                         <div className="flex min-h-0 flex-1 flex-col">
-                            {notConnected ? (
+                            {isSerpAsk ? (
+                                /* Screen 3's SERP-ask (product spec §2): filters are
+                                   active (or a prior auto-explore attempt didn't pan
+                                   out — see `resolveEmptySearchState`), so the chrome
+                                   above stays up — search line, filter band — but
+                                   there is genuinely nothing to list (rule §1: an
+                                   empty query never fetches the corpus). Seeds =
+                                   recent searches first, then the curated fallback
+                                   list, deduped — `resolveSearchSeeds`
+                                   (lib/jobs/recent-searches.ts, unit-tested). Tapping
+                                   one goes through the exact same `submitSearch`
+                                   chokepoint a typed Enter/suggestion-pick uses, so
+                                   the URL write and recent-searches recording can't
+                                   drift from a real search. Styled like SerpFilters'
+                                   own `Affordance` grammar — no pills, no buttons. */
+                                <div className="py-8 text-left" data-testid="serp-ask">
+                                    <p className="text-[14px] text-muted-foreground">which role? your filters stay on</p>
+                                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+                                        {searchSeeds.map((seed) => (
+                                            <button
+                                                key={seed}
+                                                type="button"
+                                                data-testid="serp-ask-seed"
+                                                onClick={() => submitSearch(seed)}
+                                                className="font-mono text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                {seed}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : notConnected ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
@@ -2763,7 +2874,16 @@ function JobsContent() {
                                         Retry
                                     </button>
                                 </div>
-                            ) : loading && hits.length === 0 ? (
+                            ) : (loading || emptySearchState === "auto-explore") && hits.length === 0 ? (
+                                // The `"auto-explore"` arm covers the gap between the
+                                // resolver deciding to hand off (this render — the
+                                // effect above hasn't fired yet) and the outcome
+                                // landing: `mode`/`query` haven't changed yet, so
+                                // there's nothing in `hits` to show, but this is not
+                                // an empty-results moment either — reusing the
+                                // ordinary loading splash instead of `EmptyResults`
+                                // is what keeps this window from flashing "No roles
+                                // match" over a fetch that never ran.
                                 <JobsListSplash />
                             ) : hits.length === 0 ? (
                                 <EmptyResults
