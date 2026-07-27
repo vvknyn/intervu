@@ -207,6 +207,24 @@ export function shortDate(ms: number): string {
     return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/**
+ * The ledger row's data-rail age ("today"/"11d ago"/"2mo ago"/"1y ago") —
+ * same day/month/year bucketing the row's old sentence-form age used (the
+ * ledger redesign replaced that prose line with a right-aligned rail; a full
+ * sentence doesn't fit a fixed-width column), just terse enough to sit under
+ * a salary figure instead of reading as a clause.
+ */
+export function postedAgeShort(ts: number | null, now: number): string | null {
+    if (ts == null) return null;
+    const days = Math.floor((now - ts) / 86_400_000);
+    if (days <= 0) return "today";
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+}
+
 /** How each posted-date window reads out loud. `undefined` is "any time" —
  *  the user explicitly cleared the window, so there is nothing to disclose. */
 const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
@@ -280,4 +298,22 @@ export function firstMentionIndex(titles: string[], q: string): number {
     // already -1 — both collapse into the same `idx <= 0` branch below.
     const idx = titles.findIndex((t) => !titleMatchesQuery(t, q));
     return idx <= 0 ? -1 : idx;
+}
+
+/**
+ * The seam line's own copy — real counts on both sides of the "titled it" /
+ * "mentions it" boundary instead of a static sentence, so the claim stays
+ * honest as the result set changes. `seamIndex` (from `firstMentionIndex`) is
+ * exactly the titled-block count. `total` is Meili's raw total for the
+ * "mentions it" side; it can undercount `hitsLength` in the same pagination
+ * edge case `resolveCorpusCount` (corpus-count.ts) exists to guard against —
+ * when that happens this falls back to counting the hits actually loaded
+ * rather than printing a negative remainder.
+ */
+export function seamSummary(seamIndex: number, total: number, hitsLength: number): string {
+    const remaining = total < seamIndex ? hitsLength - seamIndex : total - seamIndex;
+    const n = Math.max(remaining, 0);
+    const noun = seamIndex === 1 ? "role" : "roles";
+    const verb = seamIndex === 1 ? "is" : "are";
+    return `${seamIndex.toLocaleString()} ${noun} ${verb} titled this · ${n.toLocaleString()} more mention it`;
 }

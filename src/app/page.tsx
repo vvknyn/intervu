@@ -39,8 +39,11 @@ import {
     decodeText,
     cleanCompany,
     locationText,
+    salaryText,
+    postedAgeShort,
     searchResultLine,
     firstMentionIndex,
+    seamSummary,
 } from "@/lib/jobs/presentation";
 import {
     subscribeRecentSearches,
@@ -169,38 +172,6 @@ function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
 }
 
 /**
- * Format a sanitized posted timestamp as a relative age. Takes the epoch-ms
- * `posted_ts` (via `derivePostedTs`) rather than the raw `posted_at` string so
- * a future-dated posting (measured live: sentinels like 2030-01-31) never
- * renders as "today" — it falls back to `first_seen_at` instead.
- *
- * `now` is threaded in by the caller (JobCard, from JobsContent's single
- * per-render-pass `nowMs`) rather than sampled here with `Date.now()` — this
- * function runs from JobCard's render body, so an internal clock read would
- * be exactly the impure-render-call class `react-hooks/purity` flags at a
- * pure-derivation call site, just one level removed from the component itself.
- */
-/**
- * How long a posting has been up, in words.
- *
- * Reads as a sentence fragment ("posted 12 days ago") rather than the ledger's
- * old terse "12d". How long a role has sat open is the fact this product can
- * state that most boards can't, so it is the one number on the row worth
- * spelling out — a searcher shouldn't have to decode it.
- */
-function postedPhrase(ts: number | null, now: number): string | null {
-    if (ts == null) return null;
-    const days = Math.floor((now - ts) / 86_400_000);
-    if (days <= 0) return "posted today";
-    if (days === 1) return "posted yesterday";
-    if (days < 30) return `posted ${days} days ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `posted ${months} month${months === 1 ? "" : "s"} ago`;
-    const years = Math.floor(months / 12);
-    return `posted ${years} year${years === 1 ? "" : "s"} ago`;
-}
-
-/**
  * The ledger's VERDICT CELL (editorial pass spec — the signature: mono,
  * colored, fixed-width, e.g. "■ LIVE · 2H" / "▲ REPOST" / "✕ RISK · STALE
  * 47D" / "— UNSCORED"). Renamed from the portal pass's `flagRowFor` (which
@@ -290,30 +261,35 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /* ----------------------------- ledger row ----------------------------- */
 
 /**
- * One result. Title dominant, one quiet line underneath — nothing else.
+ * One result. Title + company/location on the left, a fixed-width data rail
+ * (salary, ghost flag, age — top to bottom, whichever apply) on the right.
+ * Two anchors, not a single stacked block: the left identity answers "what
+ * is this, who's it at, where," the right rail answers "what's it worth,
+ * anything to watch for, how stale" — different questions, so they read as
+ * different columns rather than one run-on line.
  *
- * The list's job is to let someone scan for the role they want, so the row
- * carries only what that decision needs: what it is, who it's at, where, and
- * how long it's been open. Salary, seniority, and the save/apply actions moved
- * to the detail takeover, which already renders all three (`JobDetail`) — they
- * were competing with the title for attention while answering a question
- * nobody asks until they've opened something.
- *
- * The title dominates for a ranking reason too: `searchableAttributes` order
- * puts `title` first (JOBS_INDEX_SETTINGS, lib/jobs/meilisearch.ts), so the
+ * The title dominates for a ranking reason: `searchableAttributes` order puts
+ * `title` first (JOBS_INDEX_SETTINGS, lib/jobs/meilisearch.ts), so the
  * engine's attribute rule ranks title matches above description matches —
  * making the title the loudest thing means the eye lands on the very text the
  * engine ranked. When visual hierarchy and ranking disagree, even correct
  * results feel arbitrary.
+ *
+ * `opened` (session-only, see `openedIds` in JobsContent) recesses a
+ * previously-opened row's title to muted-medium instead of bold — a plain
+ * "already read" signal, distinct from `active` (the row whose detail is
+ * OPEN right now).
  */
 function JobCard({
     job,
     active,
+    opened,
     onClick,
     now,
 }: {
     job: PublicJob;
     active: boolean;
+    opened: boolean;
     onClick: () => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
@@ -325,13 +301,8 @@ function JobCard({
     // searcher has deliberately asked to see flagged postings — at which point
     // saying nothing would be the dishonest option, not the clean one.
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
-    const meta = [
-        cleanCompany(job.company) || "Unknown company",
-        locationText(job),
-        postedPhrase(derivePostedTs(job), now),
-    ]
-        .filter(Boolean)
-        .join(" · ");
+    const salary = salaryText(job);
+    const age = postedAgeShort(derivePostedTs(job), now);
 
     return (
         <div
@@ -349,18 +320,29 @@ function JobCard({
                 }
             }}
             className={cn(
-                "cursor-pointer border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40",
+                "flex cursor-pointer items-center justify-between gap-6 border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
                 active && "bg-muted",
             )}
         >
-            <div data-testid="job-title" className="text-[16px] font-semibold leading-snug tracking-tight">
-                {decodeText(job.title)}
+            <div className="min-w-0">
+                <div
+                    data-testid="job-title"
+                    className={cn(
+                        "text-[16px] leading-snug tracking-tight",
+                        opened ? "font-medium text-muted-foreground" : "font-semibold",
+                    )}
+                >
+                    {decodeText(job.title)}
+                </div>
+                <div className="mt-1 text-[12.5px] text-muted-foreground">
+                    <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                    {` · ${locationText(job)}`}
+                </div>
             </div>
-            <div className="mt-1 font-mono text-[12px] text-muted-foreground">
-                {meta}
-                {flagged && (
-                    <span className={cn("ml-2", VERDICT_TONE_CLASS[verdict.tone])}>· {verdict.code.toLowerCase()}</span>
-                )}
+            <div className="w-[128px] flex-none text-right font-mono text-[11.5px] leading-[1.7] tabular-nums">
+                {salary && <div className="text-foreground">{salary}</div>}
+                {flagged && <div className={VERDICT_TONE_CLASS[verdict.tone]}>{verdict.code.toLowerCase()}</div>}
+                {age && <div className="text-muted-foreground">{age}</div>}
             </div>
         </div>
     );
@@ -677,12 +659,14 @@ function EmptyResults({
 }
 
 /**
- * The search seed line (spec §3 "outside interviews"): ALWAYS present below
- * the results pane — for the visitor who's already mid-interview-loop
- * somewhere, not job hunting on this page at all. Collapsed to a single
- * quiet line by default (it must not compete with the results above it);
- * one click expands the two-field form in place. Submitting creates an
- * "interviewing"-stage pursuit with no job_id (typed company/role only, no
+ * The search seed line (spec §3 "outside interviews") — for the visitor
+ * who's already mid-interview-loop somewhere, not job hunting on this page at
+ * all. Rendered once, after the load-more sentinel / end-of-list line inside
+ * the scrolling results container (Ledger redesign) — it's the last thing a
+ * reader who scrolls through the whole page reaches, not a permanent fixture
+ * competing with the results above it. Collapsed to a single quiet line by
+ * default; one click expands the two-field form in place. Submitting creates
+ * an "interviewing"-stage pursuit with no job_id (typed company/role only, no
  * live listing behind it — same shape `buildManualPursuitSnapshot` gives
  * every other manual pursuit) and the caller routes straight into /prep for
  * it — see `handleSeedSubmit` below.
@@ -1358,6 +1342,17 @@ function JobsContent() {
      *  someone who just arrived. */
     const [opensThisSession, setOpensThisSession] = useState(0);
 
+    /** Ids whose detail has been opened this session — dims a row's title
+     *  from bold to muted on re-scan (see `JobCard`'s `opened` prop).
+     *  Deliberately session-only (no persistence, resets on reload): this is
+     *  about what's been read on THIS visit, not a cross-visit read-history
+     *  feature. Kept separate from `opensThisSession` above — that's a COUNT
+     *  driving a different decision (the Screen 9 résumé-moment threshold);
+     *  this is a SET answering a different question (has THIS row
+     *  specifically been read) — same triggering event, two independent
+     *  concerns, so one counter piggybacking both would be wrong. */
+    const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
+
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
@@ -1368,6 +1363,7 @@ function JobsContent() {
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
         void recordJobOpenedAction(lastSearchId, id, rank);
         setOpensThisSession((n) => n + 1);
+        setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
@@ -2674,7 +2670,7 @@ function JobsContent() {
                     tracker and linked to it, and `GhostRadarCard` described the
                     current result set — neither is what someone came here to read,
                     and the tracker renders its own counts better at /yours. */}
-                <div className="flex min-h-0 flex-1 flex-col pt-4">
+                <div className="flex min-h-0 max-w-[880px] flex-1 flex-col pt-4">
                     <div className="flex min-h-0 flex-col">
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -2792,7 +2788,8 @@ function JobsContent() {
                                                 <JobCard
                                                     key={job.id}
                                                     job={job}
-                                                    active={selected?.id === job.id}
+                                                    active={detailSheetOpen && selectedId === job.id}
+                                                    opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
                                                     now={nowMs}
                                                 />
@@ -2804,7 +2801,7 @@ function JobsContent() {
                                                     data-testid="relevance-seam"
                                                     className="border-t border-border pt-4 pb-1 mb-1 font-mono text-[11px] text-muted-foreground"
                                                 >
-                                                    that&apos;s every role titled it — the rest mention it
+                                                    {seamSummary(seamIndex, total, hits.length)}
                                                 </p>,
                                                 row,
                                             ];
@@ -2873,10 +2870,10 @@ function JobsContent() {
                                             {totalCount.value === 1 ? "role" : "roles"}.
                                         </p>
                                     )}
+                                    <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                                 </div>
                             )}
                         </div>
-                        <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                     </div>
                 </div>
                 </main>
