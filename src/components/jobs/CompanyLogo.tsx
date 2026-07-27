@@ -58,7 +58,8 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
     );
 }
 
-const SIZE_CLS: Record<"sm" | "lg", string> = {
+const SIZE_CLS: Record<"xs" | "sm" | "lg", string> = {
+    xs: "h-8 w-8 rounded-[4px] text-xs",
     sm: "h-11 w-11 rounded-xl text-base",
     lg: "h-14 w-14 rounded-2xl text-xl",
 };
@@ -75,7 +76,7 @@ export function CompanyLogo({
 }: {
     domain: string | null;
     name: string | null;
-    size: "sm" | "lg";
+    size: "xs" | "sm" | "lg";
 }) {
     const [errored, setErrored] = useState(false);
     const showImage = Boolean(domain) && !errored;

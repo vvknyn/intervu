@@ -60,6 +60,7 @@ import {
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
@@ -320,11 +321,14 @@ function JobCard({
                 }
             }}
             className={cn(
-                "flex cursor-pointer items-center justify-between gap-6 border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                "flex cursor-pointer items-center justify-between gap-3 border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
                 active && "bg-muted",
             )}
         >
-            <div className="min-w-0">
+            <div className="self-start">
+                <CompanyLogo domain={job.company_domain} name={job.company} size="xs" />
+            </div>
+            <div className="min-w-0 flex-1">
                 <div
                     data-testid="job-title"
                     className={cn(
@@ -2780,7 +2784,7 @@ function JobsContent() {
                                     role="listbox"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
-                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
+                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
                                 >
                                     <div>
                                         {hits.flatMap((job, i) => {
