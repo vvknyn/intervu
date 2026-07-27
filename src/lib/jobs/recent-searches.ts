@@ -134,3 +134,48 @@ export function clearAllRecentSearches(): void {
     clearRecentSearches();
     notifyRecentSearchesChanged();
 }
+
+/* ------------------------- empty-search seed queries ------------------------- */
+
+/**
+ * Curated fallback role titles for the SERP-ask empty-search state
+ * (page.tsx's `resolveEmptySearchState` → `"serp-ask"`) — recent searches
+ * fill first, this backfills the rest. Exported so it stays the one list a
+ * future surface would reuse rather than a second hand-typed copy.
+ */
+export const CURATED_SEARCH_SEEDS = [
+    "product manager",
+    "software engineer",
+    "data scientist",
+    "account manager",
+    "customer success manager",
+    "marketing manager",
+    "product designer",
+    "sales engineer",
+];
+
+const SEED_TARGET = 8;
+
+/**
+ * Recent searches first, then curated fallbacks, case-insensitively deduped
+ * (a resubmitted curated title doesn't appear twice), capped at `target`.
+ * Pure — unit-tested without the store/localStorage above.
+ */
+export function resolveSearchSeeds(
+    recent: string[],
+    curated: string[] = CURATED_SEARCH_SEEDS,
+    target = SEED_TARGET,
+): string[] {
+    const seen = new Set<string>();
+    const seeds: string[] = [];
+    for (const q of [...recent, ...curated]) {
+        const trimmed = q.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        seeds.push(trimmed);
+        if (seeds.length >= target) break;
+    }
+    return seeds;
+}
