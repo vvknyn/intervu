@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { titleMatchesQuery, firstMentionIndex } from "../../src/lib/jobs/presentation";
+import { titleMatchesQuery, firstMentionIndex, seamSummary } from "../../src/lib/jobs/presentation";
 
 test("titleMatchesQuery: exact token match", () => {
     assert.equal(titleMatchesQuery("Technical Account Manager", "technical account manager"), true);
@@ -60,4 +60,28 @@ test("firstMentionIndex: -1 for an empty query", () => {
 
 test("firstMentionIndex: -1 for an empty titles list", () => {
     assert.equal(firstMentionIndex([], "technical account manager"), -1);
+});
+
+test("seamSummary: counts both sides and pluralizes", () => {
+    assert.equal(seamSummary(3, 30, 30), "3 roles are titled this · 27 more mention it");
+});
+
+test("seamSummary: singular titled-block reads as one role/is", () => {
+    assert.equal(seamSummary(1, 6, 6), "1 role is titled this · 5 more mention it");
+});
+
+test("seamSummary: large counts format with thousands separators", () => {
+    assert.equal(seamSummary(1234, 5678, 5678), "1,234 roles are titled this · 4,444 more mention it");
+});
+
+test("seamSummary: total undercounting the seam falls back to the loaded hits, never negative", () => {
+    // Meili's raw total can undercount what's actually loaded (the same edge
+    // case `resolveCorpusCount` guards against) — total(5) < seamIndex(10)
+    // here, so this must fall back to hitsLength - seamIndex instead of
+    // printing a negative remainder.
+    assert.equal(seamSummary(10, 5, 14), "10 roles are titled this · 4 more mention it");
+});
+
+test("seamSummary: even the hits-length fallback never goes negative", () => {
+    assert.equal(seamSummary(10, 5, 10), "10 roles are titled this · 0 more mention it");
 });
