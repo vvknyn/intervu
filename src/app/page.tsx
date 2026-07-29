@@ -61,6 +61,7 @@ import {
 import { BoardChips } from "@/components/jobs/BoardChips";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
+import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
@@ -844,8 +845,7 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
-    const [fitJob, setFitJob] = useState<PublicJob | null>(null); // FitDrawer — Task 8
-    void fitJob;
+    const [fitJob, setFitJob] = useState<PublicJob | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -1896,7 +1896,7 @@ function JobsContent() {
         p.set("position", job.title);
         p.set("round", "Technical");
         p.set("searched", "true");
-        router.push(`/?${p.toString()}`);
+        router.push(`/prep?${p.toString()}`);
     };
     const handleOpenPosting = (job: PublicJob) => {
         if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
@@ -3075,6 +3075,17 @@ function JobsContent() {
                 onOpenChange={setTailorOpen}
                 job={tailorJob}
                 onAuthRequired={() => setAuthOpen(true)}
+            />
+            <FitDrawer
+                open={!!fitJob}
+                job={fitJob}
+                onOpenChange={(open) => {
+                    if (!open) setFitJob(null);
+                }}
+                onTailor={() => fitJob && handleTailor(fitJob)}
+                onPrep={() => fitJob && handlePrep(fitJob)}
+                onApply={() => fitJob && handleMarkApplied(fitJob)}
+                onAuthRequired={openAuth}
             />
             <ResumeImportModal
                 isOpen={importOpen}
