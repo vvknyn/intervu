@@ -29,6 +29,7 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
@@ -2081,11 +2082,12 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Guest→auth pursuit merge (spec §3/§7) — at most once per load.
+    // Guest→auth merge (pursuits + follows) — at most once per load.
     useEffect(() => {
         if (user && !guestPursuitSyncRef.current) {
             guestPursuitSyncRef.current = true;
             void syncGuestPursuitsToServer();
+            void syncGuestFollowsToServer();
         }
     }, [user]);
 

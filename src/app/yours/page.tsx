@@ -14,6 +14,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
+import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import {
     boardColumn,
     boardTimestampLabel,
@@ -210,11 +211,12 @@ function YoursContent() {
         return () => unsub();
     }, []);
 
-    // Merge-at-sign-in (spec §3/§7) — at most once per load.
+    // Merge-at-sign-in (pursuits + follows) — at most once per load.
     useEffect(() => {
         if (user && !guestSyncRef.current) {
             guestSyncRef.current = true;
             void syncGuestPursuitsToServer();
+            void syncGuestFollowsToServer();
         }
     }, [user]);
 
