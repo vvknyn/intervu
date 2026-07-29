@@ -2973,7 +2973,7 @@ function JobsContent() {
                                                     opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
                                                     onFit={setFitJob}
-                                                    onCompany={handleCompany}
+                                                    onCompany={job.company_domain ? handleCompany : undefined}
                                                     now={nowMs}
                                                 />
                                             );
