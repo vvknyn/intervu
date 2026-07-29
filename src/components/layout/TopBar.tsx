@@ -84,6 +84,7 @@ const NAV_TABS: { label: string; href: string; testId: string; match: (pathname:
         match: (p) => p.startsWith("/resume-builder"),
     },
     { label: "Interview prep", href: "/prep", testId: "topbar-prep", match: (p) => p.startsWith("/prep") },
+    { label: "Trends", href: "/trends", testId: "topbar-trends", match: (p) => p.startsWith("/trends") },
 ];
 
 /**
