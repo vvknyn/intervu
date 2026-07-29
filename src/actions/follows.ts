@@ -2,6 +2,7 @@
 
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { listNewRolesForFollows, type FollowAlertGroup } from "@/lib/follows/alerts";
 import type { FollowedCompany } from "@/lib/follows/types";
 
 function followedCompaniesCollection(uid: string) {
@@ -84,6 +85,19 @@ export async function unfollowCompanyAction(domain: string): Promise<{ error?: s
 }
 
 /** Merge guest follows at sign-in — upsert each row, keep earliest createdAt. */
+export async function listFollowAlertsAction(
+    sinceIso: string,
+    follows: FollowedCompany[],
+): Promise<{ data?: FollowAlertGroup[]; error?: string }> {
+    try {
+        const data = await listNewRolesForFollows(sinceIso, follows);
+        return { data };
+    } catch (error) {
+        console.error("Error listing follow alerts:", error);
+        return { error: error instanceof Error ? error.message : "Failed to load follow alerts" };
+    }
+}
+
 export async function syncGuestFollowsAction(
     guestFollows: FollowedCompany[],
 ): Promise<{ error?: string }> {

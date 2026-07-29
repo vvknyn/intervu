@@ -29,7 +29,8 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
-import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
+import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
+import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
@@ -856,6 +857,7 @@ function JobsContent() {
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
+    const { follows, hasAny: hasFollows } = useFollows();
 
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
@@ -2822,6 +2824,15 @@ function JobsContent() {
                             this state (see `resultCountLine`) because the relaxed total
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
+                        {!isOverlayAsk && hasFollows && (
+                            <FollowAlertsCard
+                                follows={follows}
+                                nowMs={nowMs}
+                                board={board}
+                                onViewAll={() => onBoardChange("elite")}
+                            />
+                        )}
+
                         {!loading && result?.widened && (
                             <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
                                 Nothing matches every word of that — showing the closest matches.
