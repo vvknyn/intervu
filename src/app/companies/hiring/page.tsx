@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FollowButton } from "@/components/companies/FollowButton";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { getHotCompaniesList, type HotCompanyRow } from "@/lib/companies/hot-list";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { cn } from "@/lib/utils";
@@ -21,10 +21,10 @@ export default async function HotCompaniesPage() {
   const result = await getHotCompaniesList();
 
   return (
-    <>
-      <div className="border-b border-border bg-muted/30 px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-4xl font-mono text-xs text-muted-foreground">
-          <Link href="/" className="text-brand hover:underline">
+    <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
+      <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
+        <nav className="mx-auto max-w-[960px] font-mono text-xs text-[color:var(--elite-faint)]">
+          <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
             Find jobs
           </Link>
           {" / "}
@@ -32,43 +32,43 @@ export default async function HotCompaniesPage() {
         </nav>
       </div>
 
-      <main data-testid="hot-companies-page" className="mx-auto max-w-4xl px-4 py-8 pb-16 sm:px-6">
+      <main data-testid="hot-companies-page" className="mx-auto max-w-[960px] px-4 py-8 pb-16 sm:px-6">
         <header className="mb-7">
           <h1 className="font-display text-[32px] font-semibold tracking-tight">
             Companies hiring hard
           </h1>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[color:var(--elite-muted)]">
             Ranked by roles opened in the last 90 days — not fundraising.
           </p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            Elite board subset · observed job postings
+          <p className="mt-1 font-mono text-xs text-[color:var(--elite-faint)]">
+            Metric = observed job postings · updated daily · elite board subset
           </p>
         </header>
 
         {result.status === "unavailable" ? (
-          <p className="text-sm text-muted-foreground" data-testid="hot-companies-unavailable">
+          <p className="text-sm text-[color:var(--elite-muted)]" data-testid="hot-companies-unavailable">
             {result.message || SEARCH_UNAVAILABLE_MESSAGE}
           </p>
         ) : result.companies.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No elite companies indexed right now.</p>
+          <p className="text-sm text-[color:var(--elite-muted)]">No elite companies indexed right now.</p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-hidden rounded-[12px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)]">
             <table className="w-full border-collapse">
-              <thead className="border-b border-border bg-muted/40">
+              <thead className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)]">
                 <tr>
-                  <th className="px-4 py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="w-12 px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Rank
                   </th>
-                  <th className="px-4 py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Company
                   </th>
-                  <th className="hidden px-4 py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Hiring heat
                   </th>
-                  <th className="px-4 py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Open roles
                   </th>
-                  <th className="px-4 py-3.5" aria-hidden />
+                  <th className="px-[18px] py-3.5" aria-hidden />
                 </tr>
               </thead>
               <tbody>
@@ -80,7 +80,7 @@ export default async function HotCompaniesPage() {
           </div>
         )}
       </main>
-    </>
+    </div>
   );
 }
 
@@ -88,40 +88,45 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
   const hot = typeof company.opened90d === "number" && company.opened90d > 0;
 
   return (
-    <tr className="border-b border-border last:border-b-0 hover:bg-muted/30">
-      <td className="px-4 py-4">
+    <tr className="border-b border-[color:var(--elite-rule)] last:border-b-0 hover:bg-[color:var(--elite-surface)]">
+      <td className="w-12 px-[18px] py-4">
         <span
           className={cn(
-            "font-display text-lg font-bold text-muted-foreground",
-            hot && rank <= 3 && "text-brand",
+            "font-display text-[18px] font-bold text-[color:var(--elite-faint)]",
+            hot && rank <= 3 && "text-[color:var(--elite-brand)]",
           )}
         >
           {rank}
         </span>
       </td>
-      <td className="px-4 py-4">
+      <td className="px-[18px] py-4">
         <Link href={`/co/${company.slug}`} className="flex items-center gap-3">
-          <CompanyLogo domain={company.domain} name={company.name} size="sm" />
+          <CompanyInitialTile
+            name={company.name}
+            className="h-9 w-9 rounded-lg text-base"
+          />
           <div className="min-w-0">
             <div className="text-[14.5px] font-semibold">{company.name}</div>
             {company.oneLiner && (
-              <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+              <div className="mt-0.5 line-clamp-2 max-w-[280px] text-[12.5px] leading-snug text-[color:var(--elite-muted)]">
                 {company.oneLiner}
               </div>
             )}
-            <div className="mt-1 font-mono text-xs text-brand sm:hidden">{heatLabel(company)}</div>
           </div>
         </Link>
       </td>
-      <td className="hidden px-4 py-4 font-mono text-[13px] sm:table-cell">
-        <span className={cn(hot && "font-medium text-brand")}>{heatLabel(company)}</span>
+      <td className="px-[18px] py-4 font-mono text-[13px]">
+        <span className={cn(hot && "font-medium text-[color:var(--elite-brand)]")}>
+          {heatLabel(company)}
+        </span>
       </td>
-      <td className="px-4 py-4 font-mono text-[13px]">{company.openCount}</td>
-      <td className="px-4 py-4 text-right">
+      <td className="px-[18px] py-4 font-mono text-[13px] text-[#3E3B30]">{company.openCount}</td>
+      <td className="px-[18px] py-4 text-right">
         <FollowButton
           domain={company.domain}
           slug={company.slug}
           displayName={company.name}
+          variant="pill"
         />
       </td>
     </tr>

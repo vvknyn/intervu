@@ -37,7 +37,9 @@ export async function getCompanyPageData(slug: string): Promise<CompanyPageData 
     domain,
     slug: domainToSlug(domain),
     name: first?.company?.trim() || displayNameFromDomain(domain),
-    oneLiner: first?.company_stage?.trim() || null,
+    // No product tagline in the index yet — do not misuse company_stage as one.
+    oneLiner: null,
+    stage: first?.company_stage?.trim() || null,
     opened90d: first?.company_opened_90d ?? null,
     closed90d: first?.company_closed_90d ?? null,
     openCount,

@@ -19,16 +19,34 @@ export type CompanyIntelFields = {
   company_open_count?: number | null;
 };
 
-export function formatCompanyIntel(j: CompanyIntelFields): string | null {
-  const parts: string[] = [];
-  if (j.company_stage?.trim()) parts.push(j.company_stage.trim());
+export type CompanyIntelSegment = {
+  text: string;
+  /** Mock `.intel-hot` — stage + high velocity openings. */
+  hot?: boolean;
+};
+
+/** Threshold for highlighting opened-90d in the elite intel footer. */
+export const INTEL_OPENED_HOT_MIN = 10;
+
+export function companyIntelSegments(j: CompanyIntelFields): CompanyIntelSegment[] {
+  const segs: CompanyIntelSegment[] = [];
+  const stage = j.company_stage?.trim();
+  if (stage) segs.push({ text: stage, hot: true });
   const opened = j.company_opened_90d;
   const closed = j.company_closed_90d;
   if (typeof opened === "number" && typeof closed === "number") {
-    parts.push(`Opened ${opened} / closed ${closed} in 90d`);
+    segs.push({
+      text: `Opened ${opened} / closed ${closed} in 90d`,
+      hot: opened >= INTEL_OPENED_HOT_MIN,
+    });
   }
   if (typeof j.company_open_count === "number") {
-    parts.push(`${j.company_open_count} open roles`);
+    segs.push({ text: `${j.company_open_count} open roles` });
   }
-  return parts.length ? parts.join(" · ") : null;
+  return segs;
+}
+
+export function formatCompanyIntel(j: CompanyIntelFields): string | null {
+  const segs = companyIntelSegments(j);
+  return segs.length ? segs.map((s) => s.text).join(" · ") : null;
 }

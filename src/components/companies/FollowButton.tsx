@@ -12,7 +12,8 @@ export interface FollowButtonProps {
   domain: string;
   slug: string;
   displayName: string;
-  variant?: "brand" | "outline";
+  /** brand = generic; elite = filled green (company page); pill = hot-table compact */
+  variant?: "brand" | "outline" | "elite" | "pill";
   className?: string;
 }
 
@@ -74,7 +75,41 @@ export function FollowButton({
   };
 
   const label =
-    following ? (variant === "brand" ? "Following ✓" : "Following") : "Follow";
+    following
+      ? variant === "elite" || variant === "brand"
+        ? "Following ✓"
+        : "Following"
+      : "Follow";
+
+  if (variant === "elite" || variant === "pill") {
+    return (
+      <button
+        type="button"
+        data-testid="follow-company"
+        data-following={following ? "true" : "false"}
+        aria-pressed={following}
+        disabled={loading && optimistic === null}
+        onClick={() => void handleClick()}
+        className={cn(
+          variant === "elite" &&
+            "rounded-lg px-4 py-2 text-[13.5px] font-semibold transition-colors",
+          variant === "elite" &&
+            (following
+              ? "border border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"
+              : "bg-[color:var(--elite-brand)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-brand-hover)]"),
+          variant === "pill" &&
+            "rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+          variant === "pill" &&
+            (following
+              ? "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"
+              : "border-[color:var(--elite-border-strong)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:border-[color:var(--elite-muted)]"),
+          className,
+        )}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
     <Button

@@ -46,6 +46,7 @@ import {
     searchResultLine,
     firstMentionIndex,
     seamSummary,
+    prettyEnum,
 } from "@/lib/jobs/presentation";
 import {
     subscribeRecentSearches,
@@ -65,7 +66,7 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail } from "@/components/jobs/JobDetail";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyLogo, CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -298,6 +299,7 @@ function JobCard({
     onFit,
     onCompany,
     now,
+    elite = false,
 }: {
     job: PublicJob;
     active: boolean;
@@ -307,6 +309,8 @@ function JobCard({
     onCompany?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
+    /** Elite board mock card layout (docs/design/elite-company-signal/02-serp-elite.html). */
+    elite?: boolean;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     const verdict = verdictFor(job, now);
@@ -317,6 +321,98 @@ function JobCard({
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
+    const level = prettyEnum(job.experience_level);
+    const clearGhost = !flagged && (job.ghost_badge === "clear" || !job.ghost_badge);
+
+    if (elite) {
+        return (
+            <div
+                role="option"
+                tabIndex={0}
+                aria-selected={active}
+                aria-label={`View ${accessibleName}`}
+                data-job-row
+                data-testid="job-row"
+                onClick={onClick}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onClick();
+                    }
+                }}
+                className={cn("elite-job-card cursor-pointer text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--elite-brand)] focus-visible:-outline-offset-2")}
+            >
+                <CompanyInitialTile
+                    name={job.company}
+                    className="h-[46px] w-[46px] rounded-[10px] text-[19px]"
+                />
+                <div className="min-w-0">
+                    <div
+                        data-testid="job-title"
+                        className={cn(
+                            "text-[16.5px] leading-snug tracking-tight",
+                            opened ? "font-medium text-[color:var(--elite-muted)]" : "font-semibold",
+                        )}
+                    >
+                        {decodeText(job.title)}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[color:var(--elite-muted)]">
+                        {onCompany ? (
+                            <button
+                                type="button"
+                                className="font-medium text-[color:var(--elite-brand)] hover:underline"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCompany(job);
+                                }}
+                            >
+                                {cleanCompany(job.company) || "Unknown company"}
+                            </button>
+                        ) : (
+                            <span className="font-medium text-[color:var(--elite-brand)]">
+                                {cleanCompany(job.company) || "Unknown company"}
+                            </span>
+                        )}
+                        <span>{locationText(job)}</span>
+                        {salary && <span className="font-mono text-[12.5px]">{salary}</span>}
+                        {level && <span className="font-mono text-[12.5px]">{level}</span>}
+                    </div>
+                    {clearGhost && (
+                        <div className="mt-2 flex items-center gap-1.5">
+                            <span className="elite-live-dot" aria-hidden />
+                            <span className="font-mono text-[12px] font-medium text-[color:var(--elite-brand)]">
+                                Live · no ghost signals
+                            </span>
+                        </div>
+                    )}
+                    {flagged && (
+                        <div className={cn("mt-2 font-mono text-[12px]", VERDICT_TONE_CLASS[verdict.tone])}>
+                            {verdict.code.toLowerCase()}
+                        </div>
+                    )}
+                    {onFit && (
+                        <button
+                            type="button"
+                            data-testid="am-i-a-fit"
+                            className="mt-2 text-[13px] font-medium text-[color:var(--elite-brand)] hover:underline hover:text-[color:var(--elite-brand-hover)]"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onFit(job);
+                            }}
+                        >
+                            Am I a fit? →
+                        </button>
+                    )}
+                    <CompanyIntelStrip job={job} elite />
+                </div>
+                <div className="flex flex-col items-end gap-2.5">
+                    {age && (
+                        <div className="font-mono text-[11.5px] text-[color:var(--elite-faint)]">{age}</div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -2987,8 +3083,23 @@ function JobsContent() {
                                     role="listbox"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
-                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2"
+                                    className={cn(
+                                        "min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2",
+                                        board === "elite" && "elite-signal",
+                                    )}
                                 >
+                                    {board === "elite" && (
+                                        <div className="mb-3.5 flex items-baseline justify-between gap-3">
+                                            <h2 className="font-display text-[19px] font-semibold tracking-tight">
+                                                Elite matches
+                                                <span className="ml-2 font-mono text-[12.5px] font-normal text-[color:var(--elite-muted)]">
+                                                    {result?.total != null
+                                                        ? `${result.total.toLocaleString()} roles · board allowlist`
+                                                        : "board allowlist"}
+                                                </span>
+                                            </h2>
+                                        </div>
+                                    )}
                                     <div>
                                         {hits.flatMap((job, i) => {
                                             const row = (
@@ -3001,6 +3112,7 @@ function JobsContent() {
                                                     onFit={setFitJob}
                                                     onCompany={job.company_domain ? handleCompany : undefined}
                                                     now={nowMs}
+                                                    elite={board === "elite"}
                                                 />
                                             );
                                             if (i !== seamIndex) return [row];

@@ -49,7 +49,7 @@ export function aggregateHotCompaniesFromJobs(jobs: PublicJob[]): HotCompanyRow[
       domain,
       slug: domainToSlug(domain),
       name: first.company?.trim() || displayNameFromDomain(domain),
-      oneLiner: first.company_stage?.trim() || null,
+      oneLiner: null,
       opened90d: typeof first.company_opened_90d === "number" ? first.company_opened_90d : null,
       openCount:
         typeof first.company_open_count === "number" ? first.company_open_count : domainJobs.length,

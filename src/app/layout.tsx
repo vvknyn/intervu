@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { Archivo, Bricolage_Grotesque, IBM_Plex_Mono, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
+import "./elite-signal.css";
 import { TopBar } from "@/components/layout/TopBar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
@@ -21,6 +22,25 @@ const archivo = Archivo({
 
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+/** Elite mock surfaces only (scoped via `.elite-signal` in elite-signal.css). */
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-elite-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const splineSans = Spline_Sans({
+  variable: "--font-elite-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const splineMono = Spline_Sans_Mono({
+  variable: "--font-elite-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
@@ -75,7 +95,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${archivo.variable} ${ibmPlexMono.variable} antialiased`}
+        className={`${archivo.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}
