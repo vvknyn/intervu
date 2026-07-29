@@ -6,11 +6,8 @@ import { getServerUser } from "@/lib/firebase/auth-session";
 import {
     buildFitAssessment,
     type FitAssessment,
-    type FitVerdictLabel,
 } from "@/lib/jobs/fit-verdict";
 import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
-
-export type { FitAssessment, FitVerdictLabel };
 
 export async function assessJobFitAction(input: {
     description: string;

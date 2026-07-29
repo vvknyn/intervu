@@ -11,14 +11,25 @@ import { test, expect, type Page } from '@playwright/test';
 
 async function enterBrowseMode(page: Page) {
     await page.goto('/?posted=any');
+    await page.waitForLoadState('networkidle');
+
+    const ask = page.getByTestId('jobs-ask');
+    if (await ask.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
+        await expect(ask).toHaveCount(0, { timeout: 30_000 });
+    }
+
     await expect(
         page
-            .getByRole('listbox', { name: 'Job results' })
+            .getByTestId('board-chips')
+            .or(page.getByRole('listbox', { name: 'Job results' }))
             .or(page.getByText(/Job search is being connected/i))
             .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
             .first(),
     ).toBeVisible({ timeout: 30_000 });
+
+    await expect(page.getByTestId('board-chips')).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
