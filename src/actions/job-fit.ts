@@ -23,8 +23,11 @@ export async function assessJobFitAction(input: {
         }
 
         const resumeResult = await fetchResumeData();
-        if (resumeResult.error && classifySentinel(resumeResult.error) === "auth") {
-            return { needsAuth: true };
+        if (resumeResult.error) {
+            if (classifySentinel(resumeResult.error) === "auth") {
+                return { needsAuth: true };
+            }
+            return { error: sentinelMessage(resumeResult.error) || resumeResult.error };
         }
         if (!resumeResult.data) {
             return { needsResume: true };
