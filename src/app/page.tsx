@@ -58,6 +58,7 @@ import {
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
+import { BoardChips } from "@/components/jobs/BoardChips";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
@@ -1763,6 +1764,11 @@ function JobsContent() {
         applyUrlState(buildUrlState({ hideGhosts: v }), "replace");
     };
 
+    const onBoardChange = (next: BoardId | null) => {
+        setBoard(next);
+        applyUrlState(buildUrlState({ board: next }), "replace");
+    };
+
     // Sets every local FilterState field + pushes the matching URL replace in
     // one shot — the shared tail of both `clearAll` and a single chip's
     // `onRemove` (via `activeFilterEntries(...).clear`), so the two can never
@@ -2633,6 +2639,12 @@ function JobsContent() {
                             containerClassName="min-w-0 flex-1"
                         />
                     </div>
+
+                    {!isOverlayAsk && (
+                        <div className="mt-3">
+                            <BoardChips board={board} onChange={onBoardChange} />
+                        </div>
+                    )}
 
                     {isOverlayAsk ? (
                         /* Returning visitor: their own previous sentences, as plain
