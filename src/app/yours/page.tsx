@@ -211,12 +211,19 @@ function YoursContent() {
         return () => unsub();
     }, []);
 
-    // Merge-at-sign-in (pursuits + follows) — at most once per load.
+    // Merge-at-sign-in (pursuits + follows) — at most once per load; only mark
+    // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
         if (user && !guestSyncRef.current) {
-            guestSyncRef.current = true;
-            void syncGuestPursuitsToServer();
-            void syncGuestFollowsToServer();
+            void (async () => {
+                const [pursuitsOk, followsOk] = await Promise.all([
+                    syncGuestPursuitsToServer(),
+                    syncGuestFollowsToServer(),
+                ]);
+                if (pursuitsOk && followsOk) {
+                    guestSyncRef.current = true;
+                }
+            })();
         }
     }, [user]);
 

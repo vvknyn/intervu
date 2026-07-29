@@ -43,6 +43,8 @@ export function FitDrawer({
     // Monotonic generation guard (same shape as SearchAutocomplete): only the
     // response from the last effect run may update state.
     const assessGenRef = useRef(0);
+    // Session cache — reopening the same job must not re-bill (TailorAnalysisSheet pattern).
+    const fitCacheRef = useRef(new Map<string, FitAssessment>());
 
     const jobId = job?.id ?? null;
 
@@ -75,6 +77,7 @@ export function FitDrawer({
                 return;
             }
             if (res.data) {
+                fitCacheRef.current.set(j.id, res.data);
                 setAssessment(res.data);
                 setPhase("ready");
             }
@@ -86,7 +89,15 @@ export function FitDrawer({
     }, []);
 
     useEffect(() => {
-        if (!open || !job) return;
+        if (!open || !job || !jobId) return;
+
+        const cached = fitCacheRef.current.get(jobId);
+        if (cached) {
+            setAssessment(cached);
+            setPhase("ready");
+            setError(null);
+            return;
+        }
 
         const myGeneration = assessGenRef.current;
         void runAssessment(job, myGeneration);
@@ -94,10 +105,11 @@ export function FitDrawer({
         return () => {
             assessGenRef.current += 1;
         };
-    }, [open, jobId, job?.description, job?.apply_url, runAssessment]);
+    }, [open, jobId, job, job?.description, job?.apply_url, runAssessment]);
 
     const handleRetry = () => {
         if (!job) return;
+        if (jobId) fitCacheRef.current.delete(jobId);
         assessGenRef.current += 1;
         const myGeneration = assessGenRef.current;
         setPhase("loading");
@@ -274,7 +286,7 @@ export function FitDrawer({
                             </Button>
                         </div>
                         <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">
-                            Uses your active resume · 1 credit
+                            Uses your active resume · 2 credits
                         </p>
                     </div>
                 )}
@@ -282,7 +294,7 @@ export function FitDrawer({
                 {phase === "loading" && (
                     <div className="border-t bg-muted/30 px-5 py-4">
                         <p className="text-center font-mono text-[11px] text-muted-foreground">
-                            Uses your active resume · 1 credit
+                            Uses your active resume · 2 credits
                         </p>
                     </div>
                 )}

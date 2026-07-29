@@ -2084,12 +2084,19 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Guest→auth merge (pursuits + follows) — at most once per load.
+    // Guest→auth merge (pursuits + follows) — at most once per load; only mark
+    // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
         if (user && !guestPursuitSyncRef.current) {
-            guestPursuitSyncRef.current = true;
-            void syncGuestPursuitsToServer();
-            void syncGuestFollowsToServer();
+            void (async () => {
+                const [pursuitsOk, followsOk] = await Promise.all([
+                    syncGuestPursuitsToServer(),
+                    syncGuestFollowsToServer(),
+                ]);
+                if (pursuitsOk && followsOk) {
+                    guestPursuitSyncRef.current = true;
+                }
+            })();
         }
     }, [user]);
 

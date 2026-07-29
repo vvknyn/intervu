@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Elite companies ranked by roles opened in the last 90 days.",
 };
 
+export const revalidate = 3600;
+
 function heatLabel(row: HotCompanyRow): string {
   return typeof row.opened90d === "number" ? `${row.opened90d} opened / 90d` : "—";
 }

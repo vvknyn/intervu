@@ -50,15 +50,18 @@ export function invalidateFollowsCache(): void {
     notify();
 }
 
-export async function syncGuestFollowsToServer(): Promise<void> {
+/** @returns true when there was nothing to sync or every guest row landed. */
+export async function syncGuestFollowsToServer(): Promise<boolean> {
     const guests = listGuestFollows();
-    if (guests.length === 0) return;
+    if (guests.length === 0) return true;
 
     const result = await syncGuestFollowsAction(guests);
     if (!result.error) {
         clearGuestFollows();
+        invalidateFollowsCache();
+        return true;
     }
-    invalidateFollowsCache();
+    return false;
 }
 
 export interface UseFollowsResult {
@@ -83,6 +86,12 @@ export function useFollows(): UseFollowsResult {
             if (cancelled) return;
             if (!signedIn) {
                 setFollows(listGuestFollows());
+                setLoading(false);
+                return;
+            }
+            const pendingGuest = listGuestFollows();
+            if (pendingGuest.length > 0) {
+                setFollows(pendingGuest);
                 setLoading(false);
                 return;
             }

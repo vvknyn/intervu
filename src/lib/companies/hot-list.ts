@@ -5,7 +5,7 @@ import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/typ
 
 /** Elite board has ~443 domains; paginate in 500-hit pages up to this cap. */
 export const ELITE_JOBS_PAGE_SIZE = 500;
-export const ELITE_JOBS_MAX_HITS = 5000;
+export const ELITE_JOBS_MAX_HITS = 1500;
 
 export type HotCompaniesListResult =
   | { status: "ok"; companies: HotCompanyRow[] }
