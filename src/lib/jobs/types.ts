@@ -132,6 +132,8 @@ export interface JobSearchParams {
   withFacets?: boolean;
   /** Restrict to jobs at companies on a curated board allowlist. */
   board?: BoardId;
+  /** Restrict to jobs at a single company domain (exact match). */
+  companyDomain?: string;
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

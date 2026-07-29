@@ -13,4 +13,8 @@ describe("buildFilter board", () => {
     const f = buildFilter({ hideGhosts: true });
     assert.ok(!f.some((c) => c.includes("company_domain")));
   });
+  it("adds company_domain equality for companyDomain", () => {
+    const f = buildFilter({ companyDomain: "stripe.com", hideGhosts: true });
+    assert.ok(f.includes('company_domain = "stripe.com"'));
+  });
 });

@@ -226,6 +226,9 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
       f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
     }
   }
+  if (p.companyDomain) {
+    f.push(`company_domain = ${JSON.stringify(p.companyDomain.trim().toLowerCase())}`);
+  }
   return f;
 }
 
