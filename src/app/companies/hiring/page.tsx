@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { Button } from "@/components/ui/button";
 import { getHotCompaniesList, type HotCompanyRow } from "@/lib/companies/hot-list";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { cn } from "@/lib/utils";
@@ -116,9 +116,11 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
       </td>
       <td className="px-4 py-4 font-mono text-[13px]">{company.openCount}</td>
       <td className="px-4 py-4 text-right">
-        <Button type="button" variant="outline" size="sm" disabled data-testid="follow-company">
-          Follow
-        </Button>
+        <FollowButton
+          domain={company.domain}
+          slug={company.slug}
+          displayName={company.name}
+        />
       </td>
     </tr>
   );

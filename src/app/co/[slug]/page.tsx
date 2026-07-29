@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { BOARD_META } from "@/lib/boards/types";
@@ -95,16 +96,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               </div>
             )}
           </div>
-          <Button
-            type="button"
+          <FollowButton
+            domain={data.domain}
+            slug={data.slug}
+            displayName={data.name}
             variant="brand"
-            size="sm"
-            disabled
-            data-testid="follow-company"
             className="shrink-0 self-start"
-          >
-            Follow
-          </Button>
+          />
         </header>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
