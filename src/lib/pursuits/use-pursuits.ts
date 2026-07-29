@@ -72,9 +72,10 @@ export function invalidatePursuitsCache(): void {
  * `status` through rather than resetting to "interviewing" (a job_id-less
  * guest pursuit used to be silently dropped here entirely).
  */
-export async function syncGuestPursuitsToServer(): Promise<void> {
+/** @returns true when there was nothing to sync or every guest row landed. */
+export async function syncGuestPursuitsToServer(): Promise<boolean> {
     const guests = listGuestPursuits();
-    if (guests.length === 0) return;
+    if (guests.length === 0) return true;
     const results = await Promise.all(
         guests.map((g) =>
             g.job_id
@@ -98,10 +99,12 @@ export async function syncGuestPursuitsToServer(): Promise<void> {
     // a partial failure leaves the store intact and the next load retries
     // (upserts are idempotent by job_id; manual rows may briefly duplicate on
     // retry, which beats silent loss).
-    if (results.every((r) => !r?.error)) {
+    const ok = results.every((r) => !r?.error);
+    if (ok) {
         clearGuestPursuits();
     }
     invalidatePursuitsCache();
+    return ok;
 }
 
 export interface UsePursuitsResult {
@@ -132,6 +135,12 @@ export function usePursuits(): UsePursuitsResult {
             if (cancelled) return;
             if (!signedIn) {
                 setPursuits(listGuestPursuits());
+                setLoading(false);
+                return;
+            }
+            const pendingGuest = listGuestPursuits();
+            if (pendingGuest.length > 0) {
+                setPursuits(pendingGuest);
                 setLoading(false);
                 return;
             }

@@ -100,8 +100,11 @@ export async function signOut() {
 export function getCurrentUser(): User | null {
     const mock = e2eMockUser();
     if (mock) return mock;
-    const auth = getFirebaseAuth();
-    return auth.currentUser;
+    try {
+        return getFirebaseAuth().currentUser;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -113,8 +116,12 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
         callback(mock);
         return () => {};
     }
-    const auth = getFirebaseAuth();
-    return onAuthStateChanged(auth, callback);
+    try {
+        return onAuthStateChanged(getFirebaseAuth(), callback);
+    } catch {
+        callback(null);
+        return () => {};
+    }
 }
 
 /**

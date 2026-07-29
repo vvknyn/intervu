@@ -10,6 +10,8 @@
  * Faceting is disjunctive (a facet's own selection does not collapse its other
  * options' counts), matching how a faceted filter UI is expected to behave.
  */
+import { getBoardDomains } from "@/lib/boards/allowlists";
+import type { BoardId } from "@/lib/boards/types";
 import { derivePostedTs } from "./meilisearch";
 import { compareJobsBySort, resolveEffectiveSort } from "./sort";
 import { hasSubspaceApiKey, iterateSnapshot } from "./subspaceJobs";
@@ -81,6 +83,13 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
   }
   if (p.visaOnly && j.visa_sponsorship !== true) return false;
   if (!passPostedBucket(j, p.postedBucket)) return false;
+  if (p.board) {
+    const domains = getBoardDomains(p.board as BoardId);
+    if (domains.length > 0 && !domains.includes((j.company_domain ?? "").toLowerCase())) return false;
+  }
+  if (p.companyDomain) {
+    if ((j.company_domain ?? "").toLowerCase() !== p.companyDomain.trim().toLowerCase()) return false;
+  }
   return true;
 }
 

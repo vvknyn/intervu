@@ -1,3 +1,5 @@
+import type { BoardId } from "@/lib/boards/types";
+import { isBoardId } from "@/lib/boards/allowlists";
 import type { FacetKey, JobSortMode, PostedBucket } from "./types";
 
 /** Sort values as they appear in the URL. `fit` = résumé rank (resolved page-side). */
@@ -13,6 +15,7 @@ export interface JobsUrlState {
     hideGhosts: boolean;
     sort: UrlSort | null;
     jobId: string | null;
+    board: BoardId | null;
 }
 
 /**
@@ -74,6 +77,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     hideGhosts: true,
     sort: null,
     jobId: null,
+    board: null,
 };
 
 const FACET_PARAMS: Record<string, FacetKey> = {
@@ -134,6 +138,8 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     if (sort && (SORT_VALUES as readonly string[]).includes(sort)) s.sort = sort as UrlSort;
     const job = sp.get("job");
     if (job) s.jobId = job;
+    const board = sp.get("board");
+    if (board && isBoardId(board)) s.board = board;
     return s;
 }
 
@@ -155,6 +161,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     if (!s.hideGhosts) sp.set("ghosts", "show");
     if (s.sort) sp.set("sort", s.sort);
     if (s.jobId) sp.set("job", s.jobId);
+    if (s.board) sp.set("board", s.board);
     const out = sp.toString();
     return out ? `?${out}` : "";
 }

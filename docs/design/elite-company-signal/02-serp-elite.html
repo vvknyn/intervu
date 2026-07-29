@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Find jobs — Elite SERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#0E6B4C;text-decoration:none}a:hover{text-decoration:underline}
+@keyframes ivPulse{0%{box-shadow:0 0 0 0 rgba(15,138,98,.45)}70%{box-shadow:0 0 0 6px rgba(15,138,98,0)}100%{box-shadow:0 0 0 0 rgba(15,138,98,0)}}
+.caption{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 56px;text-align:center}
+.caption strong{color:#0E6B4C}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 56px;background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+.brand{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:500;letter-spacing:-.02em}.brand b{font-weight:700}
+.beta{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;border:1px solid #DCD8CB;border-radius:4px;padding:2px 6px;margin-left:8px}
+.nav-links{display:flex;gap:26px;font-size:14.5px;font-weight:500;margin-left:36px}
+.nav-links .active{color:#1C1B16;border-bottom:2px solid #1C1B16;padding:20px 0 18px}
+.nav-links span{color:#6E695B;padding:20px 0 18px;cursor:pointer}
+.nav-left{display:flex;align-items:center}
+.nav-right{display:flex;align-items:center;gap:14px}
+.live-count{font-family:'Spline Sans Mono',monospace;font-size:12px;color:#6E695B}
+.avatar{width:34px;height:34px;border-radius:50%;background:#1C1B16;color:#FBFAF6;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.search-zone{padding:36px 56px 20px;border-bottom:1px solid #E5E2D8;background:#FBFAF6}
+.headline{font-family:'Bricolage Grotesque',sans-serif;font-size:34px;font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:0}
+.subhead{font-family:'Spline Sans Mono',monospace;font-size:13px;color:#6E695B;margin-top:8px}
+.search-row{display:grid;grid-template-columns:1.6fr .9fr .9fr auto;gap:10px;margin-top:22px}
+.search-input{display:flex;align-items:center;gap:10px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:10px;padding:0 16px;height:50px;font-size:15px;font-weight:500}
+.search-select{display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:10px;padding:0 16px;height:50px;font-size:14.5px;color:#3E3B30}
+.search-btn{display:flex;align-items:center;justify-content:center;background:#1C1B16;color:#FBFAF6;border-radius:10px;padding:0 30px;height:50px;font-size:15px;font-weight:600;cursor:pointer;border:none}
+.chips{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.chip{font-size:13px;font-weight:500;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:100px;padding:7px 14px;color:#3E3B30;cursor:pointer}
+.chip.active{background:#1C1B16;color:#FBFAF6;border-color:#1C1B16}
+.chip.elite{background:#0E6B4C;color:#FBFAF6;border-color:#0E6B4C}
+.chip-reset{font-size:13px;color:#8A8574;margin-left:auto;cursor:pointer}
+.main{display:grid;grid-template-columns:1fr 350px;gap:28px;padding:28px 56px 64px;max-width:1440px;margin:0 auto}
+.section-title{font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:600;display:flex;align-items:baseline;gap:8px}
+.section-meta{font-family:'Spline Sans Mono',monospace;font-size:12.5px;font-weight:400;color:#6E695B}
+.sort-toggle{display:flex;gap:2px;background:#EDEBE2;border-radius:8px;padding:3px}
+.sort-opt{font-family:'Spline Sans Mono',monospace;font-size:12px;padding:5px 12px;border-radius:6px;background:#FFFFFF;color:#1C1B16;box-shadow:0 1px 2px rgba(28,27,22,.06)}
+.list-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.job-card{display:grid;grid-template-columns:46px 1fr auto;gap:18px;align-items:start;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 22px;margin-bottom:10px;transition:border-color .15s}
+.job-card:hover{border-color:#C9C4B4;box-shadow:0 2px 10px rgba(28,27,22,.06)}
+.logo{width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px}
+.job-title{font-size:16.5px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.job-meta{display:flex;align-items:center;gap:12px;margin-top:6px;font-size:13.5px;color:#6E695B;flex-wrap:wrap}
+.company-link{font-weight:500;color:#0E6B4C;cursor:pointer;text-decoration:none}.company-link:hover{text-decoration:underline}
+.ghost-row{display:flex;align-items:center;gap:7px;margin-top:9px}
+.ghost-dot{width:7px;height:7px;border-radius:50%;background:#0F8A62;animation:ivPulse 2s infinite}
+.ghost-label{font-family:'Spline Sans Mono',monospace;font-size:12px;font-weight:500;color:#0E6B4C}
+.intel-footer{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #EDEBE2;font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;flex-wrap:wrap}
+.intel-footer .sep{color:#DCD8CB}
+.intel-hot{color:#0E6B4C;font-weight:500}
+.intel-warn{color:#8A8574}
+.fit-btn{font-size:13px;font-weight:500;color:#0E6B4C;background:none;border:none;padding:0;cursor:pointer;margin-top:8px;display:inline-block}
+.fit-btn:hover{text-decoration:underline;color:#0A4F38}
+.card-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.action-row{display:flex;align-items:center;gap:10px}
+.apply-btn{font-size:13.5px;font-weight:600;background:#FFFFFF;color:#1C1B16;border:1.5px solid #1C1B16;border-radius:8px;padding:8px 18px;cursor:pointer}
+.posted{font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574}
+.rail-card{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:20px 22px;margin-bottom:16px}
+.rail-title{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600}
+.radar{background:#1C1B16;color:#FBFAF6;border-radius:12px;padding:20px 22px;margin-bottom:16px}
+.radar-dot{width:8px;height:8px;border-radius:50%;background:#3ECF8E;animation:ivPulse 2s infinite;display:inline-block;margin-right:8px}
+.back-link{position:fixed;bottom:20px;left:20px;font-size:12px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:8px 14px;box-shadow:0 2px 8px rgba(28,27,22,.08)}
+</style>
+</head>
+<body>
+<div class="caption"><strong>Tier A · Core SERP</strong> — Elite startups chip selected · Company-intel footers · Ghost flags · Am I a fit?</div>
+
+<header class="nav">
+  <div class="nav-left">
+    <span class="brand">inter<b>vu</b></span><span class="beta">beta</span>
+    <nav class="nav-links">
+      <span class="active">Find jobs</span>
+      <span>Tracker</span>
+      <span>Resume</span>
+      <span>Interview prep</span>
+    </nav>
+  </div>
+  <div class="nav-right">
+    <span class="live-count">847 elite roles</span>
+    <div class="avatar">MY</div>
+  </div>
+</header>
+
+<section class="search-zone">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px">
+    <div>
+      <h1 class="headline">Find work that's real.</h1>
+      <div class="subhead">Elite startups board · Every listing checked for ghost-job risk</div>
+    </div>
+    <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px;font-weight:500;color:#0E6B4C;border:1px solid #BFDCCB;border-radius:8px;padding:9px 14px;background:#FFFFFF;white-space:nowrap">⏰ Save this search as alert</span>
+  </div>
+  <div class="search-row">
+    <div class="search-input"><span style="color:#8A8574">⌕</span> Senior Software Engineer</div>
+    <div class="search-select">Remote · US <span style="color:#8A8574;font-size:11px">▾</span></div>
+    <div class="search-select">Full-time <span style="color:#8A8574;font-size:11px">▾</span></div>
+    <button class="search-btn">Search</button>
+  </div>
+  <div class="chips">
+    <span class="chip elite">Elite startups</span>
+    <span class="chip">AI / ML</span>
+    <span class="chip">Remote-friendly</span>
+    <span class="chip active">No ghost risk ✓</span>
+    <span class="chip">Senior level</span>
+    <span class="chip">Salary listed</span>
+    <span class="chip-reset">Reset</span>
+  </div>
+</section>
+
+<div class="main">
+  <div>
+    <div class="list-header">
+      <div class="section-title">Elite matches <span class="section-meta">847 roles · board allowlist</span></div>
+      <div class="sort-toggle">
+        <span class="sort-opt">hiring heat</span>
+        <span class="sort-opt" style="background:transparent;color:#6E695B;box-shadow:none">freshest</span>
+      </div>
+    </div>
+
+    <!-- Rad AI -->
+    <article class="job-card">
+      <div class="logo" style="background:#E8F0EC;color:#0E6B4C">R</div>
+      <div>
+        <div class="job-title">Senior Platform Engineer</div>
+        <div class="job-meta">
+          <a class="company-link" href="04-company-page.html">Rad AI</a>
+          <span>Remote · US</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">$180k–$220k</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">Senior</span>
+        </div>
+        <div class="ghost-row">
+          <span class="ghost-dot"></span>
+          <span class="ghost-label">Live · no ghost signals</span>
+        </div>
+        <button class="fit-btn">Am I a fit? →</button>
+        <div class="intel-footer">
+          <span class="intel-hot">Early-stage</span>
+          <span class="sep">·</span>
+          <span>Opened <strong>14</strong> / closed <strong>3</strong> in 90d</span>
+          <span class="sep">·</span>
+          <span><strong>18</strong> open roles</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <div class="action-row">
+          <span style="font-size:19px;color:#B3452F;cursor:pointer">♥</span>
+          <button class="apply-btn">Apply</button>
+        </div>
+        <span class="posted">Posted 3d ago</span>
+      </div>
+    </article>
+
+    <!-- Console -->
+    <article class="job-card">
+      <div class="logo" style="background:#EDEAE2;color:#3E3B30">C</div>
+      <div>
+        <div class="job-title">Staff Backend Engineer</div>
+        <div class="job-meta">
+          <a class="company-link" href="04-company-page.html">Console</a>
+          <span>Hybrid · SF</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">$200k–$250k</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">Staff</span>
+        </div>
+        <div class="ghost-row">
+          <span class="ghost-dot"></span>
+          <span class="ghost-label">Live · no ghost signals</span>
+        </div>
+        <button class="fit-btn">Am I a fit? →</button>
+        <div class="intel-footer">
+          <span>Series B</span>
+          <span class="sep">·</span>
+          <span class="intel-hot">Opened <strong>18</strong> / closed <strong>1</strong> in 90d</span>
+          <span class="sep">·</span>
+          <span><strong>12</strong> open roles</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <div class="action-row">
+          <span style="font-size:19px;color:#DCD8CB;cursor:pointer">♡</span>
+          <button class="apply-btn">Apply</button>
+        </div>
+        <span class="posted">Posted 1d ago</span>
+      </div>
+    </article>
+
+    <!-- Horizon3 -->
+    <article class="job-card">
+      <div class="logo" style="background:#E5EDF5;color:#2A4A6B">H</div>
+      <div>
+        <div class="job-title">Senior ML Infrastructure Engineer</div>
+        <div class="job-meta">
+          <a class="company-link" href="04-company-page.html">Horizon3</a>
+          <span>Remote · US</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">$175k–$210k</span>
+          <span style="font-family:'Spline Sans Mono',monospace;font-size:12.5px">Senior</span>
+        </div>
+        <div class="ghost-row">
+          <span class="ghost-dot"></span>
+          <span class="ghost-label">Live · no ghost signals</span>
+        </div>
+        <button class="fit-btn">Am I a fit? →</button>
+        <div class="intel-footer">
+          <span>Series A</span>
+          <span class="sep">·</span>
+          <span class="intel-hot">Opened <strong>22</strong> / closed <strong>2</strong> in 90d</span>
+          <span class="sep">·</span>
+          <span><strong>31</strong> open roles</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <div class="action-row">
+          <span style="font-size:19px;color:#DCD8CB;cursor:pointer">♡</span>
+          <button class="apply-btn">Apply</button>
+        </div>
+        <span class="posted">Posted 5h ago</span>
+      </div>
+    </article>
+
+    <div style="text-align:center;margin-top:18px">
+      <span style="font-family:'Spline Sans Mono',monospace;font-size:13px;color:#6E695B;border:1px solid #DCD8CB;border-radius:8px;padding:10px 22px;background:#FFFFFF;display:inline-block;cursor:pointer">Show 40 more matches ↓</span>
+    </div>
+  </div>
+
+  <aside>
+    <div class="rail-card">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+        <span class="rail-title">Your pipeline</span>
+        <a href="#" style="font-size:12.5px;font-weight:500">Open tracker →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px">
+        <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">3</div><div style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;margin-top:2px">Saved</div></div>
+        <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#EDF6F0;border:1px solid #BFDCCB"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#0E6B4C">7</div><div style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#0E6B4C;margin-top:2px">Applied</div></div>
+        <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">1</div><div style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;margin-top:2px">Interview</div></div>
+        <div style="text-align:center;padding:10px 4px;border-radius:8px;background:#F6F5F0"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700;color:#8A8574">0</div><div style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;margin-top:2px">Offer</div></div>
+      </div>
+    </div>
+    <div class="radar">
+      <div style="margin-bottom:10px"><span class="radar-dot"></span><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600">Ghost radar</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:#CBC7B8">On the Elite board, <span style="color:#FBFAF6;font-weight:600">4 of 847 listings</span> flagged this week — repost loops or 45+ day staleness. We surface them so you don't waste apps.</div>
+      <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574;margin-top:12px">last sweep · today 06:00 EST</div>
+    </div>
+    <div class="rail-card" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:14px;font-weight:600">Elite board alert</div>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:3px">Sr eng · remote · no-ghost</div>
+      </div>
+      <div style="width:40px;height:23px;border-radius:100px;background:#0F8A62;position:relative"><span style="position:absolute;top:2.5px;right:2.5px;width:18px;height:18px;border-radius:50%;background:#FFFFFF"></span></div>
+    </div>
+  </aside>
+</div>
+
+<a class="back-link" href="00-index.html">← Hub</a>
+</body>
+</html>

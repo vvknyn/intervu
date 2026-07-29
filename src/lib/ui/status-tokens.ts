@@ -84,6 +84,22 @@ export function difficultyTone(
   }
 }
 
+/** Fit verdict → tone. strong→offer (green), stretch→intv (amber), weak→closed (red). */
+export function fitVerdictTone(
+  verdict: "strong" | "stretch" | "weak" | string,
+): StatusTone {
+  switch (verdict) {
+    case "strong":
+      return "offer";
+    case "stretch":
+      return "intv";
+    case "weak":
+      return "closed";
+    default:
+      return "saved";
+  }
+}
+
 /** Ghost-badge → tone. clear→offer (good), caution/likely_ghost→intv (warn). */
 export function ghostBadgeTone(
   badge: "clear" | "caution" | "likely_ghost" | "unscored" | string,

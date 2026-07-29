@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Elite Company Signal — Full Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#0E6B4C;text-decoration:none}a:hover{text-decoration:underline}
+@keyframes ivPulse{0%{box-shadow:0 0 0 0 rgba(15,138,98,.45)}70%{box-shadow:0 0 0 6px rgba(15,138,98,0)}100%{box-shadow:0 0 0 0 rgba(15,138,98,0)}}
+.sticky-nav{position:sticky;top:0;z-index:100;background:#FBFAF6;border-bottom:1px solid #E5E2D8;padding:0 24px;display:flex;align-items:center;gap:6px;height:52px;overflow-x:auto}
+.sticky-nav a{font-family:'Spline Sans Mono',monospace;font-size:11.5px;font-weight:500;color:#6E695B;padding:8px 14px;border-radius:6px;white-space:nowrap;text-decoration:none}
+.sticky-nav a:hover{background:#EDEBE2;color:#1C1B16;text-decoration:none}
+.sticky-nav .brand{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:500;margin-right:16px;color:#1C1B16;flex:none}.sticky-nav .brand b{font-weight:700}
+.hero{padding:48px 48px 32px;border-bottom:1px solid #E5E2D8;background:#FFFFFF}
+.hero h1{font-family:'Bricolage Grotesque',sans-serif;font-size:36px;font-weight:600;letter-spacing:-.025em;margin:0 0 10px}
+.hero p{font-size:15px;color:#6E695B;margin:0;max-width:640px;line-height:1.5}
+.hero .meta{font-family:'Spline Sans Mono',monospace;font-size:12px;color:#8A8574;margin-top:14px}
+.section{padding:48px;border-bottom:1px solid #E5E2D8}
+.section:nth-child(even){background:#FBFAF6}
+.section-tag{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:4px;display:inline-block;margin-bottom:12px}
+.tag-a{background:#EDF6F0;color:#0E6B4C;border:1px solid #BFDCCB}
+.tag-b{background:#EDEBE2;color:#6E695B;border:1px solid #DCD8CB}
+.section h2{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:600;margin:0 0 8px;letter-spacing:-.02em}
+.section .lead{font-size:14px;color:#6E695B;margin:0 0 28px;max-width:600px;line-height:1.5}
+.mock-frame{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(28,27,22,.05)}
+.mock-bar{font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;background:#F6F5F0;border-bottom:1px solid #E5E2D8;padding:8px 16px;display:flex;justify-content:space-between;align-items:center}
+.mock-bar a{font-size:10px}
+/* Journey mini lanes */
+.journey-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.journey-card{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:10px;padding:18px}
+.journey-card h4{font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:600;margin:0 0 12px}
+.mini-lane{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.mini-step{flex:0 0 72px;text-align:center}
+.mini-num{width:22px;height:22px;border-radius:50%;background:#1C1B16;color:#FBFAF6;font-family:'Spline Sans Mono',monospace;font-size:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px}
+.mini-thumb{height:48px;background:#F6F5F0;border:1px solid #E5E2D8;border-radius:4px;font-size:6px;padding:4px;color:#6E695B;margin-bottom:4px}
+.mini-label{font-size:9px;line-height:1.25;color:#3E3B30}
+/* SERP inline */
+.serp-mock{padding:24px;background:#FBFAF6}
+.serp-head{margin-bottom:16px}
+.serp-head h3{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:600;margin:0 0 6px}
+.serp-chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.chip{font-size:11px;font-weight:500;background:#FFF;border:1px solid #DCD8CB;border-radius:100px;padding:5px 10px}
+.chip.on{background:#0E6B4C;color:#FBFAF6;border-color:#0E6B4C}
+.chip.dark{background:#1C1B16;color:#FBFAF6;border-color:#1C1B16}
+.job-row{display:grid;grid-template-columns:36px 1fr auto;gap:12px;background:#FFF;border:1px solid #E5E2D8;border-radius:10px;padding:14px 16px;margin-bottom:8px;align-items:start}
+.job-logo{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px}
+.job-row h4{font-size:14px;font-weight:600;margin:0 0 4px}
+.job-meta{font-size:12px;color:#6E695B}
+.intel{font-family:'Spline Sans Mono',monospace;font-size:10px;color:#6E695B;margin-top:8px;padding-top:8px;border-top:1px solid #EDEBE2}
+.intel hot{color:#0E6B4C}
+.fit-link{font-size:11px;color:#0E6B4C;font-weight:500;margin-top:6px;display:inline-block}
+.ghost{font-family:'Spline Sans Mono',monospace;font-size:10px;color:#0F8A62;margin-top:4px}
+.ghost::before{content:'● ';animation:ivPulse 2s infinite}
+/* Fit panel inline */
+.fit-demo{display:grid;grid-template-columns:1fr 320px;min-height:360px;background:#F6F5F0}
+.fit-bg{opacity:.35;padding:20px}
+.fit-drawer{background:#FFF;border-left:1px solid #E5E2D8;padding:20px}
+.verdict{display:inline-flex;gap:8px;padding:8px 12px;border-radius:8px;font-weight:600;font-size:13px;background:#EDF6F0;color:#0E6B4C;border:1px solid #BFDCCB;margin:12px 0}
+.fit-list{font-size:12px;line-height:1.5;margin:8px 0;padding-left:16px}
+.fit-cta{display:block;width:100%;padding:10px;margin-top:6px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center}
+.fit-cta-p{background:#1C1B16;color:#FBFAF6;border:none}
+.fit-cta-s{background:#FFF;color:#1C1B16;border:1.5px solid #1C1B16}
+/* Company inline */
+.co-header{display:flex;gap:16px;align-items:flex-start;padding:24px}
+.co-logo{width:52px;height:52px;border-radius:10px;background:#E8F0EC;color:#0E6B4C;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:700}
+.co-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 24px 20px}
+.kpi{background:#F6F5F0;border-radius:8px;padding:12px;text-align:center}
+.kpi b{font-family:'Bricolage Grotesque',sans-serif;font-size:20px;display:block;color:#0E6B4C}
+.kpi span{font-family:'Spline Sans Mono',monospace;font-size:9px;color:#8A8574;text-transform:uppercase}
+/* Hot table inline */
+.hot-table{width:100%;border-collapse:collapse;font-size:13px}
+.hot-table th{font-family:'Spline Sans Mono',monospace;font-size:9px;text-transform:uppercase;color:#8A8574;text-align:left;padding:10px 14px;background:#F6F5F0;border-bottom:1px solid #E5E2D8}
+.hot-table td{padding:12px 14px;border-bottom:1px solid #EDEBE2}
+.hot-table tr:last-child td{border-bottom:none}
+/* Boards split */
+.boards-demo{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.boards-left,.boards-right{padding:20px}
+.boards-right{background:#FBFAF6;border-left:1px solid #E5E2D8}
+.board-pill{display:inline-block;background:#EDF6F0;border:1px solid #BFDCCB;border-radius:8px;padding:8px 14px;margin:4px;font-size:12px;font-weight:500}
+.alert-box{background:#FFF;border:1px solid #E5E2D8;border-radius:10px;padding:16px;margin-top:12px;font-size:12px}
+.legend{display:flex;gap:20px;margin-top:16px;font-size:12px;color:#6E695B}
+.legend span::before{content:'';display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.legend .a::before{background:#0E6B4C}
+.legend .b::before{background:#6E695B}
+.banner{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;padding:6px;text-align:center}
+</style>
+</head>
+<body>
+<div class="banner">Desktop-first mock · Scrollable gallery · Tier A + B company-signal features</div>
+
+<nav class="sticky-nav">
+  <span class="brand">inter<b>vu</b></span>
+  <a href="#journeys">Journeys</a>
+  <a href="#serp">SERP</a>
+  <a href="#fit">Fit panel</a>
+  <a href="#company">Company</a>
+  <a href="#hot">Hot cos</a>
+  <a href="#boards">Boards</a>
+  <a href="00-index.html" style="margin-left:auto">All files →</a>
+</nav>
+
+<header class="hero">
+  <h1>Elite company signal</h1>
+  <p>Full mockup gallery for Tier A (SERP intel, fit panel, company page) and Tier B (hot companies, follow alerts, curated boards). Persona: Maya, senior eng targeting quality startups.</p>
+  <p class="meta">Hiring observations · ghost signal · no fake valuations</p>
+  <div class="legend">
+    <span class="a">Tier A — discovery &amp; fit</span>
+    <span class="b">Tier B — retention &amp; curation</span>
+  </div>
+</header>
+
+<!-- JOURNEYS -->
+<section class="section" id="journeys">
+  <span class="section-tag tag-a">Tier A + B</span>
+  <h2>Customer journeys</h2>
+  <p class="lead">Visual journey maps for Maya — 7 flows across elite discovery, fit assessment, and follow-up alerts.</p>
+  <div class="journey-grid">
+    <div class="journey-card"><h4>A1 · Elite board filter</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Find jobs</div><div class="mini-label">Land SERP</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb" style="background:#0E6B4C;color:#FFF">Elite chip</div><div class="mini-label">Tap chip</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">Filtered cards</div><div class="mini-label">Scan footers</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Open role</div><div class="mini-label">Apply</div></div>
+    </div></div>
+    <div class="journey-card"><h4>A2 · Company intel on card</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Scan SERP</div><div class="mini-label">Browse</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb">14/3 · 18 roles</div><div class="mini-label">Read footer</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb" style="opacity:.4">Skip stagnant</div><div class="mini-label">Skip low heat</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Open hot co</div><div class="mini-label">High velocity</div></div>
+    </div></div>
+    <div class="journey-card"><h4>A3 · Am I a fit?</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Am I a fit?</div><div class="mini-label">Tap button</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb">Drawer opens</div><div class="mini-label">Side panel</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">Strong fit</div><div class="mini-label">Match + gaps</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">CTAs</div><div class="mini-label">Tailor/Apply</div></div>
+    </div></div>
+    <div class="journey-card"><h4>A4 · Company page</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Tap co name</div><div class="mini-label">From card</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb">/company/slug</div><div class="mini-label">Hiring KPIs</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">Open roles</div><div class="mini-label">Job list</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Follow</div><div class="mini-label">Alerts on</div></div>
+    </div></div>
+    <div class="journey-card"><h4>B1 · Hot companies</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Hot cos nav</div><div class="mini-label">Enter list</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb">Ranked table</div><div class="mini-label">By velocity</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">Open co</div><div class="mini-label">Company page</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Browse jobs</div><div class="mini-label">Apply</div></div>
+    </div></div>
+    <div class="journey-card"><h4>B2 · Follow → alert</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Follow</div><div class="mini-label">Company page</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb" style="background:#EDF6F0">Toast</div><div class="mini-label">Alerts on</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">3 new roles</div><div class="mini-label">Email/in-app</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Filtered SERP</div><div class="mini-label">Back to jobs</div></div>
+    </div></div>
+    <div class="journey-card"><h4>B3 · Curated boards</h4><div class="mini-lane">
+      <div class="mini-step"><div class="mini-num">1</div><div class="mini-thumb">Elite·AI·Remote</div><div class="mini-label">Board strip</div></div>
+      <div class="mini-step"><div class="mini-num">2</div><div class="mini-thumb">Elite landing</div><div class="mini-label">Blurb</div></div>
+      <div class="mini-step"><div class="mini-num">3</div><div class="mini-thumb">Same SERP</div><div class="mini-label">New allowlist</div></div>
+      <div class="mini-step"><div class="mini-num">4</div><div class="mini-thumb">Browse</div><div class="mini-label">Curated results</div></div>
+    </div></div>
+  </div>
+  <p style="margin-top:16px;font-size:12px"><a href="01-journeys.html">Open full journeys →</a></p>
+</section>
+
+<!-- SERP -->
+<section class="section" id="serp">
+  <span class="section-tag tag-a">Tier A · Core SERP</span>
+  <h2>Find jobs · Elite SERP</h2>
+  <p class="lead">Elite startups chip selected. Job cards show ghost flags, company-intel footers, and Am I a fit? button.</p>
+  <div class="mock-frame">
+    <div class="mock-bar"><span>02-serp-elite.html</span><a href="02-serp-elite.html">Open full screen →</a></div>
+    <div class="serp-mock">
+      <div class="serp-head"><h3>Find work that's real.</h3><div style="font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B">Elite startups board · ghost-checked</div></div>
+      <div class="serp-chips">
+        <span class="chip on">Elite startups</span>
+        <span class="chip">AI / ML</span>
+        <span class="chip">Remote-friendly</span>
+        <span class="chip dark">No ghost risk ✓</span>
+      </div>
+      <div class="job-row">
+        <div class="job-logo" style="background:#E8F0EC;color:#0E6B4C">R</div>
+        <div>
+          <h4>Senior Platform Engineer</h4>
+          <div class="job-meta">Rad AI · Remote · $180k–$220k</div>
+          <div class="ghost">Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+          <div class="intel"><span style="color:#0E6B4C">Early-stage</span> · Opened <b>14</b> / closed <b>3</b> in 90d · <b>18</b> open roles</div>
+        </div>
+        <button style="font-size:11px;font-weight:600;border:1.5px solid #1C1B16;border-radius:6px;padding:6px 12px;background:#FFF;cursor:pointer">Apply</button>
+      </div>
+      <div class="job-row">
+        <div class="job-logo" style="background:#EDEAE2;color:#3E3B30">C</div>
+        <div>
+          <h4>Staff Backend Engineer</h4>
+          <div class="job-meta">Console · Hybrid SF · $200k–$250k</div>
+          <div class="ghost">Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+          <div class="intel">Series B · Opened <b>18</b> / closed <b>1</b> in 90d · <b>12</b> open roles</div>
+        </div>
+        <button style="font-size:11px;font-weight:600;border:1.5px solid #1C1B16;border-radius:6px;padding:6px 12px;background:#FFF;cursor:pointer">Apply</button>
+      </div>
+      <div class="job-row">
+        <div class="job-logo" style="background:#E5EDF5;color:#2A4A6B">H</div>
+        <div>
+          <h4>Senior ML Infrastructure Engineer</h4>
+          <div class="job-meta">Horizon3 · Remote · $175k–$210k</div>
+          <div class="ghost">Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+          <div class="intel">Series A · Opened <b>22</b> / closed <b>2</b> in 90d · <b>31</b> open roles</div>
+        </div>
+        <button style="font-size:11px;font-weight:600;border:1.5px solid #1C1B16;border-radius:6px;padding:6px 12px;background:#FFF;cursor:pointer">Apply</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FIT PANEL -->
+<section class="section" id="fit">
+  <span class="section-tag tag-a">Tier A · Journey A3</span>
+  <h2>Am I a fit? panel</h2>
+  <p class="lead">Right drawer (~380px) with fit verdict, match bullets, gaps, and tailor / prep / apply CTAs.</p>
+  <div class="mock-frame">
+    <div class="mock-bar"><span>03-fit-panel.html</span><a href="03-fit-panel.html">Open full screen →</a></div>
+    <div class="fit-demo">
+      <div class="fit-bg"><div style="height:12px;background:#E5E2D8;border-radius:4px;margin-bottom:8px;width:60%"></div><div style="height:80px;background:#FFF;border:1px solid #E5E2D8;border-radius:8px;margin-bottom:8px"></div><div style="height:80px;background:#FFF;border:1px solid #E5E2D8;border-radius:8px"></div></div>
+      <div class="fit-drawer">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600">Senior Platform Engineer</div>
+        <div style="font-size:12px;color:#0E6B4C;margin-top:2px">Rad AI · Remote</div>
+        <div class="verdict">Strong fit <span style="font-family:'Spline Sans Mono',monospace;font-size:11px;opacity:.8">82/100</span></div>
+        <p style="font-size:11px;line-height:1.5;color:#3E3B30;margin:0">6 yrs distributed systems maps well. Go, K8s, Terraform align. One ops gap for prep.</p>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:9px;color:#8A8574;margin:12px 0 4px">MATCHES</div>
+        <ul class="fit-list"><li>K8s &amp; Terraform at scale</li><li>Go and gRPC on resume</li><li>6+ yrs exceeds senior bar</li></ul>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:9px;color:#8A8574;margin:8px 0 4px">GAPS</div>
+        <ul class="fit-list"><li>HIPAA compliance not listed</li><li>On-call incident lead experience</li></ul>
+        <button class="fit-cta fit-cta-s">Tailor resume</button>
+        <button class="fit-cta fit-cta-s">Interview prep</button>
+        <button class="fit-cta fit-cta-p">Apply (tracks)</button>
+        <div style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;text-align:center;margin-top:8px">Uses active resume · 1 credit</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPANY PAGE -->
+<section class="section" id="company">
+  <span class="section-tag tag-a">Tier A · Journey A4</span>
+  <h2>Company page</h2>
+  <p class="lead">Lightweight /company/[slug] — hiring stats, open roles, prep shortcut. No valuation or Glassdoor clone.</p>
+  <div class="mock-frame">
+    <div class="mock-bar"><span>04-company-page.html</span><a href="04-company-page.html">Open full screen →</a></div>
+    <div class="co-header">
+      <div class="co-logo">R</div>
+      <div style="flex:1">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:600">Rad AI</div>
+        <div style="font-size:13px;color:#6E695B;margin-top:4px">AI radiology workflow · FDA-cleared models</div>
+        <div style="margin-top:8px"><span style="font-family:'Spline Sans Mono',monospace;font-size:9px;background:#EDF6F0;color:#0E6B4C;padding:3px 8px;border-radius:4px;border:1px solid #BFDCCB">Elite</span></div>
+      </div>
+      <button style="background:#0E6B4C;color:#FBFAF6;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Following ✓</button>
+    </div>
+    <div class="co-kpis">
+      <div class="kpi"><b>18</b><span>Open roles</span></div>
+      <div class="kpi"><b>14</b><span>Opened 90d</span></div>
+      <div class="kpi"><b>3</b><span>Closed 90d</span></div>
+      <div class="kpi"><b>2%</b><span>Ghost-flagged</span></div>
+    </div>
+    <div style="padding:0 24px 20px">
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:14px;font-weight:600;margin-bottom:10px">Open roles</div>
+      <div style="background:#F6F5F0;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:12px"><strong>Senior Platform Engineer</strong><br><span style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#6E695B">Remote · $180k–$220k</span></div>
+      <div style="background:#F6F5F0;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:12px"><strong>Staff ML Engineer</strong><br><span style="font-family:'Spline Sans Mono',monospace;font-size:10px;color:#6E695B">Remote · $200k–$240k</span></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button style="flex:1;padding:10px;border:1.5px solid #1C1B16;border-radius:8px;background:#FFF;font-size:12px;font-weight:600;cursor:pointer">View all jobs</button>
+        <button style="flex:1;padding:10px;border:none;border-radius:8px;background:#1C1B16;color:#FBFAF6;font-size:12px;font-weight:600;cursor:pointer">Open interview prep</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOT COMPANIES -->
+<section class="section" id="hot">
+  <span class="section-tag tag-b">Tier B · Journey B1</span>
+  <h2>Companies hiring hard</h2>
+  <p class="lead">Ranked by observed hiring velocity — openings in 90d, not VC valuation or fundraising.</p>
+  <div class="mock-frame">
+    <div class="mock-bar"><span>05-hot-companies.html</span><a href="05-hot-companies.html">Open full screen →</a></div>
+    <table class="hot-table">
+      <thead><tr><th>Rank</th><th>Company</th><th>Hiring heat</th><th>Open</th><th></th></tr></thead>
+      <tbody>
+        <tr><td style="font-weight:700;color:#0E6B4C">1</td><td><strong>Rad AI</strong><br><span style="font-size:11px;color:#6E695B">AI radiology workflow</span></td><td style="color:#0E6B4C;font-family:'Spline Sans Mono',monospace;font-size:11px">22 opened/90d</td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">31</td><td><span style="font-size:10px;background:#EDF6F0;color:#0E6B4C;padding:3px 8px;border-radius:4px">Following</span></td></tr>
+        <tr><td style="font-weight:700;color:#0E6B4C">2</td><td><strong>Horizon3</strong><br><span style="font-size:11px;color:#6E695B">Autonomous pentesting</span></td><td style="color:#0E6B4C;font-family:'Spline Sans Mono',monospace;font-size:11px">18 opened/90d</td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">24</td><td><span style="font-size:10px;border:1px solid #DCD8CB;padding:3px 8px;border-radius:4px">Follow</span></td></tr>
+        <tr><td style="font-weight:700;color:#0E6B4C">3</td><td><strong>Console</strong><br><span style="font-size:11px;color:#6E695B">Dev infra for AI teams</span></td><td style="color:#0E6B4C;font-family:'Spline Sans Mono',monospace;font-size:11px">18 opened/90d</td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">12</td><td><span style="font-size:10px;border:1px solid #DCD8CB;padding:3px 8px;border-radius:4px">Follow</span></td></tr>
+        <tr><td>4</td><td><strong>Lattice Flow</strong></td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">14 opened/90d</td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">19</td><td></td></tr>
+        <tr><td>5</td><td><strong>Northstar DB</strong></td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">12 opened/90d</td><td style="font-family:'Spline Sans Mono',monospace;font-size:11px">15</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- BOARDS + FOLLOW -->
+<section class="section" id="boards">
+  <span class="section-tag tag-b">Tier B · Journey B2 + B3</span>
+  <h2>Boards + follow alerts</h2>
+  <p class="lead">Curated board chips share the same SERP shell. Follow triggers email and in-app alerts for new observed roles.</p>
+  <div class="mock-frame">
+    <div class="mock-bar"><span>06-boards-follow.html</span><a href="06-boards-follow.html">Open full screen →</a></div>
+    <div class="boards-demo">
+      <div class="boards-left">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:10px">Curated boards</div>
+        <span class="board-pill" style="background:#EDF6F0;border-color:#BFDCCB">Elite · 847 roles</span>
+        <span class="board-pill">AI / ML · 412</span>
+        <span class="board-pill">Remote · 623</span>
+        <div style="margin-top:16px;font-size:12px;color:#6E695B;line-height:1.5">Same SERP shell, different company allowlist. Elite board = quality startups with strong hiring signal and low ghost rates.</div>
+      </div>
+      <div class="boards-right">
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:10px">Follow alert</div>
+        <div style="background:#EDF6F0;border:1px solid #BFDCCB;border-radius:8px;padding:8px 12px;font-size:11px;color:#0E6B4C;margin-bottom:10px">✓ Alerts on for Rad AI</div>
+        <div class="alert-box">
+          <strong>3 new Elite roles at companies you follow</strong>
+          <div style="margin-top:10px;padding:8px 0;border-bottom:1px solid #EDEBE2;font-size:11px"><strong>Sr Platform Eng</strong> · Rad AI · 2d ago</div>
+          <div style="padding:8px 0;border-bottom:1px solid #EDEBE2;font-size:11px"><strong>Staff Backend Eng</strong> · Vectral · 4d ago</div>
+          <div style="padding:8px 0;font-size:11px"><strong>Sr ML Infra Eng</strong> · Horizon3 · 6d ago</div>
+          <button style="width:100%;margin-top:12px;background:#1C1B16;color:#FBFAF6;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:600;cursor:pointer">View in Elite SERP →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer style="padding:32px 48px;text-align:center;font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574">
+  Intervu elite company-signal mockups · <a href="00-index.html">Individual files</a>
+</footer>
+</body>
+</html>

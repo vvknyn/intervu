@@ -14,6 +14,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
+import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import {
     boardColumn,
     boardTimestampLabel,
@@ -202,6 +203,7 @@ function YoursContent() {
     const [showWizard, setShowWizard] = useState(searchParams.get("view") === "new");
     const { pursuits, loading } = usePursuits();
     const guestSyncRef = useRef(false);
+    const guestSyncInFlightRef = useRef(false);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -210,11 +212,24 @@ function YoursContent() {
         return () => unsub();
     }, []);
 
-    // Merge-at-sign-in (spec §3/§7) — at most once per load.
+    // Merge-at-sign-in (pursuits + follows) — at most once per load; only mark
+    // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
-        if (user && !guestSyncRef.current) {
-            guestSyncRef.current = true;
-            void syncGuestPursuitsToServer();
+        if (user && !guestSyncRef.current && !guestSyncInFlightRef.current) {
+            guestSyncInFlightRef.current = true;
+            void (async () => {
+                try {
+                    const [pursuitsOk, followsOk] = await Promise.all([
+                        syncGuestPursuitsToServer(),
+                        syncGuestFollowsToServer(),
+                    ]);
+                    if (pursuitsOk && followsOk) {
+                        guestSyncRef.current = true;
+                    }
+                } finally {
+                    guestSyncInFlightRef.current = false;
+                }
+            })();
         }
     }, [user]);
 

@@ -29,6 +29,8 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
+import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
@@ -58,10 +60,13 @@ import {
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
+import { BoardChips } from "@/components/jobs/BoardChips";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
+import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
@@ -97,6 +102,8 @@ import {
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
+import { domainToSlug } from "@/lib/boards/slug";
+import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -288,12 +295,16 @@ function JobCard({
     active,
     opened,
     onClick,
+    onFit,
+    onCompany,
     now,
 }: {
     job: PublicJob;
     active: boolean;
     opened: boolean;
     onClick: () => void;
+    onFit?: (job: PublicJob) => void;
+    onCompany?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
 }) {
@@ -341,9 +352,36 @@ function JobCard({
                     {decodeText(job.title)}
                 </div>
                 <div className="mt-1 text-[12.5px] text-muted-foreground">
-                    <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                    {onCompany ? (
+                        <button
+                            type="button"
+                            className="font-medium text-foreground/85 hover:underline"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCompany(job);
+                            }}
+                        >
+                            {cleanCompany(job.company) || "Unknown company"}
+                        </button>
+                    ) : (
+                        <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                    )}
                     {` · ${locationText(job)}`}
                 </div>
+                {onFit && (
+                    <button
+                        type="button"
+                        data-testid="am-i-a-fit"
+                        className="mt-1 text-[12px] font-medium text-brand"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onFit(job);
+                        }}
+                    >
+                        Am I a fit?
+                    </button>
+                )}
+                <CompanyIntelStrip job={job} />
             </div>
             <div className="w-[128px] flex-none text-right font-mono text-[11.5px] leading-[1.7] tabular-nums">
                 {salary && <div className="text-foreground">{salary}</div>}
@@ -783,6 +821,7 @@ function JobsContent() {
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
+    const [board, setBoard] = useState<BoardId | null>(initialUrlState.board);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
@@ -809,6 +848,7 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    const [fitJob, setFitJob] = useState<PublicJob | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -817,6 +857,7 @@ function JobsContent() {
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
+    const { follows, hasAny: hasFollows } = useFollows();
 
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
@@ -829,6 +870,7 @@ function JobsContent() {
         visaOnly,
         postedBucket,
         hideGhosts,
+        board,
         // `fitActive` wins the default so `sort=fit` survives unrelated
         // mutations (a facet toggle, a job open) that rebuild the URL via
         // `buildUrlState({...})` without an explicit `sort` override.
@@ -964,6 +1006,7 @@ function JobsContent() {
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
+    const guestSyncInFlightRef = useRef(false);
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
@@ -1049,13 +1092,14 @@ function JobsContent() {
                 visaOnly,
                 postedBucket,
                 hideGhosts,
+                board,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported],
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
     );
 
     // Single source: résumé usable AND, for the auto-explore path below,
@@ -1162,7 +1206,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
+                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -1313,6 +1357,7 @@ function JobsContent() {
                             query,
                             backendSort,
                             postedDateSupported,
+                            board,
                         ),
                         withFacets: true,
                         limit: 1,
@@ -1487,6 +1532,7 @@ function JobsContent() {
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
             setHideGhosts(parsed.hideGhosts);
+            setBoard(parsed.board);
             setSortOverride(resolveUrlSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -1682,7 +1728,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1715,7 +1761,7 @@ function JobsContent() {
         // be — so this callback must regenerate when it changes, same as
         // every other field `buildJobSearchPayload` reads from this render.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -1755,6 +1801,11 @@ function JobsContent() {
     const onHideGhosts = (v: boolean) => {
         setHideGhosts(v);
         applyUrlState(buildUrlState({ hideGhosts: v }), "replace");
+    };
+
+    const onBoardChange = (next: BoardId | null) => {
+        setBoard(next);
+        applyUrlState(buildUrlState({ board: next }), "replace");
     };
 
     // Sets every local FilterState field + pushes the matching URL replace in
@@ -1850,7 +1901,11 @@ function JobsContent() {
         p.set("position", job.title);
         p.set("round", "Technical");
         p.set("searched", "true");
-        router.push(`/?${p.toString()}`);
+        router.push(`/prep?${p.toString()}`);
+    };
+    const handleCompany = (job: PublicJob) => {
+        if (!job.company_domain) return;
+        router.push(`/co/${domainToSlug(job.company_domain)}`);
     };
     const handleOpenPosting = (job: PublicJob) => {
         if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
@@ -2030,11 +2085,24 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Guest→auth pursuit merge (spec §3/§7) — at most once per load.
+    // Guest→auth merge (pursuits + follows) — at most once per load; only mark
+    // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
-        if (user && !guestPursuitSyncRef.current) {
-            guestPursuitSyncRef.current = true;
-            void syncGuestPursuitsToServer();
+        if (user && !guestPursuitSyncRef.current && !guestSyncInFlightRef.current) {
+            guestSyncInFlightRef.current = true;
+            void (async () => {
+                try {
+                    const [pursuitsOk, followsOk] = await Promise.all([
+                        syncGuestPursuitsToServer(),
+                        syncGuestFollowsToServer(),
+                    ]);
+                    if (pursuitsOk && followsOk) {
+                        guestPursuitSyncRef.current = true;
+                    }
+                } finally {
+                    guestSyncInFlightRef.current = false;
+                }
+            })();
         }
     }, [user]);
 
@@ -2628,6 +2696,12 @@ function JobsContent() {
                         />
                     </div>
 
+                    {!isOverlayAsk && (
+                        <div className="mt-3">
+                            <BoardChips board={board} onChange={onBoardChange} />
+                        </div>
+                    )}
+
                     {isOverlayAsk ? (
                         /* Returning visitor: their own previous sentences, as plain
                            grey lines. No heading, no chips — a heading would be the
@@ -2763,6 +2837,15 @@ function JobsContent() {
                             this state (see `resultCountLine`) because the relaxed total
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
+                        {!isOverlayAsk && hasFollows && (
+                            <FollowAlertsCard
+                                follows={follows}
+                                nowMs={nowMs}
+                                board={board}
+                                onViewAll={() => onBoardChange("elite")}
+                            />
+                        )}
+
                         {!loading && result?.widened && (
                             <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
                                 Nothing matches every word of that — showing the closest matches.
@@ -2915,6 +2998,8 @@ function JobsContent() {
                                                     active={detailSheetOpen && selectedId === job.id}
                                                     opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
+                                                    onFit={setFitJob}
+                                                    onCompany={job.company_domain ? handleCompany : undefined}
                                                     now={nowMs}
                                                 />
                                             );
@@ -3022,6 +3107,17 @@ function JobsContent() {
                 onOpenChange={setTailorOpen}
                 job={tailorJob}
                 onAuthRequired={() => setAuthOpen(true)}
+            />
+            <FitDrawer
+                open={!!fitJob}
+                job={fitJob}
+                onOpenChange={(open) => {
+                    if (!open) setFitJob(null);
+                }}
+                onTailor={() => fitJob && handleTailor(fitJob)}
+                onPrep={() => fitJob && handlePrep(fitJob)}
+                onApply={() => fitJob && handleMarkApplied(fitJob)}
+                onAuthRequired={openAuth}
             />
             <ResumeImportModal
                 isOpen={importOpen}

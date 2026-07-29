@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Am I a fit? Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;height:100vh}
+.caption{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 24px;text-align:center;position:relative;z-index:10}
+.caption strong{color:#0E6B4C}
+.scene{position:relative;height:calc(100vh - 33px);overflow:hidden}
+.serp-bg{position:absolute;inset:0;filter:blur(1px);opacity:.45;pointer-events:none;overflow:hidden}
+.overlay{position:absolute;inset:0;background:rgba(28,27,22,.12);z-index:1}
+.drawer{position:absolute;top:0;right:0;width:380px;height:100%;background:#FFFFFF;border-left:1px solid #E5E2D8;z-index:2;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(28,27,22,.08)}
+.drawer-head{padding:20px 22px 16px;border-bottom:1px solid #EDEBE2;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.close-btn{width:32px;height:32px;border:1px solid #DCD8CB;border-radius:8px;background:#FBFAF6;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:#6E695B;flex:none}
+.drawer-body{padding:20px 22px;overflow-y:auto;flex:1}
+.drawer-foot{padding:16px 22px 22px;border-top:1px solid #EDEBE2;background:#FBFAF6}
+.role-title{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px}
+.company-name{font-size:14px;color:#0E6B4C;font-weight:500}
+.verdict{display:inline-flex;align-items:center;gap:8px;margin:18px 0;padding:10px 14px;border-radius:10px;font-weight:600;font-size:14px}
+.verdict.strong{background:#EDF6F0;color:#0E6B4C;border:1px solid #BFDCCB}
+.verdict.stretch{background:#FDF6ED;color:#9A6B2E;border:1px solid #E8D4A8}
+.score{font-family:'Spline Sans Mono',monospace;font-size:12px;font-weight:500;opacity:.85}
+.section-label{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8A8574;margin:20px 0 10px}
+.match-list,.gap-list{list-style:none;margin:0;padding:0}
+.match-list li,.gap-list li{font-size:13.5px;line-height:1.45;padding:8px 0;border-bottom:1px solid #EDEBE2;display:flex;gap:10px;align-items:flex-start}
+.match-list li::before{content:'✓';color:#0F8A62;font-weight:600;flex:none}
+.gap-list li::before{content:'○';color:#8A8574;font-weight:600;flex:none}
+.narrative{font-size:13.5px;line-height:1.55;color:#3E3B30;background:#F6F5F0;border-radius:10px;padding:14px 16px;margin-top:4px}
+.cta-stack{display:flex;flex-direction:column;gap:8px}
+.cta-primary{background:#1C1B16;color:#FBFAF6;border:none;border-radius:10px;padding:13px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%}
+.cta-secondary{background:#FFFFFF;color:#1C1B16;border:1.5px solid #1C1B16;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%}
+.cta-ghost{background:transparent;color:#0E6B4C;border:1px solid #BFDCCB;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;width:100%}
+.credit-note{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;text-align:center;margin-top:12px}
+.back-link{position:fixed;bottom:20px;left:20px;font-size:12px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:8px 14px;box-shadow:0 2px 8px rgba(28,27,22,.08);z-index:20;text-decoration:none;color:#0E6B4C}
+/* faded SERP stubs */
+.stub-nav{height:56px;background:#FBFAF6;border-bottom:1px solid #E5E2D8;padding:0 40px;display:flex;align-items:center}
+.stub-card{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;margin:10px 40px;padding:18px;height:100px}
+</style>
+</head>
+<body>
+<div class="caption"><strong>Tier A · Journey A3</strong> — Am I a fit? side panel · Match narrative from active resume · 1 credit</div>
+
+<div class="scene">
+  <div class="serp-bg">
+    <div class="stub-nav"><span style="font-family:'Bricolage Grotesque',sans-serif;font-size:20px">inter<b>vu</b></span></div>
+    <div class="stub-card"></div>
+    <div class="stub-card"></div>
+    <div class="stub-card"></div>
+  </div>
+  <div class="overlay"></div>
+
+  <aside class="drawer">
+    <header class="drawer-head">
+      <div>
+        <h2 class="role-title">Senior Platform Engineer</h2>
+        <div class="company-name">Rad AI · Remote · US</div>
+      </div>
+      <button class="close-btn" aria-label="Close">×</button>
+    </header>
+
+    <div class="drawer-body">
+      <div class="verdict strong">
+        <span>Strong fit</span>
+        <span class="score">82 / 100</span>
+      </div>
+
+      <p class="narrative">Your 6 yrs in distributed systems and K8s-heavy infra maps well to this role. Rad AI's stack (Go, gRPC, Terraform) aligns with your last two positions. You'd be a credible senior hire with one ops gap to address in prep.</p>
+
+      <div class="section-label">Matches</div>
+      <ul class="match-list">
+        <li>6+ years backend / platform — exceeds senior bar</li>
+        <li>Kubernetes &amp; Terraform in production at scale</li>
+        <li>Go and gRPC — listed in your active resume</li>
+      </ul>
+
+      <div class="section-label">Gaps to address</div>
+      <ul class="gap-list">
+        <li>Healthcare compliance (HIPAA) — not on resume; common for Rad AI</li>
+        <li>On-call rotation leadership — role asks for incident lead experience</li>
+      </ul>
+    </div>
+
+    <footer class="drawer-foot">
+      <div class="cta-stack">
+        <button class="cta-secondary">Tailor resume</button>
+        <button class="cta-ghost">Interview prep</button>
+        <button class="cta-primary">Apply (tracks automatically)</button>
+      </div>
+      <p class="credit-note">Uses your active resume · 1 credit</p>
+    </footer>
+  </aside>
+</div>
+
+<a class="back-link" href="00-index.html">← Hub</a>
+</body>
+</html>
