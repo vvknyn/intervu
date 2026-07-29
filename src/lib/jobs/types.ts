@@ -1,3 +1,5 @@
+import type { BoardId } from "@/lib/boards/types";
+
 /**
  * Jobs domain types for intervu.cc.
  *
@@ -49,6 +51,11 @@ export interface PublicJob {
   vacancy_status: string;
   /** Coarse, public-safe ghost signal. Raw scores intentionally excluded (B2B IP). */
   ghost_badge: GhostBadge;
+  /** Company aggregate fields — optional until sync backfills (Task 5). */
+  company_opened_90d?: number | null;
+  company_closed_90d?: number | null;
+  company_open_count?: number | null;
+  company_stage?: string | null;
 }
 
 export interface JobsApiMeta {
@@ -123,6 +130,8 @@ export interface JobSearchParams {
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
   withFacets?: boolean;
+  /** Restrict to jobs at companies on a curated board allowlist. */
+  board?: BoardId;
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

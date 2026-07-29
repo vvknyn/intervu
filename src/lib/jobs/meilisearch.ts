@@ -8,6 +8,7 @@
  * ingestion/admin uses the admin key and is only ever invoked by the off-Vercel
  * sync worker — never at request time.
  */
+import { getBoardDomains } from "@/lib/boards/allowlists";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
@@ -55,6 +56,7 @@ export const JOBS_INDEX_SETTINGS = {
     "ghost_badge",
     "source",
     "vacancy_status",
+    "company_domain",
     "posted_ts",
     // Task 11 — the dead-link existence check (`JobSearchParams.id`, below)
     // needs `id = "..."` to be a legal filter. Meilisearch's primary key is
@@ -217,6 +219,12 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
       f.push(`posted_ts >= ${now - BUCKET_MS[p.postedBucket]}`);
     }
     // Docs with a null posted_ts (not yet backfilled) simply won't match — acceptable.
+  }
+  if (p.board) {
+    const domains = getBoardDomains(p.board);
+    if (domains.length > 0) {
+      f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
+    }
   }
   return f;
 }
