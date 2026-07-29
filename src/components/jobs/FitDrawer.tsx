@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Scales, Sparkle, Warning, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -39,19 +39,27 @@ export function FitDrawer({
     const [phase, setPhase] = useState<DrawerPhase>("loading");
     const [assessment, setAssessment] = useState<FitAssessment | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const assessedKeyRef = useRef<string | null>(null);
+    // Monotonic generation guard (same shape as SearchAutocomplete): only the
+    // response from the last effect run may update state.
+    const assessGenRef = useRef(0);
 
-    const jobKey = job ? `${job.id}|${(job.description ?? "").slice(0, 120)}` : null;
+    const jobId = job?.id ?? null;
 
-    const runAssessment = useCallback(async (j: PublicJob) => {
+    // Reset before paint so a new job never briefly shows the prior verdict.
+    useLayoutEffect(() => {
         setPhase("loading");
-        setError(null);
         setAssessment(null);
+        setError(null);
+    }, [jobId]);
+
+    const runAssessment = useCallback(async (j: PublicJob, myGeneration: number) => {
         try {
             const res = await assessJobFitAction({
                 description: j.description ?? "",
                 url: j.apply_url || null,
             });
+            if (assessGenRef.current !== myGeneration) return;
+
             if (res.needsAuth) {
                 setPhase("needsAuth");
                 return;
@@ -70,17 +78,32 @@ export function FitDrawer({
                 setPhase("ready");
             }
         } catch (e) {
+            if (assessGenRef.current !== myGeneration) return;
             setError(e instanceof Error ? e.message : "Failed to assess fit");
             setPhase("error");
         }
     }, []);
 
     useEffect(() => {
-        if (!open || !job || !jobKey) return;
-        if (assessedKeyRef.current === jobKey) return;
-        assessedKeyRef.current = jobKey;
-        void runAssessment(job);
-    }, [open, job, jobKey, runAssessment]);
+        if (!open || !job) return;
+
+        const myGeneration = assessGenRef.current;
+        void runAssessment(job, myGeneration);
+
+        return () => {
+            assessGenRef.current += 1;
+        };
+    }, [open, jobId, job?.description, job?.apply_url, runAssessment]);
+
+    const handleRetry = () => {
+        if (!job) return;
+        assessGenRef.current += 1;
+        const myGeneration = assessGenRef.current;
+        setPhase("loading");
+        setAssessment(null);
+        setError(null);
+        void runAssessment(job, myGeneration);
+    };
 
     const showCtas = phase === "ready" || phase === "needsResume";
 
@@ -172,7 +195,7 @@ export function FitDrawer({
                             <Warning size={28} className="text-muted-foreground/60" />
                             <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
                             {job && (
-                                <Button variant="outline" size="sm" onClick={() => runAssessment(job)}>
+                                <Button variant="outline" size="sm" onClick={handleRetry}>
                                     Try again
                                 </Button>
                             )}
