@@ -388,6 +388,83 @@ export async function fetchLocationFacetDistributions(): Promise<Record<string, 
   }
 }
 
+/** One filter+facet aggregation query against the jobs index — the shape
+ *  Meilisearch's `/multi-search` endpoint batches. No `q`/sort/paging: this
+ *  is read-path aggregation only (see `meiliMultiSearch`), never a search. */
+export interface MeiliAggregationQuery {
+  filter?: string[];
+  facets?: string[];
+}
+
+/** One `/multi-search` result. `facetDistribution` values are the uncapped
+ *  counts (see corpus-count.ts); `totalHits`/`estimatedTotalHits` are
+ *  subject to `JOBS_INDEX_SETTINGS.pagination.maxTotalHits` like any other
+ *  search response. */
+export interface MeiliAggregationResult {
+  estimatedTotalHits?: number;
+  totalHits?: number;
+  facetDistribution?: Record<string, Record<string, number>>;
+}
+
+/**
+ * Mirrors `src/app/trends/page.tsx`'s `export const revalidate`. Next's
+ * route-segment config must be a literal (it's statically parsed, not
+ * executed), so it can't just import this — same constraint corpus-count.ts
+ * documents for its own `CORPUS_COUNT_CAP`/`MAX_REACHABLE` pair. Keep both
+ * literals in sync by hand if the ISR window ever changes.
+ */
+const TRENDS_REVALIDATE_SECONDS = 1800;
+
+/**
+ * Read-path: batch N filter+facet aggregation queries into ONE
+ * `/multi-search` HTTP round trip. Built for the /trends page (market-wide
+ * hero stats, country rollup, posting-freshness bands, ghost radar), whose
+ * ISR revalidation needs many independent facet breakdowns without firing a
+ * facet-storm of individual requests at a box that's already measured at
+ * 4-7s per plain facet query under embed-backfill load. Reuses `meiliFetch`
+ * — the shared per-attempt-timeout + bounded-retry chokepoint — rather than
+ * a second bespoke fetch wrapper.
+ *
+ * Deliberately NOT `cache: "no-store"` (unlike every other read-path call in
+ * this file): those back a real-time search box that must never serve stale
+ * results, while this backs an ISR page that must NOT hit Meilisearch per
+ * visitor. `next.revalidate` puts this fetch in Next's Data Cache instead,
+ * which is what actually makes `export const revalidate` on the page take
+ * effect — a `no-store` fetch anywhere in a route forces that whole route
+ * to render dynamically (measured: `/trends` came back `ƒ` dynamic in the
+ * build report until this was fixed).
+ *
+ * Throws on failure (network, non-2xx) so a caller can't silently render a
+ * fabricated zero; see market-trends.ts for how the /trends page treats
+ * that.
+ */
+export async function meiliMultiSearch(
+  queries: MeiliAggregationQuery[],
+): Promise<MeiliAggregationResult[]> {
+  const h = host();
+  if (!h) throw new Error("MEILISEARCH_HOST not set");
+  const res = await meiliFetch(`${h}/multi-search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    next: { revalidate: TRENDS_REVALIDATE_SECONDS },
+    body: JSON.stringify({
+      queries: queries.map((q) => ({
+        indexUid: JOBS_INDEX,
+        q: "",
+        limit: 0,
+        ...(q.filter?.length ? { filter: q.filter } : {}),
+        ...(q.facets?.length ? { facets: q.facets } : {}),
+      })),
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Meilisearch multi-search failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await res.json()) as { results?: MeiliAggregationResult[] };
+  return body.results ?? [];
+}
+
 /** Read-path: the `updated_at` of the most recently updated doc, for the "last synced" stamp. */
 export async function fetchJobsLastUpdated(): Promise<string | null> {
   const h = host();
