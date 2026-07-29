@@ -1,7 +1,7 @@
 # intervu.cc — Elite company signal (Tier A + B)
 
 **Date:** 2026-07-29  
-**Status:** approved — implementation plan at `docs/superpowers/plans/2026-07-29-elite-company-signal.md`  
+**Status:** approved — implemented on `feat/elite-company-signal` (plan: `docs/superpowers/plans/2026-07-29-elite-company-signal.md`)  
 **Scope:** curated company boards, company intel on Find jobs, fit panel, light company pages, follow/alerts  
 **Mocks:** `docs/design/elite-company-signal/` (gallery: `99-gallery.html`)  
 **Related:** Phase 1 search journey (`2026-07-25-search-journey-phase1-design.md`) — this design *extends* the SERP after the single-line journey works; it does not replace it. Absorbs deferred Phase 1.5 company hiring counts.
