@@ -63,6 +63,7 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
@@ -290,12 +291,16 @@ function JobCard({
     active,
     opened,
     onClick,
+    onFit,
+    onCompany,
     now,
 }: {
     job: PublicJob;
     active: boolean;
     opened: boolean;
     onClick: () => void;
+    onFit?: (job: PublicJob) => void;
+    onCompany?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
 }) {
@@ -343,9 +348,36 @@ function JobCard({
                     {decodeText(job.title)}
                 </div>
                 <div className="mt-1 text-[12.5px] text-muted-foreground">
-                    <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                    {onCompany ? (
+                        <button
+                            type="button"
+                            className="font-medium text-foreground/85 hover:underline"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCompany(job);
+                            }}
+                        >
+                            {cleanCompany(job.company) || "Unknown company"}
+                        </button>
+                    ) : (
+                        <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                    )}
                     {` · ${locationText(job)}`}
                 </div>
+                {onFit && (
+                    <button
+                        type="button"
+                        data-testid="am-i-a-fit"
+                        className="mt-1 text-[12px] font-medium text-brand"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onFit(job);
+                        }}
+                    >
+                        Am I a fit?
+                    </button>
+                )}
+                <CompanyIntelStrip job={job} />
             </div>
             <div className="w-[128px] flex-none text-right font-mono text-[11.5px] leading-[1.7] tabular-nums">
                 {salary && <div className="text-foreground">{salary}</div>}
@@ -812,6 +844,8 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    const [fitJob, setFitJob] = useState<PublicJob | null>(null); // FitDrawer — Task 8
+    void fitJob;
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -2933,6 +2967,7 @@ function JobsContent() {
                                                     active={detailSheetOpen && selectedId === job.id}
                                                     opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
+                                                    onFit={setFitJob}
                                                     now={nowMs}
                                                 />
                                             );
