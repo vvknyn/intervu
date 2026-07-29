@@ -1006,6 +1006,7 @@ function JobsContent() {
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
+    const guestSyncInFlightRef = useRef(false);
     const [tailorOpen, setTailorOpen] = useState(false);
     const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
@@ -2087,14 +2088,19 @@ function JobsContent() {
     // Guest→auth merge (pursuits + follows) — at most once per load; only mark
     // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
-        if (user && !guestPursuitSyncRef.current) {
+        if (user && !guestPursuitSyncRef.current && !guestSyncInFlightRef.current) {
+            guestSyncInFlightRef.current = true;
             void (async () => {
-                const [pursuitsOk, followsOk] = await Promise.all([
-                    syncGuestPursuitsToServer(),
-                    syncGuestFollowsToServer(),
-                ]);
-                if (pursuitsOk && followsOk) {
-                    guestPursuitSyncRef.current = true;
+                try {
+                    const [pursuitsOk, followsOk] = await Promise.all([
+                        syncGuestPursuitsToServer(),
+                        syncGuestFollowsToServer(),
+                    ]);
+                    if (pursuitsOk && followsOk) {
+                        guestPursuitSyncRef.current = true;
+                    }
+                } finally {
+                    guestSyncInFlightRef.current = false;
                 }
             })();
         }

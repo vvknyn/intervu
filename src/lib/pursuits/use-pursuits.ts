@@ -138,6 +138,12 @@ export function usePursuits(): UsePursuitsResult {
                 setLoading(false);
                 return;
             }
+            const pendingGuest = listGuestPursuits();
+            if (pendingGuest.length > 0) {
+                setPursuits(pendingGuest);
+                setLoading(false);
+                return;
+            }
             setLoading(!cache);
             fetchServerPursuits().then((data) => {
                 if (!cancelled) {

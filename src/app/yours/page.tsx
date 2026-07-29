@@ -203,6 +203,7 @@ function YoursContent() {
     const [showWizard, setShowWizard] = useState(searchParams.get("view") === "new");
     const { pursuits, loading } = usePursuits();
     const guestSyncRef = useRef(false);
+    const guestSyncInFlightRef = useRef(false);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -214,14 +215,19 @@ function YoursContent() {
     // Merge-at-sign-in (pursuits + follows) — at most once per load; only mark
     // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
-        if (user && !guestSyncRef.current) {
+        if (user && !guestSyncRef.current && !guestSyncInFlightRef.current) {
+            guestSyncInFlightRef.current = true;
             void (async () => {
-                const [pursuitsOk, followsOk] = await Promise.all([
-                    syncGuestPursuitsToServer(),
-                    syncGuestFollowsToServer(),
-                ]);
-                if (pursuitsOk && followsOk) {
-                    guestSyncRef.current = true;
+                try {
+                    const [pursuitsOk, followsOk] = await Promise.all([
+                        syncGuestPursuitsToServer(),
+                        syncGuestFollowsToServer(),
+                    ]);
+                    if (pursuitsOk && followsOk) {
+                        guestSyncRef.current = true;
+                    }
+                } finally {
+                    guestSyncInFlightRef.current = false;
                 }
             })();
         }

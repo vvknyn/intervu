@@ -926,3 +926,9 @@ Plan complete and saved to `docs/superpowers/plans/2026-07-29-elite-company-sign
 2. **Inline Execution** — execute tasks in this session with checkpoints  
 
 **Which approach?**
+
+---
+
+## Progress notes
+
+- **2026-07-29 (re-review d16ada0):** Guest sync in-flight guard (`guestSyncInFlightRef`) on `page.tsx` and `yours/page.tsx` prevents parallel merge-at-sign-in runs. `usePursuits` shows pending guest rows while signed-in sync has not cleared localStorage, matching `useFollows`.
