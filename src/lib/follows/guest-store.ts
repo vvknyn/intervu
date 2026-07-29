@@ -10,6 +10,10 @@ import type { FollowedCompany } from "./types";
 
 const STORAGE_KEY = "intervu.follows.guest";
 
+function normalizeDomain(domain: string): string {
+    return domain.trim().toLowerCase();
+}
+
 const listeners = new Set<() => void>();
 
 export function subscribeGuestFollows(cb: () => void): () => void {
@@ -47,10 +51,13 @@ export function listGuestFollows(): FollowedCompany[] {
 
 export function addGuestFollow(input: Omit<FollowedCompany, "createdAt">): FollowedCompany {
     const list = read();
-    const i = list.findIndex((f) => f.domain === input.domain);
+    const domain = normalizeDomain(input.domain);
+    const i = list.findIndex((f) => normalizeDomain(f.domain) === domain);
     const now = new Date().toISOString();
     const row: FollowedCompany = {
-        ...input,
+        domain,
+        slug: input.slug,
+        displayName: input.displayName,
         createdAt: i === -1 ? now : list[i].createdAt,
     };
     const next = i === -1 ? [...list, row] : list.map((f, idx) => (idx === i ? row : f));
@@ -59,7 +66,8 @@ export function addGuestFollow(input: Omit<FollowedCompany, "createdAt">): Follo
 }
 
 export function removeGuestFollow(domain: string): void {
-    write(read().filter((f) => f.domain !== domain));
+    const key = normalizeDomain(domain);
+    write(read().filter((f) => normalizeDomain(f.domain) !== key));
 }
 
 export function clearGuestFollows(): void {

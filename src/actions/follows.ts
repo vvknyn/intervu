@@ -8,6 +8,12 @@ function followedCompaniesCollection(uid: string) {
     return getAdminDb().collection("users").doc(uid).collection("followedCompanies");
 }
 
+function earliestCreatedAt(...candidates: (string | undefined)[]): string {
+    const valid = candidates.filter((c): c is string => !!c);
+    if (valid.length === 0) return new Date().toISOString();
+    return valid.reduce((earliest, next) => (Date.parse(next) < Date.parse(earliest) ? next : earliest));
+}
+
 function docToFollowedCompany(snap: FirebaseFirestore.DocumentSnapshot): FollowedCompany {
     const data = snap.data()!;
     return {
@@ -95,10 +101,11 @@ export async function syncGuestFollowsAction(
                 const ref = col.doc(domain);
                 const existing = await ref.get();
                 const now = new Date().toISOString();
-                const createdAt =
-                    existing.exists && existing.data()?.createdAt
-                        ? existing.data()!.createdAt
-                        : guest.createdAt || now;
+                const createdAt = earliestCreatedAt(
+                    existing.exists ? existing.data()?.createdAt : undefined,
+                    guest.createdAt,
+                    now,
+                );
 
                 await ref.set({
                     domain,

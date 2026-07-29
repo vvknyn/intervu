@@ -93,3 +93,16 @@ test("a corrupt localStorage value degrades to an empty list", () => {
     fakeLocalStorage.setItem("intervu.follows.guest", "{not json");
     assert.deepEqual(listGuestFollows(), []);
 });
+
+test("addGuestFollow normalizes domain casing and whitespace", () => {
+    addGuestFollow({ domain: "  Acme.COM  ", slug: "acme", displayName: "Acme Corp" });
+    const list = listGuestFollows();
+    assert.equal(list.length, 1);
+    assert.equal(list[0].domain, "acme.com");
+});
+
+test("removeGuestFollow matches normalized domain keys", () => {
+    addGuestFollow(acme);
+    removeGuestFollow("  ACME.COM  ");
+    assert.deepEqual(listGuestFollows(), []);
+});
