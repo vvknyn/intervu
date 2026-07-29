@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Customer Journeys — Tier A + B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Spline Sans Mono',monospace}
+.display{font-family:'Bricolage Grotesque',sans-serif}
+.banner{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 24px;text-align:center}
+.nav-bar{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 40px;background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+.brand{font-family:'Bricolage Grotesque',sans-serif;font-size:20px;font-weight:500}.brand b{font-weight:700}
+.back{font-size:13px;color:#0E6B4C;text-decoration:none}.back:hover{text-decoration:underline}
+.wrap{max-width:1200px;margin:0 auto;padding:40px 40px 80px}
+.page-title{font-family:'Bricolage Grotesque',sans-serif;font-size:32px;font-weight:600;letter-spacing:-.025em;margin:0 0 8px}
+.subtitle{font-size:15px;color:#6E695B;margin:0 0 32px;max-width:640px;line-height:1.5}
+.legend{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:40px;padding:16px 20px;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:10px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#6E695B}
+.legend-swatch{width:12px;height:12px;border-radius:3px}
+.tier-a-swatch{background:#0E6B4C}
+.tier-b-swatch{background:#6E695B}
+.persona{display:flex;align-items:center;gap:14px;padding:18px 20px;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;margin-bottom:36px}
+.persona-av{width:44px;height:44px;border-radius:50%;background:#1C1B16;color:#FBFAF6;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+.persona h3{margin:0;font-size:15px;font-weight:600}
+.persona p{margin:2px 0 0;font-size:13px;color:#6E695B}
+.section{margin-bottom:48px}
+.section-head{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.tier-tag{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:4px}
+.tier-a-tag{background:#EDF6F0;color:#0E6B4C;border:1px solid #BFDCCB}
+.tier-b-tag{background:#EDEBE2;color:#6E695B;border:1px solid #DCD8CB}
+.section-head h2{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:600;margin:0;letter-spacing:-.02em}
+.journey{margin-bottom:36px;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;overflow:hidden}
+.journey-header{padding:18px 22px;border-bottom:1px solid #EDEBE2;display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.journey-header h3{margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:600}
+.journey-id{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574}
+.journey-lane{display:flex;gap:0;overflow-x:auto;padding:22px;background:#FBFAF6}
+.step{flex:0 0 168px;display:flex;flex-direction:column;align-items:center;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;top:52px;right:-12px;width:24px;height:2px;background:#DCD8CB;z-index:0}
+.step-num{width:28px;height:28px;border-radius:50%;background:#1C1B16;color:#FBFAF6;font-family:'Spline Sans Mono',monospace;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-bottom:10px;position:relative;z-index:1}
+.thumb{width:140px;height:88px;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:8px;padding:8px;margin-bottom:10px;overflow:hidden;font-size:8px;line-height:1.3;color:#6E695B}
+.thumb-nav{height:10px;background:#FBFAF6;border-bottom:1px solid #E5E2D8;margin:-8px -8px 6px;padding:2px 4px;font-size:6px;color:#8A8574}
+.thumb-chip{display:inline-block;background:#1C1B16;color:#FBFAF6;border-radius:100px;padding:1px 4px;font-size:5px;margin:2px 1px 0 0}
+.thumb-chip.outline{background:#FFF;color:#3E3B30;border:1px solid #DCD8CB}
+.thumb-card{border:1px solid #E5E2D8;border-radius:4px;padding:3px;margin-top:3px}
+.thumb-footer{font-family:'Spline Sans Mono',monospace;font-size:5px;color:#8A8574;background:#F6F5F0;border-radius:2px;padding:2px;margin-top:2px}
+.thumb-panel{position:absolute;right:0;top:0;width:40%;height:100%;background:rgba(255,255,255,.95);border-left:1px solid #E5E2D8}
+.step-label{font-size:12px;font-weight:500;text-align:center;line-height:1.35;padding:0 4px;color:#3E3B30}
+.step-note{font-family:'Spline Sans Mono',monospace;font-size:10px;color:#8A8574;text-align:center;margin-top:4px;padding:0 6px;line-height:1.3}
+</style>
+</head>
+<body>
+<div class="banner">Desktop-first mock · Customer journey maps · Educational captions</div>
+<header class="nav-bar">
+  <span class="brand">inter<b>vu</b></span>
+  <a class="back" href="00-index.html">← Hub</a>
+</header>
+
+<main class="wrap">
+  <h1 class="page-title">Customer journeys</h1>
+  <p class="subtitle">Maya, senior software engineer, targets quality startups. She hates ghost jobs and wasted applications. Each journey shows 4–6 steps with simplified UI thumbnails.</p>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-swatch tier-a-swatch"></span><strong>Tier A</strong> — SERP intel, fit panel, company page (core discovery)</div>
+    <div class="legend-item"><span class="legend-swatch tier-b-swatch"></span><strong>Tier B</strong> — Hot companies rank, follow alerts, curated boards (retention)</div>
+  </div>
+
+  <div class="persona">
+    <div class="persona-av">M</div>
+    <div>
+      <h3>Maya · Senior Software Engineer</h3>
+      <p>Targeting elite startups · Remote-friendly · Wants hiring signal, not hype · Uses Intervu to skip stagnant companies</p>
+    </div>
+  </div>
+
+  <!-- TIER A -->
+  <div class="section">
+    <div class="section-head">
+      <span class="tier-tag tier-a-tag">Tier A</span>
+      <h2>Discovery &amp; fit</h2>
+    </div>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey A1 — Elite board filter</h3>
+        <span class="journey-id">Tier A · Journey A1</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><div class="thumb-nav">Find jobs</div>Discover roles<br><span class="thumb-chip outline">No ghost</span></div>
+          <span class="step-label">Land on Find jobs</span>
+          <span class="step-note">Default SERP</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb"><div class="thumb-nav">Find jobs</div><span class="thumb-chip">Elite startups</span> <span class="thumb-chip outline">AI</span></div>
+          <span class="step-label">Tap "Elite startups" chip</span>
+          <span class="step-note">Dark fill = active</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div class="thumb-card">Sr Eng · Rad AI<div class="thumb-footer">Early · 14/3 · 18 roles</div></div><div class="thumb-card">Staff · Console<div class="thumb-footer">Series B · 8/1 · 12 roles</div></div></div>
+          <span class="step-label">SERP narrows to allowlist</span>
+          <span class="step-note">Company-intel footers visible</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><div class="thumb-card" style="border-color:#0E6B4C">Sr Platform Eng<div class="thumb-footer">Rad AI · opened 3d ago</div></div></div>
+          <span class="step-label">Scan footers, open role</span>
+          <span class="step-note">Skip stagnant cos</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey A2 — Company intel on card</h3>
+        <span class="journey-id">Tier A · Journey A2</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><div class="thumb-nav">Find jobs</div>Scan SERP results</div>
+          <span class="step-label">Browse matches</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb"><div class="thumb-card">Role · StagnantCo<div class="thumb-footer" style="color:#B3452F">Seed · 1/0 · 2 roles</div></div></div>
+          <span class="step-label">Read footer: opened/closed 90d</span>
+          <span class="step-note">Low velocity signal</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div class="thumb-card" style="opacity:.5;text-decoration:line-through">Skip stagnant co</div></div>
+          <span class="step-label">Skip — not hiring hot</span>
+          <span class="step-note">Save time</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><div class="thumb-card" style="border-color:#0F8A62">Role · Horizon3<div class="thumb-footer" style="color:#0E6B4C">Series A · 22/2 · 31 roles</div></div></div>
+          <span class="step-label">Open hiring-hot company</span>
+          <span class="step-note">High open + opened count</span>
+        </div>
+        <div class="step">
+          <span class="step-num">5</span>
+          <div class="thumb"><div class="thumb-card">Staff Backend Eng<div style="font-size:5px;color:#0E6B4C;margin-top:2px">● Live · no ghost</div></div></div>
+          <span class="step-label">Open role detail</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey A3 — Am I a fit?</h3>
+        <span class="journey-id">Tier A · Journey A3</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><div class="thumb-card">Sr Eng · Rad AI<button style="font-size:5px;margin-top:2px">Am I a fit?</button></div></div>
+          <span class="step-label">On card → "Am I a fit?"</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb" style="position:relative"><div class="thumb-card" style="opacity:.4">SERP faded</div><div class="thumb-panel"><strong style="font-size:6px">Strong fit</strong><br>● K8s<br>● Go<br>○ K8s ops</div></div>
+          <span class="step-label">Side panel opens</span>
+          <span class="step-note">~380px drawer</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div style="font-size:6px;font-weight:600;color:#0E6B4C">Strong fit</div>3 match · 2 gaps<br><span style="font-size:5px">Resume narrative</span></div>
+          <span class="step-label">Match narrative + gaps</span>
+          <span class="step-note">From active resume</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><span class="thumb-chip outline">Tailor resume</span><br><span class="thumb-chip outline">Prep</span><br><span class="thumb-chip">Apply+track</span></div>
+          <span class="step-label">CTA: Tailor / Prep / Apply</span>
+          <span class="step-note">1 credit note</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey A4 — Company page</h3>
+        <span class="journey-id">Tier A · Journey A4</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><div class="thumb-card"><u style="font-size:6px">Rad AI</u> · Sr Eng</div></div>
+          <span class="step-label">Tap company name on card</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb"><div style="font-size:7px;font-weight:600">Rad AI</div><span class="thumb-chip">Elite</span> <span class="thumb-chip outline">Follow</span><div class="thumb-footer">18 open · 14 opened · 3 closed</div></div>
+          <span class="step-label">/company/rad-ai</span>
+          <span class="step-note">Hiring stats, no valuation</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div class="thumb-card">Sr Platform Eng</div><div class="thumb-card">Staff ML Eng</div><div class="thumb-card">Eng Manager</div></div>
+          <span class="step-label">Open roles list</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><span class="thumb-chip">Open prep</span><br><span style="font-size:5px">Company Recon</span></div>
+          <span class="step-label">"Open prep" → Company Recon</span>
+        </div>
+        <div class="step">
+          <span class="step-num">5</span>
+          <div class="thumb"><span class="thumb-chip outline">Follow ✓</span></div>
+          <span class="step-label">Follow for alerts</span>
+          <span class="step-note">Links to B2</span>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <!-- TIER B -->
+  <div class="section">
+    <div class="section-head">
+      <span class="tier-tag tier-b-tag">Tier B</span>
+      <h2>Retention &amp; curation</h2>
+    </div>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey B1 — Hot companies</h3>
+        <span class="journey-id">Tier B · Journey B1</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><div class="thumb-nav">Find jobs · Hot cos</div></div>
+          <span class="step-label">Nav or chip → Hot companies</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb">#1 Rad AI · 22 opened<br>#2 Console · 18 opened<br>#3 Horizon3 · 15 opened</div>
+          <span class="step-label">Ranked by hiring velocity</span>
+          <span class="step-note">NOT VC valuation</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div style="font-size:7px;font-weight:600">Rad AI</div><div class="thumb-footer">31 open roles</div></div>
+          <span class="step-label">Open company</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><div class="thumb-card">Browse jobs</div></div>
+          <span class="step-label">View open roles → apply</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey B2 — Follow → alert</h3>
+        <span class="journey-id">Tier B · Journey B2</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><span class="thumb-chip">Follow</span> on company page</div>
+          <span class="step-label">Company page → Follow</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb" style="background:#EDF6F0;border-color:#BFDCCB">✓ Alerts on for Rad AI</div>
+          <span class="step-label">Toast: "alerts on"</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div style="font-size:6px">📧 3 new roles at Rad AI</div><div class="thumb-card">Sr Platform Eng</div></div>
+          <span class="step-label">Email / in-app alert later</span>
+          <span class="step-note">New openings observed</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><span class="thumb-chip">Elite startups</span> filtered SERP</div>
+          <span class="step-label">Back to SERP filtered</span>
+          <span class="step-note">Followed cos highlighted</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="journey">
+      <div class="journey-header">
+        <h3>Journey B3 — Curated boards</h3>
+        <span class="journey-id">Tier B · Journey B3</span>
+      </div>
+      <div class="journey-lane">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="thumb"><span class="thumb-chip">Elite</span> <span class="thumb-chip outline">AI</span> <span class="thumb-chip outline">Remote</span></div>
+          <span class="step-label">Boards strip on SERP</span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="thumb"><div style="font-size:6px;font-weight:600">Elite startups board</div>Curated allowlist</div>
+          <span class="step-label">Tap Elite board</span>
+          <span class="step-note">Landing blurb</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="thumb"><div class="thumb-nav">Find jobs · Elite</div>Same SERP shell</div>
+          <span class="step-label">Same SERP, different allowlist</span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <div class="thumb"><div class="thumb-card">Filtered results<div class="thumb-footer">Elite only</div></div></div>
+          <span class="step-label">Browse curated matches</span>
+        </div>
+      </div>
+    </article>
+  </div>
+</main>
+</body>
+</html>

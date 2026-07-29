@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Elite Company Signal — Mockup Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:#0E6B4C;text-decoration:none}a:hover{color:#0A4F38;text-decoration:underline}
+.mono{font-family:'Spline Sans Mono',monospace}
+.display{font-family:'Bricolage Grotesque',sans-serif}
+.banner{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 24px;text-align:center;letter-spacing:.04em}
+.nav-bar{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 48px;background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand-name{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:500;letter-spacing:-.02em}
+.brand-name b{font-weight:700}
+.beta{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A8574;border:1px solid #DCD8CB;border-radius:4px;padding:2px 6px}
+.hero{padding:56px 48px 40px;max-width:900px}
+.hero h1{font-family:'Bricolage Grotesque',sans-serif;font-size:38px;font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:0 0 12px}
+.hero p{font-size:16px;color:#6E695B;margin:0 0 8px;max-width:560px}
+.hero .meta{font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:#8A8574;margin-top:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:0 48px 64px;max-width:1100px}
+.card{display:block;background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:22px 24px;transition:border-color .15s,box-shadow .15s;text-decoration:none;color:inherit}
+.card:hover{border-color:#C9C4B4;box-shadow:0 2px 12px rgba(28,27,22,.07);text-decoration:none;color:inherit}
+.card-num{font-family:'Spline Sans Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#0E6B4C;margin-bottom:8px}
+.card h2{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.card p{font-size:13.5px;color:#6E695B;margin:0;line-height:1.45}
+.card.featured{border-color:#BFDCCB;background:linear-gradient(135deg,#FFFFFF 0%,#EDF6F0 100%)}
+.card.featured .card-num{color:#0F8A62}
+.tier-legend{display:flex;gap:16px;padding:0 48px 32px;max-width:1100px;flex-wrap:wrap}
+.tier{display:flex;align-items:center;gap:8px;font-size:13px;color:#6E695B}
+.tier-dot{width:10px;height:10px;border-radius:3px;flex:none}
+.tier-a .tier-dot{background:#0E6B4C}
+.tier-b .tier-dot{background:#8A8574}
+</style>
+</head>
+<body>
+<div class="banner">Desktop-first mock · Tier A + B company-signal features · Persona: Maya, senior eng</div>
+<header class="nav-bar">
+  <div class="brand">
+    <span class="brand-name">inter<b>vu</b></span>
+    <span class="beta">beta</span>
+  </div>
+  <span class="mono" style="font-size:12px;color:#6E695B">Design mockups</span>
+</header>
+
+<section class="hero">
+  <h1>Elite company signal</h1>
+  <p>Interactive HTML mockups for Tier A (SERP intel + fit panel + company page) and Tier B (hot companies, follow alerts, curated boards).</p>
+  <p class="meta">Hiring observations · ghost signal · no fake valuations</p>
+</section>
+
+<div class="tier-legend">
+  <div class="tier tier-a"><span class="tier-dot"></span><strong>Tier A</strong> — SERP filters, card intel, fit panel, company page</div>
+  <div class="tier tier-b"><span class="tier-dot"></span><strong>Tier B</strong> — Hot companies rank, follow alerts, curated boards</div>
+</div>
+
+<nav class="grid">
+  <a class="card featured" href="99-gallery.html">
+    <div class="card-num">★ Start here</div>
+    <h2>Full gallery</h2>
+    <p>Scrollable single-page view of all journeys and mockups with sticky section nav.</p>
+  </a>
+  <a class="card" href="01-journeys.html">
+    <div class="card-num">01</div>
+    <h2>Customer journeys</h2>
+    <p>Visual journey maps — A1–A4 (Tier A) and B1–B3 (Tier B) for persona Maya.</p>
+  </a>
+  <a class="card" href="02-serp-elite.html">
+    <div class="card-num">02 · Tier A</div>
+    <h2>Find jobs · Elite SERP</h2>
+    <p>Search results with Elite startups chip, company-intel footers, Am I a fit?</p>
+  </a>
+  <a class="card" href="03-fit-panel.html">
+    <div class="card-num">03 · Tier A</div>
+    <h2>Am I a fit? panel</h2>
+    <p>Right drawer with match narrative, gaps, and tailor / prep / apply CTAs.</p>
+  </a>
+  <a class="card" href="04-company-page.html">
+    <div class="card-num">04 · Tier A</div>
+    <h2>Company page</h2>
+    <p>Lightweight /company/[slug] — hiring stats, open roles, prep, follow.</p>
+  </a>
+  <a class="card" href="05-hot-companies.html">
+    <div class="card-num">05 · Tier B</div>
+    <h2>Companies hiring hard</h2>
+    <p>Ranked list by observed hiring velocity — not VC valuation.</p>
+  </a>
+  <a class="card" href="06-boards-follow.html">
+    <div class="card-num">06 · Tier B</div>
+    <h2>Boards + follow alerts</h2>
+    <p>Curated boards strip and follow-alert notification mock.</p>
+  </a>
+</nav>
+</body>
+</html>

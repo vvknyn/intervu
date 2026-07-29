@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Boards + Follow Alerts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased}
+.caption{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 56px;text-align:center}
+.caption strong{color:#6E695B}
+.nav{display:flex;align-items:center;height:64px;padding:0 56px;background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+.brand{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:500}.brand b{font-weight:700}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:calc(100vh - 97px)}
+.panel{padding:40px 48px;border-right:1px solid #E5E2D8}
+.panel:last-child{border-right:none;background:#FBFAF6}
+.panel-label{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8A8574;margin-bottom:12px}
+.panel-title{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:600;letter-spacing:-.02em;margin:0 0 10px}
+.panel-desc{font-size:14px;color:#6E695B;line-height:1.5;margin:0 0 28px;max-width:400px}
+.boards-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.board-card{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:18px 20px;min-width:140px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.board-card:hover,.board-card.active{border-color:#0E6B4C;box-shadow:0 2px 10px rgba(14,107,76,.08)}
+.board-card.active{background:#EDF6F0}
+.board-name{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:600;margin-bottom:4px}
+.board-count{font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B}
+.board-desc{font-size:12.5px;color:#8A8574;margin-top:8px;line-height:1.4}
+.landing-blurb{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:22px 24px;max-width:440px}
+.landing-blurb h3{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:600;margin:0 0 8px}
+.landing-blurb p{font-size:13.5px;color:#6E695B;line-height:1.5;margin:0 0 14px}
+.landing-blurb ul{margin:0;padding:0 0 0 18px;font-size:13px;color:#3E3B30;line-height:1.6}
+.cta-chip{display:inline-block;font-size:13px;font-weight:600;background:#0E6B4C;color:#FBFAF6;border-radius:8px;padding:10px 18px;margin-top:14px;cursor:pointer}
+/* Alert mock */
+.alert-card{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;padding:24px;max-width:420px;box-shadow:0 4px 20px rgba(28,27,22,.06)}
+.alert-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}
+.alert-icon{width:40px;height:40px;border-radius:10px;background:#EDF6F0;color:#0E6B4C;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.alert-title{font-size:15px;font-weight:600;line-height:1.35}
+.alert-sub{font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#6E695B;margin-top:4px}
+.alert-list{margin:0 0 18px;padding:0;list-style:none}
+.alert-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #EDEBE2;font-size:13.5px}
+.alert-list li:last-child{border-bottom:none}
+.alert-role{font-weight:500}
+.alert-co{font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:#8A8574;margin-top:2px}
+.alert-time{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;flex:none}
+.alert-cta{width:100%;background:#1C1B16;color:#FBFAF6;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.toast{position:absolute;top:24px;right:24px;background:#EDF6F0;border:1px solid #BFDCCB;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:500;color:#0E6B4C;box-shadow:0 4px 12px rgba(14,107,76,.12)}
+.toast-sub{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#6E695B;margin-top:2px;font-weight:400}
+.email-frame{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:8px;padding:16px;margin-top:20px;max-width:420px}
+.email-from{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;margin-bottom:8px}
+.back-link{position:fixed;bottom:20px;left:20px;font-size:12px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:8px 14px;box-shadow:0 2px 8px rgba(28,27,22,.08);text-decoration:none;color:#0E6B4C;z-index:10}
+@media(max-width:900px){.split{grid-template-columns:1fr}.panel{border-right:none;border-bottom:1px solid #E5E2D8}}
+</style>
+</head>
+<body>
+<div class="caption"><strong>Tier B · Journey B2 + B3</strong> — Curated boards strip · Follow alerts · Same SERP shell, different allowlists</div>
+
+<header class="nav"><span class="brand">inter<b>vu</b></span></header>
+
+<div class="split">
+  <section class="panel">
+    <div class="panel-label">Tier B · Journey B3</div>
+    <h2 class="panel-title">Curated boards</h2>
+    <p class="panel-desc">Board chips filter the same Find jobs SERP shell — each board applies a different company allowlist.</p>
+
+    <div class="boards-strip">
+      <div class="board-card active">
+        <div class="board-name">Elite</div>
+        <div class="board-count">847 roles</div>
+        <div class="board-desc">Quality startups with strong hiring signal</div>
+      </div>
+      <div class="board-card">
+        <div class="board-name">AI / ML</div>
+        <div class="board-count">412 roles</div>
+        <div class="board-desc">Model, infra, and applied AI teams</div>
+      </div>
+      <div class="board-card">
+        <div class="board-name">Remote-friendly</div>
+        <div class="board-count">623 roles</div>
+        <div class="board-desc">US-remote or async-first companies</div>
+      </div>
+    </div>
+
+    <div class="landing-blurb">
+      <h3>Elite startups board</h3>
+      <p>Hand-curated allowlist of startups with observed hiring velocity and low ghost-flag rates. Not ranked by valuation or press coverage.</p>
+      <ul>
+        <li>Opened / closed counts from last 90 days</li>
+        <li>Ghost radar applied to every listing</li>
+        <li>Company pages with prep shortcuts</li>
+      </ul>
+      <span class="cta-chip">Browse 847 elite roles →</span>
+    </div>
+  </section>
+
+  <section class="panel" style="position:relative">
+    <div class="panel-label">Tier B · Journey B2</div>
+    <h2 class="panel-title">Follow → alert</h2>
+    <p class="panel-desc">After following a company, Maya gets notified when new roles are observed — email and in-app.</p>
+
+    <div class="toast">
+      ✓ Alerts on for Rad AI
+      <div class="toast-sub">New roles · weekly digest · instant for senior</div>
+    </div>
+
+    <div class="alert-card" style="margin-top:48px">
+      <div class="alert-header">
+        <div class="alert-icon">🔔</div>
+        <div>
+          <div class="alert-title">3 new Elite roles at companies you follow</div>
+          <div class="alert-sub">Observed in the last 7 days · hiring signal</div>
+        </div>
+      </div>
+      <ul class="alert-list">
+        <li>
+          <div><div class="alert-role">Senior Platform Engineer</div><div class="alert-co">Rad AI · Remote</div></div>
+          <span class="alert-time">2d ago</span>
+        </li>
+        <li>
+          <div><div class="alert-role">Staff Backend Engineer</div><div class="alert-co">Vectral · Remote</div></div>
+          <span class="alert-time">4d ago</span>
+        </li>
+        <li>
+          <div><div class="alert-role">Sr ML Infrastructure Eng</div><div class="alert-co">Horizon3 · Remote</div></div>
+          <span class="alert-time">6d ago</span>
+        </li>
+      </ul>
+      <button class="alert-cta">View in Elite SERP →</button>
+    </div>
+
+    <div class="email-frame">
+      <div class="email-from">From: Intervu · Subject: 3 new roles at Rad AI</div>
+      <div style="font-size:13px;line-height:1.5;color:#3E3B30">Rad AI opened 3 senior engineering roles this week. All passed ghost check. <a href="#" style="color:#0E6B4C">Open in Intervu →</a></div>
+    </div>
+  </section>
+</div>
+
+<a class="back-link" href="00-index.html">← Hub</a>
+</body>
+</html>

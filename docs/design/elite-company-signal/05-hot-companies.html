@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Companies Hiring Hard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Spline+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F6F5F0;color:#1C1B16;font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased}
+.caption{font-family:'Spline Sans Mono',monospace;font-size:11px;color:#8A8574;background:#EDEBE2;border-bottom:1px solid #DCD8CB;padding:8px 56px;text-align:center}
+.caption strong{color:#6E695B}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 56px;background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+.brand{font-family:'Bricolage Grotesque',sans-serif;font-size:23px;font-weight:500}.brand b{font-weight:700}
+.nav-links{display:flex;gap:26px;font-size:14.5px;font-weight:500;margin-left:36px}
+.nav-links .active{color:#1C1B16;border-bottom:2px solid #1C1B16;padding:20px 0 18px}
+.nav-links span{color:#6E695B;padding:20px 0 18px}
+.nav-left{display:flex;align-items:center}
+.wrap{max-width:960px;margin:0 auto;padding:36px 24px 64px}
+.page-title{font-family:'Bricolage Grotesque',sans-serif;font-size:32px;font-weight:600;letter-spacing:-.025em;margin:0 0 8px}
+.subtitle{font-size:15px;color:#6E695B;margin:0 0 6px;line-height:1.5;max-width:620px}
+.subtitle-mono{font-family:'Spline Sans Mono',monospace;font-size:12px;color:#8A8574;margin:0 0 28px}
+.table-wrap{background:#FFFFFF;border:1px solid #E5E2D8;border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead{background:#FBFAF6;border-bottom:1px solid #E5E2D8}
+th{font-family:'Spline Sans Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8A8574;text-align:left;padding:14px 18px}
+td{padding:16px 18px;border-bottom:1px solid #EDEBE2;font-size:14px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FBFAF6;cursor:pointer}
+.rank{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;color:#8A8574;width:48px}
+.rank.top{color:#0E6B4C}
+.co-cell{display:flex;align-items:center;gap:12px}
+.co-logo{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px;flex:none}
+.co-name{font-weight:600;font-size:14.5px}
+.co-line{font-size:12.5px;color:#6E695B;margin-top:2px;max-width:280px;line-height:1.35}
+.heat{font-family:'Spline Sans Mono',monospace;font-size:13px;font-weight:500}
+.heat-hot{color:#0E6B4C}
+.open-count{font-family:'Spline Sans Mono',monospace;font-size:13px;color:#3E3B30}
+.follow-btn{font-size:12.5px;font-weight:500;background:#FFFFFF;color:#1C1B16;border:1px solid #DCD8CB;border-radius:6px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.follow-btn.on{background:#EDF6F0;color:#0E6B4C;border-color:#BFDCCB}
+.back-link{position:fixed;bottom:20px;left:20px;font-size:12px;background:#FFFFFF;border:1px solid #DCD8CB;border-radius:8px;padding:8px 14px;box-shadow:0 2px 8px rgba(28,27,22,.08);text-decoration:none;color:#0E6B4C}
+</style>
+</head>
+<body>
+<div class="caption"><strong>Tier B · Journey B1</strong> — Ranked by observed hiring velocity (openings in 90d) · NOT VC valuation or fundraising</div>
+
+<header class="nav">
+  <div class="nav-left">
+    <span class="brand">inter<b>vu</b></span>
+    <nav class="nav-links">
+      <span class="active">Find jobs</span>
+      <span>Tracker</span>
+      <span>Resume</span>
+      <span>Interview prep</span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1 class="page-title">Companies hiring hard</h1>
+  <p class="subtitle">Ranked by how many roles each company opened in the last 90 days — a signal of active hiring, not hype or valuation.</p>
+  <p class="subtitle-mono">Metric = observed job postings · updated daily · elite board subset</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Company</th>
+          <th>Hiring heat</th>
+          <th>Open roles</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="rank top">1</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#E8F0EC;color:#0E6B4C">R</div>
+              <div><div class="co-name">Rad AI</div><div class="co-line">AI radiology workflow · FDA-cleared models</div></div>
+            </div>
+          </td>
+          <td class="heat heat-hot">22 opened / 90d</td>
+          <td class="open-count">31</td>
+          <td><button class="follow-btn on">Following</button></td>
+        </tr>
+        <tr>
+          <td class="rank top">2</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#E5EDF5;color:#2A4A6B">H</div>
+              <div><div class="co-name">Horizon3</div><div class="co-line">Autonomous pentesting for enterprise security</div></div>
+            </div>
+          </td>
+          <td class="heat heat-hot">18 opened / 90d</td>
+          <td class="open-count">24</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+        <tr>
+          <td class="rank top">3</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#EDEAE2;color:#3E3B30">C</div>
+              <div><div class="co-name">Console</div><div class="co-line">Developer infrastructure for AI-native teams</div></div>
+            </div>
+          </td>
+          <td class="heat heat-hot">18 opened / 90d</td>
+          <td class="open-count">12</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+        <tr>
+          <td class="rank">4</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#F0E8F0;color:#5A3A5A">L</div>
+              <div><div class="co-name">Lattice Flow</div><div class="co-line">ML observability for production models</div></div>
+            </div>
+          </td>
+          <td class="heat">14 opened / 90d</td>
+          <td class="open-count">19</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+        <tr>
+          <td class="rank">5</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#E8EDE8;color:#2A4A2A">N</div>
+              <div><div class="co-name">Northstar DB</div><div class="co-line">Distributed SQL for edge deployments</div></div>
+            </div>
+          </td>
+          <td class="heat">12 opened / 90d</td>
+          <td class="open-count">15</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+        <tr>
+          <td class="rank">6</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#EDE8E0;color:#4A3A2A">V</div>
+              <div><div class="co-name">Vectral</div><div class="co-line">Vector search infra for RAG pipelines</div></div>
+            </div>
+          </td>
+          <td class="heat">11 opened / 90d</td>
+          <td class="open-count">11</td>
+          <td><button class="follow-btn on">Following</button></td>
+        </tr>
+        <tr>
+          <td class="rank">7</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#E0E8ED;color:#2A3A4A">P</div>
+              <div><div class="co-name">Parcel Labs</div><div class="co-line">Last-mile logistics optimization API</div></div>
+            </div>
+          </td>
+          <td class="heat">10 opened / 90d</td>
+          <td class="open-count">9</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+        <tr>
+          <td class="rank">8</td>
+          <td>
+            <div class="co-cell">
+              <div class="co-logo" style="background:#EDE0E0;color:#4A2A2A">S</div>
+              <div><div class="co-name">Synapse Health</div><div class="co-line">Care coordination platform for clinics</div></div>
+            </div>
+          </td>
+          <td class="heat">9 opened / 90d</td>
+          <td class="open-count">14</td>
+          <td><button class="follow-btn">Follow</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<a class="back-link" href="00-index.html">← Hub</a>
+</body>
+</html>
