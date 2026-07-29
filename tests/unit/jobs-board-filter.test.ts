@@ -17,4 +17,13 @@ describe("buildFilter board", () => {
     const f = buildFilter({ companyDomain: "stripe.com", hideGhosts: true });
     assert.ok(f.includes('company_domain = "stripe.com"'));
   });
+  it("skipDomainFilters omits board and companyDomain clauses", () => {
+    const f = buildFilter(
+      { board: "elite", companyDomain: "stripe.com", hideGhosts: true },
+      false,
+      { skipDomainFilters: true },
+    );
+    assert.ok(!f.some((c) => c.includes("company_domain")));
+    assert.ok(f.includes('ghost_badge != "likely_ghost"'));
+  });
 });
