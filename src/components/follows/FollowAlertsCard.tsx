@@ -17,8 +17,6 @@ import type { PublicJob } from "@/lib/jobs/types";
 import type { BoardId } from "@/lib/boards/types";
 import { cn } from "@/lib/utils";
 
-const MAX_ROWS = 5;
-
 type AlertRow = {
   job: PublicJob;
   domain: string;
@@ -42,9 +40,7 @@ function flattenAlertRows(groups: FollowAlertGroup[], follows: FollowedCompany[]
     }
   }
 
-  return rows
-    .sort((a, b) => (jobPostedMs(b.job) ?? 0) - (jobPostedMs(a.job) ?? 0))
-    .slice(0, MAX_ROWS);
+  return rows.sort((a, b) => (jobPostedMs(b.job) ?? 0) - (jobPostedMs(a.job) ?? 0));
 }
 
 function jobAgeLabel(job: PublicJob, nowMs: number): string {
@@ -70,26 +66,32 @@ export function FollowAlertsCard({
   const [groups, setGroups] = useState<FollowAlertGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    if (follows.length === 0) {
-      setGroups([]);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
 
-    setLoading(true);
-    const sinceIso = readFollowAlertCursor();
-    const res = await listFollowAlertsAction(sinceIso, follows);
-    setGroups(res.data ?? []);
-    setLoading(false);
+    void (async () => {
+      if (follows.length === 0) {
+        if (!cancelled) {
+          setGroups([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      const sinceIso = readFollowAlertCursor();
+      const res = await listFollowAlertsAction(sinceIso, follows);
+      if (cancelled) return;
+      setGroups(res.data ?? []);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [follows]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const rows = useMemo(() => flattenAlertRows(groups, follows), [groups, follows]);
-  const totalNew = useMemo(() => groups.reduce((n, g) => n + g.jobs.length, 0), [groups]);
 
   const acknowledge = useCallback(() => {
     writeFollowAlertCursor(new Date().toISOString());
@@ -103,7 +105,8 @@ export function FollowAlertsCard({
 
   if (loading || rows.length === 0) return null;
 
-  const companyCount = new Set(rows.map((r) => r.domain)).size;
+  const totalNew = rows.length;
+  const companyCount = groups.length;
   const title =
     totalNew === 1
       ? `1 new role at ${rows[0]?.displayName ?? "a company you follow"}`
