@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   aggregateHotCompaniesFromJobs,
+  ELITE_JOBS_MAX_HITS,
+  ELITE_JOBS_PAGE_SIZE,
+  fetchEliteBoardJobHits,
+  getHotCompaniesList,
   rankHotCompanies,
   type HotCompanyRow,
 } from "@/lib/companies/hot-list";
-import type { PublicJob } from "@/lib/jobs/types";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
+import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 
 const row = (overrides: Partial<HotCompanyRow>): HotCompanyRow => ({
   domain: "example.com",
@@ -91,5 +96,73 @@ describe("aggregateHotCompaniesFromJobs", () => {
     const rows = aggregateHotCompaniesFromJobs(jobs);
     assert.equal(rows[0]?.openCount, 2);
     assert.equal(rows[0]?.opened90d, null);
+  });
+});
+
+function searchResult(hits: PublicJob[], overrides: Partial<JobSearchResult> = {}): JobSearchResult {
+  return {
+    hits,
+    total: hits.length,
+    backend: "meilisearch",
+    configured: true,
+    ...overrides,
+  };
+}
+
+function job(id: string, domain: string): PublicJob {
+  return { id, company_domain: domain, company: domain.split(".")[0] } as PublicJob;
+}
+
+describe("fetchEliteBoardJobHits", () => {
+  it("paginates until a short page", async () => {
+    const pageSize = ELITE_JOBS_PAGE_SIZE;
+    const pages = [
+      Array.from({ length: pageSize }, (_, i) => job(`p0-${i}`, "a.com")),
+      [job("p1-0", "b.com")],
+    ];
+    let call = 0;
+
+    const fetched = await fetchEliteBoardJobHits(async (p: JobSearchParams) => {
+      assert.equal(p.board, "elite");
+      assert.equal(p.offset, call === 0 ? 0 : pageSize);
+      return searchResult(pages[call++] ?? []);
+    });
+
+    assert.equal("unavailable" in fetched, false);
+    if ("unavailable" in fetched) return;
+    assert.equal(fetched.hits.length, pageSize + 1);
+  });
+
+  it("returns unavailable when search fails", async () => {
+    const fetched = await fetchEliteBoardJobHits(async () =>
+      searchResult([], { unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE }),
+    );
+
+    assert.equal("unavailable" in fetched, true);
+    if (!("unavailable" in fetched)) return;
+    assert.equal(fetched.message, SEARCH_UNAVAILABLE_MESSAGE);
+  });
+
+  it("stops at ELITE_JOBS_MAX_HITS", async () => {
+    let offset = 0;
+    const fetched = await fetchEliteBoardJobHits(async (p: JobSearchParams) => {
+      offset = p.offset ?? 0;
+      const limit = p.limit ?? ELITE_JOBS_PAGE_SIZE;
+      return searchResult(Array.from({ length: limit }, (_, i) => job(`${offset}-${i}`, "a.com")));
+    });
+
+    assert.equal("unavailable" in fetched, false);
+    if ("unavailable" in fetched) return;
+    assert.equal(fetched.hits.length, ELITE_JOBS_MAX_HITS);
+    assert.equal(offset, ELITE_JOBS_MAX_HITS - ELITE_JOBS_PAGE_SIZE);
+  });
+});
+
+describe("getHotCompaniesList", () => {
+  it("surfaces unavailable instead of an empty ok result", async () => {
+    const result = await getHotCompaniesList(async () =>
+      searchResult([], { unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE }),
+    );
+    assert.deepEqual(result, { status: "unavailable", message: SEARCH_UNAVAILABLE_MESSAGE });
   });
 });

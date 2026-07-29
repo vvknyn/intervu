@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { getHotCompaniesList, type HotCompanyRow } from "@/lib/companies/hot-list";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ function heatLabel(row: HotCompanyRow): string {
 }
 
 export default async function HotCompaniesPage() {
-  const companies = await getHotCompaniesList();
+  const result = await getHotCompaniesList();
 
   return (
     <>
@@ -42,7 +43,11 @@ export default async function HotCompaniesPage() {
           </p>
         </header>
 
-        {companies.length === 0 ? (
+        {result.status === "unavailable" ? (
+          <p className="text-sm text-muted-foreground" data-testid="hot-companies-unavailable">
+            {result.message || SEARCH_UNAVAILABLE_MESSAGE}
+          </p>
+        ) : result.companies.length === 0 ? (
           <p className="text-sm text-muted-foreground">No elite companies indexed right now.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -65,7 +70,7 @@ export default async function HotCompaniesPage() {
                 </tr>
               </thead>
               <tbody>
-                {companies.map((company, index) => (
+                {result.companies.map((company, index) => (
                   <HotCompanyTableRow key={company.domain} company={company} rank={index + 1} />
                 ))}
               </tbody>

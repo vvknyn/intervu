@@ -1,6 +1,15 @@
 import { domainToSlug } from "@/lib/boards/slug";
 import { searchJobs } from "@/lib/jobs/search";
-import type { PublicJob } from "@/lib/jobs/types";
+import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
+import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
+
+/** Elite board has ~443 domains; paginate in 500-hit pages up to this cap. */
+export const ELITE_JOBS_PAGE_SIZE = 500;
+export const ELITE_JOBS_MAX_HITS = 5000;
+
+export type HotCompaniesListResult =
+  | { status: "ok"; companies: HotCompanyRow[] }
+  | { status: "unavailable"; message: string };
 
 export type HotCompanyRow = {
   domain: string;
@@ -49,17 +58,46 @@ export function aggregateHotCompaniesFromJobs(jobs: PublicJob[]): HotCompanyRow[
   return rows;
 }
 
-export async function getHotCompaniesList(): Promise<HotCompanyRow[]> {
-  const result = await searchJobs({
-    board: "elite",
-    limit: 1000,
-    hideGhosts: false,
-  });
-  const rows = aggregateHotCompaniesFromJobs(result.hits);
+type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
+
+export async function fetchEliteBoardJobHits(
+  search: SearchFn = searchJobs,
+): Promise<{ hits: PublicJob[] } | { unavailable: true; message: string }> {
+  const hits: PublicJob[] = [];
+  let offset = 0;
+
+  while (hits.length < ELITE_JOBS_MAX_HITS) {
+    const limit = Math.min(ELITE_JOBS_PAGE_SIZE, ELITE_JOBS_MAX_HITS - hits.length);
+    const result = await search({ board: "elite", limit, offset, hideGhosts: false });
+
+    if (isUnavailableJobsResult(result)) {
+      return { unavailable: true, message: result.note ?? SEARCH_UNAVAILABLE_MESSAGE };
+    }
+
+    hits.push(...result.hits);
+    if (result.hits.length < limit) break;
+    offset += result.hits.length;
+  }
+
+  return { hits };
+}
+
+function orderHotCompanyRows(rows: HotCompanyRow[]): HotCompanyRow[] {
   const ranked = rankHotCompanies(rows);
   const rankedDomains = new Set(ranked.map((r) => r.domain));
   const rest = rows
     .filter((r) => !rankedDomains.has(r.domain))
     .sort((a, b) => b.openCount - a.openCount);
   return [...ranked, ...rest];
+}
+
+export async function getHotCompaniesList(
+  search: SearchFn = searchJobs,
+): Promise<HotCompaniesListResult> {
+  const fetched = await fetchEliteBoardJobHits(search);
+  if ("unavailable" in fetched) {
+    return { status: "unavailable", message: fetched.message };
+  }
+
+  return { status: "ok", companies: orderHotCompanyRows(aggregateHotCompaniesFromJobs(fetched.hits)) };
 }
