@@ -100,6 +100,7 @@ import {
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
+import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
@@ -1898,6 +1899,10 @@ function JobsContent() {
         p.set("searched", "true");
         router.push(`/prep?${p.toString()}`);
     };
+    const handleCompany = (job: PublicJob) => {
+        if (!job.company_domain) return;
+        router.push(`/co/${domainToSlug(job.company_domain)}`);
+    };
     const handleOpenPosting = (job: PublicJob) => {
         if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
@@ -2968,6 +2973,7 @@ function JobsContent() {
                                                     opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
                                                     onFit={setFitJob}
+                                                    onCompany={handleCompany}
                                                     now={nowMs}
                                                 />
                                             );
