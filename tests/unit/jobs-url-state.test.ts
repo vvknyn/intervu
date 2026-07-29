@@ -129,3 +129,14 @@ test("shouldResetSortOnQueryChange: emptying the query only resets a 'relevance'
     assert.equal(shouldResetSortOnQueryChange("engineer", "", "salary_desc"), false);
     assert.equal(shouldResetSortOnQueryChange("engineer", "", "newest"), false);
 });
+
+test("board=elite round-trips through serialize + parse", () => {
+    const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, board: "elite" });
+    const params = new URLSearchParams(url.startsWith("?") ? url.slice(1) : url);
+    assert.equal(params.get("board"), "elite");
+    assert.equal(parseJobsUrl(params).board, "elite");
+});
+
+test("unknown board param is dropped", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("board=nope")).board, null);
+});

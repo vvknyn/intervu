@@ -1,4 +1,5 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
+import type { BoardId } from "@/lib/boards/types";
 import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
 
 /**
@@ -43,7 +44,8 @@ export function buildJobSearchPayload(
     query: string,
     sort: JobSortMode | null | undefined,
     postedDateSupported: boolean,
-): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort"> {
+    board: BoardId | null | undefined,
+): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort" | "board"> {
     return {
         q: query.trim() || undefined,
         facets: state.facets,
@@ -52,5 +54,6 @@ export function buildJobSearchPayload(
         postedBucket: postedDateSupported ? state.postedBucket : undefined,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
+        board: board ?? undefined,
     };
 }

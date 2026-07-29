@@ -97,6 +97,7 @@ import {
 } from "@/lib/jobs/url-state";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
+import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
@@ -783,6 +784,7 @@ function JobsContent() {
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
+    const [board, setBoard] = useState<BoardId | null>(initialUrlState.board);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
@@ -829,6 +831,7 @@ function JobsContent() {
         visaOnly,
         postedBucket,
         hideGhosts,
+        board,
         // `fitActive` wins the default so `sort=fit` survives unrelated
         // mutations (a facet toggle, a job open) that rebuild the URL via
         // `buildUrlState({...})` without an explicit `sort` override.
@@ -1049,13 +1052,14 @@ function JobsContent() {
                 visaOnly,
                 postedBucket,
                 hideGhosts,
+                board,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported],
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
     );
 
     // Single source: résumé usable AND, for the auto-explore path below,
@@ -1162,7 +1166,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
+                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -1313,6 +1317,7 @@ function JobsContent() {
                             query,
                             backendSort,
                             postedDateSupported,
+                            board,
                         ),
                         withFacets: true,
                         limit: 1,
@@ -1487,6 +1492,7 @@ function JobsContent() {
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
             setHideGhosts(parsed.hideGhosts);
+            setBoard(parsed.board);
             setSortOverride(resolveUrlSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -1682,7 +1688,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1715,7 +1721,7 @@ function JobsContent() {
         // be — so this callback must regenerate when it changes, same as
         // every other field `buildJobSearchPayload` reads from this render.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, sortOverride, postedDateSupported]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
