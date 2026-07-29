@@ -175,12 +175,66 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
   "30d": 30 * 86_400_000,
 };
 
+export interface BuildFilterOpts {
+  skipDomainFilters?: boolean;
+}
+
+/** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
+let companyDomainFilterUnsupported = false;
+
+export function resetCompanyDomainFilterSupportForTests(): void {
+  companyDomainFilterUnsupported = false;
+}
+
+function needsDomainFilters(p: JobSearchParams): boolean {
+  return Boolean(p.board || p.companyDomain);
+}
+
+/** Domain label with TLD stripped — weak retrieval bias for company browse. */
+export function domainRetrievalBias(companyDomain: string): string {
+  const d = companyDomain.trim().toLowerCase();
+  const dot = d.indexOf(".");
+  return dot > 0 ? d.slice(0, dot) : d;
+}
+
+/** Query for the domain post-filter scan path. */
+export function postFilterSearchQ(p: JobSearchParams): string {
+  const q = p.q ?? "";
+  if (!q.trim() && p.companyDomain && !p.board) {
+    return domainRetrievalBias(p.companyDomain);
+  }
+  return q;
+}
+
+/** Board / companyDomain predicates — mirrors snapshot-preview passBase. */
+export function jobMatchesDomainFilters(
+  j: PublicJob,
+  p: Pick<JobSearchParams, "board" | "companyDomain">,
+): boolean {
+  if (p.board) {
+    const domains = getBoardDomains(p.board);
+    if (domains.length > 0 && !domains.includes((j.company_domain ?? "").toLowerCase())) return false;
+  }
+  if (p.companyDomain) {
+    if ((j.company_domain ?? "").toLowerCase() !== p.companyDomain.trim().toLowerCase()) return false;
+  }
+  return true;
+}
+
+export function filterHitsByDomainFilters(
+  hits: PublicJob[],
+  p: Pick<JobSearchParams, "board" | "companyDomain">,
+): PublicJob[] {
+  if (!needsDomainFilters(p)) return hits;
+  return hits.filter((j) => jobMatchesDomainFilters(j, p));
+}
+
 /**
  * `legacy=true` drops anything that depends on `posted_ts` — the TRANSITIONAL
  * fallback used when the live index doesn't have the field yet (see
  * `searchMeili`'s 400-retry). Remove the `legacy` param once the reindex lands.
  */
-export function buildFilter(p: JobSearchParams, legacy = false): string[] {
+export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilterOpts): string[] {
   const f: string[] = ['vacancy_status != "closed"'];
   // Task 11 — existence check: requires "id" in `filterableAttributes`
   // (JOBS_INDEX_SETTINGS above). Live on the index since 2026-07-25, so this
@@ -220,14 +274,16 @@ export function buildFilter(p: JobSearchParams, legacy = false): string[] {
     }
     // Docs with a null posted_ts (not yet backfilled) simply won't match — acceptable.
   }
-  if (p.board) {
-    const domains = getBoardDomains(p.board);
-    if (domains.length > 0) {
-      f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
+  if (!opts?.skipDomainFilters) {
+    if (p.board) {
+      const domains = getBoardDomains(p.board);
+      if (domains.length > 0) {
+        f.push(`company_domain IN [${domains.map((d) => JSON.stringify(d)).join(", ")}]`);
+      }
     }
-  }
-  if (p.companyDomain) {
-    f.push(`company_domain = ${JSON.stringify(p.companyDomain.trim().toLowerCase())}`);
+    if (p.companyDomain) {
+      f.push(`company_domain = ${JSON.stringify(p.companyDomain.trim().toLowerCase())}`);
+    }
   }
   return f;
 }
@@ -262,6 +318,7 @@ export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
   matchingStrategy: MatchingStrategy = "all",
+  opts?: BuildFilterOpts,
 ): MeiliSearchBody {
   return {
     q: p.q ?? "",
@@ -273,12 +330,87 @@ export function buildSearchBody(
     // Requiring every word is the honest default; `searchMeili` relaxes to
     // "last" only after strict matching has genuinely found nothing.
     matchingStrategy,
-    filter: buildFilter(p, legacy),
+    filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...FACETABLE_KEYS] : undefined,
     // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
     sort: buildMeiliSort(p, legacy),
+  };
+}
+
+const POST_FILTER_PAGE_SIZE = 500;
+const POST_FILTER_SCAN_CAP = 10_000;
+const DOMAIN_POSTFILTER_NOTE =
+  "Company domain filter applied locally — index filterableAttributes update pending";
+
+/** TRANSITIONAL: scan Meili without domain filters and match in-app. */
+async function searchWithDomainPostFilter(
+  h: string,
+  p: JobSearchParams,
+  matchingStrategy: MatchingStrategy,
+): Promise<JobSearchResult> {
+  const offset = p.offset ?? 0;
+  const limit = p.limit ?? 40;
+  const needed = offset + limit;
+  const matched: PublicJob[] = [];
+  let scanned = 0;
+  let facetDistribution: FacetDistribution | undefined;
+  let legacy = false;
+  let exhausted = false;
+  const scanParams = { ...p, q: postFilterSearchQ(p) };
+
+  for (let page = 1; ; page++) {
+    const body = {
+      ...buildSearchBody(scanParams, legacy, matchingStrategy, { skipDomainFilters: true }),
+      hitsPerPage: POST_FILTER_PAGE_SIZE,
+      page,
+    };
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
+        legacy = true;
+        page--;
+        continue;
+      }
+      throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+    }
+    const parsed = (await res.json()) as {
+      hits: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    const hits = parsed.hits ?? [];
+    scanned += hits.length;
+    matched.push(...filterHitsByDomainFilters(hits, p));
+    if (parsed.facetDistribution) facetDistribution = parsed.facetDistribution as FacetDistribution;
+
+    if (hits.length < POST_FILTER_PAGE_SIZE) exhausted = true;
+    if (matched.length >= needed || hits.length < POST_FILTER_PAGE_SIZE || scanned >= POST_FILTER_SCAN_CAP) break;
+  }
+
+  const note =
+    exhausted || scanned < POST_FILTER_SCAN_CAP
+      ? DOMAIN_POSTFILTER_NOTE
+      : `${DOMAIN_POSTFILTER_NOTE} (count is a lower bound — scan capped at ${POST_FILTER_SCAN_CAP} docs)`;
+
+  return {
+    hits: matched.slice(offset, offset + limit),
+    total: matched.length,
+    backend: "meilisearch",
+    configured: true,
+    facetDistribution,
+    note,
   };
 }
 
@@ -310,6 +442,18 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
+  const needsDomain = needsDomainFilters(p);
+
+  const runDomainPostFilter = (matchingStrategy: MatchingStrategy = "all") =>
+    searchWithDomainPostFilter(h, p, matchingStrategy);
+
+  if (companyDomainFilterUnsupported && needsDomain) {
+    const strict = await runDomainPostFilter();
+    if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+    const relaxed = await runDomainPostFilter("last");
+    return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+  }
+
   const runPass = async (
     matchingStrategy: MatchingStrategy = "all",
   ): Promise<JobSearchResult> => {
@@ -331,6 +475,10 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       if (/posted_ts/i.test(text)) {
         console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
         res = await post(true);
+      } else if (/company_domain/i.test(text) && needsDomain) {
+        companyDomainFilterUnsupported = true;
+        console.warn("company_domain not yet filterable — falling back to local post-filter");
+        return runDomainPostFilter(matchingStrategy);
       } else {
         throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
       }
