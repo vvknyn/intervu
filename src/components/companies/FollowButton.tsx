@@ -31,6 +31,11 @@ export function FollowButton({
   const following = optimistic ?? byDomain.has(normalizedDomain);
 
   useEffect(() => {
+    setOptimistic(null);
+    setBusy(false);
+  }, [normalizedDomain]);
+
+  useEffect(() => {
     if (optimistic !== null && optimistic === byDomain.has(normalizedDomain)) {
       setOptimistic(null);
     }

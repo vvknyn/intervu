@@ -97,6 +97,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             )}
           </div>
           <FollowButton
+            key={data.domain}
             domain={data.domain}
             slug={data.slug}
             displayName={data.name}
