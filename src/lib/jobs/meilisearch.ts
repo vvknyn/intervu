@@ -399,10 +399,13 @@ async function searchWithDomainPostFilter(
     if (matched.length >= needed || hits.length < POST_FILTER_PAGE_SIZE || scanned >= POST_FILTER_SCAN_CAP) break;
   }
 
-  const note =
-    exhausted || scanned < POST_FILTER_SCAN_CAP
-      ? DOMAIN_POSTFILTER_NOTE
-      : `${DOMAIN_POSTFILTER_NOTE} (count is a lower bound — scan capped at ${POST_FILTER_SCAN_CAP} docs)`;
+  // total is matches found in the scan window only. Early stop (enough for
+  // this page) or the 10k cap both mean more matches may exist — never claim
+  // Meili's unfiltered totalHits.
+  const lowerBound = !exhausted || scanned >= POST_FILTER_SCAN_CAP;
+  const note = lowerBound
+    ? `${DOMAIN_POSTFILTER_NOTE} (count is a lower bound)`
+    : DOMAIN_POSTFILTER_NOTE;
 
   return {
     hits: matched.slice(offset, offset + limit),
