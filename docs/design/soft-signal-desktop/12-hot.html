@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Companies hiring hard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .hot-table { width: 100%; border-collapse: collapse; }
+  .hot-table th {
+    text-align: left; padding: 10px 16px;
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+    border-bottom: 1px solid var(--line); background: #FAFBFC;
+  }
+  .hot-table th:last-child, .hot-table td:last-child { text-align: right; }
+  .hot-table td {
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  .hot-table tr:last-child td { border-bottom: none; }
+  .hot-table tbody tr { cursor: pointer; }
+  .hot-table tbody tr:hover td { background: #FAFBFC; }
+  .rank {
+    font-family: var(--mono); font-size: 13px; font-weight: 650; color: var(--faint);
+    width: 32px;
+  }
+  .rank.top { color: var(--brand); }
+  .co-cell { display: flex; align-items: center; gap: 12px; }
+  .co-cell .logo { width: 40px; height: 40px; border-radius: 10px; font-size: 16px; }
+  .co-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .co-line { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .vel { font-family: var(--mono); font-size: 13px; font-weight: 650; color: var(--brand); }
+  .open-count { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · hiring velocity · Elite board</div>
+  <div><a href="00-index.html">Hub</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand-block">
+      <div class="wordmark">Soft Signal</div>
+      <span class="beta">Beta</span>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="02-find-serp.html" aria-current="page">Find jobs</a>
+      <a href="06-tracker.html">Tracker</a>
+      <a href="08-resume.html">Resume</a>
+      <a href="09-prep-landing.html">Interview prep</a>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <span class="avatar" title="Maya K.">M</span>
+    </div>
+  </div>
+</header>
+
+<main class="shell page page-narrow">
+  <h1>Companies hiring hard</h1>
+  <p class="lede">Ranked by open velocity — roles opened in the last 90 days, not hype. Elite board · updated daily.</p>
+
+  <div class="panel" style="padding:0;overflow:hidden;">
+    <table class="hot-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Company</th>
+          <th>90d velocity</th>
+          <th>Open now</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr onclick="location.href='11-company.html'">
+          <td><span class="rank top">1</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#E8F0EC;color:#0D6E56">S</span>
+              <div>
+                <div class="co-name">Stripe</div>
+                <div class="co-line">Payments infra · Series I · SF + remote</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">34 / 90d</span></td>
+          <td><span class="vel">89</span><div class="open-count">open</div></td>
+        </tr>
+        <tr>
+          <td><span class="rank top">2</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#E6F4EF;color:#0D6E56">R</span>
+              <div>
+                <div class="co-name">Ramp</div>
+                <div class="co-line">Corporate spend · Series D · NYC</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">28 / 90d</span></td>
+          <td><span class="vel">52</span><div class="open-count">open</div></td>
+        </tr>
+        <tr onclick="location.href='11-company.html'">
+          <td><span class="rank top">3</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#E5EDF5;color:#2A4A6B">B</span>
+              <div>
+                <div class="co-name">Buildkite</div>
+                <div class="co-line">CI/CD platform · bootstrapped · remote</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">22 / 90d</span></td>
+          <td><span class="vel">31</span><div class="open-count">open</div></td>
+        </tr>
+        <tr>
+          <td><span class="rank">4</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#EDEAE2;color:#3E3B30">N</span>
+              <div>
+                <div class="co-name">Notion</div>
+                <div class="co-line">Workspace · Series C · SF hybrid</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">19 / 90d</span></td>
+          <td><span class="vel">44</span><div class="open-count">open</div></td>
+        </tr>
+        <tr>
+          <td><span class="rank">5</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#F0E8F0;color:#5A3A5A">F</span>
+              <div>
+                <div class="co-name">Figma</div>
+                <div class="co-line">Design tools · Adobe pending · SF</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">17 / 90d</span></td>
+          <td><span class="vel">38</span><div class="open-count">open</div></td>
+        </tr>
+        <tr>
+          <td><span class="rank">6</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#E8EDE8;color:#2A4A2A">V</span>
+              <div>
+                <div class="co-name">Vercel</div>
+                <div class="co-line">Frontend cloud · Series D · remote</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">15 / 90d</span></td>
+          <td><span class="vel">27</span><div class="open-count">open</div></td>
+        </tr>
+        <tr>
+          <td><span class="rank">7</span></td>
+          <td>
+            <div class="co-cell">
+              <span class="logo" style="background:#EDE8E0;color:#4A3A2A">L</span>
+              <div>
+                <div class="co-name">Linear</div>
+                <div class="co-line">Issue tracking · Series B · remote</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="vel">14 / 90d</span></td>
+          <td><span class="vel">19</span><div class="open-count">open</div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+</body>
+</html>

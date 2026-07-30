@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0F1216;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  .page-head {
+    padding: 12px var(--gutter) 8px;
+  }
+  .page-head h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  .resume-card {
+    margin: 0 var(--gutter) 8px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+  .resume-card.base {
+    border-color: var(--brand);
+    background: linear-gradient(180deg, #fff 0%, var(--brand-soft) 220%);
+  }
+  .resume-card .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--brand);
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-bottom: 8px;
+  }
+  .resume-card h3 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+  .resume-card .meta {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .resume-card .snippet {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #EEF1F4;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .import-cta {
+    margin: 8px var(--gutter) 16px;
+    padding: 14px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-md);
+    text-align: center;
+  }
+  .import-cta p {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .import-cta button {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: var(--r-sm);
+    background: var(--ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .section-label {
+    margin: 16px var(--gutter) 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="Resume library">
+  <div class="status">
+    <span>9:41</span>
+    <span class="right">●●● ▮▮▮</span>
+  </div>
+  <header class="topbar">
+    <div><span class="wordmark">Intervu</span><span class="beta">Beta</span></div>
+    <div class="avatar">V</div>
+  </header>
+  <main class="scroll">
+    <div class="page-head">
+      <h1>Resume</h1>
+    </div>
+    <article class="resume-card base">
+      <span class="tag">Base</span>
+      <h3>Vivek Kumar — Platform Engineer</h3>
+      <div class="meta">Updated 3 days ago · PDF + DOCX</div>
+      <p class="snippet">Senior platform engineer with 8+ years building CI/CD pipelines, Kubernetes platforms, and developer tooling at scale. Led infra modernization…</p>
+    </article>
+    <div class="section-label">Tailored versions</div>
+    <article class="resume-card">
+      <h3>Buildkite · Senior Platform Engineer</h3>
+      <div class="meta">Tailored yesterday · 91% fit alignment</div>
+      <p class="snippet">Emphasized build pipeline ownership, agent scaling, and observability. Reframed SRE bullets toward developer experience…</p>
+    </article>
+    <article class="resume-card">
+      <h3>Vercel · Senior Backend Engineer</h3>
+      <div class="meta">Tailored 4 days ago · Interview stage</div>
+      <p class="snippet">Highlighted edge runtime experience, serverless architecture, and performance optimization. Added Next.js deployment metrics…</p>
+    </article>
+    <div class="import-cta">
+      <p>Import from LinkedIn, PDF, or paste text</p>
+      <button type="button">Import résumé</button>
+    </div>
+  </main>
+  <nav class="tabbar">
+    <a class="tab" href="02-find-serp.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+      Find
+    </a>
+    <a class="tab" href="07-tracker.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="14" rx="1"/></svg>
+      Tracker
+    </a>
+    <a class="tab" href="09-resume.html" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Resume
+    </a>
+    <a class="tab" href="10-prep-landing.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Prep
+    </a>
+  </nav>
+</div>
+</body>
+</html>

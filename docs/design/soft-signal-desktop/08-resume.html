@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .resume-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 20px;
+    align-items: start;
+  }
+  .page-head { margin-bottom: 24px; }
+  .page-head h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .page-head p { margin: 0; color: var(--muted); font-size: 15px; }
+  .resume-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .resume-card {
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 1px 2px rgba(18,21,26,.03);
+    text-align: left;
+    width: 100%;
+    color: inherit;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .resume-card:hover { border-color: #C5CCD4; box-shadow: var(--shadow); }
+  .resume-card.base {
+    border-color: var(--brand);
+    background: linear-gradient(180deg, #fff 0%, var(--brand-soft) 220%);
+  }
+  .resume-card .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--brand);
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-bottom: 10px;
+  }
+  .resume-card h3 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.015em; }
+  .resume-card .meta { margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .resume-card .snippet {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #EEF1F4;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .section-label {
+    margin: 24px 0 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .tailored-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .import-cta {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+    text-align: center;
+    background: var(--surface);
+  }
+  .import-cta p { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+  .preview-panel h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 750;
+  }
+  .preview-panel .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+    margin-bottom: 16px;
+  }
+  .preview-doc {
+    padding: 16px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #2A3139;
+  }
+  .preview-doc .name { font-size: 14px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+  .preview-doc .role { font-size: 12px; color: var(--brand); font-weight: 650; margin-bottom: 12px; }
+  .preview-doc h4 {
+    margin: 12px 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--faint);
+  }
+  .preview-doc p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 08-resume · gutter 32</div>
+  <div><a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html">Tracker</a>
+        <a href="08-resume.html" aria-current="page">Resume</a>
+        <a href="09-prep-landing.html">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell">
+    <div class="resume-layout">
+      <div>
+        <div class="page-head">
+          <h1>Resume</h1>
+          <p>Base résumé and tailored versions for each pursuit.</p>
+        </div>
+
+        <div class="resume-grid">
+          <article class="resume-card base">
+            <span class="tag">Base</span>
+            <h3>Vivek Kumar — Platform Engineer</h3>
+            <div class="meta">Updated 3 days ago · PDF + DOCX</div>
+            <p class="snippet">Senior platform engineer with 8+ years building CI/CD pipelines, Kubernetes platforms, and developer tooling at scale. Led infra modernization…</p>
+          </article>
+        </div>
+
+        <div class="section-label">Tailored versions</div>
+        <div class="tailored-grid">
+          <article class="resume-card">
+            <h3>Buildkite · Senior Platform Engineer</h3>
+            <div class="meta">Tailored yesterday · 91% fit alignment</div>
+            <p class="snippet">Emphasized build pipeline ownership, agent scaling, and observability. Reframed SRE bullets toward developer experience…</p>
+          </article>
+          <article class="resume-card">
+            <h3>Vercel · Senior Backend Engineer</h3>
+            <div class="meta">Tailored 4 days ago · Interview stage</div>
+            <p class="snippet">Highlighted edge runtime experience, serverless architecture, and performance optimization. Added Next.js deployment metrics…</p>
+          </article>
+        </div>
+
+        <div class="import-cta">
+          <p>Import from LinkedIn, PDF, or paste text</p>
+          <button type="button" class="btn-primary" style="height:40px;padding:0 20px">Import résumé</button>
+        </div>
+      </div>
+
+      <aside class="panel preview-panel">
+        <h3>Preview</h3>
+        <div class="sub">Base résumé · selected</div>
+        <div class="preview-doc">
+          <div class="name">Vivek Kumar</div>
+          <div class="role">Platform Engineer · San Francisco, CA</div>
+          <h4>Summary</h4>
+          <p>Senior platform engineer with 8+ years building CI/CD pipelines, Kubernetes platforms, and developer tooling at scale.</p>
+          <h4>Experience</h4>
+          <p><strong>Staff Platform Engineer</strong> · Acme Corp · 2021–present<br>Led CI/CD modernization serving 200+ engineers. Cut build times 40% via pipeline parallelization.</p>
+          <p><strong>Senior SRE</strong> · Previous Co · 2018–2021<br>Owned Kubernetes platform for multi-region workloads. Built internal developer portal.</p>
+          <h4>Skills</h4>
+          <p>Kubernetes · Go · Terraform · CI/CD · Observability · AWS</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

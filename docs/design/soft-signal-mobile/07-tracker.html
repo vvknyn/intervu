@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0F1216;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  .page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px var(--gutter) 8px;
+  }
+  .page-head h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  .btn-add {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .stage-count {
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--faint);
+  }
+  .pursuit .next {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #EEF1F4;
+    font-size: 11.5px;
+    color: var(--brand);
+    font-weight: 600;
+  }
+  .pursuit .next span {
+    display: inline;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .stage-empty {
+    padding: 12px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-md);
+    font-size: 12px;
+    color: var(--faint);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="Tracker with vertical stages">
+  <div class="status">
+    <span>9:41</span>
+    <span class="right">●●● ▮▮▮</span>
+  </div>
+  <header class="topbar">
+    <div><span class="wordmark">Intervu</span><span class="beta">Beta</span></div>
+    <div class="avatar">V</div>
+  </header>
+  <main class="scroll">
+    <div class="page-head">
+      <h1>Tracker</h1>
+      <button type="button" class="btn-add">+ Add</button>
+    </div>
+    <div class="pad-x" style="padding-bottom:16px">
+      <section class="stage">
+        <div class="stage-label">Saved<span class="stage-count">2</span></div>
+        <article class="pursuit">
+          <strong>Senior Platform Engineer</strong>
+          <span>Buildkite · Remote</span>
+          <div class="next">Next · <span>Tailor résumé</span></div>
+        </article>
+        <article class="pursuit">
+          <strong>Staff SRE</strong>
+          <span>Stripe · Hybrid SF</span>
+          <div class="next">Next · <span>Review fit intel</span></div>
+        </article>
+      </section>
+      <section class="stage">
+        <div class="stage-label">Applied<span class="stage-count">2</span></div>
+        <article class="pursuit">
+          <strong>Platform Engineer II</strong>
+          <span>Datadog · Remote</span>
+          <div class="next">Next · <span>Follow up in 5 days</span></div>
+        </article>
+        <article class="pursuit">
+          <strong>Infra Engineer</strong>
+          <span>GitLab · Remote EMEA</span>
+          <div class="next">Next · <span>Check application status</span></div>
+        </article>
+      </section>
+      <section class="stage">
+        <div class="stage-label">Interviewing<span class="stage-count">1</span></div>
+        <article class="pursuit">
+          <strong>Senior Backend Engineer</strong>
+          <span>Vercel · Remote</span>
+          <div class="next">Next · <span>Prep system design · Thu</span></div>
+        </article>
+      </section>
+      <section class="stage">
+        <div class="stage-label">Offer<span class="stage-count">0</span></div>
+        <div class="stage-empty">No offers yet</div>
+      </section>
+    </div>
+  </main>
+  <nav class="tabbar">
+    <a class="tab" href="02-find-serp.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+      Find
+    </a>
+    <a class="tab" href="07-tracker.html" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="14" rx="1"/></svg>
+      Tracker
+    </a>
+    <a class="tab" href="09-resume.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Resume
+    </a>
+    <a class="tab" href="10-prep-landing.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Prep
+    </a>
+  </nav>
+</div>
+</body>
+</html>

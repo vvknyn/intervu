@@ -167,16 +167,13 @@ export function activeFilterEntries(
         });
     }
 
-    // "30d" is now the default (product decision) — like `hideGhosts`, the
-    // default itself isn't an active choice and gets no chip. Anything ELSE
-    // is, INCLUDING explicit "Any" (`undefined`): with a non-empty default,
-    // picking "Any" is a deliberate departure from it, not a neutral resting
-    // state, so it earns its own chip rather than rendering nothing.
-    // "Clear" always returns to the shared default, not to "Any".
-    if (state.postedBucket !== PRISTINE_FILTER_STATE.postedBucket) {
+    // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine)
+    // and explicit "Any" (`undefined`) are both non-chips — only finite age
+    // buckets (24h / 3d / 7d / …) surface. Clear still restores pristine 30d.
+    if (state.postedBucket && state.postedBucket !== PRISTINE_FILTER_STATE.postedBucket) {
         entries.push({
             key: "postedBucket",
-            label: state.postedBucket ? postedBucketLabel(state.postedBucket) : "Any date",
+            label: postedBucketLabel(state.postedBucket),
             clear: (s) => ({ ...s, postedBucket: PRISTINE_FILTER_STATE.postedBucket }),
         });
     }

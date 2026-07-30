@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Desktop mock hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #12151A; --surface: #1A1F26; --ink: #F4F6F8; --muted: #8B939E;
+  --line: #2A3139; --brand: #0D6E56; --brand-soft: rgba(13,110,86,.15);
+  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100dvh;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font); -webkit-font-smoothing: antialiased;
+}
+a { color: #6BC4A8; text-decoration: none; }
+a:hover { color: #8FD9C4; }
+.hero {
+  padding: 48px 32px 32px;
+  max-width: 960px; margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--brand); margin: 0 0 10px;
+}
+.hero h1 {
+  margin: 0 0 10px; font-size: 36px; font-weight: 800;
+  letter-spacing: -.03em; line-height: 1.1;
+}
+.hero p { margin: 0; font-size: 15px; color: var(--muted); line-height: 1.5; max-width: 560px; }
+.hero .meta {
+  margin-top: 14px; font-family: var(--mono); font-size: 12px; color: var(--muted);
+}
+.hero .meta a { margin-left: 8px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  padding: 24px 32px 48px;
+  max-width: 1100px; margin: 0 auto;
+}
+.card {
+  display: block; padding: 16px 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; color: inherit; transition: border-color .15s;
+}
+.card:hover { border-color: var(--brand); text-decoration: none; color: inherit; }
+.card.featured {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(13,110,86,.12) 100%);
+  border-color: rgba(13,110,86,.4);
+}
+.card-num {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; color: var(--brand); margin-bottom: 6px;
+}
+.card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.card p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.chapter {
+  grid-column: 1 / -1;
+  margin-top: 8px; padding-top: 16px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.chapter:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.sibling {
+  grid-column: 1 / -1;
+  padding: 14px 18px; border-radius: 12px;
+  background: rgba(13,110,86,.08); border: 1px solid rgba(13,110,86,.25);
+  font-size: 13px; color: var(--muted);
+}
+.sibling strong { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">Soft Signal · Desktop · 1280 max</p>
+  <h1>Design mock hub</h1>
+  <p>Full desktop journey — lab strip, topbar nav, SERP split, kanban tracker, resume/prep workspace. Brand #0D6E56 · Plus Jakarta + JetBrains Mono.</p>
+  <p class="meta">Gutter 32 · detail 400 · _system.css · <a href="../soft-signal-mobile/00-index.html">Mobile sibling →</a></p>
+</header>
+
+<nav class="grid">
+  <a class="card featured" href="99-gallery.html">
+    <div class="card-num">★ Start here</div>
+    <h2>Full gallery</h2>
+    <p>All 17 screens as iframe frames — Find jobs · Pursuit · Resume/Prep · More.</p>
+  </a>
+
+  <div class="sibling">
+    <strong>Mobile mocks</strong> live at <a href="../soft-signal-mobile/00-index.html">../soft-signal-mobile/00-index.html</a> — 390×844 iPhone frames with bottom tabs.
+  </div>
+
+  <div class="chapter">Find jobs</div>
+  <a class="card" href="01-find-empty.html"><div class="card-num">01</div><h2>Find · Empty</h2><p>Search row, filter panel closed, empty state.</p></a>
+  <a class="card" href="02-find-serp.html"><div class="card-num">02</div><h2>Find · SERP</h2><p>List + sticky detail pane, live signals.</p></a>
+  <a class="card" href="03-filters.html"><div class="card-num">03</div><h2>Filters</h2><p>3-col expandable panel, Elite under Boards.</p></a>
+  <a class="card" href="04-fit-drawer.html"><div class="card-num">04</div><h2>Fit drawer</h2><p>380px fit analysis over detail.</p></a>
+  <a class="card" href="05-auth.html"><div class="card-num">05</div><h2>Auth</h2><p>Sign-in modal before fit/tailor.</p></a>
+
+  <div class="chapter">Pursuit</div>
+  <a class="card" href="06-tracker.html"><div class="card-num">06</div><h2>Tracker</h2><p>4-column kanban board.</p></a>
+  <a class="card" href="07-pursuit.html"><div class="card-num">07</div><h2>Pursuit detail</h2><p>Timeline, notes, tailor/prep CTAs.</p></a>
+  <a class="card" href="17-add-pursuit.html"><div class="card-num">17</div><h2>Add pursuit</h2><p>Wizard step 1 — job details form.</p></a>
+
+  <div class="chapter">Resume / Prep</div>
+  <a class="card" href="08-resume.html"><div class="card-num">08</div><h2>Resume</h2><p>Base resume + tailored versions.</p></a>
+  <a class="card" href="09-prep-landing.html"><div class="card-num">09</div><h2>Prep landing</h2><p>Start session, pick role type.</p></a>
+  <a class="card" href="10-prep-session.html"><div class="card-num">10</div><h2>Prep session</h2><p>Live mock interview chat UI.</p></a>
+  <a class="card" href="13-tailor.html"><div class="card-num">13</div><h2>Tailor</h2><p>JD summary + 5 recs checklist.</p></a>
+  <a class="card" href="14-stories.html"><div class="card-num">14</div><h2>Story bank</h2><p>3 STAR stories + add CTA.</p></a>
+
+  <div class="chapter">More</div>
+  <a class="card" href="11-company.html"><div class="card-num">11</div><h2>Company page</h2><p>Buildkite hero, roles table, prep CTA.</p></a>
+  <a class="card" href="12-hot.html"><div class="card-num">12</div><h2>Hot companies</h2><p>Ranked by 90d open velocity.</p></a>
+  <a class="card" href="15-trends.html"><div class="card-num">15</div><h2>Market trends</h2><p>Live jobs, ghost %, bar charts.</p></a>
+  <a class="card" href="16-settings.html"><div class="card-num">16</div><h2>Settings</h2><p>Appearance, Models, Account, Export.</p></a>
+</nav>
+
+</body>
+</html>

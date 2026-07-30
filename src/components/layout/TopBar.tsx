@@ -15,6 +15,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NAV_TABS } from "@/components/layout/nav-tabs";
 
 // Dark mode ported from AppShell's footer toggle: same class-on-<html> flip,
 // same "intervu-dark" persistence key (which layout.tsx's no-flash inline
@@ -63,28 +64,9 @@ function initialsOf(user: User): string {
  * redundant second path to the same three destinations.
  */
 const NAV_DESTINATIONS = [
+    { label: "Trends", href: "/trends" },
     { label: "Stories", href: "/stories" },
     { label: "Settings", href: "/settings" },
-];
-
-/**
- * The four always-visible top-level tabs (portal redesign spec — Tracker is
- * no longer gated on `hasPursuits`). `match` decides the active (ink text +
- * live-green underline) state from the current pathname; `testId` preserves
- * the pre-redesign `data-testid`s where one already existed on the
- * equivalent link (topbar-alljobs, topbar-yours).
- */
-const NAV_TABS: { label: string; href: string; testId: string; match: (pathname: string) => boolean }[] = [
-    { label: "Find jobs", href: "/", testId: "topbar-alljobs", match: (p) => p === "/" },
-    { label: "Tracker", href: "/yours", testId: "topbar-yours", match: (p) => p.startsWith("/yours") },
-    {
-        label: "Resume",
-        href: "/resume-builder",
-        testId: "topbar-resume",
-        match: (p) => p.startsWith("/resume-builder"),
-    },
-    { label: "Interview prep", href: "/prep", testId: "topbar-prep", match: (p) => p.startsWith("/prep") },
-    { label: "Trends", href: "/trends", testId: "topbar-trends", match: (p) => p.startsWith("/trends") },
 ];
 
 /**
@@ -133,23 +115,26 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-foreground bg-background px-4 sm:px-6"
+            className="shrink-0 border-b border-border bg-card"
         >
-            <div className="flex min-w-0 items-center gap-6 sm:gap-9">
-                <Link href="/" className="flex shrink-0 items-baseline gap-2">
-                    <span className="font-display text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">
+            {/* Same shell as Find jobs SERP (max-w 1280 + px-4/8) so wordmark
+                and search share one left edge — Soft Signal desktop grid. */}
+            <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between gap-4 px-4 lg:px-8">
+            <div className="flex min-w-0 items-center gap-6">
+                <Link href="/" className="flex shrink-0 items-center gap-2.5">
+                    <span className="font-display text-[18px] font-extrabold leading-none tracking-tight">
                         intervu
                     </span>
                     {/* The app's one BETA badge — see DashboardContainer.tsx's prep
                         title, which deliberately doesn't repeat it. */}
-                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint">
                         beta
                     </span>
                 </Link>
 
                 <nav
                     aria-label="Primary"
-                    className="no-scrollbar flex min-w-0 items-center gap-5 overflow-x-auto text-[13.5px] font-medium sm:gap-6"
+                    className="no-scrollbar hidden min-w-0 items-center gap-6 overflow-x-auto text-[13.5px] font-medium lg:flex"
                 >
                     {NAV_TABS.map((tab) => {
                         const active = tab.match(pathname);
@@ -187,9 +172,9 @@ export function TopBar() {
                             <button
                                 data-testid="topbar-avatar"
                                 title={user.displayName || user.email || "Account"}
-                                className="flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                                className="flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
                             >
-                                <div className="grid h-7 w-7 shrink-0 place-items-center border border-foreground font-mono text-[11px] font-medium text-foreground">
+                                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-green-tint-border bg-green-tint-bg font-mono text-xs font-bold text-brand">
                                     {initialsOf(user)}
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">▾</span>
@@ -228,6 +213,7 @@ export function TopBar() {
                         Log in
                     </button>
                 )}
+            </div>
             </div>
 
             <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />

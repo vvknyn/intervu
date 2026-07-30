@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Prep session</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .session-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr) 280px;
+    gap: 20px;
+    align-items: start;
+  }
+  .session-meta {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .session-meta .role { font-size: 13px; font-weight: 650; color: var(--brand); }
+  .session-meta .company {
+    margin-top: 2px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .q-list h2 {
+    margin: 0 0 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .q-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .q-item.done { color: var(--ink); }
+  .q-item.current {
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    color: var(--brand);
+    font-weight: 650;
+  }
+  .q-item .num {
+    width: 22px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+    flex: none;
+  }
+  .q-item.current .num { color: var(--brand); }
+  .q-item.done .num::after { content: "✓"; color: var(--brand); }
+  .q-item.done .num { font-size: 0; }
+  .q-item.done .num::after { font-size: 11px; }
+  .question-card .type {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 10px;
+  }
+  .question-card p {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.45;
+    letter-spacing: -.015em;
+  }
+  .answer-area { margin-top: 16px; }
+  .answer-area label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 8px;
+  }
+  .answer-area textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink);
+    resize: vertical;
+    outline: none;
+  }
+  .answer-area textarea:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(18,21,26,.06);
+  }
+  .session-nav {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .session-nav .act { flex: 1; height: 40px; }
+  .hint-panel h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 750;
+  }
+  .hint-panel .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+    margin-bottom: 16px;
+  }
+  .hint-panel h4 {
+    margin: 16px 0 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .hint-panel h4:first-of-type { margin-top: 0; }
+  .hint-panel ul { margin: 0; padding-left: 1.1rem; }
+  .hint-panel li {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: #2A3139;
+    line-height: 1.5;
+  }
+  .rubric-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .rubric-row:last-child { border-bottom: none; }
+  .rubric-row span:last-child {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--brand);
+    font-weight: 550;
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 10-prep-session · gutter 32</div>
+  <div><a href="09-prep-landing.html">← Prep landing</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html">Tracker</a>
+        <a href="08-resume.html">Resume</a>
+        <a href="09-prep-landing.html" aria-current="page">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell">
+    <div class="session-meta">
+      <div class="role">Senior Platform Engineer</div>
+      <div class="company">Buildkite · Technical screen</div>
+    </div>
+
+    <div class="session-layout">
+      <nav class="q-list" aria-label="Question progress">
+        <h2>Q 3/12</h2>
+        <div class="q-item done"><span class="num">1</span> Intro &amp; background</div>
+        <div class="q-item done"><span class="num">2</span> Why Buildkite?</div>
+        <div class="q-item current" aria-current="step"><span class="num">3</span> CI/CD reliability</div>
+        <div class="q-item"><span class="num">4</span> Kubernetes tradeoffs</div>
+        <div class="q-item"><span class="num">5</span> On-call story</div>
+        <div class="q-item"><span class="num">6</span> System design intro</div>
+        <div class="q-item"><span class="num">7</span> Queue architecture</div>
+        <div class="q-item"><span class="num">8</span> Failure modes</div>
+        <div class="q-item"><span class="num">9</span> Observability</div>
+        <div class="q-item"><span class="num">10</span> Team conflict</div>
+        <div class="q-item"><span class="num">11</span> Questions for us</div>
+        <div class="q-item"><span class="num">12</span> Wrap-up</div>
+      </nav>
+
+      <div>
+        <div class="panel question-card">
+          <div class="type">Behavioral</div>
+          <p>Describe a time you improved CI/CD reliability for a team. What was broken, what did you change, and how did you measure success?</p>
+        </div>
+
+        <div class="answer-area">
+          <label for="answer">Your answer</label>
+          <textarea id="answer" placeholder="Structure: situation → action → result…">At my last company, flaky builds blocked 30% of merges. I introduced retry logic with root-cause tagging and cut failures to under 4% in six weeks. Measured via merge success rate and mean time to green build.</textarea>
+        </div>
+
+        <div class="session-nav">
+          <button type="button" class="act">Previous</button>
+          <button type="button" class="act primary">Next</button>
+          <button type="button" class="act brand">Hint</button>
+        </div>
+      </div>
+
+      <aside class="panel hint-panel">
+        <h3>Hint &amp; rubric</h3>
+        <div class="sub">Behavioral · STAR format</div>
+
+        <h4>Structure tips</h4>
+        <ul>
+          <li>Lead with the reliability metric before the fix</li>
+          <li>Name one concrete tooling change (not "improved process")</li>
+          <li>Close with before/after numbers</li>
+        </ul>
+
+        <h4>Rubric</h4>
+        <div class="rubric-row"><span>Clear situation</span><span>Strong</span></div>
+        <div class="rubric-row"><span>Ownership &amp; initiative</span><span>Check</span></div>
+        <div class="rubric-row"><span>Measurable outcome</span><span>Needs work</span></div>
+        <div class="rubric-row"><span>CI/CD depth</span><span>Strong</span></div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

@@ -47,11 +47,10 @@ test.describe('TRENDS - Market trends page', () => {
   // a fixed layer"), so no topbar link is clickable from `/`'s landing
   // state today — reproduced live with the pre-existing "Interview prep"
   // tab, not something this change introduced.
-  test('TC-TRENDS-002: "Trends" appears in the top nav and points at /trends', async ({ page }) => {
-    await page.goto('/trends');
-    const tab = page.getByTestId('topbar-trends');
-    await expect(tab).toBeVisible({ timeout: 15_000 });
-    await expect(tab).toHaveAttribute('href', '/trends');
-    await expect(tab).toHaveAttribute('aria-current', 'page');
+  test('TC-TRENDS-002: /trends route renders the trends page', async ({ page }) => {
+    await page.goto('/trends', { timeout: 90_000 });
+    await expect(page.getByTestId('trends-page')).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/trends/);
+    // Trends lives in the avatar dropdown (TopBar NAV_DESTINATIONS), not primary nav.
   });
 });

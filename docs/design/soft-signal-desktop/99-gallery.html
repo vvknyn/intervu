@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Desktop gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #12151A; color: #F4F6F8; }
+a { color: #6BC4A8; text-decoration: none; }
+a:hover { color: #8FD9C4; }
+.sticky-nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 32px; height: 52px;
+  background: rgba(18,21,26,.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid #2A3139; overflow-x: auto;
+}
+.sticky-nav .brand {
+  font-size: 16px; font-weight: 800; letter-spacing: -.03em;
+  color: #F4F6F8; margin-right: 12px; flex: none;
+}
+.sticky-nav a {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: #8B939E; padding: 6px 12px; border-radius: 6px; white-space: nowrap;
+}
+.sticky-nav a:hover { background: #1A1F26; color: #F4F6F8; }
+.sticky-nav .hub { margin-left: auto; }
+.hero {
+  padding: 40px 32px 28px; border-bottom: 1px solid #2A3139;
+  max-width: 960px;
+}
+.hero h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+.hero p { margin: 0; font-size: 14px; color: #8B939E; line-height: 1.5; }
+.hero .meta { margin-top: 10px; font-family: var(--mono); font-size: 11px; color: #5C6570; }
+.chapter {
+  padding: 36px 32px 16px;
+  border-bottom: 1px solid #2A3139;
+  max-width: 1280px; margin: 0 auto;
+}
+.chapter h2 { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.chapter p { margin: 0; font-size: 13px; color: #8B939E; }
+.frame-list {
+  display: flex; flex-direction: column; gap: 24px;
+  padding: 24px 32px 48px;
+  max-width: 1280px; margin: 0 auto;
+}
+.frame-list .gallery-frame .label a { color: var(--faint); }
+.frame-list .gallery-frame .label a:hover { color: var(--brand); }
+.footer {
+  text-align: center; padding: 32px;
+  font-family: var(--mono); font-size: 11px; color: #5C6570;
+}
+</style>
+</head>
+<body>
+
+<nav class="sticky-nav">
+  <span class="brand">Soft Signal</span>
+  <a href="#find">Find jobs</a>
+  <a href="#pursuit">Pursuit</a>
+  <a href="#prep">Resume/Prep</a>
+  <a href="#more">More</a>
+  <a class="hub" href="00-index.html">Hub index →</a>
+</nav>
+
+<header class="hero">
+  <h1>Desktop gallery</h1>
+  <p>1280 max · gutter 32 · lab + topbar chrome · iframe fidelity per screen.</p>
+  <p class="meta">Plus Jakarta Sans + JetBrains Mono · brand #0D6E56 · <a href="../soft-signal-mobile/99-gallery.html">Mobile gallery →</a></p>
+</header>
+
+<section class="chapter" id="find">
+  <h2>Find jobs</h2>
+  <p>Search, filters, SERP split, fit drawer, auth gate.</p>
+</section>
+<div class="frame-list">
+  <div class="gallery-frame"><div class="label"><a href="01-find-empty.html">01 · Find empty</a></div><iframe src="01-find-empty.html" style="width:100%;height:720px;border:0" title="01 Find empty"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="02-find-serp.html">02 · Find SERP</a></div><iframe src="02-find-serp.html" style="width:100%;height:720px;border:0" title="02 Find SERP"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="03-filters.html">03 · Filters</a></div><iframe src="03-filters.html" style="width:100%;height:720px;border:0" title="03 Filters"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="04-fit-drawer.html">04 · Fit drawer</a></div><iframe src="04-fit-drawer.html" style="width:100%;height:720px;border:0" title="04 Fit drawer"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="05-auth.html">05 · Auth</a></div><iframe src="05-auth.html" style="width:100%;height:720px;border:0" title="05 Auth"></iframe></div>
+</div>
+
+<section class="chapter" id="pursuit">
+  <h2>Pursuit</h2>
+  <p>Tracker kanban, pursuit detail, add-pursuit wizard.</p>
+</section>
+<div class="frame-list">
+  <div class="gallery-frame"><div class="label"><a href="06-tracker.html">06 · Tracker</a></div><iframe src="06-tracker.html" style="width:100%;height:720px;border:0" title="06 Tracker"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="07-pursuit.html">07 · Pursuit detail</a></div><iframe src="07-pursuit.html" style="width:100%;height:720px;border:0" title="07 Pursuit detail"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="17-add-pursuit.html">17 · Add pursuit</a></div><iframe src="17-add-pursuit.html" style="width:100%;height:720px;border:0" title="17 Add pursuit"></iframe></div>
+</div>
+
+<section class="chapter" id="prep">
+  <h2>Resume / Prep</h2>
+  <p>Resume versions, prep session, tailor workspace, story bank.</p>
+</section>
+<div class="frame-list">
+  <div class="gallery-frame"><div class="label"><a href="08-resume.html">08 · Resume</a></div><iframe src="08-resume.html" style="width:100%;height:720px;border:0" title="08 Resume"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="09-prep-landing.html">09 · Prep landing</a></div><iframe src="09-prep-landing.html" style="width:100%;height:720px;border:0" title="09 Prep landing"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="10-prep-session.html">10 · Prep session</a></div><iframe src="10-prep-session.html" style="width:100%;height:720px;border:0" title="10 Prep session"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="13-tailor.html">13 · Tailor</a></div><iframe src="13-tailor.html" style="width:100%;height:720px;border:0" title="13 Tailor"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="14-stories.html">14 · Story bank</a></div><iframe src="14-stories.html" style="width:100%;height:720px;border:0" title="14 Story bank"></iframe></div>
+</div>
+
+<section class="chapter" id="more">
+  <h2>More</h2>
+  <p>Company page, hot companies, market trends, settings.</p>
+</section>
+<div class="frame-list">
+  <div class="gallery-frame"><div class="label"><a href="11-company.html">11 · Company page</a></div><iframe src="11-company.html" style="width:100%;height:720px;border:0" title="11 Company page"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="12-hot.html">12 · Hot companies</a></div><iframe src="12-hot.html" style="width:100%;height:720px;border:0" title="12 Hot companies"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="15-trends.html">15 · Market trends</a></div><iframe src="15-trends.html" style="width:100%;height:720px;border:0" title="15 Market trends"></iframe></div>
+  <div class="gallery-frame"><div class="label"><a href="16-settings.html">16 · Settings</a></div><iframe src="16-settings.html" style="width:100%;height:720px;border:0" title="16 Settings"></iframe></div>
+</div>
+
+<p class="footer">17 screens · <a href="00-index.html">Hub index</a> · Shared <a href="_system.css">_system.css</a> · <a href="../soft-signal-mobile/00-index.html">Mobile sibling</a></p>
+
+</body>
+</html>

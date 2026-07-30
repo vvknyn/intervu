@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Buildkite company</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0F1216;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  .co-header {
+    padding: 16px var(--gutter);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .co-header-top {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .co-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #E8F0FE;
+    color: #1A56DB;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    font-weight: 800;
+    flex: none;
+  }
+  .co-header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  .elite-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--brand);
+  }
+  .co-stats {
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .co-stats strong { color: var(--ink); font-weight: 650; }
+  .co-stats .open { color: var(--brand); }
+  .btn-follow {
+    margin-top: 12px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: var(--r-sm);
+    background: var(--ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .roles-label {
+    margin: 16px var(--gutter) 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .roles-list {
+    padding: 0 var(--gutter) 8px;
+  }
+  .prep-cta {
+    margin: 8px var(--gutter) 16px;
+    padding: 14px;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .prep-cta div strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .prep-cta div span {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .prep-cta button {
+    flex: none;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--r-sm);
+    background: var(--brand);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="Buildkite company page">
+  <div class="status">
+    <span>9:41</span>
+    <span class="right">●●● ▮▮▮</span>
+  </div>
+  <header class="topbar">
+    <div><span class="wordmark">Intervu</span><span class="beta">Beta</span></div>
+    <div class="avatar">V</div>
+  </header>
+  <main class="scroll">
+    <div class="co-header">
+      <div class="co-header-top">
+        <div class="co-logo">B</div>
+        <div>
+          <h1>Buildkite</h1>
+          <span class="elite-badge">★ Elite</span>
+        </div>
+      </div>
+      <div class="co-stats">
+        <span><strong class="open">14</strong> opened</span>
+        <span><strong>3</strong> closed</span>
+        <span>Remote-first · Dev tools</span>
+      </div>
+      <button type="button" class="btn-follow">Follow</button>
+    </div>
+    <div class="roles-label">Open roles · 3</div>
+    <div class="roles-list">
+      <article class="card">
+        <div class="logo" style="background:#E8F0FE;color:#1A56DB">B</div>
+        <div>
+          <h3 class="title">Senior Platform Engineer</h3>
+          <div class="sub"><span class="mono">Remote · US</span></div>
+          <div class="live"><span class="dot"></span> Live · 2h ago</div>
+          <div class="fit">Strong fit · 91%</div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="logo" style="background:#E8F0FE;color:#1A56DB">B</div>
+        <div>
+          <h3 class="title">Staff SRE</h3>
+          <div class="sub"><span class="mono">Remote · US</span></div>
+          <div class="live"><span class="dot"></span> Live · 1d ago</div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="logo" style="background:#E8F0FE;color:#1A56DB">B</div>
+        <div>
+          <h3 class="title">Product Engineer</h3>
+          <div class="sub"><span class="mono">Hybrid · Melbourne</span></div>
+          <div class="live"><span class="dot"></span> Live · 3d ago</div>
+        </div>
+      </article>
+    </div>
+    <div class="prep-cta">
+      <div>
+        <strong>Prep for Buildkite</strong>
+        <span>12 questions · Technical screen</span>
+      </div>
+      <button type="button">Start prep</button>
+    </div>
+  </main>
+  <nav class="tabbar">
+    <a class="tab" href="02-find-serp.html" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+      Find
+    </a>
+    <a class="tab" href="07-tracker.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="14" rx="1"/></svg>
+      Tracker
+    </a>
+    <a class="tab" href="09-resume.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Resume
+    </a>
+    <a class="tab" href="10-prep-landing.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Prep
+    </a>
+  </nav>
+</div>
+</body>
+</html>

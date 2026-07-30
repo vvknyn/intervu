@@ -61,12 +61,11 @@ import {
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
-import { BoardChips } from "@/components/jobs/BoardChips";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail } from "@/components/jobs/JobDetail";
-import { CompanyLogo, CompanyInitialTile } from "@/components/jobs/CompanyLogo";
+import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -206,6 +205,20 @@ const VERDICT_TONE_CLASS: Record<FlagTone, string> = {
     faint: "text-faint",
 };
 
+const DESKTOP_MQ = "(min-width: 1024px)";
+function subscribeDesktopMq(onStoreChange: () => void) {
+    if (typeof window === "undefined") return () => {};
+    const mq = window.matchMedia(DESKTOP_MQ);
+    mq.addEventListener("change", onStoreChange);
+    return () => mq.removeEventListener("change", onStoreChange);
+}
+function getDesktopMqSnapshot() {
+    return typeof window !== "undefined" && window.matchMedia(DESKTOP_MQ).matches;
+}
+function getDesktopMqServerSnapshot() {
+    return false;
+}
+
 /** "relisted" (a stated fact from `classifyPostingFreshness`) wins over a
  *  plain staleness count — both are real signals, but a relist is the more
  *  specific/explanatory one when both happen to be present. `null` when
@@ -298,6 +311,7 @@ function JobCard({
     onClick,
     onFit,
     onCompany,
+    onOpenPosting,
     now,
     elite = false,
 }: {
@@ -307,112 +321,19 @@ function JobCard({
     onClick: () => void;
     onFit?: (job: PublicJob) => void;
     onCompany?: (job: PublicJob) => void;
+    onOpenPosting?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
-    /** Elite board mock card layout (docs/design/elite-company-signal/02-serp-elite.html). */
+    /** Elite board intel strip styling (board=elite). */
     elite?: boolean;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     const verdict = verdictFor(job, now);
-    // Ghost-flagged rows are filtered out by default (`hideGhosts: true`,
-    // url-state.ts), so this normally never fires. It fires only when the
-    // searcher has deliberately asked to see flagged postings — at which point
-    // saying nothing would be the dishonest option, not the clean one.
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     const level = prettyEnum(job.experience_level);
     const clearGhost = !flagged && (job.ghost_badge === "clear" || !job.ghost_badge);
-
-    if (elite) {
-        return (
-            <div
-                role="option"
-                tabIndex={0}
-                aria-selected={active}
-                aria-label={`View ${accessibleName}`}
-                data-job-row
-                data-testid="job-row"
-                onClick={onClick}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onClick();
-                    }
-                }}
-                className={cn("elite-job-card cursor-pointer text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--elite-brand)] focus-visible:-outline-offset-2")}
-            >
-                <CompanyInitialTile
-                    name={job.company}
-                    className="h-[46px] w-[46px] rounded-[10px] text-[19px]"
-                />
-                <div className="min-w-0">
-                    <div
-                        data-testid="job-title"
-                        className={cn(
-                            "text-[16.5px] leading-snug tracking-tight",
-                            opened ? "font-medium text-[color:var(--elite-muted)]" : "font-semibold",
-                        )}
-                    >
-                        {decodeText(job.title)}
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[color:var(--elite-muted)]">
-                        {onCompany ? (
-                            <button
-                                type="button"
-                                className="font-medium text-[color:var(--elite-brand)] hover:underline"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCompany(job);
-                                }}
-                            >
-                                {cleanCompany(job.company) || "Unknown company"}
-                            </button>
-                        ) : (
-                            <span className="font-medium text-[color:var(--elite-brand)]">
-                                {cleanCompany(job.company) || "Unknown company"}
-                            </span>
-                        )}
-                        <span>{locationText(job)}</span>
-                        {salary && <span className="font-mono text-[12.5px]">{salary}</span>}
-                        {level && <span className="font-mono text-[12.5px]">{level}</span>}
-                    </div>
-                    {clearGhost && (
-                        <div className="mt-2 flex items-center gap-1.5">
-                            <span className="elite-live-dot" aria-hidden />
-                            <span className="font-mono text-[12px] font-medium text-[color:var(--elite-brand)]">
-                                Live · no ghost signals
-                            </span>
-                        </div>
-                    )}
-                    {flagged && (
-                        <div className={cn("mt-2 font-mono text-[12px]", VERDICT_TONE_CLASS[verdict.tone])}>
-                            {verdict.code.toLowerCase()}
-                        </div>
-                    )}
-                    {onFit && (
-                        <button
-                            type="button"
-                            data-testid="am-i-a-fit"
-                            className="mt-2 text-[13px] font-medium text-[color:var(--elite-brand)] hover:underline hover:text-[color:var(--elite-brand-hover)]"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onFit(job);
-                            }}
-                        >
-                            Am I a fit? →
-                        </button>
-                    )}
-                    <CompanyIntelStrip job={job} elite />
-                </div>
-                <div className="flex flex-col items-end gap-2.5">
-                    {age && (
-                        <div className="font-mono text-[11.5px] text-[color:var(--elite-faint)]">{age}</div>
-                    )}
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div
@@ -430,28 +351,26 @@ function JobCard({
                 }
             }}
             className={cn(
-                "flex cursor-pointer items-center justify-between gap-3 border-b border-border py-4 text-left transition-colors duration-100 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                active && "bg-muted",
+                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4 text-left shadow-sm transition-colors duration-100 hover:border-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                active && "border-brand bg-brand/5",
             )}
         >
-            <div className="self-start">
-                <CompanyLogo domain={job.company_domain} name={job.company} size="xs" />
-            </div>
-            <div className="min-w-0 flex-1">
+            <CompanyInitialTile name={job.company} className="h-12 w-12 rounded-[10px] text-[17px]" />
+            <div className="min-w-0">
                 <div
                     data-testid="job-title"
                     className={cn(
-                        "text-[16px] leading-snug tracking-tight",
+                        "text-[15px] leading-snug tracking-tight",
                         opened ? "font-medium text-muted-foreground" : "font-semibold",
                     )}
                 >
                     {decodeText(job.title)}
                 </div>
-                <div className="mt-1 text-[12.5px] text-muted-foreground">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
-                            className="font-medium text-foreground/85 hover:underline"
+                            className="font-medium text-brand hover:underline"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCompany(job);
@@ -460,29 +379,54 @@ function JobCard({
                             {cleanCompany(job.company) || "Unknown company"}
                         </button>
                     ) : (
-                        <span className="font-medium text-foreground/85">{cleanCompany(job.company) || "Unknown company"}</span>
+                        <span className="font-medium text-brand">{cleanCompany(job.company) || "Unknown company"}</span>
                     )}
-                    {` · ${locationText(job)}`}
+                    <span>{locationText(job)}</span>
+                    {salary && <span className="font-mono text-[12px]">{salary}</span>}
+                    {level && <span className="font-mono text-[12px]">{level}</span>}
                 </div>
+                {clearGhost && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-brand" aria-hidden />
+                        <span className="font-mono text-[12px] font-medium text-brand">Live · no ghost signals</span>
+                    </div>
+                )}
+                {flagged && (
+                    <div className={cn("mt-2 font-mono text-[12px]", VERDICT_TONE_CLASS[verdict.tone])}>
+                        {verdict.code.toLowerCase()}
+                    </div>
+                )}
                 {onFit && (
                     <button
                         type="button"
                         data-testid="am-i-a-fit"
-                        className="mt-1 text-[12px] font-medium text-brand"
+                        className="mt-2 text-[13px] font-medium text-brand hover:underline"
                         onClick={(e) => {
                             e.stopPropagation();
                             onFit(job);
                         }}
                     >
-                        Am I a fit?
+                        Am I a fit? →
                     </button>
                 )}
-                <CompanyIntelStrip job={job} />
+                <div className="mt-2.5 border-t border-border pt-2.5">
+                    <CompanyIntelStrip job={job} elite={elite} />
+                </div>
             </div>
-            <div className="w-[128px] flex-none text-right font-mono text-[11.5px] leading-[1.7] tabular-nums">
-                {salary && <div className="text-foreground">{salary}</div>}
-                {flagged && <div className={VERDICT_TONE_CLASS[verdict.tone]}>{verdict.code.toLowerCase()}</div>}
-                {age && <div className="text-muted-foreground">{age}</div>}
+            <div className="flex flex-col items-center justify-start gap-2">
+                {job.apply_url && onOpenPosting && (
+                    <button
+                        type="button"
+                        className="w-full rounded-lg border border-foreground/20 px-2 py-1.5 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPosting(job);
+                        }}
+                    >
+                        Apply
+                    </button>
+                )}
+                {age && <div className="font-mono text-[11.5px] text-muted-foreground">{age}</div>}
             </div>
         </div>
     );
@@ -944,6 +888,8 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    const isDesktop = useSyncExternalStore(subscribeDesktopMq, getDesktopMqSnapshot, getDesktopMqServerSnapshot);
+    const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [fitJob, setFitJob] = useState<PublicJob | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1643,15 +1589,10 @@ function JobsContent() {
         // subset check above) — a job-only URL change must still update
         // selection even when nothing else in the subset changed.
         //
-        // Portal redesign: the sheet is now the ONLY detail surface at every
-        // breakpoint (the old lg+ three-pane layout's inline detail column
-        // is gone — the new design has no room reserved for one), so this
-        // used to gate on `matchMedia("(max-width: 1023px)")`; that gate is
-        // dropped, not just hidden, since a desktop viewport opening the
-        // sheet is now the intended behavior, not a mobile-only fallback.
+        // Portal redesign: mobile uses bottom sheet; lg+ uses sticky inline pane.
         const jobId = parsed.jobId;
         setSelectedId(jobId);
-        setDetailSheetOpen(Boolean(jobId));
+        setDetailSheetOpen(Boolean(jobId) && !getDesktopMqSnapshot());
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -1904,6 +1845,10 @@ function JobsContent() {
         applyUrlState(buildUrlState({ board: next }), "replace");
     };
 
+    useEffect(() => {
+        setLocationDraft(filterState.facets.location_country?.[0] ?? "");
+    }, [filterState.facets.location_country]);
+
     // Sets every local FilterState field + pushes the matching URL replace in
     // one shot — the shared tail of both `clearAll` and a single chip's
     // `onRemove` (via `activeFilterEntries(...).clear`), so the two can never
@@ -1925,6 +1870,14 @@ function JobsContent() {
             "replace",
         );
     };
+
+    const commitLocation = useCallback(() => {
+        const trimmed = locationDraft.trim();
+        const nextFacets = { ...filterState.facets };
+        if (trimmed) nextFacets.location_country = [trimmed];
+        else delete nextFacets.location_country;
+        applyFilterState({ ...filterState, facets: nextFacets });
+    }, [locationDraft, filterState]);
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
     // active" — the "All filters (N)" pill's count, the empty state's
@@ -2742,11 +2695,16 @@ function JobsContent() {
             <div
                 className={cn(
                     "w-full shrink-0",
-                    isOverlayAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-foreground",
+                    isOverlayAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-border bg-card",
                 )}
             >
-                <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1700px] px-4 pb-4 pt-5 sm:px-6 lg:px-14 lg:pt-6"}>
-                    <div data-search-line className="flex items-center gap-4">
+                <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
+                    <div
+                        data-search-line
+                        className={cn(
+                            isOverlayAsk ? "flex items-center gap-4" : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
+                        )}
+                    >
                         <SearchAutocomplete
                             // Explore mode's `query` state carries the résumé-derived
                             // search string (AI-suggested titles, capped — see
@@ -2785,16 +2743,113 @@ function JobsContent() {
                             suggest={suggestForBox}
                             placeholder="What kind of work are you looking for?"
                             className={cn(
-                                "rounded-none border-0 border-b border-border-strong bg-transparent px-0 shadow-none focus-visible:border-foreground focus-visible:ring-0 focus-visible:shadow-none",
-                                isOverlayAsk ? "h-12 text-[19px]" : "h-10 text-[17px]",
+                                "h-11 rounded-xl border border-border bg-muted/40 px-3 shadow-none focus-visible:border-foreground focus-visible:ring-0",
+                                isOverlayAsk ? "text-[19px]" : "text-[15px]",
                             )}
                             containerClassName="min-w-0 flex-1"
                         />
+                        {!isOverlayAsk && (
+                            <Input
+                                data-testid="location-input"
+                                type="text"
+                                placeholder="City, state, or remote"
+                                value={locationDraft}
+                                onChange={(e) => setLocationDraft(e.target.value)}
+                                onBlur={commitLocation}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        commitLocation();
+                                    }
+                                }}
+                                className="h-11 rounded-xl border border-border bg-muted/40 px-3 shadow-none focus-visible:border-foreground focus-visible:ring-0"
+                            />
+                        )}
+                        {!isOverlayAsk && (
+                            <Button
+                                type="button"
+                                onClick={() => submitSearch(query)}
+                                className="h-11 rounded-xl bg-foreground px-5 font-bold text-background hover:bg-foreground/90"
+                            >
+                                Search
+                            </Button>
+                        )}
                     </div>
 
                     {!isOverlayAsk && (
-                        <div className="mt-3">
-                            <BoardChips board={board} onChange={onBoardChange} />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    data-testid="filters-toggle"
+                                    aria-expanded={filtersOpen}
+                                    onClick={() => setFiltersOpen((v) => !v)}
+                                    className={cn(
+                                        "inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-semibold transition-colors duration-100",
+                                        filtersOpen
+                                            ? "border-foreground bg-foreground text-background"
+                                            : "border-border bg-card text-foreground hover:border-foreground/40",
+                                    )}
+                                >
+                                    Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+                                </button>
+                                {activeEntries.map((entry) => (
+                                    <span
+                                        key={entry.key}
+                                        className="inline-flex h-7 items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-xs font-semibold text-brand"
+                                    >
+                                        {entry.label}
+                                        <button
+                                            type="button"
+                                            aria-label={`Remove ${entry.label}`}
+                                            onClick={() => applyFilterState(entry.clear(filterState))}
+                                            className="leading-none opacity-70 hover:opacity-100"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                                {activeCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={panelClearAll}
+                                        className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                                <span data-testid="result-line" className="tabular-nums">
+                                    {loading && hits.length > 0 ? "updating…" : resultCountLine}
+                                </span>
+                                {mode === "explore" ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => enterBrowseAndSync()}
+                                        className="text-foreground underline underline-offset-2"
+                                    >
+                                        exploring roles adjacent to your résumé ✕
+                                    </button>
+                                ) : fitActive ? (
+                                    <button
+                                        type="button"
+                                        onClick={clearFit}
+                                        className="text-foreground underline underline-offset-2"
+                                    >
+                                        ranked by your résumé ✕
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        disabled={exploring}
+                                        onClick={() => void handleExploreClick()}
+                                        className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-50"
+                                    >
+                                        {exploring ? "exploring…" : "explore roles like mine"}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -2817,69 +2872,7 @@ function JobsContent() {
                                 ))}
                             </div>
                         )
-                    ) : (
-                        /* The one line under the box: what came back, over what window,
-                           and how fresh the corpus is. Explore lives here rather than
-                           beside the box — it is a real thing a searcher would ask for
-                           out loud ("show me roles like mine"), but it is not what they
-                           came to do, so it doesn't get to sit next to the question. */
-                        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
-                            <span data-testid="result-line" className="tabular-nums">
-                                {loading && hits.length > 0 ? "updating…" : resultCountLine}
-                            </span>
-                            <span className="flex items-baseline gap-4">
-                            {/* The filter panel's one entry point. Text, not an icon —
-                                everything on this line is a word. Active count shown so
-                                a collapsed panel can't silently constrain the list. */}
-                            <button
-                                type="button"
-                                data-testid="filters-toggle"
-                                aria-expanded={filtersOpen}
-                                onClick={() => setFiltersOpen((v) => !v)}
-                                className={cn(
-                                    "underline underline-offset-2 transition-colors duration-100 hover:text-foreground",
-                                    (filtersOpen || activeCount > 0) && "text-foreground",
-                                )}
-                            >
-                                filters{activeCount > 0 ? ` (${activeCount})` : ""} {filtersOpen ? "▴" : "▾"}
-                            </button>
-                            {/* Explore and fit are MODES, and a mode the searcher can
-                                neither see nor leave is a trap. Both used to be named
-                                and dismissed from the deleted legend row; without these
-                                two branches, explore would show an empty search box over
-                                unexplained results and the only exit would be a reload.
-                                Explore is checked first: it blanks the box (see the
-                                box's `value`), so it is the more disorienting of the
-                                two to leave unlabelled. */}
-                            {mode === "explore" ? (
-                                <button
-                                    type="button"
-                                    onClick={() => enterBrowseAndSync()}
-                                    className="text-foreground underline underline-offset-2"
-                                >
-                                    exploring roles adjacent to your résumé ✕
-                                </button>
-                            ) : fitActive ? (
-                                <button
-                                    type="button"
-                                    onClick={clearFit}
-                                    className="text-foreground underline underline-offset-2"
-                                >
-                                    ranked by your résumé ✕
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    disabled={exploring}
-                                    onClick={() => void handleExploreClick()}
-                                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-50"
-                                >
-                                    {exploring ? "exploring…" : "explore roles like mine"}
-                                </button>
-                            )}
-                            </span>
-                        </div>
-                    )}
+                    ) : null}
 
                     {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
@@ -2890,7 +2883,7 @@ function JobsContent() {
                     {!isOverlayAsk && filtersOpen && (
                         <div
                             data-testid="filters-panel"
-                            className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain custom-scrollbar border-t border-border pt-2"
+                            className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-muted/30 p-5 custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -2905,6 +2898,8 @@ function JobsContent() {
                                 hideGhosts={hideGhosts}
                                 onHideGhosts={onHideGhosts}
                                 ghostHiddenCount={ghostHiddenCount}
+                                board={board === "elite" ? "elite" : "all"}
+                                onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
                             />
                         </div>
                     )}
@@ -2912,7 +2907,8 @@ function JobsContent() {
             </div>
 
             {!isOverlayAsk && (
-                <main className="mx-auto flex w-full max-w-[1700px] flex-1 flex-col px-4 pb-6 sm:px-6 lg:min-h-0 lg:overflow-hidden lg:px-14">
+                <main className="mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-1 gap-5 px-4 pb-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-hidden lg:px-8">
+                <div className="flex min-h-0 min-w-0 flex-col">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -2920,11 +2916,7 @@ function JobsContent() {
                     Skip to results
                 </a>
                 <PrepMovedNote />
-                {/* Single column. The rail is gone: `PipelineCard` summarised the
-                    tracker and linked to it, and `GhostRadarCard` described the
-                    current result set — neither is what someone came here to read,
-                    and the tracker renders its own counts better at /yours. */}
-                <div className="flex min-h-0 max-w-[880px] flex-1 flex-col pt-4">
+                <div className="flex min-h-0 max-w-[880px] flex-1 flex-col pt-4 lg:max-w-none">
                     <div className="flex min-h-0 flex-col">
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -3106,11 +3098,12 @@ function JobsContent() {
                                                 <JobCard
                                                     key={job.id}
                                                     job={job}
-                                                    active={detailSheetOpen && selectedId === job.id}
+                                                    active={selectedId === job.id}
                                                     opened={openedIds.has(job.id)}
                                                     onClick={() => openJob(job.id)}
                                                     onFit={setFitJob}
                                                     onCompany={job.company_domain ? handleCompany : undefined}
+                                                    onOpenPosting={handleOpenPosting}
                                                     now={nowMs}
                                                     elite={board === "elite"}
                                                 />
@@ -3197,6 +3190,79 @@ function JobsContent() {
                         </div>
                     </div>
                 </div>
+                </div>
+
+                {isDesktop && selectedId && (
+                    <aside className="hidden min-h-0 pt-4 lg:block">
+                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-card shadow-sm custom-scrollbar">
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    aria-label="Close job details"
+                                    onClick={() => router.back()}
+                                    className="absolute right-3 top-3 z-10 rounded-full border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                    ×
+                                </button>
+                                {detailJob ? (
+                                    <>
+                                        <JobDetail
+                                            key={detailJob.id}
+                                            job={detailJob}
+                                            now={nowMs}
+                                            applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
+                                            applying={applyingId === detailJob.id}
+                                            onTailor={() => handleTailor(detailJob)}
+                                            onOpenPosting={() => handleOpenPosting(detailJob)}
+                                            onMarkApplied={() => handleMarkApplied(detailJob)}
+                                            onPrep={() => handlePrep(detailJob)}
+                                            onGoAfter={() => handleGoAfter(detailJob)}
+                                            pursuit={detailPursuit}
+                                            goingAfter={goingAfterId === detailJob.id}
+                                        />
+                                        <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+                                            {detailJob.apply_url && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="flex-1 gap-1.5"
+                                                    onClick={() => handleOpenPosting(detailJob)}
+                                                >
+                                                    <ArrowSquareOut size={16} />
+                                                    Apply ↗
+                                                </Button>
+                                            )}
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 gap-1.5"
+                                                onClick={() => handlePrep(detailJob)}
+                                            >
+                                                <Lightning size={14} weight="fill" />
+                                                Prep for this
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : isDeadJobConfirmed ? (
+                                    <div className="p-4">
+                                        <DeadJobTombstone
+                                            onSimilarRoles={handleTombstoneSimilarRoles}
+                                            exploring={exploring}
+                                            canShowSimilar={canShowSimilarRoles}
+                                        />
+                                    </div>
+                                ) : showUnresolvedDetail ? (
+                                    <div className="p-4">
+                                        <DeadJobUnresolved
+                                            onSimilarRoles={handleTombstoneSimilarRoles}
+                                            exploring={exploring}
+                                            canShowSimilar={canShowSimilarRoles}
+                                            checking={isDeadJobChecking}
+                                        />
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    </aside>
+                )}
                 </main>
             )}
 
@@ -3238,7 +3304,7 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
             />
             <Sheet
-                open={detailSheetOpen}
+                open={detailSheetOpen && !isDesktop}
                 onOpenChange={(open) => {
                     // Opening is driven entirely by the URL-derived-selection
                     // effect above. A close (X button, overlay click, swipe,

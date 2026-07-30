@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Mobile gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: #12151A; color: #F4F6F8;
+  font-family: var(--font); -webkit-font-smoothing: antialiased;
+}
+a { color: #6BC4A8; text-decoration: none; }
+a:hover { color: #8FD9C4; }
+.sticky-nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 20px; height: 52px;
+  background: rgba(18,21,26,.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid #2A3139; overflow-x: auto;
+}
+.sticky-nav .brand {
+  font-size: 16px; font-weight: 800; letter-spacing: -.03em;
+  color: #F4F6F8; margin-right: 12px; flex: none;
+}
+.sticky-nav a {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: #8B939E; padding: 6px 12px; border-radius: 6px; white-space: nowrap;
+}
+.sticky-nav a:hover { background: #1A1F26; color: #F4F6F8; }
+.sticky-nav .hub { margin-left: auto; }
+.hero {
+  padding: 40px 24px 28px; border-bottom: 1px solid #2A3139;
+  max-width: 720px;
+}
+.hero h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+.hero p { margin: 0; font-size: 14px; color: #8B939E; line-height: 1.5; }
+.hero .meta { margin-top: 10px; font-family: var(--mono); font-size: 11px; color: #5C6570; }
+.chapter {
+  padding: 36px 24px 16px;
+  border-bottom: 1px solid #2A3139;
+}
+.chapter h2 {
+  margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.02em;
+}
+.chapter p { margin: 0; font-size: 13px; color: #8B939E; }
+.phone-grid {
+  display: flex; flex-wrap: wrap; gap: 28px 24px;
+  padding: 24px; justify-content: center;
+}
+.frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.frame-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; color: #8B939E;
+}
+.frame-label:hover { color: #6BC4A8; }
+.frame-label span { color: #0D6E56; }
+/* Compact gallery tweaks */
+.phone.gal .scroll { font-size: 13px; }
+.phone.gal .wordmark { font-size: 15px; }
+.phone.gal .page-head h1 { font-size: 18px; }
+.phone.gal .title { font-size: 13px; }
+.phone.gal .stat-card .val { font-size: 22px; }
+.phone.gal .stat-card .val.sm { font-size: 18px; }
+</style>
+</head>
+<body>
+
+<nav class="sticky-nav">
+  <span class="brand">Soft Signal</span>
+  <a href="#find">Find jobs</a>
+  <a href="#pursuit">Pursuit</a>
+  <a href="#prep">Resume/Prep</a>
+  <a href="#more">More</a>
+  <a class="hub" href="00-index.html">All files →</a>
+</nav>
+
+<header class="hero">
+  <h1>Mobile gallery</h1>
+  <p>390×844 iPhone frames · status 9:41 · gutter 16 · brand #0D6E56 · inline compact markup (no iframes).</p>
+  <p class="meta">Plus Jakarta Sans + JetBrains Mono · _system.css</p>
+</header>
+
+<!-- ═══ FIND JOBS ═══ -->
+<section class="chapter" id="find">
+  <h2>Find jobs</h2>
+  <p>Search, filters, job detail, fit sheet, auth gate.</p>
+</section>
+<div class="phone-grid">
+
+<!-- 01 Find empty -->
+<div class="frame-wrap">
+  <a class="frame-label" href="01-find-empty.html"><span>01</span> · Find empty</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal<span class="beta">beta</span></span><span class="avatar">M</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <div class="search-stack">
+          <label class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg><input placeholder="What — role, skill, company"></label>
+          <label class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-7-10a7 7 0 1114 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg><input placeholder="Where — city or remote"></label>
+          <button type="button" class="btn-primary">Search</button>
+        </div>
+        <div class="chip-row"><span class="chip">Filters ▾</span><span class="chip soft">United States</span><span class="chip soft">Remote</span></div>
+      </div>
+      <div class="empty"><h2>Find work that's real.</h2><p>Search elite boards with ghost-checked listings and hiring velocity intel.</p></div>
+    </div>
+    <nav class="tabbar"><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="13" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Resume</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 02 Find SERP -->
+<div class="frame-wrap">
+  <a class="frame-label" href="02-find-serp.html"><span>02</span> · Find SERP</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal<span class="beta">beta</span></span><span class="avatar">M</span></header>
+    <div class="scroll">
+      <div class="pad" style="padding-bottom:8px;">
+        <div class="search-stack"><label class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg><input value="platform engineer"></label><button type="button" class="btn-primary">Search</button></div>
+        <div class="chip-row"><span class="chip on">Elite</span><span class="chip">Remote</span><span class="chip soft">Filters · 3</span></div>
+        <div class="meta-line"><span>47 roles</span><span>ghost-checked</span></div>
+      </div>
+      <div class="pad-x" style="padding-bottom:12px;">
+        <button type="button" class="card selected"><span class="logo" style="background:#E6F4EF;color:#0D6E56">R</span><span><p class="title">Senior Platform Engineer</p><div class="sub"><span class="co">Ramp</span><span class="mono">Remote · 2d</span></div><div class="live"><span class="dot"></span>Live</div><div class="fit">Strong fit · 82</div><div class="intel"><span class="hot">28/90d</span> · 52 open</div></span></button>
+        <button type="button" class="card"><span class="logo" style="background:#E8F0EC;color:#0D6E56">S</span><span><p class="title">Staff Backend Engineer</p><div class="sub"><span class="co">Stripe</span><span class="mono">SF · 1d</span></div><div class="live"><span class="dot"></span>Live</div><div class="intel"><span class="hot">34/90d</span> · 89 open</div></span></button>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 03 Filters sheet -->
+<div class="frame-wrap">
+  <a class="frame-label" href="03-filters-sheet.html"><span>03</span> · Filters sheet</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar">M</span></header>
+    <div class="scroll" style="opacity:.35;"><div class="pad"><div class="card"><span class="logo">R</span><span><p class="title">Senior Platform Engineer</p></span></div></div></div>
+    <div class="sheet-scrim">
+      <div class="sheet" style="max-height:78%;">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head"><h2>Filters</h2></div>
+        <div class="sheet-body">
+          <div class="filter-group"><h4>Boards</h4><button type="button" class="opt" aria-pressed="true"><span class="box">✓</span>Elite startups<span class="n">412</span></button><button type="button" class="opt"><span class="box"></span>AI / ML<span class="n">305</span></button></div>
+          <div class="filter-group"><h4>Work style</h4><button type="button" class="opt" aria-pressed="true"><span class="box">✓</span>Remote<span class="n">891</span></button><button type="button" class="opt"><span class="box"></span>Hybrid<span class="n">644</span></button></div>
+          <div class="filter-group"><h4>Signal</h4><button type="button" class="opt" aria-pressed="true"><span class="box">✓</span>No ghost risk<span class="n">2.6k</span></button></div>
+        </div>
+        <div class="sheet-actions"><button type="button" class="act">Clear</button><button type="button" class="act primary">Show 47</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 04 Job detail -->
+<div class="frame-wrap">
+  <a class="frame-label" href="04-job-detail.html"><span>04</span> · Job detail</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar">M</span></header>
+    <div class="scroll" style="opacity:.25;"></div>
+    <div class="sheet-scrim">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head"><h2>Senior Platform Engineer</h2><p class="subline">Ramp · Remote · $190–230k</p></div>
+        <div class="sheet-body jd">
+          <div class="banner"><span><strong>Live · no ghost signals</strong><span>Opened 28 roles in 90d · 52 open now</span></span></div>
+          <h2>About the role</h2><p>Own core payments infra on Go/K8s. Lead incident response and mentor engineers.</p>
+          <h2>Requirements</h2><ul><li>6+ yrs distributed systems</li><li>Go, Terraform, on-call</li></ul>
+        </div>
+        <div class="sheet-actions"><button type="button" class="act brand">Go after</button><button type="button" class="act primary">Tailor</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 05 Fit sheet -->
+<div class="frame-wrap">
+  <a class="frame-label" href="05-fit-sheet.html"><span>05</span> · Fit sheet</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar filled">M</span></header>
+    <div class="scroll" style="opacity:.2;"></div>
+    <div class="sheet-scrim">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head"><h2>Am I a fit?</h2><p class="subline">Ramp · Senior Platform Engineer</p></div>
+        <div class="sheet-body">
+          <div class="banner"><span><strong>Strong fit · 82/100</strong><span>6 yrs distributed systems maps well. One ops gap.</span></span></div>
+          <div class="filter-group"><h4>Matches</h4><p style="margin:0;font-size:13px;color:var(--muted);">K8s &amp; Terraform · Go/gRPC · 6+ yrs senior bar</p></div>
+          <div class="filter-group"><h4>Gaps</h4><p style="margin:0;font-size:13px;color:var(--muted);">On-call lead · PCI scope not listed</p></div>
+        </div>
+        <div class="sheet-actions"><button type="button" class="act">Prep</button><button type="button" class="act primary">Tailor resume</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 06 Auth -->
+<div class="frame-wrap">
+  <a class="frame-label" href="06-auth.html"><span>06</span> · Auth</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <div class="scroll">
+      <div class="empty" style="padding-top:120px;">
+        <p style="font-size:28px;font-weight:800;letter-spacing:-.03em;margin:0 0 8px;">Soft Signal</p>
+        <h2>Sign in to continue</h2>
+        <p>Fit analysis, resume tailoring, and prep require an account.</p>
+        <button type="button" class="btn-primary" style="width:100%;max-width:280px;margin:0 auto 10px;">Continue with Google</button>
+        <button type="button" class="act" style="width:100%;max-width:280px;margin:0 auto;">Continue with email</button>
+        <p style="margin-top:20px;font-family:var(--mono);font-size:11px;color:var(--faint);">Free · 10 credits on signup</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /find grid -->
+
+<!-- ═══ PURSUIT ═══ -->
+<section class="chapter" id="pursuit">
+  <h2>Pursuit</h2>
+  <p>Tracker kanban, pursuit detail, add-pursuit wizard.</p>
+</section>
+<div class="phone-grid">
+
+<!-- 07 Tracker -->
+<div class="frame-wrap">
+  <a class="frame-label" href="07-tracker.html"><span>07</span> · Tracker</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <h2 class="section-title">Tracker</h2>
+        <div class="stage"><div class="stage-label">Applied · 3</div><div class="pursuit"><strong>Ramp · Sr Platform</strong><span>Applied 2d ago · Strong fit</span></div><div class="pursuit"><strong>Stripe · Staff BE</strong><span>Applied 5d ago</span></div></div>
+        <div class="stage"><div class="stage-label">Phone screen · 1</div><div class="pursuit"><strong>Buildkite · Platform</strong><span>Thu 2pm · Prep ready</span></div></div>
+        <div class="stage"><div class="stage-label">Interested · 2</div><div class="pursuit"><strong>Linear · Backend</strong><span>Saved from SERP</span></div></div>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="13" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 08 Pursuit detail -->
+<div class="frame-wrap">
+  <a class="frame-label" href="08-pursuit.html"><span>08</span> · Pursuit detail</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Ramp</h1><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <p style="margin:0 0 4px;font-size:18px;font-weight:800;">Senior Platform Engineer</p>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--brand);font-weight:600;">Applied · Strong fit 82</p>
+        <div class="chip-row" style="margin-top:0;"><span class="chip on">Applied</span><span class="chip">Phone</span><span class="chip">Onsite</span><span class="chip">Offer</span></div>
+        <div class="filter-group" style="margin-top:16px;"><h4>Timeline</h4><div class="pursuit"><strong>Applied</strong><span>Jul 27 · via Soft Signal</span></div><div class="pursuit"><strong>Fit analyzed</strong><span>Jul 27 · 82/100</span></div></div>
+        <div class="sheet-actions" style="padding:0;border:none;background:transparent;grid-template-columns:1fr 1fr 1fr;"><button type="button" class="act brand">Tailor</button><button type="button" class="act">Prep</button><button type="button" class="act primary">Notes</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 18 Add pursuit -->
+<div class="frame-wrap">
+  <a class="frame-label" href="18-add-pursuit.html"><span>18</span> · Add pursuit</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button><h1>Add pursuit</h1><span style="width:32px;"></span></header>
+    <div class="wizard-head"><div class="steps"><span>Step 1 of 4</span><span class="dots"><span class="dot-step on"></span><span class="dot-step"></span><span class="dot-step"></span><span class="dot-step"></span></span></div><h1>Job details</h1><p>Track a role from application to offer.</p></div>
+    <div class="scroll"><div class="pad"><div class="form-group"><label>Company</label><input class="form-input" value="Ramp"></div><div class="form-group"><label>Title</label><input class="form-input" value="Sr Platform Engineer"></div><div class="form-group"><label>Stage</label><select class="form-input form-select"><option selected>Applied</option></select></div></div></div>
+    <div class="sticky-foot"><button type="button" class="btn-primary" style="width:100%;">Continue</button></div>
+  </div>
+</div>
+
+</div><!-- /pursuit grid -->
+
+<!-- ═══ RESUME / PREP ═══ -->
+<section class="chapter" id="prep">
+  <h2>Resume / Prep</h2>
+  <p>Resume versions, prep session, tailor, story bank.</p>
+</section>
+<div class="phone-grid">
+
+<!-- 09 Resume -->
+<div class="frame-wrap">
+  <a class="frame-label" href="09-resume.html"><span>09</span> · Resume</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <h2 class="section-title">Resume</h2>
+        <div class="pursuit" style="border-color:var(--brand);"><strong>Base resume</strong><span>Updated Jul 20 · PDF + JSON</span></div>
+        <div class="stage-label" style="margin-top:14px;">Tailored versions</div>
+        <div class="pursuit"><strong>Ramp · Platform v3</strong><span>Jul 27 · 5 recs applied</span></div>
+        <div class="pursuit"><strong>Stripe · Staff v1</strong><span>Jul 22 · 4 recs applied</span></div>
+        <button type="button" class="add-card" style="margin-top:8px;min-height:56px;">Upload new base resume</button>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Tracker</a><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 10 Prep landing -->
+<div class="frame-wrap">
+  <a class="frame-label" href="10-prep-landing.html"><span>10</span> · Prep landing</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="page-head"><h1>Interview prep</h1><p>Mock sessions tied to your pursuits and story bank.</p></div>
+      <div class="pad" style="padding-top:0;">
+        <div class="pursuit"><strong>Buildkite · Platform</strong><span>Phone screen Thu · Behavioral + system design</span></div>
+        <button type="button" class="btn-primary" style="width:100%;margin-top:10px;">Start prep session</button>
+        <div class="chip-row"><span class="chip on">Behavioral</span><span class="chip">System design</span><span class="chip">Technical</span></div>
+        <a href="15-stories.html" style="display:block;margin-top:14px;font-size:13px;font-weight:650;">Story bank · 3 stories →</a>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 11 Prep session -->
+<div class="frame-wrap">
+  <a class="frame-label" href="11-prep-session.html"><span>11</span> · Prep session</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Prep · Buildkite</h1><span style="font-family:var(--mono);font-size:11px;color:var(--faint);">12:04</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <div style="padding:12px;background:var(--bg);border-radius:12px;margin-bottom:10px;font-size:13px;color:var(--muted);">Tell me about a time you led a migration under a tight deadline.</div>
+        <div style="padding:12px;background:var(--brand-soft);border:1px solid var(--brand-line);border-radius:12px;margin-bottom:10px;font-size:13px;">I'd structure this with STAR — your K8s migration story fits well. Start with the 6-week constraint…</div>
+        <div style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-size:13px;">We had 40 services on legacy ECS…</div>
+      </div>
+    </div>
+    <div class="sticky-foot" style="display:flex;gap:8px;"><button type="button" class="act" style="flex:1;">Hint</button><button type="button" class="btn-primary" style="flex:2;">Send</button></div>
+  </div>
+</div>
+
+<!-- 14 Tailor -->
+<div class="frame-wrap">
+  <a class="frame-label" href="14-tailor.html"><span>14</span> · Tailor</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Tailor resume</h1><span class="avatar">M</span></header>
+    <div class="scroll"><div class="pad"><div class="jd-box"><h3>JD summary</h3><p>Own payments infra on Go/K8s. Lead incident response, mentor 2 engineers.</p></div><div class="checklist"><button type="button" class="check-item done"><span class="box">✓</span><span><strong>Lead with platform ownership</strong></span></button><button type="button" class="check-item"><span class="box"></span><span><strong>Add mentoring line</strong></span></button></div></div></div>
+    <div class="sticky-foot"><button type="button" class="btn-primary" style="width:100%;">Save tailored version</button></div>
+  </div>
+</div>
+
+<!-- 15 Stories -->
+<div class="frame-wrap">
+  <a class="frame-label" href="15-stories.html"><span>15</span> · Story bank</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="page-head"><h1>Story bank</h1><p class="mono">Signed in · 3 stories</p></div>
+      <div class="pad" style="padding-top:0;">
+        <article class="story"><div class="story-head"><strong>K8s migration</strong><span class="story-tag">Leadership</span></div><p>40 services in 6 weeks, zero downtime.</p></article>
+        <article class="story"><div class="story-head"><strong>Sev-1 outage</strong><span class="story-tag">Conflict</span></div><p>Restored payments in 22 min.</p></article>
+        <button type="button" class="add-card" style="min-height:56px;">Add another story</button>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+</div><!-- /prep grid -->
+
+<!-- ═══ MORE ═══ -->
+<section class="chapter" id="more">
+  <h2>More</h2>
+  <p>Company page, hot companies, trends, settings.</p>
+</section>
+<div class="phone-grid">
+
+<!-- 12 Company -->
+<div class="frame-wrap">
+  <a class="frame-label" href="12-company.html"><span>12</span> · Company page</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Ramp</h1><span class="avatar">M</span></header>
+    <div class="scroll">
+      <div class="pad">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;"><span class="logo" style="width:48px;height:48px;font-size:18px;background:#E6F4EF;color:#0D6E56;">R</span><span><strong style="font-size:17px;">Ramp</strong><br><span style="font-size:12px;color:var(--muted);">Corporate spend · Series D · NYC</span></span></div>
+        <div class="stat-grid"><div class="stat-card"><span class="label">Open / 90d</span><span class="val sm">28</span></div><div class="stat-card"><span class="label">Open now</span><span class="val sm">52</span></div></div>
+        <h2 class="section-title">Open roles</h2>
+        <div class="pursuit"><strong>Senior Platform Engineer</strong><span>Remote · 2d old</span></div>
+        <div class="pursuit"><strong>Staff Backend Engineer</strong><span>NYC hybrid · 4d</span></div>
+        <button type="button" class="chip soft" style="margin-top:10px;height:36px;padding:0 14px;">Following ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 13 Hot -->
+<div class="frame-wrap">
+  <a class="frame-label" href="13-hot.html"><span>13</span> · Hot companies</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar"><span class="wordmark">Soft Signal</span><span class="avatar">M</span></header>
+    <div class="scroll">
+      <div class="page-head"><h1>Hiring hard</h1><p>Ranked by 90d open velocity.</p></div>
+      <div class="pad" style="padding-top:0;">
+        <button type="button" class="hot-row"><span class="rank top">1</span><span class="logo" style="background:#E8F0EC;color:#0D6E56">S</span><span><span class="co">Stripe</span><span class="line">Payments infra</span></span><span><span class="vel">34/90d</span><span class="open">89</span></span></button>
+        <button type="button" class="hot-row"><span class="rank top">2</span><span class="logo" style="background:#E6F4EF;color:#0D6E56">R</span><span><span class="co">Ramp</span></span><span><span class="vel">28/90d</span><span class="open">52</span></span></button>
+        <button type="button" class="hot-row"><span class="rank top">3</span><span class="logo" style="background:#E5EDF5;color:#2A4A6B">B</span><span><span class="co">Buildkite</span></span><span><span class="vel">22/90d</span><span class="open">31</span></span></button>
+      </div>
+    </div>
+    <nav class="tabbar"><a class="tab" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg>Find</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Tracker</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12"/></svg>Resume</a><a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/></svg>Prep</a></nav>
+  </div>
+</div>
+
+<!-- 16 Trends -->
+<div class="frame-wrap">
+  <a class="frame-label" href="16-trends.html"><span>16</span> · Market trends</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Market trends</h1><span class="avatar filled">M</span></header>
+    <div class="scroll"><div class="pad"><div class="stat-grid"><div class="stat-card wide"><span class="label">Live jobs</span><span class="val">2,847</span><span class="delta">↑ 12%</span></div><div class="stat-card"><span class="label">Ghost</span><span class="val sm">8.2%</span></div><div class="stat-card"><span class="label">Fresh</span><span class="val sm">4.2d</span></div></div><div class="bar-row"><span class="lbl">Platform</span><span class="track"><span class="fill" style="width:88%"></span></span><span class="pct">412</span></div><div class="bar-row"><span class="lbl">Backend</span><span class="track"><span class="fill" style="width:72%"></span></span><span class="pct">338</span></div></div></div>
+  </div>
+</div>
+
+<!-- 17 Settings -->
+<div class="frame-wrap">
+  <a class="frame-label" href="17-settings.html"><span>17</span> · Settings</a>
+  <div class="phone gal">
+    <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+    <header class="topbar back"><button type="button" class="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button><h1>Settings</h1><span class="avatar filled">M</span></header>
+    <div class="scroll">
+      <div class="settings-group" style="margin-top:12px;"><h3>Appearance</h3><div class="settings-list"><button type="button" class="settings-row">Theme<span class="meta">System</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span></button></div></div>
+      <div class="settings-group"><h3>Models</h3><div class="settings-list"><button type="button" class="settings-row">Fit analysis<span class="meta">Claude</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span></button></div></div>
+      <div class="settings-group"><h3>Account</h3><div class="settings-list"><button type="button" class="settings-row">Profile<span class="meta">Maya K.</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span></button></div></div>
+      <div class="settings-group"><h3>Export</h3><div class="settings-list"><button type="button" class="settings-row">Export pursuits<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span></button></div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /more grid -->
+
+<p style="text-align:center;padding:32px 24px 48px;font-family:var(--mono);font-size:11px;color:#5C6570;">
+  18 screens · <a href="00-index.html">Hub index</a> · Shared <a href="_system.css">_system.css</a>
+</p>
+
+</body>
+</html>

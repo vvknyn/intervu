@@ -115,7 +115,7 @@ export function JobDetail({
     if (sal) facts.push({ icon: <CurrencyDollar size={13} />, label: sal });
 
     return (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="overflow-hidden rounded-[14px] border border-border bg-card">
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
@@ -168,12 +168,20 @@ export function JobDetail({
                             In Yours ✓ — view
                         </Link>
                     ) : (
-                        <Button onClick={onGoAfter} disabled={goingAfter} className="gap-2">
+                        <Button
+                            onClick={onGoAfter}
+                            disabled={goingAfter}
+                            className="gap-2 bg-foreground text-background hover:bg-foreground/90"
+                        >
                             <Check size={16} weight="bold" />
                             {goingAfter ? "Saving…" : "Go after this job"}
                         </Button>
                     )}
-                    <Button variant="outline" onClick={onTailor} className="gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={onTailor}
+                        className="gap-2 border-brand/30 bg-brand/10 text-brand hover:bg-brand/15"
+                    >
                         <Sparkle size={16} weight="fill" />
                         Apply with tailored resume
                     </Button>

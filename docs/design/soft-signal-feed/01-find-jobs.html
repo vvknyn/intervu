@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intervu · Soft Signal — Find jobs (interactive mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Soft Signal · 8px spacing system · shared horizontal rhythm
+   Gutter 32 · Content max 1280 · Columns: list 1fr / detail 400
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --g: 8px;
+  --gutter: 32px;
+  --max: 1280px;
+  --detail: 400px;
+  --topbar-h: 56px;
+  --search-h: 44px;
+
+  --bg: #F4F6F8;
+  --surface: #FFFFFF;
+  --ink: #12151A;
+  --muted: #5C6570;
+  --faint: #8B939E;
+  --line: #E2E6EB;
+  --line-2: #D0D5DC;
+  --brand: #0D6E56;
+  --brand-soft: #E6F4EF;
+  --brand-line: #B7D9CB;
+  --live: #129B6E;
+  --warn: #B86E12;
+  --risk: #C44A36;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 14px;
+  --shadow: 0 1px 2px rgba(18,21,26,.04), 0 6px 20px rgba(18,21,26,.05);
+
+  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(18,155,110,.45); }
+  70%  { box-shadow: 0 0 0 6px rgba(18,155,110,0); }
+  100% { box-shadow: 0 0 0 0 rgba(18,155,110,0); }
+}
+
+/* ─── Shell: shared left/right inset = --gutter ─── */
+.shell {
+  width: 100%;
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* ─── Top bar ─── */
+.topbar {
+  flex: none;
+  height: var(--topbar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;          /* vertical center: logo + links + actions */
+  justify-content: space-between;
+  gap: calc(var(--g) * 3);
+}
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--g) * 1.5);
+  flex: none;
+  min-width: 0;
+}
+.wordmark {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink);
+}
+.beta {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 2px 5px;
+  line-height: 1.2;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--g) * 3);      /* equal 24px between all nav items */
+  height: 100%;
+  margin-left: calc(var(--g) * 4); /* 32px from wordmark — matches gutter rhythm */
+}
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;          /* sit on topbar border */
+}
+.nav a:hover { color: var(--ink); text-decoration: none; }
+.nav a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--g) * 2);
+  flex: none;
+  margin-left: auto;
+}
+.topbar-actions button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.topbar-actions button:hover { color: var(--ink); }
+
+/* ─── Search band ─── */
+.search-band {
+  flex: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding-block: calc(var(--g) * 2); /* 16 */
+}
+.search-row {
+  display: grid;
+  /* Query · Location · Search — LinkedIn/Indeed pattern */
+  grid-template-columns: minmax(0, 1.35fr) minmax(200px, 0.65fr) auto;
+  gap: calc(var(--g) * 1.5); /* 12 */
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .search-row { grid-template-columns: 1fr; }
+}
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--search-h);
+  padding: 0 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+.search-field:focus-within {
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(18,21,26,.06);
+}
+.search-field .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+}
+/* Query field: trailing search icon so text locks to left column */
+.search-field.query {
+  padding-left: 0;
+}
+.search-field.query .icon { order: 2; }
+.search-field.query input {
+  order: 1;
+  padding-left: 12px;
+}
+.search-field.location .icon { order: 0; }
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.search-field input::placeholder { color: var(--faint); font-weight: 450; }
+.search-field .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.btn-search {
+  height: var(--search-h);
+  padding-inline: 20px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.btn-search:hover { background: #000; }
+
+/* Filter trigger row — same left edge as search field */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--g) * 2);
+  margin-top: calc(var(--g) * 1.5); /* 12 */
+  min-height: 28px;
+}
+.filter-bar-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--g) * 2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.filter-toggle[aria-expanded="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.filter-toggle .chev { font-size: 10px; opacity: .7; }
+.active-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pill button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  opacity: .7;
+}
+.pill button:hover { opacity: 1; }
+.clear-all {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--faint);
+}
+.clear-all:hover { color: var(--ink); text-decoration: underline; }
+.filter-bar-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--g) * 2);
+  flex: none;
+}
+.explore {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.explore:hover { color: var(--ink); }
+.result-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* ─── Filters panel (complete) ─── */
+.filters {
+  display: none;
+  margin-top: calc(var(--g) * 2);
+  padding: calc(var(--g) * 2.5);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.filters.open { display: block; }
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(var(--g) * 3) calc(var(--g) * 4);
+}
+@media (max-width: 900px) {
+  .filters-grid { grid-template-columns: 1fr 1fr; }
+}
+.filter-group h4 {
+  margin: 0 0 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.filter-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.opt:hover { color: var(--ink); }
+.opt[aria-pressed="true"] { color: var(--ink); font-weight: 650; }
+.opt .box {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 3px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+}
+.opt[aria-pressed="true"] .box {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+.opt .n {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 500;
+}
+.filter-note {
+  margin: calc(var(--g) * 2.5) 0 0;
+  padding-top: calc(var(--g) * 2);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+/* ─── Main: list + detail ─── */
+.main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.main-inner {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--detail);
+  gap: 0;
+  padding-block: calc(var(--g) * 2.5) calc(var(--g) * 4);
+  align-items: stretch;
+}
+@media (max-width: 960px) {
+  .main-inner { grid-template-columns: 1fr; }
+  .detail { display: none; }
+  .detail.show-mobile { display: flex; }
+}
+
+.list-col {
+  /* Shared rhythm for list-head + every card — one grid, one gutter */
+  --row-pad-x: 16px;
+  --row-pad-y: 14px;
+  --col-logo: 44px;
+  --col-aside: 72px;
+  --col-gap: 14px;
+
+  min-width: 0;
+  padding-right: calc(var(--g) * 2.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Same horizontal inset as .card — sort’s right edge == Apply’s right edge */
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 0 var(--row-pad-x);
+}
+.list-head h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.list-head h1 span {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+}
+.sort {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 2px;
+  background: #E8EBEE;
+  border-radius: 8px;
+  gap: 1px;
+}
+.sort button {
+  border: none;
+  background: transparent;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.sort button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(18,21,26,.08);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding-bottom: 8px;
+  min-height: 0;
+}
+
+/* Job card — identical columns to .list-head */
+.card {
+  display: grid;
+  grid-template-columns: var(--col-logo) minmax(0, 1fr) var(--col-aside);
+  column-gap: var(--col-gap);
+  align-items: start;
+  padding: var(--row-pad-y) var(--row-pad-x);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: 0 1px 2px rgba(18,21,26,.03);
+  text-align: left;
+  width: 100%;
+  color: var(--ink);
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.card:hover {
+  border-color: #C5CCD4;
+  box-shadow: var(--shadow);
+}
+.card[aria-selected="true"] {
+  border-color: var(--brand);
+  background: linear-gradient(180deg, #fff 0%, var(--brand-soft) 220%);
+  box-shadow: var(--shadow);
+}
+.logo {
+  width: var(--col-logo);
+  height: var(--col-logo);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.card-body { min-width: 0; }
+.card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+.age {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+  line-height: 1.3;
+}
+.meta {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.meta .co { color: var(--brand); font-weight: 650; }
+.meta .mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.live {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--brand);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: pulse 2s infinite;
+  flex: none;
+}
+.fit {
+  margin-top: 6px;
+  display: inline-block;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--brand);
+}
+.fit:hover { text-decoration: underline; }
+.intel {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #EEF1F4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.intel .hot { color: var(--brand); font-weight: 600; }
+.intel .sep { color: var(--line-2); }
+.card-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: var(--col-aside);
+}
+.apply {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+.card-aside .age {
+  text-align: center;
+  width: 100%;
+}
+.card:hover .apply { background: var(--ink); color: #fff; }
+.card[aria-selected="true"] .apply {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ─── Detail pane ─── */
+.detail {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100dvh - var(--topbar-h) - 140px);
+  position: sticky;
+  top: calc(var(--g) * 2);
+}
+.detail-head {
+  flex: none;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.detail-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+.detail-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+  line-height: 1.35;
+}
+.detail-actions {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #FAFBFC;
+}
+.act {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.act.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.act.brand {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+  color: var(--brand);
+}
+.detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 28px;
+}
+.banner {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border-radius: var(--r-md);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+}
+.banner .dot { margin-top: 4px; }
+.banner strong { display: block; font-size: 12.5px; font-weight: 700; }
+.banner span { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+.section-label {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+
+/* Rendered job description — semantic HTML, never raw tags */
+.jd h2 {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.jd h2:first-child { margin-top: 0; }
+.jd h3 {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.jd p {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #2A3139;
+}
+.jd ul {
+  margin: 0 0 14px;
+  padding-left: 1.15rem;
+}
+.jd li {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #2A3139;
+}
+.jd .pay {
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--brand-soft);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2A3139;
+}
+.show-toggle {
+  margin-top: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--brand);
+}
+.show-toggle:hover { text-decoration: underline; }
+
+.clamp {
+  max-height: 280px;
+  overflow: hidden;
+  position: relative;
+}
+.clamp::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 64px;
+  background: linear-gradient(transparent, var(--surface));
+  pointer-events: none;
+}
+.clamp.expanded { max-height: none; }
+.clamp.expanded::after { display: none; }
+
+/* ─── Design chrome (gallery strip — outside product) ─── */
+.lab {
+  flex: none;
+  background: #0F1216;
+  color: #C5CBD3;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px var(--gutter);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.lab strong { color: #fff; font-weight: 600; }
+.lab a { color: #7DDBB8; }
+</style>
+</head>
+<body>
+
+<!-- Lab strip: not part of product chrome -->
+<div class="lab">
+  <div><strong>Soft Signal</strong> · interactive mock · 8px grid · gutter 32 · detail 400</div>
+  <div>Elite lives under Filters → Boards · JD HTML rendered</div>
+</div>
+
+<!-- ═══════════ PRODUCT: TOP BAR ═══════════ -->
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="#" aria-current="page">Find jobs</a>
+        <a href="#">Tracker</a>
+        <a href="#">Resume</a>
+        <a href="#">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <button type="button">Log in</button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ SEARCH + FILTERS ═══════════ -->
+<section class="search-band">
+  <div class="shell">
+    <form class="search-row" onsubmit="return false">
+      <label class="search-field query">
+        <span class="field-label">Role or keywords</span>
+        <svg class="icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input id="q" type="search" value="Senior software engineer" placeholder="Job title, skill, or company" autocomplete="off">
+      </label>
+      <label class="search-field location">
+        <span class="field-label">Location</span>
+        <svg class="icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 1.75c-2.4 0-4.35 1.9-4.35 4.25 0 3.2 4.35 8.25 4.35 8.25s4.35-5.05 4.35-8.25C12.35 3.65 10.4 1.75 8 1.75z" stroke="currentColor" stroke-width="1.4"/>
+          <circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+        <input id="loc" type="text" value="United States" placeholder="City, state, or remote" autocomplete="off" list="loc-suggestions">
+        <datalist id="loc-suggestions">
+          <option value="United States"></option>
+          <option value="Remote"></option>
+          <option value="San Francisco Bay Area"></option>
+          <option value="New York, NY"></option>
+          <option value="Seattle, WA"></option>
+          <option value="Austin, TX"></option>
+          <option value="London, UK"></option>
+        </datalist>
+      </label>
+      <button class="btn-search" type="submit">Search</button>
+    </form>
+
+    <div class="filter-bar">
+      <div class="filter-bar-left">
+        <button type="button" class="filter-toggle" id="filterToggle" aria-expanded="true" aria-controls="filtersPanel">
+          Filters <span id="filterCount">(1)</span>
+          <span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="active-pills" id="activePills" aria-label="Active filters">
+          <!-- filled by JS -->
+        </div>
+        <button type="button" class="clear-all" id="clearAll">Clear</button>
+      </div>
+      <div class="filter-bar-right">
+        <button type="button" class="explore">explore roles like mine</button>
+        <span class="result-meta" id="resultMeta">847 roles</span>
+      </div>
+    </div>
+
+    <!-- Open by default so Boards → Elite startups is visible in the mock -->
+    <div class="filters open" id="filtersPanel">
+      <div class="filters-grid">
+        <div class="filter-group">
+          <h4>Work type</h4>
+          <div class="filter-opts" data-group="work">
+            <button type="button" class="opt" data-key="work" data-val="Remote" aria-pressed="true"><span class="box">✓</span> Remote <span class="n">412</span></button>
+            <button type="button" class="opt" data-key="work" data-val="Hybrid" aria-pressed="false"><span class="box"></span> Hybrid <span class="n">186</span></button>
+            <button type="button" class="opt" data-key="work" data-val="On-site" aria-pressed="false"><span class="box"></span> On-site <span class="n">249</span></button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h4>Date posted</h4>
+          <div class="filter-opts" data-group="date">
+            <button type="button" class="opt" data-key="date" data-val="Any date" data-exclusive aria-pressed="true"><span class="box">✓</span> Any date</button>
+            <button type="button" class="opt" data-key="date" data-val="Past 24h" data-exclusive aria-pressed="false"><span class="box"></span> Past 24h <span class="n">38</span></button>
+            <button type="button" class="opt" data-key="date" data-val="Past week" data-exclusive aria-pressed="false"><span class="box"></span> Past week <span class="n">214</span></button>
+            <button type="button" class="opt" data-key="date" data-val="Past month" data-exclusive aria-pressed="false"><span class="box"></span> Past month <span class="n">641</span></button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h4>Experience</h4>
+          <div class="filter-opts" data-group="exp">
+            <button type="button" class="opt" data-key="exp" data-val="Senior" aria-pressed="false"><span class="box"></span> Senior <span class="n">520</span></button>
+            <button type="button" class="opt" data-key="exp" data-val="Staff+" aria-pressed="false"><span class="box"></span> Staff+ <span class="n">91</span></button>
+            <button type="button" class="opt" data-key="exp" data-val="Mid" aria-pressed="false"><span class="box"></span> Mid <span class="n">203</span></button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h4>Salary</h4>
+          <div class="filter-opts" data-group="salary">
+            <button type="button" class="opt" data-key="salary" data-val="$150k+" data-exclusive aria-pressed="false"><span class="box"></span> $150k+</button>
+            <button type="button" class="opt" data-key="salary" data-val="$180k+" data-exclusive aria-pressed="false"><span class="box"></span> $180k+</button>
+            <button type="button" class="opt" data-key="salary" data-val="$200k+" data-exclusive aria-pressed="false"><span class="box"></span> $200k+</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h4>Ghost risk</h4>
+          <div class="filter-opts" data-group="ghost">
+            <button type="button" class="opt" data-key="ghost" data-val="Hide likely ghosts" data-exclusive aria-pressed="true"><span class="box">✓</span> Hide likely ghosts</button>
+            <button type="button" class="opt" data-key="ghost" data-val="Show all" data-exclusive aria-pressed="false"><span class="box"></span> Show all postings</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h4>Boards</h4>
+          <div class="filter-opts" data-group="board">
+            <!-- Elite startups lives HERE — not as a top-level chip -->
+            <button type="button" class="opt" data-key="board" data-val="Elite startups" data-exclusive aria-pressed="true"><span class="box">✓</span> Elite startups <span class="n">847</span></button>
+            <button type="button" class="opt" data-key="board" data-val="All companies" data-exclusive aria-pressed="false"><span class="box"></span> All companies</button>
+          </div>
+        </div>
+      </div>
+      <p class="filter-note">Counts update against the active board. Quiet defaults stay out of the pill row — only explicit choices surface as chips.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ RESULTS + DETAIL ═══════════ -->
+<main class="main">
+  <div class="shell main-inner">
+    <section class="list-col" aria-label="Results">
+      <div class="list-head">
+        <h1>Results <span id="listCount">847 · elite board</span></h1>
+        <div class="sort" role="group" aria-label="Sort">
+          <button type="button" aria-pressed="true">freshest</button>
+          <button type="button" aria-pressed="false">top pay</button>
+          <button type="button" aria-pressed="false">fit</button>
+        </div>
+      </div>
+
+      <div class="cards" role="listbox" aria-label="Jobs">
+        <button type="button" class="card" role="option" aria-selected="true" data-job="0">
+          <div class="logo" style="background:#E6F4EF;color:#0D6E56">B</div>
+          <div class="card-body">
+            <p class="title">Senior Platform Engineer</p>
+            <div class="meta"><span class="co">Buildkite</span><span>Remote · US</span><span class="mono">$180–220k</span><span class="mono">Senior</span></div>
+            <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+            <span class="fit">Am I a fit? →</span>
+            <div class="intel"><span class="hot">Series C</span><span class="sep">·</span><span class="hot">Opened 14 / closed 3 in 90d</span><span class="sep">·</span><span>18 open roles</span></div>
+          </div>
+          <div class="card-aside">
+            <span class="apply" tabindex="-1">Apply</span>
+            <span class="age">3d ago</span>
+          </div>
+        </button>
+
+        <button type="button" class="card" role="option" aria-selected="false" data-job="1">
+          <div class="logo" style="background:#E8EDF6;color:#2B4A7E">C</div>
+          <div class="card-body">
+            <p class="title">Staff Backend Engineer</p>
+            <div class="meta"><span class="co">Console</span><span>SF / Hybrid</span><span class="mono">$200–250k</span><span class="mono">Staff</span></div>
+            <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+            <span class="fit">Am I a fit? →</span>
+            <div class="intel"><span class="hot">Series B</span><span class="sep">·</span><span>Opened 9 / closed 2 in 90d</span><span class="sep">·</span><span>11 open roles</span></div>
+          </div>
+          <div class="card-aside">
+            <span class="apply" tabindex="-1">Apply</span>
+            <span class="age">1d ago</span>
+          </div>
+        </button>
+
+        <button type="button" class="card" role="option" aria-selected="false" data-job="2">
+          <div class="logo" style="background:#F6EDE4;color:#8E5B2B">H</div>
+          <div class="card-body">
+            <p class="title">Senior ML Infrastructure Engineer</p>
+            <div class="meta"><span class="co">Horizon3</span><span>Remote</span><span class="mono">$175–210k</span><span class="mono">Senior</span></div>
+            <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+            <span class="fit">Am I a fit? →</span>
+            <div class="intel"><span>Early-stage</span><span class="sep">·</span><span class="hot">Opened 18 / closed 1 in 90d</span><span class="sep">·</span><span>22 open roles</span></div>
+          </div>
+          <div class="card-aside">
+            <span class="apply" tabindex="-1">Apply</span>
+            <span class="age">5h ago</span>
+          </div>
+        </button>
+
+        <button type="button" class="card" role="option" aria-selected="false" data-job="3">
+          <div class="logo" style="background:#EFE8F6;color:#5B3A8E">R</div>
+          <div class="card-body">
+            <p class="title">Senior Full-Stack Engineer</p>
+            <div class="meta"><span class="co">Ramp</span><span>NYC / Remote</span><span class="mono">$190–230k</span><span class="mono">Senior</span></div>
+            <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+            <span class="fit">Am I a fit? →</span>
+            <div class="intel"><span class="hot">Series D</span><span class="sep">·</span><span class="hot">Opened 27 / closed 6 in 90d</span><span class="sep">·</span><span>41 open roles</span></div>
+          </div>
+          <div class="card-aside">
+            <span class="apply" tabindex="-1">Apply</span>
+            <span class="age">2d ago</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <aside class="detail" aria-label="Job detail" id="detail">
+      <div class="detail-head">
+        <h2 id="dTitle">Senior Platform Engineer</h2>
+        <div class="detail-sub" id="dSub">Buildkite · Remote · US · $180–220k</div>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="act primary">✓ Go after this job</button>
+        <button type="button" class="act brand">✦ Tailored resume</button>
+        <button type="button" class="act">↗ Open posting</button>
+        <button type="button" class="act">Mark as applied</button>
+      </div>
+      <div class="detail-scroll">
+        <div class="banner">
+          <span class="dot" aria-hidden="true"></span>
+          <div>
+            <strong>Live · no ghost signals</strong>
+            <span>No repost loop or 45+ day staleness on this listing.</span>
+          </div>
+        </div>
+
+        <div class="section-label">About this role</div>
+        <!-- Intentionally real HTML structure — the target state for formatDescription -->
+        <div class="clamp" id="jdClamp">
+          <div class="jd" id="jd">
+            <h2>About Buildkite</h2>
+            <p>Buildkite helps engineering teams run fast, reliable CI/CD at scale. Our platform orchestrates pipelines across your own infrastructure so builds stay private, parallel, and under your control.</p>
+
+            <h2>Role Overview</h2>
+            <p>We're hiring a Senior Platform Engineer to own the systems that schedule, isolate, and observe customer workloads. You'll work across Go services, Kubernetes, and observability tooling with a small senior team.</p>
+
+            <h2>What You'll Do</h2>
+            <ul>
+              <li>Design and ship durable scheduling / queueing components for multi-tenant CI</li>
+              <li>Improve isolation, cost controls, and failure recovery for agent fleets</li>
+              <li>Partner with Security on least-privilege defaults for customer-run agents</li>
+              <li>Instrument reliability SLOs and drive down noisy-neighbor incidents</li>
+            </ul>
+
+            <h2>You're a Strong Fit if You Have</h2>
+            <ul>
+              <li>5+ years building production distributed systems</li>
+              <li>Deep experience with Kubernetes, Linux, and container runtimes</li>
+              <li>Comfort owning on-call for platform services</li>
+              <li>Clear written communication with customers and teammates</li>
+            </ul>
+
+            <h2>Nice to Have</h2>
+            <ul>
+              <li>Prior work on CI/CD, developer platforms, or build systems</li>
+              <li>Go or Rust in production</li>
+              <li>Experience with cost attribution for shared infra</li>
+            </ul>
+
+            <h2>Why You'll Love Working at Buildkite</h2>
+            <ul>
+              <li>Remote-first, async-friendly culture</li>
+              <li>Meaningful equity and competitive benefits</li>
+              <li>Customers who are themselves sophisticated engineering orgs</li>
+            </ul>
+
+            <div class="pay"><strong>Compensation</strong><br>Base $180,000–$220,000 USD · equity · benefits. Final offer depends on level and location.</div>
+
+            <h2>Equal Opportunity Employer</h2>
+            <p>Buildkite is an equal opportunity employer. We celebrate diversity and are committed to creating an inclusive environment for all employees.</p>
+          </div>
+        </div>
+        <button type="button" class="show-toggle" id="showToggle">Show full description</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  const jobs = [
+    {
+      title: "Senior Platform Engineer",
+      sub: "Buildkite · Remote · US · $180–220k",
+      html: document.getElementById("jd").innerHTML,
+    },
+    {
+      title: "Staff Backend Engineer",
+      sub: "Console · SF / Hybrid · $200–250k",
+      html: `
+        <h2>About Console</h2>
+        <p>Console builds developer tools for modern infrastructure teams. We care about clarity, speed, and boring reliability.</p>
+        <h2>What You'll Do</h2>
+        <ul>
+          <li>Own core API services in Go and TypeScript</li>
+          <li>Shape multi-tenant data models and auth boundaries</li>
+          <li>Partner with product on high-leverage platform bets</li>
+        </ul>
+        <h2>Requirements</h2>
+        <ul>
+          <li>8+ years backend engineering</li>
+          <li>Production experience with Postgres and distributed queues</li>
+        </ul>`,
+    },
+    {
+      title: "Senior ML Infrastructure Engineer",
+      sub: "Horizon3 · Remote · $175–210k",
+      html: `
+        <h2>Role Overview</h2>
+        <p>Build the training and inference substrate for autonomous security agents.</p>
+        <h2>What You'll Do</h2>
+        <ul>
+          <li>Scale GPU clusters and experiment tracking</li>
+          <li>Harden model serving for low-latency eval loops</li>
+        </ul>`,
+    },
+    {
+      title: "Senior Full-Stack Engineer",
+      sub: "Ramp · NYC / Remote · $190–230k",
+      html: `
+        <h2>About the role</h2>
+        <p>Ship product end-to-end across React and Python services that move real money.</p>
+        <h2>Responsibilities</h2>
+        <ul>
+          <li>Lead features from design review to production</li>
+          <li>Raise the bar on testing, observability, and UX polish</li>
+        </ul>`,
+    },
+  ];
+
+  /* Filters open/close */
+  const toggle = document.getElementById("filterToggle");
+  const panel = document.getElementById("filtersPanel");
+  toggle.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!open));
+    panel.hidden = open;
+    panel.classList.toggle("open", !open);
+  });
+
+  /* Filter options */
+  const locInput = document.getElementById("loc");
+
+  function syncPills() {
+    const pressed = [...document.querySelectorAll(".opt[aria-pressed='true']")];
+    // Elite / board mode stays inside Filters → Boards (never a top-row marketing chip).
+    // Defaults like "Any date" also stay out of the pill row.
+    const skip = new Set([
+      "Any date",
+      "All companies",
+      "Show all",
+      "Elite startups",
+      "Hide likely ghosts", // default ghost posture — visible only inside Filters
+    ]);
+    const pills = pressed
+      .map((b) => b.dataset.val)
+      .filter((v) => v && !skip.has(v));
+
+    // Location lives next to Search — surface as a removable chip when set
+    const loc = (locInput.value || "").trim();
+    if (loc) pills.unshift(loc);
+
+    const host = document.getElementById("activePills");
+    host.innerHTML = "";
+    pills.forEach((label) => {
+      const el = document.createElement("span");
+      el.className = "pill";
+      el.innerHTML = `${label}<button type="button" aria-label="Remove ${label}">×</button>`;
+      el.querySelector("button").addEventListener("click", () => {
+        if (label === locInput.value.trim()) {
+          locInput.value = "";
+          syncPills();
+          return;
+        }
+        const btn = document.querySelector(`.opt[data-val="${CSS.escape(label)}"]`);
+        if (!btn) return;
+        if (btn.hasAttribute("data-exclusive")) {
+          const group = btn.closest(".filter-opts");
+          group.querySelectorAll(".opt").forEach((o, i) => {
+            const on = i === 0;
+            o.setAttribute("aria-pressed", String(on));
+            o.querySelector(".box").textContent = on ? "✓" : "";
+          });
+        } else {
+          btn.setAttribute("aria-pressed", "false");
+          btn.querySelector(".box").textContent = "";
+        }
+        syncPills();
+      });
+      host.appendChild(el);
+    });
+    document.getElementById("filterCount").textContent = `(${pills.length})`;
+    document.getElementById("clearAll").style.visibility = pills.length ? "visible" : "hidden";
+
+    const elite = pressed.some((b) => b.dataset.val === "Elite startups");
+    document.getElementById("listCount").textContent = elite ? "847 · elite board" : "12,480 · all companies";
+    document.getElementById("resultMeta").textContent = elite ? "847 roles" : "12,480 roles";
+  }
+
+  document.querySelectorAll(".opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest(".filter-opts");
+      const exclusive = btn.hasAttribute("data-exclusive");
+      if (exclusive) {
+        group.querySelectorAll(".opt").forEach((o) => {
+          const on = o === btn;
+          o.setAttribute("aria-pressed", String(on));
+          o.querySelector(".box").textContent = on ? "✓" : "";
+        });
+      } else {
+        const next = btn.getAttribute("aria-pressed") !== "true";
+        btn.setAttribute("aria-pressed", String(next));
+        btn.querySelector(".box").textContent = next ? "✓" : "";
+      }
+      syncPills();
+    });
+  });
+
+  document.getElementById("clearAll").addEventListener("click", () => {
+    document.querySelectorAll(".filter-opts").forEach((group) => {
+      const opts = [...group.querySelectorAll(".opt")];
+      const hasExclusive = opts.some((o) => o.hasAttribute("data-exclusive"));
+      opts.forEach((o, i) => {
+        const on = hasExclusive ? i === 0 : false;
+        o.setAttribute("aria-pressed", String(on));
+        o.querySelector(".box").textContent = on ? "✓" : "";
+      });
+    });
+    // After clear, turn Elite off → All companies (first exclusive in Boards is Elite — set All)
+    const boardOpts = document.querySelectorAll('[data-group="board"] .opt');
+    boardOpts.forEach((o) => {
+      const on = o.dataset.val === "All companies";
+      o.setAttribute("aria-pressed", String(on));
+      o.querySelector(".box").textContent = on ? "✓" : "";
+    });
+    locInput.value = "";
+    syncPills();
+  });
+
+  locInput.addEventListener("change", syncPills);
+
+  syncPills();
+
+  /* Sort */
+  document.querySelectorAll(".sort button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".sort button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+    });
+  });
+
+  /* Job selection */
+  const cards = [...document.querySelectorAll(".card")];
+  cards.forEach((card) => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".fit")) {
+        e.stopPropagation();
+        alert("Am I a fit? — opens Fit drawer (mocked)");
+        return;
+      }
+      if (e.target.closest(".apply")) {
+        e.stopPropagation();
+        alert("Apply — opens posting / tracks pursuit (mocked)");
+        return;
+      }
+      const idx = Number(card.dataset.job);
+      cards.forEach((c) => c.setAttribute("aria-selected", String(c === card)));
+      const job = jobs[idx];
+      document.getElementById("dTitle").textContent = job.title;
+      document.getElementById("dSub").textContent = job.sub;
+      document.getElementById("jd").innerHTML = job.html;
+      const clamp = document.getElementById("jdClamp");
+      clamp.classList.remove("expanded");
+      document.getElementById("showToggle").textContent = "Show full description";
+    });
+  });
+
+  /* JD expand */
+  document.getElementById("showToggle").addEventListener("click", () => {
+    const clamp = document.getElementById("jdClamp");
+    const open = clamp.classList.toggle("expanded");
+    document.getElementById("showToggle").textContent = open ? "Show less" : "Show full description";
+  });
+})();
+</script>
+</body>
+</html>

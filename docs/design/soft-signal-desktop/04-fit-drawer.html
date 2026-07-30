@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Find — fit drawer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100%; }
+  .filter-bar-right { display: flex; align-items: center; gap: 16px; flex: none; }
+  .card-body { min-width: 0; }
+  .intel .sep { color: var(--line-2); }
+  .card:hover .apply, .card[aria-selected="true"] .apply {
+    background: var(--ink); color: #fff;
+  }
+  .fit-role {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .fit-verdict {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+    color: var(--brand);
+    line-height: 1.2;
+  }
+  .fit-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .fit-list li {
+    position: relative;
+    padding-left: 18px;
+    margin-bottom: 8px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #2A3139;
+  }
+  .fit-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+  }
+  .fit-list.gaps li::before {
+    background: var(--surface);
+    border: 1.5px solid var(--faint);
+  }
+  .fit-list.gaps li { color: var(--muted); }
+  .fit-drawer .btn-row { margin-top: 20px; }
+  .fit-drawer .btn-row .btn-primary {
+    flex: 1;
+    height: 36px;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>04 · Fit drawer</strong> · replaces detail · Buildkite</div>
+  <div><a href="02-find-serp.html">← SERP</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand-block">
+      <div class="wordmark">intervu</div>
+      <span class="beta">beta</span>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="01-find-empty.html" aria-current="page">Find jobs</a>
+      <a href="#">Tracker</a>
+      <a href="#">Resume</a>
+      <a href="#">Interview prep</a>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <button type="button">Log in</button>
+    </div>
+  </div>
+</header>
+
+<section class="search-band">
+  <div class="shell">
+    <form class="search-row" onsubmit="return false">
+      <label class="field">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input type="search" value="Senior software engineer" autocomplete="off">
+      </label>
+      <label class="field">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 1.75c-2.4 0-4.35 1.9-4.35 4.25 0 3.2 4.35 8.25 4.35 8.25s4.35-5.05 4.35-8.25C12.35 3.65 10.4 1.75 8 1.75z" stroke="currentColor" stroke-width="1.4"/>
+          <circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.4"/>
+        </svg>
+        <input type="text" value="United States" autocomplete="off">
+      </label>
+      <button class="btn-search" type="submit">Search</button>
+    </form>
+
+    <div class="filter-bar">
+      <div class="filter-bar-left">
+        <button type="button" class="filter-toggle" aria-expanded="false">Filters <span>(1)</span></button>
+        <span class="pill">Remote <button type="button" aria-label="Remove Remote">×</button></span>
+      </div>
+      <div class="filter-bar-right">
+        <span class="result-meta">847 roles</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="main">
+  <div class="shell main-split">
+    <section class="list-col" aria-label="Results">
+      <div class="list-head">
+        <h1>Results <span>847 · elite board</span></h1>
+        <div class="sort" role="group" aria-label="Sort">
+          <button type="button" aria-pressed="true">freshest</button>
+          <button type="button" aria-pressed="false">top pay</button>
+          <button type="button" aria-pressed="false">fit</button>
+        </div>
+      </div>
+
+      <button type="button" class="card" aria-selected="true">
+        <div class="logo" style="background:#E6F4EF;color:#0D6E56">B</div>
+        <div class="card-body">
+          <p class="title">Senior Platform Engineer</p>
+          <div class="meta"><span class="co">Buildkite</span><span>Remote · US</span><span class="mono">$180–220k</span><span class="mono">Senior</span></div>
+          <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+          <div class="intel"><span class="hot">Series C</span><span class="sep">·</span><span class="hot">Opened 14 / closed 3 in 90d</span><span class="sep">·</span><span>18 open roles</span></div>
+        </div>
+        <div class="card-aside">
+          <span class="apply">Apply</span>
+          <span class="age">3d ago</span>
+        </div>
+      </button>
+
+      <button type="button" class="card" aria-selected="false">
+        <div class="logo" style="background:#E8EDF6;color:#2B4A7E">C</div>
+        <div class="card-body">
+          <p class="title">Staff Backend Engineer</p>
+          <div class="meta"><span class="co">Console</span><span>SF / Hybrid</span><span class="mono">$200–250k</span></div>
+          <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+        </div>
+        <div class="card-aside">
+          <span class="apply">Apply</span>
+          <span class="age">1d ago</span>
+        </div>
+      </button>
+
+      <button type="button" class="card" aria-selected="false">
+        <div class="logo" style="background:#F6EDE4;color:#8E5B2B">H</div>
+        <div class="card-body">
+          <p class="title">Senior ML Infrastructure Engineer</p>
+          <div class="meta"><span class="co">Horizon3</span><span>Remote</span><span class="mono">$175–210k</span></div>
+          <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+        </div>
+        <div class="card-aside">
+          <span class="apply">Apply</span>
+          <span class="age">5h ago</span>
+        </div>
+      </button>
+
+      <button type="button" class="card" aria-selected="false">
+        <div class="logo" style="background:#EFE8F6;color:#5B3A8E">R</div>
+        <div class="card-body">
+          <p class="title">Senior Full-Stack Engineer</p>
+          <div class="meta"><span class="co">Ramp</span><span>NYC / Remote</span><span class="mono">$190–230k</span></div>
+          <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+          <span class="fit-link">Am I a fit? →</span>
+        </div>
+        <div class="card-aside">
+          <span class="apply">Apply</span>
+          <span class="age">2d ago</span>
+        </div>
+      </button>
+    </section>
+
+    <aside class="fit-drawer" aria-label="Fit analysis">
+      <p class="fit-role">Buildkite · Senior Platform Engineer</p>
+      <h2 class="fit-verdict">Strong fit</h2>
+      <span class="fit-score">91 / 100</span>
+
+      <h4>Why you match</h4>
+      <ul class="fit-list">
+        <li>6 years building distributed platform services — aligns with senior scope</li>
+        <li>Production Kubernetes + on-call ownership matches their core stack</li>
+        <li>Prior CI/CD platform work maps directly to Buildkite's product domain</li>
+      </ul>
+
+      <h4>Gaps to address</h4>
+      <ul class="fit-list gaps">
+        <li>Go listed as nice-to-have — your resume leads with Python/Java</li>
+        <li>No explicit cost-attribution experience for shared infra fleets</li>
+      </ul>
+
+      <div class="btn-row">
+        <button type="button" class="btn-brand">✦ Tailor resume</button>
+        <button type="button" class="btn-primary">✓ Go after this job</button>
+        <button type="button" class="btn-ghost">Prep for interview</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+</body>
+</html>
