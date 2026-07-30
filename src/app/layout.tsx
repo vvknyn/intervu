@@ -4,6 +4,7 @@ import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
+import { MotionRoot } from "@/components/layout/MotionRoot";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
@@ -105,9 +106,11 @@ export default function RootLayout({
         />
         <ThemeProvider>
           <TourProvider>
-            <TopBar />
-            {children}
-            <MobileTabBar />
+            <MotionRoot>
+              <TopBar />
+              {children}
+              <MobileTabBar />
+            </MotionRoot>
             <TourOverlay />
             <TourTrigger />
             <Toaster />

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
     MagnifyingGlass,
     ArrowSquareOut,
@@ -1222,6 +1223,16 @@ function JobsContent() {
         document.querySelector<HTMLInputElement>("[data-search-line] input")?.focus();
     }, [isOverlayAsk]);
 
+    /** TopBar watches this so the masthead brand can morph from the hero. */
+    useEffect(() => {
+        const root = document.documentElement;
+        if (isOverlayAsk) {
+            root.setAttribute("data-jobs-overlay-ask", "1");
+        } else {
+            root.removeAttribute("data-jobs-overlay-ask");
+        }
+        return () => root.removeAttribute("data-jobs-overlay-ask");
+    }, [isOverlayAsk]);
 
     // Debounced search on query / facet / salary / visa changes.
     useEffect(() => {
@@ -2677,28 +2688,33 @@ function JobsContent() {
                     : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
             )}
         >
-            {/* Screen 1 covers the app masthead, which took the brand with it —
-                a stranger landed on an anonymous box (Vivek, 2026-07-26). One
-                quiet wordmark, same type treatment as the TopBar's, in the
-                masthead's own position so the transition to the results screen
-                doesn't move it. Not a control: nothing else on this screen. */}
-            {isOverlayAsk && (
-                <div className="absolute left-0 top-0 flex h-14 items-center gap-2 px-4 sm:px-6">
-                    <span className="font-display text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">
-                        intervu
-                    </span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                        beta
-                    </span>
-                </div>
-            )}
             <div
                 className={cn(
                     "w-full shrink-0",
-                    isOverlayAsk ? "max-w-2xl pb-16 pt-[30dvh]" : "border-b border-border bg-card",
+                    isOverlayAsk ? "max-w-2xl pb-16 pt-[28dvh]" : "border-b border-border bg-card",
                 )}
             >
                 <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
+                    {/* Empty ask: brand above the line as one composition.
+                        Shared layoutIds morph into TopBar when results load. */}
+                    {isOverlayAsk && (
+                        <div className="mb-5 flex items-center gap-2.5 px-0.5">
+                            <motion.span
+                                layoutId="intervu-brand"
+                                transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
+                                className="font-display text-[28px] font-extrabold leading-none tracking-tight text-foreground sm:text-[32px]"
+                            >
+                                intervu
+                            </motion.span>
+                            <motion.span
+                                layoutId="intervu-beta"
+                                transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
+                                className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
+                            >
+                                beta
+                            </motion.span>
+                        </div>
+                    )}
                     <div
                         data-search-line
                         className={cn(

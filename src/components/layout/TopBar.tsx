@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -16,6 +17,22 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS } from "@/components/layout/nav-tabs";
+
+/** Jobs empty-ask sets `data-jobs-overlay-ask` so TopBar yields the brand to the hero morph. */
+const OVERLAY_ASK_ATTR = "data-jobs-overlay-ask";
+function subscribeOverlayAsk(onChange: () => void) {
+    const obs = new MutationObserver(onChange);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: [OVERLAY_ASK_ATTR] });
+    return () => obs.disconnect();
+}
+function getOverlayAskSnapshot(): boolean {
+    return document.documentElement.getAttribute(OVERLAY_ASK_ATTR) === "1";
+}
+function getOverlayAskServerSnapshot(): boolean {
+    return false;
+}
+
+const BRAND_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.8 };
 
 // Dark mode ported from AppShell's footer toggle: same class-on-<html> flip,
 // same "intervu-dark" persistence key (which layout.tsx's no-flash inline
@@ -81,6 +98,11 @@ export function TopBar() {
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
+    const overlayAsk = useSyncExternalStore(
+        subscribeOverlayAsk,
+        getOverlayAskSnapshot,
+        getOverlayAskServerSnapshot,
+    );
     const sessionRefreshed = useRef(false);
 
     useEffect(() => {
@@ -121,16 +143,28 @@ export function TopBar() {
                 and search share one left edge — Soft Signal desktop grid. */}
             <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between gap-4 px-4 lg:px-8">
             <div className="flex min-w-0 items-center gap-6">
-                <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                    <span className="font-display text-[18px] font-extrabold leading-none tracking-tight">
-                        intervu
-                    </span>
-                    {/* The app's one BETA badge — see DashboardContainer.tsx's prep
-                        title, which deliberately doesn't repeat it. */}
-                    <span className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint">
-                        beta
-                    </span>
-                </Link>
+                {/* Reserved slot so nav doesn't jump while the brand morphs
+                    from the empty-state hero into the masthead. */}
+                <div className="flex h-[18px] min-w-[7.25rem] shrink-0 items-center">
+                    {!overlayAsk && (
+                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+                            <motion.span
+                                layoutId="intervu-brand"
+                                transition={BRAND_SPRING}
+                                className="font-display text-[18px] font-extrabold leading-none tracking-tight"
+                            >
+                                intervu
+                            </motion.span>
+                            <motion.span
+                                layoutId="intervu-beta"
+                                transition={BRAND_SPRING}
+                                className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
+                            >
+                                beta
+                            </motion.span>
+                        </Link>
+                    )}
+                </div>
 
                 <nav
                     aria-label="Primary"
