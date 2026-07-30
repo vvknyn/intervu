@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Prep session</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0F1216;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  .session-head {
+    padding: 12px var(--gutter);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .session-head .role {
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--brand);
+  }
+  .session-head .company {
+    margin-top: 2px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .q-progress {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+  }
+  .q-progress strong { color: var(--ink); }
+  .question-card {
+    margin: 16px var(--gutter);
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 1px 2px rgba(18,21,26,.03);
+  }
+  .question-card .type {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 8px;
+  }
+  .question-card p {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.45;
+    letter-spacing: -.01em;
+  }
+  .answer-area {
+    margin: 0 var(--gutter) 16px;
+  }
+  .answer-area label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 6px;
+  }
+  .answer-area textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    resize: none;
+    outline: none;
+  }
+  .answer-area textarea:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(18,21,26,.06);
+  }
+  .session-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 0 var(--gutter) 16px;
+  }
+  .session-nav .act { height: 44px; }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="Active prep session">
+  <div class="status">
+    <span>9:41</span>
+    <span class="right">●●● ▮▮▮</span>
+  </div>
+  <header class="topbar">
+    <div><span class="wordmark">Intervu</span><span class="beta">Beta</span></div>
+    <div class="avatar">V</div>
+  </header>
+  <main class="scroll">
+    <div class="session-head">
+      <div class="role">Senior Platform Engineer</div>
+      <div class="company">Buildkite</div>
+      <div class="q-progress">Question <strong>3</strong> of 12</div>
+    </div>
+    <div class="question-card">
+      <div class="type">Behavioral</div>
+      <p>Describe a time you improved CI/CD reliability for a team. What was broken, what did you change, and how did you measure success?</p>
+    </div>
+    <div class="answer-area">
+      <label for="answer">Your answer</label>
+      <textarea id="answer" placeholder="Structure: situation → action → result…">At my last company, flaky builds blocked 30% of merges. I introduced retry logic with root-cause tagging and cut failures to under 4% in six weeks…</textarea>
+    </div>
+    <div class="session-nav">
+      <button type="button" class="act">Previous</button>
+      <button type="button" class="act primary">Next</button>
+      <button type="button" class="act brand">Hint</button>
+    </div>
+  </main>
+  <nav class="tabbar">
+    <a class="tab" href="02-find-serp.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+      Find
+    </a>
+    <a class="tab" href="07-tracker.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="14" rx="1"/></svg>
+      Tracker
+    </a>
+    <a class="tab" href="09-resume.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Resume
+    </a>
+    <a class="tab" href="10-prep-landing.html" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Prep
+    </a>
+  </nav>
+</div>
+</body>
+</html>

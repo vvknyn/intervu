@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Tailor resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .tailor-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .tailor-head h1 { margin: 0; }
+  .tailor-meta {
+    font-size: 13px; color: var(--muted); margin-top: 6px;
+  }
+  .tailor-meta strong { color: var(--brand); font-weight: 650; }
+  .tailor-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px; align-items: start;
+  }
+  .jd-panel h3 {
+    margin: 0 0 10px; font-family: var(--mono);
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--faint);
+  }
+  .jd-panel p { margin: 0; font-size: 14px; line-height: 1.6; color: #2A3139; }
+  .recs-panel h3 {
+    margin: 0 0 12px; font-size: 15px; font-weight: 750;
+  }
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex; gap: 12px; align-items: flex-start; width: 100%;
+    padding: 14px 16px; text-align: left;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-md);
+  }
+  .check-item:hover { border-color: #C5CCD4; }
+  .check-item .box {
+    width: 20px; height: 20px; border-radius: 6px; flex: none;
+    border: 1.5px solid var(--line-2); background: var(--bg);
+    display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    margin-top: 1px;
+  }
+  .check-item.done .box { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .check-item strong { display: block; font-size: 13.5px; font-weight: 650; }
+  .check-item span.desc {
+    display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); line-height: 1.45;
+  }
+  .tailor-foot {
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .tailor-foot .meta { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · tailor workspace</div>
+  <div><a href="00-index.html">Hub</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand-block">
+      <div class="wordmark">Soft Signal</div>
+      <span class="beta">Beta</span>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="02-find-serp.html">Find jobs</a>
+      <a href="06-tracker.html">Tracker</a>
+      <a href="08-resume.html" aria-current="page">Resume</a>
+      <a href="09-prep-landing.html">Interview prep</a>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <span class="avatar" title="Maya K.">M</span>
+    </div>
+  </div>
+</header>
+
+<main class="shell page page-narrow">
+  <div class="tailor-head">
+    <div>
+      <h1>Tailor resume</h1>
+      <p class="tailor-meta"><strong>Senior Platform Engineer</strong> · Ramp · NYC hybrid</p>
+    </div>
+    <span class="result-meta">v3 draft · 1 credit used</span>
+  </div>
+
+  <div class="tailor-grid">
+    <div class="panel jd-panel">
+      <h3>JD summary</h3>
+      <p>Own core payments infra on Go/K8s. Lead incident response, mentor 2 engineers, drive Terraform migrations. Requires 6+ yrs distributed systems and on-call experience at scale.</p>
+    </div>
+
+    <div class="panel recs-panel">
+      <h3>5 recommendations</h3>
+      <div class="checklist">
+        <button type="button" class="check-item done">
+          <span class="box">✓</span>
+          <span>
+            <strong>Lead with platform ownership</strong>
+            <span class="desc">Move K8s migration bullet to top of Ramp-targeted experience block.</span>
+          </span>
+        </button>
+        <button type="button" class="check-item done">
+          <span class="box">✓</span>
+          <span>
+            <strong>Quantify on-call impact</strong>
+            <span class="desc">Add MTTR reduction (42→18 min) from Stripe incident lead role.</span>
+          </span>
+        </button>
+        <button type="button" class="check-item">
+          <span class="box"></span>
+          <span>
+            <strong>Surface Go + gRPC together</strong>
+            <span class="desc">JD mentions both — combine into one high-signal line under Acme Corp.</span>
+          </span>
+        </button>
+        <button type="button" class="check-item">
+          <span class="box"></span>
+          <span>
+            <strong>Trim frontend skills</strong>
+            <span class="desc">React/TS not in JD — demote to skills footer to save space.</span>
+          </span>
+        </button>
+        <button type="button" class="check-item">
+          <span class="box"></span>
+          <span>
+            <strong>Add mentoring line</strong>
+            <span class="desc">Explicitly note 2 junior engineers coached in 2024–25.</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tailor-foot">
+    <span class="meta">Based on base resume · Jul 27, 2026</span>
+    <button type="button" class="btn-primary">Save version</button>
+  </div>
+</main>
+
+</body>
+</html>

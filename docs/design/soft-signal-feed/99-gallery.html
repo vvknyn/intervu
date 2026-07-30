@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Design gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F6F8; --ink: #12151A; --muted: #5C6570; --line: #E2E6EB; --brand: #0D6E56;
+    --font: "Plus Jakarta Sans", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; display: grid; place-items: center;
+    background: var(--bg); color: var(--ink); font-family: var(--font);
+    padding: 32px;
+  }
+  .card {
+    width: min(520px, 100%);
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px 28px 24px;
+    box-shadow: 0 1px 2px rgba(18,21,26,.04), 0 8px 24px rgba(18,21,26,.05);
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 10px;
+  }
+  h1 { margin: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: -.03em; }
+  p { margin: 0 0 20px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  a.cta {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 44px; padding: 0 20px; border-radius: 10px;
+    background: var(--brand); color: #fff; font-weight: 700; font-size: 15px;
+    text-decoration: none;
+  }
+  a.cta:hover { filter: brightness(1.05); }
+  ul { margin: 18px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); line-height: 1.55; }
+  ul li::before { content: "→ "; color: var(--brand); font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <p class="eyebrow">Soft Signal · Direction A</p>
+    <h1>Desktop journey moved</h1>
+    <p>The full desktop mock hub and gallery now live in the soft-signal-desktop folder — 17 screens with lab + topbar chrome.</p>
+    <a class="cta" href="../soft-signal-desktop/00-index.html">Open desktop hub</a>
+    <ul>
+      <li><a href="../soft-signal-desktop/99-gallery.html">Desktop gallery</a> · iframe frames</li>
+      <li><a href="01-find-jobs.html">Find jobs interactive mock</a> · original SERP</li>
+      <li><a href="../soft-signal-mobile/00-index.html">Mobile sibling</a> · 390×844</li>
+    </ul>
+  </div>
+</body>
+</html>

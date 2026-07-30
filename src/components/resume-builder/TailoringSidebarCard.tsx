@@ -37,7 +37,7 @@ export function TailoringSidebarCard({ version }: TailoringSidebarCardProps) {
     const recommendations = version?.recommendations ?? [];
 
     return (
-        <div className="border-t border-foreground pt-2.5" data-testid="resume-tailoring-card">
+        <div className="border-t border-border pt-2.5" data-testid="resume-tailoring-card">
             <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Tailoring</span>
 
             {version ? (

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .page-head h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .btn-add {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: var(--r-md);
+    background: var(--brand);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-add:hover { background: #0a5c48; }
+  .col-count {
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--faint);
+  }
+  .pursuit {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .pursuit:hover {
+    border-color: #C5CCD4;
+    box-shadow: var(--shadow);
+    text-decoration: none;
+  }
+  .pursuit .next {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #EEF1F4;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--brand);
+  }
+  .pursuit .next span { color: var(--muted); font-weight: 500; }
+  .stage-empty {
+    padding: 20px 12px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-md);
+    font-size: 12.5px;
+    color: var(--faint);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 06-tracker · gutter 32</div>
+  <div><a href="99-gallery.html">Gallery</a> · <a href="07-pursuit.html">Pursuit detail →</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html" aria-current="page">Tracker</a>
+        <a href="08-resume.html">Resume</a>
+        <a href="09-prep-landing.html">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell">
+    <div class="page-head">
+      <h1>Tracker</h1>
+      <a class="btn-add" href="17-add-pursuit.html">+ Add pursuit</a>
+    </div>
+
+    <div class="kanban" aria-label="Pursuit stages">
+      <section>
+        <div class="col-label">Saved<span class="col-count">2</span></div>
+        <a class="pursuit" href="07-pursuit.html">
+          <strong>Senior Platform Engineer</strong>
+          <span>Buildkite · Remote</span>
+          <div class="next">Next · <span>Tailor résumé</span></div>
+        </a>
+        <a class="pursuit" href="#">
+          <strong>Staff SRE</strong>
+          <span>Stripe · Hybrid SF</span>
+          <div class="next">Next · <span>Review fit intel</span></div>
+        </a>
+      </section>
+
+      <section>
+        <div class="col-label">Applied<span class="col-count">2</span></div>
+        <a class="pursuit" href="#">
+          <strong>Platform Engineer II</strong>
+          <span>Datadog · Remote</span>
+          <div class="next">Next · <span>Follow up in 5 days</span></div>
+        </a>
+        <a class="pursuit" href="#">
+          <strong>Infra Engineer</strong>
+          <span>GitLab · Remote EMEA</span>
+          <div class="next">Next · <span>Check application status</span></div>
+        </a>
+      </section>
+
+      <section>
+        <div class="col-label">Interviewing<span class="col-count">1</span></div>
+        <a class="pursuit" href="#">
+          <strong>Senior Backend Engineer</strong>
+          <span>Vercel · Remote</span>
+          <div class="next">Next · <span>Prep system design · Thu</span></div>
+        </a>
+      </section>
+
+      <section>
+        <div class="col-label">Offer<span class="col-count">0</span></div>
+        <div class="stage-empty">No offers yet</div>
+      </section>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

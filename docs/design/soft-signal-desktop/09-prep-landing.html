@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Interview prep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .prep-wrap { max-width: 960px; }
+  .page-head { margin-bottom: 28px; }
+  .page-head h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .page-head p { margin: 0; color: var(--muted); font-size: 15px; max-width: 48ch; }
+  .prep-hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .btn-start {
+    height: 52px;
+    border-radius: var(--r-md);
+    background: var(--brand);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .btn-start:hover { background: #0a5c48; }
+  .resume-session {
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    text-align: left;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .resume-session:hover { border-color: #C5CCD4; box-shadow: var(--shadow); }
+  .resume-session .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 6px;
+  }
+  .resume-session strong { display: block; font-size: 15px; font-weight: 700; }
+  .resume-session span { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .resume-session .progress {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--brand);
+    font-weight: 550;
+  }
+  .section-label {
+    margin-bottom: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .plans-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .plan-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    text-align: left;
+    color: inherit;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .plan-card:hover { border-color: #C5CCD4; box-shadow: var(--shadow); text-decoration: none; }
+  .plan-card .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    font-weight: 800;
+  }
+  .plan-card h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .plan-card .round { margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .plan-card .progress {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--brand);
+    font-weight: 550;
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 09-prep-landing · gutter 32</div>
+  <div><a href="10-prep-session.html">Active session →</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html">Tracker</a>
+        <a href="08-resume.html">Resume</a>
+        <a href="09-prep-landing.html" aria-current="page">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell prep-wrap">
+    <div class="page-head">
+      <h1>Interview prep</h1>
+      <p>Practice questions tailored to your pursuits — behavioral, technical, and system design.</p>
+    </div>
+
+    <div class="prep-hero">
+      <a class="btn-start" href="10-prep-session.html">Start new prep</a>
+      <a class="resume-session" href="10-prep-session.html">
+        <div class="label">Resume last session</div>
+        <strong>Buildkite · Technical screen</strong>
+        <span>Senior Platform Engineer</span>
+        <div class="progress">Question 3 of 12 · in progress</div>
+      </a>
+    </div>
+
+    <div class="section-label">Cached plans</div>
+    <div class="plans-grid">
+      <a class="plan-card" href="10-prep-session.html">
+        <div class="logo" style="background:#E6F4EF;color:#0D6E56">B</div>
+        <div>
+          <h3>Buildkite</h3>
+          <div class="round">Senior Platform Engineer · Technical screen</div>
+          <div class="progress">12 questions · 8 answered</div>
+        </div>
+      </a>
+      <a class="plan-card" href="#">
+        <div class="logo" style="background:#F0FDF4;color:#0D6E56">V</div>
+        <div>
+          <h3>Vercel</h3>
+          <div class="round">Senior Backend Engineer · System design</div>
+          <div class="progress">10 questions · Complete</div>
+        </div>
+      </a>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Add pursuit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .wizard-wrap {
+    max-width: 480px;
+    margin-inline: auto;
+  }
+  .wizard-head {
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .wizard-head .steps {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--faint);
+    margin-bottom: 16px;
+  }
+  .wizard-head .dots { display: flex; gap: 8px; }
+  .wizard-head .dot-step {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line-2);
+  }
+  .wizard-head .dot-step.on { background: var(--ink); }
+  .wizard-head h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  .wizard-head p { margin: 0; font-size: 15px; color: var(--muted); }
+  .wizard-form .form-field { margin-bottom: 16px; }
+  .wizard-form .form-field select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238B939E' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .wizard-foot { margin-top: 24px; }
+  .wizard-foot .btn-primary { width: 100%; height: 44px; }
+  .cancel-link {
+    display: block;
+    margin-top: 16px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 17-add-pursuit · gutter 32</div>
+  <div><a href="06-tracker.html">← Tracker</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html" aria-current="page">Tracker</a>
+        <a href="08-resume.html">Resume</a>
+        <a href="09-prep-landing.html">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell wizard-wrap">
+    <div class="wizard-head">
+      <div class="steps">
+        <span>Step 1 of 4</span>
+        <span class="dots" aria-hidden="true">
+          <span class="dot-step on"></span>
+          <span class="dot-step"></span>
+          <span class="dot-step"></span>
+          <span class="dot-step"></span>
+        </span>
+      </div>
+      <h1>Job details</h1>
+      <p>Track a role you're pursuing — from application to offer.</p>
+    </div>
+
+    <form class="wizard-form panel" onsubmit="return false">
+      <div class="form-field">
+        <label for="company">Company</label>
+        <input id="company" type="text" placeholder="e.g. Buildkite" value="Buildkite">
+      </div>
+      <div class="form-field">
+        <label for="title">Job title</label>
+        <input id="title" type="text" placeholder="e.g. Senior Platform Engineer" value="Senior Platform Engineer">
+      </div>
+      <div class="form-field">
+        <label for="url">Job URL</label>
+        <input id="url" type="url" placeholder="https://…" value="https://buildkite.com/careers/platform-engineer">
+      </div>
+      <div class="form-field">
+        <label for="stage">Stage</label>
+        <select id="stage">
+          <option selected>Saved</option>
+          <option>Applied</option>
+          <option>Interviewing</option>
+          <option>Offer</option>
+        </select>
+      </div>
+
+      <div class="wizard-foot">
+        <button type="submit" class="btn-primary">Continue</button>
+        <a class="cancel-link" href="06-tracker.html">Cancel</a>
+      </div>
+    </form>
+  </div>
+</main>
+
+</body>
+</html>

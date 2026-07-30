@@ -34,16 +34,16 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
   });
 
   /**
-   * TC-MOBILE-002: Top bar is accessible on mobile
+   * TC-MOBILE-002: Mobile tab bar is accessible
    *
-   * Post-flip (jobs-first-bloom PR 1), there's no hamburger drawer or
-   * bottom tab bar — the TopBar itself is the only shell chrome, responsive
-   * at every width. Verifies it, and its "All jobs" link, render on mobile.
+   * On mobile, primary nav lives in the fixed bottom tab bar (Find · Tracker ·
+   * Resume · Prep). TopBar keeps wordmark + avatar only.
    */
-  test('TC-MOBILE-002: Top bar is accessible on mobile', async ({ page }) => {
+  test('TC-MOBILE-002: Mobile tab bar is accessible', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.getByTestId('topbar')).toBeVisible();
+    await expect(page.getByTestId('mobile-tabbar')).toBeVisible();
     await expect(page.getByTestId('topbar-alljobs')).toBeVisible();
   });
 

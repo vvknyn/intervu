@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Buildkite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .co-hero {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap;
+    padding: 28px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    box-shadow: 0 1px 2px rgba(18,21,26,.03);
+  }
+  .co-hero-left { display: flex; gap: 18px; align-items: flex-start; min-width: 0; }
+  .co-logo {
+    width: 72px; height: 72px; border-radius: 16px;
+    background: #E8F0FE; color: #1A56DB;
+    display: grid; place-items: center;
+    font-size: 28px; font-weight: 800; flex: none;
+  }
+  .co-hero h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -.03em; }
+  .co-tagline { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+  .elite-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 10px; padding: 4px 10px; border-radius: 999px;
+    background: var(--brand-soft); border: 1px solid var(--brand-line);
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    letter-spacing: .04em; color: var(--brand);
+  }
+  .co-kpis {
+    margin-top: 14px; display: flex; flex-wrap: wrap; gap: 16px 24px;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .co-kpis strong { color: var(--ink); font-weight: 650; }
+  .co-kpis .open { color: var(--brand); }
+  .co-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex: none; }
+  .btn-follow {
+    height: 40px; padding: 0 20px; border-radius: var(--r-sm);
+    background: var(--ink); color: #fff; font-size: 14px; font-weight: 700;
+  }
+  .btn-follow:hover { background: #000; }
+  .intel-panel {
+    margin-top: 12px; padding: 16px 20px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .intel-item b {
+    display: block; font-size: 20px; font-weight: 800; letter-spacing: -.02em;
+  }
+  .intel-item span {
+    display: block; margin-top: 2px;
+    font-family: var(--mono); font-size: 10px; color: var(--faint);
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin: 28px 0 12px;
+  }
+  .section-head h2 { margin: 0; font-size: 16px; font-weight: 750; letter-spacing: -.02em; }
+  .section-head span { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .roles-table { width: 100%; border-collapse: collapse; }
+  .roles-table th {
+    text-align: left; padding: 10px 16px;
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+    border-bottom: 1px solid var(--line); background: #FAFBFC;
+  }
+  .roles-table td {
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+    font-size: 13.5px; vertical-align: middle;
+  }
+  .roles-table tr:last-child td { border-bottom: none; }
+  .roles-table tr:hover td { background: #FAFBFC; }
+  .role-title { font-weight: 700; color: var(--ink); }
+  .role-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .fit-pill {
+    display: inline-block; padding: 3px 8px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand);
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+  }
+  .prep-banner {
+    margin-top: 12px; padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    background: var(--brand-soft); border: 1px solid var(--brand-line);
+    border-radius: var(--r-md);
+  }
+  .prep-banner strong { display: block; font-size: 15px; font-weight: 750; }
+  .prep-banner span { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .btn-prep {
+    flex: none; height: 40px; padding: 0 18px; border-radius: var(--r-sm);
+    background: var(--brand); color: #fff; font-size: 13px; font-weight: 700;
+  }
+  .btn-prep:hover { filter: brightness(1.05); }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · /co Buildkite · gutter 32</div>
+  <div><a href="00-index.html">Hub</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand-block">
+      <div class="wordmark">Soft Signal</div>
+      <span class="beta">Beta</span>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="02-find-serp.html" aria-current="page">Find jobs</a>
+      <a href="06-tracker.html">Tracker</a>
+      <a href="08-resume.html">Resume</a>
+      <a href="09-prep-landing.html">Interview prep</a>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <span class="avatar" title="Maya K.">M</span>
+    </div>
+  </div>
+</header>
+
+<main class="shell page page-narrow">
+  <div class="co-hero">
+    <div class="co-hero-left">
+      <div class="co-logo">B</div>
+      <div>
+        <h1>Buildkite</h1>
+        <p class="co-tagline">CI/CD platform · bootstrapped · remote-first · Dev tools</p>
+        <span class="elite-badge">★ Elite</span>
+        <div class="co-kpis">
+          <span><strong class="open">14</strong> opened</span>
+          <span><strong>3</strong> closed</span>
+          <span>Last role · 2h ago</span>
+          <span>Ghost risk · <strong>3.8%</strong></span>
+        </div>
+      </div>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="btn-follow">Follow</button>
+      <span class="result-meta">Following · 2 pursuits</span>
+    </div>
+  </div>
+
+  <div class="panel intel-panel">
+    <div class="intel-item"><b>22</b><span>Opened / 90d</span></div>
+    <div class="intel-item"><b>31</b><span>Open now</span></div>
+    <div class="intel-item"><b>4.2d</b><span>Median freshness</span></div>
+    <div class="intel-item"><b>↑ 18%</b><span>Velocity vs prior 90d</span></div>
+  </div>
+
+  <div class="section-head">
+    <h2>Open roles</h2>
+    <span>3 live · ghost-checked</span>
+  </div>
+  <div class="panel" style="padding:0;overflow:hidden;">
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Location</th>
+          <th>Signal</th>
+          <th>Fit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="role-title">Senior Platform Engineer</div>
+            <div class="role-meta">Full-time · $180–220k</div>
+          </td>
+          <td>Remote · US</td>
+          <td><span class="live" style="margin:0"><span class="dot"></span> Live · 2h</span></td>
+          <td><span class="fit-pill">91%</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="role-title">Staff SRE</div>
+            <div class="role-meta">Full-time · $200–250k</div>
+          </td>
+          <td>Remote · US</td>
+          <td><span class="live" style="margin:0"><span class="dot"></span> Live · 1d</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="role-title">Product Engineer</div>
+            <div class="role-meta">Full-time</div>
+          </td>
+          <td>Hybrid · Melbourne</td>
+          <td><span class="live" style="margin:0"><span class="dot"></span> Live · 3d</span></td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prep-banner">
+    <div>
+      <strong>Prep for Buildkite</strong>
+      <span>12 questions · Technical screen + behavioral · tied to your pursuit</span>
+    </div>
+    <button type="button" class="btn-prep">Start prep</button>
+  </div>
+</main>
+
+</body>
+</html>

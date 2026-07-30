@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Add pursuit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+</head>
+<body style="margin:0;min-height:100dvh;display:grid;place-items:center;background:#1A1D22;padding:24px;">
+<div class="phone">
+  <div class="status"><span>9:41</span><span class="right">●●● ▮▮</span></div>
+  <header class="topbar back">
+    <button type="button" class="back-btn" aria-label="Cancel">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <h1>Add pursuit</h1>
+    <span style="width:32px;"></span>
+  </header>
+  <div class="wizard-head">
+    <div class="steps">
+      <span>Step 1 of 4</span>
+      <span class="dots" aria-hidden="true">
+        <span class="dot-step on"></span>
+        <span class="dot-step"></span>
+        <span class="dot-step"></span>
+        <span class="dot-step"></span>
+      </span>
+    </div>
+    <h1>Job details</h1>
+    <p>Track a role you're pursuing — from application to offer.</p>
+  </div>
+  <div class="scroll">
+    <div class="pad">
+      <div class="form-group">
+        <label for="company">Company</label>
+        <input class="form-input" id="company" type="text" placeholder="e.g. Ramp" value="Ramp">
+      </div>
+      <div class="form-group">
+        <label for="title">Job title</label>
+        <input class="form-input" id="title" type="text" placeholder="e.g. Senior Platform Engineer" value="Senior Platform Engineer">
+      </div>
+      <div class="form-group">
+        <label for="url">Job URL</label>
+        <input class="form-input" id="url" type="url" placeholder="https://…" value="https://jobs.ramp.com/…">
+      </div>
+      <div class="form-group">
+        <label for="stage">Stage</label>
+        <select class="form-input form-select" id="stage">
+          <option>Interested</option>
+          <option selected>Applied</option>
+          <option>Phone screen</option>
+          <option>Onsite</option>
+          <option>Offer</option>
+          <option>Rejected</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="sticky-foot">
+    <button type="button" class="btn-primary" style="width:100%;">Continue</button>
+  </div>
+</div>
+</body>
+</html>

@@ -5,8 +5,8 @@ import { test, expect, type Page } from '@playwright/test';
  *
  * Environment-tolerant: follows jobs-search-polish / jobs-first-screen skip
  * patterns when Meilisearch is unconfigured or the corpus returns no rows.
- * Board chips render only in browse mode (not the first-paint ask screen), so
- * tests enter via `posted=any` rather than bare `/`.
+ * Board filter lives under Filters → Boards (not top-level chips), so tests
+ * enter via `posted=any` and open the filters panel.
  */
 
 async function enterBrowseMode(page: Page) {
@@ -21,15 +21,18 @@ async function enterBrowseMode(page: Page) {
 
     await expect(
         page
-            .getByTestId('board-chips')
+            .getByTestId('filters-toggle')
             .or(page.getByRole('listbox', { name: 'Job results' }))
             .or(page.getByText(/Job search is being connected/i))
             .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
             .first(),
     ).toBeVisible({ timeout: 30_000 });
+}
 
-    await expect(page.getByTestId('board-chips')).toBeVisible({ timeout: 15_000 });
+async function openFilters(page: Page) {
+    await page.getByTestId('filters-toggle').click();
+    await expect(page.getByTestId('filters-panel')).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
@@ -43,16 +46,18 @@ test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
         });
     });
 
-    test('elite board chip toggles URL', async ({ page }) => {
+    test('elite board filter toggles URL', async ({ page }) => {
         await enterBrowseMode(page);
+        await openFilters(page);
 
-        const chip = page.getByTestId('board-chip-elite');
-        await expect(chip).toBeVisible();
+        const elite = page.getByTestId('board-filter-elite');
+        await expect(elite).toBeVisible();
 
-        await chip.click();
+        await elite.click();
         await expect(page).toHaveURL(/board=elite/);
 
-        await chip.click();
+        const all = page.getByTestId('board-filter-all');
+        await all.click();
         await expect(page).not.toHaveURL(/board=elite/);
     });
 

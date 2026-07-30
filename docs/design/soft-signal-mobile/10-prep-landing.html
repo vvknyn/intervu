@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Prep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0F1216;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+  .page-head {
+    padding: 12px var(--gutter) 8px;
+  }
+  .page-head h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+  }
+  .prep-actions {
+    padding: 8px var(--gutter) 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .btn-start {
+    height: 48px;
+    border-radius: var(--r-md);
+    background: var(--brand);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .btn-resume {
+    height: 44px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-2);
+    background: var(--surface);
+    font-size: 14px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+  }
+  .section-label {
+    margin: 8px var(--gutter) 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .plan-card {
+    margin: 0 var(--gutter) 8px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .plan-card .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    font-weight: 800;
+    background: #E8F0FE;
+    color: #1A56DB;
+  }
+  .plan-card h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .plan-card .round {
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .plan-card .progress {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--brand);
+    font-weight: 550;
+  }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="Prep landing">
+  <div class="status">
+    <span>9:41</span>
+    <span class="right">●●● ▮▮▮</span>
+  </div>
+  <header class="topbar">
+    <div><span class="wordmark">Intervu</span><span class="beta">Beta</span></div>
+    <div class="avatar">V</div>
+  </header>
+  <main class="scroll">
+    <div class="page-head">
+      <h1>Prep</h1>
+    </div>
+    <div class="prep-actions">
+      <button type="button" class="btn-start">Start new prep</button>
+      <button type="button" class="btn-resume">Resume last session · Q 3/12</button>
+    </div>
+    <div class="section-label">Cached plans</div>
+    <article class="plan-card">
+      <div class="logo">B</div>
+      <div>
+        <h3>Buildkite</h3>
+        <div class="round">Senior Platform Engineer · Technical screen</div>
+        <div class="progress">12 questions · 8 answered</div>
+      </div>
+    </article>
+    <article class="plan-card">
+      <div class="logo" style="background:#F0FDF4;color:#0D6E56">V</div>
+      <div>
+        <h3>Vercel</h3>
+        <div class="round">Senior Backend Engineer · System design</div>
+        <div class="progress">10 questions · Complete</div>
+      </div>
+    </article>
+  </main>
+  <nav class="tabbar">
+    <a class="tab" href="02-find-serp.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+      Find
+    </a>
+    <a class="tab" href="07-tracker.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="5" height="14" rx="1"/></svg>
+      Tracker
+    </a>
+    <a class="tab" href="09-resume.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Resume
+    </a>
+    <a class="tab" href="10-prep-landing.html" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Prep
+    </a>
+  </nav>
+</div>
+</body>
+</html>

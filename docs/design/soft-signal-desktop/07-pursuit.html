@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Pursuit detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .back-link:hover { color: var(--ink); text-decoration: none; }
+  .pursuit-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 20px;
+    align-items: start;
+  }
+  .pursuit-main h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+    line-height: 1.2;
+  }
+  .co-line {
+    margin-top: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--brand);
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: 1px solid var(--line-2);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .next-panel {
+    margin-top: 20px;
+    padding: 18px 20px;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand-line);
+    border-radius: var(--r-lg);
+  }
+  .next-panel .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--brand);
+    margin-bottom: 8px;
+  }
+  .next-panel p { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.4; }
+  .next-panel .due {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .action-row .act { flex: 1; min-width: 140px; height: 40px; }
+  .notes-panel h3 {
+    margin: 0 0 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .notes-panel p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.55; }
+  .posting-summary .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .posting-summary .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    font-weight: 800;
+    background: var(--brand-soft);
+    color: var(--brand);
+  }
+  .posting-summary h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .posting-summary .meta { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+  .posting-summary .snippet {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #2A3139;
+    line-height: 1.55;
+  }
+  .posting-summary .live {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 550;
+    color: var(--brand);
+  }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · 07-pursuit · gutter 32</div>
+  <div><a href="06-tracker.html">← Tracker</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div style="display:flex;align-items:center;min-width:0;height:100%">
+      <div class="brand-block">
+        <div class="wordmark">intervu</div>
+        <span class="beta">beta</span>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="01-find-empty.html">Find jobs</a>
+        <a href="06-tracker.html" aria-current="page">Tracker</a>
+        <a href="08-resume.html">Resume</a>
+        <a href="09-prep-landing.html">Interview prep</a>
+      </nav>
+    </div>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <div class="avatar" aria-hidden="true">V</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="shell">
+    <a class="back-link" href="06-tracker.html">← Back to Tracker</a>
+
+    <div class="pursuit-layout">
+      <div class="pursuit-main">
+        <h1>Senior Platform Engineer</h1>
+        <div class="co-line">Buildkite · Remote · US · $180–220k</div>
+
+        <div class="chip-row" role="group" aria-label="Stage">
+          <span class="chip on">Saved</span>
+          <span class="chip">Applied</span>
+          <span class="chip">Interviewing</span>
+          <span class="chip">Offer</span>
+        </div>
+
+        <div class="next-panel">
+          <div class="label">Next action</div>
+          <p>Tailor résumé for CI/CD platform focus</p>
+          <div class="due">Due today · ~20 min</div>
+        </div>
+
+        <div class="action-row">
+          <button type="button" class="act">↗ Open posting</button>
+          <button type="button" class="act brand">✦ Tailor resume</button>
+          <button type="button" class="act primary">Start prep</button>
+        </div>
+
+        <div class="panel notes-panel" style="margin-top:20px">
+          <h3>Notes</h3>
+          <p>Referred by Alex. Team owns build infra — emphasize Buildkite-adjacent experience at previous co. Hiring manager posted on eng blog last week.</p>
+        </div>
+      </div>
+
+      <aside class="panel posting-summary">
+        <div class="logo-row">
+          <div class="logo">B</div>
+          <div>
+            <h3>Linked posting</h3>
+            <div class="meta">buildkite.com/careers · Posted 3d ago</div>
+          </div>
+        </div>
+        <div class="live"><span class="dot" aria-hidden="true"></span> Live · no ghost signals</div>
+        <p class="snippet">Own scheduling, isolation, and observability for multi-tenant CI workloads. Go services, Kubernetes, on-call for platform SLOs. 5+ years distributed systems.</p>
+        <div class="btn-row" style="margin-top:16px">
+          <button type="button" class="btn-ghost" style="flex:1">View full JD</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

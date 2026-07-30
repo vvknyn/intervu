@@ -52,7 +52,7 @@ function InkButton({
  *  `header` slot, so "Tracker" never competes with a second heading below it. */
 function TrackerHeader({ subtitle, actions }: { subtitle: React.ReactNode; actions?: React.ReactNode }) {
     return (
-        <div className="border-b border-foreground bg-background">
+        <div className="border-b border-border bg-background">
             <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-end justify-between gap-3 px-6 pb-4 pt-8 sm:px-10 lg:px-14">
                 <div>
                     <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Tracker</h1>
@@ -107,7 +107,7 @@ function ColumnHead({ id, label, count }: { id: string; label: string; count: nu
     return (
         <div
             id={id}
-            className="scroll-mt-4 border-b border-foreground px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+            className="scroll-mt-4 border-b border-border px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
         >
             {label} ({count})
         </div>
@@ -359,7 +359,7 @@ function YoursContent() {
                 </div>
 
                 {groups.closed.length > 0 && (
-                    <details className="group mt-8 border-t border-foreground pt-3">
+                    <details className="group mt-8 border-t border-border pt-3">
                         <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[13px] font-medium text-foreground">
                             <span>Closed ({groups.closed.length})</span>
                             <span className="text-muted-foreground transition-transform duration-100 group-open:rotate-180">▾</span>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soft Signal · Story bank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_system.css">
+<style>
+  .page-head-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .signed-in {
+    font-family: var(--mono); font-size: 11px; color: var(--faint);
+    padding-top: 8px;
+  }
+  .story-grid {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+  }
+  .story {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 18px;
+    display: flex; flex-direction: column; min-height: 200px;
+  }
+  .story:hover { border-color: #C5CCD4; box-shadow: var(--shadow); }
+  .story-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px;
+  }
+  .story-head strong { font-size: 14px; font-weight: 750; line-height: 1.3; }
+  .story-tag {
+    flex: none; padding: 3px 8px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--muted);
+  }
+  .story p {
+    margin: 0; flex: 1; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .stars {
+    margin-top: 14px; display: flex; gap: 6px;
+    font-family: var(--mono); font-size: 10px; font-weight: 650; color: var(--faint);
+  }
+  .stars span {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--brand-soft); color: var(--brand);
+    display: grid; place-items: center;
+  }
+  .add-story {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; min-height: 200px;
+    background: var(--surface); border: 1.5px dashed var(--line-2);
+    border-radius: var(--r-lg); color: var(--muted);
+    font-size: 13px; font-weight: 650;
+  }
+  .add-story:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+  .add-story svg { color: var(--faint); }
+  .add-story:hover svg { color: var(--brand); }
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div><strong>Soft Signal</strong> · desktop · story bank · signed in</div>
+  <div><a href="00-index.html">Hub</a> · <a href="99-gallery.html">Gallery</a></div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand-block">
+      <div class="wordmark">Soft Signal</div>
+      <span class="beta">Beta</span>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="02-find-serp.html">Find jobs</a>
+      <a href="06-tracker.html">Tracker</a>
+      <a href="08-resume.html">Resume</a>
+      <a href="09-prep-landing.html" aria-current="page">Interview prep</a>
+    </nav>
+    <div class="topbar-actions">
+      <button type="button">night</button>
+      <span class="avatar" title="Maya K. · maya@email.com">M</span>
+    </div>
+  </div>
+</header>
+
+<main class="shell page page-narrow">
+  <div class="page-head-row">
+    <div>
+      <h1>Story bank</h1>
+      <p class="lede">STAR stories synced to your profile — ready for behavioral rounds.</p>
+    </div>
+    <span class="signed-in">Signed in · maya@email.com</span>
+  </div>
+
+  <div class="story-grid">
+    <article class="story">
+      <div class="story-head">
+        <strong>K8s migration under deadline</strong>
+        <span class="story-tag">Leadership</span>
+      </div>
+      <p>Migrated 40 services to EKS in 6 weeks without downtime. Coordinated 3 teams, cut deploy time 60%.</p>
+      <div class="stars"><span>S</span><span>T</span><span>A</span><span>R</span></div>
+    </article>
+    <article class="story">
+      <div class="story-head">
+        <strong>Production incident at scale</strong>
+        <span class="story-tag">Conflict</span>
+      </div>
+      <p>Led Sev-1 payments outage: triaged in 8 min, restored in 22. Postmortem drove new runbooks adopted org-wide.</p>
+      <div class="stars"><span>S</span><span>T</span><span>A</span><span>R</span></div>
+    </article>
+    <article class="story">
+      <div class="story-head">
+        <strong>Mentoring underperforming engineer</strong>
+        <span class="story-tag">Growth</span>
+      </div>
+      <p>Junior hire missed 2 deadlines. Paired weekly, scoped tasks smaller — promoted to mid-level in 10 months.</p>
+      <div class="stars"><span>S</span><span>T</span><span>A</span><span>R</span></div>
+    </article>
+    <button type="button" class="add-story">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Add story
+    </button>
+  </div>
+</main>
+
+</body>
+</html>

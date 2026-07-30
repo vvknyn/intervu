@@ -124,7 +124,7 @@ export function PrepLanding({
             </p>
           </div>
 
-          <section className="border-b border-foreground pb-6">
+          <section className="border-b border-border pb-6">
             <h2 className="font-display text-[19px] font-semibold">New prep session</h2>
             <p className="mt-2 max-w-[520px] text-[13.5px] leading-relaxed text-muted-foreground">
               Learn: review real questions and model answers at your own pace. Practice: answer aloud and get AI
@@ -151,7 +151,7 @@ export function PrepLanding({
 
           {hasSessions && (
             <section className="mt-7">
-              <div className="border-b border-foreground pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="border-b border-border pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                 recent sessions
               </div>
               <div>
@@ -175,7 +175,7 @@ export function PrepLanding({
 
           {hasPlans && (
             <section className="mt-7">
-              <div className="border-b border-foreground pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="border-b border-border pb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                 prep packages
               </div>
               <div>

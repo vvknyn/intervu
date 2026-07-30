@@ -37,16 +37,15 @@ export const themes: Record<string, Theme> = {
     label: "Green",
     colors: {
       light: {
-        // portal redesign brand #0E6B4C
-        brand: "14 107 76",
-        "brand-foreground": "251 250 246",
+        // Soft Signal brand #0D6E56
+        brand: "13 110 86",
+        "brand-foreground": "255 255 255",
         "brand-muted": "125 189 163",
       },
       dark: {
-        // portal redesign brand #3ECF8E
-        brand: "62 207 142",
-        "brand-foreground": "20 19 15",
-        "brand-muted": "58 179 130",
+        brand: "94 180 150",
+        "brand-foreground": "15 18 22",
+        "brand-muted": "58 140 110",
       },
     },
   },
@@ -152,7 +151,7 @@ export const themes: Record<string, Theme> = {
 
 export const themeNames = Object.keys(themes) as (keyof typeof themes)[];
 
-export const DEFAULT_THEME = "carbon";
+export const DEFAULT_THEME = "green";
 
 export function getTheme(name: string): Theme {
   return themes[name] || themes[DEFAULT_THEME];
