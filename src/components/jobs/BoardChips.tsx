@@ -13,8 +13,13 @@ export function BoardChips({
     board: BoardId | null;
     onChange: (next: BoardId | null) => void;
 }) {
+    const eliteOn = board === "elite";
+
     return (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="board-chips">
+        <div
+            className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", eliteOn && "elite-signal")}
+            data-testid="board-chips"
+        >
             <div className="flex flex-wrap gap-2">
                 {ORDER.map((id) => {
                     const on = board === id;
@@ -26,10 +31,9 @@ export function BoardChips({
                             aria-pressed={on}
                             onClick={() => onChange(on ? null : id)}
                             className={cn(
-                                "rounded-full border px-3.5 py-1.5 text-[13px] font-medium",
                                 on
-                                    ? "border-foreground bg-foreground text-background"
-                                    : "border-border bg-background text-foreground/80 hover:border-foreground/40",
+                                    ? "elite-chip elite-chip-on"
+                                    : "rounded-full border border-border bg-background px-3.5 py-1.5 text-[13px] font-medium text-foreground/80 hover:border-foreground/40",
                             )}
                         >
                             {BOARD_META[id].label}
@@ -40,7 +44,12 @@ export function BoardChips({
             <Link
                 href="/companies/hiring"
                 data-testid="hot-companies-link"
-                className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                    "text-[13px] transition-colors",
+                    eliteOn
+                        ? "text-[color:var(--elite-muted)] hover:text-[color:var(--elite-ink)]"
+                        : "text-muted-foreground hover:text-foreground",
+                )}
             >
                 Companies hiring hard
             </Link>

@@ -2,20 +2,25 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Scales, Sparkle, Warning, X } from "@phosphor-icons/react";
+import { Scales, Warning, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { assessJobFitAction } from "@/actions/job-fit";
 import type { FitAssessment, FitVerdictLabel } from "@/lib/jobs/fit-verdict";
 import type { PublicJob } from "@/lib/jobs/types";
 import { decodeText, cleanCompany, locationText } from "@/lib/jobs/presentation";
-import { STATUS_PILL, fitVerdictTone } from "@/lib/ui/status-tokens";
 import { cn } from "@/lib/utils";
 
 const VERDICT_LABEL: Record<FitVerdictLabel, string> = {
     strong: "Strong fit",
     stretch: "Stretch fit",
     weak: "Weak fit",
+};
+
+const VERDICT_PILL: Record<FitVerdictLabel, string> = {
+    strong: "border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]",
+    stretch: "border-[#E8D4A8] bg-[#FDF6ED] text-[#9A6B2E]",
+    weak: "border-border bg-muted/40 text-muted-foreground",
 };
 
 type DrawerPhase = "loading" | "ready" | "needsAuth" | "needsResume" | "error";
@@ -124,10 +129,11 @@ export function FitDrawer({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="right"
-                className="flex w-full flex-col overflow-hidden p-0 sm:max-w-[380px]"
+                className="elite-signal flex w-full flex-col overflow-hidden bg-[color:var(--elite-card)] p-0 text-[color:var(--elite-ink)] sm:max-w-[380px]"
+                overlayClassName="elite-fit-overlay"
                 hideCloseButton
             >
-                <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-card px-5 py-5">
+                <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-5">
                     <div className="min-w-0 flex-1">
                         <SheetTitle className="font-display text-lg font-semibold leading-snug tracking-tight">
                             {job ? decodeText(job.title) : "Am I a fit?"}
@@ -136,7 +142,7 @@ export function FitDrawer({
                             Compare this role against your active resume.
                         </SheetDescription>
                         {job && (
-                            <p className="mt-1 text-sm font-medium text-brand">
+                            <p className="mt-1 text-sm font-medium text-[color:var(--elite-brand)]">
                                 {cleanCompany(job.company) || "Unknown company"}
                                 {locationText(job) ? ` · ${locationText(job)}` : ""}
                             </p>
@@ -146,7 +152,7 @@ export function FitDrawer({
                         variant="ghost"
                         size="icon"
                         onClick={() => onOpenChange(false)}
-                        className="h-8 w-8 shrink-0 rounded-lg border border-border"
+                        className="h-8 w-8 shrink-0 rounded-lg border border-[color:var(--elite-border)] bg-[color:var(--elite-surface)]"
                         aria-label="Close"
                     >
                         <X className="h-4 w-4" />
@@ -219,26 +225,25 @@ export function FitDrawer({
                         <div className="space-y-5">
                             <div
                                 className={cn(
-                                    "inline-flex items-center gap-2 rounded-[10px] px-3.5 py-2.5 text-sm font-semibold",
-                                    STATUS_PILL[fitVerdictTone(assessment.verdict)],
+                                    "inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-sm font-semibold",
+                                    VERDICT_PILL[assessment.verdict],
                                 )}
                             >
-                                <Sparkle size={14} weight="fill" />
                                 {VERDICT_LABEL[assessment.verdict]}
                             </div>
 
                             {assessment.matches.length > 0 && (
                                 <section>
-                                    <h3 className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                    <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--elite-faint)]">
                                         Matches
                                     </h3>
-                                    <ul className="mt-2.5 divide-y divide-border">
+                                    <ul className="mt-2.5 divide-y divide-[color:var(--elite-rule)]">
                                         {assessment.matches.map((item) => (
                                             <li
                                                 key={item}
-                                                className="flex gap-2.5 py-2 text-[13.5px] leading-snug text-foreground/90"
+                                                className="flex gap-2.5 py-2 text-[13.5px] leading-snug"
                                             >
-                                                <span className="shrink-0 font-semibold text-st-offer">✓</span>
+                                                <span className="shrink-0 font-semibold text-[color:var(--elite-live)]">✓</span>
                                                 {item}
                                             </li>
                                         ))}
@@ -248,16 +253,16 @@ export function FitDrawer({
 
                             {assessment.gaps.length > 0 && (
                                 <section>
-                                    <h3 className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                    <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--elite-faint)]">
                                         Gaps to address
                                     </h3>
-                                    <ul className="mt-2.5 divide-y divide-border">
+                                    <ul className="mt-2.5 divide-y divide-[color:var(--elite-rule)]">
                                         {assessment.gaps.map((item) => (
                                             <li
                                                 key={item}
-                                                className="flex gap-2.5 py-2 text-[13.5px] leading-snug text-foreground/90"
+                                                className="flex gap-2.5 py-2 text-[13.5px] leading-snug"
                                             >
-                                                <span className="shrink-0 font-semibold text-muted-foreground">○</span>
+                                                <span className="shrink-0 font-semibold text-[color:var(--elite-faint)]">○</span>
                                                 {item}
                                             </li>
                                         ))}
@@ -269,31 +274,38 @@ export function FitDrawer({
                 </div>
 
                 {showCtas && (
-                    <div className="border-t bg-muted/30 px-5 py-4">
+                    <div className="border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-5 py-4">
                         <div className="flex flex-col gap-2">
-                            <Button variant="outline" className="h-11 w-full font-semibold" onClick={onTailor}>
+                            <Button
+                                variant="outline"
+                                className="h-11 w-full border-[1.5px] border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] font-semibold text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-page)]"
+                                onClick={onTailor}
+                            >
                                 Tailor resume
                             </Button>
                             <Button
                                 variant="outline"
-                                className="h-11 w-full border-brand/30 font-medium text-brand hover:bg-brand/5"
+                                className="h-11 w-full border-[color:var(--elite-tint-border)] font-medium text-[color:var(--elite-brand)] hover:bg-[color:var(--elite-tint-bg)]"
                                 onClick={onPrep}
                             >
                                 Interview prep
                             </Button>
-                            <Button className="h-11 w-full font-semibold" onClick={onApply}>
+                            <Button
+                                className="h-11 w-full bg-[color:var(--elite-ink)] font-semibold text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-ink)]/90"
+                                onClick={onApply}
+                            >
                                 Apply (tracks automatically)
                             </Button>
                         </div>
-                        <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">
+                        <p className="mt-3 text-center font-mono text-[11px] text-[color:var(--elite-faint)]">
                             Uses your active resume · 2 credits
                         </p>
                     </div>
                 )}
 
                 {phase === "loading" && (
-                    <div className="border-t bg-muted/30 px-5 py-4">
-                        <p className="text-center font-mono text-[11px] text-muted-foreground">
+                    <div className="border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-5 py-4">
+                        <p className="text-center font-mono text-[11px] text-[color:var(--elite-faint)]">
                             Uses your active resume · 2 credits
                         </p>
                     </div>

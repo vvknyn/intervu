@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
-import { BOARD_META } from "@/lib/boards/types";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import type { CompanyPageData } from "@/lib/companies/types";
 import {
@@ -37,10 +36,15 @@ function roleMeta(job: PublicJob): string {
   return parts.join(" · ");
 }
 
-function roleGhostLine(job: PublicJob): string | null {
-  const meta = ghostMetaFor(job.ghost_badge, false);
-  if (!meta) return null;
-  return `● ${meta.label}`;
+function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
+  if (job.ghost_badge === "likely_ghost") {
+    const meta = ghostMetaFor(job.ghost_badge, false);
+    return meta ? { text: `● ${meta.label}`, live: false } : null;
+  }
+  if (job.ghost_badge === "clear" || !job.ghost_badge) {
+    return { text: "Live · no ghost signals", live: true };
+  }
+  return null;
 }
 
 export async function generateMetadata({
@@ -62,12 +66,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);
   const prepUrl = prepHref(data);
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
+  const isElite = data.boards.includes("elite");
 
   return (
-    <>
-      <div className="border-b border-border bg-muted/30 px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-3xl font-mono text-xs text-muted-foreground">
-          <Link href="/" className="text-brand hover:underline">
+    <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
+      <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
+        <nav className="mx-auto max-w-[900px] font-mono text-xs text-[color:var(--elite-faint)]">
+          <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
             Find jobs
           </Link>
           {" / "}
@@ -75,40 +80,49 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
-      <main data-testid="company-page" className="mx-auto max-w-3xl px-4 py-8 pb-28 sm:px-6">
-        <header className="mb-7 flex gap-5">
-          <CompanyLogo domain={data.domain} name={data.name} size="lg" />
+      <main data-testid="company-page" className="mx-auto max-w-[900px] px-4 py-8 pb-28 sm:px-6">
+        <header className="mb-7 flex gap-4">
+          <CompanyInitialTile
+            name={data.name}
+            className="h-16 w-16 rounded-[12px] text-[22px]"
+          />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
             {data.oneLiner && (
-              <p className="mt-1.5 text-[15px] leading-snug text-muted-foreground">{data.oneLiner}</p>
+              <p className="mt-1.5 text-[15px] leading-snug text-[color:var(--elite-muted)]">
+                {data.oneLiner}
+              </p>
             )}
-            {data.boards.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {data.boards.map((id) => (
-                  <span
-                    key={id}
-                    className="rounded border border-brand/25 bg-brand/10 px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-brand"
-                  >
-                    {BOARD_META[id].label}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {isElite && (
+                <span className="rounded border border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--elite-brand)]">
+                  Elite
+                </span>
+              )}
+              {data.stage && (
+                <span className="rounded border border-[color:var(--elite-border-strong)] bg-[color:var(--elite-rule)] px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--elite-muted)]">
+                  {data.stage}
+                </span>
+              )}
+            </div>
           </div>
           <FollowButton
             key={data.domain}
             domain={data.domain}
             slug={data.slug}
             displayName={data.name}
-            variant="brand"
+            variant="elite"
             className="shrink-0 self-start"
           />
         </header>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi value={formatKpi(data.openCount)} label="Open roles" hot={data.openCount > 0} />
-          <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" hot={typeof data.opened90d === "number" && data.opened90d > 0} />
+          <Kpi
+            value={formatKpi(data.opened90d)}
+            label="Opened 90d"
+            hot={typeof data.opened90d === "number" && data.opened90d > 0}
+          />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
           <Kpi
             value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
@@ -120,14 +134,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <h2 className="mb-3.5 flex items-baseline justify-between font-display text-[19px] font-semibold">
             Open roles
             {data.jobs.length > 0 && (
-              <span className="font-mono text-xs font-normal text-muted-foreground">
+              <span className="font-mono text-xs font-normal text-[color:var(--elite-muted)]">
                 {preview.length} of {data.openCount} shown
               </span>
             )}
           </h2>
 
           {preview.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
+            <p className="text-sm text-[color:var(--elite-muted)]">No open roles indexed right now.</p>
           ) : (
             <ul className="space-y-2">
               {preview.map((job) => {
@@ -136,16 +150,28 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   <li key={job.id}>
                     <Link
                       href={`/?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center justify-between gap-4 rounded-[10px] border border-border bg-card px-5 py-4 transition-colors hover:border-foreground/25"
+                      className="flex items-center justify-between gap-4 rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
                     >
                       <div className="min-w-0">
                         <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
-                        <div className="mt-1 font-mono text-xs text-muted-foreground">{roleMeta(job)}</div>
+                        <div className="mt-1 font-mono text-xs text-[color:var(--elite-muted)]">
+                          {roleMeta(job)}
+                        </div>
                         {ghost && (
-                          <div className="mt-1 font-mono text-[11px] text-brand">{ghost}</div>
+                          <div
+                            className={cn(
+                              "mt-1.5 flex items-center gap-1.5 font-mono text-[11px]",
+                              ghost.live
+                                ? "text-[color:var(--elite-live)]"
+                                : "text-[color:var(--elite-muted)]",
+                            )}
+                          >
+                            {ghost.live && <span className="elite-live-dot" aria-hidden />}
+                            {ghost.live ? ghost.text : ghost.text}
+                          </div>
                         )}
                       </div>
-                      <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
+                      <span className="shrink-0 text-sm text-[color:var(--elite-faint)]" aria-hidden>
                         →
                       </span>
                     </Link>
@@ -156,33 +182,45 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           )}
         </section>
 
-        <p className="mt-6 rounded-lg bg-muted/60 px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+        <p className="mt-6 rounded-lg bg-[color:var(--elite-rule)] px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
           Metrics derived from observed job postings over 90 days — not fundraising data, employee
           reviews, or third-party valuations.
         </p>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-4 py-3.5 backdrop-blur sm:px-6">
-        <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-3">
-          <Button variant="outline" asChild>
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3.5 sm:px-6">
+        <div className="mx-auto flex max-w-[900px] flex-wrap justify-center gap-3">
+          <Button
+            variant="outline"
+            asChild
+            className="border-[color:var(--elite-ink)] bg-[color:var(--elite-card)]"
+          >
             <Link href={jobsSearchUrl}>View all {data.openCount} jobs</Link>
           </Button>
-          <Button variant="default" asChild>
+          <Button
+            asChild
+            className="bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-ink)]/90"
+          >
             <Link href={prepUrl}>Open interview prep</Link>
           </Button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
 function Kpi({ value, label, hot }: { value: string; label: string; hot?: boolean }) {
   return (
-    <div className="rounded-[10px] border border-border bg-card px-4 py-4 text-center">
-      <div className={cn("font-display text-[26px] font-bold tracking-tight", hot && "text-brand")}>
+    <div className="rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
+      <div
+        className={cn(
+          "font-display text-[26px] font-bold tracking-tight",
+          hot && "text-[color:var(--elite-brand)]",
+        )}
+      >
         {value}
       </div>
-      <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+      <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
         {label}
       </div>
     </div>
