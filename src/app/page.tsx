@@ -2698,7 +2698,7 @@ function JobsContent() {
                     {/* Empty ask: brand above the line as one composition.
                         Shared layoutIds morph into TopBar when results load. */}
                     {isOverlayAsk && (
-                        <div className="mb-5 flex items-center gap-2.5 px-0.5">
+                        <div className="mb-5 flex items-center justify-center gap-2.5">
                             <motion.span
                                 layoutId="intervu-brand"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
