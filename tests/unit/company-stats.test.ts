@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deriveCompanyStats } from "../../src/lib/companies/company-stats";
+import { deriveCompanyStats, dominantCompanyDomain } from "../../src/lib/companies/company-stats";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
@@ -100,5 +100,39 @@ describe("deriveCompanyStats", () => {
     assert.equal(byBucket["30d"], 1);
     assert.equal(byBucket["60d"], 1);
     assert.equal(byBucket.older, 1);
+  });
+});
+
+describe("dominantCompanyDomain", () => {
+  it("picks the most frequent non-empty domain among mixed values", () => {
+    const domain = dominantCompanyDomain([
+      job({ company_domain: "acme.com" }),
+      job({ company_domain: "acme.com" }),
+      job({ company_domain: "other.com" }),
+    ]);
+    assert.equal(domain, "acme.com");
+  });
+
+  it("returns null when every hit's domain is empty", () => {
+    const domain = dominantCompanyDomain([
+      job({ company_domain: null }),
+      job({ company_domain: "" }),
+      job({ company_domain: "   " }),
+    ]);
+    assert.equal(domain, null);
+  });
+
+  it("returns the domain from a single hit", () => {
+    const domain = dominantCompanyDomain([job({ company_domain: "solo.io" })]);
+    assert.equal(domain, "solo.io");
+  });
+
+  it("normalizes casing/whitespace the same way domainToSlug does before tallying", () => {
+    const domain = dominantCompanyDomain([
+      job({ company_domain: "Acme.com" }),
+      job({ company_domain: " acme.com " }),
+      job({ company_domain: "OTHER.com" }),
+    ]);
+    assert.equal(domain, "acme.com");
   });
 });

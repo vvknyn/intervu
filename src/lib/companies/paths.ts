@@ -15,9 +15,27 @@
  * mean the encode step could silently disagree with the decode step about
  * what "the same name" means.
  */
+import { domainToSlug } from "@/lib/boards/slug";
 
 export function companyPagePath(company: string): string {
   return `/companies/${encodeURIComponent(company)}`;
+}
+
+/**
+ * Canonical company link for a job's company reference (P1C consolidation,
+ * 2026-08-01): `/co/[slug]` (domain-keyed) is the ONE company surface;
+ * `/companies/[slug]` is only a resolver for companies with no known
+ * domain (see `company-stats.ts`'s `dominantCompanyDomain` /
+ * `page.tsx`'s redirect). A job carrying a `company_domain` therefore
+ * links straight to `/co/`, skipping the resolver hop; a domain-less job
+ * falls back to the name-keyed path. Uses `domainToSlug` unmodified — same
+ * normalization (trim + lowercase) every other `/co/[slug]` caller
+ * (get-company.ts, hot-list.ts, app/page.tsx) already applies; adding a
+ * second one here would risk disagreeing with it.
+ */
+export function jobCompanyHref(company: string, companyDomain: string | null): string {
+  const domain = companyDomain?.trim();
+  return domain ? `/co/${domainToSlug(domain)}` : companyPagePath(company);
 }
 
 /**

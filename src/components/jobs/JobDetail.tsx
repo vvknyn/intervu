@@ -6,6 +6,7 @@ import { ArrowSquareOut, Briefcase, CalendarBlank, CaretRight, Check, CurrencyDo
 import { Button } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { buildFactChips, ghostCheckedText, type FactChipKind } from "@/components/jobs/job-detail-facts";
+import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
@@ -31,19 +32,6 @@ const FACT_CHIP_ICON: Record<FactChipKind, React.ReactNode> = {
     posted: <CalendarBlank size={13} />,
     first_seen: <Eye size={13} />,
 };
-
-/**
- * TODO(companyPagePath contract): a parallel workstream owns
- * `@/lib/companies/paths` exporting `companyPagePath(company: string):
- * string`. That module hadn't landed in this worktree as of 2026-08-01, so
- * this duplicates its documented interim shape rather than statically
- * importing a module that may not exist yet (which would break the build
- * for everyone until landing order lined up). Swap the one call site below
- * for the real import once it lands — no other change needed.
- */
-function companyHref(company: string): string {
-    return `/companies/${encodeURIComponent(company)}`;
-}
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -152,7 +140,7 @@ export function JobDetail({
                         <h2 className="text-xl font-bold leading-tight tracking-tight">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanedCompany ? (
-                                <Link href={companyHref(cleanedCompany)} className="hover:text-foreground hover:underline">
+                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="hover:text-foreground hover:underline">
                                     {cleanedCompany}
                                 </Link>
                             ) : (
