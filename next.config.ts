@@ -49,6 +49,8 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Contabo/Docker: emit .next/standalone for a slim runtime image (see Dockerfile).
+  output: "standalone",
   // Don't advertise the framework.
   poweredByHeader: false,
   reactStrictMode: true,
