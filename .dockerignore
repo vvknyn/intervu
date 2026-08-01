@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.cb-chrome-profile
+playwright-report
+test-results
+test-output
+mobile-screenshots
+*.png
+.env*
+!.env.example
+docs
+data
+tests
+playwright.config.ts
+**/*.md
+!DEPLOY.md
