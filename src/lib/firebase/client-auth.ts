@@ -10,12 +10,17 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
     confirmPasswordReset,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signInWithRedirect,
     User,
     updatePassword,
 } from "firebase/auth";
 import { getFirebaseAuth } from "./config";
 
 export type { User } from "firebase/auth";
+
+const googleProvider = new GoogleAuthProvider();
 
 declare global {
     interface Window {
@@ -83,6 +88,47 @@ export async function signUpWithUsername(username: string, password: string): Pr
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await syncSessionCookie(user);
     return user;
+}
+
+/** True when the user backed out of the Google popup themselves (closed it,
+ *  or fired a second popup before the first settled) — not a failure, just
+ *  "never mind." Callers show calm copy instead of an error banner. */
+export function isPopupCancelled(err: unknown): boolean {
+    const code = (err as { code?: string } | null)?.code;
+    return code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
+}
+
+/** True only when the browser itself refused to open the popup (blocked by
+ *  a popup blocker) — distinct from the user cancelling one that did open. */
+function isPopupBlocked(err: unknown): boolean {
+    return (err as { code?: string } | null)?.code === "auth/popup-blocked";
+}
+
+/**
+ * Sign in with Google. Tries a popup first — same session-cookie exchange
+ * `signInWithUsername` uses (`syncSessionCookie`), completed immediately
+ * without leaving the page. If the browser blocks the popup outright, falls
+ * back to a full-page redirect instead of failing: `getFirebaseAuth()`'s
+ * `onAuthStateChanged` fires with the signed-in user once the browser
+ * returns from Google, and the app's existing "re-mint the session cookie on
+ * first sign-in this load" effect (see TopBar's `refreshSession` call)
+ * completes the same exchange generically — no separate redirect-result
+ * handler needed. Returns `null` when the redirect fallback fired (the page
+ * is about to navigate away, so there's no user to hand back yet).
+ */
+export async function signInWithGoogle(): Promise<User | null> {
+    const auth = getFirebaseAuth();
+    try {
+        const { user } = await signInWithPopup(auth, googleProvider);
+        await syncSessionCookie(user);
+        return user;
+    } catch (err) {
+        if (isPopupBlocked(err)) {
+            await signInWithRedirect(auth, googleProvider);
+            return null;
+        }
+        throw err;
+    }
 }
 
 /**

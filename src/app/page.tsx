@@ -71,6 +71,9 @@ import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { marketingClaim, type MarketingCorpusStats } from "@/lib/marketing-stats";
+import { getMarketingStatsAction } from "@/actions/marketing";
+import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -1015,6 +1018,26 @@ function JobsContent() {
     // `null` = not resolved yet, or not applicable (ghosts shown) — either
     // way FilterPanel only renders the count suffix when non-null and > 0.
     const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
+
+    // Landing claim's live-corpus number (the empty-state hero's honest-market
+    // pitch, see `marketingClaim`). Fetched once on mount, same shape as
+    // `lastUpdated` below: `null` (fetch failed, or the backend has no
+    // number) degrades the claim to copy without a number — never a
+    // fabricated placeholder count.
+    const [marketingStats, setMarketingStats] = useState<MarketingCorpusStats | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        getMarketingStatsAction()
+            .then((stats) => {
+                if (!cancelled) setMarketingStats(stats);
+            })
+            .catch(() => {
+                if (!cancelled) setMarketingStats(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Corpus freshness stamp ("updated 3h ago"). Fetched once on mount.
     // `undefined` = not resolved yet (render nothing); `null` = resolved but
@@ -3033,6 +3056,34 @@ function JobsContent() {
                             </div>
                         )
                     ) : null}
+
+                    {/* Landing claim (P2 front door): the honest-market pitch, quiet
+                        and compact under the search box — never a heading competing
+                        with the brand morph above it. Links skip Find jobs (this
+                        screen) and Tracker (needs auth) — every other top-level
+                        surface, sourced from the same NAV_TABS_DESKTOP the footer
+                        reads, so a renamed/rerouted tab can't drift out of sync here. */}
+                    {isOverlayAsk && (
+                        <div className="mt-8 flex flex-col items-center gap-3 text-center">
+                            <p data-testid="landing-claim" className="max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
+                                {marketingClaim(marketingStats)}
+                            </p>
+                            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[13px] font-medium text-muted-foreground">
+                                {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab, i, arr) => (
+                                    <span key={tab.href} className="flex items-center gap-x-3">
+                                        <Link href={tab.href} className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline">
+                                            {tab.label}
+                                        </Link>
+                                        {i < arr.length - 1 && (
+                                            <span aria-hidden className="text-faint">
+                                                ·
+                                            </span>
+                                        )}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
