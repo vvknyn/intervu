@@ -2,17 +2,48 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Briefcase, CaretRight, Check, CurrencyDollar, Lightning, MapPin, ShieldCheck, Sparkle, Target, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Briefcase, CalendarBlank, CaretRight, Check, CurrencyDollar, Eye, Lightning, MapPin, ShieldCheck, Sparkle, Target, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { buildFactChips, ghostCheckedText, type FactChipKind } from "@/components/jobs/job-detail-facts";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, prettyEnum, decodeText, cleanCompany, locationText, salaryText, shortDate } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, cleanCompany, locationText, shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
+
+/**
+ * Icon per fact-chip kind (`FactChipKind`, job-detail-facts.ts) — the only
+ * piece of chip presentation that stays here rather than in the pure
+ * helper, since a JSX element isn't something a `node:test` file can assert
+ * on cheaply. Keyed on the chip's own `kind` (not enumerated per-job-field
+ * at the render site) so a new chip kind is wired by adding one entry here
+ * and one branch in `buildFactChips`, not by touching the render loop.
+ */
+const FACT_CHIP_ICON: Record<FactChipKind, React.ReactNode> = {
+    work_type: <MapPin size={13} />,
+    employment_type: <Briefcase size={13} />,
+    experience_level: <Target size={13} />,
+    salary: <CurrencyDollar size={13} />,
+    posted: <CalendarBlank size={13} />,
+    first_seen: <Eye size={13} />,
+};
+
+/**
+ * TODO(companyPagePath contract): a parallel workstream owns
+ * `@/lib/companies/paths` exporting `companyPagePath(company: string):
+ * string`. That module hadn't landed in this worktree as of 2026-08-01, so
+ * this duplicates its documented interim shape rather than statically
+ * importing a module that may not exist yet (which would break the build
+ * for everyone until landing order lined up). Swap the one call site below
+ * for the real import once it lands — no other change needed.
+ */
+function companyHref(company: string): string {
+    return `/companies/${encodeURIComponent(company)}`;
+}
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -105,14 +136,12 @@ export function JobDetail({
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall.
     const collapsible = (job.description?.length ?? 0) > 700;
-    const facts: { icon: React.ReactNode; label: string }[] = [];
-    if (prettyEnum(job.work_type)) facts.push({ icon: <MapPin size={13} />, label: prettyEnum(job.work_type) });
-    if (prettyEnum(job.employment_type))
-        facts.push({ icon: <Briefcase size={13} />, label: prettyEnum(job.employment_type) });
-    if (prettyEnum(job.experience_level))
-        facts.push({ icon: <Target size={13} />, label: prettyEnum(job.experience_level) });
-    const sal = salaryText(job);
-    if (sal) facts.push({ icon: <CurrencyDollar size={13} />, label: sal });
+    // Structured facts row (Deliverable 1, 2026-08-01) — consolidates what
+    // used to be a separate "Posted X · First seen by us Y" prose line plus
+    // this chip row into ONE scannable row; see buildFactChips for the
+    // per-field include/omit decision (kept pure + unit-tested there).
+    const chips = buildFactChips(job, postedRelative, firstSeenRelative);
+    const cleanedCompany = cleanCompany(job.company);
 
     return (
         <div className="overflow-hidden rounded-[14px] border border-border bg-card">
@@ -122,33 +151,30 @@ export function JobDetail({
                     <div className="min-w-0 flex-1">
                         <h2 className="text-xl font-bold leading-tight tracking-tight">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
-                            {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
+                            {cleanedCompany ? (
+                                <Link href={companyHref(cleanedCompany)} className="hover:text-foreground hover:underline">
+                                    {cleanedCompany}
+                                </Link>
+                            ) : (
+                                "Unknown company"
+                            )}{" "}
+                            · {locationText(job)}
                         </div>
-                        {(postedRelative || firstSeenRelative) && (
+                        {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
                             <div className="mt-1 text-sm text-muted-foreground">
-                                {[
-                                    postedRelative ? `Posted ${postedRelative}` : null,
-                                    firstSeenRelative ? `First seen by us ${firstSeenRelative}` : null,
-                                ]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                                    <div className="mt-0.5">
-                                        Listed as new on {shortDate(freshness.postedMs)}, but this role first
-                                        appeared {firstSeenRelative} — often a repost.
-                                    </div>
-                                )}
+                                Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
+                                {firstSeenRelative} — often a repost.
                             </div>
                         )}
-                        {facts.length > 0 && (
+                        {chips.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {facts.map((f, i) => (
+                                {chips.map((c) => (
                                     <span
-                                        key={i}
+                                        key={c.kind}
                                         className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
                                     >
-                                        {f.icon}
-                                        {f.label}
+                                        {FACT_CHIP_ICON[c.kind]}
+                                        {c.label}
                                     </span>
                                 ))}
                             </div>
@@ -195,6 +221,17 @@ export function JobDetail({
                         <Check size={16} />
                         {applied ? "Tracked" : applying ? "Saving…" : "Mark as applied"}
                     </Button>
+                    {/* Promoted out of the bottom of the panel (2026-08-01) — prep is a
+                        primary next step, not a footnote past the description. Same
+                        text-link styling as before, just relocated into the CTA row. */}
+                    <button
+                        onClick={onPrep}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
+                    >
+                        <Lightning size={14} weight="fill" />
+                        Prep for interview at {cleanedCompany || "this company"}
+                        <CaretRight size={13} />
+                    </button>
                 </div>
             </div>
 
@@ -209,6 +246,15 @@ export function JobDetail({
                         <div>
                             <div className="text-[13px] font-semibold">{ghost.label}</div>
                             <div className="mt-0.5 text-xs leading-relaxed opacity-90">{ghost.explain}</div>
+                            {/* WHEN this verdict was last checked — a stated fact from
+                                `updated_at`, not a fabricated checklist of what was
+                                inspected (see ghostCheckedText's doc comment). Makes the
+                                "hasn't been re-checked recently" claim above concrete
+                                instead of vague, on every ghost-badge state, not just the
+                                stale-clear one. */}
+                            <div className="mt-1 text-[11px] font-medium opacity-70">
+                                {ghostCheckedText(job.updated_at, now)}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -262,15 +308,6 @@ export function JobDetail({
                         </div>
                     </>
                 )}
-
-                <button
-                    onClick={onPrep}
-                    className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
-                >
-                    <Lightning size={14} weight="fill" />
-                    Prep for interview at {cleanCompany(job.company) || "this company"}
-                    <CaretRight size={13} />
-                </button>
             </div>
         </div>
     );
