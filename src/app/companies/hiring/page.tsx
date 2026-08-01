@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { getHotCompaniesList, type HotCompanyRow } from "@/lib/companies/hot-list";
+import { companyPagePath } from "@/lib/companies/paths";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +114,12 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
               </div>
             )}
           </div>
+        </Link>
+        <Link
+          href={companyPagePath(company.name)}
+          className="mt-1 inline-block text-[11px] text-[color:var(--elite-faint)] underline underline-offset-2 hover:text-[color:var(--elite-brand)]"
+        >
+          Live roles &amp; ghost mix →
         </Link>
       </td>
       <td className="px-[18px] py-4 font-mono text-[13px]">
