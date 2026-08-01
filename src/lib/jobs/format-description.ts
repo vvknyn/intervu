@@ -15,9 +15,11 @@
  *     `- ` bullets) — see normalizeMarkdown.
  *  1. Repair run-together patterns: "yearCentene" → "year Centene",
  *     "Purpose:Oversee" → "Purpose: Oversee", "required.5+" → "required.
- *     5+". The lowercase→uppercase split uses a 4+ char-run gate + a
- *     compound-brand exclusion list to avoid breaking "iPhone" /
- *     "JavaScript" / "NetSuite".
+ *     5+", "2026Job" → "2026 Job". The lowercase→uppercase split uses a 4+
+ *     char-run gate + a compound-brand exclusion list to avoid breaking
+ *     "iPhone" / "JavaScript" / "NetSuite"; the digit→uppercase split uses
+ *     a 3+ digit-run gate so acronym-glued codes ("B2B", "S3", "401k",
+ *     "401K") stay intact.
  *  2. Promote known-heading patterns ("Position Purpose:", "Pay Range:",
  *     "Responsibilities:") to a paragraph boundary so they render as <h4>.
  *  3. Split paragraphs on `\n\n+`. Paragraphs longer than PARA_SOFT_MAX are
@@ -80,7 +82,7 @@ export interface DescBlock {
 const PARA_SOFT_MAX = 360; // Above this, sentence-group long paragraphs.
 const SENTENCES_PER_CHUNK = 3;
 
-function repairRunTogethers(input: string): string {
+export function repairRunTogethers(input: string): string {
   let text = input;
   // (a) Protect compound brand names by placeholdering. Placeholder uses
   // chars that can't appear in normal text (\x00 and \x01).
@@ -108,6 +110,16 @@ function repairRunTogethers(input: string): string {
     /\b(you|your|our|its|the|and|for|are|with|this|that|from|into|will|who|why|how|out|but|not|has|was|can)([A-Z][a-z])/g,
     "$1 $2",
   );
+  // (b3) Digit run + Capital boundary ("2026Job" → "2026 Job"): a 3+ digit
+  //      run (years, dollar amounts, headcounts) glued directly to a
+  //      Capital+lowercase word. Gated the same way as (b) — the run must
+  //      be followed by an actual word (capital THEN lowercase), not just a
+  //      trailing capital — so acronym-glued codes like "B2B", "S3", "401K"
+  //      never match (nothing lowercase follows the capital in those), and
+  //      "401k" doesn't match either (the char after the digits is already
+  //      lowercase). The 3+ gate leaves short digit-letter codes like "3M"
+  //      or "Q3" alone.
+  text = text.replace(/(\d{3,})([A-Z][a-z])/g, "$1 $2");
   // (c) Punctuation + capital with no space → insert space.
   text = text.replace(/([.!?])([A-Z])/g, "$1 $2");
   // (d) Period + digit ONLY when the period follows a letter, not another
