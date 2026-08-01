@@ -22,7 +22,9 @@ import {
   buildLocationVocabulary,
   type LocationVocabulary,
 } from "./query-understanding";
+import { cacheSearchResult, getDegradedServe, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
+export type { SearchServeMeta } from "./search-cache";
 
 export function activeBackend(): JobsBackendKind {
   if (hasMeilisearch()) return "meilisearch";
@@ -80,7 +82,9 @@ async function locationVocabulary(): Promise<LocationVocabulary> {
   return vocabCache ? vocabCache.vocab : vocabInFlight;
 }
 
-export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult> {
+export async function searchJobs(
+  raw: JobSearchParams,
+): Promise<JobSearchResult & { meta?: SearchServeMeta }> {
   // Vocabulary is only relevant when there's query text to parse — the
   // dead-link id probe and plain browses skip the lookup entirely.
   const vocab = (raw.q ?? "").trim() && !raw.id ? await locationVocabulary() : undefined;
@@ -93,12 +97,34 @@ export async function searchJobs(raw: JobSearchParams): Promise<JobSearchResult>
     // (place/work-mode tokens already stripped by `applyQueryUnderstanding`
     // above) becomes part of the public result shape, without mutating
     // either backend's own return value.
-    if (backend === "meilisearch") return { ...(await searchMeili(p)), effectiveQ: p.q ?? "" };
+    if (backend === "meilisearch") {
+      const result = { ...(await searchMeili(p)), effectiveQ: p.q ?? "" };
+      // Remember this as the last-good response for its exact query/filter
+      // shape (and, if it's the default browse, as the outage fallback too)
+      // — see search-cache.ts. Only the success path ever teaches the cache.
+      cacheSearchResult(p, result);
+      return { ...result, meta: { degraded: false, servedFrom: "live" } };
+    }
     if (backend === "snapshot-preview") return { ...(await searchSnapshotPreview(p)), effectiveQ: p.q ?? "" };
   } catch (e) {
     // The raw error goes to server logs only — messages like Next's RSC
     // digest text are internals, not copy a job seeker should ever read.
     console.error("[jobs-search] backend error:", e);
+    if (backend === "meilisearch") {
+      // Meili's own bounded retry (meiliFetch, meilisearch.ts) already ran
+      // and still failed — this is a real outage, not a blip. Serve the
+      // last-good response for this exact request, or the default-browse
+      // fallback, before giving up. Fields are returned exactly as cached
+      // (never re-stamped with the CURRENT request's query) so a
+      // default-browse fallback never lies about what it's showing.
+      const degraded = getDegradedServe(p);
+      if (degraded) {
+        return {
+          ...degraded.result,
+          meta: { degraded: true, servedFrom: "cache", cachedAtMs: degraded.cachedAtMs },
+        };
+      }
+    }
     return {
       hits: [],
       total: 0,
