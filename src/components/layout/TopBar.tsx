@@ -16,7 +16,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NAV_TABS } from "@/components/layout/nav-tabs";
+import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
 
 /** Jobs empty-ask sets `data-jobs-overlay-ask` so TopBar yields the brand to the hero morph. */
 const OVERLAY_ASK_ATTR = "data-jobs-overlay-ask";
@@ -76,12 +76,11 @@ function initialsOf(user: User): string {
 
 /**
  * Secondary dropdown entries under the avatar (spec: "credits, Stories,
- * Settings, Feedback, sign out"). Prep/Resumes/Tracker moved out — they're
- * now top-level tabs in NAV_TABS, so keeping them here too would be a
- * redundant second path to the same three destinations.
+ * Settings, Feedback, sign out"). Prep/Resumes/Tracker/Trends moved out —
+ * they're now top-level tabs in NAV_TABS_DESKTOP, so keeping them here too
+ * would be a redundant second path to the same destinations.
  */
 const NAV_DESTINATIONS = [
-    { label: "Trends", href: "/trends" },
     { label: "Stories", href: "/stories" },
     { label: "Settings", href: "/settings" },
 ];
@@ -170,7 +169,7 @@ export function TopBar() {
                     aria-label="Primary"
                     className="no-scrollbar hidden min-w-0 items-center gap-6 overflow-x-auto text-[13.5px] font-medium lg:flex"
                 >
-                    {NAV_TABS.map((tab) => {
+                    {NAV_TABS_DESKTOP.map((tab) => {
                         const active = tab.match(pathname);
                         return (
                             <Link

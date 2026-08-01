@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { signInWithUsername, signUpWithUsername } from '@/lib/firebase/client-auth'
+import { signInWithUsername, signUpWithUsername, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
 import { signUp } from '@/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 interface LoginFormProps {
     onSuccess?: () => void;
     onGuestAccess?: () => void;
+}
+
+/** Standard 4-color Google "G" glyph — no icon library ships a brand mark
+ *  for it, and pulling in a new dependency for one static SVG isn't worth
+ *  it. Inline, no dark-mode variant needed (the mark itself is brand-fixed). */
+function GoogleGlyph() {
+    return (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+            <path
+                fill="#4285F4"
+                d="M23.52 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.87c2.27-2.09 3.58-5.17 3.58-8.82Z"
+            />
+            <path
+                fill="#34A853"
+                d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.87-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.28v3.1A12 12 0 0 0 12 24Z"
+            />
+            <path
+                fill="#FBBC05"
+                d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28v-3.1H1.28A12 12 0 0 0 0 12c0 1.94.46 3.77 1.28 5.38l3.99-3.1Z"
+            />
+            <path
+                fill="#EA4335"
+                d="M12 4.76c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.28 6.62l3.99 3.1C6.22 6.87 8.87 4.76 12 4.76Z"
+            />
+        </svg>
+    );
 }
 
 export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
@@ -41,6 +67,28 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                     setMessage('Invalid username or password')
                 } else {
                     setMessage(msg)
+                }
+            }
+        })
+    }
+
+    const handleGoogleSignIn = () => {
+        setMessage(null)
+
+        startTransition(async () => {
+            try {
+                const user = await signInWithGoogle()
+                // `null` means the popup was blocked and we fell back to a
+                // full-page redirect — the browser is about to navigate away,
+                // there's nothing left for this component to do.
+                if (!user) return
+                router.refresh()
+                if (onSuccess) onSuccess()
+            } catch (err) {
+                if (isPopupCancelled(err)) {
+                    setMessage('Sign-in was cancelled — try again whenever you’re ready.')
+                } else {
+                    setMessage(err instanceof Error ? err.message : 'Google sign-in failed')
                 }
             }
         })
@@ -156,24 +204,28 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 </div>
             </Tabs>
 
-            {onGuestAccess && (
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">
-                            Or
-                        </span>
-                    </div>
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
                 </div>
-            )}
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                        Or
+                    </span>
+                </div>
+            </div>
 
-            {onGuestAccess && (
-                <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
-                    Continue as Guest
+            <div className="grid gap-2">
+                <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
+                    <GoogleGlyph />
+                    Continue with Google
                 </Button>
-            )}
+                {onGuestAccess && (
+                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                        Continue as Guest
+                    </Button>
+                )}
+            </div>
 
             {message && (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">
