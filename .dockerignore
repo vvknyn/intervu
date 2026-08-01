@@ -15,3 +15,5 @@ tests
 playwright.config.ts
 **/*.md
 !DEPLOY.md
+!data/boards
+!data/boards/**
