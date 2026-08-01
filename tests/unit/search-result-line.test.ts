@@ -66,6 +66,37 @@ test("one result is singular", () => {
     );
 });
 
+test("Deliverable 2 — the updated-clause shows under 48h", () => {
+    const fortySevenHoursAgo = new Date(NOW - 47 * 3_600_000).toISOString();
+    const line = searchResultLine({
+        count: { kind: "exact", value: 5 },
+        postedBucket: undefined,
+        lastUpdated: fortySevenHoursAgo,
+        nowMs: NOW,
+    });
+    assert.match(line, /^5 roles · updated /);
+});
+
+test("Deliverable 2 — the updated-clause is omitted at/past 48h, not shown stale", () => {
+    const fortyNineHoursAgo = new Date(NOW - 49 * 3_600_000).toISOString();
+    assert.equal(
+        searchResultLine({
+            count: { kind: "exact", value: 5 },
+            postedBucket: undefined,
+            lastUpdated: fortyNineHoursAgo,
+            nowMs: NOW,
+        }),
+        "5 roles",
+    );
+});
+
+test("Deliverable 2 — a missing stamp omits the clause too (not a special case, same as the 48h+ branch)", () => {
+    assert.equal(
+        searchResultLine({ count: { kind: "exact", value: 5 }, postedBucket: undefined, lastUpdated: null, nowMs: NOW }),
+        "5 roles",
+    );
+});
+
 test("pure — same inputs, same string", () => {
     const args = {
         count: { kind: "exact", value: 412 } as const,

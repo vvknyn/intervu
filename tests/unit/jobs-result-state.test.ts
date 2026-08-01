@@ -8,6 +8,8 @@ import {
     resolveEmptySearchState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
+    degradedResultsNote,
+    type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
 import type { EmptySearchStateInput } from '../../src/lib/jobs/result-state';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
@@ -392,6 +394,43 @@ describe('resolveEmptySearchState', () => {
         assert.equal(
             resolveEmptySearchState(input({ exploreFailed: true, activeFilterCount: 0 })),
             'serp-ask',
+        );
+    });
+});
+
+// Deliverable 1 — `meta` is an additive field the data-plane lane (branch
+// feat/2026-08-01/p0-data-plane) is adding to `JobSearchResult`, not yet
+// declared on the type this test file imports. Attaching it via a cast
+// mirrors exactly how `degradedResultsNote` itself reads it (see
+// `servedMeta` in result-state.ts) — real prod responses will carry the
+// field the same way once that lane merges.
+function withMeta(meta: SearchServedMeta): JobSearchResult {
+    return { ...result(), meta } as JobSearchResult & { meta: SearchServedMeta };
+}
+
+describe('degradedResultsNote', () => {
+    it('is null for a live (non-degraded) result', () => {
+        assert.equal(
+            degradedResultsNote(withMeta({ degraded: false, servedFrom: 'live' })),
+            null,
+        );
+    });
+
+    it('is null when meta is absent entirely — absence reads as live, never as degraded', () => {
+        assert.equal(degradedResultsNote(result()), null);
+    });
+
+    it('is a calm, non-blocking note when degraded — results still rendered, just captioned', () => {
+        assert.equal(
+            degradedResultsNote(withMeta({ degraded: true, servedFrom: 'cache', cachedAtMs: Date.now() })),
+            'Showing recent results — live search is catching up.',
+        );
+    });
+
+    it('degraded without a cachedAtMs still yields the note — that field is optional', () => {
+        assert.equal(
+            degradedResultsNote(withMeta({ degraded: true, servedFrom: 'cache' })),
+            'Showing recent results — live search is catching up.',
         );
     });
 });

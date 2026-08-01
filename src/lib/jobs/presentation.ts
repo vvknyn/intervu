@@ -1,6 +1,6 @@
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import { formatRelativeAge } from "@/lib/jobs/freshness";
+import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -257,8 +257,12 @@ export function searchResultLine(input: {
     const noun = input.count.value === 1 ? "role" : "roles";
     const window = input.postedBucket ? ` ${POSTED_WINDOW_PHRASE[input.postedBucket]}` : "";
     // No stamp yet is not the same as a stale one: say nothing rather than
-    // claim a freshness we can't back up.
-    const updated = input.lastUpdated
+    // claim a freshness we can't back up. Past `RESULT_LINE_FRESH_MS` (48h)
+    // the clause is omitted too, not shown stale — stop confessing
+    // staleness inline; a real outage/maintenance window is the degraded
+    // banner's job (result-state.ts's `degradedResultsNote`), not this
+    // line's (Deliverable 2, 2026-08-01).
+    const updated = input.lastUpdated && !isStale(input.lastUpdated, input.nowMs, RESULT_LINE_FRESH_MS)
         ? ` · updated ${formatRelativeAge(input.lastUpdated, input.nowMs)}`
         : "";
     return `${formatCorpusCount(input.count)} ${noun}${window}${updated}`;

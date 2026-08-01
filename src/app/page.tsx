@@ -81,7 +81,9 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
+    degradedResultsNote,
 } from "@/lib/jobs/result-state";
+import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     type FacetKey,
@@ -315,6 +317,9 @@ function JobCard({
     onOpenPosting,
     now,
     elite = false,
+    variantCount = 0,
+    expanded = false,
+    onToggleExpand,
 }: {
     job: PublicJob;
     active: boolean;
@@ -327,6 +332,14 @@ function JobCard({
     now: number;
     /** Elite board intel strip styling (board=elite). */
     elite?: boolean;
+    /** Deliverable 3 — how many duplicate postings (same normalized title +
+     *  company, `lib/jobs/cluster.ts`) are folded into this card. 0 for the
+     *  ordinary, non-clustered case — no affordance renders. */
+    variantCount?: number;
+    /** Whether the caller is currently rendering this cluster's variants as
+     *  their own rows right below this one. */
+    expanded?: boolean;
+    onToggleExpand?: () => void;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
     const verdict = verdictFor(job, now);
@@ -385,6 +398,19 @@ function JobCard({
                     <span>{locationText(job)}</span>
                     {salary && <span className="font-mono text-[12px]">{salary}</span>}
                     {level && <span className="font-mono text-[12px]">{level}</span>}
+                    {variantCount > 0 && (
+                        <button
+                            type="button"
+                            data-testid="cluster-toggle"
+                            className="font-mono text-[12px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleExpand?.();
+                            }}
+                        >
+                            {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
+                        </button>
+                    )}
                 </div>
                 {clearGhost && (
                     <div className="mt-2 flex items-center gap-1.5">
@@ -969,6 +995,19 @@ function JobsContent() {
     // needs.
     const firstUnresolvedDeadLinkIdRef = useRef<string | null>(null);
 
+    /**
+     * Deliverable 1 — which `searchKey` has already burned its one automatic
+     * retry (see the fetch effect below). A hard failure no longer shows the
+     * error state immediately: the first failure for a given search schedules
+     * one retry ~4s out and waits, so a genuine one-off blip never reaches the
+     * dead-end UI at all. Keyed on `searchKey` rather than a plain boolean so
+     * a NEW search (different query/filters) always gets its own fresh
+     * attempt — same never-explicitly-cleared pattern as
+     * `firstUnresolvedDeadLinkIdRef` above: a stale value for a
+     * since-superseded key simply stops matching.
+     */
+    const autoRetriedSearchKeyRef = useRef<string | null>(null);
+
     // Live corpus size for the search placeholder ("Search 12,345 live-checked
 
     // Honest count for the rail's "Hide likely-ghost" toggle (Task 7) — how
@@ -1247,6 +1286,12 @@ function JobsContent() {
 
         let cancelled = false;
         let firstPageSucceeded = false;
+        // Deliverable 1 — set when this run schedules the one automatic
+        // retry instead of surfacing a failure; `finally` below reads it so
+        // the pagination generation is left active (not finished) across the
+        // retry wait, and `loading` stays true rather than flashing the
+        // error UI on then off again ~4s later.
+        let autoRetryScheduled = false;
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
         // Any new search (query/facet/sort/etc. change) supersedes a stale
@@ -1266,7 +1311,21 @@ function JobsContent() {
                 });
                 if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
                 if (isUnavailableJobsResult(r)) {
-                    setSearchError(r.note ?? "Job search is temporarily unavailable.");
+                    // Deliverable 1 — this exact `searchKey` gets ONE free
+                    // automatic retry before the dead-end error state shows
+                    // at all. Guarded on the ref so a second failure for the
+                    // same search (the retry itself came back unavailable
+                    // too) falls straight through to the error below instead
+                    // of looping.
+                    if (autoRetriedSearchKeyRef.current !== searchKey) {
+                        autoRetriedSearchKeyRef.current = searchKey;
+                        autoRetryScheduled = true;
+                        setTimeout(() => {
+                            if (!cancelled) setSearchRetry((n) => n + 1);
+                        }, 4000);
+                        return;
+                    }
+                    setSearchError(r.note ?? SEARCH_UNAVAILABLE_MESSAGE);
                     // An initial failure needs backend metadata for the error
                     // state. A background failure must not blank existing hits.
                     if (!(resultRef.current?.hits.length)) setResult(r);
@@ -1430,14 +1489,26 @@ function JobsContent() {
             } catch (e) {
                 if (!cancelled) {
                     console.error("[jobs-search] action transport error:", e);
-                    setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
-                    // A thrown transport error is not an unconfigured backend
-                    // or a successful empty result. Preserve prior data (if
-                    // any) and let the explicit error state own first load.
+                    // Deliverable 1 — same one-free-retry guard as the
+                    // `isUnavailableJobsResult` branch above, for a thrown
+                    // transport error rather than a backend-reported one.
+                    if (autoRetriedSearchKeyRef.current !== searchKey) {
+                        autoRetriedSearchKeyRef.current = searchKey;
+                        autoRetryScheduled = true;
+                        setTimeout(() => {
+                            if (!cancelled) setSearchRetry((n) => n + 1);
+                        }, 4000);
+                    } else {
+                        setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
+                        // A thrown transport error is not an unconfigured backend
+                        // or a successful empty result. Preserve prior data (if
+                        // any) and let the explicit error state own first load.
+                    }
                 }
             } finally {
                 if (
                     !cancelled &&
+                    !autoRetryScheduled &&
                     paginationRef.current!.finishFirstPage(generation, firstPageSucceeded)
                 ) {
                     setLoading(false);
@@ -1502,6 +1573,20 @@ function JobsContent() {
      *  concerns, so one counter piggybacking both would be wrong. */
     const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set());
 
+    // Deliverable 3 — which duplicate-result clusters the visitor has opened
+    // (see `clusters` below). Keyed on the cluster's primary job id, which is
+    // stable across re-renders of the same result set. Session-only, same as
+    // `openedIds` — a fresh search's clusters start collapsed.
+    const [expandedClusters, setExpandedClusters] = useState<Set<string>>(() => new Set());
+    const toggleClusterExpanded = (primaryId: string) => {
+        setExpandedClusters((prev) => {
+            const next = new Set(prev);
+            if (next.has(primaryId)) next.delete(primaryId);
+            else next.add(primaryId);
+            return next;
+        });
+    };
+
     // Deliberate job open: pushes `?job=<id>` so back-button + refresh both
     // work (picked back up by the URL-derived-selection effect below).
     const openJob = (id: string) => {
@@ -1527,6 +1612,35 @@ function JobsContent() {
     const seamIndex = useMemo(
         () => firstMentionIndex(hits.map((h) => decodeText(h.title)), result?.effectiveQ ?? ""),
         [hits, result],
+    );
+
+    // Deliverable 3 — collapse repeat postings (same title, same company —
+    // e.g. one role cross-posted at several locations) into one card each,
+    // ranked at the earliest/best-ranked copy's position. `clusterJobs` is
+    // pure (lib/jobs/cluster.ts); this just threads `hits` through it.
+    const clusters = useMemo(() => clusterJobs(hits), [hits]);
+
+    // The seam paragraph (above) is inserted at an EXACT `hits` index; after
+    // clustering, positions no longer line up 1:1. Every member of one
+    // cluster shares the same title, so — since results already arrive
+    // ranked with the "titled it" block first — a cluster can never straddle
+    // the seam: it's entirely on one side or the other. This finds the first
+    // clustered row whose best-ranked member's original index reaches the
+    // seam, i.e. the same insertion point `firstMentionIndex` already chose,
+    // translated into cluster-array coordinates. `seamIndex <= 0` (no seam,
+    // `firstMentionIndex`'s only two return shapes) must short-circuit here
+    // too — `primaryIndex >= 0` would otherwise always match at cluster 0.
+    const clusterSeamIndex =
+        seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
+
+    // The flat list of jobs actually rendered as their own row right now —
+    // every cluster's primary, plus its variants only while expanded.
+    // `handleResultsKeyDown` below walks THIS, not raw `hits`: arrow-key nav
+    // must never land on a collapsed variant with no visible row to show as
+    // selected.
+    const visibleHits = useMemo(
+        () => clusters.flatMap((c) => [c.primary, ...(expandedClusters.has(c.primary.id) ? c.variants : [])]),
+        [clusters, expandedClusters],
     );
 
     // The URL is the reactive source of truth for the WHOLE screen, not just
@@ -1730,15 +1844,15 @@ function JobsContent() {
         (e: React.KeyboardEvent) => {
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
-            const idx = hits.findIndex((h) => h.id === selectedId);
+            const idx = visibleHits.findIndex((h) => h.id === selectedId);
             const base = idx < 0 ? 0 : idx;
             const next =
                 e.key === "ArrowDown"
-                    ? Math.min(base + 1, hits.length - 1)
+                    ? Math.min(base + 1, visibleHits.length - 1)
                     : Math.max(base - 1, 0);
-            if (hits[next]) selectJob(hits[next].id);
+            if (visibleHits[next]) selectJob(visibleHits[next].id);
         },
-        [hits, selectedId, selectJob],
+        [visibleHits, selectedId, selectJob],
     );
 
     const total = result?.total ?? 0;
@@ -2655,7 +2769,37 @@ function JobsContent() {
             ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
             : null;
 
+    // Deliverable 1 — results render normally on a degraded (served-from-cache)
+    // response; this is just the honest caption for it. See
+    // `degradedResultsNote` (result-state.ts) for what `meta.degraded` means
+    // and why an absent `meta` reads as live, never as degraded.
+    const degradedNote = result ? degradedResultsNote(result) : null;
 
+    // Deliverable 3 — one `JobCard` call site shared by a cluster's primary
+    // row and its (optionally rendered) variant rows below, so the ~10 props
+    // every card needs are written once, not copy-pasted per call site.
+    // `clusterProps` is omitted entirely for a variant row — variants never
+    // carry their own "+N locations" affordance, only the primary does.
+    const renderJobRow = (
+        j: PublicJob,
+        clusterProps?: { variantCount: number; expanded: boolean; onToggleExpand: () => void },
+    ) => (
+        <JobCard
+            key={j.id}
+            job={j}
+            active={selectedId === j.id}
+            opened={openedIds.has(j.id)}
+            onClick={() => openJob(j.id)}
+            onFit={setFitJob}
+            onCompany={j.company_domain ? handleCompany : undefined}
+            onOpenPosting={handleOpenPosting}
+            now={nowMs}
+            elite={board === "elite"}
+            variantCount={clusterProps?.variantCount ?? 0}
+            expanded={clusterProps?.expanded ?? false}
+            onToggleExpand={clusterProps?.onToggleExpand}
+        />
+    );
 
     /**
      * The route is ONE tree with two layouts, not two trees.
@@ -2956,6 +3100,12 @@ function JobsContent() {
                             </p>
                         )}
 
+                        {!loading && degradedNote && (
+                            <p data-testid="degraded-note" className="mb-3 text-[13.5px] text-muted-foreground">
+                                {degradedNote}
+                            </p>
+                        )}
+
                         {result?.preview && result.note && (
                             <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 font-mono text-xs text-verdict-caution">
                                 {result.note}
@@ -3051,8 +3201,16 @@ function JobsContent() {
                                     </div>
                                 </div>
                             ) : blockingError ? (
+                                // Deliverable 1 — the only remaining hard-stop state: a
+                                // search genuinely has no results available at all (a
+                                // served-but-stale response renders normally with
+                                // `degradedNote` instead, above). Calmer headline than
+                                // the old static "Job search is temporarily
+                                // unavailable." repeated right above `searchError`,
+                                // which itself often already opens with that same
+                                // backend-supplied phrase — this no longer says it twice.
                                 <div role="alert" className="border-l-2 border-verdict-risk py-6 pl-4 text-left">
-                                    <p className="font-mono text-[13px] text-foreground">Job search is temporarily unavailable.</p>
+                                    <p className="font-mono text-[13px] text-foreground">We can&apos;t load results right now.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">{searchError}</p>
                                     <button
                                         onClick={() => setSearchRetry((n) => n + 1)}
@@ -3109,22 +3267,29 @@ function JobsContent() {
                                         </div>
                                     )}
                                     <div>
-                                        {hits.flatMap((job, i) => {
-                                            const row = (
-                                                <JobCard
-                                                    key={job.id}
-                                                    job={job}
-                                                    active={selectedId === job.id}
-                                                    opened={openedIds.has(job.id)}
-                                                    onClick={() => openJob(job.id)}
-                                                    onFit={setFitJob}
-                                                    onCompany={job.company_domain ? handleCompany : undefined}
-                                                    onOpenPosting={handleOpenPosting}
-                                                    now={nowMs}
-                                                    elite={board === "elite"}
-                                                />
-                                            );
-                                            if (i !== seamIndex) return [row];
+                                        {/* Deliverable 3 — one row (the best-ranked
+                                            member) per cluster, its variants inserted
+                                            right below only while expanded. The seam
+                                            uses `clusterSeamIndex`, not `i` against
+                                            `seamIndex` directly — see its own comment
+                                            above (`clusterJobs`, lib/jobs/cluster.ts)
+                                            for why a cluster can never straddle it. */}
+                                        {clusters.flatMap((cluster, i) => {
+                                            const expanded = expandedClusters.has(cluster.primary.id);
+                                            const rows = [
+                                                renderJobRow(
+                                                    cluster.primary,
+                                                    cluster.variants.length > 0
+                                                        ? {
+                                                              variantCount: cluster.variants.length,
+                                                              expanded,
+                                                              onToggleExpand: () => toggleClusterExpanded(cluster.primary.id),
+                                                          }
+                                                        : undefined,
+                                                ),
+                                                ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
+                                            ];
+                                            if (i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
                                                     key="seam"
@@ -3133,7 +3298,7 @@ function JobsContent() {
                                                 >
                                                     {seamSummary(seamIndex, total, hits.length)}
                                                 </p>,
-                                                row,
+                                                ...rows,
                                             ];
                                         })}
                                     </div>
