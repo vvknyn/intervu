@@ -1,4 +1,5 @@
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { cn } from "@/lib/utils";
 
 /**
  * Hero stat band for /trends. Three tiles, plain ink numbers (font-mono —
@@ -35,7 +36,15 @@ export function TrendsHero({
           <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
             {tile.label}
           </span>
-          <p className="mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground">
+          <p
+            className={cn(
+              "mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground",
+              // Signature underline on the live-count number only — it's
+              // the one figure on this page reflecting the corpus RIGHT
+              // NOW (see .verified-underline's doc comment, globals.css).
+              tile.testId === "trends-stat-live" && "verified-underline",
+            )}
+          >
             {formatCorpusCount(tile.value)}
           </p>
         </div>

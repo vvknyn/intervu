@@ -58,9 +58,12 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
     );
 }
 
-const SIZE_CLS: Record<"xs" | "sm" | "lg", string> = {
+const SIZE_CLS: Record<"xs" | "sm" | "md" | "lg", string> = {
     xs: "h-8 w-8 rounded-[4px] text-xs",
     sm: "h-11 w-11 rounded-xl text-base",
+    // SERP job-card tile size (find-jobs list) — matches the initial-tile
+    // dimensions it replaces there (CompanyInitialTile's h-12/rounded-[10px]).
+    md: "h-12 w-12 rounded-[10px] text-[17px]",
     lg: "h-14 w-14 rounded-2xl text-xl",
 };
 
@@ -76,7 +79,7 @@ export function CompanyLogo({
 }: {
     domain: string | null;
     name: string | null;
-    size: "xs" | "sm" | "lg";
+    size: "xs" | "sm" | "md" | "lg";
 }) {
     const [errored, setErrored] = useState(false);
     const showImage = Boolean(domain) && !errored;
@@ -94,6 +97,7 @@ export function CompanyLogo({
                     src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain as string)}&sz=128`}
                     alt={`${name ?? "Company"} logo`}
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                     className="h-full w-full rounded-[inherit] object-contain p-1.5"
                     onError={() => setErrored(true)}
                 />
