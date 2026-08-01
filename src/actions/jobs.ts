@@ -8,6 +8,7 @@ import {
   isPostedDateFilterSupported,
   searchJobs as runSearch,
   suggestJobs,
+  type SearchServeMeta,
 } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
 import {
@@ -31,7 +32,7 @@ import { after } from "next/server";
  */
 export async function searchJobsAction(
   params: JobSearchParams,
-): Promise<JobSearchResult & { searchId: string }> {
+): Promise<JobSearchResult & { searchId: string; meta?: SearchServeMeta }> {
   const result = await runSearch(params);
   const searchId = randomUUID();
 
