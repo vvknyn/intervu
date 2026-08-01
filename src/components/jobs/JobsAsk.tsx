@@ -2,6 +2,7 @@
 
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { Button } from "@/components/ui/button";
 
 /**
  * The first screen: ask for a role instead of listing everything.
@@ -37,13 +38,9 @@ export function JobsAsk({
                 <p className="text-[14px] leading-relaxed text-muted-foreground">
                     Or upload your résumé and we&apos;ll rank every live role by how well it fits you.
                 </p>
-                <button
-                    type="button"
-                    onClick={onUpload}
-                    className="mt-3 bg-foreground px-5 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
-                >
+                <Button type="button" onClick={onUpload} className="mt-3">
                     upload résumé
-                </button>
+                </Button>
             </div>
         </div>
     );

@@ -501,12 +501,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                 {versionCount} version{versionCount === 1 ? "" : "s"}
                             </p>
                         </div>
-                        <button
-                            onClick={printResume}
-                            className="h-9 shrink-0 bg-foreground px-5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
-                        >
-                            Export PDF
-                        </button>
+                        <Button onClick={printResume}>Export PDF</Button>
                     </div>
 
                     <VersionCardsRow versions={versions} activeVersionId={versionId} />

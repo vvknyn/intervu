@@ -168,12 +168,7 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                             print / pdf
                         </button>
 
-                        <button
-                            onClick={handleDownloadWord}
-                            className="bg-foreground px-3 py-1.5 uppercase tracking-[0.06em] text-background transition-opacity duration-100 hover:opacity-85"
-                        >
-                            .docx
-                        </button>
+                        <Button size="sm" onClick={handleDownloadWord}>.docx</Button>
                     </div>
                 </div>
 
