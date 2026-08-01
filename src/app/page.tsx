@@ -3081,6 +3081,21 @@ function JobsContent() {
                                         )}
                                     </span>
                                 ))}
+                                {!user && (
+                                    <span className="flex items-center gap-x-3">
+                                        <span aria-hidden className="text-faint">
+                                            ·
+                                        </span>
+                                        <button
+                                            type="button"
+                                            data-testid="landing-login"
+                                            onClick={() => setAuthOpen(true)}
+                                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
+                                        >
+                                            Log in
+                                        </button>
+                                    </span>
+                                )}
                             </div>
                         </div>
                     )}

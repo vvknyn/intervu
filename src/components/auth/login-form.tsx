@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signInWithUsername, signUpWithUsername, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
+import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,12 +63,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 router.refresh()
                 if (onSuccess) onSuccess()
             } catch (err: any) {
-                const msg = err?.message || ''
-                if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
-                    setMessage('Invalid username or password')
-                } else {
-                    setMessage(msg)
-                }
+                setMessage(friendlyAuthMessage(err, 'Sign-in failed — try again in a moment.'))
             }
         })
     }
@@ -88,7 +84,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 if (isPopupCancelled(err)) {
                     setMessage('Sign-in was cancelled — try again whenever you’re ready.')
                 } else {
-                    setMessage(err instanceof Error ? err.message : 'Google sign-in failed')
+                    setMessage(friendlyAuthMessage(err, 'Google sign-in failed — try again in a moment.'))
                 }
             }
         })
@@ -119,7 +115,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 router.refresh()
                 if (onSuccess) onSuccess()
             } catch (err: any) {
-                setMessage(err?.message || 'Sign up failed')
+                setMessage(friendlyAuthMessage(err, 'Sign up failed — try again in a moment.'))
             }
         })
     }
