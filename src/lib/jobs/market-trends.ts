@@ -49,28 +49,45 @@ function toCorpusCount(result: MeiliAggregationResult): CorpusCount {
 }
 
 /**
+ * True while `next build` is prerendering. During the build there is no
+ * stale ISR copy to fall back to, so a live-Meili failure must degrade to
+ * the page's null-state instead of failing the whole build/deploy.
+ */
+const isBuildPhase = () =>
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.npm_lifecycle_event === "build";
+
+/**
  * Fetch and assemble every number the /trends page renders. Returns `null`
- * only when Meilisearch isn't configured at all (matches `hasMeilisearch`'s
- * use elsewhere) — any other failure (network, non-2xx) throws, so a failed
- * ISR revalidation falls back to Next's stale-while-error behavior instead
- * of the page quietly rendering fabricated zeros.
+ * when Meilisearch isn't configured at all (matches `hasMeilisearch`'s use
+ * elsewhere) or when the fetch fails during the build prerender (no stale
+ * copy exists yet — the first successful revalidation replaces the shell).
+ * At runtime any failure (network, non-2xx) still throws, so a failed ISR
+ * revalidation falls back to Next's stale-while-error behavior instead of
+ * the page quietly rendering fabricated zeros.
  */
 export async function fetchMarketTrends(): Promise<MarketTrendsData | null> {
   if (!hasMeilisearch()) return null;
   const now = Date.now();
 
-  const results = await meiliMultiSearch([
-    // 0: active docs — drives live-jobs total, the country rollup, and the
-    // market-wide ghost radar (all three read off ONE query's response).
-    { filter: [ACTIVE_FILTER], facets: ["location_country", "ghost_badge"] },
-    // 1: every doc, no filter — all-time tracked total.
-    { facets: ["ghost_badge"] },
-    // 2-5: one posting-age bucket per query, active postings only.
-    ...FRESHNESS_BUCKETS.map((bucket) => ({
-      filter: [ACTIVE_FILTER, ...postingAgeFilterClauses(bucket, now)],
-      facets: ["ghost_badge"],
-    })),
-  ]);
+  let results;
+  try {
+    results = await meiliMultiSearch([
+      // 0: active docs — drives live-jobs total, the country rollup, and the
+      // market-wide ghost radar (all three read off ONE query's response).
+      { filter: [ACTIVE_FILTER], facets: ["location_country", "ghost_badge"] },
+      // 1: every doc, no filter — all-time tracked total.
+      { facets: ["ghost_badge"] },
+      // 2-5: one posting-age bucket per query, active postings only.
+      ...FRESHNESS_BUCKETS.map((bucket) => ({
+        filter: [ACTIVE_FILTER, ...postingAgeFilterClauses(bucket, now)],
+        facets: ["ghost_badge"],
+      })),
+    ]);
+  } catch (err) {
+    if (isBuildPhase()) return null;
+    throw err;
+  }
 
   const [activeResult, allTimeResult, ...freshnessResults] = results;
   const activeGhostDist = activeResult.facetDistribution?.ghost_badge ?? {};
