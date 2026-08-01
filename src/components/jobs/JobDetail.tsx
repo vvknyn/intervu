@@ -13,6 +13,7 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, cleanCompany, locationText, shortDate } from "@/lib/jobs/presentation";
+import { countryToFlag } from "@/lib/jobs/country-flag";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -130,6 +131,9 @@ export function JobDetail({
     // per-field include/omit decision (kept pure + unit-tested there).
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
     const cleanedCompany = cleanCompany(job.company);
+    // Himalayas-style flag chip (visual-identity pass) — see JobCard's
+    // matching comment in app/page.tsx for the null-safety rationale.
+    const countryFlag = countryToFlag(job.location_country);
 
     return (
         <div className="overflow-hidden rounded-[14px] border border-border bg-card">
@@ -146,7 +150,13 @@ export function JobDetail({
                             ) : (
                                 "Unknown company"
                             )}{" "}
-                            · {locationText(job)}
+                            ·{" "}
+                            {countryFlag && (
+                                <span aria-hidden className="mr-1">
+                                    {countryFlag}
+                                </span>
+                            )}
+                            {locationText(job)}
                         </div>
                         {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
                             <div className="mt-1 text-sm text-muted-foreground">
@@ -162,7 +172,12 @@ export function JobDetail({
                                         className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
                                     >
                                         {FACT_CHIP_ICON[c.kind]}
-                                        {c.label}
+                                        {/* "First seen by us…" — the one chip that underwrites a
+                                            verified corpus fact, so it alone carries the signature
+                                            underline (see globals.css's .verified-underline doc). */}
+                                        <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
+                                            {c.label}
+                                        </span>
                                     </span>
                                 ))}
                             </div>
@@ -232,7 +247,7 @@ export function JobDetail({
                             <WarningCircle size={18} className="mt-0.5 shrink-0" weight="fill" />
                         )}
                         <div>
-                            <div className="text-[13px] font-semibold">{ghost.label}</div>
+                            <div className="verified-underline text-[13px] font-semibold">{ghost.label}</div>
                             <div className="mt-0.5 text-xs leading-relaxed opacity-90">{ghost.explain}</div>
                             {/* WHEN this verdict was last checked — a stated fact from
                                 `updated_at`, not a fabricated checklist of what was

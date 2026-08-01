@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, JetBrains_Mono, Plus_Jakarta_Sans, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { Bricolage_Grotesque, JetBrains_Mono, Plus_Jakarta_Sans, Schibsted_Grotesk, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -19,6 +19,16 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+});
+
+// Visual-identity pass (2026-08-01): Schibsted Grotesk leads --font-sans/
+// --font-display (globals.css), with Plus Jakarta Sans kept as the next
+// fallback rather than removed — see globals.css's font token comment.
+const schibstedGrotesk = Schibsted_Grotesk({
+  variable: "--font-schibsted-grotesk",
+  subsets: ["latin"],
+  weight: "variable",
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -96,7 +106,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${plusJakarta.variable} ${jetbrainsMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
+        className={`${plusJakarta.variable} ${schibstedGrotesk.variable} ${jetbrainsMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}

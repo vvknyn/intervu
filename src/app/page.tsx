@@ -66,7 +66,8 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail } from "@/components/jobs/JobDetail";
-import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { countryToFlag } from "@/lib/jobs/country-flag";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -351,6 +352,10 @@ function JobCard({
     const age = postedAgeShort(derivePostedTs(job), now);
     const level = prettyEnum(job.experience_level);
     const clearGhost = !flagged && (job.ghost_badge === "clear" || !job.ghost_badge);
+    // Himalayas-style flag chip (visual-identity pass) — null for any
+    // location_country classifyCountryValue can't place, so the chip below
+    // just renders the location text with no emoji, never a broken glyph.
+    const countryFlag = countryToFlag(job.location_country);
 
     return (
         <div
@@ -368,11 +373,14 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4 text-left shadow-sm transition-colors duration-100 hover:border-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                active && "border-brand bg-brand/5",
+                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                // Selected-card background: light mode gets the new flat
+                // verify-tint token; dark keeps its existing bg-brand/5
+                // opacity tint (see globals.css's --verify-tint comment).
+                active && "border-brand bg-verify-tint dark:bg-brand/5",
             )}
         >
-            <CompanyInitialTile name={job.company} className="h-12 w-12 rounded-[10px] text-[17px]" />
+            <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             <div className="min-w-0">
                 <div
                     data-testid="job-title"
@@ -398,7 +406,14 @@ function JobCard({
                     ) : (
                         <span className="font-medium text-brand">{cleanCompany(job.company) || "Unknown company"}</span>
                     )}
-                    <span>{locationText(job)}</span>
+                    <span>
+                        {countryFlag && (
+                            <span aria-hidden className="mr-1">
+                                {countryFlag}
+                            </span>
+                        )}
+                        {locationText(job)}
+                    </span>
                     {salary && <span className="font-mono text-[12px]">{salary}</span>}
                     {level && <span className="font-mono text-[12px]">{level}</span>}
                     {variantCount > 0 && (
@@ -2869,7 +2884,7 @@ function JobsContent() {
                             <motion.span
                                 layoutId="intervu-brand"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="font-display text-[28px] font-extrabold leading-none tracking-tight text-foreground sm:text-[32px]"
+                                className="font-display text-display font-extrabold text-foreground"
                             >
                                 intervu
                             </motion.span>

@@ -6,31 +6,50 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
+  /* Visual-identity pass (2026-08-01): Schibsted Grotesk leads sans/display,
+     with the prior Plus Jakarta Sans + system stack kept intact as fallback
+     (not deleted) so a failed font load degrades gracefully. --font-mono is
+     untouched — data chips / BETA badge stay on JetBrains Mono. */
+  --font-sans: var(--font-schibsted-grotesk), var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
-  --font-display: var(--font-plus-jakarta), var(--font-sans);
+  --font-display: var(--font-schibsted-grotesk), var(--font-plus-jakarta), var(--font-sans);
+
+  /* Display scale addition (visual-identity pass) — the landing-hero
+     wordmark morph (app/page.tsx) and the /trends h1 both size off this one
+     clamp instead of each hand-rolling its own arbitrary text-[Npx]; a
+     third "display" heading gets covered by construction, not by adding a
+     second scale. Weight stays an explicit font-extrabold/font-bold utility
+     at the call site (matching how every other heading in this app pairs a
+     size utility with a weight utility) rather than a --font-weight
+     companion here, which would race font-extrabold for the cascade slot. */
+  --text-display: clamp(2.125rem, 4vw, 2.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
 }
 
 
 :root {
-  /* Soft Signal — light shell (docs/design/soft-signal-desktop). */
-  --background: 244 246 248;
-  --foreground: 18 21 26;
+  /* Soft Signal — light shell (docs/design/soft-signal-desktop). Neutrals
+     shifted from blue-bias to green-bias (visual-identity pass, 2026-08-01);
+     *-foreground tokens below point at --foreground rather than repeating
+     its triplet, so the ink value has exactly one source. */
+  --background: 246 246 243;
+  --foreground: 20 24 22;
   --card: 255 255 255;
-  --card-foreground: 18 21 26;
+  --card-foreground: var(--foreground);
   --popover: 255 255 255;
-  --popover-foreground: 18 21 26;
+  --popover-foreground: var(--foreground);
   --primary: var(--foreground);
   --primary-foreground: 255 255 255;
   --secondary: var(--chip);
-  --secondary-foreground: 18 21 26;
+  --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 92 101 112;
+  --muted-foreground: 94 106 100;
   --accent: var(--chip);
-  --accent-foreground: 18 21 26;
+  --accent-foreground: var(--foreground);
   --destructive: 169 62 40;
   --destructive-foreground: 255 255 255;
-  --border: 226 230 235;
+  --border: 228 231 227;
   --input: var(--border-strong);
   --ring: var(--brand);
   --radius: 0.75rem;
@@ -46,7 +65,7 @@
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
   --surface-3: 208 213 220;
-  --border-strong: 18 21 26;
+  --border-strong: var(--foreground);
   --text-2: 69 74 82;
   --text-3: 92 101 112;
 
@@ -57,6 +76,14 @@
   --green-tint-bg: 230 244 239;
   --green-tint-bg-alt: 223 241 234;
   --green-tint-border: 183 217 203;
+  /* Selected-card background, light mode only (visual-identity pass) — the
+     dark theme's selected job card already reads as a green-tinted surface
+     via `bg-brand/5` (an opacity tint of --brand, see JobCard's `active`
+     state, app/page.tsx); flat verify-tint is light mode's equivalent of
+     that same "selected = quiet green surface" read, since a 5%-opacity
+     tint of the light-mode --brand doesn't hold up against a near-white
+     card the way it does against dark's near-black card. */
+  --verify-tint: 233 242 238;
   --warn: 154 107 16;
   --warn-dot: 194 148 65;
   --danger-tint-border: 235 205 196;
@@ -216,6 +243,7 @@
   --color-st-closed: rgb(var(--st-closed));
   --color-st-closed-soft: rgb(var(--st-closed-soft));
   --color-chip: rgb(var(--chip));
+  --color-verify-tint: rgb(var(--verify-tint));
   --color-faint: rgb(var(--faint));
   --color-live: rgb(var(--live));
   --color-green-tint-bg: rgb(var(--green-tint-bg));
@@ -396,6 +424,15 @@ textarea::selection {
 
 .focus-ring:focus-visible {
   box-shadow: 0 0 0 2px rgb(var(--background)), 0 0 0 4px rgb(var(--brand) / 0.4);
+}
+
+/* Signature underline — marks text as underwritten by verified corpus data
+   (ghost-verdict title, "first seen" date, /trends live-count). Deliberately
+   NOT a link/hover style: no hover-state change, fixed width, small pad. */
+.verified-underline {
+  width: fit-content;
+  padding-bottom: 1px;
+  border-bottom: 2px solid rgb(var(--brand));
 }
 
 /* Respect users who ask for less motion (vestibular safety + WCAG 2.3.3).
