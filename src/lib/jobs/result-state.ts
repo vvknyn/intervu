@@ -5,9 +5,58 @@ import type { JobSearchResult, PublicJob } from "./types";
  * transport catch (page.tsx) both use it. Raw error messages (Next RSC digest
  * text, fetch internals) reached prod users twice on Jul 24; internals go to
  * logs, never into this string.
+ *
+ * Calmer wording (Deliverable 1, 2026-08-01): dropped the "search index"
+ * internals-speak (a visitor has no idea what that means, and naming it read
+ * as more alarming, not less) — the reassurance ("usually clears within a
+ * minute") is the part that actually helps. Keeps the phrase "temporarily
+ * unavailable" verbatim: `search.ts`'s own backend-thrown notes already carry
+ * it as a literal prefix, so this fallback stays consistent with a real note
+ * rather than introducing a second way of describing the same state. This
+ * hard-error copy is now reached ONLY for the genuine no-results-available
+ * case — a `meta.degraded` response (served-but-stale) renders results
+ * normally with `degradedResultsNote`'s calm inline note instead (below).
  */
 export const SEARCH_UNAVAILABLE_MESSAGE =
-    "The search index didn't respond. This usually clears within a minute — try again.";
+    "Search is temporarily unavailable — this usually clears within a minute. Try again in a moment.";
+
+/**
+ * Shape of the additive `meta` field the data-plane lane (branch
+ * feat/2026-08-01/p0-data-plane, unmerged at the time of this change) is
+ * adding to `JobSearchResult`. Declared here so this lane's UI can code
+ * defensively against it before that type change lands upstream — every
+ * field optional, absence read as "live" (see `degradedResultsNote` below).
+ * Once `JobSearchResult.meta` is declared for real, this stays correct by
+ * construction (structural typing) and the cast in `servedMeta` becomes a
+ * no-op rather than a landmine.
+ */
+export interface SearchServedMeta {
+    degraded: boolean;
+    servedFrom: "live" | "cache";
+    cachedAtMs?: number;
+}
+
+/**
+ * The one place that reaches past `JobSearchResult`'s currently-declared
+ * shape for the not-yet-landed `meta` field — every reader goes through this
+ * instead of repeating the cast (single source of truth, writing-lean-code
+ * rule 2). A response with no `meta` at all (today's live shape, and any
+ * backend that never sends it) reads as `undefined`, never as degraded.
+ */
+function servedMeta(result: JobSearchResult): SearchServedMeta | undefined {
+    return (result as JobSearchResult & { meta?: SearchServedMeta }).meta;
+}
+
+/**
+ * Deliverable 1's calm inline note: results still render normally, this is
+ * just an honest caption for where they came from. `null` means render
+ * nothing — the ordinary case (live, or `meta` absent entirely).
+ */
+export function degradedResultsNote(result: JobSearchResult): string | null {
+    return servedMeta(result)?.degraded
+        ? "Showing recent results — live search is catching up."
+        : null;
+}
 
 /**
  * The dispatcher returns configured backend failures as an empty result with

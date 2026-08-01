@@ -15,6 +15,19 @@ export const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
  */
 export const STALE_CHECK_DAYS = 30;
 
+/**
+ * Below this age, `searchResultLine`'s "· updated Xh ago" clause (
+ * presentation.ts) is honest enough to state out loud; at or past it, the
+ * clause is omitted entirely rather than confessing staleness inline — a
+ * real maintenance window is the degraded banner's job (result-state.ts's
+ * `degradedResultsNote`), not this line's. Independent of
+ * `STALE_THRESHOLD_MS` (row-badge TEXT split above) and `STALE_CHECK_DAYS`
+ * (ghost-verdict currency above) — three different concerns, three
+ * constants, on purpose (writing-lean-code rule 4: don't piggyback one
+ * threshold's meaning onto another's).
+ */
+export const RESULT_LINE_FRESH_MS = 48 * 60 * 60 * 1000;
+
 export function formatRelativeAge(iso: string, nowMs: number): string {
     const ms = Math.max(0, nowMs - Date.parse(iso));
     if (ms < 60_000) return "just now";
