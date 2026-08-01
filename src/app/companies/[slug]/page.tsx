@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { domainToSlug } from "@/lib/boards/slug";
 import { fetchCompanyProfile } from "@/lib/companies/company-stats";
 import { companyFromSlug } from "@/lib/companies/paths";
 import { CompanyHeader } from "@/components/company/CompanyHeader";
@@ -11,6 +13,15 @@ import { CompanyRolesList } from "@/components/company/CompanyRolesList";
  * from scraped hiring data. `fetchCompanyProfile` batches everything the page
  * needs into one Meilisearch round trip (see company-stats.ts); this file
  * only renders what comes back.
+ *
+ * Consolidation (P1C, 2026-08-01): `/co/[slug]` (domain-keyed) is the ONE
+ * canonical company surface. This name-keyed route is now a RESOLVER —
+ * when the matched hits carry a dominant `company_domain`, the page
+ * `redirect()`s onto `/co/[slug]` before rendering anything; it only
+ * renders its own name-keyed markup below for companies with no known
+ * domain. `generateMetadata` runs independently of that decision (it never
+ * calls `fetchCompanyProfile`), so a redirecting request still resolves
+ * metadata safely — the redirect response just supersedes it.
  *
  * Build-safety posture matches `/trends`: never fail the build on a Meili
  * error (`fetchCompanyProfile` degrades to `null` during the build
@@ -42,6 +53,10 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   const name = companyFromSlug(slug);
   const profile = await fetchCompanyProfile(name);
+
+  if (profile?.domain) {
+    redirect(`/co/${domainToSlug(profile.domain)}`);
+  }
 
   if (!profile) {
     return (

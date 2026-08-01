@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { companyFromSlug, companyPagePath } from "../../src/lib/companies/paths";
+import { companyFromSlug, companyPagePath, jobCompanyHref } from "../../src/lib/companies/paths";
 
 const NASTY_NAMES = [
   "AT&T",
@@ -44,5 +44,19 @@ describe("companies/paths", () => {
   it("never throws on arbitrary already-decoded input", () => {
     assert.doesNotThrow(() => companyFromSlug("50% not a real escape"));
     assert.equal(companyFromSlug("50% not a real escape"), "50% not a real escape");
+  });
+});
+
+describe("jobCompanyHref", () => {
+  it("links straight to /co/[slug] when a company_domain is present", () => {
+    assert.equal(jobCompanyHref("Acme Corp", "acme.com"), "/co/acme--com");
+  });
+
+  it("falls back to the name-keyed /companies path when no domain is known", () => {
+    assert.equal(jobCompanyHref("Acme Corp", null), companyPagePath("Acme Corp"));
+  });
+
+  it("normalizes casing/whitespace via domainToSlug, matching every other /co/ caller", () => {
+    assert.equal(jobCompanyHref("Acme Corp", "  Acme.COM  "), "/co/acme--com");
   });
 });

@@ -51,6 +51,12 @@ export interface CompanyProfile {
   /** Corpus casing of the name (from the matched jobs), not necessarily
    *  byte-identical to the input string the page was requested with. */
   name: string;
+  /** Most-common `company_domain` across the matched hits, or `null` when
+   *  none carry one — see `dominantCompanyDomain`. Drives the redirect onto
+   *  the canonical domain-keyed `/co/[slug]` page in `page.tsx` (P1C
+   *  consolidation, 2026-08-01): this name-keyed page only renders
+   *  standalone when a company has no known domain. */
+  domain: string | null;
   /** Up to `COMPANY_ROLES_DISPLAY_LIMIT` live postings for this company. */
   roles: PublicJob[];
   /** Ingest-side aggregate when available (see `PublicJob.company_open_count`),
@@ -105,14 +111,44 @@ export async function fetchCompanyProfile(company: string): Promise<CompanyProfi
 
   const matched = result.hits.filter((job) => normalizedCompanyKey(job.company ?? "") === target);
   if (matched.length === 0) {
-    return { name: company.trim(), roles: [], totalOpenRoles: 0, ghostMix: [], freshness: [] };
+    return { name: company.trim(), domain: null, roles: [], totalOpenRoles: 0, ghostMix: [], freshness: [] };
   }
 
   return {
     name: decodeText(matched[0]!.company) || company.trim(),
+    domain: dominantCompanyDomain(matched),
     roles: matched.slice(0, COMPANY_ROLES_DISPLAY_LIMIT),
     ...deriveCompanyStats(matched),
   };
+}
+
+/**
+ * Most-common non-empty `company_domain` across a company's matched hits —
+ * the signal `page.tsx` uses to decide whether this name-keyed page should
+ * redirect onto the canonical `/co/[slug]` (domain-keyed) page instead of
+ * rendering standalone. Domains are trim+lowercase normalized before
+ * tallying — the same normalization `domainToSlug` (boards/slug.ts) applies
+ * — so hits differing only in casing/whitespace count as one domain. Ties
+ * resolve to whichever domain is encountered first in `jobs`; deterministic,
+ * not meaningful beyond that (one company practically never carries two
+ * competing domains).
+ */
+export function dominantCompanyDomain(jobs: PublicJob[]): string | null {
+  const tally = new Map<string, number>();
+  for (const job of jobs) {
+    const domain = job.company_domain?.trim().toLowerCase();
+    if (!domain) continue;
+    tally.set(domain, (tally.get(domain) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [domain, count] of tally) {
+    if (count > bestCount) {
+      best = domain;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /**
