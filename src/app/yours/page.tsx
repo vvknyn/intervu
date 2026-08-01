@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
+import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication } from "@/actions/application";
@@ -24,27 +25,6 @@ import {
     type BoardColumn,
     type Pursuit,
 } from "@/lib/pursuits/types";
-
-/** Ink-rect affordance shared by every primary action on this page ("Add
- *  manually", "Log in") — same grammar as the jobs ledger's [SEARCH]
- *  button (src/app/page.tsx): solid ink bg, paper text, mono uppercase. */
-function InkButton({
-    onClick,
-    children,
-}: {
-    onClick: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className="h-8 shrink-0 bg-foreground px-4 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
-        >
-            {children}
-        </button>
-    );
-}
 
 /** The page's one display moment (spec: "Archivo 800, the page's one
  *  heading") plus a mono subtitle line — rendered identically for every
@@ -82,7 +62,7 @@ function TrackerSummary({ groups }: { groups: Record<BoardColumn, Pursuit[]> }) 
                 <span key={col.key}>
                     {i > 0 && " · "}
                     <a href={`#col-${col.key}`} className="text-foreground underline-offset-2 hover:underline">
-                        {groups[col.key].length} {col.label}
+                        <span className="tabular-nums">{groups[col.key].length}</span> {col.label}
                     </a>
                 </span>
             ))}
@@ -109,7 +89,7 @@ function ColumnHead({ id, label, count }: { id: string; label: string; count: nu
             id={id}
             className="scroll-mt-4 border-b border-border px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
         >
-            {label} ({count})
+            {label} (<span className="tabular-nums">{count}</span>)
         </div>
     );
 }
@@ -311,7 +291,7 @@ function YoursContent() {
                         {pickRandom(LOGIN_REQUIRED.applications.subtexts)}
                     </p>
                     <div className="mt-4">
-                        <InkButton onClick={() => setAuthPopoverOpen(true)}>Log in</InkButton>
+                        <Button size="sm" onClick={() => setAuthPopoverOpen(true)}>Log in</Button>
                     </div>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
                 </div>
@@ -330,7 +310,7 @@ function YoursContent() {
             header={
                 <TrackerHeader
                     subtitle={<TrackerSummary groups={groups} />}
-                    actions={<InkButton onClick={openWizard}>Add manually</InkButton>}
+                    actions={<Button size="sm" onClick={openWizard}>Add manually</Button>}
                 />
             }
         >
@@ -361,7 +341,7 @@ function YoursContent() {
                 {groups.closed.length > 0 && (
                     <details className="group mt-8 border-t border-border pt-3">
                         <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[13px] font-medium text-foreground">
-                            <span>Closed ({groups.closed.length})</span>
+                            <span>Closed (<span className="tabular-nums">{groups.closed.length}</span>)</span>
                             <span className="text-muted-foreground transition-transform duration-100 group-open:rotate-180">▾</span>
                         </summary>
                         <div className="mt-2 divide-y divide-border border-t border-border">

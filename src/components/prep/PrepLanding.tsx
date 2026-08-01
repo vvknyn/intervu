@@ -6,6 +6,7 @@ import type { CachedPlanListItem, ResumableSessionItem } from "@/lib/prep/plan-l
 import type { StarStory } from "@/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export interface PrepLandingProps {
   onStartNew: () => void;
@@ -131,14 +132,9 @@ export function PrepLanding({
               critique on your responses.
             </p>
             <div className="mt-4 flex items-center gap-5">
-              <button
-                type="button"
-                onClick={onStartNew}
-                data-testid="prep-start-new"
-                className="h-9 shrink-0 bg-foreground px-5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-background transition-opacity duration-100 hover:opacity-85"
-              >
+              <Button onClick={onStartNew} data-testid="prep-start-new">
                 Start session
-              </button>
+              </Button>
               <button
                 type="button"
                 onClick={onSearch}
@@ -209,7 +205,7 @@ export function PrepLanding({
             </Link>
           </div>
           <p className="font-mono text-[12.5px] text-foreground">
-            {storyCounts.ready} ready · {storyCounts.draft} draft · {storyCounts.missing} missing
+            <span className="tabular-nums">{storyCounts.ready}</span> ready · <span className="tabular-nums">{storyCounts.draft}</span> draft · <span className="tabular-nums">{storyCounts.missing}</span> missing
           </p>
           {stories.length > 0 ? (
             <div className="mt-3 flex flex-col gap-2">

@@ -131,7 +131,7 @@ function StoriesContent() {
 
                     <Button
                         onClick={() => setAuthPopoverOpen(true)}
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 min-w-[120px]"
+                        className="min-w-[120px]"
                     >
                         Log in
                     </Button>
@@ -167,10 +167,10 @@ function StoriesContent() {
                 <Tabs defaultValue={defaultTab}>
                     <TabsList>
                         <TabsTrigger value="stories">
-                            Stories ({stories.filter(s => !s.deleted).length})
+                            Stories (<span className="tabular-nums">{stories.filter(s => !s.deleted).length}</span>)
                         </TabsTrigger>
                         <TabsTrigger value="sources">
-                            Sources ({sources.length})
+                            Sources (<span className="tabular-nums">{sources.length}</span>)
                         </TabsTrigger>
                     </TabsList>
 
