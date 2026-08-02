@@ -56,12 +56,29 @@ function HiddenConsentFields({ params }: { params: ConsentParams }) {
     );
 }
 
+/**
+ * `params.redirect_uri` has already passed `isAllowedRedirectUri`
+ * (`validateConsentRequest`, consent.ts) by the time this renders — https:,
+ * or http: on localhost/127.0.0.1 only — so `new URL()` here can't throw.
+ * Naming the redirect host (IMPORTANT 6 review fix) matters because
+ * `clientName` is attacker-chosen DCR metadata (`registerClient`, oauth.ts,
+ * accepts any `client_name`) — a user approving on name alone has no way to
+ * notice a client calling itself "Claude Code" while actually sending the
+ * access code somewhere else.
+ */
+function redirectHost(redirectUri: string): string {
+    return new URL(redirectUri).host;
+}
+
 function ConsentCard({ clientName, params }: { clientName: string; params: ConsentParams }) {
     return (
         <CenteredCard>
             <CardHeader>
                 <CardTitle>{clientName}</CardTitle>
                 <CardDescription>wants to connect to your intervu account</CardDescription>
+                <p className="text-xs text-muted-foreground pt-1">
+                    Will send its access code to: <span className="font-mono">{redirectHost(params.redirect_uri)}</span>
+                </p>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>This will let <strong className="text-foreground">{clientName}</strong>:</p>
