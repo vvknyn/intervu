@@ -28,6 +28,29 @@ export interface AgentStore {
     claim(col: string, id: string, field: string): Promise<Record<string, unknown> | null>;
 }
 
+/**
+ * `firestoreStore`'s `update`/`claim` hand `patch`/`field` straight to the
+ * real Firestore SDK, where a dotted key (`"a.b"`) is NOT a literal top-level
+ * field name — it addresses a NESTED field path. `memoryStore`'s flat
+ * `{...existing, ...patch}` merge has no such semantics: it would silently
+ * set/read a literal key spelled `"a.b"`. A test written against
+ * `memoryStore` that happened to use a dotted key would keep passing here
+ * while doing something genuinely different against production Firestore —
+ * exactly the class of test-double/prod divergence this guard exists to
+ * catch loudly, at the one place both `update` and `claim` accept a
+ * caller-supplied key.
+ */
+function assertNoDottedKeys(keys: Iterable<string>, context: string): void {
+    for (const key of keys) {
+        if (key.includes(".")) {
+            throw new Error(
+                `memoryStore: ${context} key '${key}' contains '.' — Firestore reads dotted keys as nested-field ` +
+                    "paths, not literal field names, so memoryStore refuses rather than silently diverging from it."
+            );
+        }
+    }
+}
+
 /** Map-backed store, for unit tests. */
 export function memoryStore(): AgentStore {
     const collections = new Map<string, Map<string, Record<string, unknown>>>();
@@ -50,6 +73,7 @@ export function memoryStore(): AgentStore {
             collection(col).set(id, structuredClone(doc));
         },
         async update(col, id, patch) {
+            assertNoDottedKeys(Object.keys(patch), "update patch");
             const existing = collection(col).get(id);
             if (!existing) {
                 throw new Error(`NOT_FOUND: no document at ${col}/${id}`);
@@ -69,6 +93,7 @@ export function memoryStore(): AgentStore {
             return results;
         },
         async claim(col, id, field) {
+            assertNoDottedKeys([field], "claim field");
             // No `await` between the read and the write below: this function
             // body runs to completion synchronously (single JS thread, no
             // yield point), so two concurrent callers can never both observe

@@ -328,4 +328,31 @@ describe('agent oauth', () => {
       assert.equal(second, null);
     });
   });
+
+  describe('memoryStore dotted-key divergence guard (FOLDED review fix) — Firestore reads a "." in a key as a nested-field path, memoryStore does not', () => {
+    it('throws on update() when a patch key contains a "."', async () => {
+      const s = memoryStore();
+      await s.set('some_col', 'doc-1', { foo: 'bar' });
+      await assert.rejects(
+        () => s.update('some_col', 'doc-1', { 'a.b': 1 }),
+        /contains '\.'/,
+      );
+    });
+
+    it('throws on claim() when the field name contains a "."', async () => {
+      const s = memoryStore();
+      await s.set('some_col', 'doc-1', { foo: 'bar' });
+      await assert.rejects(
+        () => s.claim('some_col', 'doc-1', 'a.b'),
+        /contains '\.'/,
+      );
+    });
+
+    it('does not throw for an ordinary, dot-free key (class-wide proof the guard is not overzealous)', async () => {
+      const s = memoryStore();
+      await s.set('some_col', 'doc-1', { foo: 'bar' });
+      await assert.doesNotReject(() => s.update('some_col', 'doc-1', { foo: 'baz' }));
+      await assert.doesNotReject(() => s.claim('some_col', 'doc-1', 'usedAt'));
+    });
+  });
 });
