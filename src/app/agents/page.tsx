@@ -9,7 +9,7 @@ import { AGENT, claudeCodeConnectCommand, chatAppConnectInstruction } from "@/li
 export const metadata: Metadata = {
   title: "AI agents",
   description:
-    "Connect an AI agent to intervu — it searches verified-live jobs, preps applications, and you approve every submit.",
+    "Connect an AI agent to intervu — it searches verified-real jobs, preps applications, and you approve every submit.",
 };
 
 /** The three journey beats, in order. Plain content, not logic — kept as
@@ -19,7 +19,7 @@ const JOURNEY = [
   {
     step: "01",
     title: "Search real jobs",
-    body: "Your agent searches intervu's verified-live listings — the ghost postings and dead links are already filtered out.",
+    body: "Your agent searches intervu's verified-real listings — the ghost postings and dead links are already filtered out.",
   },
   {
     step: "02",
@@ -54,7 +54,7 @@ export default function AgentsPage() {
             Only real jobs. Browse them yourself — or send your agent.
           </h2>
           <p className="mx-auto max-w-xl text-lg text-muted-foreground">
-            Connect the AI app you already use. It searches verified-live jobs, preps applications, and you approve
+            Connect the AI app you already use. It searches verified-real jobs, preps applications, and you approve
             every submit.
           </p>
         </section>
