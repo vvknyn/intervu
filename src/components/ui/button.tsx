@@ -14,13 +14,25 @@ const buttonVariants = cva(
         brand: "bg-brand text-brand-foreground hover:bg-brand/90 shadow-sm",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        // Squared design-system pass (docs-mockup.html "THE RULES" #3 — "one
+        // button family, three weights": ink block / ink outline / quiet
+        // hairline). `default` above is the ink block. `outline` is
+        // strengthened here from a hairline border to a 1.5px ink border —
+        // editing the shared variant definition (not each of the ~90 call
+        // sites) is what makes every existing `variant="outline"` button
+        // app-wide read as the mock's ink-outline weight, in every file,
+        // including ones this pass doesn't touch directly.
         outline:
-          "border border-border bg-background hover:bg-muted/50 hover:text-foreground",
+          "border-[1.5px] border-foreground bg-background hover:bg-muted/50 hover:text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
           "hover:bg-muted/50 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // The third weight — a quiet 1px hairline, for tertiary actions that
+        // shouldn't compete with an ink block or ink outline on the same row
+        // (JobDetail's Prep/Save, docs-mockup.html Comp B2 action row).
+        quiet: "border border-border bg-background text-foreground hover:bg-muted/40",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -35,7 +35,7 @@
 
 const HEADING_KEYWORDS = new Set([
   "about the team", "about the role", "about us", "about the company",
-  "what you'll do", "what you'll be doing", "responsibilities",
+  "your role", "what you'll do", "what you'll be doing", "responsibilities",
   "qualifications", "requirements", "what we're looking for",
   "what we offer", "benefits", "compensation", "perks",
   "the role", "the team", "the company", "our values", "why join",
@@ -77,6 +77,12 @@ export interface DescBlock {
   type: "heading" | "para" | "list";
   text?: string;
   items?: string[];
+  /** Bold lead-in for a `para` block whose text opens with a recognized
+   *  short label glued to the rest of the paragraph ("Your role. We are
+   *  looking for…") — see `extractBoldLead`. Renders as its own <strong>,
+   *  distinct from a `heading` block: the label stays INLINE with the
+   *  paragraph it introduces rather than being promoted to its own line. */
+  lead?: string;
 }
 
 const PARA_SOFT_MAX = 360; // Above this, sentence-group long paragraphs.
@@ -203,10 +209,56 @@ export function normalizeMarkdown(input: string): string {
   return text;
 }
 
+/**
+ * Defensive residual-HTML stripper. Subspace strips HTML at ingest (see the
+ * module doc above — `PublicJob.description` is a plain-text field), so this
+ * is belt-and-suspenders against whatever occasionally leaks through rather
+ * than the primary sanitization boundary: <script>/<style> ELEMENTS
+ * (tag + their content — a leaked script body is never real job-description
+ * prose) are dropped entirely, then any remaining tag-shaped markup is
+ * stripped down to its inner text, attributes and all. Gated on an actual
+ * tag shape (`<` immediately followed by a letter, optionally `/`) so stray
+ * comparison operators in real prose ("filed <3 tickets/week", "a<b") are
+ * left alone — those never have a letter immediately after the `<`.
+ */
+export function stripResidualHtml(input: string): string {
+  return input
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "");
+}
+
+/**
+ * Splits a short, recognized label glued to the front of a paragraph
+ * ("Your role. We are looking for…", "Requirements. 5+ years…") into a bold
+ * lead + the rest of the prose, for DescBlock's `lead` field. Distinct from
+ * `promoteHeadings` above: that function promotes a COLON-terminated label
+ * ("Purpose:") to its own heading + paragraph pair; this handles a
+ * PERIOD-terminated label that stays inline with the sentence it introduces
+ * (promoting a 2-3 word label to a whole heading line reads as noise there).
+ *
+ * Reuses `HEADING_KEYWORDS` — the same recognized-label vocabulary
+ * `considerHeading` already gates whole-line headings on — as the "is this
+ * actually a label" test, rather than a second parallel keyword list: any
+ * paragraph opening with one of those phrases, followed by ". " and 15+ more
+ * characters of prose, qualifies. Ordinary sentences that happen to start
+ * with a short capitalized phrase + period ("She left. The next day…") are
+ * not in that vocabulary, so they fall through unchanged.
+ */
+const BOLD_LEAD_RE = /^([A-Za-z][\w '&/-]{1,38})\.\s+(?=[A-Z0-9$])(.{15,})$/;
+
+export function extractBoldLead(text: string): { lead: string; rest: string } | null {
+  const m = text.match(BOLD_LEAD_RE);
+  if (!m) return null;
+  const [, phrase, rest] = m as unknown as [string, string, string];
+  if (!HEADING_KEYWORDS.has(phrase.toLowerCase().trim())) return null;
+  return { lead: `${phrase}.`, rest };
+}
+
 export function formatDescription(raw: string | null | undefined): DescBlock[] {
   if (!raw) return [];
   let text = raw.replace(/\r\n?/g, "\n");
 
+  text = stripResidualHtml(text);
   text = normalizeMarkdown(text);
   text = repairRunTogethers(text);
   text = promoteHeadings(text);
@@ -248,9 +300,17 @@ export function formatDescription(raw: string | null | undefined): DescBlock[] {
       blocks.push({ type: "heading", text: head });
       return;
     }
-    for (const chunk of sentenceGroup(joined)) {
-      blocks.push({ type: "para", text: chunk });
-    }
+    sentenceGroup(joined).forEach((chunk, i) => {
+      // Only the FIRST chunk of a paragraph can carry its original lead —
+      // later chunks are sentence-grouped continuations of the same
+      // paragraph, not new paragraph openings.
+      const split = i === 0 ? extractBoldLead(chunk) : null;
+      if (split) {
+        blocks.push({ type: "para", text: split.rest, lead: split.lead });
+      } else {
+        blocks.push({ type: "para", text: chunk });
+      }
+    });
   };
 
   for (const para of paragraphs) {
