@@ -65,7 +65,7 @@ function Affordance({
         >
             <span
                 className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border-[1.5px] text-[10px] leading-none",
+                    "grid h-3.5 w-3.5 shrink-0 place-items-center border-[1.5px] text-[10px] leading-none",
                     active ? "border-foreground bg-foreground text-background" : "border-border bg-card",
                 )}
                 aria-hidden

@@ -2,6 +2,7 @@
 
 import { CaretDown } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { chipVariants } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import { SALARY_PRESETS, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
 
@@ -67,17 +68,7 @@ function Chip({
     children: React.ReactNode;
 }) {
     return (
-        <button
-            type="button"
-            disabled={disabled}
-            onClick={onClick}
-            className={cn(
-                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                active
-                    ? "border-brand/40 bg-brand/10 text-brand"
-                    : "border-border bg-card text-muted-foreground hover:border-brand/30",
-            )}
-        >
+        <button type="button" disabled={disabled} onClick={onClick} className={cn(chipVariants({ active }), "h-7")}>
             {children}
         </button>
     );

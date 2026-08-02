@@ -137,7 +137,10 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="shrink-0 border-b border-border bg-card"
+            // Squared design-system pass (docs-mockup.html "THE RULES" #2 —
+            // "2px ink = primary structure": the masthead base is exactly
+            // that, alongside the hero bar and a selected SERP card).
+            className="shrink-0 border-b-2 border-foreground bg-card"
         >
             {/* Same shell as Find jobs SERP (max-w 1280 + px-4/8) so wordmark
                 and search share one left edge — Soft Signal desktop grid. */}
@@ -178,9 +181,15 @@ export function TopBar() {
                                 href={tab.href}
                                 data-testid={tab.testId}
                                 aria-current={active ? "page" : undefined}
+                                // Active tab (docs-mockup.html Comp B): green
+                                // inset underline, not ink — green is reserved
+                                // for verified/live state (THE RULES #5), and
+                                // "which surface you're on" is that kind of
+                                // live-state signal, distinct from the ink
+                                // masthead border it sits inside.
                                 className={`shrink-0 whitespace-nowrap border-b-2 py-[18px] transition-colors duration-100 ${
                                     active
-                                        ? "border-foreground text-foreground"
+                                        ? "border-brand text-foreground font-bold"
                                         : "border-transparent text-muted-foreground hover:text-foreground"
                                 }`}
                             >

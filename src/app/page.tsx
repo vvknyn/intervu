@@ -10,6 +10,7 @@ import {
     Compass,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
@@ -374,11 +375,12 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                // Selected-card background: light mode gets the new flat
-                // verify-tint token; dark keeps its existing bg-brand/5
-                // opacity tint (see globals.css's --verify-tint comment).
-                active && "border-brand bg-verify-tint dark:bg-brand/5",
+                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                // Selected card = 2px ink border (docs-mockup.html THE RULES
+                // #2/#5): green is verified/live ONLY, never a selection
+                // decoration, so this no longer tints the background — just
+                // the structural ink border the mock's `.jcard.sel` uses.
+                active && "border-2 border-foreground",
             )}
         >
             <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
@@ -421,7 +423,11 @@ function JobCard({
                         <button
                             type="button"
                             data-testid="cluster-toggle"
-                            className="font-mono text-[12px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            // Squared mono chip (docs-mockup.html Comp B) — was a
+                            // bare underlined text link; the mock renders this as
+                            // its own bordered box, matching the other data chips
+                            // on the row instead of reading as a hyperlink.
+                            className="mono-data border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleExpand?.();
@@ -432,9 +438,14 @@ function JobCard({
                     )}
                 </div>
                 {clearGhost && (
-                    <div className="mt-2 flex items-center gap-1.5">
-                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-brand" aria-hidden />
-                        <span className="font-mono text-[12px] font-medium text-brand">Live · no ghost signals</span>
+                    // Squared verdict line (docs-mockup.html Comp B): a square
+                    // dot (pills retired — THE RULES #1), mono throughout, with
+                    // ONLY "no ghost signals" carrying the verification
+                    // underline — that's the specific claim being underwritten,
+                    // not the bare "live" word next to it.
+                    <div className="mono-data mt-2 flex items-center gap-1.5 text-[12px] font-medium text-brand">
+                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse bg-brand" aria-hidden />
+                        live · <span className="verified-underline">no ghost signals</span>
                     </div>
                 )}
                 {flagged && (
@@ -614,18 +625,18 @@ function JobCardSkeleton() {
     return (
         <div
             aria-hidden="true"
-            className="mb-2.5 grid grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4"
+            className="mb-2.5 grid grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4"
         >
-            <div className="skeleton-bar h-12 w-12 rounded-xl" />
+            <div className="skeleton-bar h-12 w-12" />
             <div className="min-w-0 space-y-2.5 py-0.5">
                 <div className="skeleton-bar h-4 w-3/4" />
                 <div className="skeleton-bar h-3 w-1/2" />
                 <div className="flex gap-2 pt-1">
-                    <div className="skeleton-bar h-5 w-16 rounded-full" />
-                    <div className="skeleton-bar h-5 w-20 rounded-full" />
+                    <div className="skeleton-bar h-5 w-16" />
+                    <div className="skeleton-bar h-5 w-20" />
                 </div>
             </div>
-            <div className="skeleton-bar h-7 w-full self-start rounded-lg" />
+            <div className="skeleton-bar h-7 w-full self-start" />
         </div>
     );
 }
@@ -1933,6 +1944,18 @@ function JobsContent() {
     // (in `hits`) first, else the existence check's confirmed-alive job.
     const detailJob = selected ?? deadJobFoundJob;
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
+    // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
+    // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —
+    // not a second lookup — so the two can never disagree about what counts
+    // as a duplicate of this posting.
+    const detailVariants = useMemo(() => {
+        if (!detailJob) return [];
+        const cluster = clusters.find(
+            (c) => c.primary.id === detailJob.id || c.variants.some((v) => v.id === detailJob.id),
+        );
+        if (!cluster) return [];
+        return [cluster.primary, ...cluster.variants].filter((j) => j.id !== detailJob.id);
+    }, [clusters, detailJob]);
     // Review fix — still checking, or the check came back inconclusive
     // (`unknown` — the confirmed production reality until the Meilisearch
     // index gets `id` added to `filterableAttributes`, see
@@ -3163,29 +3186,17 @@ function JobsContent() {
                                     data-testid="filters-toggle"
                                     aria-expanded={filtersOpen}
                                     onClick={() => setFiltersOpen((v) => !v)}
-                                    className={cn(
-                                        "inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-semibold transition-colors duration-100",
-                                        filtersOpen
-                                            ? "border-foreground bg-foreground text-background"
-                                            : "border-border bg-card text-foreground hover:border-foreground/40",
-                                    )}
+                                    className={cn(chipVariants({ active: false }), "h-7", filtersOpen && "border-foreground bg-foreground text-background")}
                                 >
                                     Filters{activeCount > 0 ? ` (${activeCount})` : ""}
                                 </button>
                                 {activeEntries.map((entry) => (
-                                    <span
-                                        key={entry.key}
-                                        className="inline-flex h-7 items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-xs font-semibold text-brand"
-                                    >
+                                    <span key={entry.key} className={cn(chipVariants({ active: true }), "h-7")}>
                                         {entry.label}
-                                        <button
-                                            type="button"
-                                            aria-label={`Remove ${entry.label}`}
+                                        <ChipDismiss
+                                            label={`Remove ${entry.label}`}
                                             onClick={() => applyFilterState(entry.clear(filterState))}
-                                            className="leading-none opacity-70 hover:opacity-100"
-                                        >
-                                            ×
-                                        </button>
+                                        />
                                     </span>
                                 ))}
                                 {activeCount > 0 && (
@@ -3309,7 +3320,7 @@ function JobsContent() {
                         // separate collapse animation since it unmounts on close.
                         <div
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-muted/30 p-5 custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain border border-border bg-muted/30 p-5 custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -3613,7 +3624,12 @@ function JobsContent() {
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
                                     {depthGated && !user ? (
-                                        <div className="flex flex-col items-center gap-3 py-6 text-center">
+                                        // Depth-gate row (docs-mockup.html Comp B)
+                                        // — a dashed-border block, distinct from
+                                        // every solid-bordered card on the page:
+                                        // it's a boundary the corpus imposes, not
+                                        // a result.
+                                        <div className="flex flex-col items-center gap-3 border border-dashed border-border bg-card py-6 text-center">
                                             <p className="text-[13.5px] text-muted-foreground">
                                                 That&apos;s the free preview — create a free account to see every
                                                 result.
@@ -3656,13 +3672,13 @@ function JobsContent() {
                     // on open (this whole `<aside>` unmounts on close, there's
                     // no separate close transition to add motion to).
                     <aside className="panel-enter hidden min-h-0 pt-4 lg:block">
-                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-card shadow-sm custom-scrollbar">
+                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border border-border bg-card shadow-sm custom-scrollbar">
                             <div className="relative">
                                 <button
                                     type="button"
                                     aria-label="Close job details"
                                     onClick={() => router.back()}
-                                    className="absolute right-3 top-3 z-10 rounded-full border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+                                    className="absolute right-3 top-3 z-10 border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
                                 >
                                     ×
                                 </button>
@@ -3679,6 +3695,10 @@ function JobsContent() {
                                             onMarkApplied={() => handleMarkApplied(detailJob)}
                                             onPrep={() => handlePrep(detailJob)}
                                             onGoAfter={() => handleGoAfter(detailJob)}
+                                            onFit={() => setFitJob(detailJob)}
+                                            onAuthRequired={openAuth}
+                                            isAuthed={!!user}
+                                            variants={detailVariants}
                                             pursuit={detailPursuit}
                                             goingAfter={goingAfterId === detailJob.id}
                                         />
@@ -3800,7 +3820,7 @@ function JobsContent() {
                     // SheetContent, see its own comment for why `duration-`
                     // (not a plain `transition-*` class) is the right utility
                     // to override here.
-                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
@@ -3818,6 +3838,10 @@ function JobsContent() {
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
+                                onFit={() => setFitJob(detailJob)}
+                                onAuthRequired={openAuth}
+                                isAuthed={!!user}
+                                variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
                             />
