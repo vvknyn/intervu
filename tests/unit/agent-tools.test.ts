@@ -40,7 +40,11 @@ function makeJob(overrides: Partial<PublicJob> = {}): PublicJob {
   };
 }
 
-function stubDeps(hits: PublicJob[], upsertResult: { data?: unknown; error?: string } = { data: { id: 'app-1' } }) {
+function stubDeps(
+  hits: PublicJob[],
+  upsertResult: { data?: unknown; error?: string } = { data: { id: 'app-1' } },
+  searchResultExtra: Partial<JobSearchResult> = {},
+) {
   const searchCalls: JobSearchParams[] = [];
   const upsertCalls: Array<{ uid: string; job: unknown; stage: string }> = [];
   const deps: ToolDeps = {
@@ -48,7 +52,7 @@ function stubDeps(hits: PublicJob[], upsertResult: { data?: unknown; error?: str
     search: async (p: JobSearchParams): Promise<JobSearchResult> => {
       searchCalls.push(p);
       const filtered = p.id ? hits.filter((h) => h.id === p.id) : hits;
-      return { hits: filtered, total: filtered.length, backend: 'meilisearch', configured: true };
+      return { hits: filtered, total: filtered.length, backend: 'meilisearch', configured: true, ...searchResultExtra };
     },
     upsert: async (uid, job, stage) => {
       upsertCalls.push({ uid, job, stage });
@@ -123,6 +127,30 @@ describe('toolSearchJobs', () => {
     assert.equal(out.hits[0].id, 'job-1');
     assert.equal(out.hits[0].ghost_badge, 'clear');
   });
+
+  it('reports unavailable (not a silent empty-success) when the backend errors', async () => {
+    const { deps } = stubDeps([], undefined, { unavailable: true });
+    const out = await toolSearchJobs(deps, {});
+    assert.equal(out.unavailable, true);
+    assert.deepEqual(out.hits, []);
+    assert.equal(out.total, 0);
+    assert.ok(out.note?.includes('treat as an error, not as zero matches'));
+  });
+
+  it('merges the backend note into the unavailable note rather than dropping it', async () => {
+    const { deps } = stubDeps([], undefined, { unavailable: true, note: 'Meili 502' });
+    const out = await toolSearchJobs(deps, {});
+    assert.ok(out.note?.includes('Meili 502'));
+    assert.ok(out.note?.includes('treat as an error, not as zero matches'));
+  });
+
+  it('merges the bucket-narrowing note with a backend note when the backend is NOT unavailable', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, { note: 'widened to description search' });
+    const out = await toolSearchJobs(deps, { postedWithinDays: 90 });
+    assert.equal(out.unavailable, undefined);
+    assert.ok(out.note?.includes('widened to description search'));
+    assert.ok(out.note?.includes('30d'));
+  });
 });
 
 describe('toolGetJob', () => {
@@ -142,6 +170,12 @@ describe('toolGetJob', () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolGetJob(deps, { id: 'does-not-exist' });
     assert.deepEqual(out, { error: 'job not found' });
+  });
+
+  it('returns a backend-unavailable error, not "job not found", when search reports unavailable', async () => {
+    const { deps } = stubDeps([], undefined, { unavailable: true });
+    const out = await toolGetJob(deps, { id: 'job-1' });
+    assert.deepEqual(out, { error: 'search backend unavailable' });
   });
 });
 
@@ -175,6 +209,13 @@ describe('toolSaveJob', () => {
     const out = await toolSaveJob(deps, { id: 'job-1' });
     assert.deepEqual(out, { error: 'db unavailable' });
   });
+
+  it('propagates backend-unavailable (not a false "not found") and never calls upsert', async () => {
+    const { deps, upsertCalls } = stubDeps([], undefined, { unavailable: true });
+    const out = await toolSaveJob(deps, { id: 'job-1' });
+    assert.deepEqual(out, { error: 'search backend unavailable' });
+    assert.equal(upsertCalls.length, 0);
+  });
 });
 
 describe('toolMarkApplied', () => {
@@ -190,5 +231,12 @@ describe('toolMarkApplied', () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolMarkApplied(deps, { id: 'nope' });
     assert.deepEqual(out, { error: 'job not found' });
+  });
+
+  it('propagates backend-unavailable (not a false "not found") and never calls upsert', async () => {
+    const { deps, upsertCalls } = stubDeps([], undefined, { unavailable: true });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { error: 'search backend unavailable' });
+    assert.equal(upsertCalls.length, 0);
   });
 });

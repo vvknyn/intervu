@@ -53,7 +53,17 @@ function toSearchHit(job: PublicJob): SearchHit {
 export interface SearchOut {
   hits: SearchHit[];
   total: number;
+  unavailable?: boolean;
   note?: string;
+}
+
+/** Joins whichever notes are actually present ('; '-separated); undefined
+ *  when none are — the one place a note ever gets dropped or merged, so
+ *  neither the bucket-narrowing note nor a backend note silently disappears
+ *  behind the other. */
+function joinNotes(...parts: (string | undefined)[]): string | undefined {
+  const present = parts.filter((p): p is string => !!p);
+  return present.length ? present.join("; ") : undefined;
 }
 
 export async function toolSearchJobs(
@@ -62,8 +72,20 @@ export async function toolSearchJobs(
 ): Promise<SearchOut> {
   const limit = Math.min(input.limit ?? 10, AGENT.RESULT_CAP);
   const hideGhosts = !(input.includeGhostFlagged ?? false);
-  const { bucket, note } = POSTED_WITHIN_DAYS_TO_BUCKET[input.postedWithinDays ?? 30];
+  const { bucket, note: bucketNote } = POSTED_WITHIN_DAYS_TO_BUCKET[input.postedWithinDays ?? 30];
   const result = await deps.search({ q: input.query, hideGhosts, postedBucket: bucket, limit });
+  // A backend failure must never read like a true zero-match — the MCP
+  // response is the agent's only channel, so an empty `hits` here has to be
+  // distinguishable from "the backend is actually down."
+  if (result.unavailable) {
+    return {
+      hits: [],
+      total: 0,
+      unavailable: true,
+      note: joinNotes("search backend unavailable — treat as an error, not as zero matches", result.note),
+    };
+  }
+  const note = joinNotes(bucketNote, result.note);
   return { hits: result.hits.map(toSearchHit), total: result.total, ...(note ? { note } : {}) };
 }
 
@@ -74,11 +96,24 @@ export interface JobOut extends Omit<PublicJob, "description"> {
   content_note: string;
 }
 
-export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise<JobOut | { error: string }> {
-  const result = await deps.search({ id: input.id, limit: 1 });
+/** Shared by every id-keyed tool (get/save/mark-applied): a backend outage
+ *  and a genuine "no such job" are different failures — collapsing them
+ *  into one `not_found` would report a false negative as if it were a fact
+ *  about the job, so callers get a third, distinct outcome to check. */
+type IdLookup = { kind: "found"; job: PublicJob } | { kind: "not_found" } | { kind: "unavailable" };
+
+async function lookupJobById(deps: ToolDeps, id: string): Promise<IdLookup> {
+  const result = await deps.search({ id, limit: 1 });
+  if (result.unavailable) return { kind: "unavailable" };
   const hit = result.hits[0];
-  if (!hit) return { error: "job not found" };
-  const { description, ...rest } = hit;
+  return hit ? { kind: "found", job: hit } : { kind: "not_found" };
+}
+
+export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise<JobOut | { error: string }> {
+  const lookup = await lookupJobById(deps, input.id);
+  if (lookup.kind === "unavailable") return { error: "search backend unavailable" };
+  if (lookup.kind === "not_found") return { error: "job not found" };
+  const { description, ...rest } = lookup.job;
   return { ...rest, description: { untrusted: true, text: description }, content_note: CONTENT_NOTE };
 }
 
@@ -89,10 +124,10 @@ async function upsertFromId(
   id: string,
   stage: "interested" | "applied",
 ): Promise<{ error: string } | { ok: true }> {
-  const result = await deps.search({ id, limit: 1 });
-  const hit = result.hits[0];
-  if (!hit) return { error: "job not found" };
-  const res = await deps.upsert(deps.uid, { job_id: hit.id, ...buildJobSnapshot(hit) }, stage);
+  const lookup = await lookupJobById(deps, id);
+  if (lookup.kind === "unavailable") return { error: "search backend unavailable" };
+  if (lookup.kind === "not_found") return { error: "job not found" };
+  const res = await deps.upsert(deps.uid, { job_id: lookup.job.id, ...buildJobSnapshot(lookup.job) }, stage);
   if (res.error) return { error: res.error };
   return { ok: true };
 }
