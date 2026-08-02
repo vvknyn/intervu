@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 // Route segment config + image metadata (Next reads these by convention).
 export const runtime = "edge";
-export const alt = "Intervu pricing — no subscription, buy credits when you're hunting";
+export const alt = "Intervu pricing — no subscription, not even for the robots";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -52,7 +52,7 @@ export default function PricingOpengraphImage() {
             maxWidth: 980,
           }}
         >
-          Pricing — no subscription.
+          No subscription. Not even for the robots.
         </div>
         <div
           style={{
@@ -65,7 +65,7 @@ export default function PricingOpengraphImage() {
             lineHeight: 1.3,
           }}
         >
-          Buy credits when you&apos;re hunting. Search stays free.
+          Your AI brings the intelligence. We only meter the truth.
         </div>
       </div>
     ),
