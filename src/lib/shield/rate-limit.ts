@@ -41,24 +41,29 @@ export function checkRateLimitWindow(
 }
 
 const ipLog = new Map<string, number[]>();
-/** Once the store holds this many IPs, opportunistically sweep entries that
+/** Once a store holds this many IPs, opportunistically sweep entries that
  *  have fully aged out — otherwise an idle IP's array lingers forever.
- *  Not on every call (that would be O(n) per search); only once growth
- *  suggests it's worth the pass. */
+ *  Not on every call (that would be O(n) per request); only once growth
+ *  suggests it's worth the pass. Shared threshold: it's a generic "is this
+ *  map big enough to bother pruning" judgment, not tied to any one chokepoint. */
 const SWEEP_THRESHOLD = 5_000;
 
-function sweepStale(now: number, windowMs: number): void {
+/** Prune timestamps that have aged out of the window from every entry in
+ *  `log`, dropping IPs left with none. Takes the map as a parameter so each
+ *  chokepoint's store (search's `ipLog`, the waitlist's own map, ...) gets
+ *  swept without duplicating this loop per caller. */
+function sweepStale(log: Map<string, number[]>, now: number, windowMs: number): void {
   const cutoff = now - windowMs;
-  for (const [ip, timestamps] of ipLog) {
+  for (const [ip, timestamps] of log) {
     const retained = timestamps.filter((t) => t > cutoff);
-    if (retained.length === 0) ipLog.delete(ip);
-    else ipLog.set(ip, retained);
+    if (retained.length === 0) log.delete(ip);
+    else log.set(ip, retained);
   }
 }
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the module-scope store. */
 export function allowSearchRequest(ip: string, now: number = Date.now()): boolean {
-  if (ipLog.size > SWEEP_THRESHOLD) sweepStale(now, RATE_LIMIT_WINDOW_MS);
+  if (ipLog.size > SWEEP_THRESHOLD) sweepStale(ipLog, now, RATE_LIMIT_WINDOW_MS);
   const existing = ipLog.get(ip) ?? [];
   const { allowed, retained } = checkRateLimitWindow(existing, now);
   ipLog.set(ip, retained);
@@ -69,4 +74,34 @@ export function allowSearchRequest(ip: string, now: number = Date.now()): boolea
  *  `clearSearchCacheForTests` in `lib/jobs/search-cache.ts`. */
 export function clearRateLimitStateForTests(): void {
   ipLog.clear();
+  connectWaitlistIpLog.clear();
+}
+
+/**
+ * Per-IP sliding-window rate limit for the /connect waitlist chokepoint
+ * (`joinConnectWaitlist`). Deliberately its own module-scope map, not
+ * `ipLog` above — sharing that store would mix two unrelated counters
+ * (search volume vs. waitlist signups) under one meaning. Stricter than
+ * search's 40/60s: a real visitor signs up once, maybe retries a typo'd
+ * email a couple times — 5 per 10 minutes is generous for that and tight
+ * against a submit-loop.
+ */
+export const CONNECT_WAITLIST_WINDOW_MS = 600_000;
+export const CONNECT_WAITLIST_MAX_REQUESTS = 5;
+const connectWaitlistIpLog = new Map<string, number[]>();
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the waitlist's own store. */
+export function allowConnectWaitlistRequest(ip: string, now: number = Date.now()): boolean {
+  if (connectWaitlistIpLog.size > SWEEP_THRESHOLD) {
+    sweepStale(connectWaitlistIpLog, now, CONNECT_WAITLIST_WINDOW_MS);
+  }
+  const existing = connectWaitlistIpLog.get(ip) ?? [];
+  const { allowed, retained } = checkRateLimitWindow(
+    existing,
+    now,
+    CONNECT_WAITLIST_WINDOW_MS,
+    CONNECT_WAITLIST_MAX_REQUESTS,
+  );
+  connectWaitlistIpLog.set(ip, retained);
+  return allowed;
 }

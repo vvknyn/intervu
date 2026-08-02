@@ -169,4 +169,28 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await page.goto('/resume-builder');
     await expect(page).toHaveURL('/resume-builder');
   });
+
+  /**
+   * TC-MOBILE-009: /connect tabs are visible and don't cause horizontal scroll
+   *
+   * Verifies the AI-client tabs (Claude / Gemini CLI / Cursor) render and
+   * stay reachable on a narrow viewport. NOTE: playwright.config.ts only
+   * defines a single `chromium` (Desktop Chrome) project — there is no true
+   * multi-device project in this suite, so this is a manual-viewport check
+   * within the desktop project, not a real device-emulation run.
+   */
+  test("TC-MOBILE-009: /connect tabs are visible on mobile", async ({ page }) => {
+    await page.goto('/connect');
+
+    const tabs = page.getByTestId('connect-tabs');
+    await expect(tabs).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Claude' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Gemini CLI' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Cursor' })).toBeVisible();
+
+    // No horizontal scroll (same pattern as TC-MOBILE-001).
+    const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
+    const viewportWidth = await page.evaluate(() => window.innerWidth);
+    expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20);
+  });
 });
