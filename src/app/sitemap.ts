@@ -55,6 +55,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      // MCP pairing / waitlist — pre-launch beta, publicly linkable.
+      url: `${SITE_URL}/connect`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/research/ghost-jobs`,
       lastModified,
       changeFrequency: "monthly",

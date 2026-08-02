@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  allowConnectWaitlistRequest,
   allowSearchRequest,
   checkRateLimitWindow,
   clearRateLimitStateForTests,
+  CONNECT_WAITLIST_MAX_REQUESTS,
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
 } from "../../src/lib/shield/rate-limit";
@@ -62,5 +64,30 @@ test("allowSearchRequest: the window recovers once old requests age out", () => 
   }
   assert.equal(allowSearchRequest("9.9.9.9", now), false);
   assert.equal(allowSearchRequest("9.9.9.9", now + RATE_LIMIT_WINDOW_MS + 1), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowConnectWaitlistRequest: keeps its own per-IP window, separate from search's", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  // Exhaust the waitlist window for one IP...
+  for (let i = 0; i < CONNECT_WAITLIST_MAX_REQUESTS; i++) {
+    assert.equal(allowConnectWaitlistRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowConnectWaitlistRequest("1.2.3.4", now), false);
+  // ...without touching that same IP's search allowance (proves the two
+  // chokepoints don't share a counter).
+  assert.equal(allowSearchRequest("1.2.3.4", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowConnectWaitlistRequest: a different IP starts with a fresh window", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < CONNECT_WAITLIST_MAX_REQUESTS; i++) {
+    assert.equal(allowConnectWaitlistRequest("2.2.2.2", now), true);
+  }
+  assert.equal(allowConnectWaitlistRequest("2.2.2.2", now), false);
+  assert.equal(allowConnectWaitlistRequest("3.3.3.3", now), true);
   clearRateLimitStateForTests();
 });
