@@ -127,6 +127,19 @@ export function recordRecentSearch(q: string): void {
     notifyRecentSearchesChanged();
 }
 
+/** Drop ONE query from the store (a landing chip's "×") — same
+ *  cache+persist+notify contract as `recordRecentSearch`, case-insensitive
+ *  match to mirror `resolveSearchSeeds`' dedupe rule. */
+export function removeRecentSearch(q: string): void {
+    const current = getRecentSearchesSnapshot();
+    const needle = q.trim().toLowerCase();
+    const next = current.filter((v) => v.toLowerCase() !== needle);
+    if (next.length === current.length) return;
+    recentSearchesCache = next;
+    saveRecentSearches(next);
+    notifyRecentSearchesChanged();
+}
+
 /** Wipe the store entirely (the landing chips' "×") — the dropdown history
  *  empties with it, since both surfaces subscribe to this one store. */
 export function clearAllRecentSearches(): void {
