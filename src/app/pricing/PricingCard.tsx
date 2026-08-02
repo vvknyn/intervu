@@ -1,126 +1,91 @@
-"use client";
-
-import { useState, type FormEvent } from "react";
-import { WarningCircle, Spinner } from "@phosphor-icons/react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { applicationsPerPack, type Pack } from "@/lib/pricing";
-import { submitWaitlistAction } from "@/actions/waitlist";
+import type { PricingBullet, PricingCta, PricingTier } from "@/app/pricing/pricing-tiers";
 
-/**
- * One credit-pack card: price/credits sourced from `pack` (never
- * re-enumerated), a "Join the waitlist" CTA that reveals an inline email
- * form on click, and a honeypot field a real visitor never reaches. The
- * `hunt` pack gets the visual highlight — matched on `pack.id`, not
- * position, so reordering PACKS doesn't silently move the highlight.
- */
-export function PricingCard({ pack }: { pack: Pack }) {
-  const highlighted = pack.id === "hunt";
-  const title = pack.id.charAt(0).toUpperCase() + pack.id.slice(1);
+/** A bullet is a link when the tier data gives it an `href` (e.g. "Connect
+ *  your AI (MCP)" -> /connect) — one branch, driven by data, not a second
+ *  hand-written bullet list per tier. */
+function TierBullet({ bullet }: { bullet: PricingBullet }) {
+  return (
+    <li className="flex gap-2 text-sm leading-snug text-foreground">
+      <span className="mt-[7px] h-[5px] w-[5px] shrink-0 bg-foreground/40" aria-hidden />
+      {bullet.href ? (
+        <Link href={bullet.href} className="underline underline-offset-2 hover:text-brand">
+          {bullet.text}
+        </Link>
+      ) : (
+        <span>{bullet.text}</span>
+      )}
+    </li>
+  );
+}
 
-  const [showForm, setShowForm] = useState(false);
-  const [email, setEmail] = useState("");
-  const [honeypot, setHoneypot] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
+/** Renders the tier's CTA from its `cta` union: a disabled hairline button
+ *  for paid-but-unwired tiers, or a Button-wrapped link (internal `Link` vs.
+ *  external `<a target="_blank">`, decided by the href itself — no separate
+ *  "external" flag to keep in sync). */
+function TierCta({ cta }: { cta: PricingCta }) {
+  if (cta.kind === "disabled") {
+    return (
+      <Button type="button" variant={cta.variant} disabled className="w-full justify-center">
+        {cta.label}
+      </Button>
+    );
+  }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setStatus("loading");
-    setError(null);
+  const isExternal = cta.href.startsWith("http");
+  return (
+    <Button asChild variant={cta.variant} className="w-full justify-center">
+      {isExternal ? (
+        <a href={cta.href} target="_blank" rel="noopener">
+          {cta.label}
+        </a>
+      ) : (
+        <Link href={cta.href}>{cta.label}</Link>
+      )}
+    </Button>
+  );
+}
 
-    try {
-      const result = await submitWaitlistAction({ email, packId: pack.id, honeypot });
-      if ("success" in result) {
-        setStatus("success");
-      } else {
-        setStatus("error");
-        setError(result.error);
-      }
-    } catch (err) {
-      console.error("Waitlist submit failed:", err);
-      setStatus("error");
-      setError("Something went wrong. Please try again.");
-    }
-  };
+export function PricingCard({ tier }: { tier: PricingTier }) {
+  const highlighted = Boolean(tier.highlight);
 
   return (
     <div
-      data-testid={`pricing-card-${pack.id}`}
+      data-testid={`pricing-card-${tier.name.toLowerCase()}`}
       className={cn(
-        "flex flex-col gap-4 p-6",
-        highlighted ? "relative border-2 border-foreground bg-background" : "border border-border bg-background",
+        "relative flex flex-col gap-4 p-6",
+        highlighted ? "border-2 border-foreground bg-background" : "border border-border bg-background",
       )}
     >
-      {highlighted && (
+      {tier.highlight && (
         <span className="absolute -top-3 left-[18px] bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-brand-foreground">
-          Most popular
+          {tier.highlight}
         </span>
       )}
 
       <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="mt-1 font-mono text-[32px] font-medium leading-none text-foreground">${pack.usd}</p>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          <span className="font-mono">{pack.credits}</span> credits · never expire
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+          {tier.name}
         </p>
+        <p className="mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground">{tier.price}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{tier.tagline}</p>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        ≈<span className="font-mono">{applicationsPerPack(pack)}</span> tailored applications
-      </p>
+      <ul className="flex flex-col gap-1.5 border-t border-foreground/10 pt-4">
+        {tier.carriesFrom && (
+          <li className="text-sm font-medium text-foreground">Everything in {tier.carriesFrom}, plus:</li>
+        )}
+        {tier.bullets.map((bullet) => (
+          <TierBullet key={bullet.text} bullet={bullet} />
+        ))}
+      </ul>
 
-      {status === "success" ? (
-        <p className="text-sm text-brand" data-testid={`pricing-card-${pack.id}-success`}>
-          You&apos;re on the list — we&apos;ll email you when packs go live.
-        </p>
-      ) : showForm ? (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <Input
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={status === "loading"}
-            aria-label="Email address"
-          />
-
-          {/* Honeypot: visually hidden, out of tab order, and aria-hidden —
-              a real visitor never sees or reaches this field. A filled
-              value silently drops the submission server-side without ever
-              telling the caller it was dropped (see validateWaitlistInput). */}
-          <div className="sr-only" aria-hidden="true">
-            <label htmlFor={`website-${pack.id}`}>Leave this field blank</label>
-            <input
-              id={`website-${pack.id}`}
-              name="website"
-              type="text"
-              tabIndex={-1}
-              autoComplete="off"
-              value={honeypot}
-              onChange={(e) => setHoneypot(e.target.value)}
-            />
-          </div>
-
-          {status === "error" && error && (
-            <p className="flex items-center gap-1.5 text-sm text-destructive">
-              <WarningCircle size={14} weight="fill" />
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" variant={highlighted ? "default" : "outline"} disabled={status === "loading"}>
-            {status === "loading" && <Spinner className="h-4 w-4 animate-spin" />}
-            Join the waitlist
-          </Button>
-        </form>
-      ) : (
-        <Button type="button" variant={highlighted ? "default" : "outline"} onClick={() => setShowForm(true)}>
-          Join the waitlist
-        </Button>
-      )}
+      <div className="mt-auto flex flex-col gap-3">
+        <p className="text-xs italic text-muted-foreground">{tier.priceNote}</p>
+        <TierCta cta={tier.cta} />
+      </div>
     </div>
   );
 }
