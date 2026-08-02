@@ -53,6 +53,16 @@ function entitlementLabel(s: PrepEntitlement): { Icon: typeof Coins; label: stri
   return { Icon: Coins, label: `${s.credits} credit${s.credits === 1 ? "" : "s"}` };
 }
 
+/** In-session credits readout (docs-mockup.html Comp E2 statline "credits: N
+ *  left") — omitted for isAdmin/isBYOK accounts, where a numeric "N left"
+ *  wouldn't reflect a real constraint (same distinction `entitlementLabel`
+ *  above already draws). Exported so PrepSessionView's header reuses this
+ *  instead of re-deriving credits phrasing from `PrepEntitlement` itself. */
+export function sessionCreditsLabel(entitlement: PrepEntitlement | null | undefined): string | null {
+  if (!entitlement || entitlement.isAdmin || entitlement.isBYOK) return null;
+  return `credits: ${entitlement.credits} left`;
+}
+
 export function PrepModeSelection({
   jobContext,
   isAuthenticated,

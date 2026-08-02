@@ -2278,6 +2278,7 @@ export function DashboardContainer() {
                     onToggleFavorite={handleToggleFavorite}
                     isLoggedIn={!!user}
                     jobContextText={prepJobContext.content.originalJd ?? ""}
+                    entitlement={prepEntitlement}
                 />
             );
         } else if (prepPhase === "summary" && prepSessionState) {

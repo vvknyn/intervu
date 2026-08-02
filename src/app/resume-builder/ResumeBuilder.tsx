@@ -532,8 +532,10 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                             isTailoredMode={isTailoredMode}
                             versionsToggle={
                                 <>
-                                    <button
+                                    <Button
                                         data-tour="resume-import"
+                                        variant="quiet"
+                                        size="sm"
                                         onClick={() => {
                                             if (user) {
                                                 setSaveVersionModalOpen(true);
@@ -541,14 +543,16 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                                 setAuthPopoverOpen(true);
                                             }
                                         }}
-                                        className="hidden text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground sm:inline"
+                                        className="hidden sm:inline-flex"
                                         title={user ? "Save current resume as a version" : "Sign in to save versions"}
                                     >
-                                        save
-                                    </button>
+                                        Save
+                                    </Button>
 
-                                    <button
+                                    <Button
                                         data-tour="resume-tailor"
+                                        variant="outline"
+                                        size="sm"
                                         onClick={() => {
                                             if (user) {
                                                 setTailoringSidebarOpen(true);
@@ -556,11 +560,10 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                                                 setAuthPopoverOpen(true);
                                             }
                                         }}
-                                        className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
                                         title={user ? "Tailor resume to a job description" : "Sign in to tailor resume"}
                                     >
-                                        {versions.length > 0 ? `versions (${versions.length})` : "tailor"}
-                                    </button>
+                                        {versions.length > 0 ? `Versions (${versions.length})` : "Tailor"}
+                                    </Button>
                                 </>
                             }
                         />
