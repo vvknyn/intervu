@@ -17,10 +17,24 @@ import { cn } from "@/lib/utils";
  * on (JobDetail.tsx / yours/[id]/page.tsx's prep-removal note, 2026-08-02):
  * plain bordered box, no radius (design-system rule), no icon.
  */
-export function McpHandoffNote({ className }: { className?: string }) {
+/** Copy lives HERE per variant — call sites choose a purpose, never write
+ *  their own line, so surfaces can't drift. Two different variants may share
+ *  a screen; the same variant must not. */
+const VARIANT_COPY = {
+    intelligence: "Fit, gaps, tailoring — your AI does this.",
+    prep: "Interviewing? Your AI can prep you with this job's context.",
+} as const;
+
+export function McpHandoffNote({
+    variant = "intelligence",
+    className,
+}: {
+    variant?: keyof typeof VARIANT_COPY;
+    className?: string;
+}) {
     return (
         <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground", className)}>
-            Fit, gaps, tailoring — your AI does this.{" "}
+            {VARIANT_COPY[variant]}{" "}
             <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
                 Connect it once →
             </Link>

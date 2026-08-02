@@ -3100,7 +3100,7 @@ function JobsContent() {
                     // on open (this whole `<aside>` unmounts on close, there's
                     // no separate close transition to add motion to).
                     <aside className="panel-enter hidden min-h-0 pt-4 lg:block">
-                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border border-border bg-card shadow-sm custom-scrollbar">
+                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border border-border bg-card pb-5 shadow-sm custom-scrollbar">
                             <div className="relative">
                                 <button
                                     type="button"
@@ -3210,7 +3210,7 @@ function JobsContent() {
                     // SheetContent, see its own comment for why `duration-`
                     // (not a plain `transition-*` class) is the right utility
                     // to override here.
-                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar p-0 pb-5 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}

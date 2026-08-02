@@ -36,7 +36,7 @@ const tabsListVariants = cva(
         // tabs: a single hairline frame with no inner padding, active tab
         // filled ink-solid (see TabsTrigger's group-data-[variant=block]
         // overrides below). Additive only: default/line are untouched.
-        block: "gap-0 rounded-none border border-border bg-transparent p-0",
+        block: "gap-0 rounded-none border border-border bg-transparent p-0 group-data-[orientation=horizontal]/tabs:h-auto",
       },
     },
     defaultVariants: {
@@ -77,7 +77,7 @@ function TabsTrigger({
         // (group-data-[variant=block]) wins over the unconditional rule
         // above without needing !important, same mechanism the line variant
         // already relies on for its own override just below.
-        "group-data-[variant=block]/tabs-list:rounded-none group-data-[variant=block]/tabs-list:py-2.5 group-data-[variant=block]/tabs-list:font-semibold group-data-[variant=block]/tabs-list:data-[state=active]:bg-foreground group-data-[variant=block]/tabs-list:data-[state=active]:text-background group-data-[variant=block]/tabs-list:data-[state=active]:shadow-none",
+        "group-data-[variant=block]/tabs-list:rounded-none group-data-[variant=block]/tabs-list:h-auto group-data-[variant=block]/tabs-list:py-2.5 group-data-[variant=block]/tabs-list:font-semibold group-data-[variant=block]/tabs-list:data-[state=active]:bg-foreground group-data-[variant=block]/tabs-list:data-[state=active]:text-background group-data-[variant=block]/tabs-list:data-[state=active]:shadow-none",
         "after:bg-foreground after:absolute after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-right-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
         className
       )}
