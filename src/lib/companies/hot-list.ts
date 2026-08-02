@@ -1,5 +1,4 @@
 import { domainToSlug } from "@/lib/boards/slug";
-import { isBuildPhase } from "@/lib/next-phase";
 import { searchJobs } from "@/lib/jobs/search";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -97,11 +96,13 @@ export async function getHotCompaniesList(
 ): Promise<HotCompaniesListResult> {
   const fetched = await fetchEliteBoardJobHits(search);
   if ("unavailable" in fetched) {
-    // Build: degrade so the deploy doesn't fail. Runtime: THROW, so ISR
-    // keeps serving the last good hourly snapshot instead of caching this
-    // degraded page for revalidate=3600s (same class fix as /trends, PR #40).
-    if (isBuildPhase()) return { status: "unavailable", message: fetched.message };
-    throw new Error(fetched.message);
+    // Render the unavailable state rather than throwing. The stale-while-error
+    // throw (PR #76) assumed outages are transient; the live failure is a
+    // PERSISTENT schema gap (company_domain not filterable on the index —
+    // fix queued behind the running embed task), and throwing turns a known
+    // degraded state into a 500 with no snapshot to fall back on. Re-add a
+    // class-discriminating throw once the index schema lands.
+    return { status: "unavailable", message: fetched.message };
   }
 
   return { status: "ok", companies: orderHotCompanyRows(aggregateHotCompaniesFromJobs(fetched.hits)) };
