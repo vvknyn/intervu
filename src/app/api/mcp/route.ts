@@ -10,7 +10,7 @@ import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
     EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, type ToolDeps,
 } from "@/lib/agent/tools";
-import { searchJobs } from "@/lib/jobs/search";
+import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
 
 /**
@@ -78,7 +78,7 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
     return async (input: In, ctx: ServerContext) => {
         const uid = ctx.http?.authInfo?.extra?.uid;
         if (typeof uid !== "string") return toolResult({ error: "unauthorized" });
-        const deps: ToolDeps = { uid, search: searchJobs, upsert: upsertPursuitCore };
+        const deps: ToolDeps = { uid, search: searchJobs, locationVocabulary, upsert: upsertPursuitCore };
         return toolResult(await run(deps, input));
     };
 }
@@ -114,12 +114,14 @@ const mcpHandler = createMcpHandler(
             {
                 title: "Search jobs",
                 description:
-                    `Search intervu's verified-real job listings. Filters: location (place text), remote_only, ` +
+                    `Search intervu's verified-real job listings. Filters: location (city, region, or country — ` +
+                    `matched the same way our search understands places), remote_only, ` +
                     `experience_level (${EXPERIENCE_LEVELS.join("|")}), employment_type (${EMPLOYMENT_TYPES.join("|")}), ` +
                     `salary_min — all AND together and with query. Ghost jobs (postings unlikely to lead to an ` +
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
-                    `Returns up to ${AGENT.SEARCH_DEPTH_CAP} results per query via cursor pagination ` +
-                    `(${AGENT.RESULT_CAP} per page) — pass the response's next_cursor as the next call's cursor.`,
+                    `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
+                    `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +
+                    `(the page size that minted a cursor stays pinned for the rest of that walk).`,
                 inputSchema: searchJobsInput,
             },
             withDeps(toolSearchJobs)

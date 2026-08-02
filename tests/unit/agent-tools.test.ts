@@ -4,6 +4,15 @@ import {
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
+import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/jobs/query-understanding';
+
+/** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
+ *  fixture matches production shape exactly — "Toronto"/"Canada" both clear
+ *  the real `PLACE_MIN_COUNT`/`PLACE_MIN_LENGTH` guards. */
+const TEST_VOCAB: LocationVocabulary = buildLocationVocabulary({
+  location_city: { Toronto: 500 },
+  location_country: { Canada: 2000 },
+});
 
 const LONG_DESCRIPTION =
   'We are hiring a senior engineer. '.repeat(40) +
@@ -52,6 +61,7 @@ function stubDeps(
   hits: PublicJob[],
   upsertResult: { data?: unknown; error?: string } = { data: { id: 'app-1' } },
   searchResultExtra: SearchResultExtra = {},
+  vocab: LocationVocabulary = TEST_VOCAB,
 ) {
   const searchCalls: JobSearchParams[] = [];
   const upsertCalls: Array<{ uid: string; job: unknown; stage: string }> = [];
@@ -64,6 +74,7 @@ function stubDeps(
         hits: filtered, total: filtered.length, backend: 'meilisearch', configured: true, ...searchResultExtra,
       } as JobSearchResult;
     },
+    locationVocabulary: async () => vocab,
     upsert: async (uid, job, stage) => {
       upsertCalls.push({ uid, job, stage });
       return upsertResult;
@@ -318,26 +329,37 @@ describe('toolMarkApplied', () => {
   });
 });
 
-/** base64url({o:offset}) — the exact cursor shape `tools.ts`'s `decodeCursor`
- *  expects, built by hand here so the encode side is never used to test itself. */
-function encodeTestCursor(offset: number): string {
-  return Buffer.from(JSON.stringify({ o: offset })).toString('base64url');
+/** base64url({o:offset,l:limit}) — the exact cursor shape `tools.ts`'s
+ *  `decodeCursor` expects, built by hand here so the encode side is never
+ *  used to test itself. */
+function encodeTestCursor(offset: number, limit: number): string {
+  return Buffer.from(JSON.stringify({ o: offset, l: limit })).toString('base64url');
 }
 
 describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => {
-  it('maps location to facets.location_country (the same mechanism page.tsx\'s commitLocation uses)', async () => {
+  it('maps location "Toronto" to a places param via the SAME parsing path free-text queries use (review fix — NOT the location_country facet)', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
-    await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].facets, { location_country: ['Canada'] });
+    await toolSearchJobs(deps, { location: 'Toronto' });
+    assert.deepEqual(searchCalls[0].places, [{ field: 'location_city', value: 'Toronto' }]);
+    assert.equal(searchCalls[0].facets, undefined);
   });
 
-  it('trims location the same way commitLocation does, and drops it entirely when blank', async () => {
+  it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { location: 'Canada' });
+    assert.deepEqual(searchCalls[0].places, [{ field: 'location_country', value: 'Canada' }]);
+  });
+
+  it('drops an unrecognized location instead of inventing a places filter', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { location: 'Nowhereville' });
+    assert.equal(searchCalls[0].places, undefined);
+  });
+
+  it('trims location the same way query-understanding.ts\'s place parser does, and drops it entirely when blank', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: '  ' });
-    // No facets key at all — not merely an empty one — so an empty search
-    // stays cache-key-identical to a plain unfiltered browse (search-cache.ts's
-    // `isDefaultBrowseParams` checks `!p.facets`, which a truthy `{}` would fail).
-    assert.equal(searchCalls[0].facets, undefined);
+    assert.equal(searchCalls[0].places, undefined);
   });
 
   it('maps remote_only:true to facets.work_type ["remote"] (query-understanding.ts\'s corpus vocabulary)', async () => {
@@ -388,17 +410,17 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
       offset: 0,
       salaryMin: 150000,
       facets: {
-        location_country: ['Canada'],
         work_type: ['remote'],
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
+      places: [{ field: 'location_country', value: 'Canada' }],
     });
   });
 });
 
-describe('toolSearchJobs — cursor pagination (Task 12)', () => {
-  it('page 1 (no cursor) requests offset 0 and returns next_cursor -> offset 20 when more results remain', async () => {
+describe('toolSearchJobs — cursor pagination (Task 12 + review fix: page size pinned)', () => {
+  it('page 1 (no cursor) requests offset 0 and returns a next_cursor pinning offset 20 + the limit used', async () => {
     const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `job-${i}` }));
     const { deps, searchCalls } = stubDeps(hits, undefined, { total: 50 });
     const out = await toolSearchJobs(deps, { limit: 20 });
@@ -408,19 +430,44 @@ describe('toolSearchJobs — cursor pagination (Task 12)', () => {
     assert.equal(typeof out.next_cursor, 'string');
     assert.deepEqual(
       JSON.parse(Buffer.from(out.next_cursor as string, 'base64url').toString('utf8')),
-      { o: 20 },
+      { o: 20, l: 20 },
     );
   });
 
-  it('round-trips a next_cursor: passing it back requests offset 20 from the backend', async () => {
+  it('round-trips a next_cursor at the SAME limit: passing it back requests offset 20, limit 20, no note', async () => {
     const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `job-${i}` }));
     const { deps: deps1 } = stubDeps(hits, undefined, { total: 50 });
     const page1 = await toolSearchJobs(deps1, { limit: 20 });
     if ('error' in page1) throw new Error('unexpected error shape');
 
     const { deps: deps2, searchCalls: searchCalls2 } = stubDeps(hits, undefined, { total: 50 });
-    await toolSearchJobs(deps2, { limit: 20, cursor: page1.next_cursor });
+    const page2 = await toolSearchJobs(deps2, { limit: 20, cursor: page1.next_cursor });
     assert.equal(searchCalls2[0].offset, 20);
+    assert.equal(searchCalls2[0].limit, 20);
+    if ('error' in page2) throw new Error('unexpected error shape');
+    assert.equal(page2.note, undefined);
+  });
+
+  it('review fix: a cursor pins the page size it was minted with — a DIFFERENT limit on the follow-up call is ignored, with a note', async () => {
+    const hits10 = Array.from({ length: 10 }, (_, i) => makeJob({ id: `p1-${i}` }));
+    const { deps: deps1 } = stubDeps(hits10, undefined, { total: 50 });
+    const page1 = await toolSearchJobs(deps1, { limit: 10 });
+    if ('error' in page1) throw new Error('unexpected error shape');
+    assert.deepEqual(
+      JSON.parse(Buffer.from(page1.next_cursor as string, 'base64url').toString('utf8')),
+      { o: 10, l: 10 },
+    );
+
+    const { deps: deps2, searchCalls: searchCalls2 } = stubDeps(hits10, undefined, { total: 50 });
+    const page2 = await toolSearchJobs(deps2, { limit: 20, cursor: page1.next_cursor });
+    // Pinned to the minting limit (10), NOT the follow-up call's limit:20 —
+    // meilisearch.ts:337 computes page = floor(offset/limit)+1, so limit:20
+    // at offset:10 would silently land back on page 1, not page 2.
+    assert.equal(searchCalls2[0].offset, 10);
+    assert.equal(searchCalls2[0].limit, 10);
+    if ('error' in page2) throw new Error('unexpected error shape');
+    assert.ok(page2.note?.includes('10'));
+    assert.ok(page2.note?.includes('20'));
   });
 
   it('omits next_cursor once the backend has no more results beyond this page', async () => {
@@ -433,7 +480,7 @@ describe('toolSearchJobs — cursor pagination (Task 12)', () => {
   it('depth cap: a cursor at offset 100 truncates hits to zero, omits next_cursor, and never sends the backend limit:0', async () => {
     const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `deep-${i}` }));
     const { deps, searchCalls } = stubDeps(hits, undefined, { total: 500 });
-    const out = await toolSearchJobs(deps, { cursor: encodeTestCursor(100), limit: 20 });
+    const out = await toolSearchJobs(deps, { cursor: encodeTestCursor(100, 20) });
     assert.equal(searchCalls[0].offset, 100);
     // Never 0 — meilisearch.ts's buildSearchBody does `page: offset / (p.limit ?? 40)`,
     // and a literal 0 (not nullish) would divide by zero instead of falling back to 40.
@@ -443,11 +490,18 @@ describe('toolSearchJobs — cursor pagination (Task 12)', () => {
     assert.equal(out.next_cursor, undefined);
   });
 
-  it('depth cap: a crafted cursor far beyond the cap is clamped to exactly the cap, never requesting deeper', async () => {
+  it('depth cap: a crafted cursor with an offset far beyond the cap is clamped to exactly the cap, never requesting deeper', async () => {
     const { deps, searchCalls } = stubDeps([], undefined, { total: 500 });
-    await toolSearchJobs(deps, { cursor: encodeTestCursor(9999), limit: 20 });
+    await toolSearchJobs(deps, { cursor: encodeTestCursor(9999, 20) });
     assert.equal(searchCalls[0].offset, AGENT.SEARCH_DEPTH_CAP);
     assert.equal(AGENT.SEARCH_DEPTH_CAP, 100);
+  });
+
+  it('review fix: a crafted cursor with an oversized limit is clamped to RESULT_CAP, never bypassing the page-size cap', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()], undefined, { total: 5 });
+    const cursor = Buffer.from(JSON.stringify({ o: 0, l: 9999 })).toString('base64url');
+    await toolSearchJobs(deps, { cursor });
+    assert.equal(searchCalls[0].limit, AGENT.RESULT_CAP);
   });
 
   it('a malformed cursor returns an error object, never throws, and never calls the backend', async () => {
@@ -459,6 +513,22 @@ describe('toolSearchJobs — cursor pagination (Task 12)', () => {
 
   it('a cursor that decodes to valid JSON of the wrong shape is also malformed', async () => {
     const cursor = Buffer.from(JSON.stringify({ notO: 5 })).toString('base64url');
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { cursor });
+    assert.deepEqual(out, { error: 'invalid cursor' });
+    assert.equal(searchCalls.length, 0);
+  });
+
+  it('review fix: a cursor with a valid offset but NO limit is malformed — every cursor must pin a page size', async () => {
+    const cursor = Buffer.from(JSON.stringify({ o: 20 })).toString('base64url');
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { cursor });
+    assert.deepEqual(out, { error: 'invalid cursor' });
+    assert.equal(searchCalls.length, 0);
+  });
+
+  it('review fix: a cursor with limit:0 is malformed rather than clamped up (0 would divide-by-zero downstream)', async () => {
+    const cursor = Buffer.from(JSON.stringify({ o: 20, l: 0 })).toString('base64url');
     const { deps, searchCalls } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, { cursor });
     assert.deepEqual(out, { error: 'invalid cursor' });

@@ -8,14 +8,24 @@
  * off tool input — so a call can only ever act as the authenticated
  * credential's own subject.
  */
-import type { JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "../jobs/types";
+import type { JobSearchParams, JobSearchResult, PlaceFilter, PostedBucket, PublicJob } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
+import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
 import { buildJobSnapshot, type JobSnapshot } from "../pursuits/types";
 import { AGENT } from "./config";
 
 export interface ToolDeps {
   uid: string;
   search: (p: JobSearchParams) => Promise<JobSearchResult>;
+  /**
+   * The SAME corpus-derived, cached vocabulary `searchJobs` (search.ts)
+   * already builds for parsing place words out of free-text queries —
+   * injected here (Task 12 review fix) so `location` can be resolved
+   * through that identical mechanism (`resolvePlaces` below) instead of the
+   * `location_country` facet, which real corpus data pollutes with
+   * city/region values (country-classification.ts:5-6).
+   */
+  locationVocabulary: () => Promise<LocationVocabulary>;
   upsert: (
     uid: string,
     job: JobSnapshot & { job_id: string },
@@ -150,8 +160,11 @@ export interface SearchJobsInput {
   postedWithinDays?: 7 | 30 | 90;
   includeGhostFlagged?: boolean;
   limit?: number;
-  /** → `facets.location_country` — the same field page.tsx's `commitLocation`
-   *  writes for its free-text location box (page.tsx:2037-2043). */
+  /** → `places` (Task 12 review fix), via the SAME place-parsing path
+   *  free-text query words already go through (`resolvePlaces` below) —
+   *  NOT the `location_country` facet, which real corpus data pollutes with
+   *  city/region values (country-classification.ts:5-6), making an exact-
+   *  match filter on it a coin flip. Matches city, region, or country text. */
   location?: string;
   /** → `facets.work_type: ["remote"]` when true — the same facet the "Work
    *  type" chip group toggles (SerpFilters.tsx) and query-understanding.ts's
@@ -167,17 +180,32 @@ export interface SearchJobsInput {
 
 /** The one place a wire filter turns into `JobSearchParams.facets` — every
  *  new Task 12 filter lands here, so `toolSearchJobs` itself stays a plain
- *  read of ONE composed object instead of accreting a filter at a time. */
+ *  read of ONE composed object instead of accreting a filter at a time.
+ *  `location` is NOT a facet — see `resolvePlaces` below. */
 function buildFacets(
-  input: Pick<SearchJobsInput, "location" | "remote_only" | "experience_level" | "employment_type">,
+  input: Pick<SearchJobsInput, "remote_only" | "experience_level" | "employment_type">,
 ): NonNullable<JobSearchParams["facets"]> {
   const facets: NonNullable<JobSearchParams["facets"]> = {};
-  const location = input.location?.trim();
-  if (location) facets.location_country = [location];
   if (input.remote_only) facets.work_type = ["remote"];
   if (input.experience_level) facets.experience_level = [input.experience_level];
   if (input.employment_type) facets.employment_type = [input.employment_type];
   return facets;
+}
+
+/**
+ * `location` → `places` (Task 12 review fix), reusing query-understanding.ts's
+ * OWN `parsePlaceTokens` — the exact function `applyQueryUnderstanding`
+ * (search.ts:91) already runs over every free-text query — rather than
+ * duplicating its longest-phrase-first, corpus-vocabulary matching. No
+ * match (typo, or a real place too rare to pass `PLACE_MIN_COUNT`) means the
+ * filter is dropped, not invented — the same honest no-op every unmatched
+ * place word in a typed query already falls back to.
+ */
+async function resolvePlaces(deps: ToolDeps, location: string | undefined): Promise<PlaceFilter[]> {
+  const text = location?.trim();
+  if (!text) return [];
+  const vocab = await deps.locationVocabulary();
+  return parsePlaceTokens(text, vocab).places;
 }
 
 /** How many more results the depth cap still allows past `offset` — 0 once
@@ -187,38 +215,77 @@ function depthCapRemaining(offset: number): number {
   return AGENT.SEARCH_DEPTH_CAP - offset;
 }
 
-/** Encodes an offset as the wire's opaque cursor: base64url of `{"o":offset}`. */
-function encodeCursor(offset: number): string {
-  return Buffer.from(JSON.stringify({ o: offset })).toString("base64url");
+/** Encodes an offset + the page size that minted it as the wire's opaque
+ *  cursor: base64url of `{"o":offset,"l":limit}`. The limit rides along
+ *  (Task 12 review fix) so a follow-up call can never silently request a
+ *  DIFFERENT page size at the same offset — see `decodeCursor`'s comment. */
+function encodeCursor(offset: number, limit: number): string {
+  return Buffer.from(JSON.stringify({ o: offset, l: limit })).toString("base64url");
 }
 
 /**
- * Decodes a `cursor` into the offset to search from — defensively, since a
- * cursor is attacker/model-controlled input like any other tool argument.
- * No cursor means "start from the top" (offset 0). A crafted offset at or
- * past `AGENT.SEARCH_DEPTH_CAP` (e.g. `{o:9999}`) is clamped down TO the cap
- * rather than honored, so a hand-built cursor can never reach deeper than a
- * well-behaved one legitimately could.
+ * Decodes a `cursor` into the `{offset, limit}` to search from —
+ * defensively, since a cursor is attacker/model-controlled input like any
+ * other tool argument. No cursor means "start from the top" with no pinned
+ * page size (offset 0, `limit` omitted — the caller's own `limit` input
+ * governs, via `resolvePageSize`).
+ *
+ * A cursor must carry BOTH `o` (offset) and `l` (the limit it was minted
+ * with) as valid integers, or it's malformed — `l` is not optional here
+ * because `meilisearch.ts:337`'s `buildSearchBody` computes
+ * `page = floor(offset/limit)+1`: following the SAME offset with a
+ * DIFFERENT limit silently lands on the wrong page (duplicated or skipped
+ * results), so the offset alone is never enough to resume correctly.
+ *
+ * A crafted `o`/`l` at or past its cap (`{o:9999}`, `{l:500}`) is clamped
+ * down TO the cap rather than honored — a hand-built cursor can never reach
+ * deeper, or request a bigger page, than a well-behaved one legitimately
+ * could. `l < 1` (e.g. a crafted `{l:0}`) is rejected outright rather than
+ * clamped up, since a `0` page size is the exact input that would trigger
+ * the meilisearch.ts divide described above.
  */
-export function decodeCursor(cursor: string | undefined): { offset: number } | { error: string } {
+export function decodeCursor(cursor: string | undefined): { offset: number; limit?: number } | { error: string } {
   if (cursor === undefined) return { offset: 0 };
   try {
     const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
     const o = (parsed as { o?: unknown } | null)?.o;
+    const l = (parsed as { l?: unknown } | null)?.l;
     if (typeof o !== "number" || !Number.isInteger(o) || o < 0) return { error: "invalid cursor" };
-    return { offset: Math.min(o, AGENT.SEARCH_DEPTH_CAP) };
+    if (typeof l !== "number" || !Number.isInteger(l) || l < 1) return { error: "invalid cursor" };
+    return { offset: Math.min(o, AGENT.SEARCH_DEPTH_CAP), limit: Math.min(l, AGENT.RESULT_CAP) };
   } catch {
     return { error: "invalid cursor" };
   }
 }
 
+/**
+ * A cursor's pinned page size always wins over a conflicting `limit` input
+ * (see `decodeCursor`'s doc comment for why) — the one place that
+ * precedence is decided, with a note when the caller's `limit` was actually
+ * overridden so the disagreement isn't silent.
+ */
+function resolvePageSize(
+  decoded: { limit?: number },
+  inputLimit: number | undefined,
+  requestedLimit: number,
+): { limit: number; note?: string } {
+  if (decoded.limit === undefined) return { limit: requestedLimit };
+  if (inputLimit !== undefined && inputLimit !== decoded.limit) {
+    return { limit: decoded.limit, note: `cursor pins page size to ${decoded.limit}; ignoring limit:${inputLimit}` };
+  }
+  return { limit: decoded.limit };
+}
+
 /** `next_cursor` is only worth issuing when there's really more to fetch
  *  (`total > offset+returned`) AND the next page would itself start short of
  *  the depth cap — a next offset already at/past the cap would just come
- *  back empty, per `depthCapRemaining`, so no cursor is handed out for it. */
-function nextCursorFor(offset: number, returned: number, total: number): string | undefined {
+ *  back empty, per `depthCapRemaining`, so no cursor is handed out for it.
+ *  The issued cursor pins `limit` — the page size THIS call actually used —
+ *  forward, so a whole pagination walk stays one consistent page size once
+ *  cursors take over. */
+function nextCursorFor(offset: number, returned: number, total: number, limit: number): string | undefined {
   const nextOffset = offset + returned;
-  return total > nextOffset && nextOffset < AGENT.SEARCH_DEPTH_CAP ? encodeCursor(nextOffset) : undefined;
+  return total > nextOffset && nextOffset < AGENT.SEARCH_DEPTH_CAP ? encodeCursor(nextOffset, limit) : undefined;
 }
 
 export async function toolSearchJobs(
@@ -228,15 +295,17 @@ export async function toolSearchJobs(
   const decoded = decodeCursor(input.cursor);
   if ("error" in decoded) return decoded;
   const offset = decoded.offset;
-  // Page size (RESULT_CAP) is asked of the backend AS-IS, even near the depth
-  // cap — never clamped to 0 there. `buildSearchBody` (meilisearch.ts) computes
+  const requestedLimit = Math.min(input.limit ?? 10, AGENT.RESULT_CAP);
+  // Page size is asked of the backend AS-IS, even near the depth cap — never
+  // clamped to 0 there. `buildSearchBody` (meilisearch.ts) computes
   // `page: offset / (p.limit ?? 40)`; a literal `limit: 0` isn't nullish, so it
   // would divide by zero instead of falling back to 40. The depth cap is
   // enforced below by truncating the returned hits instead.
-  const limit = Math.min(input.limit ?? 10, AGENT.RESULT_CAP);
+  const { limit, note: limitNote } = resolvePageSize(decoded, input.limit, requestedLimit);
   const hideGhosts = !(input.includeGhostFlagged ?? false);
   const { bucket, note: bucketNote } = POSTED_WITHIN_DAYS_TO_BUCKET[input.postedWithinDays ?? 30];
   const facets = buildFacets(input);
+  const places = await resolvePlaces(deps, input.location);
   const result = await deps.search({
     q: input.query,
     hideGhosts,
@@ -245,6 +314,7 @@ export async function toolSearchJobs(
     offset,
     salaryMin: input.salary_min,
     ...(Object.keys(facets).length ? { facets } : {}),
+    ...(places.length ? { places } : {}),
   });
   // A backend failure must never read like a true zero-match — the MCP
   // response is the agent's only channel, so an empty `hits` here has to be
@@ -262,12 +332,12 @@ export async function toolSearchJobs(
   // render normally, so this isn't `unavailable`, but the agent deserves the
   // same honest disclosure the web UI already shows via `degradedResultsNote`
   // (result-state.ts) rather than a stale serve silently reading as fresh.
-  const note = joinNotes(bucketNote, result.note, degradedResultsNote(result));
+  const note = joinNotes(limitNote, bucketNote, result.note, degradedResultsNote(result));
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
   const hits = result.hits.slice(0, depthCapRemaining(offset)).map(toSearchHit);
-  const nextCursor = nextCursorFor(offset, hits.length, result.total);
+  const nextCursor = nextCursorFor(offset, hits.length, result.total, limit);
   return {
     hits,
     total: result.total,
