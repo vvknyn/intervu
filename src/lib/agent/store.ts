@@ -17,6 +17,15 @@ export interface AgentStore {
         field: string,
         value: unknown
     ): Promise<Array<Record<string, unknown> & { id: string }>>;
+    /**
+     * Atomic single-use claim: if the doc is missing or `doc[field]` is
+     * already truthy, returns null; otherwise stamps `doc[field] = Date.now()`
+     * and returns the doc's PRE-claim contents. This is the one primitive
+     * both single-use redemption paths (auth codes, refresh-token rotation)
+     * must use — a plain get→check→update sequence lets two concurrent
+     * callers both pass validation before either write lands.
+     */
+    claim(col: string, id: string, field: string): Promise<Record<string, unknown> | null>;
 }
 
 /** Map-backed store, for unit tests. */
@@ -59,6 +68,18 @@ export function memoryStore(): AgentStore {
             }
             return results;
         },
+        async claim(col, id, field) {
+            // No `await` between the read and the write below: this function
+            // body runs to completion synchronously (single JS thread, no
+            // yield point), so two concurrent callers can never both observe
+            // the pre-claim state.
+            const docs = collection(col);
+            const existing = docs.get(id);
+            if (!existing || existing[field]) return null;
+            const pre = structuredClone(existing);
+            docs.set(id, { ...existing, [field]: Date.now() });
+            return pre;
+        },
     };
 }
 
@@ -86,6 +107,16 @@ export function firestoreStore(): AgentStore {
         async findByField(col, field, value) {
             const snap = await (await db()).collection(col).where(field, "==", value).get();
             return snap.docs.map((d) => ({ ...(d.data() as Record<string, unknown>), id: d.id }));
+        },
+        async claim(col, id, field) {
+            const database = await db();
+            const ref = database.collection(col).doc(id);
+            return database.runTransaction(async (t) => {
+                const snap = await t.get(ref);
+                if (!snap.exists || snap.get(field)) return null;
+                t.update(ref, { [field]: Date.now() });
+                return snap.data() as Record<string, unknown>;
+            });
         },
     };
 }

@@ -5,7 +5,7 @@
  */
 import { randomBytes, createHash } from "node:crypto";
 import type { AgentStore } from "./store";
-import { issueCredential, verifySecret, revokeCredential } from "./tokens";
+import { issueCredential, verifySecret } from "./tokens";
 import { AGENT } from "./config";
 
 export interface OAuthClient {
@@ -20,6 +20,12 @@ export interface TokenPair {
     refresh_token: string;
     expires_in: number;
     token_type: "Bearer";
+}
+
+/** RFC 7636 code_verifier: 43-128 chars, unreserved charset only. */
+const CODE_VERIFIER_RE = /^[A-Za-z0-9\-._~]{43,128}$/;
+function isValidCodeVerifier(verifier: string): boolean {
+    return CODE_VERIFIER_RE.test(verifier);
 }
 
 /** https: allowed for any host; http: allowed only for localhost/127.0.0.1 (loopback dev). */
@@ -74,7 +80,6 @@ export async function createAuthCode(
         codeChallenge: opts.codeChallenge,
         createdAt,
         expiresAt: createdAt + AGENT.CODE_TTL_MS,
-        used: false,
     });
     return code;
 }
@@ -96,18 +101,19 @@ export async function exchangeCode(
     store: AgentStore,
     opts: { code: string; clientId: string; redirectUri: string; codeVerifier: string }
 ): Promise<TokenPair | { error: string }> {
-    const doc = await store.get(AGENT.collections.codes, opts.code);
-    if (!doc) return { error: "invalid_grant: unknown code" };
-    if (doc.used) return { error: "invalid_grant: code already used" };
+    // Claim atomically before validating anything else: a plain get→check→update
+    // sequence lets two concurrent exchanges of the same code both pass
+    // validation before either write lands. This deliberately burns the code
+    // on a failed validation attempt too (reuse/probe attempts invalidate it).
+    const doc = await store.claim(AGENT.collections.codes, opts.code, "usedAt");
+    if (!doc) return { error: "invalid_grant: unknown or already-used code" };
     if ((doc.expiresAt as number) <= Date.now()) return { error: "invalid_grant: code expired" };
     if (doc.clientId !== opts.clientId) return { error: "invalid_grant: client mismatch" };
     if (doc.redirectUri !== opts.redirectUri) return { error: "invalid_grant: redirect_uri mismatch" };
+    if (!isValidCodeVerifier(opts.codeVerifier)) return { error: "invalid_grant: malformed code_verifier" };
 
     const expectedChallenge = createHash("sha256").update(opts.codeVerifier).digest("base64url");
     if (expectedChallenge !== doc.codeChallenge) return { error: "invalid_grant: code_verifier mismatch" };
-
-    // Mark used before issuing tokens so a concurrent second exchange can't win the race.
-    await store.update(AGENT.collections.codes, opts.code, { used: true });
 
     const client = await getClient(store, opts.clientId);
     if (!client) return { error: "invalid_client: unknown client" };
@@ -125,6 +131,9 @@ export async function refreshAccess(
     const client = await getClient(store, opts.clientId);
     if (!client) return { error: "invalid_client: unknown client" };
 
-    await revokeCredential(store, credential.uid, credential.id);
+    // Atomic rotation: only the claim winner gets to issue the new pair, so
+    // two concurrent refreshes of the same token can't both succeed.
+    const claimed = await store.claim(AGENT.collections.credentials, credential.id, "revokedAt");
+    if (!claimed) return { error: "invalid_grant: refresh token already used" };
     return issueTokenPair(store, credential.uid, client);
 }

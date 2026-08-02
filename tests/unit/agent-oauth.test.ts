@@ -192,4 +192,94 @@ describe('agent oauth', () => {
     });
     assert.ok('error' in result);
   });
+
+  it('rejects a code_verifier shorter than 43 chars (RFC 7636), even if the hash would match', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const shortVerifier = 'too-short-verifier'; // < 43 chars
+    const shortChallenge = createHash('sha256').update(shortVerifier).digest('base64url');
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: shortChallenge,
+    });
+    const result = await exchangeCode(s, {
+      code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: shortVerifier,
+    });
+    assert.ok('error' in result);
+  });
+
+  it('rejects a code_verifier with illegal characters (RFC 7636 charset), even if the hash would match', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const illegalVerifier = 'a'.repeat(40) + ' +/='; // 44 chars, contains space/+//=
+    const illegalChallenge = createHash('sha256').update(illegalVerifier).digest('base64url');
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: illegalChallenge,
+    });
+    const result = await exchangeCode(s, {
+      code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: illegalVerifier,
+    });
+    assert.ok('error' in result);
+  });
+
+  it('still accepts a valid-length, valid-charset verifier (class-wide proof the RFC check is not overzealous)', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: challenge,
+    });
+    const result = await exchangeCode(s, {
+      code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: verifier,
+    });
+    assert.ok(!('error' in result));
+  });
+
+  it('concurrent exchangeCode calls on the same code: exactly one TokenPair, one error', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: challenge,
+    });
+    const opts = { code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: verifier };
+    const [a, b] = await Promise.all([exchangeCode(s, opts), exchangeCode(s, opts)]);
+    const results = [a, b];
+    const successes = results.filter((r) => !('error' in r));
+    const errors = results.filter((r) => 'error' in r);
+    assert.equal(successes.length, 1);
+    assert.equal(errors.length, 1);
+  });
+
+  it('concurrent refreshAccess calls on the same refresh secret: exactly one success', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: challenge,
+    });
+    const first = await exchangeCode(s, {
+      code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: verifier,
+    });
+    if ('error' in first) throw new Error('setup exchange failed');
+    const refreshOpts = { refreshSecret: first.refresh_token, clientId: client.id };
+    const [a, b] = await Promise.all([refreshAccess(s, refreshOpts), refreshAccess(s, refreshOpts)]);
+    const results = [a, b];
+    const successes = results.filter((r) => !('error' in r));
+    const errors = results.filter((r) => 'error' in r);
+    assert.equal(successes.length, 1);
+    assert.equal(errors.length, 1);
+  });
+
+  describe('store.claim primitive', () => {
+    it('returns null for a missing doc', async () => {
+      const s = memoryStore();
+      assert.equal(await s.claim('some_col', 'nope', 'usedAt'), null);
+    });
+
+    it('claims once, then returns null on a second claim', async () => {
+      const s = memoryStore();
+      await s.set('some_col', 'doc-1', { foo: 'bar' });
+      const first = await s.claim('some_col', 'doc-1', 'usedAt');
+      assert.deepEqual(first, { foo: 'bar' });
+      const second = await s.claim('some_col', 'doc-1', 'usedAt');
+      assert.equal(second, null);
+    });
+  });
 });
