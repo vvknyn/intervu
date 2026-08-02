@@ -44,9 +44,21 @@ thesubspace.io is about to sell this corpus to investors (alt-data pivot, Aug 1)
 - No list-everything/dump tool; search always requires a query or filter.
 - Tokens revocable; abuse observable per token.
 
+## User journey (canonical)
+
+Persona: candidate who already runs an agent (OpenClaw on their own machine, or a Claude client).
+
+1. **Discover:** `/agents` page promise — "your agent job-hunts through intervu: it targets only verified-real jobs, preps every application, you approve." Explicit non-promise: we never submit for you.
+2. **Setup (once, at a computer):** sign up → Settings → Agent access → generate token → paste the pre-filled connection snippet into the agent. Phone needs nothing installed.
+3. **Session (desktop or phone):** user asks the agent for new real roles → agent calls `search_jobs`, filters against tracker via truth data, replies with a *short, defensible* list ("3 verified-live, skipped 2 likely-ghosts, 1 already applied").
+4. **Apply loop:** per approved job, agent opens the ATS via `apply_url`, fills the form, stops at the review screen. Desktop: human reads and clicks submit. **Phone: agent sends a screenshot of the review screen into the chat; human replies "submit" — approval moves to thumbs, human-in-the-loop intact.**
+5. **Close the loop:** agent calls `mark_applied` → intervu tracker is the system of record and the agent's memory across sessions (no double-applies; survives switching agents).
+
+**Phone/messaging requirement (Vivek, Aug 2):** the journey must work from WhatsApp/messaging. This costs intervu almost nothing — chat channels are the agent's concern (OpenClaw is messaging-native), not ours. Our only obligations: **chat-sized tool responses** (compact summaries, caps already in place) and phone-first framing on `/agents`.
+
 ## Demo (the story artifact)
 
-Script: user tells OpenClaw *"Find me 5 real senior-engineer roles posted this month — skip anything ghost-flagged — and prep the applications."* Agent: `search_jobs` → picks verified-live, non-ghost jobs → opens each real ATS page via `apply_url` → fills forms from the user's profile/resume → **stops at each review screen** → after the human submits, `mark_applied` updates the tracker. Recorded as a video, hosted on `/agents`.
+**Primary demo = the WhatsApp flow**, screen-recorded on a phone: user texts OpenClaw *"find me 5 real senior-engineer roles posted this month — skip anything ghost-flagged — and prep the applications"* → agent works through intervu MCP + browser on the home machine → review-screen screenshots arrive in chat → user replies "submit" → tracker updates. Tagline direction: *"apply to a real job from a text message."* Secondary example on `/agents`: the desktop flow via a Claude client. Recorded as video, hosted on `/agents`.
 
 - **Build-task #1 (verification):** confirm OpenClaw's native MCP-client support. UNVERIFIED at design time. Fallback: a ~20-line OpenClaw skill calling the same HTTP endpoint — same demo, same claim.
 - Demo uses a realistic demo account, **not** `vvk/vvk` (reads fake on camera).
@@ -80,7 +92,7 @@ Script: user tells OpenClaw *"Find me 5 real senior-engineer roles posted this m
 
 ## Open items for the implementation plan
 
-1. Verify OpenClaw MCP-client support (or write the fallback skill).
+1. Verify OpenClaw MCP-client support (or write the fallback skill) AND its WhatsApp/messaging channel support + review-screenshot-to-chat capability (both unverified at design time; the phone demo depends on them).
 2. Confirm the storage backend for pursuits/user data → token store follows it.
 3. Rate-limit implementation point (middleware vs. in-route) given the Caddy/Next stack.
 4. Demo account setup with a realistic profile + resume.
