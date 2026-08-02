@@ -51,14 +51,17 @@ Persona: candidate who already runs an agent (OpenClaw on their own machine, or 
 1. **Discover:** `/agents` page promise — "your agent job-hunts through intervu: it targets only verified-real jobs, preps every application, you approve." Explicit non-promise: we never submit for you.
 2. **Setup (once, at a computer):** sign up → Settings → Agent access → generate token → paste the pre-filled connection snippet into the agent. Phone needs nothing installed.
 3. **Session (desktop or phone):** user asks the agent for new real roles → agent calls `search_jobs`, filters against tracker via truth data, replies with a *short, defensible* list ("3 verified-live, skipped 2 likely-ghosts, 1 already applied").
-4. **Apply loop:** per approved job, agent opens the ATS via `apply_url`, fills the form, stops at the review screen. Desktop: human reads and clicks submit. **Phone: agent sends a screenshot of the review screen into the chat; human replies "submit" — approval moves to thumbs, human-in-the-loop intact.**
+4. **Apply loop — TWO approval gates per job (Vivek, Aug 2):**
+   - **Gate 1, tailored resume:** before touching the ATS, the agent adapts the resume to the job and presents the changes as a short diff summary (+ the file). Identity gate — her name on the document; she approves, edits, or keeps the original. Approved versions are reusable across similar roles.
+   - **Gate 2, filled application:** agent fills the ATS form with the approved resume, stops at the review screen. Desktop: human reads and clicks submit. Phone: screenshot into the chat, human replies "submit." Always per-application.
+   Human-in-the-loop means both gates, on both desktop and phone.
 5. **Close the loop:** agent calls `mark_applied` → intervu tracker is the system of record and the agent's memory across sessions (no double-applies; survives switching agents).
 
 **Phone/messaging requirement (Vivek, Aug 2):** the journey must work from WhatsApp/messaging. This costs intervu almost nothing — chat channels are the agent's concern (OpenClaw is messaging-native), not ours. Our only obligations: **chat-sized tool responses** (compact summaries, caps already in place) and phone-first framing on `/agents`.
 
 ## Demo (the story artifact)
 
-**Primary demo = the WhatsApp flow**, screen-recorded on a phone: user texts OpenClaw *"find me 5 real senior-engineer roles posted this month — skip anything ghost-flagged — and prep the applications"* → agent works through intervu MCP + browser on the home machine → review-screen screenshots arrive in chat → user replies "submit" → tracker updates. Tagline direction: *"apply to a real job from a text message."* Secondary example on `/agents`: the desktop flow via a Claude client. Recorded as video, hosted on `/agents`.
+**Primary demo = the WhatsApp flow**, screen-recorded on a phone: user texts OpenClaw *"find me 5 real senior-engineer roles posted this month — skip anything ghost-flagged — and prep the applications"* → agent works through intervu MCP + browser on the home machine → **resume-diff summary arrives in chat ("here's how I re-angled your resume for this role") → user approves (Gate 1)** → review-screen screenshot arrives (Gate 2) → user replies "submit" → tracker updates. Gate 1 is the money shot of the demo — tailoring earns trust; form-filling is table stakes. Tagline direction: *"apply to a real job from a text message."* Secondary example on `/agents`: the desktop flow via a Claude client. Recorded as video, hosted on `/agents`.
 
 - **Build-task #1 (verification):** confirm OpenClaw's native MCP-client support. UNVERIFIED at design time. Fallback: a ~20-line OpenClaw skill calling the same HTTP endpoint — same demo, same claim.
 - Demo uses a realistic demo account, **not** `vvk/vvk` (reads fake on camera).
@@ -89,6 +92,7 @@ Persona: candidate who already runs an agent (OpenClaw on their own machine, or 
 - No company close-rate field.
 - No paid gate: free with an account, rate-limited (the user already pays for their agent). Gating later is a one-way door Vivek can open, not a v1 decision.
 - No guarantee any specific third-party agent works; OpenClaw + Claude clients are the tested set.
+- No resume/profile read-tool (`get_profile`) in v1: resume tailoring is the agent's work with the user's local copy. Exposing stored resumes via MCP would be PII egress and a bigger security surface — deliberate deferral, revisit only on explicit call.
 
 ## Open items for the implementation plan
 
