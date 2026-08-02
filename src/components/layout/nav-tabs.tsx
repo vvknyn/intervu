@@ -1,11 +1,11 @@
 /**
- * Primary nav tabs (Find · Tracker · Resume · Prep). Also drives the mobile
- * tab bar (`MobileTabBar`), which renders one icon per entry straight off
- * this array's own `icon` field — a new tab is covered by adding one entry
- * here, not by also updating a second array kept in lockstep by hand (the
- * old `TAB_ICONS` positional array this replaced; see PR #46 / P27 mobile
- * pass). Market trends is desktop-only chrome (see `NAV_TABS_DESKTOP` below)
- * precisely so it doesn't have to grow this one.
+ * Primary nav tabs (Jobs · Companies · Research · Pricing · Connect your AI).
+ * Also drives the mobile tab bar (`MobileTabBar`), which renders one icon per
+ * entry straight off this array's own `icon` field — a new tab is covered by
+ * adding one entry here, not by also updating a second array kept in
+ * lockstep by hand (the old `TAB_ICONS` positional array this replaced; see
+ * PR #46 / P27 mobile pass). Market trends is footer-only chrome (see
+ * `TRENDS_TAB` below) precisely so it doesn't have to grow this one.
  */
 import type { ComponentType } from "react";
 
@@ -16,13 +16,18 @@ export type NavTab = {
     testId: string;
     match: (pathname: string) => boolean;
     /** Rendered at 22×22 by MobileTabBar. Every `NAV_TABS` entry carries one;
-     *  optional only because `NAV_TABS_DESKTOP`'s extra desktop-only entry
-     *  (Market trends) never reaches the mobile tab bar and so never needs
-     *  one — left `undefined` there rather than borrowing an unrelated icon. */
+     *  optional only because `TRENDS_TAB` (footer-only, never reaches the
+     *  mobile tab bar) never needs one — left `undefined` there rather than
+     *  borrowing an unrelated icon. */
     icon?: ComponentType;
+    /** Set on the one entry every renderer (TopBar, Footer, MobileTabBar,
+     *  the landing corner-links row) should render as an accent CTA button
+     *  instead of a plain link — checked as a property, never by matching
+     *  the label, so a future CTA tab needs no renderer changes. */
+    variant?: "cta";
 };
 
-function FindIcon() {
+function JobsIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <circle cx="11" cy="11" r="7" />
@@ -31,70 +36,90 @@ function FindIcon() {
     );
 }
 
-function TrackerIcon() {
+function CompaniesIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <rect x="3" y="4" width="5" height="16" rx="1" />
-            <rect x="10" y="4" width="5" height="10" rx="1" />
-            <rect x="17" y="4" width="5" height="13" rx="1" />
+            <path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" />
+            <path d="M14 10h5a1 1 0 011 1v10" />
+            <path d="M8 8h.01M8 12h.01M8 16h.01" />
         </svg>
     );
 }
 
-function ResumeIcon() {
+function ResearchIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <path d="M14 2v6h6" />
+            <path d="M3 20h18" />
+            <path d="M6 20v-6M12 20V9M18 20v-9" />
         </svg>
     );
 }
 
-function PrepIcon() {
+function PricingIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+            <path d="M12.59 2.59a2 2 0 00-1.42-.59H4a2 2 0 00-2 2v7.17a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7.17-7.17a2 2 0 000-2.82z" />
+            <path d="M7 7h.01" />
+        </svg>
+    );
+}
+
+function ConnectIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M9 2v4M15 2v4" />
+            <path d="M6 6h12v5a6 6 0 01-12 0z" />
+            <path d="M12 17v5" />
         </svg>
     );
 }
 
 export const NAV_TABS: NavTab[] = [
-    { label: "Find jobs", shortLabel: "Find", href: "/", testId: "topbar-alljobs", match: (p) => p === "/", icon: FindIcon },
+    { label: "Jobs", shortLabel: "Jobs", href: "/", testId: "topbar-jobs", match: (p) => p === "/", icon: JobsIcon },
     {
-        label: "Tracker",
-        shortLabel: "Tracker",
-        href: "/yours",
-        testId: "topbar-yours",
-        match: (p) => p.startsWith("/yours"),
-        icon: TrackerIcon,
+        label: "Companies",
+        shortLabel: "Companies",
+        href: "/companies/hiring",
+        testId: "topbar-companies",
+        match: (p) => p.startsWith("/companies"),
+        icon: CompaniesIcon,
     },
     {
-        label: "Resume",
-        shortLabel: "Resume",
-        href: "/resume-builder",
-        testId: "topbar-resume",
-        match: (p) => p.startsWith("/resume-builder") || p.startsWith("/resume-tailor"),
-        icon: ResumeIcon,
+        label: "Research",
+        shortLabel: "Research",
+        href: "/research/ghost-jobs",
+        testId: "topbar-research",
+        match: (p) => p.startsWith("/research"),
+        icon: ResearchIcon,
     },
     {
-        label: "Interview prep",
-        shortLabel: "Prep",
-        href: "/prep",
-        testId: "topbar-prep",
-        match: (p) => p.startsWith("/prep"),
-        icon: PrepIcon,
+        label: "Pricing",
+        shortLabel: "Pricing",
+        href: "/pricing",
+        testId: "topbar-pricing",
+        match: (p) => p.startsWith("/pricing"),
+        icon: PricingIcon,
+    },
+    {
+        label: "Connect your AI",
+        shortLabel: "Connect",
+        href: "/connect",
+        testId: "topbar-connect",
+        match: (p) => p.startsWith("/connect"),
+        icon: ConnectIcon,
+        variant: "cta",
     },
 ];
 
 /**
- * Desktop-only nav: `NAV_TABS` plus Market trends. Kept out of `NAV_TABS`
- * itself so the mobile tab bar's icon row never has to earn a 5th slot —
- * TopBar's wider desktop row has room for a 5th text link, so it (and the
- * footer, which shows the same product surface) render this combined list
- * instead. Single source for both.
+ * Footer-only addition — never reaches `NAV_TABS`/`MobileTabBar` (same
+ * reasoning this file already used for the old Market-trends entry), so no
+ * icon needed.
  */
-export const NAV_TABS_DESKTOP: NavTab[] = [
-    ...NAV_TABS,
-    { label: "Market trends", shortLabel: "Trends", href: "/trends", testId: "topbar-trends", match: (p) => p.startsWith("/trends") },
-];
+export const TRENDS_TAB: NavTab = {
+    label: "Market trends",
+    shortLabel: "Trends",
+    href: "/trends",
+    testId: "topbar-trends",
+    match: (p) => p.startsWith("/trends"),
+};

@@ -73,9 +73,9 @@ import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
-import { marketingClaim, type MarketingCorpusStats } from "@/lib/marketing-stats";
+import type { MarketingCorpusStats } from "@/lib/marketing-stats";
 import { getMarketingStatsAction } from "@/actions/marketing";
-import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
+import { NAV_TABS } from "@/components/layout/nav-tabs";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -689,78 +689,6 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
     return (d.competencies ?? []).some((c) => (c.skills ?? []).some((s) => (s ?? "").trim()));
 }
 
-const PREP_MOVED_DISMISSED_KEY = "intervu.flip.note.dismissed";
-
-// PrepMovedNote reads localStorage — a client-only external system — so it's
-// wired through useSyncExternalStore rather than a mount effect + setState:
-// the server snapshot (false) matches what SSR renders, and the real value
-// applies on the client without a hydration mismatch. `dismiss()` below
-// writes localStorage then notifies this one listener set directly, since
-// nothing else needs to react to the flag changing.
-const prepMovedListeners = new Set<() => void>();
-function notifyPrepMovedChanged() {
-    prepMovedListeners.forEach((cb) => cb());
-}
-function subscribePrepMoved(onChange: () => void) {
-    prepMovedListeners.add(onChange);
-    return () => prepMovedListeners.delete(onChange);
-}
-function getPrepMovedSnapshot(): boolean {
-    try {
-        const dismissed = localStorage.getItem(PREP_MOVED_DISMISSED_KEY) != null;
-        const hadPrep = Object.keys(localStorage).some((k) => k.startsWith("intervu_prep_"));
-        return !dismissed && hadPrep;
-    } catch {
-        // localStorage unavailable (private mode, etc.) — nothing to detect,
-        // so stay silent rather than guess.
-        return false;
-    }
-}
-function getPrepMovedServerSnapshot(): boolean {
-    return false;
-}
-
-/**
- * One-time note for returning prep users after the jobs-first flip (PR 1):
- * prep moved from `/` to `/prep`. Detects prior prep usage by localStorage
- * key prefix — `src/lib/prep/session-progress.ts` and `plan-list.ts` both
- * write keys under `intervu_prep_` — so jobs-only and brand-new visitors
- * never see it. Client-only: no server state, no cookies.
- */
-function PrepMovedNote() {
-    const visible = useSyncExternalStore(subscribePrepMoved, getPrepMovedSnapshot, getPrepMovedServerSnapshot);
-
-    if (!visible) return null;
-
-    const dismiss = () => {
-        try {
-            localStorage.setItem(PREP_MOVED_DISMISSED_KEY, "1");
-        } catch {
-            /* best-effort — worst case the note reappears next visit */
-        }
-        notifyPrepMovedChanged();
-    };
-
-    return (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[13px] text-muted-foreground sm:px-6">
-            <span>
-                Interview prep moved — it now lives at{" "}
-                <Link href="/prep" className="font-medium text-foreground underline underline-offset-2">
-                    /prep
-                </Link>
-                .
-            </span>
-            <button
-                onClick={dismiss}
-                aria-label="Dismiss"
-                className="shrink-0 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-                ✕
-            </button>
-        </div>
-    );
-}
-
 /**
  * Task 11 — zero-results state. Names the specific excluders instead of a
  * generic "try broadening your search": one clear-chip per
@@ -1112,11 +1040,10 @@ function JobsContent() {
     // way FilterPanel only renders the count suffix when non-null and > 0.
     const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
 
-    // Landing claim's live-corpus number (the empty-state hero's honest-market
-    // pitch, see `marketingClaim`). Fetched once on mount, same shape as
-    // `lastUpdated` below: `null` (fetch failed, or the backend has no
-    // number) degrades the claim to copy without a number — never a
-    // fabricated placeholder count.
+    // Hero search box's live-corpus number (see `searchPlaceholder`). Fetched
+    // once on mount, same shape as `lastUpdated` below: `null` (fetch failed,
+    // or the backend has no number) degrades the placeholder to copy without
+    // a number — never a fabricated placeholder count.
     const [marketingStats, setMarketingStats] = useState<MarketingCorpusStats | null>(null);
     useEffect(() => {
         let cancelled = false;
@@ -2952,6 +2879,13 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
+    // Hero placeholder leans on the live corpus count once it's in — never a
+    // fabricated number while `marketingStats` is still null/failed.
+    const searchPlaceholder = isOverlayAsk
+        ? marketingStats
+            ? `or search ${formatCorpusCount(marketingStats.liveJobs)} live jobs…`
+            : "or search live jobs…"
+        : "What kind of work are you looking for?";
 
     // The one grey line under the pinned box. It states the posted-date window
     // out loud because the redesigned route offers no control that reveals it
@@ -3032,11 +2966,14 @@ function JobsContent() {
         >
             {/* Screen-1 corner links (Vivek, Google-homepage pattern): product
                 surfaces + Log in live top-right so the center composition stays
-                brand + search + claim only. Same NAV_TABS_DESKTOP source as the
-                footer, same skip rules as the old inline row. */}
+                brand + search + claim only. Same NAV_TABS source as the
+                footer, same skip rules as the old inline row. The cta
+                (Connect your AI) entry is excluded here — it gets its own
+                giant CTA button in the hero itself, so it shouldn't also
+                appear as a small corner link. */}
             {isOverlayAsk && (
                 <div className="absolute right-5 top-4 flex items-center gap-4 text-[13px] font-medium text-muted-foreground">
-                    {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab) => (
+                    {NAV_TABS.filter((tab) => tab.href !== "/" && tab.variant !== "cta").map((tab) => (
                         <Link
                             key={tab.href}
                             href={tab.href}
@@ -3081,6 +3018,16 @@ function JobsContent() {
                             >
                                 beta
                             </motion.span>
+                        </div>
+                    )}
+                    {isOverlayAsk && (
+                        <div className="mb-9 flex flex-col items-center gap-5">
+                            <p className="max-w-xl text-center text-[clamp(22px,3.2vw,34px)] font-bold leading-snug text-foreground">
+                                Your AI already knows how to job hunt. Give it the real market.
+                            </p>
+                            <Button asChild size="lg">
+                                <Link href="/connect">Connect your AI</Link>
+                            </Button>
                         </div>
                     )}
                     <div
@@ -3131,7 +3078,7 @@ function JobsContent() {
                             }}
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
-                            placeholder="What kind of work are you looking for?"
+                            placeholder={searchPlaceholder}
                             className={cn(
                                 isOverlayAsk
                                     ? "h-16 rounded-none border-0 bg-transparent px-5 text-[19px] shadow-none focus-visible:border-0 focus-visible:ring-0"
@@ -3282,27 +3229,6 @@ function JobsContent() {
                         </div>
                     ) : null}
 
-                    {/* Landing claim (P2 front door): the honest-market pitch, quiet
-                        and compact under the search box — never a heading competing
-                        with the brand morph above it. Links skip Find jobs (this
-                        screen) and Tracker (needs auth) — every other top-level
-                        surface, sourced from the same NAV_TABS_DESKTOP the footer
-                        reads, so a renamed/rerouted tab can't drift out of sync here. */}
-                    {isOverlayAsk && (
-                        <div className="mt-10 flex flex-col items-center gap-6 text-center">
-                            <p data-testid="landing-claim" className="max-w-lg text-[16px] leading-relaxed text-muted-foreground">
-                                {marketingClaim(marketingStats)}
-                            </p>
-                            {/* Status line (mock): system-status costume for the
-                                sourcing statement — green square = the same live
-                                signal color the SERP's verdicts use. */}
-                            <div className="flex items-center gap-2.5 font-mono text-[13px] tracking-[0.02em] text-muted-foreground">
-                                <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
-                                live · company career pages
-                            </div>
-                        </div>
-                    )}
-
                     {/* Marketing sections (P2.6·C) — below the fold of the
                         Screen 1 composition; the fixed overlay container
                         scrolls, so the landing doubles as the marketing page. */}
@@ -3352,7 +3278,6 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
-                <PrepMovedNote />
                 <div className="flex min-h-0 max-w-[880px] flex-1 flex-col pt-4 lg:max-w-none">
                     <div className="flex min-h-0 flex-col">
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NAV_TABS, NAV_TABS_DESKTOP } from "../../src/components/layout/nav-tabs";
+import { NAV_TABS, TRENDS_TAB } from "../../src/components/layout/nav-tabs";
 
 /**
  * `MobileTabBar` renders one icon per `NAV_TABS` entry straight off that
@@ -17,21 +17,23 @@ test("every NAV_TABS entry carries its own icon (MobileTabBar has nothing left t
     }
 });
 
-test("NAV_TABS_DESKTOP is NAV_TABS plus exactly one additional (desktop-only) tab", () => {
-    assert.equal(NAV_TABS_DESKTOP.length, NAV_TABS.length + 1);
-    for (const tab of NAV_TABS) {
-        assert.ok(
-            NAV_TABS_DESKTOP.some((t) => t.href === tab.href && t.label === tab.label),
-            `NAV_TABS_DESKTOP is missing ${tab.href}`,
-        );
-    }
+test("TRENDS_TAB is a footer-only /trends entry", () => {
+    assert.equal(TRENDS_TAB.href, "/trends");
+    assert.equal(TRENDS_TAB.label, "Market trends");
+    assert.equal(TRENDS_TAB.match("/trends"), true);
+    assert.equal(TRENDS_TAB.match("/trends/whatever"), true);
+    assert.equal(TRENDS_TAB.match("/"), false);
 });
 
-test("NAV_TABS_DESKTOP includes Market trends", () => {
-    const trends = NAV_TABS_DESKTOP.find((t) => t.href === "/trends");
-    assert.ok(trends, "expected a /trends entry in NAV_TABS_DESKTOP");
-    assert.equal(trends?.label, "Market trends");
-    assert.equal(trends?.match("/trends"), true);
-    assert.equal(trends?.match("/trends/whatever"), true);
-    assert.equal(trends?.match("/"), false);
+test("exactly one NAV_TABS entry is the cta variant, and it's Connect your AI", () => {
+    const ctaTabs = NAV_TABS.filter((t) => t.variant === "cta");
+    assert.equal(ctaTabs.length, 1);
+    assert.equal(ctaTabs[0]?.href, "/connect");
+});
+
+test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () => {
+    for (const tab of NAV_TABS) {
+        assert.notEqual(tab.href, "/prep");
+        assert.notEqual(tab.href, "/resume-builder");
+    }
 });
