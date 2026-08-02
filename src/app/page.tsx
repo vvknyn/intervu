@@ -1063,6 +1063,10 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    /** Anonymous depth cap (shield): set when a load-more comes back
+     *  `meta.gated` — pagination pauses behind the account gate. Cleared on a
+     *  new search or sign-in; signed-in users are never gated server-side. */
+    const [depthGated, setDepthGated] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1293,6 +1297,12 @@ function JobsContent() {
         // real and the results must be re-fetched in the new order.
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
     );
+
+    // New search or successful sign-in lifts the depth gate (the server
+    // re-decides per request; this only clears the paused UI).
+    useEffect(() => {
+        setDepthGated(false);
+    }, [searchKey, user]);
 
     // Single source: résumé usable AND, for the auto-explore path below,
     // the sign-in this actually needs already satisfied — hoisted here
@@ -2005,6 +2015,13 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
+            // Shield depth cap: an anonymous request past the free window
+            // comes back `meta.gated` with zero hits — pause pagination
+            // behind the account gate instead of silently ending the list.
+            if ((r as { meta?: { gated?: boolean } }).meta?.gated) {
+                setDepthGated(true);
+                return;
+            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -3554,7 +3571,17 @@ function JobsContent() {
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {hasMore ? (
+                                    {depthGated && !user ? (
+                                        <div className="flex flex-col items-center gap-3 py-6 text-center">
+                                            <p className="text-[13.5px] text-muted-foreground">
+                                                That&apos;s the free preview — create a free account to see every
+                                                result.
+                                            </p>
+                                            <Button size="sm" onClick={() => setAuthOpen(true)}>
+                                                Create free account
+                                            </Button>
+                                        </div>
+                                    ) : hasMore ? (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {loadingMore ? (
                                                 <span className="font-mono text-xs text-muted-foreground">Loading more roles…</span>
