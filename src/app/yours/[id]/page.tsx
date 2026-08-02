@@ -19,7 +19,66 @@ import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import type { PublicJob } from "@/lib/jobs/types";
 import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
-import { hasReachedStage, nextAction, stageLabel, type Pursuit } from "@/lib/pursuits/types";
+import {
+    hasReachedStage,
+    nextAction,
+    orderResumeVersionsLatestFirst,
+    stageLabel,
+    type Pursuit,
+    type ResumeVersionSnapshot,
+} from "@/lib/pursuits/types";
+
+/** Downloads a resume-version snapshot as a `.md` file, client-side, from
+ *  its stored text — no PDF, no new deps, same Blob-download shape as
+ *  `lib/export-utils.ts`'s `exportStoriesToText`. */
+function downloadResumeVersion(version: ResumeVersionSnapshot): void {
+    const blob = new Blob([version.content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${version.label.replace(/[^\w.-]+/g, "-")}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+/** Resume used row (spec: "label, saved date (mono), Download button") —
+ *  degrades by omission to a plain sentence when no resume was ever filed
+ *  against this pursuit (e.g. a quick "mark applied" outside the wizard),
+ *  rather than fabricating a version. Lists every version, latest first, so
+ *  re-filing a resume never hides earlier ones. */
+function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
+    const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+    return (
+        <div className="border border-border bg-card p-6">
+            <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
+            {versions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
+            ) : (
+                <div className="divide-y divide-border">
+                    {versions.map((version, i) => (
+                        <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-foreground">{version.label}</p>
+                                <p className="font-mono text-[11px] text-muted-foreground">
+                                    {new Date(version.saved_at).toLocaleDateString(undefined, {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                    })}
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => downloadResumeVersion(version)}>
+                                Download
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 /**
  * The pursuit page: one header, ONE next-action block per `nextAction()`
@@ -168,6 +227,8 @@ export default function PursuitDetailPage() {
                         <p className="mt-2 text-xs text-muted-foreground">This listing&apos;s details are no longer available.</p>
                     )}
                 </div>
+
+                <ResumeUsedCard pursuit={pursuit} />
 
                 <div className="rounded-xl border border-border bg-card p-6">
                     {/* Tailoring moved to MCP 2026-08-02 — the in-app

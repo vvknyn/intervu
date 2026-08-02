@@ -10,7 +10,9 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication } from "@/actions/application";
 import { saveTailoredVersion } from "@/actions/tailor-resume";
+import { saveResumeVersionForPursuitAction } from "@/actions/applications";
 import { applyRecommendations } from "@/lib/resume/apply-recommendations";
+import { resumeDataToMarkdown } from "@/lib/resume/to-markdown";
 import { ApplicationWizard, type ApplicationDraft } from "@/components/applications/ApplicationWizard";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -259,6 +261,22 @@ function YoursContent() {
                 cover_letter: draft.coverLetter,
             });
             if (result.error) throw new Error(result.error);
+
+            // Pin the exact resume content used for this application as an
+            // immutable snapshot (lib/pursuits/resume-version.ts) — whatever
+            // the wizard attached (upload or import), not just the tailored
+            // path above. A quick "mark applied" outside the wizard skips
+            // this entirely; the tracker shows that as an explicit empty
+            // state rather than fabricating a version.
+            if (draft.baseResume && result.data?.id) {
+                const snapshotResult = await saveResumeVersionForPursuitAction(result.data.id, {
+                    content: resumeDataToMarkdown(draft.baseResume),
+                    label: draft.versionName || "Resume",
+                });
+                if (snapshotResult.error) {
+                    console.error("Failed to save resume version snapshot:", snapshotResult.error);
+                }
+            }
 
             invalidatePursuitsCache();
             closeWizard();
