@@ -5,6 +5,7 @@ import { validate } from "@/lib/validation";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
+import { CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
 
 /**
  * Waitlist capture for /connect (MCP pairing, pre-launch beta — the actual
@@ -19,9 +20,9 @@ import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
  */
 const connectWaitlistSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, "email is too long").email("must be a valid email"),
-  // Keep this enum in sync with CONNECT_CLIENTS in connect-client.tsx —
-  // those tabs are the only valid values a submission can carry.
-  client: z.enum(["claude", "gemini-cli", "cursor"]),
+  // Derived from CONNECT_CLIENTS (src/lib/connect-clients.ts) — the /connect
+  // tabs are the only valid values a submission can carry.
+  client: z.enum(CONNECT_CLIENT_IDS),
 });
 
 export async function joinConnectWaitlist(input: {

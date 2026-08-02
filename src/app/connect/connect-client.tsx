@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { joinConnectWaitlist } from "@/actions/connect-waitlist";
+import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 
 /**
  * The MCP endpoint intervu's connectors point at. Verified against the
@@ -15,19 +16,13 @@ import { joinConnectWaitlist } from "@/actions/connect-waitlist";
  */
 const MCP_URL = "https://intervu.cc/api/mcp";
 
-/** The 3 supported clients — single source of truth for both the tab list
- *  here and the `client` enum `connect-waitlist.ts` validates against. */
-export const CONNECT_CLIENTS = [
-  { id: "claude", label: "Claude", badge: "beta — rolling out" },
-  { id: "gemini-cli", label: "Gemini CLI", badge: undefined },
-  { id: "cursor", label: "Cursor", badge: undefined },
-] as const;
-
-export type ConnectClientId = (typeof CONNECT_CLIENTS)[number]["id"];
-
 /** Only step 1 differs per client — steps 2 and 3 are shared verbatim. */
 const STEP1_INTRO: Record<ConnectClientId, string> = {
   claude: "In Claude, open Settings → Connectors → Add custom connector and paste:",
+  chatgpt:
+    "In ChatGPT: Settings → Connectors (developer mode) → Add — requires a paid plan.",
+  gemini:
+    "The Gemini app doesn't support custom MCP connectors yet — use the Gemini CLI tab instead for a connection that works today.",
   "gemini-cli":
     "In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
   cursor: "In Cursor, open Settings → MCP and add a new server pointing at:",
@@ -122,6 +117,7 @@ function WaitlistBand({ activeClient }: { activeClient: ConnectClientId }) {
 
 export function ConnectClient() {
   const [activeClient, setActiveClient] = useState<ConnectClientId>(CONNECT_CLIENTS[0].id);
+  const activeClientMeta = CONNECT_CLIENTS.find((c) => c.id === activeClient)!;
 
   return (
     <div>
@@ -166,9 +162,11 @@ export function ConnectClient() {
         <div className="rounded-none border border-border p-6">
           <StepLabel n={1} label="Connect" />
           <p className="mt-3 text-sm text-foreground">{STEP1_INTRO[activeClient]}</p>
-          <div className="mt-3">
-            <CopyUrlBar />
-          </div>
+          {activeClientMeta.supportsDirectConnect ? (
+            <div className="mt-3">
+              <CopyUrlBar />
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-none border border-border p-6">
