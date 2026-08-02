@@ -41,7 +41,10 @@ export function memoryStore(): AgentStore {
             collection(col).set(id, structuredClone(doc));
         },
         async update(col, id, patch) {
-            const existing = collection(col).get(id) ?? {};
+            const existing = collection(col).get(id);
+            if (!existing) {
+                throw new Error(`NOT_FOUND: no document at ${col}/${id}`);
+            }
             collection(col).set(id, { ...existing, ...structuredClone(patch) });
         },
         async remove(col, id) {
