@@ -3,12 +3,26 @@ import { firestoreStore } from "@/lib/agent/store";
 import { registerClient } from "@/lib/agent/oauth";
 
 /**
+ * The DCR request body is attacker-controlled JSON — every field read from it
+ * must be type-validated at this boundary, not just `redirect_uris`. RFC 7591
+ * lets a server ignore invalid client metadata rather than reject the whole
+ * registration, so a non-string `client_name` (object, array, number, empty
+ * string) is treated as absent instead of flowing untyped into storage, where
+ * it would later crash the consent page's React render.
+ */
+export function sanitizeClientName(value: unknown): string | undefined {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
  * POST /api/oauth/register — RFC 7591 dynamic client registration.
  * Public/unauthenticated: any MCP client can self-register (token_endpoint_auth_method
  * is always "none" — PKCE is the client-side secret, per OAuth 2.1 public-client model).
  */
 export async function POST(request: Request) {
-    let body: { client_name?: string; redirect_uris?: unknown };
+    let body: { client_name?: unknown; redirect_uris?: unknown };
     try {
         body = await request.json();
     } catch {
@@ -20,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     const result = await registerClient(firestoreStore(), {
-        client_name: body.client_name,
+        client_name: sanitizeClientName(body.client_name),
         redirect_uris: body.redirect_uris,
     });
 
