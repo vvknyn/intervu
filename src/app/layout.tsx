@@ -72,7 +72,6 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_TITLE,
   keywords: [
-    "interview prep",
     "resume builder",
     "job application tracker",
     "cover letter",

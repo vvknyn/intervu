@@ -169,7 +169,7 @@ const COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string; empty: { te
     {
         key: "interviewing",
         label: "Interviewing",
-        empty: { text: "No interviews yet.", link: { href: "/prep", label: "Prep while you wait →" } },
+        empty: { text: "No interviews yet." },
     },
     { key: "offer", label: "Offer", empty: { text: "Offers will show up here." } },
 ];

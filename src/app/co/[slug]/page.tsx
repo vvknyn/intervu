@@ -19,15 +19,6 @@ import { cn } from "@/lib/utils";
 
 const ROLES_PREVIEW = 10;
 
-function prepHref(data: CompanyPageData): string {
-  const p = new URLSearchParams();
-  p.set("company", data.name);
-  p.set("position", data.jobs[0]?.title?.trim() || data.name);
-  p.set("round", "Technical");
-  p.set("searched", "true");
-  return `/prep?${p.toString()}`;
-}
-
 function formatKpi(value: number | null): string {
   return value == null ? "—" : String(value);
 }
@@ -78,7 +69,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   if (!data) notFound();
 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);
-  const prepUrl = prepHref(data);
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
   const faqJsonLd = buildFaqPageJsonLd(
@@ -218,17 +208,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3.5 sm:px-6">
         <div className="mx-auto flex max-w-[900px] flex-wrap justify-center gap-3">
           <Button
-            variant="outline"
-            asChild
-            className="border-[color:var(--elite-ink)] bg-[color:var(--elite-card)]"
-          >
-            <Link href={jobsSearchUrl}>View all {data.openCount} jobs</Link>
-          </Button>
-          <Button
             asChild
             className="bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-ink)]/90"
           >
-            <Link href={prepUrl}>Open interview prep</Link>
+            <Link href={jobsSearchUrl}>View all {data.openCount} jobs</Link>
           </Button>
         </div>
       </div>

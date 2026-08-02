@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, Lightning, Scales, ShieldCheck, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Scales, ShieldCheck, Sparkle, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -163,21 +163,23 @@ export function JobDetailSkeleton() {
  *    existing `gate` pending-action instead of a new one); secondary is
  *    "Am I a fit?" when the caller wires a fit-check surface (`onFit`).
  *  - **Desktop (lg+):** unchanged from before — `sticky bottom-0` footer of
- *    the scrolling aside panel, Apply + Prep. The aside only ever mounts at
- *    lg+ (`isDesktop && selectedId` in page.tsx), so the `lg:` overrides
+ *    the scrolling aside panel, Apply only (Prep removed 2026-08-02). The
+ *    aside only ever mounts at lg+ (`isDesktop && selectedId` in page.tsx),
+ *    so the `lg:` overrides
  *    below are belt-and-suspenders there, not load-bearing.
  */
 export function JobDetailActionBar({
     job,
     onOpenPosting,
-    onPrep,
     onFit,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
-    onPrep: () => void;
-    /** Omitted by callers with no fit-check surface — the bar then falls
-     *  back to Prep on every breakpoint instead of a second required wire. */
+    /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
+     *  so callers built before the removal — e.g. app/page.tsx, out of this
+     *  change's scope — still typecheck without editing their call sites. */
+    onPrep?: () => void;
+    /** Omitted by callers with no fit-check surface. */
     onFit?: () => void;
 }) {
     // `fixed` (mobile) takes the bar out of the scrolling sheet's normal flow
@@ -235,14 +237,6 @@ export function JobDetailActionBar({
                         Am I a fit?
                     </Button>
                 )}
-                <Button
-                    variant="outline"
-                    className={cn("h-11 flex-1 gap-1.5 lg:h-9", onFit && "hidden lg:inline-flex")}
-                    onClick={onPrep}
-                >
-                    <Lightning size={14} weight="fill" />
-                    Prep for this
-                </Button>
             </div>
         </>
     );
@@ -254,7 +248,6 @@ export function JobDetail({
     onTailor,
     onOpenPosting,
     onMarkApplied,
-    onPrep,
     onGoAfter,
     onFit,
     onAuthRequired,
@@ -271,7 +264,11 @@ export function JobDetail({
     onTailor: () => void;
     onOpenPosting: () => void;
     onMarkApplied: () => void;
-    onPrep: () => void;
+    /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
+     *  so callers built before the removal — e.g. app/page.tsx, out of this
+     *  change's scope — still typecheck without editing their call sites.
+     *  JobDetail itself now renders a static line instead of calling this. */
+    onPrep?: () => void;
     onGoAfter: () => void;
     /** Opens the fit-check surface (FitDrawer). Omitted by callers with no
      *  such surface wired (e.g. /yours/[id]) — the action row then simply
@@ -388,10 +385,11 @@ export function JobDetail({
                 </div>
 
                 {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
-                    Am I a fit? outline / Prep quiet / Save quiet — the three-
-                    weight button family (THE RULES #3). Tailored-resume and
-                    mark-applied stay real, working features, demoted to a
-                    quiet secondary line below rather than removed. */}
+                    Am I a fit? outline / Save quiet — the three-weight button
+                    family (THE RULES #3). Tailored-resume and mark-applied
+                    stay real, working features, demoted to a quiet secondary
+                    line below rather than removed. Prep removed 2026-08-02 —
+                    see the static note below this row instead of a button. */}
                 <div className="mt-5 flex flex-wrap items-center gap-2">
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
@@ -405,10 +403,6 @@ export function JobDetail({
                             Am I a fit?
                         </Button>
                     )}
-                    <Button variant="quiet" onClick={onPrep} className="gap-2">
-                        <Lightning size={16} weight="fill" />
-                        Prep
-                    </Button>
                     {/* The one verb (spec §2/§3): "Save" is the primary save
                         action. Once a pursuit exists, it becomes a quiet
                         confirmation link instead — pressing it again would
@@ -427,6 +421,11 @@ export function JobDetail({
                             {goingAfter ? "Saving…" : "Save"}
                         </Button>
                     )}
+                </div>
+                {/* Prep surface removed 2026-08-02 — the CTA that opened /prep is
+                    gone; this is a quiet note, not a link, not a feature. */}
+                <div className="mt-2.5 rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+                    Interviewing? Ask your AI to prep you with this job&apos;s context.
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                     <button

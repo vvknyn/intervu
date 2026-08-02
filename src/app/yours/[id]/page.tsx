@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank, Lightning } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -143,16 +143,6 @@ export default function PursuitDetailPage() {
     // knows. The id lets it resolve the posting and run on arrival.
     const tailorHref = `/resume-tailor?pursuit=${encodeURIComponent(pursuit.id)}`;
 
-    /* `round` is required for DashboardContainer's URL-restore gate to load into
-       a session (see its `urlCompany && urlPosition && urlRound && urlSearched`
-       check) — a pursuit doesn't track a round, so this defaults it the same way
-       the job-detail "Prep for this" entry point does (src/app/page.tsx
-       `handlePrep`). `pursuitId` is jobs-first-bloom PR3 §3 stage wiring: it's
-       what lets DashboardContainer mirror this session durably onto the pursuit
-       and stamp `last_prepped_at`. One const because the stage button and the
-       detail sheet must send you to the same place. */
-    const prepHref = `/prep?company=${encodeURIComponent(pursuit.company_name)}&position=${encodeURIComponent(pursuit.position)}&round=Technical&searched=true&pursuitId=${encodeURIComponent(pursuit.id)}`;
-
     return (
         <PageLayout header={<PageHeader title={pursuit.company_name} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
@@ -232,13 +222,13 @@ export default function PursuitDetailPage() {
                         </div>
                     )}
 
+                    {/* Prep surface removed 2026-08-02 — no more link into a
+                        prep tool for the "interviewing" stage's next action;
+                        a quiet note instead (spec: no link, no new feature). */}
                     {action.kind === "prep" && (
-                        <Button asChild className="gap-2">
-                            <Link href={prepHref}>
-                                <Lightning size={16} weight="fill" />
-                                {action.label}
-                            </Link>
-                        </Button>
+                        <div className="rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+                            Interviewing? Ask your AI to prep you with this job&apos;s context.
+                        </div>
                     )}
 
                     {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
@@ -277,15 +267,14 @@ export default function PursuitDetailPage() {
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");
                             }}
                             onMarkApplied={() => void mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                            onPrep={() => router.push(prepHref)}
                             applied={hasReachedStage(pursuit, "applied")}
                             applying={saving}
                         />
                     ) : detail.state === "gone" ? (
                         /* Says what actually happened. The pursuit's own saved
                            snapshot is still on the page behind this sheet, so
-                           tailor and prep keep working — but we don't dress a
-                           stale snapshot up as the live posting. */
+                           tailoring still works — but we don't dress a stale
+                           snapshot up as the live posting. */
                         <div className="p-6">
                             <p className="text-sm text-foreground">This posting is no longer live.</p>
                             <p className="mt-1 text-sm text-muted-foreground">

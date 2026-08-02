@@ -70,7 +70,7 @@ export default function OpengraphImage() {
             lineHeight: 1.3,
           }}
         >
-          Your job application workspace — resumes, applications, and interview prep
+          Your job application workspace — resumes, applications, and job tracking
           in one place.
         </div>
       </div>

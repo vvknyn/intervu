@@ -30,13 +30,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
-      // Interview prep — moved off root, still public (PR 1).
-      url: `${SITE_URL}/prep`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
       url: `${SITE_URL}/login`,
       lastModified,
       changeFrequency: "monthly",
