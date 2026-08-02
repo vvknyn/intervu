@@ -102,6 +102,7 @@ describe('toolSearchJobs', () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
     assert.equal(searchCalls[0].postedBucket, '30d');
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.note, undefined);
   });
 
@@ -109,6 +110,7 @@ describe('toolSearchJobs', () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, { postedWithinDays: 7 });
     assert.equal(searchCalls[0].postedBucket, '7d');
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.note, undefined);
   });
 
@@ -116,6 +118,7 @@ describe('toolSearchJobs', () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, { postedWithinDays: 90 });
     assert.equal(searchCalls[0].postedBucket, '30d');
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(typeof out.note, 'string');
     assert.ok(out.note && out.note.length > 0);
   });
@@ -129,6 +132,7 @@ describe('toolSearchJobs', () => {
   it('maps hits to the real PublicJob field names only (no invented fields)', async () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.total, 1);
     assert.deepEqual(Object.keys(out.hits[0]).sort(), [
       'apply_url', 'company', 'first_seen_at', 'ghost_badge', 'id',
@@ -141,6 +145,7 @@ describe('toolSearchJobs', () => {
   it('reports unavailable (not a silent empty-success) when the backend errors', async () => {
     const { deps } = stubDeps([], undefined, { unavailable: true });
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.unavailable, true);
     assert.deepEqual(out.hits, []);
     assert.equal(out.total, 0);
@@ -150,6 +155,7 @@ describe('toolSearchJobs', () => {
   it('merges the backend note into the unavailable note rather than dropping it', async () => {
     const { deps } = stubDeps([], undefined, { unavailable: true, note: 'Meili 502' });
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.ok(out.note?.includes('Meili 502'));
     assert.ok(out.note?.includes('treat as an error, not as zero matches'));
   });
@@ -157,6 +163,7 @@ describe('toolSearchJobs', () => {
   it('merges the bucket-narrowing note with a backend note when the backend is NOT unavailable', async () => {
     const { deps } = stubDeps([makeJob()], undefined, { note: 'widened to description search' });
     const out = await toolSearchJobs(deps, { postedWithinDays: 90 });
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.unavailable, undefined);
     assert.ok(out.note?.includes('widened to description search'));
     assert.ok(out.note?.includes('30d'));
@@ -165,6 +172,7 @@ describe('toolSearchJobs', () => {
   it('IMPORTANT 3 — treats configured:false the same as unavailable, not a silent empty success', async () => {
     const { deps } = stubDeps([], undefined, { configured: false, unavailable: undefined, note: "Job search isn't connected yet." });
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.unavailable, true);
     assert.deepEqual(out.hits, []);
     assert.ok(out.note?.includes('treat as an error, not as zero matches'));
@@ -174,6 +182,7 @@ describe('toolSearchJobs', () => {
   it('IMPORTANT 3 — a degraded (stale-cache) serve stays a success but discloses it via note, like the web UI', async () => {
     const { deps } = stubDeps([makeJob()], undefined, { meta: { degraded: true, servedFrom: 'cache', cachedAtMs: 1000 } });
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.unavailable, undefined);
     assert.equal(out.hits.length, 1);
     assert.ok(out.note?.includes('catching up'));
@@ -182,6 +191,7 @@ describe('toolSearchJobs', () => {
   it('a live (non-degraded) serve carries no degraded note', async () => {
     const { deps } = stubDeps([makeJob()], undefined, { meta: { degraded: false, servedFrom: 'live' } });
     const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.note, undefined);
   });
 });
@@ -305,5 +315,153 @@ describe('toolMarkApplied', () => {
     const out = await toolMarkApplied(deps, { id: 'job-1' });
     assert.deepEqual(out, { error: 'search backend unavailable' });
     assert.equal(upsertCalls.length, 0);
+  });
+});
+
+/** base64url({o:offset}) — the exact cursor shape `tools.ts`'s `decodeCursor`
+ *  expects, built by hand here so the encode side is never used to test itself. */
+function encodeTestCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ o: offset })).toString('base64url');
+}
+
+describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => {
+  it('maps location to facets.location_country (the same mechanism page.tsx\'s commitLocation uses)', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { location: 'Canada' });
+    assert.deepEqual(searchCalls[0].facets, { location_country: ['Canada'] });
+  });
+
+  it('trims location the same way commitLocation does, and drops it entirely when blank', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { location: '  ' });
+    // No facets key at all — not merely an empty one — so an empty search
+    // stays cache-key-identical to a plain unfiltered browse (search-cache.ts's
+    // `isDefaultBrowseParams` checks `!p.facets`, which a truthy `{}` would fail).
+    assert.equal(searchCalls[0].facets, undefined);
+  });
+
+  it('maps remote_only:true to facets.work_type ["remote"] (query-understanding.ts\'s corpus vocabulary)', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { remote_only: true });
+    assert.deepEqual(searchCalls[0].facets, { work_type: ['remote'] });
+  });
+
+  it('never adds a work_type facet when remote_only is false or omitted', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { remote_only: false });
+    assert.equal(searchCalls[0].facets, undefined);
+  });
+
+  it('maps experience_level to facets.experience_level', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { experience_level: 'senior' });
+    assert.deepEqual(searchCalls[0].facets, { experience_level: ['senior'] });
+  });
+
+  it('maps employment_type to facets.employment_type', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { employment_type: 'contract' });
+    assert.deepEqual(searchCalls[0].facets, { employment_type: ['contract'] });
+  });
+
+  it('maps salary_min straight through to salaryMin', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { salary_min: 150000 });
+    assert.equal(searchCalls[0].salaryMin, 150000);
+  });
+
+  it('composes every filter together with query into the one params object the backend sees', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, {
+      query: 'engineer',
+      location: 'Canada',
+      remote_only: true,
+      experience_level: 'senior',
+      employment_type: 'full_time',
+      salary_min: 150000,
+    });
+    assert.deepEqual(searchCalls[0], {
+      q: 'engineer',
+      hideGhosts: true,
+      postedBucket: '30d',
+      limit: 10,
+      offset: 0,
+      salaryMin: 150000,
+      facets: {
+        location_country: ['Canada'],
+        work_type: ['remote'],
+        experience_level: ['senior'],
+        employment_type: ['full_time'],
+      },
+    });
+  });
+});
+
+describe('toolSearchJobs — cursor pagination (Task 12)', () => {
+  it('page 1 (no cursor) requests offset 0 and returns next_cursor -> offset 20 when more results remain', async () => {
+    const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `job-${i}` }));
+    const { deps, searchCalls } = stubDeps(hits, undefined, { total: 50 });
+    const out = await toolSearchJobs(deps, { limit: 20 });
+    assert.equal(searchCalls[0].offset, 0);
+    assert.equal(searchCalls[0].limit, 20);
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(typeof out.next_cursor, 'string');
+    assert.deepEqual(
+      JSON.parse(Buffer.from(out.next_cursor as string, 'base64url').toString('utf8')),
+      { o: 20 },
+    );
+  });
+
+  it('round-trips a next_cursor: passing it back requests offset 20 from the backend', async () => {
+    const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `job-${i}` }));
+    const { deps: deps1 } = stubDeps(hits, undefined, { total: 50 });
+    const page1 = await toolSearchJobs(deps1, { limit: 20 });
+    if ('error' in page1) throw new Error('unexpected error shape');
+
+    const { deps: deps2, searchCalls: searchCalls2 } = stubDeps(hits, undefined, { total: 50 });
+    await toolSearchJobs(deps2, { limit: 20, cursor: page1.next_cursor });
+    assert.equal(searchCalls2[0].offset, 20);
+  });
+
+  it('omits next_cursor once the backend has no more results beyond this page', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, { total: 1 });
+    const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.next_cursor, undefined);
+  });
+
+  it('depth cap: a cursor at offset 100 truncates hits to zero, omits next_cursor, and never sends the backend limit:0', async () => {
+    const hits = Array.from({ length: 20 }, (_, i) => makeJob({ id: `deep-${i}` }));
+    const { deps, searchCalls } = stubDeps(hits, undefined, { total: 500 });
+    const out = await toolSearchJobs(deps, { cursor: encodeTestCursor(100), limit: 20 });
+    assert.equal(searchCalls[0].offset, 100);
+    // Never 0 — meilisearch.ts's buildSearchBody does `page: offset / (p.limit ?? 40)`,
+    // and a literal 0 (not nullish) would divide by zero instead of falling back to 40.
+    assert.equal(searchCalls[0].limit, 20);
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits, []);
+    assert.equal(out.next_cursor, undefined);
+  });
+
+  it('depth cap: a crafted cursor far beyond the cap is clamped to exactly the cap, never requesting deeper', async () => {
+    const { deps, searchCalls } = stubDeps([], undefined, { total: 500 });
+    await toolSearchJobs(deps, { cursor: encodeTestCursor(9999), limit: 20 });
+    assert.equal(searchCalls[0].offset, AGENT.SEARCH_DEPTH_CAP);
+    assert.equal(AGENT.SEARCH_DEPTH_CAP, 100);
+  });
+
+  it('a malformed cursor returns an error object, never throws, and never calls the backend', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { cursor: 'not-valid-base64url-json!!' });
+    assert.deepEqual(out, { error: 'invalid cursor' });
+    assert.equal(searchCalls.length, 0);
+  });
+
+  it('a cursor that decodes to valid JSON of the wrong shape is also malformed', async () => {
+    const cursor = Buffer.from(JSON.stringify({ notO: 5 })).toString('base64url');
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    const out = await toolSearchJobs(deps, { cursor });
+    assert.deepEqual(out, { error: 'invalid cursor' });
+    assert.equal(searchCalls.length, 0);
   });
 });

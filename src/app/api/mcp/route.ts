@@ -6,7 +6,10 @@ import { AGENT } from "@/lib/agent/config";
 import { firestoreStore } from "@/lib/agent/store";
 import { verifySecret, type CredentialKind } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
-import { toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied, type ToolDeps } from "@/lib/agent/tools";
+import {
+    toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
+    EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, type ToolDeps,
+} from "@/lib/agent/tools";
 import { searchJobs } from "@/lib/jobs/search";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
 
@@ -83,12 +86,23 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
 /** Agent-facing choices per the CARRIED FINDING from Task 6: `tools.ts`
  *  indexes `POSTED_WITHIN_DAYS_TO_BUCKET` by exactly 7|30|90 and throws on
  *  anything else — this schema is what keeps an out-of-enum value from ever
- *  reaching that lookup. */
-const searchJobsInput = z.object({
+ *  reaching that lookup. Task 12 adds the filter + cursor inputs
+ *  `toolSearchJobs` now maps onto real `JobSearchParams` fields (see
+ *  tools.ts's `SearchJobsInput`/`buildFacets`) — `experience_level` and
+ *  `employment_type` reuse the SAME `EXPERIENCE_LEVELS`/`EMPLOYMENT_TYPES`
+ *  arrays `tools.ts` maps with, so the wire's allowed values and the mapping
+ *  logic's allowed values can never drift apart. */
+export const searchJobsInput = z.object({
     query: z.string().optional(),
     postedWithinDays: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
     includeGhostFlagged: z.boolean().optional(),
     limit: z.number().int().min(1).max(AGENT.RESULT_CAP).optional(),
+    location: z.string().max(128).optional(),
+    remote_only: z.boolean().optional(),
+    experience_level: z.enum(EXPERIENCE_LEVELS).optional(),
+    employment_type: z.enum(EMPLOYMENT_TYPES).optional(),
+    salary_min: z.number().int().min(0).optional(),
+    cursor: z.string().max(128).optional(),
 });
 
 const jobIdInput = z.object({ id: z.string().min(1) });
@@ -100,9 +114,12 @@ const mcpHandler = createMcpHandler(
             {
                 title: "Search jobs",
                 description:
-                    `Search intervu's verified-real job listings. Ghost jobs (postings unlikely to lead to an ` +
+                    `Search intervu's verified-real job listings. Filters: location (place text), remote_only, ` +
+                    `experience_level (${EXPERIENCE_LEVELS.join("|")}), employment_type (${EMPLOYMENT_TYPES.join("|")}), ` +
+                    `salary_min — all AND together and with query. Ghost jobs (postings unlikely to lead to an ` +
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
-                    `Returns at most ${AGENT.RESULT_CAP} results per call.`,
+                    `Returns up to ${AGENT.SEARCH_DEPTH_CAP} results per query via cursor pagination ` +
+                    `(${AGENT.RESULT_CAP} per page) — pass the response's next_cursor as the next call's cursor.`,
                 inputSchema: searchJobsInput,
             },
             withDeps(toolSearchJobs)

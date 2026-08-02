@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
-  extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS,
+  extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS, searchJobsInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 
@@ -68,5 +68,60 @@ describe('mcp route: tool result wire wrapping', () => {
   it('does not flag isError for unavailable:false', () => {
     const result = toolResult({ hits: [], total: 0, unavailable: false });
     assert.equal(result.isError, undefined);
+  });
+});
+
+describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => {
+  it('accepts every new filter plus cursor together', () => {
+    const res = searchJobsInput.safeParse({
+      query: 'engineer',
+      location: 'Canada',
+      remote_only: true,
+      experience_level: 'senior',
+      employment_type: 'full_time',
+      salary_min: 150000,
+      cursor: 'abc123',
+    });
+    assert.equal(res.success, true);
+  });
+
+  it('accepts every real experience_level value (entry|mid|senior)', () => {
+    for (const v of ['entry', 'mid', 'senior']) {
+      assert.equal(searchJobsInput.safeParse({ experience_level: v }).success, true);
+    }
+  });
+
+  it('rejects an experience_level value outside the real corpus vocabulary', () => {
+    assert.equal(searchJobsInput.safeParse({ experience_level: 'staff' }).success, false);
+  });
+
+  it('accepts every real employment_type value (full_time|contract)', () => {
+    for (const v of ['full_time', 'contract']) {
+      assert.equal(searchJobsInput.safeParse({ employment_type: v }).success, true);
+    }
+  });
+
+  it('rejects an employment_type value outside the real corpus vocabulary', () => {
+    assert.equal(searchJobsInput.safeParse({ employment_type: 'internship' }).success, false);
+  });
+
+  it('rejects a negative salary_min', () => {
+    assert.equal(searchJobsInput.safeParse({ salary_min: -1 }).success, false);
+  });
+
+  it('rejects a non-integer salary_min', () => {
+    assert.equal(searchJobsInput.safeParse({ salary_min: 100.5 }).success, false);
+  });
+
+  it('rejects an over-length location string (>128 chars)', () => {
+    assert.equal(searchJobsInput.safeParse({ location: 'x'.repeat(129) }).success, false);
+  });
+
+  it('rejects an over-length cursor string (>128 chars)', () => {
+    assert.equal(searchJobsInput.safeParse({ cursor: 'x'.repeat(129) }).success, false);
+  });
+
+  it('every new field stays optional (an empty object still parses)', () => {
+    assert.equal(searchJobsInput.safeParse({}).success, true);
   });
 });

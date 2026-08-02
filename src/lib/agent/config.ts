@@ -31,6 +31,14 @@ export const AGENT = {
     PUBLIC_RATE_LIMIT: 600,
     RATE_WINDOW_MS: 3_600_000,
     RESULT_CAP: 20,
+    /**
+     * search_jobs' cursor pagination depth ceiling (Task 12) — how far into a
+     * single query an agent may page in total (5 pages × RESULT_CAP), never
+     * how many results a single page returns. Corpus-protection ceiling, same
+     * spirit as RESULT_CAP: an agent gets a real "browse" window, not a
+     * license to walk the whole index one page at a time.
+     */
+    SEARCH_DEPTH_CAP: 100,
     CODE_TTL_MS: 300_000,
     ACCESS_TTL_MS: 3_600_000,
     /** DCR (`/api/oauth/register`) request body caps — this endpoint is
