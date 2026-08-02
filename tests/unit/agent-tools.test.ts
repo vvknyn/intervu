@@ -177,6 +177,20 @@ describe('toolGetJob', () => {
     const out = await toolGetJob(deps, { id: 'job-1' });
     assert.deepEqual(out, { error: 'search backend unavailable' });
   });
+
+  it('never forwards fields outside the detail allowlist — proven with a company-aggregate field AND an unknown future field', async () => {
+    // Simulates the raw Meili doc growing fields tools.ts was never told
+    // about (company_closed_90d is real — types.ts:56 — secret_internal_x
+    // stands in for ANY future synced field). A spread-based implementation
+    // would leak both; the allowlist must drop both by construction.
+    const leaky = { ...makeJob(), company_closed_90d: 7, secret_internal_x: 'leak' } as PublicJob;
+    const { deps } = stubDeps([leaky]);
+    const out = await toolGetJob(deps, { id: 'job-1' });
+    assert.equal('error' in out, false);
+    const keys = Object.keys(out);
+    assert.ok(!keys.includes('company_closed_90d'));
+    assert.ok(!keys.includes('secret_internal_x'));
+  });
 });
 
 describe('toolSaveJob', () => {
