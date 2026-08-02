@@ -9,6 +9,7 @@
  * credential's own subject.
  */
 import type { JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from "../jobs/types";
+import { degradedResultsNote } from "../jobs/result-state";
 import { buildJobSnapshot, type JobSnapshot } from "../pursuits/types";
 import { AGENT } from "./config";
 
@@ -101,9 +102,23 @@ export interface SearchOut {
  *  when none are — the one place a note ever gets dropped or merged, so
  *  neither the bucket-narrowing note nor a backend note silently disappears
  *  behind the other. */
-function joinNotes(...parts: (string | undefined)[]): string | undefined {
+function joinNotes(...parts: (string | undefined | null)[]): string | undefined {
   const present = parts.filter((p): p is string => !!p);
   return present.length ? present.join("; ") : undefined;
+}
+
+/**
+ * A search result is a real backend failure — never a true zero-match — in
+ * TWO cases: a configured backend that threw (`unavailable`), and a backend
+ * that was never wired up at all (`!configured`, e.g. `MEILISEARCH_HOST`
+ * missing in this environment — the exact env-drift class that caused an 18h
+ * production outage). Both the search branch below and `lookupJobById` must
+ * treat them identically, or an unconfigured backend reads as a genuine
+ * "job not found" instead of the backend-error it actually is (IMPORTANT 3
+ * review fix) — this is the ONE place that decision is made.
+ */
+function isBackendDown(result: JobSearchResult): boolean {
+  return result.unavailable === true || !result.configured;
 }
 
 export async function toolSearchJobs(
@@ -117,7 +132,7 @@ export async function toolSearchJobs(
   // A backend failure must never read like a true zero-match — the MCP
   // response is the agent's only channel, so an empty `hits` here has to be
   // distinguishable from "the backend is actually down."
-  if (result.unavailable) {
+  if (isBackendDown(result)) {
     return {
       hits: [],
       total: 0,
@@ -125,7 +140,12 @@ export async function toolSearchJobs(
       note: joinNotes("search backend unavailable — treat as an error, not as zero matches", result.note),
     };
   }
-  const note = joinNotes(bucketNote, result.note);
+  // A configured, LIVE backend can still be serving a stale cached response
+  // (search.ts's `getDegradedServe` outage fallback) — results are real and
+  // render normally, so this isn't `unavailable`, but the agent deserves the
+  // same honest disclosure the web UI already shows via `degradedResultsNote`
+  // (result-state.ts) rather than a stale serve silently reading as fresh.
+  const note = joinNotes(bucketNote, result.note, degradedResultsNote(result));
   return { hits: result.hits.map(toSearchHit), total: result.total, ...(note ? { note } : {}) };
 }
 
@@ -144,7 +164,7 @@ type IdLookup = { kind: "found"; job: PublicJob } | { kind: "not_found" } | { ki
 
 async function lookupJobById(deps: ToolDeps, id: string): Promise<IdLookup> {
   const result = await deps.search({ id, limit: 1 });
-  if (result.unavailable) return { kind: "unavailable" };
+  if (isBackendDown(result)) return { kind: "unavailable" };
   const hit = result.hits[0];
   return hit ? { kind: "found", job: hit } : { kind: "not_found" };
 }
