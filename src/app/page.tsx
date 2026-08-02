@@ -22,7 +22,6 @@ import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-a
 import {
     searchJobsAction as searchJobsActionRaw,
     markJobAppliedAction,
-    suggestAdjacentRolesAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
     suggestJobsAction,
@@ -34,7 +33,7 @@ import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows"
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
-import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
+import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
@@ -64,8 +63,6 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
-import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
-import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -112,7 +109,7 @@ import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
-import { buildMatchQuery, resolveExploreOutcome, topSkills, seniorityFromYears } from "@/lib/jobs/resume-match";
+import { buildMatchQuery } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -139,8 +136,8 @@ import type { ResumeData } from "@/types/resume";
  */
 /** The id of the most recent search, so an open can be attributed to the
  *  search that produced it. Captured HERE rather than in component state
- *  because every search on this page — first page, retry, load-more, Explore
- *  — already funnels through this one wrapper, and an open is only ever
+ *  because every search on this page — first page, retry, load-more —
+ *  already funnels through this one wrapper, and an open is only ever
  *  attributable to the latest result set the user is looking at. */
 let lastSearchId = "";
 
@@ -151,18 +148,6 @@ const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
             return r;
         }),
     );
-
-/**
- * Same chokepoint shape as `searchJobsAction` above, for Explore's AI-
- * suggestion call — the other Server Action on this page that can hang
- * without ever resolving/rejecting. See `EXPLORE_SUGGEST_TIMEOUT_MS`
- * (settle-guard.ts) for why it gets a longer, separately-named deadline
- * instead of reusing `ACTION_SETTLE_TIMEOUT_MS`.
- */
-const suggestAdjacentRoles = (
-    input: Parameters<typeof suggestAdjacentRolesAction>[0],
-): ReturnType<typeof suggestAdjacentRolesAction> =>
-    withSettleGuard(suggestAdjacentRolesAction(input), EXPLORE_SUGGEST_TIMEOUT_MS);
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -318,7 +303,6 @@ function JobCard({
     active,
     opened,
     onClick,
-    onFit,
     onCompany,
     onOpenPosting,
     now,
@@ -331,7 +315,6 @@ function JobCard({
     active: boolean;
     opened: boolean;
     onClick: () => void;
-    onFit?: (job: PublicJob) => void;
     onCompany?: (job: PublicJob) => void;
     onOpenPosting?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -453,24 +436,10 @@ function JobCard({
                         {verdict.code.toLowerCase()}
                     </div>
                 )}
-                {onFit && (
-                    <button
-                        type="button"
-                        data-testid="am-i-a-fit"
-                        // min-h-11 + flex centering (not padding) gives this a
-                        // deterministic ≥44px tap target regardless of the
-                        // 13px text's own line-height (P27 mobile pass — was
-                        // an 18px-tall text link, well under the mobile tap
-                        // target floor).
-                        className="mt-1 inline-flex min-h-11 items-center text-[13px] font-medium text-brand hover:underline"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onFit(job);
-                        }}
-                    >
-                        Am I a fit? →
-                    </button>
-                )}
+                {/* "Am I a fit?" removed 2026-08-02 (AI intelligence moved to
+                    MCP) — a list row is too tight for a handoff line, so
+                    this degrades by omission; the one line for the whole
+                    screen lives in JobDetail's "How you match" rail. */}
                 <div className="mt-2.5 border-t border-border pt-2.5">
                     <CompanyIntelStrip job={job} elite={elite} />
                 </div>
@@ -480,8 +449,7 @@ function JobCard({
                     <button
                         type="button"
                         // min-h-11 + flex centering, same tap-target fix as
-                        // "Am I a fit?" below — was 30px tall (py-1.5 sizing
-                        // off the 12px label alone).
+                        // JobDetail's Apply button.
                         className="flex min-h-11 w-full items-center justify-center rounded-lg border border-foreground/20 px-2 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -504,29 +472,17 @@ function JobCard({
 
 
 /**
- * Shared CTA for both dead-job detail states below. The label is honest
- * about what actually happens on click — review fix: it used to always say
- * "See similar roles" and call straight into `handleExploreClick`, but for
- * a COLD visitor with no usable résumé on hand (the common case for someone
- * following a shared link cold, not already signed into the app),
- * `handleExploreClick` doesn't show similar roles at all — it opens a
- * sign-in or résumé-upload gate. `canShowSimilar` (computed by the caller
- * from `resumeIsUsable(resume)`, the SAME bar the résumé-upsell card uses)
- * decides which promise this button actually keeps.
+ * Shared CTA for both dead-job detail states below. Used to say "See
+ * similar roles" and call into `handleExploreClick` (résumé-driven
+ * AI-suggested adjacent roles) when a usable résumé was on hand — that
+ * moved to MCP 2026-08-02, so this is now always the plain, ungated
+ * "Browse live roles" fallback it used to degrade to.
  */
-function SimilarRolesCta({
-    onClick,
-    exploring,
-    canShowSimilar,
-}: {
-    onClick: () => void;
-    exploring: boolean;
-    canShowSimilar: boolean;
-}) {
+function SimilarRolesCta({ onClick }: { onClick: () => void }) {
     return (
-        <Button variant="outline" size="sm" className="mt-4 gap-1.5" disabled={exploring} onClick={onClick}>
+        <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={onClick}>
             <Compass size={14} />
-            {exploring ? "Finding similar roles…" : canShowSimilar ? "See similar roles" : "Browse live roles"}
+            Browse live roles
         </Button>
     );
 }
@@ -539,28 +495,16 @@ function SimilarRolesCta({
  * filters may exclude it — review fix). `PublicJob` (lib/jobs/types.ts)
  * carries no per-job takedown timestamp — verified before writing this —
  * so the copy never claims a date or guesses at a cause, only the fact the
- * brief specified. The CTA (`SimilarRolesCta` above) reuses the Explore
- * entry point when a résumé is on hand, or falls back to a plain browse
- * otherwise — via a wrapper that first clears the dead `job=` param (see
- * `handleTombstoneSimilarRoles`): Explore only rewrites the URL when
- * "ranked by résumé" was previously active, so a plain query-less dead link
- * would otherwise leave `job=<dead-id>` in place and the tombstone
- * re-asserting itself over Explore's fresh results.
+ * brief specified. The CTA (`SimilarRolesCta` above) clears the dead
+ * `job=` param and drops back to a plain browse (see
+ * `handleTombstoneSimilarRoles`).
  */
-function DeadJobTombstone({
-    onSimilarRoles,
-    exploring,
-    canShowSimilar,
-}: {
-    onSimilarRoles: () => void;
-    exploring: boolean;
-    canShowSimilar: boolean;
-}) {
+function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
             <WarningCircle size={22} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
-            <SimilarRolesCta onClick={onSimilarRoles} exploring={exploring} canShowSimilar={canShowSimilar} />
+            <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
     );
 }
@@ -581,13 +525,9 @@ function DeadJobTombstone({
  */
 function DeadJobUnresolved({
     onSimilarRoles,
-    exploring,
-    canShowSimilar,
     checking,
 }: {
     onSimilarRoles: () => void;
-    exploring: boolean;
-    canShowSimilar: boolean;
     checking: boolean;
 }) {
     return (
@@ -600,7 +540,7 @@ function DeadJobUnresolved({
             <h3 className="text-sm font-semibold">
                 {checking ? "Checking this role…" : "Can't confirm this role's status right now."}
             </h3>
-            <SimilarRolesCta onClick={onSimilarRoles} exploring={exploring} canShowSimilar={canShowSimilar} />
+            <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
     );
 }
@@ -664,23 +604,18 @@ function JobsListSplash() {
 /* ----------------------------- results mode ----------------------------- */
 
 /**
- * Results-view mode for /jobs. Jobs render on first paint for everyone —
- * there is no entry gate — so `mode` only ever tracks which results view is
- * active; it always starts at `"browse"`. `explore` is triggered by the
- * compact Explore button beside the search input (see `enterExplore`
- * below). The old Match mode is gone: "Rank by fit" is no longer a
- * page-wide mode, it's a sort choice — `buildMatchQuery`'s pipeline is
- * re-homed onto `sort=fit` + a dismissible chip (see `applyFit`).
- *
- * Whole-branch review fix — a `"search"` mode used to exist here (a
- * dedicated empty-query prompt state), but every `setMode` call site sets
- * either `"browse"` or `"explore"`; nothing in this file ever set `"search"`.
- * Removed as dead code, along with what that made unreachable: `SearchPrompt`
- * (its only render site), `MODE_META.search`, and the `shouldFetch`
- * early-return branch in the search effect below that existed solely to
- * skip fetching while `mode === "search"` and the query was empty.
+ * There is no entry gate — jobs render on first paint for everyone. This
+ * page used to track a page-wide results-view `Mode` ("browse" plus,
+ * earlier, "search"; most recently "explore" too). "Search" was removed
+ * first (dead: nothing ever set it — see git history). "Explore"
+ * (résumé-driven AI-suggested adjacent roles, `enterExplore`/`runExplore`)
+ * moved to MCP 2026-08-02 and was the last other value, so the `Mode` type
+ * and its `mode`/`setMode` state are gone too — every render branch that
+ * used to key off it is now just the "browse" behavior, unconditionally.
+ * "Rank by fit" was never part of this: it's a sort choice, not a
+ * page-wide mode — `buildMatchQuery`'s pipeline is re-homed onto `sort=fit`
+ * + a dismissible chip (see `applyFit`).
  */
-type Mode = "explore" | "browse";
 
 /** A resume is "usable" for matching if it has a profession or at least one skill. */
 function resumeIsUsable(d: ResumeData | undefined): boolean {
@@ -929,15 +864,12 @@ function JobsContent() {
     const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
     // Mirrors `fitActive` for read access from callbacks that can outlive the
     // render that defined them (`maybeReplay`'s stable-identity closure) —
-    // same reason `resultRef`/`selectedIdRef` exist below. Used by
-    // `activateExplore` (review fix, 2026-07-18) so Explore reliably clears a
-    // stale fit claim even via the post-auth replay path.
+    // same reason `resultRef`/`selectedIdRef` exist below.
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const isDesktop = useSyncExternalStore(subscribeDesktopMq, getDesktopMqSnapshot, getDesktopMqServerSnapshot);
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
-    const [fitJob, setFitJob] = useState<PublicJob | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -1132,32 +1064,12 @@ function JobsContent() {
     const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
-    const [tailorOpen, setTailorOpen] = useState(false);
-    const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
-    // Which results mode we're in, the resume backing Match/Explore, the
-    // import modal, and the in-flight Explore call + its suggested titles.
-    const [mode, setMode] = useState<Mode>("browse");
-    // Mirrors `mode` for read access from the URL-reconcile effect below
-    // (keyed on `[searchParams]` only, so it deliberately reads stale
-    // closures for everything else — same idiom as `fitActiveRef`).
-    const modeRef = useRef(mode);
-    modeRef.current = mode;
+    // The resume backing "Rank by fit" and the import modal. `mode` (browse
+    // vs the now-removed "explore") and the in-flight Explore call's state
+    // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
     const [importOpen, setImportOpen] = useState(false);
-    // Raw in-flight flag, written only by `runExplore`. Never read directly
-    // outside this file's own derivation of `exploring` below — every
-    // consumer (the toolbar button, the tombstone/empty-state CTAs) reads
-    // the DERIVED `exploring` const instead, which also accounts for a
-    // superseding action.
-    const [exploringRaw, setExploringRaw] = useState(false);
-    // Set when `runExplore`'s AI-suggestion call times out or throws (see
-    // `EXPLORE_SUGGEST_TIMEOUT_MS`) — distinct from the action's own
-    // `res.error` sentinels (auth/credits/no-suggestions), which already
-    // have a graceful degrade path. This is the unexpected-failure case, so
-    // it gets a real, visible error state instead of a silent fallback —
-    // rendered as a band in the results area (below) with Retry + Browse.
-    const [exploreFailed, setExploreFailed] = useState(false);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
     // fetch of the résumé itself; Task 4 removed that). The card's other gate
@@ -1181,9 +1093,9 @@ function JobsContent() {
         }
     };
 
-    // All four "run this after the user signs in" actions (apply / gate /
-    // upload / explore) live in one pure pending-state ref so only the LATEST
-    // intent is ever queued and a dismissed action can never replay. See
+    // All three "run this after the user signs in" actions (apply / gate /
+    // upload) live in one pure pending-state ref so only the LATEST intent
+    // is ever queued and a dismissed action can never replay. See
     // lib/jobs/pending-actions.ts — `gate` is the generic apply-intent gate
     // (Job 2, 2026-08-01) shared by every apply-adjacent CTA reachable signed
     // out. `authedRef` is the deterministic success signal from this page's
@@ -1191,8 +1103,8 @@ function JobsContent() {
     // unrelated later sign-in (e.g. the sidebar "Log in", which never
     // touches this popover) replays nothing, race-free regardless of
     // whether `setUser(true)` or the popover-close lands first.
-    const pendingRef = useRef<PendingState<PublicJob, PublicJob, ResumeData>>(
-        emptyPending<PublicJob, PublicJob, ResumeData>(),
+    const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(
+        emptyPending<PublicJob, PublicJob>(),
     );
     const authedRef = useRef(false);
     // True only while the currently-open auth dialog was opened by
@@ -1200,8 +1112,8 @@ function JobsContent() {
     // to the posting and start tracking this application" (the value line
     // rendered above the dialog). `openAuth` resets it to false on every
     // open; `handleApplyGate` is the one call site that then flips it back
-    // on, so a "Mark as applied" gate, a session-expiry re-auth, or
-    // FitDrawer/TailorAnalysisSheet's own auth requirement never show it.
+    // on, so a "Mark as applied" gate or a session-expiry re-auth never
+    // show it.
     const [authGateValueLine, setAuthGateValueLine] = useState(false);
 
     useEffect(() => {
@@ -1243,14 +1155,12 @@ function JobsContent() {
         setDepthGated(false);
     }, [searchKey, user]);
 
-    // Single source: résumé usable AND, for the auto-explore path below,
-    // the sign-in this actually needs already satisfied — hoisted here
-    // (instead of `resumeIsUsable(resume ?? undefined)` at each call site)
-    // so `emptySearchState`'s auto-explore gate and the two later CTA
-    // gates (`canShowSimilarRoles`/`hasUsableResume`, résumé-moment +
-    // tombstone) share one computation. `resumeIsUsable` reads LOCAL state
-    // only (no mount fetch) — see those two call sites' own doc comments
-    // for why that's an accepted trade-off, not a bug.
+    // Single source: résumé usable, hoisted here (instead of
+    // `resumeIsUsable(resume ?? undefined)` at each call site) so the two
+    // later CTA gates (résumé-moment + the "use the résumé on file" upsell)
+    // share one computation. `resumeIsUsable` reads LOCAL state only (no
+    // mount fetch) — see that call site's own doc comment for why that's an
+    // accepted trade-off, not a bug.
     const hasUsableResume = resumeIsUsable(resume ?? undefined);
 
     // Single source for "what filters are currently active" — the toolbar
@@ -1258,17 +1168,6 @@ function JobsContent() {
     // `emptySearchState` below all read this ONE call instead of a second
     // `activeFilterEntries(filterState)` per render.
     const activeEntries = activeFilterEntries(filterState);
-
-    // One-way latch: false forever once either (a) this visit's query has
-    // held real text — so landing back on empty is an intentional
-    // in-session clear, never the first screen again — or (b) an
-    // auto-explore attempt has actually fired (set by the effect near
-    // `handleExploreClick` below), so an outcome that doesn't itself move
-    // query/mode/exploreFailed (e.g. `resolveExploreOutcome`'s "no-fallback"
-    // toast) can't re-select `"auto-explore"` forever. Mutated during
-    // render like `fitActiveRef`/`modeRef` above, read by both effects.
-    const initialLoadRef = useRef(true);
-    if (query.trim()) initialLoadRef.current = false;
 
     /**
      * No query ⇒ no corpus fetch, ever — regardless of filters or
@@ -1280,26 +1179,21 @@ function JobsContent() {
      * incidents. The `limit: 1, withFacets: false` corpus-count probe used
      * for the search line's placeholder is untouched by this.
      */
-    const skipCorpusFetch = mode === "browse" && !query.trim();
+    const skipCorpusFetch = !query.trim();
 
     /**
      * The empty-query landing state (`lib/jobs/result-state.ts`,
-     * unit-tested there) — replaces the old binary `showAsk` with the four
-     * outcomes the product spec actually needs: ordinary `"results"`, the
-     * full-screen first-ask overlay, the chrome-preserving `"serp-ask"` for
-     * an already-filtered empty query, or an automatic hand-off into
-     * Explore when a usable résumé is already on hand. `page.tsx` branches
-     * on this value everywhere below instead of re-deriving the same
-     * conditions inline.
+     * unit-tested there) — replaces the old binary `showAsk` with the three
+     * outcomes the product spec needs: ordinary `"results"`, the
+     * full-screen first-ask overlay, or the chrome-preserving `"serp-ask"`
+     * for an already-filtered empty query. `page.tsx` branches on this
+     * value everywhere below instead of re-deriving the same conditions
+     * inline.
      */
     const emptySearchState = resolveEmptySearchState({
         hasQuery: Boolean(query.trim()),
         fitActive,
-        mode,
         activeFilterCount: activeEntries.length,
-        hasUsableResume: hasUsableResume && Boolean(user),
-        isInitialLoad: initialLoadRef.current,
-        exploreFailed,
     });
     const isOverlayAsk = emptySearchState === "overlay-ask";
     const isSerpAsk = emptySearchState === "serp-ask";
@@ -1353,9 +1247,6 @@ function JobsContent() {
         let autoRetryScheduled = false;
         const generation = paginationRef.current!.beginFirstPage();
         setSearchError(null);
-        // Any new search (query/facet/sort/etc. change) supersedes a stale
-        // Explore failure band — the user has already moved on.
-        setExploreFailed(false);
         setLoadingMore(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
@@ -1581,12 +1472,7 @@ function JobsContent() {
         // `searchKey` is a faithful serialization of query/facets/salaryMin/
         // visaOnly/postedBucket/hideGhosts/sortOverride — see its definition
         // above — so listing it alone (plus searchRetry) satisfies the
-        // refetch rule without duplicating every field in this array. `mode`
-        // is deliberately NOT listed: every `setMode` call site (applyFit,
-        // activateExplore, enterBrowse, startOver) always pairs it with a
-        // query/facets change in the same render, which `searchKey` already
-        // covers — the dead `"search"`-mode branch that used to justify
-        // `mode` being here directly is gone (whole-branch review fix).
+        // refetch rule without duplicating every field in this array.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchKey, searchRetry, skipCorpusFetch]);
 
@@ -1733,27 +1619,14 @@ function JobsContent() {
         const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
         const currentKey = serializeJobsUrl({ ...current, jobId: null });
         if (parsedKey !== currentKey) {
-            // Explore is ephemeral, non-URL state (`activateExplore` below
-            // deliberately writes a browse-default URL — empty q, no
-            // facets — while local `query`/`facets` hold the real explore-
-            // derived values, by design). Re-deriving q/facets from the URL
-            // here while explore is active would immediately stomp that
-            // local state back to the URL's empty defaults — undoing
-            // Explore the instant `activateExplore`'s OWN url-reset write
-            // reaches this effect. `modeRef` (not the `mode` closure — this
-            // effect only depends on `[searchParams]`) reads the latest
-            // value. Every other field below stays reconciled unconditionally:
-            // none of them are part of Explore's ephemeral contract.
-            if (modeRef.current !== "explore") {
-                setQuery(parsed.q);
-                // Facets are an object, not a primitive — a same-content-but-new-
-                // reference set would still be a needless render, so gate it on
-                // serialized equality rather than setting unconditionally.
-                const facetsChanged =
-                    serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
-                    serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
-                if (facetsChanged) setFacets(parsed.facets);
-            }
+            setQuery(parsed.q);
+            // Facets are an object, not a primitive — a same-content-but-new-
+            // reference set would still be a needless render, so gate it on
+            // serialized equality rather than setting unconditionally.
+            const facetsChanged =
+                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
+                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
+            if (facetsChanged) setFacets(parsed.facets);
             setSalaryMin(parsed.salaryMin);
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
@@ -1901,15 +1774,6 @@ function JobsContent() {
     // frame painted the "can't confirm" copy — implying a completed,
     // inconclusive check — before any check had even started.
     const isDeadJobChecking = !deadJobResolved || deadJobResolved.status === "checking";
-    // Review fix — the tombstone/unresolved CTA can only genuinely deliver
-    // "similar roles" when a usable résumé is already on hand (the SAME bar
-    // the résumé-upsell card uses, `resumeIsUsable`): with no résumé,
-    // `handleExploreClick` doesn't explore anything — it opens a sign-in or
-    // upload gate instead. `handleTombstoneSimilarRoles` (below) branches on
-    // this; `SimilarRolesCta` labels the button accordingly. Aliases the
-    // `hasUsableResume` hoisted above (single source — see its own comment)
-    // rather than a second `resumeIsUsable(resume ?? undefined)` call.
-    const canShowSimilarRoles = hasUsableResume;
 
     const handleResultsKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -2128,28 +1992,11 @@ function JobsContent() {
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
-    // Open the in-place analysis slideout for a job. Tailoring is AI-backed
-    // (login-gated), so prompt sign-in first and resume once authenticated.
-    const openTailor = (job: PublicJob) => {
-        setTailorJob({
-            company: cleanCompany(job.company),
-            position: decodeText(job.title),
-            description: job.description ?? "",
-            url: job.apply_url || undefined,
-        });
-        setTailorOpen(true);
-    };
-    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — signed
-    // out, "Apply with tailored resume" is one of the four apply-adjacent
-    // CTAs that gate through `handleApplyGate` instead of its own pre-auth
-    // behavior; signed in it's unchanged (opens the tailor slideout).
-    const handleTailor = (job: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(job);
-            return;
-        }
-        openTailor(job);
-    };
+    // "Apply with tailored resume" / the fit-check drawer moved to MCP
+    // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
+    // TailorAnalysisSheet mounts they drove are gone; `handleApplyGate`
+    // stays (Apply, Go after this job, and Open posting still gate through
+    // it — see its own comment).
     const handlePrep = (job: PublicJob) => {
         const p = new URLSearchParams();
         p.set("company", job.company ?? "");
@@ -2328,7 +2175,7 @@ function JobsContent() {
     // Run whatever the user queued before signing in — exactly once, and ONLY
     // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
     // other path to being logged-in (sidebar login, an already-signed-in tab)
-    // never sets `authedRef`, so a stale apply/gate/upload/explore can't fire.
+    // never sets `authedRef`, so a stale apply/gate/upload can't fire.
     // `takeReplay` empties the state, so the dispatch is idempotent no matter
     // how many times this runs or in what order relative to `setUser`.
     const maybeReplay = useCallback(() => {
@@ -2346,11 +2193,8 @@ function JobsContent() {
             case "upload":
                 setImportOpen(true);
                 break;
-            case "explore":
-                void runExplore(action.payload);
-                break;
         }
-        // doMarkApplied / replayApplyGate / runExplore read no changing
+        // doMarkApplied / replayApplyGate read no changing
         // component state (only stable setters + the action payload), so
         // capturing the first render's closures here is safe — keep a
         // stable identity.
@@ -2428,8 +2272,9 @@ function JobsContent() {
     // at the moment "fit" was queued — see `handleUploadClick`'s doc
     // comment for why. `clearPendingGate` (below) resets it on every
     // alternate path/dismiss, same invariant as `pendingRef`: only the
-    // latest intent survives.
-    const resumeActionAfterImportRef = useRef<{ kind: "fit"; fitToken: number } | { kind: "explore" } | null>(null);
+    // latest intent survives. (A second variant, `{ kind: "explore" }`,
+    // existed here through 2026-08-02 — removed with the feature.)
+    const resumeActionAfterImportRef = useRef<{ kind: "fit"; fitToken: number } | null>(null);
 
     // Guards `handleRankByFit`'s async résumé fetch against being superseded
     // by a LATER sort choice (fit again, or any other sort option) made
@@ -2439,61 +2284,19 @@ function JobsContent() {
     const fitIntentRef = useRef<FitIntentGuard | null>(null);
     if (!fitIntentRef.current) fitIntentRef.current = new FitIntentGuard();
 
-    // Same guard, dedicated to Explore's own async gap: `runExplore` awaits
-    // the (now deadline-bound, up to `EXPLORE_SUGGEST_TIMEOUT_MS`) AI-suggest
-    // call before committing results. Without this, a slow/timed-out explore
-    // that finally settles after the user has already moved on — to "Rank by
-    // fit" (`applyFit`), a plain browse (`enterBrowse`), or "Start over"
-    // (`startOver`), all of which bump this same guard — would clobber
-    // whatever they're looking at now. `begin()` at the top of `runExplore`
-    // also means a second Explore click supersedes an in-flight first one.
-    const exploreIntentRef = useRef<FitIntentGuard | null>(null);
-    if (!exploreIntentRef.current) exploreIntentRef.current = new FitIntentGuard();
-
-    // Which `exploreIntentRef` generation `exploringRaw` currently belongs
-    // to — set by `runExplore` the moment it begins. Read by the `exploring`
-    // derivation directly below.
-    const exploringTokenRef = useRef<number | null>(null);
-
-    // The spinner/disabled-state every caller actually reads (the toolbar
-    // Explore button, the tombstone/empty-state CTAs). Deriving it — rather
-    // than scattering a clear-the-flag call into every superseding handler
-    // (applyFit, enterBrowse/enterBrowseAndSync, startOver, typing
-    // mid-explore) — is the chokepoint fix: ALL of those already call
-    // `exploreIntentRef.current!.begin()` to supersede a stale in-flight
-    // explore (see the doc comment above); this just reads that same guard
-    // instead of writing to it a second time, so `exploring` goes false the
-    // instant any of them fires, not just when `runExplore`'s own `finally`
-    // eventually runs (previously: up to `EXPLORE_SUGGEST_TIMEOUT_MS`, 25s,
-    // during which the button stayed disabled/spinning over whatever the
-    // user actually navigated to). A future superseding action gets this
-    // for free just by bumping the existing guard — no new call site to
-    // remember. `exploringRaw` still requires `runExplore`'s OWN
-    // `setExploringRaw(false)` in `finally` for the ordinary end-of-request
-    // case, which this derivation alone doesn't cover.
-    const exploring = exploringRaw && exploreIntentRef.current!.isCurrent(exploringTokenRef.current ?? -1);
-
-    // Closes the gap between a click and `exploring` actually flipping true
-    // (that state only flips inside `runExplore`, well after
-    // `resolveUsableResume()`'s await resolves) — without this, a rapid
-    // double-click on the Explore button could fire `enterExplore` twice and
-    // double-spend a credit. (review fix, 2026-07-18)
-    const exploreInFlightRef = useRef(false);
-
-    // Cancel ANY action queued for after sign-in (apply / gate / upload /
-    // explore) so a later, unrelated login can't hijack the user into it — or
-    // silently spend an Explore credit / write a phantom application they didn't
-    // ask for. Called by every alternate path (results-mode entry, gate choice)
-    // and on a dismiss of the popover. (code review, 2026-06-07; pending-state
-    // unified + apply/tailor leak closed, 2026-06-08; apply-gate added Job 2,
-    // 2026-08-01)
+    // Cancel ANY action queued for after sign-in (apply / gate / upload) so a
+    // later, unrelated login can't hijack the user into it or write a
+    // phantom application they didn't ask for. Called by every alternate
+    // path (results-mode entry, gate choice) and on a dismiss of the
+    // popover. (code review, 2026-06-07; pending-state unified + apply/
+    // tailor leak closed, 2026-06-08; apply-gate added Job 2, 2026-08-01)
     const clearPendingGate = () => {
         pendingRef.current = clearPending(pendingRef.current);
         resumeActionAfterImportRef.current = null;
     };
 
-    // A usable résumé for a résumé-driven action (fit or explore), fetched on
-    // demand. Task 4 removed the mount-time auto-fetch, so `resume` local
+    // A usable résumé for a résumé-driven action (fit), fetched on demand.
+    // Task 4 removed the mount-time auto-fetch, so `resume` local
     // state can still be empty for a returning user with one saved — check it
     // first (fast path, no network round-trip), else ask the server. Mirrors
     // `resumeIsUsable`'s bar exactly.
@@ -2514,10 +2317,6 @@ function JobsContent() {
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
-        // Supersede a stale in-flight Explore before this résumé-driven mode
-        // takes over — see `exploreIntentRef`'s doc comment above.
-        exploreIntentRef.current!.begin();
-        setMode("browse");
         setFacets(f);
         setQuery(q);
         setSortOverride(null);
@@ -2533,144 +2332,10 @@ function JobsContent() {
         applyUrlState(withSortCleared(buildUrlState()), "replace");
     };
 
-    // Shared "explore results are now showing" step for both the AI-suggested
-    // path and the skill-based broaden fallback in `runExplore` below. Also
-    // clears any stale "ranked by résumé" framing locally (the chip, the
-    // Select's label) since Explore's query no longer reflects the fit
-    // pipeline once this runs. Reads `fitActiveRef` (not the `fitActive`
-    // closure) so this stays correct even invoked through `maybeReplay`'s
-    // stable, first-render-captured `runExplore` reference.
-    //
-    // EXPLORE IS EPHEMERAL, SESSION-ONLY STATE (design decision, 2026-07-21
-    // review) — the URL deliberately does NOT represent it. The prior
-    // design (writing the derived `q` to the URL, gated on
-    // `fitActiveRef.current`) had two proven bugs: (1) the write only fired
-    // when clearing a STALE fit claim, so the far more common path —
-    // Explore from plain browse — left the address bar completely
-    // unmoved, silently desynced from what was actually showing; (2) even
-    // when it DID fire, `mode` itself was never URL-represented, so
-    // reloading a "synced" explore URL landed on `mode === "browse"` and
-    // rendered the derived query VERBATIM in the search box — contradicting
-    // this file's own task-(b) fix (never show query soup). Persisting
-    // `mode` in the URL to close that gap would need a new param, a
-    // reconcile-effect change, and a back-compat story — too much surface
-    // for this fix. Ephemeral is the smaller, honest alternative: a refresh
-    // or a shared link during Explore always lands on plain browse (30d
-    // default) — truthful, since the URL never claimed to be showing
-    // explore results in the first place.
-    //
-    // The write below always resets q/facets/sort to browse-default via
-    // EXPLICIT overrides (not gated on `fitActiveRef` — that gate is
-    // exactly what left the address bar stale in the common path above).
-    // `jobId` is left alone (`buildUrlState`'s own default: whatever the
-    // URL currently holds). On an already-default URL (the common case)
-    // this is a no-op — `applyUrlState`'s own same-URL guard skips writing.
-    // The URL-reconcile effect (keyed on `[searchParams]`, `modeRef` gate)
-    // is what keeps this write from immediately stomping the `query`/
-    // `facets` state just set above back to the URL's now-empty values.
-    const activateExplore = (q: string) => {
-        setFacets({});
-        setQuery(q);
-        setMode("explore");
-        if (fitActiveRef.current) setFitActive(false);
-        applyUrlState(buildUrlState({ q: "", facets: {}, sort: null }), "replace");
-    };
-
-    // Explore: ask the model for adjacent titles (1 credit). On auth →
-    // popover + retry; on credits/empty → free skill-based broaden so the user
-    // still gets a result. The auth GATE lives here; the authenticated body is
-    // `runExplore` so the post-auth replay can re-run it without re-reading a
-    // (possibly stale) `user` from a captured closure.
-    const enterExplore = async (r: ResumeData) => {
-        clearPendingGate();
-        if (!user) {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
-            openAuth();
-            return;
-        }
-        await runExplore(r);
-    };
-
-    // The authenticated Explore work. Reads no mutable component state beyond
-    // its `r` argument + stable setters, so it is safe to invoke from the
-    // stable-identity `maybeReplay` closure.
-    //
-    // The AI-suggest call goes through `suggestAdjacentRoles` (this file's
-    // `withSettleGuard` chokepoint, `EXPLORE_SUGGEST_TIMEOUT_MS`), so the
-    // `await` below is now GUARANTEED to settle — closing the class of "the
-    // request never resolves and the spinner never stops" (prod bug: infinite
-    // "Finding live roles…"). `finally` unconditionally clears `exploringRaw`,
-    // so there is no path out of THIS function that leaves loading stuck. A
-    // DIFFERENT action superseding this one (applyFit/enterBrowse/startOver/
-    // typing mid-explore, all of which bump `exploreIntentRef`) is handled
-    // separately — see the `exploring` derivation below, not here.
-    //
-    // The branching itself (success / auth / credits-or-soft-error fallback /
-    // no-fallback-possible / hard failure) is `resolveExploreOutcome`
-    // (lib/jobs/resume-match.ts) — a pure function, unit-tested there. Explore
-    // is auth-gated, so this path can't be exercised by an anonymous browser
-    // check; the pure-function extraction is what makes it verifiable at all.
-    // `settled: null` (timeout or thrown rejection) maps to `"failed"`, a
-    // real visible error band (`exploreFailed`) — never silently reported as
-    // one of the action's own soft-error sentinels below it (no-lying-
-    // fallbacks: a hung request isn't a "no suggestions" case).
-    const runExplore = async (r: ResumeData) => {
-        const token = exploreIntentRef.current!.begin();
-        // Recorded so the `exploring` derivation (below) can tell whether
-        // THIS specific attempt is still the current one.
-        exploringTokenRef.current = token;
-        setExploringRaw(true);
-        setExploreFailed(false);
-        try {
-            let settled: Awaited<ReturnType<typeof suggestAdjacentRolesAction>> | null;
-            try {
-                settled = await suggestAdjacentRoles({
-                    profession: r.profile?.profession ?? "",
-                    skills: topSkills(r, 12),
-                    seniority: seniorityFromYears(r.profile?.yearsOfExperience ?? 0),
-                });
-            } catch {
-                settled = null;
-            }
-            if (!exploreIntentRef.current!.isCurrent(token)) return;
-            const outcome = resolveExploreOutcome(
-                settled,
-                r,
-                settled?.error ? classifySentinel(settled.error) : null,
-            );
-            switch (outcome.kind) {
-                case "failed":
-                    setExploreFailed(true);
-                    return;
-                case "auth":
-                    pendingRef.current = queuePending(pendingRef.current, { kind: "explore", payload: r });
-                    openAuth();
-                    return;
-                case "no-fallback":
-                    toast.error("Couldn't build an explore view — try Rank by fit or search instead.");
-                    return;
-                case "fallback":
-                    activateExplore(outcome.q);
-                    toast.info(
-                        outcome.credits
-                            ? "Out of AI credits — showing skill-based matches instead."
-                            : "Showing roles related to your skills.",
-                    );
-                    return;
-                case "success":
-                    activateExplore(outcome.q);
-                    return;
-            }
-        } finally {
-            setExploringRaw(false);
-        }
-    };
-
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
-    // `handleUploadClick` upload-gate, defaulting to a "fit" continuation —
-    // see its doc comment) and apply fit the moment it completes (see
-    // `handleImport`'s `resumeActionAfterImportRef` check).
+    // `handleUploadClick` upload-gate) and apply fit the moment it completes
+    // (see `handleImport`'s `resumeActionAfterImportRef` check).
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
@@ -2690,158 +2355,65 @@ function JobsContent() {
         handleUploadClick();
     };
 
-    // Compact Explore button beside the search input. Same on-demand résumé
-    // resolution as fit; the actual gating (auth/credits) is `enterExplore`/
-    // `runExplore`, reused verbatim and unmodified. `exploreInFlightRef`
-    // closes the click-to-`exploring`-state gap so a rapid double-click can't
-    // fire `enterExplore` (and its 1-credit spend) twice before the button's
-    // own `disabled={exploring}` has a chance to engage. (review fix,
-    // 2026-07-18)
-    const handleExploreClick = async () => {
-        if (exploreInFlightRef.current) return;
-        exploreInFlightRef.current = true;
-        try {
-            const r = await resolveUsableResume();
-            if (r) {
-                await enterExplore(r);
-                return;
-            }
-            handleUploadClick("explore");
-        } finally {
-            exploreInFlightRef.current = false;
-        }
-    };
-
-    // Resume auto-entry: the moment `emptySearchState` (above) decides the
-    // empty-query landing should skip both asks and hand off to Explore, do
-    // exactly that — reusing `handleExploreClick` VERBATIM, the same
-    // function the toolbar's "explore roles like mine" affordance calls, so
-    // auto-entry can never drift from a manual click's behavior (résumé
-    // resolution, the exploreInFlight double-fire guard, credits/soft-error
-    // fallback). `initialLoadRef.current = false` fires unconditionally and
-    // FIRST — before `handleExploreClick` even resolves — so an outcome
-    // that doesn't itself change query/mode/exploreFailed (e.g. a
-    // "no-fallback" toast) still lands on the seeded ask on the next
-    // render instead of re-deciding `"auto-explore"` forever; see
-    // `initialLoadRef`'s own comment above.
-    //
-    // Effect (not inline in render) because entering Explore is a real
-    // side effect (a network call, a mode/URL change) — `emptySearchState`
-    // itself stays a pure read. The dependency is the single decided
-    // string, so this fires exactly once per entry into `"auto-explore"`,
-    // never on an unrelated re-render while it holds.
-    useEffect(() => {
-        if (emptySearchState !== "auto-explore") return;
-        initialLoadRef.current = false;
-        void handleExploreClick();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [emptySearchState]);
-
-    // Task 11 review fix — the tombstone's "similar roles" CTA can't just
-    // call `handleExploreClick` bare: the common dead link is a bare
-    // `/?job=<id>` with no query, so `job=<dead-id>` is still the URL's
-    // `job` param when this fires. `activateExplore` (above) only rewrites
-    // the URL when "ranked by résumé" was active, so for this — the
-    // overwhelmingly common — path it would leave `job=<dead-id>` in the
-    // address bar untouched while local `query`/`mode` moved on to Explore;
-    // the still-present dead id then re-triggers the existence-check
-    // candidacy and the tombstone re-asserts itself over Explore's fresh
-    // results. Clearing the job selection first (local state + URL) avoids
-    // that: `selectedId` becomes null, so `isDeadJobCandidate` goes false
-    // and any in-flight/stale `deadJobCheck` for the old id stops matching.
-    //
-    // Second review fix: `handleExploreClick` is résumé-gated — with no
-    // usable résumé on hand (`canShowSimilarRoles` false, computed above),
-    // it doesn't explore anything, it opens a sign-in/upload modal. Forcing
-    // that on a cold visitor who just followed a now-dead shared link is
-    // both a bait-and-switch on the button's own label AND an unwanted
-    // gate for a low-intent moment, so this only calls into Explore when a
-    // résumé is genuinely on hand; otherwise it falls back to a plain,
-    // ungated browse of live roles (`enterBrowse`, the same helper
-    // `SearchPrompt`'s "or browse all live roles" already uses) —
-    // `SimilarRolesCta` labels the button to match whichever this resolves to.
-    //
-    // Third review fix — CTA-ordering: `enterBrowse()` clears `query`/
-    // `facets` LOCALLY only (`setQuery("")`/`setFacets({})`), it never
-    // touches the URL. Reordering the two calls alone wouldn't fix a stale
-    // address bar either — `buildUrlState()` still reads THIS render's
-    // `query`/`facets` closure regardless of call order within the same
-    // synchronous handler, since React state setters don't apply
-    // mid-function. So a visitor mid-search (`?q=eng`) clicking this CTA
-    // used to end up with an EMPTY query box (state cleared) but `?q=eng`
-    // still sitting in the address bar (URL never told about the clear) —
-    // the same "closure doesn't see its own pending update" class as the
-    // `fitActiveRef` fix a few lines up, just for `enterBrowse`'s fields
-    // instead of `fitActive`. Fixed by mirroring `enterBrowse`'s exact
-    // local writes (`q`/`facets`) as EXPLICIT overrides in the SAME
-    // `applyUrlState` call, rather than relying on a second implicit read.
+    // Task 11 review fix — the tombstone's "similar roles" CTA clears the
+    // job selection (local state + URL) before dropping back to a plain
+    // browse: the common dead link is a bare `/?job=<id>` with no query, so
+    // without this, `job=<dead-id>` would still be the URL's `job` param
+    // after the CTA fires, the still-present dead id would re-trigger the
+    // existence-check candidacy, and the tombstone would re-assert itself
+    // over the fresh browse. Used to branch into "Explore" (résumé-driven
+    // AI-suggested adjacent roles) when a usable résumé was on hand —
+    // removed 2026-08-02 (MCP handoff); this is now always the plain,
+    // ungated browse it used to degrade to.
     const handleTombstoneSimilarRoles = () => {
         setSelectedId(null);
-        if (canShowSimilarRoles) {
-            applyUrlState(buildUrlState({ jobId: null }), "replace");
-            void handleExploreClick();
-        } else {
-            enterBrowseAndSync({ jobId: null });
-        }
+        enterBrowseAndSync({ jobId: null });
     };
 
     const enterBrowse = () => {
-        // Supersede a stale in-flight Explore — see `exploreIntentRef`'s doc
-        // comment above.
-        exploreIntentRef.current!.begin();
         clearPendingGate();
         setFacets({});
         setQuery("");
-        setMode("browse");
     };
 
     // `enterBrowse()` only touches LOCAL state — every caller that means to
-    // abandon a non-default query/facets (Explore's error-band escape, the
-    // "Exploring…" chip's dismiss, the tombstone's ungated fallback above)
+    // abandon a non-default query/facets (the tombstone's fallback above)
     // pairs it with the SAME explicit `q`/`facets` URL override, so the
     // address bar can't lag behind local state (the closure-staleness class
     // `handleTombstoneSimilarRoles` used to hit before this was extracted —
     // see the CTA-ordering review-fix history on that function). `overrides`
-    // lets the tombstone also clear `jobId`, which the other two callers
-    // don't need.
+    // lets the tombstone also clear `jobId`.
     const enterBrowseAndSync = (overrides: Partial<JobsUrlState> = {}) => {
         enterBrowse();
         applyUrlState(buildUrlState({ q: "", facets: {}, ...overrides }), "replace");
     };
 
     // THE single entry point for opening the résumé importer from this page —
-    // every caller (sort menu "Rank by fit", the compact Explore button, the
-    // upsell card's "Upload résumé", any future one) must go through this,
-    // not `setImportOpen(true)` directly, because this is also the one place
-    // that queues `resumeActionAfterImportRef` — what `handleImport` (below)
-    // runs once the upload actually completes. Bug this fixes: the upsell
-    // card used to call `handleUploadClick` bare with no follow-up wiring,
-    // so an upload started FROM the card queued nothing — the modal closed
-    // and nothing visibly happened, no re-rank, no chip (user-reported).
-    //
-    // Defaults to `"fit"` — product contract: ANY upload initiated from
-    // /jobs ends in ranked results, not a silent no-op. `handleExploreClick`
-    // is the one caller that overrides it to `"explore"`; every other
-    // caller (including the upsell card) gets the default for free, so a
-    // future entry point can't forget this by construction.
+    // every caller (sort menu "Rank by fit", the upsell card's "Upload
+    // résumé", any future one) must go through this, not `setImportOpen(true)`
+    // directly, because this is also the one place that queues
+    // `resumeActionAfterImportRef` — what `handleImport` (below) runs once
+    // the upload actually completes. Bug this fixes: the upsell card used to
+    // call `handleUploadClick` bare with no follow-up wiring, so an upload
+    // started FROM the card queued nothing — the modal closed and nothing
+    // visibly happened, no re-rank, no chip (user-reported). Product
+    // contract: ANY upload initiated from /jobs ends in ranked results, not
+    // a silent no-op — every caller gets that for free, so a future entry
+    // point can't forget it by construction.
     //
     // `clearPendingGate()` runs FIRST (it zeroes this same ref), so the
     // queue write below has to come after it, not before.
     //
-    // For `"fit"`, `fitIntentRef.current!.begin()` pins the CURRENT guard
-    // generation into the queued continuation (`fitToken`) — `handleImport`
-    // checks it's still current before applying. Without this, a sort
-    // choice made WHILE the upload modal is still open (which bumps this
-    // same guard — see the Select's `onValueChange` below — but does NOT
-    // clear this ref) would get silently clobbered once the upload finally
-    // completes, minutes later. `"explore"` doesn't need an equivalent: the
-    // eventual `enterExplore`→`runExplore` call begins its OWN fresh
-    // `exploreIntentRef` token when it actually runs, which already
-    // supersedes anything stale by construction.
-    const handleUploadClick = (intent: "fit" | "explore" = "fit") => {
+    // `fitIntentRef.current!.begin()` pins the CURRENT guard generation into
+    // the queued continuation (`fitToken`) — `handleImport` checks it's
+    // still current before applying. Without this, a sort choice made WHILE
+    // the upload modal is still open (which bumps this same guard — see the
+    // Select's `onValueChange` below — but does NOT clear this ref) would
+    // get silently clobbered once the upload finally completes, minutes
+    // later.
+    const handleUploadClick = () => {
         clearPendingGate();
-        resumeActionAfterImportRef.current =
-            intent === "fit" ? { kind: "fit", fitToken: fitIntentRef.current!.begin() } : { kind: "explore" };
+        resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
             pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
             openAuth();
@@ -2863,8 +2435,6 @@ function JobsContent() {
             // Stale-guard check (see `handleUploadClick`'s doc comment): a
             // sort choice made while the modal was open must win, not this.
             if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
-        } else if (queuedAction?.kind === "explore") {
-            void enterExplore(data);
         }
     };
 
@@ -2922,7 +2492,6 @@ function JobsContent() {
             active={selectedId === j.id}
             opened={openedIds.has(j.id)}
             onClick={() => openJob(j.id)}
-            onFit={setFitJob}
             onCompany={j.company_domain ? handleCompany : undefined}
             onOpenPosting={handleOpenPosting}
             now={nowMs}
@@ -3043,32 +2612,8 @@ function JobsContent() {
                         )}
                     >
                         <SearchAutocomplete
-                            // Explore mode's `query` state carries the résumé-derived
-                            // search string (AI-suggested titles, capped — see
-                            // `capExploreTerms`), which used to render raw in this box:
-                            // an unreadable wall of query soup. The "exploring roles
-                            // adjacent to your résumé" affordance on the result line
-                            // communicates that state instead; the box itself shows
-                            // empty-with-placeholder while explore is active.
-                            //
-                            // Explore is ephemeral, session-only state — the URL
-                            // deliberately does NOT represent it (see `activateExplore`'s
-                            // doc comment): a refresh or a shared link during Explore
-                            // lands on plain browse, never on this derived query. So
-                            // gating just the DISPLAYED value on mode wouldn't be enough
-                            // on its own — the box's `value` here and the URL are both
-                            // intentionally out of sync with the underlying `query`
-                            // state while exploring, by design, not by omission.
-                            value={mode === "explore" ? "" : query}
+                            value={query}
                             onChange={(v) => {
-                                if (mode === "explore") {
-                                    // A manual edit is the user taking over from
-                                    // Explore — supersede any stale in-flight explore
-                                    // (see `exploreIntentRef`) before dropping back to
-                                    // an ordinary browse-mode query.
-                                    exploreIntentRef.current!.begin();
-                                    setMode("browse");
-                                }
                                 setQuery(v);
                                 // Continuous input is filter-like — `replace`, not `push` (a
                                 // "push" per keystroke would make the back button undo one
@@ -3160,30 +2705,19 @@ function JobsContent() {
                                 <span data-testid="result-line" className="tabular-nums">
                                     {loading && hits.length > 0 ? "updating…" : resultCountLine}
                                 </span>
-                                {mode === "explore" ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => enterBrowseAndSync()}
-                                        className="text-foreground underline underline-offset-2"
-                                    >
-                                        exploring roles adjacent to your résumé ✕
-                                    </button>
-                                ) : fitActive ? (
+                                {/* "explore roles like mine" (résumé-driven AI-suggested
+                                    adjacent roles) removed 2026-08-02 — moved to MCP.
+                                    A toolbar chip is too tight for a handoff line, so
+                                    this degrades by omission: nothing renders here
+                                    unless "ranked by your résumé" (Rank by fit,
+                                    deterministic, not AI) is active. */}
+                                {fitActive && (
                                     <button
                                         type="button"
                                         onClick={clearFit}
                                         className="text-foreground underline underline-offset-2"
                                     >
                                         ranked by your résumé ✕
-                                    </button>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        disabled={exploring}
-                                        onClick={() => void handleExploreClick()}
-                                        className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground disabled:opacity-50"
-                                    >
-                                        {exploring ? "exploring…" : "explore roles like mine"}
                                     </button>
                                 )}
                             </div>
@@ -3341,8 +2875,7 @@ function JobsContent() {
                         <div className="flex min-h-0 flex-1 flex-col">
                             {isSerpAsk ? (
                                 /* Screen 3's SERP-ask (product spec §2): filters are
-                                   active (or a prior auto-explore attempt didn't pan
-                                   out — see `resolveEmptySearchState`), so the chrome
+                                   active (see `resolveEmptySearchState`), so the chrome
                                    above stays up — search line, filter band — but
                                    there is genuinely nothing to list (rule §1: an
                                    empty query never fetches the corpus). Seeds =
@@ -3381,27 +2914,6 @@ function JobsContent() {
                                         <p className="mt-1 max-w-md font-mono text-xs text-muted-foreground/70">{result.note}</p>
                                     )}
                                 </div>
-                            ) : exploreFailed ? (
-                                <div role="alert" className="border-l-2 border-verdict-risk py-6 pl-4 text-left">
-                                    <p className="font-mono text-[13px] text-foreground">Couldn&apos;t finish exploring — try again.</p>
-                                    <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
-                                        The request took too long or failed. Try again, or browse the live board instead.
-                                    </p>
-                                    <div className="mt-3 flex gap-4 font-mono text-xs">
-                                        <button
-                                            onClick={() => void handleExploreClick()}
-                                            className="text-foreground underline underline-offset-2"
-                                        >
-                                            Retry
-                                        </button>
-                                        <button
-                                            onClick={() => enterBrowseAndSync()}
-                                            className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                        >
-                                            Browse all roles
-                                        </button>
-                                    </div>
-                                </div>
                             ) : blockingError ? (
                                 // Deliverable 1 — the only remaining hard-stop state: a
                                 // search genuinely has no results available at all (a
@@ -3421,16 +2933,7 @@ function JobsContent() {
                                         Retry
                                     </button>
                                 </div>
-                            ) : (loading || emptySearchState === "auto-explore") && hits.length === 0 ? (
-                                // The `"auto-explore"` arm covers the gap between the
-                                // resolver deciding to hand off (this render — the
-                                // effect above hasn't fired yet) and the outcome
-                                // landing: `mode`/`query` haven't changed yet, so
-                                // there's nothing in `hits` to show, but this is not
-                                // an empty-results moment either — reusing the
-                                // ordinary loading splash instead of `EmptyResults`
-                                // is what keeps this window from flashing "No roles
-                                // match" over a fetch that never ran.
+                            ) : loading && hits.length === 0 ? (
                                 <JobsListSplash />
                             ) : hits.length === 0 ? (
                                 <EmptyResults
@@ -3615,14 +3118,10 @@ function JobsContent() {
                                             now={nowMs}
                                             applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                             applying={applyingId === detailJob.id}
-                                            onTailor={() => handleTailor(detailJob)}
                                             onOpenPosting={() => handleOpenPosting(detailJob)}
                                             onMarkApplied={() => handleMarkApplied(detailJob)}
                                             onPrep={() => handlePrep(detailJob)}
                                             onGoAfter={() => handleGoAfter(detailJob)}
-                                            onFit={() => setFitJob(detailJob)}
-                                            onAuthRequired={openAuth}
-                                            isAuthed={!!user}
                                             variants={detailVariants}
                                             pursuit={detailPursuit}
                                             goingAfter={goingAfterId === detailJob.id}
@@ -3637,16 +3136,12 @@ function JobsContent() {
                                     <div className="p-4">
                                         <DeadJobTombstone
                                             onSimilarRoles={handleTombstoneSimilarRoles}
-                                            exploring={exploring}
-                                            canShowSimilar={canShowSimilarRoles}
                                         />
                                     </div>
                                 ) : showUnresolvedDetail ? (
                                     <div className="p-4">
                                         <DeadJobUnresolved
                                             onSimilarRoles={handleTombstoneSimilarRoles}
-                                            exploring={exploring}
-                                            canShowSimilar={canShowSimilarRoles}
                                             checking={isDeadJobChecking}
                                         />
                                     </div>
@@ -3693,23 +3188,6 @@ function JobsContent() {
                     )
                 }
             />
-            <TailorAnalysisSheet
-                open={tailorOpen}
-                onOpenChange={setTailorOpen}
-                job={tailorJob}
-                onAuthRequired={() => setAuthOpen(true)}
-            />
-            <FitDrawer
-                open={!!fitJob}
-                job={fitJob}
-                onOpenChange={(open) => {
-                    if (!open) setFitJob(null);
-                }}
-                onTailor={() => fitJob && handleTailor(fitJob)}
-                onPrep={() => fitJob && handlePrep(fitJob)}
-                onApply={() => fitJob && handleMarkApplied(fitJob)}
-                onAuthRequired={openAuth}
-            />
             <ResumeImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
@@ -3745,48 +3223,39 @@ function JobsContent() {
                                 now={nowMs}
                                 applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                 applying={applyingId === detailJob.id}
-                                onTailor={() => handleTailor(detailJob)}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
-                                onFit={() => setFitJob(detailJob)}
-                                onAuthRequired={openAuth}
-                                isAuthed={!!user}
                                 variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
                             />
                             {/* Sticky mobile action bar (P27 mobile pass) — reuses
                                 the SAME onOpenPosting/onPrep handlers passed to
-                                JobDetail just above (no new handlers), plus onFit
-                                to reopen the same FitDrawer/setFitJob the SERP
-                                card's "Am I a fit?" link already uses. JobDetail's
-                                own CTAs live at the top and scroll out of view on
-                                a long description; this keeps Apply/fit-check
-                                reachable — see JobDetailActionBar's doc comment
-                                for the fixed-vs-sticky/stacking design. */}
+                                JobDetail just above (no new handlers). Its
+                                "Am I a fit?" button moved to MCP 2026-08-02 —
+                                see JobDetailActionBar's own doc comment.
+                                JobDetail's own CTAs live at the top and scroll
+                                out of view on a long description; this keeps
+                                Apply reachable — see JobDetailActionBar's doc
+                                comment for the fixed-vs-sticky/stacking design. */}
                             <JobDetailActionBar
                                 job={detailJob}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
-                                onFit={() => setFitJob(detailJob)}
                             />
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">
                             <DeadJobTombstone
                                 onSimilarRoles={handleTombstoneSimilarRoles}
-                                exploring={exploring}
-                                canShowSimilar={canShowSimilarRoles}
                             />
                         </div>
                     ) : showUnresolvedDetail ? (
                         <div className="p-4">
                             <DeadJobUnresolved
                                 onSimilarRoles={handleTombstoneSimilarRoles}
-                                exploring={exploring}
-                                canShowSimilar={canShowSimilarRoles}
                                 checking={isDeadJobChecking}
                             />
                         </div>

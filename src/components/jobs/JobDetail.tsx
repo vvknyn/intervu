@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, Scales, ShieldCheck, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { FitGreekedPreview } from "@/components/jobs/FitDrawer";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { buildFactChips, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
@@ -161,7 +161,9 @@ export function JobDetailSkeleton() {
  *    the SERP card's own "Apply" button calls, `app/page.tsx`'s
  *    `handleOpenPosting`, which already funnels a signed-out tap through the
  *    existing `gate` pending-action instead of a new one); secondary is
- *    "Am I a fit?" when the caller wires a fit-check surface (`onFit`).
+ *    Apply only — mobile's "Am I a fit?" button was removed 2026-08-02 (AI
+ *    intelligence moved to MCP; a sticky bar is too tight for a handoff
+ *    line, so this degrades by omission rather than growing a note).
  *  - **Desktop (lg+):** unchanged from before — `sticky bottom-0` footer of
  *    the scrolling aside panel, Apply only (Prep removed 2026-08-02). The
  *    aside only ever mounts at lg+ (`isDesktop && selectedId` in page.tsx),
@@ -171,7 +173,6 @@ export function JobDetailSkeleton() {
 export function JobDetailActionBar({
     job,
     onOpenPosting,
-    onFit,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -179,8 +180,6 @@ export function JobDetailActionBar({
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
-    /** Omitted by callers with no fit-check surface. */
-    onFit?: () => void;
 }) {
     // `fixed` (mobile) takes the bar out of the scrolling sheet's normal flow
     // entirely, unlike the old `sticky` bar it replaced — which reserved its
@@ -231,12 +230,6 @@ export function JobDetailActionBar({
                         Apply
                     </Button>
                 )}
-                {onFit && (
-                    <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:hidden" onClick={onFit}>
-                        <Scales size={16} />
-                        Am I a fit?
-                    </Button>
-                )}
             </div>
         </>
     );
@@ -245,23 +238,18 @@ export function JobDetailActionBar({
 export function JobDetail({
     job,
     now,
-    onTailor,
     onOpenPosting,
     onMarkApplied,
     onGoAfter,
-    onFit,
-    onAuthRequired,
     applied,
     applying,
     pursuit,
     goingAfter,
-    isAuthed = false,
     variants = [],
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
-    onTailor: () => void;
     onOpenPosting: () => void;
     onMarkApplied: () => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
@@ -270,22 +258,11 @@ export function JobDetail({
      *  JobDetail itself now renders a static line instead of calling this. */
     onPrep?: () => void;
     onGoAfter: () => void;
-    /** Opens the fit-check surface (FitDrawer). Omitted by callers with no
-     *  such surface wired (e.g. /yours/[id]) — the action row then simply
-     *  doesn't offer "Am I a fit?", rather than a broken button. */
-    onFit?: () => void;
-    /** Opens the sign-in flow for the signed-out "How you match" gate.
-     *  Omitted alongside `onFit` for the same reason — see `onFit`. */
-    onAuthRequired?: () => void;
     applied: boolean;
     applying: boolean;
     /** The existing pursuit for this job, if the user already went after it. */
     pursuit: Pursuit | undefined;
     goingAfter: boolean;
-    /** Whether the caller has already established a signed-in session —
-     *  gates the "How you match" rail between the greeked sign-in preview
-     *  and a live "check your fit" CTA. Defaults to signed-out. */
-    isAuthed?: boolean;
     /** This job's OTHER cluster variants (same normalized title + company,
      *  different location — `lib/jobs/cluster.ts`) — feeds the header's
      *  "also in" chip. Empty for the ordinary non-clustered case. */
@@ -385,22 +362,18 @@ export function JobDetail({
                 </div>
 
                 {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
-                    Am I a fit? outline / Save quiet — the three-weight button
-                    family (THE RULES #3). Tailored-resume and mark-applied
-                    stay real, working features, demoted to a quiet secondary
-                    line below rather than removed. Prep removed 2026-08-02 —
-                    see the static note below this row instead of a button. */}
+                    Save quiet — the two-weight subset of the button family
+                    (THE RULES #3) that's left once "Am I a fit?" moved to
+                    MCP (2026-08-02, see the McpHandoffNote in the "How you
+                    match" rail below — the header row itself degrades by
+                    omission rather than repeating that line up here). Prep
+                    removed 2026-08-02 — see the static note below this row
+                    instead of a button. */}
                 <div className="mt-5 flex flex-wrap items-center gap-2">
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
                             <ArrowSquareOut size={16} />
                             Apply
-                        </Button>
-                    )}
-                    {onFit && (
-                        <Button variant="outline" onClick={onFit} className="gap-2">
-                            <Scales size={16} />
-                            Am I a fit?
                         </Button>
                     )}
                     {/* The one verb (spec §2/§3): "Save" is the primary save
@@ -427,14 +400,10 @@ export function JobDetail({
                 <div className="mt-2.5 rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
                     Interviewing? Ask your AI to prep you with this job&apos;s context.
                 </div>
+                {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
+                    line now lives once, in the "How you match" rail below,
+                    not repeated here. */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                    <button
-                        onClick={onTailor}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
-                    >
-                        <Sparkle size={14} weight="fill" />
-                        Apply with tailored resume
-                    </button>
                     <button
                         onClick={onMarkApplied}
                         disabled={applied || applying}
@@ -533,34 +502,12 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* "How you match" rail (docs-mockup.html Comp B2) — signed-out
-                    renders the SAME greeked preview FitDrawer's own gate uses
-                    (FitGreekedPreview, extracted from FitDrawer.tsx so the two
-                    can't drift); signed-in renders a live CTA into the real
-                    drawer instead of duplicating its fetch here. Omitted
-                    entirely when the caller wired neither `onFit` nor
-                    `onAuthRequired` (e.g. /yours/[id] today). */}
-                {(onFit || onAuthRequired) && (
-                    <div className="mb-5 border border-border bg-background p-4">
-                        <div className="mono-data text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                            How you match
-                        </div>
-                        <div className="mt-3">
-                            {isAuthed && onFit ? (
-                                <Button variant="quiet" onClick={onFit} className="w-full justify-center gap-2">
-                                    <Scales size={16} />
-                                    Check your fit for this role
-                                </Button>
-                            ) : (
-                                <FitGreekedPreview
-                                    onCta={() => onAuthRequired?.()}
-                                    ctaLabel="Create free account"
-                                    blurb="Matches, gaps, and next steps against your resume."
-                                />
-                            )}
-                        </div>
-                    </div>
-                )}
+                {/* "How you match" rail replaced 2026-08-02 — fit assessment,
+                    gap analysis, and tailored-resume generation all moved to
+                    MCP; this is the ONE line for the whole job-detail pane
+                    that says so (the header action row above deliberately
+                    doesn't repeat it — see its own comment). */}
+                <McpHandoffNote className="mb-5" />
 
                 {/* Company hiring-truth mini-KPI rail (docs-mockup.html Comp
                     B2) — reads the SAME denormalized company_* fields

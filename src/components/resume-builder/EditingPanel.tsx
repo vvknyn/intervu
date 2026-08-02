@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkle, Plus, Trash, X, ArrowUp, ArrowDown, ArrowsClockwise, CaretLeft, CaretRight, FloppyDisk, Info } from "@phosphor-icons/react";
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 
 interface EditingPanelProps {
     selectedSection: string | null;
     data: ResumeData;
     onUpdate: (updates: Partial<ResumeData>) => void;
-    onGenerateWithAI?: (section: string) => void;
     onNavigateSection?: (section: string | null) => void;
 }
 
@@ -30,7 +30,7 @@ const SECTION_LABELS: Record<ResumeSection, string> = {
 const ALL_SECTIONS = ['header', 'summary', 'skills', 'experience', 'education'] as const;
 type NavigableSection = typeof ALL_SECTIONS[number];
 
-export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI, onNavigateSection }: EditingPanelProps) {
+export function EditingPanel({ selectedSection, data, onUpdate, onNavigateSection }: EditingPanelProps) {
     const [newSkill, setNewSkill] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -410,14 +410,7 @@ export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI
                         className="min-h-[120px]"
                     />
 
-                    <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => onGenerateWithAI?.("summary")}
-                    >
-                        <Sparkle size={16} weight="fill" className="mr-2" />
-                        Generate with AI
-                    </Button>
+                    <McpHandoffNote />
 
                     <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-2">
                         <p className="font-medium">Tips for a strong summary:</p>
@@ -679,6 +672,7 @@ export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI
                     </div>
                 ) : (
                     <div className="space-y-6">
+                        <McpHandoffNote />
                         {data.experience.map((exp, index) => (
                             <div key={exp.id} className="border border-border rounded-lg p-4 space-y-4">
                                 <div className="flex justify-between items-start">
@@ -729,15 +723,6 @@ export function EditingPanel({ selectedSection, data, onUpdate, onGenerateWithAI
                                         onChange={(e) => updateExperience(exp.id, "description", e.target.value)}
                                         className="min-h-[100px] font-mono text-sm"
                                     />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full"
-                                        onClick={() => onGenerateWithAI?.(`experience-${exp.id}`)}
-                                    >
-                                        <Sparkle size={14} weight="fill" className="mr-2" />
-                                        Help me write this with AI
-                                    </Button>
                                 </div>
                             </div>
                         ))}

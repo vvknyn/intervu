@@ -4,19 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
-    Sparkle,
-    Envelope,
     Copy,
     Check,
-    ArrowsClockwise,
     PencilSimple,
     Lightbulb,
-    Lightning,
     ArrowRight
 } from "@phosphor-icons/react";
 import { ApplicationDraft } from "../ApplicationWizard";
-import { generateCoverLetter } from "@/actions/cover-letter";
-import { cn } from "@/lib/utils";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 
 interface CoverLetterStepProps {
     draft: ApplicationDraft;
@@ -24,61 +19,10 @@ interface CoverLetterStepProps {
 }
 
 export function CoverLetterStep({ draft, onUpdate }: CoverLetterStepProps) {
-    const [isGenerating, setIsGenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [coverLetter, setCoverLetter] = useState(draft.coverLetter || "");
     const [skipped, setSkipped] = useState(false);
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        setError(null);
-
-        try {
-            // Build resume content from base resume
-            const resumeContent = draft.baseResume
-                ? `
-                    Candidate Name: ${draft.baseResume.profile.name}
-                    Profession: ${draft.baseResume.profile.profession}
-                    Summary: ${draft.baseResume.generatedSummary}
-                    Experience: ${draft.baseResume.experience.map(e => `${e.role} at ${e.company}: ${e.description}`).join('\n')}
-                    Skills: ${draft.baseResume.competencies.map(c => c.skills.join(', ')).join(', ')}
-                `
-                : "";
-
-            const jobContent = draft.jobText || draft.jobAnalysis?.jobText || "";
-
-            if (!resumeContent || !jobContent) {
-                throw new Error("Missing resume or job information");
-            }
-
-            // Read cover letter length preference
-            let coverLetterLength: "short" | "standard" | "long" = "standard";
-            try {
-                const stored = localStorage.getItem("intervu-output-prefs");
-                if (stored) {
-                    const prefs = JSON.parse(stored);
-                    if (prefs.coverLetterLength) coverLetterLength = prefs.coverLetterLength;
-                }
-            } catch { /* ignore */ }
-
-            const result = await generateCoverLetter(resumeContent, jobContent, coverLetterLength);
-
-            if (result.error) {
-                throw new Error(result.error);
-            }
-
-            const newCoverLetter = result.data || "";
-            setCoverLetter(newCoverLetter);
-            onUpdate({ coverLetter: newCoverLetter });
-
-        } catch (e: any) {
-            setError(e.message || "Failed to generate cover letter");
-        } finally {
-            setIsGenerating(false);
-        }
-    };
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(coverLetter);
@@ -97,64 +41,51 @@ export function CoverLetterStep({ draft, onUpdate }: CoverLetterStepProps) {
         onUpdate({ coverLetter: undefined });
     };
 
+    const handleWriteOwn = () => {
+        setSkipped(false);
+        setIsEditing(true);
+    };
+
     return (
         <div className="space-y-6">
             <div className="mb-6">
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">Cover Letter</h2>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                    Generate a personalized cover letter based on your resume and job requirements.
+                    Write a cover letter for this application, or skip it for now.
                 </p>
             </div>
 
             {/* Cover Letter Content */}
-            {!coverLetter ? (
+            {!coverLetter && !isEditing ? (
                 <div className="bg-card rounded-xl shadow-[var(--shadow-sm)] p-12 text-center">
-                    {isGenerating ? (
-                        <div className="flex flex-col items-center gap-5">
-                            <div className="w-8 h-8 border-2 border-brand/20 border-t-brand rounded-full animate-spin" />
-                            <div className="space-y-1">
-                                <p className="text-foreground text-sm font-medium">Crafting your cover letter...</p>
-                                <p className="text-muted-foreground text-xs">This usually takes 10-20 seconds</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mx-auto mb-4 text-brand">
-                                <Sparkle size={32} />
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">Generate Cover Letter</h3>
-                            <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto leading-relaxed">
-                                Our AI will write a compelling cover letter highlighting your relevant experience
-                                for {draft.jobAnalysis?.companyName || "this role"}.
-                            </p>
+                    <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mx-auto mb-4 text-brand">
+                        <PencilSimple size={32} />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">Write a Cover Letter</h3>
+                    <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto leading-relaxed">
+                        Write your own cover letter for {draft.jobAnalysis?.companyName || "this role"}, or skip it and add one later.
+                    </p>
 
-                            {error && (
-                                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
-                                    {error}
-                                </div>
-                            )}
+                    <div className="flex gap-3 justify-center mb-6">
+                        <Button
+                            onClick={handleWriteOwn}
+                            className="gap-2"
+                            size="lg"
+                            variant="brand"
+                        >
+                            <PencilSimple size={18} />
+                            Write Your Own
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleSkip}
+                            size="lg"
+                        >
+                            Skip for Now
+                        </Button>
+                    </div>
 
-                            <div className="flex gap-3 justify-center">
-                                <Button
-                                    onClick={handleGenerate}
-                                    disabled={isGenerating}
-                                    className="gap-2"
-                                    size="lg"
-                                    variant="brand"
-                                >
-                                    <Lightning size={18} weight="fill" />
-                                    Generate Cover Letter
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={handleSkip}
-                                    size="lg"
-                                >
-                                    Skip for Now
-                                </Button>
-                            </div>
-                        </>
-                    )}
+                    <McpHandoffNote className="text-left" />
                 </div>
             ) : (
                 <div className="bg-card rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
@@ -175,20 +106,6 @@ export function CoverLetterStep({ draft, onUpdate }: CoverLetterStepProps) {
                             >
                                 <PencilSimple size={14} />
                                 {isEditing ? "Preview" : "Edit"}
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleGenerate}
-                                disabled={isGenerating}
-                                className="gap-1.5 h-8"
-                            >
-                                {isGenerating ? (
-                                    <div className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-                                ) : (
-                                    <ArrowsClockwise size={14} />
-                                )}
-                                Regenerate
                             </Button>
                             <Button
                                 variant="ghost"
