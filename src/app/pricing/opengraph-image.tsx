@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 // Route segment config + image metadata (Next reads these by convention).
 export const runtime = "edge";
-export const alt = "Intervu pricing — no subscription, not even for the robots";
+export const alt = "Intervu pricing — free while we're in beta";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -10,7 +10,7 @@ export const contentType = "image/png";
  * /pricing's own OG card — typographic only, ink background with the
  * signal-green brand accent carrying the price point. Deliberately its own
  * creative (not the root card's indigo gradient + V-mark): this route's
- * story is "no subscription", not the product pitch.
+ * story is "free while we're in beta", not the product pitch.
  */
 export default function PricingOpengraphImage() {
   return new ImageResponse(
@@ -52,7 +52,7 @@ export default function PricingOpengraphImage() {
             maxWidth: 980,
           }}
         >
-          No subscription. Not even for the robots.
+          Free while we&apos;re in beta.
         </div>
         <div
           style={{
@@ -65,7 +65,7 @@ export default function PricingOpengraphImage() {
             lineHeight: 1.3,
           }}
         >
-          Your AI brings the intelligence. We only meter the truth.
+          No card required. Up to 20 applications a day.
         </div>
       </div>
     ),

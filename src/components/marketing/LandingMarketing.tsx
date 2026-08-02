@@ -57,7 +57,7 @@ export function LandingMarketing() {
       <section aria-label="Pricing" className="border-t border-border py-14">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center px-4 text-center lg:px-8">
           <p className="max-w-xl text-sm text-muted-foreground">
-            No subscription. Intelligence is free — it&apos;s your AI. We charge only for corpus truth.{" "}
+            Free in beta. No card, no subscription — up to 20 applications a day.{" "}
             <Link href="/pricing" className="font-medium text-foreground underline underline-offset-2 hover:text-brand">
               See pricing
             </Link>
