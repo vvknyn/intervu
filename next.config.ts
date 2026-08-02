@@ -70,6 +70,16 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // Humans who type the short MCP URL land on the pairing page. NOT
+      // permanent: /mcp may become the real endpoint later, and the agent
+      // endpoint itself stays /api/mcp — MCP clients exact-match the pasted
+      // URL against the server's resource metadata, so marketing copy must
+      // say /api/mcp until that metadata changes with it.
+      {
+        source: "/mcp",
+        destination: "/connect",
+        permanent: false,
+      },
       // Jobs flipped to root (jobs-first-bloom PR 1). Query params (e.g.
       // ?job=<id>) pass through automatically — Next preserves them on 301s.
       {

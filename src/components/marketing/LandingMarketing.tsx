@@ -27,7 +27,7 @@ export function LandingMarketing() {
               <p className="mt-1.5 text-base text-foreground">
                 Paste{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em]">
-                  https://intervu.cc/mcp
+                  https://intervu.cc/api/mcp
                 </code>{" "}
                 into your AI&apos;s connector settings.
               </p>
