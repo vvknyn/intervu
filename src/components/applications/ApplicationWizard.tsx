@@ -75,8 +75,8 @@ function clearCache() {
 
 const STEPS = [
     { id: 1, name: "Job Details", icon: Briefcase, description: "Paste or link the job posting" },
-    { id: 2, name: "Tailor Resume", icon: FileText, description: "AI-powered resume optimization" },
-    { id: 3, name: "Cover Letter", icon: Envelope, description: "Generate a personalized letter" },
+    { id: 2, name: "Tailor Resume", icon: FileText, description: "Attach and adjust your resume" },
+    { id: 3, name: "Cover Letter", icon: Envelope, description: "Write a personalized letter" },
     { id: 4, name: "Review", icon: Eye, description: "Review and track your application" },
 ];
 

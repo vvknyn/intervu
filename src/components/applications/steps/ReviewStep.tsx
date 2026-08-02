@@ -208,7 +208,7 @@ export function ReviewStep({ draft, onUpdate, onGoToStep }: ReviewStepProps) {
             </CollapsibleSection>
 
             {/* Job Requirements Preview - Collapsible */}
-            {draft.jobAnalysis && (
+            {draft.jobAnalysis && (draft.jobAnalysis.extractedRequirements?.length ?? 0) > 0 && (
                 <CollapsibleSection
                     title="Job Requirements"
                     icon={<Briefcase size={18} />}

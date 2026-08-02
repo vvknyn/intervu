@@ -308,27 +308,24 @@ describe('shouldClearStaleJobUrl', () => {
 });
 
 // Empty-search landing state (page.tsx's `showAsk` replacement) — an empty
-// search must never list the whole corpus. Covers the four outcomes and the
-// precedence between them (mode/query/fit beats everything; a prior
-// exploreFailed beats a fresh auto-explore attempt; auto-explore beats both
-// asks; filters decide which ask).
+// search must never list the whole corpus. Covers the three outcomes and the
+// precedence between them (query/fit beats everything; filters decide which
+// ask). Used to have a fourth outcome, "auto-explore", driven by `mode`/
+// `hasUsableResume`/`isInitialLoad`/`exploreFailed` — removed 2026-08-02
+// along with the "Explore" (AI-suggested adjacent roles) feature it drove.
 describe('resolveEmptySearchState', () => {
     function input(overrides: Partial<EmptySearchStateInput> = {}): EmptySearchStateInput {
         return {
             hasQuery: false,
             fitActive: false,
-            mode: 'browse',
             activeFilterCount: 0,
-            hasUsableResume: false,
-            isInitialLoad: true,
-            exploreFailed: false,
             ...overrides,
         };
     }
 
     it('a real query always wins, regardless of everything else', () => {
         assert.equal(
-            resolveEmptySearchState(input({ hasQuery: true, activeFilterCount: 2, hasUsableResume: true })),
+            resolveEmptySearchState(input({ hasQuery: true, activeFilterCount: 2 })),
             'results',
         );
     });
@@ -337,64 +334,12 @@ describe('resolveEmptySearchState', () => {
         assert.equal(resolveEmptySearchState(input({ fitActive: true })), 'results');
     });
 
-    it('explore mode always wins, even with an empty query and no filters', () => {
-        assert.equal(resolveEmptySearchState(input({ mode: 'explore' })), 'results');
-    });
-
-    it('no query, no filters, no résumé — the plain first-screen overlay', () => {
+    it('no query, no filters — the plain first-screen overlay', () => {
         assert.equal(resolveEmptySearchState(input()), 'overlay-ask');
     });
 
-    it('filters-only (no query, no résumé) — SERP-ask, not the full-screen overlay', () => {
+    it('filters-only (no query) — SERP-ask, not the full-screen overlay', () => {
         assert.equal(resolveEmptySearchState(input({ activeFilterCount: 1 })), 'serp-ask');
-    });
-
-    it('initial load + usable résumé — auto-explore, even with zero filters active', () => {
-        assert.equal(
-            resolveEmptySearchState(input({ isInitialLoad: true, hasUsableResume: true })),
-            'auto-explore',
-        );
-    });
-
-    it('initial load + usable résumé + filters active — auto-explore still wins over serp-ask', () => {
-        assert.equal(
-            resolveEmptySearchState(
-                input({ isInitialLoad: true, hasUsableResume: true, activeFilterCount: 3 }),
-            ),
-            'auto-explore',
-        );
-    });
-
-    it('résumé usable but NOT initial load (an in-session query clear already happened) — falls to serp-ask with filters active', () => {
-        assert.equal(
-            resolveEmptySearchState(
-                input({ isInitialLoad: false, hasUsableResume: true, activeFilterCount: 1 }),
-            ),
-            'serp-ask',
-        );
-    });
-
-    it('résumé usable but NOT initial load, no filters either — falls to the plain overlay ask', () => {
-        assert.equal(
-            resolveEmptySearchState(input({ isInitialLoad: false, hasUsableResume: true })),
-            'overlay-ask',
-        );
-    });
-
-    it('exploreFailed beats a fresh auto-explore candidacy — no infinite retry loop', () => {
-        assert.equal(
-            resolveEmptySearchState(
-                input({ isInitialLoad: true, hasUsableResume: true, exploreFailed: true }),
-            ),
-            'serp-ask',
-        );
-    });
-
-    it('exploreFailed with no filters active still lands on serp-ask (the seeded ask), not the bare overlay', () => {
-        assert.equal(
-            resolveEmptySearchState(input({ exploreFailed: true, activeFilterCount: 0 })),
-            'serp-ask',
-        );
     });
 });
 

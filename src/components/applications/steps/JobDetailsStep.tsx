@@ -10,18 +10,15 @@ import {
     FileText,
     Buildings,
     Briefcase,
-    CheckCircle,
-    Sparkle,
-    ListBullets,
     WarningCircle,
     ClipboardText,
     ArrowRight
 } from "@phosphor-icons/react";
 import { ApplicationDraft } from "../ApplicationWizard";
 import { fetchUrlContent } from "@/actions/fetch-url";
-import { analyzeJobRequirements } from "@/actions/tailor-resume";
-import { cn } from "@/lib/utils";
+import { JobAnalysis } from "@/types/resume";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 
 interface JobDetailsStepProps {
     draft: ApplicationDraft;
@@ -32,69 +29,79 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
     const [inputMode, setInputMode] = useState<"url" | "text">(draft.jobUrl ? "url" : "text");
     const [jobUrl, setJobUrl] = useState(draft.jobUrl || "");
     const [jobText, setJobText] = useState(draft.jobText || "");
-    const [isLoading, setIsLoading] = useState(false);
-    const [loadingMessage, setLoadingMessage] = useState("");
+    const [companyName, setCompanyName] = useState(draft.jobAnalysis?.companyName || "");
+    const [positionTitle, setPositionTitle] = useState(draft.jobAnalysis?.positionTitle || "");
+    const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [urlFetchFailed, setUrlFetchFailed] = useState(false);
 
-    const handleAnalyze = async () => {
-        setIsLoading(true);
+    // Keeps the existing JobAnalysis shape intact (required fields filled with
+    // sane defaults) so the wizard's step-1 gate, ReviewStep, and
+    // ResumeTailoringStep's versionName default all keep working unchanged.
+    const updateJobDetails = (company: string, position: string) => {
+        const jobAnalysis: JobAnalysis = {
+            ...draft.jobAnalysis,
+            companyName: company,
+            positionTitle: position,
+            jobText: jobText || draft.jobAnalysis?.jobText || "",
+            extractedRequirements: [],
+            extractedSkills: draft.jobAnalysis?.extractedSkills || [],
+            cultureIndicators: draft.jobAnalysis?.cultureIndicators || [],
+            seniorityLevel: draft.jobAnalysis?.seniorityLevel || "",
+        };
+        onUpdate({ jobAnalysis });
+    };
+
+    const handleCompanyChange = (value: string) => {
+        setCompanyName(value);
+        updateJobDetails(value, positionTitle);
+    };
+
+    const handlePositionChange = (value: string) => {
+        setPositionTitle(value);
+        updateJobDetails(companyName, value);
+    };
+
+    const handleJobUrlChange = (value: string) => {
+        setJobUrl(value);
+        onUpdate({ jobUrl: value });
+    };
+
+    const handleJobTextChange = (value: string) => {
+        setJobText(value);
+        onUpdate({ jobText: value });
+    };
+
+    const handleFetchUrl = async () => {
+        if (!jobUrl) return;
+        setIsFetching(true);
         setError(null);
         setUrlFetchFailed(false);
 
         try {
-            let textToAnalyze = jobText;
-
-            // If URL mode, fetch the content first
-            if (inputMode === "url" && jobUrl) {
-                setLoadingMessage("Fetching job posting...");
-                const fetchResult = await fetchUrlContent(jobUrl);
-                if (fetchResult.error) {
-                    setUrlFetchFailed(true);
-                    setError(null);
-                    setIsLoading(false);
-                    setLoadingMessage("");
-                    return;
-                }
-                textToAnalyze = fetchResult.data || "";
-                setJobText(textToAnalyze);
+            const fetchResult = await fetchUrlContent(jobUrl);
+            if (fetchResult.error) {
+                setUrlFetchFailed(true);
+                return;
             }
-
-            if (!textToAnalyze || textToAnalyze.trim().length < 50) {
-                throw new Error("Please provide more details about the job posting.");
-            }
-
-            // Analyze the job posting
-            setLoadingMessage("Analyzing job requirements...");
-            const analysisResult = await analyzeJobRequirements(textToAnalyze);
-
-            if (analysisResult.error) {
-                throw new Error(analysisResult.error);
-            }
-
-            // Update draft with analysis
-            onUpdate({
-                jobUrl: inputMode === "url" ? jobUrl : undefined,
-                jobText: textToAnalyze,
-                jobAnalysis: analysisResult.data
-            });
-
+            const text = fetchResult.data || "";
+            setJobText(text);
+            onUpdate({ jobUrl, jobText: text });
         } catch (e: unknown) {
-            setError((e as Error).message || "Failed to analyze job posting");
+            setError((e as Error).message || "Failed to fetch job posting");
         } finally {
-            setIsLoading(false);
-            setLoadingMessage("");
+            setIsFetching(false);
         }
     };
 
-    const hasAnalysis = draft.jobAnalysis?.companyName && draft.jobAnalysis?.positionTitle;
+    const hasDetails = !!(companyName.trim() && positionTitle.trim());
 
     return (
         <div className="space-y-6">
             <div className="mb-6">
                 <h2 className="text-xl md:text-2xl font-semibold tracking-tight">Job Details</h2>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                    Paste the job posting to analyze requirements and tailor your resume.
+                    Paste the job posting and tell us who it's for.
                 </p>
             </div>
 
@@ -123,13 +130,13 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
                                     type="url"
                                     placeholder="https://careers.google.com/jobs/..."
                                     value={jobUrl}
-                                    onChange={(e) => setJobUrl(e.target.value)}
+                                    onChange={(e) => handleJobUrlChange(e.target.value)}
                                     className="h-11"
-                                    disabled={isLoading}
+                                    disabled={isFetching}
                                     autoFocus
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    We'll automatically extract the job description and requirements.
+                                    We'll fetch the posting text from this link.
                                 </p>
                             </div>
                         </TabsContent>
@@ -141,9 +148,8 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
                                     id="jobText"
                                     placeholder="Paste the full job description here..."
                                     value={jobText}
-                                    onChange={(e) => setJobText(e.target.value)}
+                                    onChange={(e) => handleJobTextChange(e.target.value)}
                                     className="min-h-[240px] resize-y font-mono text-sm leading-relaxed"
-                                    disabled={isLoading}
                                 />
                             </div>
                         </TabsContent>
@@ -183,88 +189,69 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
                             </div>
                         )}
 
-                        <Button
-                            onClick={handleAnalyze}
-                            disabled={isLoading || (inputMode === "url" ? !jobUrl : !jobText)}
-                            className="w-full mt-6 h-11"
-                            size="lg"
-                            variant="brand"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-brand-foreground/30 border-t-brand-foreground rounded-full animate-spin mr-2" />
-                                    {loadingMessage || "Analyzing..."}
-                                </>
-                            ) : (
-                                <>
-                                    <Sparkle size={18} weight="fill" className="mr-2" />
-                                    Analyze Job Posting
-                                </>
-                            )}
-                        </Button>
+                        {inputMode === "url" && (
+                            <Button
+                                onClick={handleFetchUrl}
+                                disabled={isFetching || !jobUrl}
+                                className="w-full mt-6 h-11"
+                                size="lg"
+                                variant="outline"
+                            >
+                                {isFetching ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin mr-2" />
+                                        Fetching...
+                                    </>
+                                ) : (
+                                    <>
+                                        <LinkIcon size={18} className="mr-2" />
+                                        Fetch Posting Text
+                                    </>
+                                )}
+                            </Button>
+                        )}
                     </div>
                 </Tabs>
             </div>
 
-            {/* Analysis Result */}
-            {hasAnalysis && draft.jobAnalysis && (
-                <div className="bg-card rounded-xl shadow-[var(--shadow-sm)] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 border border-brand/20">
-                    <div className="p-6 border-b border-brand/10 bg-brand/5 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
-                            <CheckCircle size={20} weight="fill" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-foreground">Analysis Complete</h3>
-                            <p className="text-sm text-muted-foreground">We've extracted the key details from this posting</p>
-                        </div>
+            {/* Manual Company / Position — this is the tracker's own record, not AI extraction */}
+            <div className="bg-card rounded-xl shadow-[var(--shadow-sm)] p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="companyName" className="flex items-center gap-2">
+                            <Buildings size={14} />
+                            Company Name
+                        </Label>
+                        <Input
+                            id="companyName"
+                            value={companyName}
+                            onChange={(e) => handleCompanyChange(e.target.value)}
+                            placeholder="e.g. Google"
+                        />
                     </div>
-
-                    <div className="p-6 space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="space-y-1.5">
-                                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                    <Buildings size={12} />
-                                    Company
-                                </div>
-                                <p className="text-lg font-medium text-foreground">{draft.jobAnalysis.companyName}</p>
-                            </div>
-                            <div className="space-y-1.5">
-                                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                    <Briefcase size={12} />
-                                    Position
-                                </div>
-                                <p className="text-lg font-medium text-foreground">{draft.jobAnalysis.positionTitle}</p>
-                            </div>
-                        </div>
-
-                        {draft.jobAnalysis.extractedRequirements && draft.jobAnalysis.extractedRequirements.length > 0 && (
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                    <ListBullets size={12} />
-                                    Key Requirements
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {draft.jobAnalysis.extractedRequirements.slice(0, 8).map((req, i) => (
-                                        <div
-                                            key={i}
-                                            className="min-w-0 break-words px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded-lg text-xs text-foreground transition-colors"
-                                        >
-                                            {req}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                    <div className="space-y-2">
+                        <Label htmlFor="positionTitle" className="flex items-center gap-2">
+                            <Briefcase size={14} />
+                            Position Title
+                        </Label>
+                        <Input
+                            id="positionTitle"
+                            value={positionTitle}
+                            onChange={(e) => handlePositionChange(e.target.value)}
+                            placeholder="e.g. Senior Software Engineer"
+                        />
                     </div>
                 </div>
-            )}
+            </div>
+
+            <McpHandoffNote />
 
             {/* Completion nudge */}
-            {hasAnalysis && (
+            {hasDetails && (
                 <div className="bg-brand/5 border border-brand/20 rounded-xl p-4 flex items-center gap-3">
                     <ArrowRight size={20} className="text-brand shrink-0" weight="bold" />
                     <p className="text-sm font-medium text-foreground">
-                        Analysis complete — click <span className="font-bold">Continue</span> to tailor your resume.
+                        Click <span className="font-bold">Continue</span> to attach your resume.
                     </p>
                 </div>
             )}
