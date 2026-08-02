@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { firestoreStore } from "@/lib/agent/store";
 import { validateConsentRequest, type ConsentParams, type ConsentParamsInput } from "@/lib/agent/consent";
 import { getServerUser } from "@/lib/firebase/auth-session";
@@ -35,7 +36,7 @@ function LoggedOutCard() {
             </CardContent>
             <CardFooter>
                 <Button asChild className="w-full">
-                    <a href="/">Go to intervu</a>
+                    <Link href="/">Go to intervu</Link>
                 </Button>
             </CardFooter>
         </CenteredCard>
