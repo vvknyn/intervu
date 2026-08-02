@@ -53,6 +53,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
+    removeRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
 import {
@@ -3031,25 +3032,29 @@ function JobsContent() {
             <div
                 className={cn(
                     "w-full shrink-0",
-                    isOverlayAsk ? "max-w-2xl pb-16 pt-[28dvh]" : "border-b border-border bg-card",
+                    isOverlayAsk ? "max-w-3xl pb-16 pt-[16dvh]" : "border-b border-border bg-card",
                 )}
             >
                 <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
                     {/* Empty ask: brand above the line as one composition.
                         Shared layoutIds morph into TopBar when results load. */}
                     {isOverlayAsk && (
-                        <div className="mb-5 flex items-center justify-center gap-2.5">
+                        /* Poster hero (Vivek's mock, 2026-08-02): wordmark at
+                           display-poster scale with the BETA chip as an outlined
+                           box riding its shoulder. Same shared layoutIds — the
+                           morph into TopBar is unchanged, only Screen 1's scale. */
+                        <div className="mb-9 flex items-start justify-center gap-4">
                             <motion.span
                                 layoutId="intervu-brand"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="font-display text-display font-extrabold text-foreground"
+                                className="font-display text-[clamp(64px,11vw,132px)] font-black leading-[0.85] tracking-[-0.035em] text-foreground"
                             >
                                 intervu
                             </motion.span>
                             <motion.span
                                 layoutId="intervu-beta"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
+                                className="mt-[clamp(8px,1.8vw,22px)] border-[1.5px] border-foreground/55 px-3 py-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.18em] text-foreground/70"
                             >
                                 beta
                             </motion.span>
@@ -3058,7 +3063,13 @@ function JobsContent() {
                     <div
                         data-search-line
                         className={cn(
-                            isOverlayAsk ? "flex items-center gap-4" : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
+                            isOverlayAsk
+                                ? // Poster bar: one sharp-cornered 2px ink rectangle,
+                                  // input + attached ink search block (the mock's
+                                  // squared geometry is Screen-1-only; the app keeps
+                                  // its radius system everywhere else).
+                                  "flex items-stretch border-2 border-foreground bg-card"
+                                : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
                         )}
                     >
                         <SearchAutocomplete
@@ -3099,11 +3110,23 @@ function JobsContent() {
                             suggest={suggestForBox}
                             placeholder="What kind of work are you looking for?"
                             className={cn(
-                                "h-11 rounded-xl border border-border bg-muted/40 px-3 shadow-none focus-visible:border-foreground focus-visible:ring-0",
-                                isOverlayAsk ? "text-[19px]" : "text-[15px]",
+                                isOverlayAsk
+                                    ? "h-16 rounded-none border-0 bg-transparent px-5 text-[19px] shadow-none focus-visible:border-0 focus-visible:ring-0"
+                                    : "h-11 rounded-xl border border-border bg-muted/40 px-3 text-[15px] shadow-none focus-visible:border-foreground focus-visible:ring-0",
                             )}
                             containerClassName="min-w-0 flex-1"
                         />
+                        {isOverlayAsk && (
+                            <button
+                                type="button"
+                                aria-label="Search"
+                                data-testid="hero-search-button"
+                                onClick={() => submitSearch(query)}
+                                className="flex w-16 shrink-0 items-center justify-center bg-foreground text-background transition-opacity duration-100 hover:opacity-90"
+                            >
+                                <MagnifyingGlass size={26} weight="bold" />
+                            </button>
+                        )}
                         {!isOverlayAsk && (
                             <Input
                                 data-testid="location-input"
@@ -3210,24 +3233,42 @@ function JobsContent() {
                     )}
 
                     {isOverlayAsk ? (
-                        /* Returning visitor: their own previous sentences, as plain
-                           grey lines. No heading, no chips — a heading would be the
-                           page talking about itself on the one screen that isn't. */
-                        recentSearches.length > 0 && (
-                            <div className="mt-6 flex flex-col items-start gap-1.5">
-                                {recentSearches.slice(0, 3).map((q) => (
-                                    <button
+                        /* Seed chips (Vivek's mock): squared outline chips under the
+                           bar's left edge — recent searches first (each with a real
+                           per-chip ×), curated starters padding the row for a first
+                           visit (no × — there's nothing to remove). Click = search. */
+                        <div className="mt-4 flex flex-wrap gap-3">
+                            {searchSeeds.slice(0, 4).map((q) => {
+                                const isRecent = recentSearches.some(
+                                    (r) => r.toLowerCase() === q.toLowerCase(),
+                                );
+                                return (
+                                    <span
                                         key={q}
-                                        type="button"
-                                        data-testid="recent-search-chip"
-                                        onClick={() => submitSearch(q)}
-                                        className="text-left text-[14px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                                        className="flex h-11 items-stretch border border-border bg-card text-[15px] text-foreground transition-colors duration-100 hover:border-foreground"
                                     >
-                                        {q}
-                                    </button>
-                                ))}
-                            </div>
-                        )
+                                        <button
+                                            type="button"
+                                            data-testid="recent-search-chip"
+                                            onClick={() => submitSearch(q)}
+                                            className={cn("flex items-center pl-4", isRecent ? "pr-1.5" : "pr-4")}
+                                        >
+                                            {q}
+                                        </button>
+                                        {isRecent && (
+                                            <button
+                                                type="button"
+                                                aria-label={`Remove ${q} from recent searches`}
+                                                onClick={() => removeRecentSearch(q)}
+                                                className="flex items-center pl-1 pr-3 text-faint transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
                     ) : null}
 
                     {/* Landing claim (P2 front door): the honest-market pitch, quiet
@@ -3237,10 +3278,17 @@ function JobsContent() {
                         surface, sourced from the same NAV_TABS_DESKTOP the footer
                         reads, so a renamed/rerouted tab can't drift out of sync here. */}
                     {isOverlayAsk && (
-                        <div className="mt-8 flex flex-col items-center gap-3 text-center">
-                            <p data-testid="landing-claim" className="max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
+                        <div className="mt-10 flex flex-col items-center gap-6 text-center">
+                            <p data-testid="landing-claim" className="max-w-lg text-[16px] leading-relaxed text-muted-foreground">
                                 {marketingClaim(marketingStats)}
                             </p>
+                            {/* Status line (mock): system-status costume for the
+                                sourcing statement — green square = the same live
+                                signal color the SERP's verdicts use. */}
+                            <div className="flex items-center gap-2.5 font-mono text-[13px] tracking-[0.02em] text-muted-foreground">
+                                <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
+                                live · company career pages
+                            </div>
                         </div>
                     )}
 
