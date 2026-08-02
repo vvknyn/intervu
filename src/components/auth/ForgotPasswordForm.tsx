@@ -50,7 +50,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         return (
             <div className="w-full max-w-xs mx-auto text-center">
                 <div className="mb-6 flex justify-center">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center">
                         <EnvelopeSimple size={24} className="text-foreground" />
                     </div>
                 </div>
@@ -98,7 +98,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email"
-                        className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:text-white"
+                        className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
                     />
                 </div>
 

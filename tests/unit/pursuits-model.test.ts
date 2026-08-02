@@ -12,6 +12,7 @@ import {
     stageLabel,
     boardColumn,
     boardTimestampLabel,
+    boardTruthLine,
     PURSUIT_STAGES,
     type Pursuit,
     type PursuitStage,
@@ -316,4 +317,30 @@ test("boardTimestampLabel reads updated_at for closed/resting stages (offer, rej
         const p = makePursuit({ status, updated_at: "2026-07-20T00:00:00.000Z" });
         assert.equal(boardTimestampLabel(p, now), "since 3d ago", status);
     }
+});
+
+/* --------------------------------- boardTruthLine --------------------------------- */
+
+test("boardTruthLine is null when neither atom is present (no fabricated live/ghost signal)", () => {
+    assert.equal(boardTruthLine(makePursuit()), null);
+});
+
+test("boardTruthLine shows the linked resume version when present", () => {
+    const p = makePursuit({ resume_version: { version_name: "v3-fintech" } });
+    assert.equal(boardTruthLine(p), "resume: v3-fintech");
+});
+
+test("boardTruthLine shows prep recency when present", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const p = makePursuit({ last_prepped_at: "2026-07-21T00:00:00.000Z" });
+    assert.equal(boardTruthLine(p, now), "prepped 2d ago");
+});
+
+test("boardTruthLine joins both atoms when both are present, degrading by omission independently otherwise", () => {
+    const now = Date.parse("2026-07-23T00:00:00.000Z");
+    const both = makePursuit({
+        resume_version: { version_name: "v3-fintech" },
+        last_prepped_at: "2026-07-21T00:00:00.000Z",
+    });
+    assert.equal(boardTruthLine(both, now), "resume: v3-fintech · prepped 2d ago");
 });

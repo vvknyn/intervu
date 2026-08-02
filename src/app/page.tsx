@@ -6,18 +6,18 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
     MagnifyingGlass,
-    ArrowSquareOut,
     WarningCircle,
-    Lightning,
     Compass,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { LandingMarketing } from "@/components/marketing/LandingMarketing";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -32,7 +32,7 @@ import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
-import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
+import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -54,6 +54,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
+    removeRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
 import {
@@ -65,7 +66,7 @@ import {
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
-import { JobDetail } from "@/components/jobs/JobDetail";
+import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
@@ -117,6 +118,7 @@ import {
     queuePending,
     clearPending,
     takeReplay,
+    resolveApplyGateDecision,
     type PendingState,
 } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
@@ -373,11 +375,12 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                // Selected-card background: light mode gets the new flat
-                // verify-tint token; dark keeps its existing bg-brand/5
-                // opacity tint (see globals.css's --verify-tint comment).
-                active && "border-brand bg-verify-tint dark:bg-brand/5",
+                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                // Selected card = 2px ink border (docs-mockup.html THE RULES
+                // #2/#5): green is verified/live ONLY, never a selection
+                // decoration, so this no longer tints the background — just
+                // the structural ink border the mock's `.jcard.sel` uses.
+                active && "border-2 border-foreground",
             )}
         >
             <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
@@ -420,7 +423,11 @@ function JobCard({
                         <button
                             type="button"
                             data-testid="cluster-toggle"
-                            className="font-mono text-[12px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            // Squared mono chip (docs-mockup.html Comp B) — was a
+                            // bare underlined text link; the mock renders this as
+                            // its own bordered box, matching the other data chips
+                            // on the row instead of reading as a hyperlink.
+                            className="mono-data border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleExpand?.();
@@ -431,9 +438,14 @@ function JobCard({
                     )}
                 </div>
                 {clearGhost && (
-                    <div className="mt-2 flex items-center gap-1.5">
-                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-brand" aria-hidden />
-                        <span className="font-mono text-[12px] font-medium text-brand">Live · no ghost signals</span>
+                    // Squared verdict line (docs-mockup.html Comp B): a square
+                    // dot (pills retired — THE RULES #1), mono throughout, with
+                    // ONLY "no ghost signals" carrying the verification
+                    // underline — that's the specific claim being underwritten,
+                    // not the bare "live" word next to it.
+                    <div className="mono-data mt-2 flex items-center gap-1.5 text-[12px] font-medium text-brand">
+                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse bg-brand" aria-hidden />
+                        live · <span className="verified-underline">no ghost signals</span>
                     </div>
                 )}
                 {flagged && (
@@ -445,7 +457,12 @@ function JobCard({
                     <button
                         type="button"
                         data-testid="am-i-a-fit"
-                        className="mt-2 text-[13px] font-medium text-brand hover:underline"
+                        // min-h-11 + flex centering (not padding) gives this a
+                        // deterministic ≥44px tap target regardless of the
+                        // 13px text's own line-height (P27 mobile pass — was
+                        // an 18px-tall text link, well under the mobile tap
+                        // target floor).
+                        className="mt-1 inline-flex min-h-11 items-center text-[13px] font-medium text-brand hover:underline"
                         onClick={(e) => {
                             e.stopPropagation();
                             onFit(job);
@@ -462,7 +479,10 @@ function JobCard({
                 {job.apply_url && onOpenPosting && (
                     <button
                         type="button"
-                        className="w-full rounded-lg border border-foreground/20 px-2 py-1.5 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
+                        // min-h-11 + flex centering, same tap-target fix as
+                        // "Am I a fit?" below — was 30px tall (py-1.5 sizing
+                        // off the 12px label alone).
+                        className="flex min-h-11 w-full items-center justify-center rounded-lg border border-foreground/20 px-2 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
                         onClick={(e) => {
                             e.stopPropagation();
                             onOpenPosting(job);
@@ -596,13 +616,48 @@ const MAX_REACHABLE = 100_000;
  *  the point where someone is demonstrably reading rather than glancing. */
 const RESUME_MOMENT_OPENS = 3;
 
+/**
+ * One skeleton row shaped like `JobCard` below (same grid, same avatar/
+ * title/meta proportions) — kept next to `JobsListSplash`, its only caller,
+ * so the two shapes can't silently drift apart.
+ */
+function JobCardSkeleton() {
+    return (
+        <div
+            aria-hidden="true"
+            className="mb-2.5 grid grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4"
+        >
+            <div className="skeleton-bar h-12 w-12" />
+            <div className="min-w-0 space-y-2.5 py-0.5">
+                <div className="skeleton-bar h-4 w-3/4" />
+                <div className="skeleton-bar h-3 w-1/2" />
+                <div className="flex gap-2 pt-1">
+                    <div className="skeleton-bar h-5 w-16" />
+                    <div className="skeleton-bar h-5 w-20" />
+                </div>
+            </div>
+            <div className="skeleton-bar h-7 w-full self-start" />
+        </div>
+    );
+}
+
 /** Left-aligned loading line shown while the ledger's first page loads —
- *  no centered card, no decorative icon (anti-marker 5/6). */
+ *  no centered card, no decorative icon (anti-marker 5/6). Job 1a
+ *  (2026-08-01) added 5 shaped skeleton rows below the existing copy line
+ *  (kept verbatim) so the wait reads as "results are shaped like this,
+ *  arriving" instead of a bare sentence. */
 function JobsListSplash() {
     return (
-        <p className="py-8 font-mono text-[13px] text-muted-foreground">
-            Finding live roles… screening each posting for ghost-job signals.
-        </p>
+        <div>
+            <p className="pt-8 font-mono text-[13px] text-muted-foreground">
+                Finding live roles… screening each posting for ghost-job signals.
+            </p>
+            <div className="mt-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <JobCardSkeleton key={i} />
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -733,6 +788,7 @@ type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
 function EmptyResults({
     entries,
     onClearEntry,
+    onClearFilters,
     query,
     onClearQuery,
     ghostRevealCount,
@@ -740,17 +796,35 @@ function EmptyResults({
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
+    /** Job 1c — the existing all-filters-reset funnel (`panelClearAll` /
+     *  `applyFilterState(PRISTINE_FILTER_STATE)`, page.tsx), passed through
+     *  rather than re-derived here so there is exactly one place that knows
+     *  how to reset a `FilterState` to pristine. */
+    onClearFilters: () => void;
     query: string;
     onClearQuery: () => void;
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
 }) {
     const hasQuery = query.trim().length > 0;
+    const hasFilters = entries.length > 0;
     return (
         <div className="py-8 text-left">
-            <p className="text-[14px] text-foreground">No roles match.</p>
-            {(hasQuery || entries.length > 0) && (
+            <p className="text-[14px] text-foreground">
+                {hasFilters ? "Nothing matches these filters." : "No roles match."}
+            </p>
+            {(hasQuery || hasFilters) && (
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
+                    {hasFilters && (
+                        <button
+                            type="button"
+                            data-testid="empty-state-clear-filters"
+                            onClick={onClearFilters}
+                            className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                        >
+                            Clear filters
+                        </button>
+                    )}
                     {hasQuery && (
                         <button
                             type="button"
@@ -1001,6 +1075,10 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    /** Anonymous depth cap (shield): set when a load-more comes back
+     *  `meta.gated` — pagination pauses behind the account gate. Cleared on a
+     *  new search or sign-in; signed-in users are never gated server-side. */
+    const [depthGated, setDepthGated] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1176,18 +1254,28 @@ function JobsContent() {
         }
     };
 
-    // All four "run this after the user signs in" actions (apply / tailor /
+    // All four "run this after the user signs in" actions (apply / gate /
     // upload / explore) live in one pure pending-state ref so only the LATEST
     // intent is ever queued and a dismissed action can never replay. See
-    // lib/jobs/pending-actions.ts. `authedRef` is the deterministic success
-    // signal from this page's AuthPopover (`onAuthed`) — replay fires only when
-    // it's set, so an unrelated later sign-in (e.g. the sidebar "Log in", which
-    // never touches this popover) replays nothing, race-free regardless of
+    // lib/jobs/pending-actions.ts — `gate` is the generic apply-intent gate
+    // (Job 2, 2026-08-01) shared by every apply-adjacent CTA reachable signed
+    // out. `authedRef` is the deterministic success signal from this page's
+    // AuthPopover (`onAuthed`) — replay fires only when it's set, so an
+    // unrelated later sign-in (e.g. the sidebar "Log in", which never
+    // touches this popover) replays nothing, race-free regardless of
     // whether `setUser(true)` or the popover-close lands first.
     const pendingRef = useRef<PendingState<PublicJob, PublicJob, ResumeData>>(
         emptyPending<PublicJob, PublicJob, ResumeData>(),
     );
     const authedRef = useRef(false);
+    // True only while the currently-open auth dialog was opened by
+    // `handleApplyGate` below — the ONLY path that promises "we'll take you
+    // to the posting and start tracking this application" (the value line
+    // rendered above the dialog). `openAuth` resets it to false on every
+    // open; `handleApplyGate` is the one call site that then flips it back
+    // on, so a "Mark as applied" gate, a session-expiry re-auth, or
+    // FitDrawer/TailorAnalysisSheet's own auth requirement never show it.
+    const [authGateValueLine, setAuthGateValueLine] = useState(false);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -1221,6 +1309,12 @@ function JobsContent() {
         // real and the results must be re-fetched in the new order.
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
     );
+
+    // New search or successful sign-in lifts the depth gate (the server
+    // re-decides per request; this only clears the paused UI).
+    useEffect(() => {
+        setDepthGated(false);
+    }, [searchKey, user]);
 
     // Single source: résumé usable AND, for the auto-explore path below,
     // the sign-in this actually needs already satisfied — hoisted here
@@ -1850,6 +1944,18 @@ function JobsContent() {
     // (in `hits`) first, else the existence check's confirmed-alive job.
     const detailJob = selected ?? deadJobFoundJob;
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
+    // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
+    // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —
+    // not a second lookup — so the two can never disagree about what counts
+    // as a duplicate of this posting.
+    const detailVariants = useMemo(() => {
+        if (!detailJob) return [];
+        const cluster = clusters.find(
+            (c) => c.primary.id === detailJob.id || c.variants.some((v) => v.id === detailJob.id),
+        );
+        if (!cluster) return [];
+        return [cluster.primary, ...cluster.variants].filter((j) => j.id !== detailJob.id);
+    }, [clusters, detailJob]);
     // Review fix — still checking, or the check came back inconclusive
     // (`unknown` — the confirmed production reality until the Meilisearch
     // index gets `id` added to `filterableAttributes`, see
@@ -1933,6 +2039,13 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
+            // Shield depth cap: an anonymous request past the free window
+            // comes back `meta.gated` with zero hits — pause pagination
+            // behind the account gate instead of silently ending the list.
+            if ((r as { meta?: { gated?: boolean } }).meta?.gated) {
+                setDepthGated(true);
+                return;
+            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2099,10 +2212,13 @@ function JobsContent() {
         });
         setTailorOpen(true);
     };
+    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — signed
+    // out, "Apply with tailored resume" is one of the four apply-adjacent
+    // CTAs that gate through `handleApplyGate` instead of its own pre-auth
+    // behavior; signed in it's unchanged (opens the tailor slideout).
     const handleTailor = (job: PublicJob) => {
-        if (!user) {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "tailor", payload: job });
-            openAuth();
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
             return;
         }
         openTailor(job);
@@ -2119,7 +2235,16 @@ function JobsContent() {
         if (!job.company_domain) return;
         router.push(`/co/${domainToSlug(job.company_domain)}`);
     };
+    // Job 2 — the card "Apply" button and the detail panel's "Open posting"
+    // button both call this (see JobCard's `onOpenPosting` prop and
+    // JobDetail's `onOpenPosting` prop), so gating here covers both by
+    // construction. Signed in: unchanged, new-tab `window.open` (safe —
+    // this always runs synchronously inside the click's own gesture stack).
     const handleOpenPosting = (job: PublicJob) => {
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
+            return;
+        }
         if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
 
@@ -2153,7 +2278,7 @@ function JobsContent() {
         }
     };
     const handleMarkApplied = (job: PublicJob) => {
-        if (!user) {
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             pendingRef.current = queuePending(pendingRef.current, { kind: "apply", payload: job });
             openAuth();
             return;
@@ -2161,12 +2286,41 @@ function JobsContent() {
         void doMarkApplied(job);
     };
 
-    // "Go after this job" (spec §3) — the one verb, no auth wall: signed out
-    // writes straight to the guest store (merged at sign-in, see
-    // `guestPursuitSyncRef` below); signed in calls the server chokepoint.
+    // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
+    // "Mark as applied" uses, not a second copy of it — then navigates
+    // same-tab to the posting. `window.open` (used by the signed-in
+    // `handleOpenPosting` above) would be popup-blocked here: this runs
+    // asynchronously after the login round-trip completes, outside the
+    // click's own gesture stack, which is exactly the condition browsers
+    // block a new-tab popup under. Awaiting the write first (rather than
+    // firing it and navigating immediately) also means the tab unloading
+    // can't race the request and drop it silently.
+    const replayApplyGate = async (job: PublicJob) => {
+        await doMarkApplied(job);
+        if (job.apply_url) window.location.href = job.apply_url;
+    };
+
+    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — the ONE
+    // gate every apply-adjacent CTA reachable signed out funnels through:
+    // card "Apply", "Go after this job", "Open posting", and "Apply with
+    // tailored resume" (see their own call sites above/below) all call this
+    // instead of performing their own action or keeping their own pre-auth
+    // behavior. A fifth gated button is covered by calling this too, not by
+    // adding another branch here or another case in `maybeReplay` below.
+    const handleApplyGate = (job: PublicJob) => {
+        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: job });
+        openAuth();
+        setAuthGateValueLine(true);
+    };
+
+    // "Go after this job" (spec §3) — used to write straight to the guest
+    // store with no auth wall at all; Job 2 (2026-08-01) overrides that for
+    // THIS button specifically (account creation before applying), so
+    // signed out it now gates like the other three apply-adjacent CTAs.
+    // Signed in: unchanged, still the server chokepoint below.
     const handleGoAfter = (job: PublicJob) => {
-        if (!user) {
-            addGuestPursuit(job);
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
             return;
         }
         void (async () => {
@@ -2247,7 +2401,7 @@ function JobsContent() {
     // Run whatever the user queued before signing in — exactly once, and ONLY
     // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
     // other path to being logged-in (sidebar login, an already-signed-in tab)
-    // never sets `authedRef`, so a stale apply/tailor/upload/explore can't fire.
+    // never sets `authedRef`, so a stale apply/gate/upload/explore can't fire.
     // `takeReplay` empties the state, so the dispatch is idempotent no matter
     // how many times this runs or in what order relative to `setUser`.
     const maybeReplay = useCallback(() => {
@@ -2259,8 +2413,8 @@ function JobsContent() {
             case "apply":
                 void doMarkApplied(action.payload);
                 break;
-            case "tailor":
-                openTailor(action.payload);
+            case "gate":
+                void replayApplyGate(action.payload);
                 break;
             case "upload":
                 setImportOpen(true);
@@ -2269,17 +2423,22 @@ function JobsContent() {
                 void runExplore(action.payload);
                 break;
         }
-        // doMarkApplied / openTailor / runExplore read no changing component
-        // state (only stable setters + the action payload), so capturing the
-        // first render's closures here is safe — keep a stable identity.
+        // doMarkApplied / replayApplyGate / runExplore read no changing
+        // component state (only stable setters + the action payload), so
+        // capturing the first render's closures here is safe — keep a
+        // stable identity.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Open the auth popover for a freshly-queued action. Resetting `authedRef`
     // here scopes the "success" signal to THIS attempt, so a prior confirmed
-    // sign-in can't be mistaken for the new one.
+    // sign-in can't be mistaken for the new one. Also resets the Job 2 value-
+    // line flag — `handleApplyGate` (the only caller that wants it shown)
+    // flips it back on immediately after calling this, synchronously in the
+    // same handler, so the two writes land as one state update.
     const openAuth = () => {
         authedRef.current = false;
+        setAuthGateValueLine(false);
         setAuthOpen(true);
     };
 
@@ -2394,12 +2553,13 @@ function JobsContent() {
     // double-spend a credit. (review fix, 2026-07-18)
     const exploreInFlightRef = useRef(false);
 
-    // Cancel ANY action queued for after sign-in (apply / tailor / upload /
+    // Cancel ANY action queued for after sign-in (apply / gate / upload /
     // explore) so a later, unrelated login can't hijack the user into it — or
     // silently spend an Explore credit / write a phantom application they didn't
     // ask for. Called by every alternate path (results-mode entry, gate choice)
     // and on a dismiss of the popover. (code review, 2026-06-07; pending-state
-    // unified + apply/tailor leak closed, 2026-06-08)
+    // unified + apply/tailor leak closed, 2026-06-08; apply-gate added Job 2,
+    // 2026-08-01)
     const clearPendingGate = () => {
         pendingRef.current = clearPending(pendingRef.current);
         resumeActionAfterImportRef.current = null;
@@ -2870,28 +3030,54 @@ function JobsContent() {
                     : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
             )}
         >
+            {/* Screen-1 corner links (Vivek, Google-homepage pattern): product
+                surfaces + Log in live top-right so the center composition stays
+                brand + search + claim only. Same NAV_TABS_DESKTOP source as the
+                footer, same skip rules as the old inline row. */}
+            {isOverlayAsk && (
+                <div className="absolute right-5 top-4 flex items-center gap-4 text-[13px] font-medium text-muted-foreground">
+                    {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab) => (
+                        <Link
+                            key={tab.href}
+                            href={tab.href}
+                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
+                        >
+                            {tab.label}
+                        </Link>
+                    ))}
+                    {!user && (
+                        <Button size="sm" data-testid="landing-login" onClick={() => setAuthOpen(true)}>
+                            Log in
+                        </Button>
+                    )}
+                </div>
+            )}
             <div
                 className={cn(
                     "w-full shrink-0",
-                    isOverlayAsk ? "max-w-2xl pb-16 pt-[28dvh]" : "border-b border-border bg-card",
+                    isOverlayAsk ? "max-w-3xl pb-16 pt-[16dvh]" : "border-b border-border bg-card",
                 )}
             >
                 <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
                     {/* Empty ask: brand above the line as one composition.
                         Shared layoutIds morph into TopBar when results load. */}
                     {isOverlayAsk && (
-                        <div className="mb-5 flex items-center justify-center gap-2.5">
+                        /* Poster hero (Vivek's mock, 2026-08-02): wordmark at
+                           display-poster scale with the BETA chip as an outlined
+                           box riding its shoulder. Same shared layoutIds — the
+                           morph into TopBar is unchanged, only Screen 1's scale. */
+                        <div className="mb-9 flex items-start justify-center gap-4">
                             <motion.span
                                 layoutId="intervu-brand"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="font-display text-display font-extrabold text-foreground"
+                                className="font-display text-[clamp(64px,11vw,132px)] font-black leading-[0.85] tracking-[-0.035em] text-foreground"
                             >
                                 intervu
                             </motion.span>
                             <motion.span
                                 layoutId="intervu-beta"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
+                                className="mt-[clamp(8px,1.8vw,22px)] border-[1.5px] border-foreground/55 px-3 py-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.18em] text-foreground/70"
                             >
                                 beta
                             </motion.span>
@@ -2900,7 +3086,13 @@ function JobsContent() {
                     <div
                         data-search-line
                         className={cn(
-                            isOverlayAsk ? "flex items-center gap-4" : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
+                            isOverlayAsk
+                                ? // Poster bar: one sharp-cornered 2px ink rectangle,
+                                  // input + attached ink search block (the mock's
+                                  // squared geometry is Screen-1-only; the app keeps
+                                  // its radius system everywhere else).
+                                  "flex items-stretch border-2 border-foreground bg-card"
+                                : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
                         )}
                     >
                         <SearchAutocomplete
@@ -2941,11 +3133,23 @@ function JobsContent() {
                             suggest={suggestForBox}
                             placeholder="What kind of work are you looking for?"
                             className={cn(
-                                "h-11 rounded-xl border border-border bg-muted/40 px-3 shadow-none focus-visible:border-foreground focus-visible:ring-0",
-                                isOverlayAsk ? "text-[19px]" : "text-[15px]",
+                                isOverlayAsk
+                                    ? "h-16 rounded-none border-0 bg-transparent px-5 text-[19px] shadow-none focus-visible:border-0 focus-visible:ring-0"
+                                    : "h-11 rounded-xl border border-border bg-muted/40 px-3 text-[15px] shadow-none focus-visible:border-foreground focus-visible:ring-0",
                             )}
                             containerClassName="min-w-0 flex-1"
                         />
+                        {isOverlayAsk && (
+                            <button
+                                type="button"
+                                aria-label="Search"
+                                data-testid="hero-search-button"
+                                onClick={() => submitSearch(query)}
+                                className="flex w-16 shrink-0 items-center justify-center bg-foreground text-background transition-opacity duration-100 hover:opacity-90"
+                            >
+                                <MagnifyingGlass size={26} weight="bold" />
+                            </button>
+                        )}
                         {!isOverlayAsk && (
                             <Input
                                 data-testid="location-input"
@@ -2982,29 +3186,17 @@ function JobsContent() {
                                     data-testid="filters-toggle"
                                     aria-expanded={filtersOpen}
                                     onClick={() => setFiltersOpen((v) => !v)}
-                                    className={cn(
-                                        "inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-semibold transition-colors duration-100",
-                                        filtersOpen
-                                            ? "border-foreground bg-foreground text-background"
-                                            : "border-border bg-card text-foreground hover:border-foreground/40",
-                                    )}
+                                    className={cn(chipVariants({ active: false }), "h-7", filtersOpen && "border-foreground bg-foreground text-background")}
                                 >
                                     Filters{activeCount > 0 ? ` (${activeCount})` : ""}
                                 </button>
                                 {activeEntries.map((entry) => (
-                                    <span
-                                        key={entry.key}
-                                        className="inline-flex h-7 items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-xs font-semibold text-brand"
-                                    >
+                                    <span key={entry.key} className={cn(chipVariants({ active: true }), "h-7")}>
                                         {entry.label}
-                                        <button
-                                            type="button"
-                                            aria-label={`Remove ${entry.label}`}
+                                        <ChipDismiss
+                                            label={`Remove ${entry.label}`}
                                             onClick={() => applyFilterState(entry.clear(filterState))}
-                                            className="leading-none opacity-70 hover:opacity-100"
-                                        >
-                                            ×
-                                        </button>
+                                        />
                                     </span>
                                 ))}
                                 {activeCount > 0 && (
@@ -3052,24 +3244,42 @@ function JobsContent() {
                     )}
 
                     {isOverlayAsk ? (
-                        /* Returning visitor: their own previous sentences, as plain
-                           grey lines. No heading, no chips — a heading would be the
-                           page talking about itself on the one screen that isn't. */
-                        recentSearches.length > 0 && (
-                            <div className="mt-6 flex flex-col items-start gap-1.5">
-                                {recentSearches.slice(0, 3).map((q) => (
-                                    <button
+                        /* Seed chips (Vivek's mock): squared outline chips under the
+                           bar's left edge — recent searches first (each with a real
+                           per-chip ×), curated starters padding the row for a first
+                           visit (no × — there's nothing to remove). Click = search. */
+                        <div className="mt-4 flex flex-wrap gap-3">
+                            {searchSeeds.slice(0, 4).map((q) => {
+                                const isRecent = recentSearches.some(
+                                    (r) => r.toLowerCase() === q.toLowerCase(),
+                                );
+                                return (
+                                    <span
                                         key={q}
-                                        type="button"
-                                        data-testid="recent-search-chip"
-                                        onClick={() => submitSearch(q)}
-                                        className="text-left text-[14px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                                        className="flex h-11 items-stretch border border-border bg-card text-[15px] text-foreground transition-colors duration-100 hover:border-foreground"
                                     >
-                                        {q}
-                                    </button>
-                                ))}
-                            </div>
-                        )
+                                        <button
+                                            type="button"
+                                            data-testid="recent-search-chip"
+                                            onClick={() => submitSearch(q)}
+                                            className={cn("flex items-center pl-4", isRecent ? "pr-1.5" : "pr-4")}
+                                        >
+                                            {q}
+                                        </button>
+                                        {isRecent && (
+                                            <button
+                                                type="button"
+                                                aria-label={`Remove ${q} from recent searches`}
+                                                onClick={() => removeRecentSearch(q)}
+                                                className="flex items-center pl-1 pr-3 text-faint transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
                     ) : null}
 
                     {/* Landing claim (P2 front door): the honest-market pitch, quiet
@@ -3079,41 +3289,24 @@ function JobsContent() {
                         surface, sourced from the same NAV_TABS_DESKTOP the footer
                         reads, so a renamed/rerouted tab can't drift out of sync here. */}
                     {isOverlayAsk && (
-                        <div className="mt-8 flex flex-col items-center gap-3 text-center">
-                            <p data-testid="landing-claim" className="max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
+                        <div className="mt-10 flex flex-col items-center gap-6 text-center">
+                            <p data-testid="landing-claim" className="max-w-lg text-[16px] leading-relaxed text-muted-foreground">
                                 {marketingClaim(marketingStats)}
                             </p>
-                            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[13px] font-medium text-muted-foreground">
-                                {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab, i, arr) => (
-                                    <span key={tab.href} className="flex items-center gap-x-3">
-                                        <Link href={tab.href} className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline">
-                                            {tab.label}
-                                        </Link>
-                                        {i < arr.length - 1 && (
-                                            <span aria-hidden className="text-faint">
-                                                ·
-                                            </span>
-                                        )}
-                                    </span>
-                                ))}
-                                {!user && (
-                                    <span className="flex items-center gap-x-3">
-                                        <span aria-hidden className="text-faint">
-                                            ·
-                                        </span>
-                                        <button
-                                            type="button"
-                                            data-testid="landing-login"
-                                            onClick={() => setAuthOpen(true)}
-                                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
-                                        >
-                                            Log in
-                                        </button>
-                                    </span>
-                                )}
+                            {/* Status line (mock): system-status costume for the
+                                sourcing statement — green square = the same live
+                                signal color the SERP's verdicts use. */}
+                            <div className="flex items-center gap-2.5 font-mono text-[13px] tracking-[0.02em] text-muted-foreground">
+                                <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
+                                live · company career pages
                             </div>
                         </div>
                     )}
+
+                    {/* Marketing sections (P2.6·C) — below the fold of the
+                        Screen 1 composition; the fixed overlay container
+                        scrolls, so the landing doubles as the marketing page. */}
+                    {isOverlayAsk && <LandingMarketing />}
 
                     {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
@@ -3122,9 +3315,12 @@ function JobsContent() {
                         band (SerpFilters), wired to the same single
                         `applyFilterState` funnel the old FilterPanel card used. */}
                     {!isOverlayAsk && filtersOpen && (
+                        // Motion tokens (Job 1e) — `.panel-enter` (globals.css)
+                        // plays once on mount, i.e. on expand; the band has no
+                        // separate collapse animation since it unmounts on close.
                         <div
                             data-testid="filters-panel"
-                            className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-muted/30 p-5 custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain border border-border bg-muted/30 p-5 custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -3315,6 +3511,7 @@ function JobsContent() {
                                 <EmptyResults
                                     entries={activeEntries}
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
+                                    onClearFilters={panelClearAll}
                                     query={query}
                                     onClearQuery={() => {
                                         setQuery("");
@@ -3426,7 +3623,22 @@ function JobsContent() {
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {hasMore ? (
+                                    {depthGated && !user ? (
+                                        // Depth-gate row (docs-mockup.html Comp B)
+                                        // — a dashed-border block, distinct from
+                                        // every solid-bordered card on the page:
+                                        // it's a boundary the corpus imposes, not
+                                        // a result.
+                                        <div className="flex flex-col items-center gap-3 border border-dashed border-border bg-card py-6 text-center">
+                                            <p className="text-[13.5px] text-muted-foreground">
+                                                That&apos;s the free preview — create a free account to see every
+                                                result.
+                                            </p>
+                                            <Button size="sm" onClick={() => setAuthOpen(true)}>
+                                                Create free account
+                                            </Button>
+                                        </div>
+                                    ) : hasMore ? (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {loadingMore ? (
                                                 <span className="font-mono text-xs text-muted-foreground">Loading more roles…</span>
@@ -3455,14 +3667,18 @@ function JobsContent() {
                 </div>
 
                 {isDesktop && selectedId && (
-                    <aside className="hidden min-h-0 pt-4 lg:block">
-                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-card shadow-sm custom-scrollbar">
+                    // Motion tokens (Job 1e) — `.panel-enter` (globals.css,
+                    // driven by --transition-panel) plays once per mount, i.e.
+                    // on open (this whole `<aside>` unmounts on close, there's
+                    // no separate close transition to add motion to).
+                    <aside className="panel-enter hidden min-h-0 pt-4 lg:block">
+                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border border-border bg-card shadow-sm custom-scrollbar">
                             <div className="relative">
                                 <button
                                     type="button"
                                     aria-label="Close job details"
                                     onClick={() => router.back()}
-                                    className="absolute right-3 top-3 z-10 rounded-full border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+                                    className="absolute right-3 top-3 z-10 border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
                                 >
                                     ×
                                 </button>
@@ -3479,29 +3695,18 @@ function JobsContent() {
                                             onMarkApplied={() => handleMarkApplied(detailJob)}
                                             onPrep={() => handlePrep(detailJob)}
                                             onGoAfter={() => handleGoAfter(detailJob)}
+                                            onFit={() => setFitJob(detailJob)}
+                                            onAuthRequired={openAuth}
+                                            isAuthed={!!user}
+                                            variants={detailVariants}
                                             pursuit={detailPursuit}
                                             goingAfter={goingAfterId === detailJob.id}
                                         />
-                                        <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-                                            {detailJob.apply_url && (
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1 gap-1.5"
-                                                    onClick={() => handleOpenPosting(detailJob)}
-                                                >
-                                                    <ArrowSquareOut size={16} />
-                                                    Apply ↗
-                                                </Button>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                className="flex-1 gap-1.5"
-                                                onClick={() => handlePrep(detailJob)}
-                                            >
-                                                <Lightning size={14} weight="fill" />
-                                                Prep for this
-                                            </Button>
-                                        </div>
+                                        <JobDetailActionBar
+                                            job={detailJob}
+                                            onOpenPosting={() => handleOpenPosting(detailJob)}
+                                            onPrep={() => handlePrep(detailJob)}
+                                        />
                                     </>
                                 ) : isDeadJobConfirmed ? (
                                     <div className="p-4">
@@ -3519,6 +3724,19 @@ function JobsContent() {
                                             canShowSimilar={canShowSimilarRoles}
                                             checking={isDeadJobChecking}
                                         />
+                                    </div>
+                                ) : loading ? (
+                                    // Job 1b — the one real gap: a deep-linked
+                                    // `?job=` id whose first search page hasn't
+                                    // resolved yet, so `detailJob` is null but
+                                    // this isn't "confirmed gone" or "checking
+                                    // a dead-link candidate" either (both
+                                    // handled above) — this branch used to
+                                    // fall through to `null` and render
+                                    // nothing at all while the first page was
+                                    // still in flight.
+                                    <div className="p-4">
+                                        <JobDetailSkeleton />
                                     </div>
                                 ) : null}
                             </div>
@@ -3541,6 +3759,14 @@ function JobsContent() {
                 }}
                 onAuthed={handleAuthed}
                 showTrigger={false}
+                valueLine={
+                    authGateValueLine && (
+                        <>
+                            <b className="text-foreground">Create a free account</b> — we&apos;ll take you straight
+                            to the posting and start tracking this application.
+                        </>
+                    )
+                }
             />
             <TailorAnalysisSheet
                 open={tailorOpen}
@@ -3575,7 +3801,14 @@ function JobsContent() {
                     if (!open) router.back();
                 }}
             >
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
+                <SheetContent
+                    side="bottom"
+                    // Motion tokens (Job 1e) — same retarget as FitDrawer's
+                    // SheetContent, see its own comment for why `duration-`
+                    // (not a plain `transition-*` class) is the right utility
+                    // to override here.
+                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                >
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
@@ -3592,34 +3825,28 @@ function JobsContent() {
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
+                                onFit={() => setFitJob(detailJob)}
+                                onAuthRequired={openAuth}
+                                isAuthed={!!user}
+                                variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
                             />
-                            {/* Task 10 — thumb-zone sticky bar. Reuses the SAME
-                                onOpenPosting/onPrep handlers passed to JobDetail
-                                just above (no new handlers) — JobDetail's own CTAs
-                                live at the top and scroll out of view on a long
-                                description; this keeps Apply/Prep reachable. */}
-                            <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-                                {detailJob.apply_url && (
-                                    <Button
-                                        variant="outline"
-                                        className="flex-1 gap-1.5"
-                                        onClick={() => handleOpenPosting(detailJob)}
-                                    >
-                                        <ArrowSquareOut size={16} />
-                                        Apply ↗
-                                    </Button>
-                                )}
-                                <Button
-                                    variant="outline"
-                                    className="flex-1 gap-1.5"
-                                    onClick={() => handlePrep(detailJob)}
-                                >
-                                    <Lightning size={14} weight="fill" />
-                                    Prep for this
-                                </Button>
-                            </div>
+                            {/* Sticky mobile action bar (P27 mobile pass) — reuses
+                                the SAME onOpenPosting/onPrep handlers passed to
+                                JobDetail just above (no new handlers), plus onFit
+                                to reopen the same FitDrawer/setFitJob the SERP
+                                card's "Am I a fit?" link already uses. JobDetail's
+                                own CTAs live at the top and scroll out of view on
+                                a long description; this keeps Apply/fit-check
+                                reachable — see JobDetailActionBar's doc comment
+                                for the fixed-vs-sticky/stacking design. */}
+                            <JobDetailActionBar
+                                job={detailJob}
+                                onOpenPosting={() => handleOpenPosting(detailJob)}
+                                onPrep={() => handlePrep(detailJob)}
+                                onFit={() => setFitJob(detailJob)}
+                            />
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">
@@ -3637,6 +3864,11 @@ function JobsContent() {
                                 canShowSimilar={canShowSimilarRoles}
                                 checking={isDeadJobChecking}
                             />
+                        </div>
+                    ) : loading ? (
+                        // Job 1b — same gap as the desktop aside above.
+                        <div className="p-4">
+                            <JobDetailSkeleton />
                         </div>
                     ) : null}
                 </SheetContent>

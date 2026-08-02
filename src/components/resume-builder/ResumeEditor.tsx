@@ -125,13 +125,15 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
         // Sized to fill the hub's paper-card wrapper (ResumeBuilder.tsx) rather
         // than a full viewport — this component used to BE the whole page.
         <div className="flex h-[78vh] min-h-[600px] flex-col bg-card">
-            {/* Toolbar — mono text affordances, no bordered/pill buttons
-                (editorial pass). Sync status reuses the same verdict tones
-                the ledger's VERDICT CELL uses (live = saved, risk = error)
-                rather than colored cloud icons. */}
+            {/* Toolbar — squared system (docs-mockup.html Comp D "toolbar to
+                the button family", THE RULES #3): every action is one of the
+                three button weights instead of a bare underlined link. Sync
+                status stays mono text (it's a status, not an action) and
+                reuses the same verdict tones the ledger's VERDICT CELL uses
+                (live = saved, risk = error) rather than colored cloud icons. */}
             <div className="border-b border-border bg-card z-40">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-11 flex items-center justify-between gap-4 font-mono text-[11.5px]">
-                    <div className="min-w-0 truncate">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+                    <div className="min-w-0 truncate font-mono text-[11.5px]">
                         {syncStatus === 'saving' && <span className="text-muted-foreground">saving…</span>}
                         {syncStatus === 'saved' && <span className="text-verdict-live">saved</span>}
                         {syncStatus === 'offline' && (
@@ -142,31 +144,27 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                         {syncStatus === 'error' && <span className="text-verdict-risk">sync error</span>}
                     </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                         {onImport && (
-                            <button
-                                onClick={onImport}
-                                className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                            >
-                                import
-                            </button>
+                            <Button variant="quiet" size="sm" onClick={onImport} className="hidden sm:inline-flex">
+                                Import
+                            </Button>
                         )}
 
-                        <button
+                        <Button
+                            variant="quiet"
+                            size="sm"
                             onClick={onClear}
-                            className="hidden sm:inline text-verdict-risk underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
+                            className="hidden sm:inline-flex text-verdict-risk hover:text-verdict-risk"
                         >
-                            clear
-                        </button>
+                            Clear
+                        </Button>
 
                         {versionsToggle}
 
-                        <button
-                            onClick={printResume}
-                            className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                        >
-                            print / pdf
-                        </button>
+                        <Button variant="quiet" size="sm" onClick={printResume} className="hidden sm:inline-flex">
+                            Print / PDF
+                        </Button>
 
                         <Button size="sm" onClick={handleDownloadWord}>.docx</Button>
                     </div>

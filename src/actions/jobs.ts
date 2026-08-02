@@ -10,6 +10,7 @@ import {
   suggestJobs,
   type SearchServeMeta,
 } from "@/lib/jobs/search";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
@@ -19,11 +20,36 @@ import {
   shouldLogSearch,
 } from "@/lib/jobs/search-log";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
+import { getClientIp } from "@/lib/shield/client-ip";
+import { allowSearchRequest } from "@/lib/shield/rate-limit";
+import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/depth-cap";
+import { getServerUser } from "@/lib/firebase/auth-session";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 
 /**
+ * `meta` is additive by convention (see `SearchServedMeta` in
+ * lib/jobs/result-state.ts, the same pattern from the other lane's #38) —
+ * this widens the producer side with `gated`, structurally compatible with
+ * `SearchServeMeta` rather than editing that shared type (search-cache.ts is
+ * outside this chokepoint's ownership). A reader with no knowledge of
+ * `gated` still sees a valid `SearchServeMeta`.
+ */
+type ShieldSearchServeMeta = SearchServeMeta & {
+  /** True when this response was refused by the anonymous depth cap rather
+   *  than actually searched — hits/total are not the real result set. */
+  gated?: boolean;
+};
+
+/**
  * Search the jobs corpus (dispatches to whichever backend is configured).
+ *
+ * Shield chokepoint (P27): every call passes through a per-IP rate limit
+ * and, for unauthenticated callers, a pagination depth cap, before ever
+ * reaching the backend — "search engines get the marketing surface, nobody
+ * gets the corpus in bulk." Both checks fail toward NOT hitting the
+ * backend at all, so a blocked/gated request can never itself cost a real
+ * search.
  *
  * Also emits one anonymous telemetry event per human search. The entry is
  * built on the request (pure, cheap, and stamped with the search's own clock)
@@ -32,9 +58,51 @@ import { after } from "next/server";
  */
 export async function searchJobsAction(
   params: JobSearchParams,
-): Promise<JobSearchResult & { searchId: string; meta?: SearchServeMeta }> {
-  const result = await runSearch(params);
+): Promise<JobSearchResult & { searchId: string; meta?: ShieldSearchServeMeta }> {
   const searchId = randomUUID();
+  const backendStatus = getJobsBackendStatus();
+
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) {
+    // Same shape a real backend outage returns (search.ts's own catch) —
+    // never a raw error, and never a response that reveals a rate limit is
+    // in play. The client's existing one-free-retry already gives a
+    // burst-limited visitor a second try a few seconds later.
+    return {
+      hits: [],
+      total: 0,
+      // Exact shape of search.ts's own real-outage catch (`configured: true`
+      // verbatim — reusing the existing degraded/error result shape per
+      // policy, not deriving a new one): production always has a configured
+      // backend, so this only ever differs from reality in an unconfigured
+      // dev environment, where it costs nothing (there's no real search to
+      // protect there anyway).
+      backend: backendStatus.backend,
+      configured: true,
+      unavailable: true,
+      note: SEARCH_UNAVAILABLE_MESSAGE,
+      searchId,
+    };
+  }
+
+  const user = await getServerUser();
+  const depthDecision = resolveDepthCap({ offset: params.offset, limit: params.limit, isAuthed: !!user });
+  // Only gate when there's an actual corpus behind it — an unconfigured
+  // backend already returns empty for everyone, so a "create an account"
+  // gate there would be dishonest rather than protective.
+  if (backendStatus.configured && depthDecision.gated) {
+    return {
+      hits: [],
+      total: 0,
+      backend: backendStatus.backend,
+      configured: true,
+      note: ANONYMOUS_DEPTH_GATE_MESSAGE,
+      searchId,
+      meta: { degraded: false, servedFrom: "live", gated: true },
+    };
+  }
+
+  const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit });
 
   if (shouldLogSearch(params)) {
     const entry = buildSearchLogEntry(params, result, { searchId, now: Date.now() });

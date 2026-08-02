@@ -127,7 +127,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     return (
         <div className="grid gap-6">
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsList variant="block" className="grid w-full grid-cols-2 mb-4">
                     <TabsTrigger value="login">Log In</TabsTrigger>
                     <TabsTrigger value="signup">Sign Up</TabsTrigger>
                 </TabsList>
@@ -160,6 +160,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     disabled={isPending}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
+                                    className="focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none"
                                 />
                             </div>
                             <div className="grid gap-1">
@@ -175,6 +176,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     disabled={isPending}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
+                                    className="focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none"
                                 />
                             </div>
                             <Button disabled={isPending} className="w-full">

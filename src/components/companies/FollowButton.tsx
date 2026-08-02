@@ -12,7 +12,7 @@ export interface FollowButtonProps {
   domain: string;
   slug: string;
   displayName: string;
-  /** brand = generic; elite = filled green (company page); pill = hot-table compact */
+  /** brand = generic; elite = ink outline, squared (company page); pill = hot-table compact */
   variant?: "brand" | "outline" | "elite" | "pill";
   className?: string;
 }
@@ -92,11 +92,11 @@ export function FollowButton({
         onClick={() => void handleClick()}
         className={cn(
           variant === "elite" &&
-            "rounded-lg px-4 py-2 text-[13.5px] font-semibold transition-colors",
+            "border px-4 py-2 text-[13.5px] font-semibold transition-colors",
           variant === "elite" &&
             (following
-              ? "border border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] text-[color:var(--elite-brand)]"
-              : "bg-[color:var(--elite-brand)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-brand-hover)]"),
+              ? "border-[color:var(--elite-ink)] bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)]"
+              : "border-[color:var(--elite-ink)] bg-[color:var(--elite-card)] text-[color:var(--elite-ink)] hover:bg-[color:var(--elite-rule)]"),
           variant === "pill" &&
             "rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
           variant === "pill" &&

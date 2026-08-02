@@ -29,6 +29,14 @@
 
 
 :root {
+  /* Mobile tab bar height (P27 mobile pass) — single source for both the
+     body's bottom-padding rule below (keeps page content clear of the fixed
+     nav) and JobDetail's mobile action bar (stacks its own fixed bottom bar
+     above the tab bar instead of hardcoding the same 56px a third time).
+     Matches MobileTabBar.tsx's `h-14` row height; the two can't drift apart
+     since both static references trace back to this one value. */
+  --mobile-tabbar-h: 56px;
+
   /* Soft Signal — light shell (docs/design/soft-signal-desktop). Neutrals
      shifted from blue-bias to green-bias (visual-identity pass, 2026-08-01);
      *-foreground tokens below point at --foreground rather than repeating
@@ -52,7 +60,6 @@
   --border: 228 231 227;
   --input: var(--border-strong);
   --ring: var(--brand);
-  --radius: 0.75rem;
 
   /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
      (lib/themes.ts, default preset) applies the same values at runtime. */
@@ -76,14 +83,6 @@
   --green-tint-bg: 230 244 239;
   --green-tint-bg-alt: 223 241 234;
   --green-tint-border: 183 217 203;
-  /* Selected-card background, light mode only (visual-identity pass) — the
-     dark theme's selected job card already reads as a green-tinted surface
-     via `bg-brand/5` (an opacity tint of --brand, see JobCard's `active`
-     state, app/page.tsx); flat verify-tint is light mode's equivalent of
-     that same "selected = quiet green surface" read, since a 5%-opacity
-     tint of the light-mode --brand doesn't hold up against a near-white
-     card the way it does against dark's near-black card. */
-  --verify-tint: 233 242 238;
   --warn: 154 107 16;
   --warn-dot: 194 148 65;
   --danger-tint-border: 235 205 196;
@@ -113,6 +112,20 @@
   --shadow-sm: 0 1px 2px rgb(18 21 26 / 0.04);
   --shadow-md: 0 1px 2px rgb(18 21 26 / 0.04), 0 6px 20px rgb(18 21 26 / 0.05);
   --shadow-lg: 0 2px 4px rgb(18 21 26 / 0.04), 0 12px 32px rgb(18 21 26 / 0.08);
+
+  /* Motion tokens (in-flow states pass, 2026-08-01) — the one shared
+     duration scale for panel/dialog motion (detail panel, filter panel
+     expand, FitDrawer slide, the auth-gate value line). Pure durations, not
+     duration+ease bundles: that lets the SAME token drop into both a plain
+     `transition-duration` declaration (custom enter/exit classes below) and
+     Tailwind's `duration-[var(...)]` utility on the Radix Sheet/Dialog
+     primitives, which only accept a bare time value. Every call site pairs
+     these with the same `ease-out` timing function — that repetition (not a
+     third --ease-* token) is what "one consistent ease" means here, since
+     the task asked for exactly these two named tokens. Zeroed under
+     prefers-reduced-motion below. */
+  --transition-fast: 120ms;
+  --transition-panel: 180ms;
 }
 
 .dark {
@@ -243,7 +256,6 @@
   --color-st-closed: rgb(var(--st-closed));
   --color-st-closed-soft: rgb(var(--st-closed-soft));
   --color-chip: rgb(var(--chip));
-  --color-verify-tint: rgb(var(--verify-tint));
   --color-faint: rgb(var(--faint));
   --color-live: rgb(var(--live));
   --color-green-tint-bg: rgb(var(--green-tint-bg));
@@ -258,11 +270,27 @@
   --color-verdict-live-bg: rgb(var(--verdict-live-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
+  /* Squared design-system pass (2026-08-02, docs-mockup.html "THE RULES" #1
+     — "Radius 0 everywhere — pills retired app-wide, chips/buttons/cards/
+     inputs all share the rectangle"). Every radius-scale key Tailwind
+     registers a `rounded-*` utility from is flattened to 0 HERE — the one
+     chokepoint every `rounded-{sm,md,lg,xl,2xl,3xl,4xl}` and bare `rounded`
+     utility in the app reads through — instead of hand-editing every call
+     site. `rounded-full` and any arbitrary `rounded-[Npx]` are NOT
+     theme-driven (Tailwind emits them as literal values), so those are
+     edited at their call sites instead; a plain `--radius` custom property
+     feeding a calc() chain is no longer needed now that every step of the
+     chain is a flat 0, so it's deleted rather than left dead (see the
+     removed `:root { --radius: 0.75rem }` line above). */
+  --radius: 0px;
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
   --color-sidebar-primary: rgb(var(--sidebar-primary));
@@ -292,7 +320,7 @@ body {
 
 @media (max-width: 1023px) {
   body:has([data-mobile-tabbar]) {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -346,6 +374,69 @@ h4 {
 
 .delay-500 {
   animation-delay: 0.5s;
+}
+
+/* Skeleton shimmer (in-flow loading states, 2026-08-01) — the SERP's 5
+   job-card placeholders (JobsListSplash, app/page.tsx), the detail panel's
+   loading skeleton (JobDetailSkeleton, JobDetail.tsx), and the FitDrawer
+   signed-out preview (FitDrawer.tsx) all share this one class rather than
+   each hand-rolling its own pulse. A moving gradient sweep (background-
+   position), not a layout-affecting property, so it's cheap and never
+   causes reflow. The site-wide `prefers-reduced-motion` rule below already
+   collapses its animation-duration to ~0, so it needs no separate opt-out
+   here. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-bar {
+  /* Squared design-system pass — a placeholder shape should match the
+     squared geometry of whatever it's standing in for (THE RULES #1). */
+  border-radius: 0;
+  background-color: rgb(var(--muted));
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--foreground) / 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on
+   mount to surfaces that previously just popped in with no transition at
+   all: the desktop detail panel (app/page.tsx aside) and the apply-gate's
+   value line above the auth dialog (app/page.tsx, see its own comment for
+   why it can't live inside AuthPopover itself). `--transition-panel` for
+   the detail panel (an actual panel), `--transition-fast` for the value
+   line (a small in-place line, not a panel). Both share the same `ease-out`
+   curve — see the token comment above for why that's the "one consistent
+   ease" instead of a third custom property. */
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-enter {
+  animation: panel-enter var(--transition-panel) ease-out both;
+}
+
+.line-enter {
+  animation: panel-enter var(--transition-fast) ease-out both;
 }
 
 /* Selection colors tied to brand */
@@ -435,6 +526,18 @@ textarea::selection {
   border-bottom: 2px solid rgb(var(--brand));
 }
 
+/* Data-string utility (squared design-system pass, docs-mockup.html "THE
+   RULES" #4 — "Mono = every data string: counts, ages, facts, status,
+   verdicts. Sans = prose and titles."). One class for the font-family +
+   tabular-nums pairing every counter/age/fact/verdict chip already reaches
+   for ad hoc (`font-mono text-[Npx] tabular-nums` repeated per call site) —
+   consolidates that repetition into one name so a call site can't drift by
+   forgetting the tabular-nums half of the pair. */
+.mono-data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Respect users who ask for less motion (vestibular safety + WCAG 2.3.3).
    Neutralizes our custom fade-in, the staggered delays, and any CSS
    animation/transition site-wide. framer-motion springs are skipped
@@ -461,6 +564,18 @@ textarea::selection {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Motion tokens (Job 1e) — the wildcard rule just above already collapses
+     every `animation`/`transition-duration` in the app to ~0, which covers
+     anything consuming these tokens. This makes it explicit at the source
+     too (belt and suspenders per the spec: "actually set them to none/0",
+     not just rely on a near-zero duration elsewhere) so a future call site
+     reading the token's raw value directly (not through a `transition`/
+     `animation` shorthand) still gets a real zero. */
+  :root {
+    --transition-fast: 0s;
+    --transition-panel: 0s;
   }
 }
 

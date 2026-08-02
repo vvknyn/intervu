@@ -148,3 +148,20 @@ export const submitFeedbackSchema = z.object({
   message: nonEmptyString(5000),
   path: z.string().trim().max(2048).default(""),
 });
+
+/** contact message create (actions/contact.ts submitContactMessage). */
+export const contactMessageSchema = z.object({
+  name: optionalString(200),
+  email: z.string().trim().toLowerCase().email("must be a valid email").max(320),
+  message: z
+    .string()
+    .trim()
+    .min(10, "must be at least 10 characters")
+    .max(2000, "must be 2000 characters or fewer"),
+});
+
+/** True when a honeypot field was filled — the request should be silently
+ *  dropped (treated as spam) without hitting Firestore or surfacing an error. */
+export function isHoneypotTripped(value: string | undefined | null): boolean {
+  return Boolean(value && value.trim().length > 0);
+}

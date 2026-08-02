@@ -41,14 +41,14 @@ export function CompanyRolesList({
             <li key={job.id}>
               <Link
                 href={jobsSearchUrl}
-                className="flex items-center justify-between gap-4 rounded-lg border border-foreground/10 px-4 py-3 text-[13.5px] transition-colors hover:border-foreground/30"
+                className="flex items-center justify-between gap-4 border border-foreground/10 px-4 py-3 text-[13.5px] transition-colors hover:border-foreground/30"
               >
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{decodeText(job.title)}</div>
                   <div className="mt-0.5 font-mono text-xs text-muted-foreground">{roleMeta(job)}</div>
                 </div>
                 {ghost && (
-                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 font-mono text-[11px]", ghost.cls)}>
+                  <span className={cn("shrink-0 px-2 py-0.5 font-mono text-[11px]", ghost.cls)}>
                     {ghost.label}
                   </span>
                 )}

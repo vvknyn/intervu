@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { Sun, Moon } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -136,7 +137,10 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="shrink-0 border-b border-border bg-card"
+            // Squared design-system pass (docs-mockup.html "THE RULES" #2 —
+            // "2px ink = primary structure": the masthead base is exactly
+            // that, alongside the hero bar and a selected SERP card).
+            className="shrink-0 border-b-2 border-foreground bg-card"
         >
             {/* Same shell as Find jobs SERP (max-w 1280 + px-4/8) so wordmark
                 and search share one left edge — Soft Signal desktop grid. */}
@@ -177,9 +181,15 @@ export function TopBar() {
                                 href={tab.href}
                                 data-testid={tab.testId}
                                 aria-current={active ? "page" : undefined}
+                                // Active tab (docs-mockup.html Comp B): green
+                                // inset underline, not ink — green is reserved
+                                // for verified/live state (THE RULES #5), and
+                                // "which surface you're on" is that kind of
+                                // live-state signal, distinct from the ink
+                                // masthead border it sits inside.
                                 className={`shrink-0 whitespace-nowrap border-b-2 py-[18px] transition-colors duration-100 ${
                                     active
-                                        ? "border-foreground text-foreground"
+                                        ? "border-brand text-foreground font-bold"
                                         : "border-transparent text-muted-foreground hover:text-foreground"
                                 }`}
                             >
@@ -194,9 +204,11 @@ export function TopBar() {
                 <button
                     onClick={toggleDark}
                     data-testid="topbar-theme"
-                    className="font-mono text-[12px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                    aria-label={dark ? "Switch to day mode" : "Switch to night mode"}
+                    title={dark ? "Switch to day mode" : "Switch to night mode"}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground"
                 >
-                    {dark ? "day" : "night"}
+                    {dark ? <Sun size={16} weight="bold" /> : <Moon size={16} weight="bold" />}
                 </button>
 
                 {user ? (
@@ -207,7 +219,10 @@ export function TopBar() {
                                 title={user.displayName || user.email || "Account"}
                                 className="flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
                             >
-                                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-green-tint-border bg-green-tint-bg font-mono text-xs font-bold text-brand">
+                                {/* Squared design-system pass (docs-mockup.html "THE RULES" #1 —
+                                    pills retired app-wide): the avatar was the last rounded-full
+                                    shape in the masthead. */}
+                                <div className="grid h-8 w-8 shrink-0 place-items-center border border-green-tint-border bg-green-tint-bg font-mono text-xs font-bold text-brand">
                                     {initialsOf(user)}
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">▾</span>

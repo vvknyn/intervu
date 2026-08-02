@@ -14,6 +14,7 @@ import {
   salaryText,
 } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { buildCompanyFaqItems, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { cn } from "@/lib/utils";
 
 const ROLES_PREVIEW = 10;
@@ -47,6 +48,16 @@ function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
   return null;
 }
 
+/** Real page data only — degrades to a generic line when there are zero
+ *  open roles rather than fabricating a count. */
+function companyMetaDescription(data: CompanyPageData): string {
+  if (data.openCount > 0) {
+    const roles = data.openCount === 1 ? "role" : "roles";
+    return `${data.name} has ${data.openCount} live, verified open ${roles} tracked on intervu, screened for ghost-job risk.`;
+  }
+  return `Track live verified job postings and ghost-job risk signals for ${data.name} on intervu.`;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -55,7 +66,10 @@ export async function generateMetadata({
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
   if (!data) return { title: "Company not found" };
-  return { title: data.name, description: data.oneLiner ?? undefined };
+  return {
+    title: `Is ${data.name} hiring? Live verified jobs & ghost-job risk`,
+    description: companyMetaDescription(data),
+  };
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -67,9 +81,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const prepUrl = prepHref(data);
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
+  const faqJsonLd = buildFaqPageJsonLd(
+    buildCompanyFaqItems({
+      companyName: data.name,
+      openCount: data.openCount,
+      ghostFlaggedPct: data.ghostFlaggedPct,
+    }),
+  );
 
   return (
     <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
+        />
+      )}
       <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
         <nav className="mx-auto max-w-[900px] font-mono text-xs text-[color:var(--elite-faint)]">
           <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
@@ -84,7 +111,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         <header className="mb-7 flex gap-4">
           <CompanyInitialTile
             name={data.name}
-            className="h-16 w-16 rounded-[12px] text-[22px]"
+            className="h-16 w-16 text-[22px]"
           />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
@@ -117,12 +144,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </header>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi value={formatKpi(data.openCount)} label="Open roles" hot={data.openCount > 0} />
-          <Kpi
-            value={formatKpi(data.opened90d)}
-            label="Opened 90d"
-            hot={typeof data.opened90d === "number" && data.opened90d > 0}
-          />
+          <Kpi value={formatKpi(data.openCount)} label="Open roles" />
+          <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
           <Kpi
             value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
@@ -150,9 +173,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   <li key={job.id}>
                     <Link
                       href={`/?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center justify-between gap-4 rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
+                      className="flex items-center gap-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
                     >
-                      <div className="min-w-0">
+                      <CompanyInitialTile
+                        name={data.name}
+                        className="h-11 w-11 shrink-0 text-base"
+                      />
+                      <div className="min-w-0 flex-1">
                         <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
                         <div className="mt-1 font-mono text-xs text-[color:var(--elite-muted)]">
                           {roleMeta(job)}
@@ -209,18 +236,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   );
 }
 
-function Kpi({ value, label, hot }: { value: string; label: string; hot?: boolean }) {
+function Kpi({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
-      <div
-        className={cn(
-          "font-display text-[26px] font-bold tracking-tight",
-          hot && "text-[color:var(--elite-brand)]",
-        )}
-      >
+    <div className="border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
+      <span className="inline-block border-b-[3px] border-[color:var(--elite-brand)] pb-1 font-mono text-[26px] font-medium tracking-tight">
         {value}
-      </div>
-      <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
+      </span>
+      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
         {label}
       </div>
     </div>

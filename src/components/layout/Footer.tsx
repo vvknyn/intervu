@@ -5,6 +5,17 @@ import { usePathname } from "next/navigation";
 import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
 import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
 
+/** Company/legal links — only the footer renders this row, so it lives here
+ *  rather than in `nav-tabs.ts` (which is shared with `TopBar`/`MobileTabBar`). */
+const LEGAL_LINKS: { label: string; href: string }[] = [
+    { label: "About", href: "/about" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Research", href: "/research/ghost-jobs" },
+    { label: "Contact", href: "/contact" },
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
+];
+
 /**
  * Quiet product band, mounted once in the root layout (same as `TopBar` and
  * `MobileTabBar`) rather than per-page. Hides on the same routes `TopBar`
@@ -34,6 +45,28 @@ export function Footer() {
                 </nav>
                 <p className="max-w-md text-[12px] text-faint">
                     Every listing is {CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated.
+                </p>
+                <nav aria-label="Company" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[13px] font-medium text-muted-foreground">
+                    {LEGAL_LINKS.map((link) => (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className="transition-colors duration-100 hover:text-foreground"
+                        >
+                            {link.label}
+                        </Link>
+                    ))}
+                </nav>
+                <p className="max-w-md text-[12px] text-faint">
+                    Job data by{" "}
+                    <a
+                        href="https://thesubspace.io"
+                        target="_blank"
+                        rel="noopener"
+                        className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+                    >
+                        Subspace
+                    </a>
                 </p>
             </div>
         </footer>

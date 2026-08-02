@@ -2278,6 +2278,7 @@ export function DashboardContainer() {
                     onToggleFavorite={handleToggleFavorite}
                     isLoggedIn={!!user}
                     jobContextText={prepJobContext.content.originalJd ?? ""}
+                    entitlement={prepEntitlement}
                 />
             );
         } else if (prepPhase === "summary" && prepSessionState) {
@@ -2398,7 +2399,11 @@ export function DashboardContainer() {
         }
 
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background transition-all duration-500">
+            // Top-aligned with consistent page padding, not vertically
+            // centered — centering made short states (the landing view) float
+            // in the middle of a tall viewport instead of sitting at a fixed
+            // top rhythm like every other page's header (shell audit, P26-B).
+            <div className="min-h-screen flex flex-col items-center p-4 pt-10 sm:p-6 sm:pt-16 bg-background transition-all duration-500">
                 {/* Top Right Actions */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                 </div>

@@ -150,32 +150,22 @@ export const CONFIRM_CLOSE = {
 export const LOGIN_REQUIRED = {
     stories: {
         headings: [
-            "Your stories need a home",
-            "STAR stories without a login? That's just talking to yourself",
-            "Your greatest hits album needs a record label (us)",
-            "These stories are too good to live in your browser's memory",
-            "Your interview stories called — they want cloud storage",
+            "Save your stories to come back to them",
+            "Your stories, backed up and ready when you need them",
         ],
         subtexts: [
-            "Log in to save your STAR stories, manage questions, and sync across devices. Your future self will thank you.",
-            "One browser clear and poof — your best 'tell me about a time' answers vanish. Log in to keep them forever.",
-            "We promise we won't judge your stories. We'll just make sure they're backed up.",
-            "Your stories deserve better than localStorage. Give them the cloud treatment.",
+            "Log in to keep your STAR stories, sync them across devices, and reuse them across every interview.",
+            "Stories saved here stay put — log in once and they're always ready when you need them.",
         ],
     },
     applications: {
         headings: [
-            "Your job hunt deserves a command center",
-            "Tracking jobs in your head? Bold strategy. Risky, but bold.",
-            "Your spreadsheet called. It wants you to upgrade.",
-            "Job applications without a tracker is just organized chaos",
-            "Remember that job you forgot to follow up on? Exactly.",
+            "Keep every application in one place",
+            "Track your applications without losing track of them",
         ],
         subtexts: [
-            "Log in to track applications, manage stages, and link tailored resumes. Spreadsheets are so 2019.",
-            "One login and you'll never send the wrong resume to the wrong company again. Probably.",
-            "Track every application, every stage, every 'we'll be in touch' that actually means something.",
-            "Your job search deserves better than sticky notes and good intentions. Log in.",
+            "Log in to track applications, follow their stages, and keep the right resume linked to each one.",
+            "One place for every role you've applied to — status, stage, and the resume you sent.",
         ],
     },
 };
