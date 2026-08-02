@@ -211,6 +211,22 @@ export function boardTimestampLabel(p: Pursuit, nowMs: number = Date.now()): str
     }
 }
 
+/** The board card's mono truth-line (docs-mockup.html Comp C): renders ONLY
+ *  the real per-row facts a pursuit actually carries — a linked resume
+ *  version, and the recency of the last prep session run against it —
+ *  joined with " · ", omitting whatever isn't present. Deliberately does NOT
+ *  include a live/ghost verdict: unlike the pursuit detail page (which
+ *  fetches the live posting on demand), the board never fetches per-row, so
+ *  that signal is never actually present here — fabricating one would
+ *  violate "no lying fallbacks". Returns null when neither atom is present,
+ *  so the card renders with no truth-line at all rather than an empty one. */
+export function boardTruthLine(p: Pursuit, nowMs: number = Date.now()): string | null {
+    const atoms: string[] = [];
+    if (p.resume_version?.version_name) atoms.push(`resume: ${p.resume_version.version_name}`);
+    if (p.last_prepped_at) atoms.push(`prepped ${formatRelativeAge(p.last_prepped_at, nowMs)}`);
+    return atoms.length > 0 ? atoms.join(" · ") : null;
+}
+
 /** Ordering for the /yours list (spec §5): pursuits with an upcoming
  *  interview first (soonest `interview_date` first, undated interviews
  *  last-among-interviewing), then the rest of the active pursuits by

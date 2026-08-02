@@ -8,6 +8,7 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ACTION_COSTS } from "@/lib/pricing";
 
 export interface PrepLandingProps {
   onStartNew: () => void;
@@ -123,11 +124,11 @@ export function PrepLanding({
             <PageHeader bare size="display" title="Interview prep" description={prepLandingSubline(cachedPlans, resumableSessions)} />
           </div>
 
-          <section className="border-b border-border pb-6">
+          <section className="border border-border bg-card p-6">
             <h2 className="font-display text-[19px] font-semibold">New prep session</h2>
             <p className="mt-2 max-w-[520px] text-[13.5px] leading-relaxed text-muted-foreground">
               Learn: review real questions and model answers at your own pace. Practice: answer aloud and get AI
-              critique on your responses.
+              critique on your responses — {ACTION_COSTS.prep} credits.
             </p>
             <div className="mt-4 flex items-center gap-5">
               <Button onClick={onStartNew} data-testid="prep-start-new">
@@ -192,7 +193,7 @@ export function PrepLanding({
           )}
         </div>
 
-        <aside className="border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+        <aside className="border border-border bg-card p-[18px] lg:h-fit">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
               Story bank
@@ -226,7 +227,7 @@ export function PrepLanding({
               </div>
             </>
           ) : (
-            <div data-testid="story-bank-empty">
+            <div data-testid="story-bank-empty" className="border border-dashed border-border bg-background px-4 py-5 text-center">
               <p className="text-[13px] text-muted-foreground">
                 No stories yet — your best interview answers, saved and reusable.
               </p>

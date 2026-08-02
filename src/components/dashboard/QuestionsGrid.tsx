@@ -426,67 +426,20 @@ export function QuestionsGrid({
         );
     }
 
-    return (
-        <DashboardSection
-            title="Questions for You"
-            subtitle="Practice answering common interview questions"
-            icon={ChatCircleDots}
-            action={
-                !isSessionMode ? (
-                    <div className="flex items-center gap-3">
-                        {/* Mode Toggle */}
-                        <div className="flex items-center bg-muted/50 p-1 rounded-lg">
-                            <button
-                                onClick={() => setIsPracticeMode(false)}
-                                className={cn(
-                                    "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200",
-                                    !isPracticeMode
-                                        ? "bg-brand text-brand-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                                )}
-                            >
-                                Learn
-                            </button>
-                            <button
-                                onClick={() => setIsPracticeMode(true)}
-                                className={cn(
-                                    "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 flex items-center gap-1.5",
-                                    isPracticeMode
-                                        ? "bg-brand text-brand-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                                )}
-                            >
-                                <Lightning size={10} weight={isPracticeMode ? "fill" : "bold"} />
-                                Practice
-                            </button>
-                        </div>
-
-                        {/* Category Select Dropdown */}
-                        <Select
-                            value={activeTab}
-                            onValueChange={(val) => setActiveTab(val as any)}
-                        >
-                            <SelectTrigger className="w-[160px] h-8 text-xs font-medium bg-background">
-                                <SelectValue placeholder="Category" />
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                                {categories.map(cat => (
-                                    <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                        <div className="flex items-center gap-2 max-w-[140px]">
-                                            <cat.icon size={14} className={cn("shrink-0", activeTab === cat.id ? "text-brand" : "text-muted-foreground")} />
-                                            <span className="truncate">{cat.label}</span>
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                ) : undefined
-            }
-        >
-            {/* Carousel Card */}
-            <div className="relative group">
-                <div className="bg-muted/10 rounded-2xl p-4 md:p-5 min-h-[320px] flex flex-col items-center text-center transition-all relative shadow-[var(--shadow-sm)]">
+    // Session mode gets its own squared frame (docs-mockup.html Comp E2) with
+    // no duplicate "Questions for You" chrome — PrepSessionView already
+    // supplies the session's own title/counter above this. Outside a
+    // session, this stays DashboardSection's existing rounded card unchanged.
+    const cardInner = (
+        <div className="relative group">
+            <div
+                className={cn(
+                    "min-h-[320px] flex flex-col items-center text-center transition-all relative",
+                    isSessionMode
+                        ? "border border-border border-l-[3px] border-l-foreground bg-card p-5 md:p-6"
+                        : "bg-muted/10 rounded-2xl p-4 md:p-5 shadow-[var(--shadow-sm)]",
+                )}
+            >
 
                     {/* Left/Right Nav - hidden in focused session mode */}
                     {!isSessionMode && (
@@ -565,6 +518,14 @@ export function QuestionsGrid({
                             <SpeakerHigh size={18} weight={isSpeaking ? "fill" : "regular"} className={isSpeaking ? "animate-pulse" : ""} />
                         </button>
 
+                        {/* docs-mockup.html Comp E2 asks for a "FROM THE POSTING · …"
+                            source line above the question, but `QuestionItem`
+                            (types/index.ts) carries no per-question excerpt/quote
+                            field to source it from — rendering one here would be a
+                            fabricated line, not a restyle. Deliberately omitted;
+                            wiring a real per-question source quote is a
+                            data-layer follow-up (question generation would need
+                            to persist which JD sentence prompted each question). */}
                         <h3 className="text-xl md:text-2xl font-medium leading-snug text-foreground tracking-tight">
                             {currentQuestion.question}
                         </h3>
@@ -636,32 +597,42 @@ export function QuestionsGrid({
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="bg-muted/30 rounded-2xl overflow-hidden shadow-[var(--shadow-sm)] animate-in fade-in zoom-in-95 duration-300">
+                                    // Squared system (docs-mockup.html Comp E2 "critique block
+                                    // structured WHAT LANDS / WHAT'S MISSING with mono labels
+                                    // (green/rust)"): `reaction` (the real strength the model
+                                    // names) → WHAT LANDS; `the_one_thing` (the real
+                                    // highest-leverage gap) → WHAT'S MISSING. `say_it_like_this`/
+                                    // `encouragement`/`scoreLabel` are real fields too — kept below,
+                                    // not fabricated additions, just not part of the two-label frame.
+                                    <div className="border border-border bg-card overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                                         <div className="p-6 md:p-8">
-                                            <p className="text-base md:text-lg leading-relaxed text-foreground font-medium whitespace-pre-line">
+                                            <div className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] text-verdict-live">
+                                                What lands
+                                            </div>
+                                            <p className="mt-1.5 text-base md:text-lg leading-relaxed text-foreground font-medium whitespace-pre-line">
                                                 {critique.reaction}
                                             </p>
                                             {isSessionMode && critique.scoreLabel && (
-                                                <span className="inline-block mt-3 text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 rounded-full px-2.5 py-1">
+                                                <span className="inline-block mt-3 font-mono text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 px-2.5 py-1">
                                                     {critique.scoreLabel}
                                                 </span>
                                             )}
                                         </div>
 
                                         {critique.the_one_thing && (
-                                            <div className="px-6 md:px-8 pb-6">
-                                                <div className="text-[10px] font-bold uppercase tracking-wider text-brand mb-1.5">
-                                                    The one thing
+                                            <div className="border-t border-border px-6 md:px-8 py-6">
+                                                <div className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] text-verdict-caution">
+                                                    What&apos;s missing
                                                 </div>
-                                                <p className="text-sm leading-relaxed text-foreground/80">
+                                                <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">
                                                     {critique.the_one_thing}
                                                 </p>
                                             </div>
                                         )}
 
                                         {critique.say_it_like_this && (
-                                            <div className="mx-6 md:mx-8 mb-6 rounded-xl bg-background/70 border border-border/40 p-5">
-                                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                                            <div className="mx-6 md:mx-8 mb-6 border border-border/60 bg-background/70 p-5">
+                                                <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
                                                     Say it like this
                                                 </div>
                                                 <p className="text-sm leading-relaxed text-foreground/90 italic whitespace-pre-line">
@@ -678,11 +649,11 @@ export function QuestionsGrid({
                                             </div>
                                         )}
 
-                                        <div className="px-6 md:px-8 py-5 bg-gradient-to-r from-transparent via-brand/5 to-transparent border-t border-border/30 flex items-center justify-between gap-4">
+                                        <div className="px-6 md:px-8 py-5 border-t border-border flex items-center justify-between gap-4">
                                             {!isSessionMode && (
                                             <div className="flex items-center gap-3 min-w-0">
                                                 {critique.scoreLabel && (
-                                                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 rounded-full px-2.5 py-1">
+                                                    <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wider text-brand/70 bg-brand/10 px-2.5 py-1">
                                                         {critique.scoreLabel}
                                                     </span>
                                                 )}
@@ -741,7 +712,7 @@ export function QuestionsGrid({
                                     size="lg"
                                     onClick={() => handleStrategy(currentQuestion)}
                                     disabled={isLoading}
-                                    className="w-full md:w-auto px-8 relative overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-md rounded-full bg-foreground text-background hover:bg-foreground/90"
+                                    className="w-full md:w-auto px-8 relative overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-md bg-foreground text-background hover:bg-foreground/90"
                                 >
                                     {isLoading ? (
                                         <>
@@ -793,6 +764,69 @@ export function QuestionsGrid({
                 </div>
                 )}
             </div>
+    );
+
+    if (isSessionMode) {
+        return cardInner;
+    }
+
+    return (
+        <DashboardSection
+            title="Questions for You"
+            subtitle="Practice answering common interview questions"
+            icon={ChatCircleDots}
+            action={
+                <div className="flex items-center gap-3">
+                    {/* Mode Toggle */}
+                    <div className="flex items-center bg-muted/50 p-1 rounded-lg">
+                        <button
+                            onClick={() => setIsPracticeMode(false)}
+                            className={cn(
+                                "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200",
+                                !isPracticeMode
+                                    ? "bg-brand text-brand-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            )}
+                        >
+                            Learn
+                        </button>
+                        <button
+                            onClick={() => setIsPracticeMode(true)}
+                            className={cn(
+                                "px-3 py-1 text-[10px] font-semibold rounded-md transition-all duration-200 flex items-center gap-1.5",
+                                isPracticeMode
+                                    ? "bg-brand text-brand-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            )}
+                        >
+                            <Lightning size={10} weight={isPracticeMode ? "fill" : "bold"} />
+                            Practice
+                        </button>
+                    </div>
+
+                    {/* Category Select Dropdown */}
+                    <Select
+                        value={activeTab}
+                        onValueChange={(val) => setActiveTab(val as any)}
+                    >
+                        <SelectTrigger className="w-[160px] h-8 text-xs font-medium bg-background">
+                            <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                            {categories.map(cat => (
+                                <SelectItem key={cat.id} value={cat.id} className="text-xs">
+                                    <div className="flex items-center gap-2 max-w-[140px]">
+                                        <cat.icon size={14} className={cn("shrink-0", activeTab === cat.id ? "text-brand" : "text-muted-foreground")} />
+                                        <span className="truncate">{cat.label}</span>
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            }
+        >
+            {cardInner}
         </DashboardSection>
     );
 }
