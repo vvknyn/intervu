@@ -52,6 +52,24 @@ export interface JobSnapshot {
     apply_url: string;
 }
 
+/**
+ * An immutable copy of resume content filed against a pursuit at a single
+ * point in time (e.g. when applying) — see `lib/pursuits/resume-version.ts`
+ * for the write/read seam an MCP tool and the web app both call. `content`
+ * is copied verbatim at file-time and never rewritten in place: a later
+ * edit to whatever it was sourced from (a re-imported base resume, a
+ * re-saved tailored version) cannot retroactively change what a pursuit
+ * shows as having been sent to a company. This is a distinct concern from
+ * `Pursuit.resume_version_id` above (which named/tailored-resume-builder
+ * version is linked, a mutable pointer) — this is what content actually
+ * went out the door.
+ */
+export interface ResumeVersionSnapshot {
+    content: string;
+    label: string;
+    saved_at: string;
+}
+
 /** Lift the fields a pursuit needs to remember out of a live search result. */
 export function buildJobSnapshot(job: PublicJob): JobSnapshot {
     return {
@@ -102,6 +120,12 @@ export interface Pursuit {
      *  data, read back by `stageLabel`/`boardTruthLine` below, and stay
      *  valid to display. */
     last_prepped_at?: string;
+    /** Resume-version snapshots filed against this pursuit (append-only —
+     *  see `ResumeVersionSnapshot` above), in write order. Render via
+     *  `orderResumeVersionsLatestFirst` for display; absent/empty means no
+     *  resume is on file, which the tracker shows as an explicit empty
+     *  state rather than fabricating one. */
+    resume_versions?: ResumeVersionSnapshot[];
 }
 
 /** `rejected` | `withdrawn` render as a dimmed "Ended" — data keeps its
@@ -227,6 +251,13 @@ export function boardTruthLine(p: Pursuit, nowMs: number = Date.now()): string |
     if (p.resume_version?.version_name) atoms.push(`resume: ${p.resume_version.version_name}`);
     if (p.last_prepped_at) atoms.push(`prepped ${formatRelativeAge(p.last_prepped_at, nowMs)}`);
     return atoms.length > 0 ? atoms.join(" · ") : null;
+}
+
+/** Resume-version snapshots for a pursuit, most recent first. Pure sort, no
+ *  I/O — the tracker detail page and `lib/pursuits/resume-version.ts`'s read
+ *  seam both call this, so they can never disagree about ordering. */
+export function orderResumeVersionsLatestFirst(versions: ResumeVersionSnapshot[]): ResumeVersionSnapshot[] {
+    return [...versions].sort((a, b) => Date.parse(b.saved_at) - Date.parse(a.saved_at));
 }
 
 /** Ordering for the /yours list (spec §5): pursuits with an upcoming

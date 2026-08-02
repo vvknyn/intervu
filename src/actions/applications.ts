@@ -4,6 +4,8 @@ import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ApplicationDraft } from "@/components/applications/ApplicationWizard";
 import { assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
+import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
+import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";
 
 /**
  * Create a new application draft from the wizard state
@@ -96,4 +98,19 @@ export async function linkResumeVersionToApplication(
         console.error("Link resume version error:", e);
         return { error: e.message };
     }
+}
+
+/**
+ * Cookie-session wrapper around `saveResumeVersionForPursuit`
+ * (`@/lib/pursuits/resume-version`) for client components — resolves `uid`
+ * from the session cookie and delegates. The MCP tool surface calls the
+ * underlying lib function directly with its own bearer-resolved uid.
+ */
+export async function saveResumeVersionForPursuitAction(
+    pursuitId: string,
+    input: { content: string; label: string },
+): Promise<{ data?: ResumeVersionSnapshot; error?: string }> {
+    const user = await getServerUser();
+    if (!user) return { error: "Unauthorized" };
+    return saveResumeVersionForPursuit(user.uid, pursuitId, input);
 }
