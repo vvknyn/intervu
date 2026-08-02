@@ -4,12 +4,15 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication } from "@/actions/application";
 import { saveTailoredVersion } from "@/actions/tailor-resume";
+import { saveResumeVersionForPursuitAction } from "@/actions/applications";
 import { applyRecommendations } from "@/lib/resume/apply-recommendations";
+import { resumeDataToMarkdown } from "@/lib/resume/to-markdown";
 import { ApplicationWizard, type ApplicationDraft } from "@/components/applications/ApplicationWizard";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,7 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import {
     boardColumn,
     boardTimestampLabel,
+    boardTruthLine,
     isEnded,
     nextAction,
     stageLabel,
@@ -26,22 +30,12 @@ import {
     type Pursuit,
 } from "@/lib/pursuits/types";
 
-/** The page's one display moment (spec: "Archivo 800, the page's one
- *  heading") plus a mono subtitle line — rendered identically for every
- *  page state (loading / guest gate / populated board) via PageLayout's
- *  `header` slot, so "Tracker" never competes with a second heading below it. */
+/** The page's one display moment, rendered identically for every page state
+ *  (loading / guest gate / populated board) via the shared `PageHeader` in
+ *  its "display" size — so "Tracker" never competes with a second heading
+ *  below it, and the masthead matches Stories/Prep/Resume's rhythm exactly. */
 function TrackerHeader({ subtitle, actions }: { subtitle: React.ReactNode; actions?: React.ReactNode }) {
-    return (
-        <div className="border-b border-border bg-background">
-            <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-end justify-between gap-3 px-6 pb-4 pt-8 sm:px-10 lg:px-14">
-                <div>
-                    <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Tracker</h1>
-                    <div className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">{subtitle}</div>
-                </div>
-                {actions}
-            </div>
-        </div>
-    );
+    return <PageHeader size="display" fullWidth sticky={false} title="Tracker" description={subtitle} actions={actions} />;
 }
 
 const SUMMARY_COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string }[] = [
@@ -80,46 +74,52 @@ function YoursLoading() {
     );
 }
 
-/** Column head: mono micro-label + live count, ruled with the same ink
- *  underline the ledger's own column-head row uses. `id` is the summary
- *  sentence's jump target. */
+/** Column head (docs-mockup.html Comp C): mono uppercase label, 2px ink
+ *  underline, count right-aligned in ink. `id` is the summary sentence's
+ *  jump target. */
 function ColumnHead({ id, label, count }: { id: string; label: string; count: number }) {
     return (
         <div
             id={id}
-            className="scroll-mt-4 border-b border-border px-3 pb-1.5 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+            className="scroll-mt-4 flex items-center justify-between border-b-2 border-foreground px-3 pb-2 pt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
         >
-            {label} (<span className="tabular-nums">{count}</span>)
+            <span>{label}</span>
+            <span className="tabular-nums text-foreground">{count}</span>
         </div>
     );
 }
 
-/** One left-aligned mono sentence — no centered dashed box (anti-marker 5). */
+/** Empty column = dashed empty block (docs-mockup.html Comp C), not a bare
+ *  sentence — the squared system's one "nothing here" shape, shared with the
+ *  Resume/Prep dashed empties. */
 function EmptyColumn({ text, link }: { text: string; link?: { href: string; label: string } }) {
     return (
-        <p className="px-3 py-3 font-mono text-[12px] leading-relaxed text-muted-foreground">
-            {text}
-            {link && (
-                <>
-                    {" "}
-                    <Link href={link.href} className="text-foreground underline underline-offset-2 hover:opacity-70">
-                        {link.label}
-                    </Link>
-                </>
-            )}
-        </p>
+        <div className="m-3 border border-dashed border-border bg-card px-4 py-6 text-center">
+            <p className="font-mono text-[12px] leading-relaxed text-muted-foreground">
+                {text}
+                {link && (
+                    <>
+                        {" "}
+                        <Link href={link.href} className="text-foreground underline underline-offset-2 hover:opacity-70">
+                            {link.label}
+                        </Link>
+                    </>
+                )}
+            </p>
+        </div>
     );
 }
 
-/** One board entry: dense two-line text row (title+company / mono timestamp
- *  + next-action, action underlined) — no card, no dot jewelry. The
+/** One board card (docs-mockup.html Comp C `.tcard`): squared border, title +
+ *  company, then a mono truth-line built ONLY from real per-row data
+ *  (`boardTruthLine` — linked resume version / prep recency, degrading by
+ *  omission), then the existing timestamp + next-action line unchanged. The
  *  action's own `kind` (not the raw stage name) decides whether it reads as
- *  outstanding (ink, underlined) or resting (offer/rejected/withdrawn all
- *  report kind "closed"). Ended pursuits also dim, same rule the old
- *  single-list page used. */
+ *  outstanding (ink, underlined) or resting (closed). Ended pursuits dim. */
 function BoardRow({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void }) {
     const action = nextAction(pursuit);
     const actionable = action.kind !== "closed";
+    const truthLine = boardTruthLine(pursuit);
     return (
         <div
             role="button"
@@ -130,7 +130,7 @@ function BoardRow({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void 
                 if (e.key === "Enter" || e.key === " ") onClick();
             }}
             className={cn(
-                "cursor-pointer px-3 py-3 text-left transition-colors duration-100 hover:bg-muted/40",
+                "mt-3 cursor-pointer border border-border bg-card px-3.5 py-3 text-left transition-colors duration-100 hover:bg-muted/40",
                 isEnded(pursuit) && "opacity-60",
             )}
         >
@@ -138,6 +138,7 @@ function BoardRow({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void 
                 <span className="truncate text-[13.5px] font-semibold leading-snug">{pursuit.position}</span>
                 <span className="truncate text-[12px] text-text-2">{pursuit.company_name}</span>
             </div>
+            {truthLine && <div className="mt-2 truncate font-mono text-[11px] text-muted-foreground">{truthLine}</div>}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px]">
                 <span className="text-muted-foreground">{boardTimestampLabel(pursuit)}</span>
                 <span className={actionable ? "text-foreground underline underline-offset-2" : "text-muted-foreground"}>
@@ -170,7 +171,7 @@ const COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string; empty: { te
     {
         key: "interviewing",
         label: "Interviewing",
-        empty: { text: "No interviews yet.", link: { href: "/prep", label: "Prep while you wait →" } },
+        empty: { text: "No interviews yet." },
     },
     { key: "offer", label: "Offer", empty: { text: "Offers will show up here." } },
 ];
@@ -261,6 +262,22 @@ function YoursContent() {
             });
             if (result.error) throw new Error(result.error);
 
+            // Pin the exact resume content used for this application as an
+            // immutable snapshot (lib/pursuits/resume-version.ts) — whatever
+            // the wizard attached (upload or import), not just the tailored
+            // path above. A quick "mark applied" outside the wizard skips
+            // this entirely; the tracker shows that as an explicit empty
+            // state rather than fabricating a version.
+            if (draft.baseResume && result.data?.id) {
+                const snapshotResult = await saveResumeVersionForPursuitAction(result.data.id, {
+                    content: resumeDataToMarkdown(draft.baseResume),
+                    label: draft.versionName || "Resume",
+                });
+                if (snapshotResult.error) {
+                    console.error("Failed to save resume version snapshot:", snapshotResult.error);
+                }
+            }
+
             invalidatePursuitsCache();
             closeWizard();
         } catch (e) {
@@ -317,21 +334,19 @@ function YoursContent() {
             <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-6 sm:px-10 lg:px-14">
                 <div
                     data-testid={total === 0 ? "yours-empty" : undefined}
-                    className="flex flex-col divide-y divide-border border border-border sm:flex-row sm:divide-x sm:divide-y-0"
+                    className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
                 >
                     {COLUMNS.map((col) => {
                         const cards = groups[col.key];
                         return (
-                            <div key={col.key} className="min-w-0 flex-1">
+                            <div key={col.key} className="min-w-0">
                                 <ColumnHead id={`col-${col.key}`} label={col.label} count={cards.length} />
                                 {cards.length === 0 ? (
                                     <EmptyColumn text={col.empty.text} link={col.empty.link} />
                                 ) : (
-                                    <div className="divide-y divide-border">
-                                        {cards.map((p) => (
-                                            <BoardRow key={p.id} pursuit={p} onClick={() => router.push(`/yours/${p.id}`)} />
-                                        ))}
-                                    </div>
+                                    cards.map((p) => (
+                                        <BoardRow key={p.id} pursuit={p} onClick={() => router.push(`/yours/${p.id}`)} />
+                                    ))
                                 )}
                             </div>
                         );

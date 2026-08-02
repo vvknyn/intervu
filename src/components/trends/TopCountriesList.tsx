@@ -41,7 +41,7 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
             >
               {row.country}
             </Link>
-            <span className="h-1.5 w-20 shrink-0 bg-foreground/10 sm:w-40">
+            <span className="h-3 w-20 shrink-0 bg-foreground/10 sm:w-40">
               <span
                 className="block h-full bg-foreground/40"
                 style={{ width: `${(row.count / maxCount) * 100}%` }}
@@ -61,7 +61,7 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
         >
           <span className="w-6 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1 truncate">{unclassified.country}</span>
-          <span className="h-1.5 w-20 shrink-0 bg-foreground/10 sm:w-40">
+          <span className="h-3 w-20 shrink-0 bg-foreground/10 sm:w-40">
             <span
               className="block h-full bg-foreground/20"
               style={{ width: `${(unclassified.count / maxCount) * 100}%` }}

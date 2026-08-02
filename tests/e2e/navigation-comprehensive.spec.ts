@@ -9,7 +9,7 @@ import { test, expect, Page } from '@playwright/test';
  *   (data-testid="topbar-alljobs"), and an auth-conditional avatar
  *   (data-testid="topbar-avatar") or "Log in" (data-testid="topbar-login").
  * - The old 6-item desktop sidebar and mobile bottom tab bar are deleted,
- *   not hidden. Nav destinations (Prep, Resumes, Yours, Library,
+ *   not hidden. Nav destinations (Resumes, Yours, Library,
  *   Settings) live inside the signed-in avatar's dropdown menu instead.
  *
  * None of these tests run against an authenticated session (no login
@@ -20,7 +20,6 @@ import { test, expect, Page } from '@playwright/test';
 
 // Pages reachable from the signed-in avatar dropdown.
 const NAV_PAGES = [
-    { name: 'Prep', path: '/prep', label: 'Prep' },
     { name: 'Resume', path: '/resume-builder', label: 'Resumes' },
     { name: 'Yours', path: '/yours', label: 'Yours' },
     { name: 'Settings', path: '/settings', label: 'Settings' },

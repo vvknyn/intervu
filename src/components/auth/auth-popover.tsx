@@ -18,20 +18,32 @@ interface AuthPopoverProps {
      * post-auth action may replay (success) or must be cleared (dismiss).
      */
     onAuthed?: () => void;
+    /**
+     * Optional value-prop line rendered at the top of the modal frame, above
+     * the login/sign-up form (docs-mockup.html Comp K). Lets a caller (e.g.
+     * /jobs's apply-gate) explain WHY the account is needed without having
+     * to render its own separate overlay above this dialog.
+     */
+    valueLine?: React.ReactNode;
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine }: AuthPopoverProps) {
     const handleSuccess = () => {
         onAuthed?.();
         onOpenChange(false);
     };
 
+    const valueLineNode = valueLine && (
+        <p className="mb-4 text-sm leading-[1.55] text-muted-foreground">{valueLine}</p>
+    );
+
     // When no trigger, use a Dialog instead (e.g. programmatic open from buttons)
     if (!showTrigger) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[380px] pt-12">
+                <DialogContent className="sm:max-w-[380px] pt-12 rounded-none border-2 border-foreground shadow-none">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
+                    {valueLineNode}
                     <LoginForm onSuccess={handleSuccess} />
                 </DialogContent>
             </Dialog>
@@ -45,8 +57,9 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed }
                     Log In
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[380px] p-0">
+            <PopoverContent align="end" className="w-[380px] p-0 rounded-none border-2 border-foreground shadow-none">
                 <div className="p-5">
+                    {valueLineNode}
                     <LoginForm onSuccess={handleSuccess} />
                 </div>
             </PopoverContent>

@@ -245,7 +245,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
-                <a href="/agents" className="inline-block text-xs text-brand underline hover:text-brand/80">
+                <a href="/connect" className="inline-block text-xs text-brand underline hover:text-brand/80">
                     Full setup instructions →
                 </a>
             </div>

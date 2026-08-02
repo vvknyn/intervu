@@ -35,7 +35,7 @@ export function PostingFreshnessBand({
         {freshness.map(({ bucket, count }) => (
           <li key={bucket} data-testid={`trends-freshness-${bucket}`} className="flex items-center gap-3 text-[13.5px]">
             <span className="w-40 shrink-0 text-muted-foreground sm:w-48">{BUCKET_LABELS[bucket]}</span>
-            <span className="h-1.5 flex-1 bg-foreground/10">
+            <span className="h-3 flex-1 bg-foreground/10">
               <span className="block h-full bg-foreground/40" style={{ width: `${(count.value / maxValue) * 100}%` }} />
             </span>
             <span className="w-20 shrink-0 text-right font-mono text-[12.5px] text-foreground">

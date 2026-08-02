@@ -17,8 +17,8 @@
   --elite-rule: #edebe2;
   --elite-tint-bg: #edf6f0;
   --elite-tint-border: #bfdccb;
-  --elite-radius-card: 12px;
-  --elite-radius-chip: 100px;
+  --elite-radius-card: 0px;
+  --elite-radius-chip: 0px;
 
   /* Remap design tokens inside the scope */
   --background: 246 245 240;

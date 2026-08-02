@@ -2,7 +2,21 @@ import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import type { GhostBadge } from "@/lib/jobs/types";
 import { cn } from "@/lib/utils";
-import { STATUS_PILL, ghostBadgeTone } from "@/lib/ui/status-tokens";
+import { STATUS_PILL, ghostBadgeTone, type StatusTone } from "@/lib/ui/status-tokens";
+
+/** Proportion-bar fill color per row tone, reusing the same solid
+ *  `--color-st-*` tokens (status-tokens.ts) that already drive `STATUS_PILL`'s
+ *  border/text — local to this file since MarketGhostRadar is the only /trends
+ *  bar surface where the mock colors the fill per row (green/amber/rust)
+ *  instead of the flat neutral fill `TopCountriesList`/`PostingFreshnessBand`
+ *  use for plain magnitude bars. */
+const TONE_FILL: Record<StatusTone, string> = {
+  saved: "bg-st-saved",
+  applied: "bg-st-applied",
+  intv: "bg-st-intv",
+  offer: "bg-st-offer",
+  closed: "bg-st-closed",
+};
 
 /**
  * Market-wide ghost radar — `ghost_badge` distribution across every ACTIVE
@@ -41,14 +55,17 @@ export function MarketGhostRadar({
                 className={cn(
                   "w-32 shrink-0 sm:w-40",
                   tone
-                    ? cn("inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_PILL[tone])
+                    ? cn("inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-medium", STATUS_PILL[tone])
                     : "text-[12.5px] text-muted-foreground",
                 )}
               >
                 {label}
               </span>
-              <span className="h-1.5 flex-1 bg-foreground/10">
-                <span className="block h-full bg-foreground/40" style={{ width: `${pct}%` }} />
+              <span className="h-3 flex-1 bg-foreground/10">
+                <span
+                  className={cn("block h-full", tone ? TONE_FILL[tone] : "bg-foreground/40")}
+                  style={{ width: `${pct}%` }}
+                />
               </span>
               <span className="w-12 shrink-0 text-right font-mono text-[12.5px] text-muted-foreground">{pct}%</span>
               <span className="w-20 shrink-0 text-right font-mono text-[12.5px] text-foreground">

@@ -25,6 +25,53 @@ const VERDICT_PILL: Record<FitVerdictLabel, string> = {
 
 type DrawerPhase = "loading" | "ready" | "needsAuth" | "needsResume" | "error";
 
+/**
+ * Greeked "what signing in unlocks" preview — a placeholder verdict pill +
+ * Matches/Gaps section shapes, no fabricated numbers. Originally inline in
+ * this drawer's `needsAuth` phase (Job 1d); extracted so JobDetail's static
+ * "How you match" rail (docs-mockup.html Comp B2) can render the SAME
+ * signed-out preview instead of hand-rolling a second copy of these
+ * skeleton shapes with its own blurb copy that could drift from this one.
+ */
+export function FitGreekedPreview({
+    onCta,
+    ctaLabel,
+    blurb,
+}: {
+    onCta: () => void;
+    ctaLabel: string;
+    blurb: string;
+}) {
+    return (
+        <div className="space-y-5 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-green-tint-bg">
+                <Scales size={22} className="text-brand" />
+            </div>
+            <p className="mx-auto max-w-xs text-sm font-semibold">{blurb}</p>
+            <div aria-hidden="true" className="space-y-5 text-left opacity-70">
+                <div className="skeleton-bar h-8 w-32 rounded-xl" />
+                <section>
+                    <div className="skeleton-bar mb-2.5 h-2.5 w-16" />
+                    <div className="space-y-2">
+                        <div className="skeleton-bar h-3.5 w-full" />
+                        <div className="skeleton-bar h-3.5 w-5/6" />
+                    </div>
+                </section>
+                <section>
+                    <div className="skeleton-bar mb-2.5 h-2.5 w-24" />
+                    <div className="space-y-2">
+                        <div className="skeleton-bar h-3.5 w-full" />
+                        <div className="skeleton-bar h-3.5 w-2/3" />
+                    </div>
+                </section>
+            </div>
+            <Button onClick={onCta} className="h-10 w-full">
+                {ctaLabel}
+            </Button>
+        </div>
+    );
+}
+
 export function FitDrawer({
     open,
     onOpenChange,
@@ -129,7 +176,13 @@ export function FitDrawer({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="right"
-                className="flex w-full flex-col overflow-hidden rounded-l-xl bg-card p-0 text-foreground sm:max-w-[380px]"
+                // Motion tokens (Job 1e) — retargets the base Sheet's default
+                // open/close durations (500ms/300ms) onto the shared
+                // `--transition-panel` (~180ms) so the slide reads as the same
+                // speed as the rest of the panel motion in this pass; `cn()`
+                // (tailwind-merge) drops the base `duration-*` utility in
+                // favor of this one since they're the same class group.
+                className="flex w-full flex-col overflow-hidden rounded-l-xl bg-card p-0 text-foreground data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)] sm:max-w-[380px]"
                 hideCloseButton
             >
                 <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-5">
@@ -175,20 +228,16 @@ export function FitDrawer({
                     )}
 
                     {phase === "needsAuth" && (
-                        <div className="flex min-h-[30vh] flex-col items-center justify-center gap-4 text-center">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-tint-bg">
-                                <Scales size={22} className="text-brand" />
-                            </div>
-                            <div className="max-w-xs space-y-2">
-                                <p className="text-sm font-semibold">See how you match</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Sign in to compare this role against your resume — matches, gaps, and next steps.
-                                </p>
-                            </div>
-                            <Button onClick={() => onAuthRequired?.()} className="h-10 px-6">
-                                Sign in to continue
-                            </Button>
-                        </div>
+                        // Job 1d (2026-08-01) — was a near-empty panel with just a
+                        // centered sign-in line; now a greeked PREVIEW of the real
+                        // "ready" layout below (verdict pill, Matches, Gaps) so the
+                        // gate visually sells what signing in unlocks instead of
+                        // just asking for it. See FitGreekedPreview's doc comment.
+                        <FitGreekedPreview
+                            onCta={() => onAuthRequired?.()}
+                            ctaLabel="Sign in to continue"
+                            blurb="See how your resume matches — strengths, gaps, next steps"
+                        />
                     )}
 
                     {phase === "needsResume" && (

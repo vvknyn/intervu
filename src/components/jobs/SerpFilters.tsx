@@ -54,13 +54,18 @@ function Affordance({
             aria-pressed={active}
             data-testid={testId}
             className={cn(
-                "flex w-full min-h-7 items-center gap-2 text-left text-[13px] font-medium transition-colors duration-100",
+                // min-h-11 (44px) rather than the old min-h-7 (28px) — every
+                // row in the filters band (Date Posted, Work Type, Salary,
+                // …) routes through this one Affordance, so the P27 mobile
+                // tap-target fix lands class-wide from this single edit
+                // instead of touching each FacetGroup/toggle separately.
+                "flex min-h-11 w-full items-center gap-2 text-left text-[13px] font-medium transition-colors duration-100",
                 active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
         >
             <span
                 className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border-[1.5px] text-[10px] leading-none",
+                    "grid h-3.5 w-3.5 shrink-0 place-items-center border-[1.5px] text-[10px] leading-none",
                     active ? "border-foreground bg-foreground text-background" : "border-border bg-card",
                 )}
                 aria-hidden

@@ -2,6 +2,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
 import { validate, upsertPursuitSchema } from "@/lib/validation";
 import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
+import { isNewAppliedTransition, assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 
 /**
  * The find-or-create-by-job_id chokepoint every "this job is now (at least)
@@ -15,6 +16,15 @@ import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } 
  * advanced stage" rule the guest→auth merge uses — so a re-click (or a
  * stale mark-applied firing after the user already tailored/interviewed)
  * can never regress an already-advanced pursuit.
+ *
+ * Also the free-plan daily apply cap's enforcement point for this path
+ * (`isNewAppliedTransition` + `assertUnderDailyApplyCap`,
+ * `lib/pursuits/apply-cap.ts`): every caller of this chokepoint — the
+ * cookie-session web wrapper (`upsertPursuitForJob`, actions/application.ts)
+ * AND the bearer-token MCP `mark_applied` tool (`deps.upsert` in
+ * `app/api/mcp/route.ts`, injected straight from this function) — hits the
+ * same check here, so the cap can't be bypassed by calling this function
+ * through a different front door.
  *
  * Cookie-free by design (plain module, not "use server"): callers supply
  * `uid` directly, so bearer-token callers (MCP tools) and cookie-session
@@ -55,6 +65,13 @@ export async function upsertPursuitCore(
                 status: parsed.data.stage,
                 job_snapshot: snapshot,
             });
+            // `merged.status` (not `parsed.data.stage`) is the real decision —
+            // mergeGuestPursuit may keep an already-more-advanced existing
+            // stage, in which case this write isn't an applied transition at
+            // all and must not consume a cap slot (idempotency).
+            if (isNewAppliedTransition(merged.status, existing.status)) {
+                await assertUnderDailyApplyCap(uid);
+            }
             await doc.ref.update({
                 status: merged.status,
                 job_snapshot: merged.job_snapshot ?? null,
@@ -62,6 +79,12 @@ export async function upsertPursuitCore(
             });
             revalidatePath("/yours");
             return { data: { ...merged, updated_at: now } };
+        }
+
+        // Brand-new pursuit, so this is a NEW applied transition whenever the
+        // stage itself is "applied" (free-plan cap).
+        if (isNewAppliedTransition(parsed.data.stage, undefined)) {
+            await assertUnderDailyApplyCap(uid);
         }
 
         const docData = {

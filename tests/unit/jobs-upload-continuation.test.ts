@@ -9,17 +9,18 @@ import { join } from "node:path";
  *
  * Bug this guards against (user-reported): the résumé-upsell card called
  * `handleUploadClick` directly as its click handler, with no follow-up
- * wiring. Every OTHER upload entry point (`handleRankByFit`,
- * `handleExploreClick`) separately set `resumeActionAfterImportRef.current`
- * themselves, right after calling `handleUploadClick()` — so the upsell
- * card's upload queued no continuation, and completing it silently did
- * nothing: no fit-ranking, no "Ranked by your résumé" chip, no re-rank.
+ * wiring. `handleRankByFit` separately set
+ * `resumeActionAfterImportRef.current` itself, right after calling
+ * `handleUploadClick()` — so the upsell card's upload queued no
+ * continuation, and completing it silently did nothing: no fit-ranking, no
+ * "Ranked by your résumé" chip, no re-rank.
  *
- * The fix moves the queue-write INSIDE `handleUploadClick` itself (the one
- * chokepoint every entry point already had to call to open the modal),
- * defaulting to `"fit"` — so a future entry point can't repeat this bug by
- * forgetting a second call; it gets the correct behavior just by calling
- * `handleUploadClick()`.
+ * The fix moved the queue-write INSIDE `handleUploadClick` itself (the one
+ * chokepoint every entry point already had to call to open the modal) —
+ * every caller gets the correct behavior just by calling
+ * `handleUploadClick()`, with no continuation choice left to forget (the
+ * only résumé-driven continuation left is "fit"; a second one, "explore",
+ * existed here through 2026-08-02 — removed with the feature it drove).
  *
  * `handleUploadClick`'s flow is async, auth-gated, and React-state-driven —
  * this repo has no component-render test harness (no @testing-library /
@@ -58,14 +59,8 @@ test("setImportOpen(true) is called in exactly 2 places: handleUploadClick, and 
 });
 
 test("handleRankByFit routes its no-résumé fallback through handleUploadClick (default \"fit\" continuation), not a direct ref write", () => {
-    const body = section('const handleRankByFit = async () => {', "// Compact Explore button");
+    const body = section('const handleRankByFit = async () => {', "// Task 11 review fix");
     assert.match(body, /handleUploadClick\(\);/);
-    assert.doesNotMatch(body, /resumeActionAfterImportRef\.current\s*=/);
-});
-
-test("handleExploreClick routes its no-résumé fallback through handleUploadClick(\"explore\"), not a direct ref write", () => {
-    const body = section('const handleExploreClick = async () => {', "// Task 11 review fix");
-    assert.match(body, /handleUploadClick\("explore"\);/);
     assert.doesNotMatch(body, /resumeActionAfterImportRef\.current\s*=/);
 });
 

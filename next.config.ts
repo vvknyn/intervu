@@ -70,6 +70,26 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // Humans who type the short MCP URL land on the pairing page. NOT
+      // permanent: /mcp may become the real endpoint later, and the agent
+      // endpoint itself stays /api/mcp — MCP clients exact-match the pasted
+      // URL against the server's resource metadata, so marketing copy must
+      // say /api/mcp until that metadata changes with it.
+      {
+        source: "/mcp",
+        destination: "/connect",
+        permanent: false,
+      },
+      // /agents was the agent-MCP marketing page before /connect became the
+      // canonical human landing spot for the feature (front-of-house
+      // consolidation, 2026-08-02) — permanent since, unlike /mcp above,
+      // nothing about this route is still undecided. Query params pass
+      // through automatically.
+      {
+        source: "/agents",
+        destination: "/connect",
+        permanent: true,
+      },
       // Jobs flipped to root (jobs-first-bloom PR 1). Query params (e.g.
       // ?job=<id>) pass through automatically — Next preserves them on 301s.
       {
@@ -89,6 +109,21 @@ const nextConfig: NextConfig = {
       {
         source: "/library",
         destination: "/stories",
+        permanent: true,
+      },
+      // Prep surface removed (2026-08-02 product decision — the user's own AI
+      // does prep now; intervu is corpus + browse + pair + tracker). Query
+      // params (e.g. ?company=&position=) pass through automatically.
+      {
+        source: "/prep",
+        destination: "/jobs",
+        permanent: true,
+      },
+      // /dashboard was a bare `redirect("/prep")` page with no other content
+      // — removed alongside /prep rather than left pointing at a dead route.
+      {
+        source: "/dashboard",
+        destination: "/jobs",
         permanent: true,
       },
     ];

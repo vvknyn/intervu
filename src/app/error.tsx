@@ -33,19 +33,22 @@ export default function Error({
           />
         </svg>
       </div>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+      <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
+        intervu
+      </span>
+      <h1 className="mt-3 font-display text-2xl font-extrabold tracking-[-0.02em] text-foreground">
         Something went sideways
       </h1>
       <p className="mt-2 max-w-md text-text-2">
-        An unexpected error stopped this page from loading. Your data is safe — try
-        again, and if it keeps happening, reload the app.
+        This page hit an unexpected error. Nothing you did was lost — try again, and if
+        it keeps happening, reload the app.
       </p>
       {error?.digest ? (
         <p className="mt-3 font-mono text-xs text-text-3">
           Reference: {error.digest}
         </p>
       ) : null}
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <div className="mt-8 flex flex-col items-center gap-3">
         <button
           onClick={() => reset()}
           className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground shadow-sm transition hover:opacity-90 focus-ring"
@@ -54,9 +57,9 @@ export default function Error({
         </button>
         <a
           href="/"
-          className="rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-medium text-foreground transition hover:bg-surface-hover focus-ring"
+          className="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
         >
-          Go home
+          or go home
         </a>
       </div>
     </div>

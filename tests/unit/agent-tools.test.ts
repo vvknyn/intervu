@@ -5,6 +5,7 @@ import {
 import { AGENT } from '../../src/lib/agent/config';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/jobs/query-understanding';
+import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
 
 /** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
  *  fixture matches production shape exactly — "Toronto"/"Canada" both clear
@@ -312,6 +313,19 @@ describe('toolMarkApplied', () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolMarkApplied(deps, { id: 'nope' });
     assert.deepEqual(out, { error: 'job not found' });
+  });
+
+  // The free-plan daily apply cap (lib/pursuits/apply-cap.ts) is enforced
+  // INSIDE the shared upsertPursuitCore chokepoint (deps.upsert here stands
+  // in for it) — not before it, and not separately on this MCP path — so a
+  // cap-exhausted upsert must surface as an honest tool error, never a
+  // fabricated `{ marked: true }`. Mirrors toolSaveJob's identical upsert-
+  // error-propagation test; this is the one case that error can BE the cap
+  // message specifically.
+  it('propagates the free-plan daily apply cap error instead of fabricating success', async () => {
+    const { deps } = stubDeps([makeJob()], { error: applyCapMessage() });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { error: applyCapMessage() });
   });
 
   it('propagates backend-unavailable (not a false "not found") and never calls upsert', async () => {

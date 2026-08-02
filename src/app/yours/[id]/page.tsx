@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank, Lightning } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -15,10 +15,70 @@ import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
 import { classifyExistenceCheck } from "@/lib/jobs/result-state";
 import { JobDetail } from "@/components/jobs/JobDetail";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import type { PublicJob } from "@/lib/jobs/types";
 import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
-import { hasReachedStage, nextAction, stageLabel, type Pursuit } from "@/lib/pursuits/types";
+import {
+    hasReachedStage,
+    nextAction,
+    orderResumeVersionsLatestFirst,
+    stageLabel,
+    type Pursuit,
+    type ResumeVersionSnapshot,
+} from "@/lib/pursuits/types";
+
+/** Downloads a resume-version snapshot as a `.md` file, client-side, from
+ *  its stored text — no PDF, no new deps, same Blob-download shape as
+ *  `lib/export-utils.ts`'s `exportStoriesToText`. */
+function downloadResumeVersion(version: ResumeVersionSnapshot): void {
+    const blob = new Blob([version.content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${version.label.replace(/[^\w.-]+/g, "-")}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+/** Resume used row (spec: "label, saved date (mono), Download button") —
+ *  degrades by omission to a plain sentence when no resume was ever filed
+ *  against this pursuit (e.g. a quick "mark applied" outside the wizard),
+ *  rather than fabricating a version. Lists every version, latest first, so
+ *  re-filing a resume never hides earlier ones. */
+function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
+    const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+    return (
+        <div className="border border-border bg-card p-6">
+            <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
+            {versions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
+            ) : (
+                <div className="divide-y divide-border">
+                    {versions.map((version, i) => (
+                        <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-foreground">{version.label}</p>
+                                <p className="font-mono text-[11px] text-muted-foreground">
+                                    {new Date(version.saved_at).toLocaleDateString(undefined, {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                    })}
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => downloadResumeVersion(version)}>
+                                Download
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 /**
  * The pursuit page: one header, ONE next-action block per `nextAction()`
@@ -29,7 +89,6 @@ import { hasReachedStage, nextAction, stageLabel, type Pursuit } from "@/lib/pur
  */
 export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
-    const router = useRouter();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
     const { pursuits, loading } = usePursuits();
     const [interviewDate, setInterviewDate] = useState("");
@@ -137,22 +196,6 @@ export default function PursuitDetailPage() {
         </>
     );
 
-    // `?pursuit=` rather than company+position: those two strings name the role
-    // but carry no posting text, so the tailor page could never analyse
-    // anything from them and had to ask the user for what this record already
-    // knows. The id lets it resolve the posting and run on arrival.
-    const tailorHref = `/resume-tailor?pursuit=${encodeURIComponent(pursuit.id)}`;
-
-    /* `round` is required for DashboardContainer's URL-restore gate to load into
-       a session (see its `urlCompany && urlPosition && urlRound && urlSearched`
-       check) — a pursuit doesn't track a round, so this defaults it the same way
-       the job-detail "Prep for this" entry point does (src/app/page.tsx
-       `handlePrep`). `pursuitId` is jobs-first-bloom PR3 §3 stage wiring: it's
-       what lets DashboardContainer mirror this session durably onto the pursuit
-       and stamp `last_prepped_at`. One const because the stage button and the
-       detail sheet must send you to the same place. */
-    const prepHref = `/prep?company=${encodeURIComponent(pursuit.company_name)}&position=${encodeURIComponent(pursuit.position)}&round=Technical&searched=true&pursuitId=${encodeURIComponent(pursuit.id)}`;
-
     return (
         <PageLayout header={<PageHeader title={pursuit.company_name} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
@@ -185,12 +228,13 @@ export default function PursuitDetailPage() {
                     )}
                 </div>
 
+                <ResumeUsedCard pursuit={pursuit} />
+
                 <div className="rounded-xl border border-border bg-card p-6">
-                    {action.kind === "tailor" && (
-                        <Button asChild className="gap-2">
-                            <Link href={tailorHref}>{action.label}</Link>
-                        </Button>
-                    )}
+                    {/* Tailoring moved to MCP 2026-08-02 — the in-app
+                        /resume-tailor link is gone; the quiet handoff note
+                        replaces it (same pattern as the "prep" note below). */}
+                    {action.kind === "tailor" && <McpHandoffNote />}
 
                     {action.kind === "apply" && (
                         <div className="flex flex-wrap gap-2">
@@ -232,14 +276,10 @@ export default function PursuitDetailPage() {
                         </div>
                     )}
 
-                    {action.kind === "prep" && (
-                        <Button asChild className="gap-2">
-                            <Link href={prepHref}>
-                                <Lightning size={16} weight="fill" />
-                                {action.label}
-                            </Link>
-                        </Button>
-                    )}
+                    {/* Prep surface removed 2026-08-02 — no more link into a
+                        prep tool for the "interviewing" stage's next action;
+                        a quiet note instead (spec: no link, no new feature). */}
+                    {action.kind === "prep" && <McpHandoffNote variant="prep" />}
 
                     {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
                 </div>
@@ -271,21 +311,19 @@ export default function PursuitDetailPage() {
                             pursuit={pursuit}
                             goingAfter={false}
                             onGoAfter={() => {}}
-                            onTailor={() => router.push(tailorHref)}
                             onOpenPosting={() => {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");
                             }}
                             onMarkApplied={() => void mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                            onPrep={() => router.push(prepHref)}
                             applied={hasReachedStage(pursuit, "applied")}
                             applying={saving}
                         />
                     ) : detail.state === "gone" ? (
                         /* Says what actually happened. The pursuit's own saved
                            snapshot is still on the page behind this sheet, so
-                           tailor and prep keep working — but we don't dress a
-                           stale snapshot up as the live posting. */
+                           tailoring still works — but we don't dress a stale
+                           snapshot up as the live posting. */
                         <div className="p-6">
                             <p className="text-sm text-foreground">This posting is no longer live.</p>
                             <p className="mt-1 text-sm text-muted-foreground">

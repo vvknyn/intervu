@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TailoredResumeVersion, RecommendationPriority } from "@/types/resume";
+import { ACTION_COSTS } from "@/lib/pricing";
 
 interface TailoringSidebarCardProps {
     /** The selected tailored version, or undefined when the base resume is active. */
@@ -45,13 +46,21 @@ export function TailoringSidebarCard({ version }: TailoringSidebarCardProps) {
                     vs. {version.positionTitle} @ {version.companyName}
                 </p>
             ) : (
-                <p className="mt-2 text-[13px] text-muted-foreground">
-                    Select a tailored version to see its recommendations, or{" "}
-                    <Link href="/resume-tailor" className="text-foreground underline underline-offset-2 hover:opacity-70">
-                        start a new one
+                // Squared system (docs-mockup.html Comp D "tailor upsell as
+                // dashed block w/ '— N credits' honesty"): the cost is read
+                // from ACTION_COSTS, never hardcoded, so a pricing change
+                // moves this copy automatically.
+                <div className="mt-2 border border-dashed border-border bg-card px-4 py-5 text-center">
+                    <p className="text-[13px] text-muted-foreground">
+                        Tailor this resume to a job you&apos;re tracking — {ACTION_COSTS.tailor} credits.
+                    </p>
+                    <Link
+                        href="/resume-tailor"
+                        className="mt-3 inline-block font-mono text-[12px] text-foreground underline underline-offset-2 hover:opacity-70"
+                    >
+                        Tailor to a job →
                     </Link>
-                    .
-                </p>
+                </div>
             )}
 
             {recommendations.length > 0 && (

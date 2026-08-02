@@ -112,13 +112,9 @@ function StoriesContent() {
     if (!loading && !user) {
         return (
             <PageLayout
-                header={
-                    <PageHeader
-                        title="Stories"
-                    />
-                }
+                header={<PageHeader size="display" sticky={false} title="Stories" description="Your best interview answers, saved and reusable" />}
             >
-                <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
+                <div data-testid="stories-guest-empty" className="flex flex-col items-center justify-center py-32 px-4 text-center">
                     <div className="w-16 h-16 bg-muted/50 rounded-2xl flex items-center justify-center mb-6 text-muted-foreground">
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H56V56H216V200ZM184,80a8,8,0,0,1,8-8h0a8,8,0,0,1,8,8v64a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8ZM80,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,96Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,128Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,160Z"></path></svg>
                     </div>
@@ -135,9 +131,6 @@ function StoriesContent() {
                     >
                         Log in
                     </Button>
-                    <p className="mt-4 text-xs text-muted-foreground">
-                        New here? <button onClick={() => setAuthPopoverOpen(true)} className="font-medium text-foreground hover:underline">Create an account</button>
-                    </p>
                     <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
                 </div>
             </PageLayout>
@@ -148,12 +141,11 @@ function StoriesContent() {
         <PageLayout
             header={
                 <PageHeader
+                    size="display"
+                    sticky={false}
                     title="Stories"
-                    actions={
-                        <>
-                            <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
-                        </>
-                    }
+                    description="Your saved answers, ready to reuse"
+                    rightRail={<AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />}
                 />
             }
         >

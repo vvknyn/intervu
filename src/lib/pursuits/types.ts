@@ -52,6 +52,24 @@ export interface JobSnapshot {
     apply_url: string;
 }
 
+/**
+ * An immutable copy of resume content filed against a pursuit at a single
+ * point in time (e.g. when applying) — see `lib/pursuits/resume-version.ts`
+ * for the write/read seam an MCP tool and the web app both call. `content`
+ * is copied verbatim at file-time and never rewritten in place: a later
+ * edit to whatever it was sourced from (a re-imported base resume, a
+ * re-saved tailored version) cannot retroactively change what a pursuit
+ * shows as having been sent to a company. This is a distinct concern from
+ * `Pursuit.resume_version_id` above (which named/tailored-resume-builder
+ * version is linked, a mutable pointer) — this is what content actually
+ * went out the door.
+ */
+export interface ResumeVersionSnapshot {
+    content: string;
+    label: string;
+    saved_at: string;
+}
+
 /** Lift the fields a pursuit needs to remember out of a live search result. */
 export function buildJobSnapshot(job: PublicJob): JobSnapshot {
     return {
@@ -97,9 +115,17 @@ export interface Pursuit {
     job_snapshot?: JobSnapshot | null;
     interview_date?: string;
     /** ISO timestamp of the most recent prep session run against this
-     *  pursuit (spec §3 stage 4) — set by `recordPursuitPrepVisit`
-     *  (actions/pursuit-prep.ts), read back by `stageLabel` below. */
+     *  pursuit (spec §3 stage 4). Nothing writes this anymore — the prep
+     *  surface was removed 2026-08-02 — but existing values are historical
+     *  data, read back by `stageLabel`/`boardTruthLine` below, and stay
+     *  valid to display. */
     last_prepped_at?: string;
+    /** Resume-version snapshots filed against this pursuit (append-only —
+     *  see `ResumeVersionSnapshot` above), in write order. Render via
+     *  `orderResumeVersionsLatestFirst` for display; absent/empty means no
+     *  resume is on file, which the tracker shows as an explicit empty
+     *  state rather than fabricating one. */
+    resume_versions?: ResumeVersionSnapshot[];
 }
 
 /** `rejected` | `withdrawn` render as a dimmed "Ended" — data keeps its
@@ -209,6 +235,29 @@ export function boardTimestampLabel(p: Pursuit, nowMs: number = Date.now()): str
         case "withdrawn":
             return `since ${formatRelativeAge(p.updated_at, nowMs)}`;
     }
+}
+
+/** The board card's mono truth-line (docs-mockup.html Comp C): renders ONLY
+ *  the real per-row facts a pursuit actually carries — a linked resume
+ *  version, and the recency of the last prep session run against it —
+ *  joined with " · ", omitting whatever isn't present. Deliberately does NOT
+ *  include a live/ghost verdict: unlike the pursuit detail page (which
+ *  fetches the live posting on demand), the board never fetches per-row, so
+ *  that signal is never actually present here — fabricating one would
+ *  violate "no lying fallbacks". Returns null when neither atom is present,
+ *  so the card renders with no truth-line at all rather than an empty one. */
+export function boardTruthLine(p: Pursuit, nowMs: number = Date.now()): string | null {
+    const atoms: string[] = [];
+    if (p.resume_version?.version_name) atoms.push(`resume: ${p.resume_version.version_name}`);
+    if (p.last_prepped_at) atoms.push(`prepped ${formatRelativeAge(p.last_prepped_at, nowMs)}`);
+    return atoms.length > 0 ? atoms.join(" · ") : null;
+}
+
+/** Resume-version snapshots for a pursuit, most recent first. Pure sort, no
+ *  I/O — the tracker detail page and `lib/pursuits/resume-version.ts`'s read
+ *  seam both call this, so they can never disagree about ordering. */
+export function orderResumeVersionsLatestFirst(versions: ResumeVersionSnapshot[]): ResumeVersionSnapshot[] {
+    return [...versions].sort((a, b) => Date.parse(b.saved_at) - Date.parse(a.saved_at));
 }
 
 /** Ordering for the /yours list (spec §5): pursuits with an upcoming

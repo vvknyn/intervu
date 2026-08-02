@@ -6,13 +6,8 @@ import Link from "next/link";
 import { ResumeData } from "@/types/resume";
 import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
-import { AIWritingModal } from "./AIWritingModal";
 import { Button } from "@/components/ui/button";
-import { generateSummary, generateExperienceBullets } from "@/actions/generate-resume-content";
-import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
-import { toast } from "@/lib/toast";
-import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 import { printResume } from "@/lib/resume/print-resume";
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
@@ -38,8 +33,6 @@ interface ResumeEditorProps {
 
 export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = 'saved', versionsToggle, originalData, isTailoredMode }: ResumeEditorProps) {
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
-    const [aiModalOpen, setAiModalOpen] = useState(false);
-    const [currentAISection, setCurrentAISection] = useState<string | null>(null);
     const handleDownloadWord = async () => {
         await exportToDocx(data);
     };
@@ -47,91 +40,21 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
     // Portal target for the print copy only exists client-side.
     const mounted = useMounted();
 
-    const handleGenerateWithAI = (section: string) => {
-        setCurrentAISection(section);
-        setAiModalOpen(true);
-    };
-
-    // Surface an AI-action error, branching on the cost/auth gate's sentinels.
-    const showAIError = (err: unknown, fallback: string) => {
-        const sentinel = classifySentinel(err);
-        if (sentinel === "auth") {
-            toast.info(sentinelMessage(err) || "Sign in to use the built-in AI (or add your own key in Settings).");
-        } else if (sentinel === "credits") {
-            toast.error(sentinelMessage(err), 7000);
-        } else {
-            const msg = typeof err === "string" ? err : err instanceof Error ? err.message : fallback;
-            toast.error(msg || fallback);
-        }
-    };
-
-    const handleAIGenerate = async (params: any) => {
-        if (!currentAISection) return;
-
-        try {
-            if (currentAISection === "summary") {
-                const skills = params.skillsText ? params.skillsText.split(',').map((s: string) => s.trim()) : [];
-                const result = await generateSummary({
-                    role: params.role || "",
-                    yearsExperience: params.yearsExperience || 0,
-                    keySkills: skills
-                });
-
-                if (result.error) {
-                    showAIError(result.error, "Failed to generate summary.");
-                    return;
-                }
-
-                if (result.summary) {
-                    onUpdate({ generatedSummary: result.summary });
-                    setAiModalOpen(false);
-                }
-            } else if (currentAISection.startsWith("experience-")) {
-                const expId = currentAISection.replace("experience-", "");
-                const exp = data.experience?.find(e => e.id === expId);
-
-                if (!exp) return;
-
-                const result = await generateExperienceBullets({
-                    role: exp.role || "",
-                    company: exp.company || "",
-                    description: params.description || ""
-                });
-
-                if (result.error) {
-                    showAIError(result.error, "Failed to generate bullet points.");
-                    return;
-                }
-
-                if (result.bullets && result.bullets.length > 0) {
-                    const bulletText = result.bullets.map(b => `• ${b}`).join('\n');
-                    onUpdate({
-                        experience: data.experience?.map(e =>
-                            e.id === expId ? { ...e, description: bulletText } : e
-                        )
-                    });
-                    setAiModalOpen(false);
-                }
-            }
-        } catch (error) {
-            console.error("AI Generation Error:", error);
-            showAIError(error, "Failed to generate content. Please try again.");
-        }
-    };
-
     const [mobileTab, setMobileTab] = useState<'preview' | 'edit'>('edit');
 
     return (
         // Sized to fill the hub's paper-card wrapper (ResumeBuilder.tsx) rather
         // than a full viewport — this component used to BE the whole page.
         <div className="flex h-[78vh] min-h-[600px] flex-col bg-card">
-            {/* Toolbar — mono text affordances, no bordered/pill buttons
-                (editorial pass). Sync status reuses the same verdict tones
-                the ledger's VERDICT CELL uses (live = saved, risk = error)
-                rather than colored cloud icons. */}
+            {/* Toolbar — squared system (docs-mockup.html Comp D "toolbar to
+                the button family", THE RULES #3): every action is one of the
+                three button weights instead of a bare underlined link. Sync
+                status stays mono text (it's a status, not an action) and
+                reuses the same verdict tones the ledger's VERDICT CELL uses
+                (live = saved, risk = error) rather than colored cloud icons. */}
             <div className="border-b border-border bg-card z-40">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-11 flex items-center justify-between gap-4 font-mono text-[11.5px]">
-                    <div className="min-w-0 truncate">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+                    <div className="min-w-0 truncate font-mono text-[11.5px]">
                         {syncStatus === 'saving' && <span className="text-muted-foreground">saving…</span>}
                         {syncStatus === 'saved' && <span className="text-verdict-live">saved</span>}
                         {syncStatus === 'offline' && (
@@ -142,31 +65,27 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                         {syncStatus === 'error' && <span className="text-verdict-risk">sync error</span>}
                     </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                         {onImport && (
-                            <button
-                                onClick={onImport}
-                                className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                            >
-                                import
-                            </button>
+                            <Button variant="quiet" size="sm" onClick={onImport} className="hidden sm:inline-flex">
+                                Import
+                            </Button>
                         )}
 
-                        <button
+                        <Button
+                            variant="quiet"
+                            size="sm"
                             onClick={onClear}
-                            className="hidden sm:inline text-verdict-risk underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
+                            className="hidden sm:inline-flex text-verdict-risk hover:text-verdict-risk"
                         >
-                            clear
-                        </button>
+                            Clear
+                        </Button>
 
                         {versionsToggle}
 
-                        <button
-                            onClick={printResume}
-                            className="hidden sm:inline text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                        >
-                            print / pdf
-                        </button>
+                        <Button variant="quiet" size="sm" onClick={printResume} className="hidden sm:inline-flex">
+                            Print / PDF
+                        </Button>
 
                         <Button size="sm" onClick={handleDownloadWord}>.docx</Button>
                     </div>
@@ -224,43 +143,11 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                             selectedSection={selectedSection}
                             data={data}
                             onUpdate={onUpdate}
-                            onGenerateWithAI={handleGenerateWithAI}
                             onNavigateSection={(section) => setSelectedSection(section)}
                         />
                     </div>
                 </div>
             </div>
-
-            {/* AI Modal */}
-            <AIWritingModal
-                isOpen={aiModalOpen}
-                onClose={() => setAiModalOpen(false)}
-                section={currentAISection || ""}
-                onGenerate={handleAIGenerate}
-                experienceContext={
-                    currentAISection?.startsWith("experience-")
-                        ? (() => {
-                            const expId = currentAISection.replace("experience-", "");
-                            const exp = data.experience?.find(e => e.id === expId);
-                            return exp ? {
-                                role: exp.role || "",
-                                company: exp.company || "",
-                                dates: exp.dates || "",
-                                existingDescription: exp.description || ""
-                            } : undefined;
-                        })()
-                        : undefined
-                }
-                summaryContext={
-                    currentAISection === "summary"
-                        ? {
-                            profession: data.profile.profession || "",
-                            yearsOfExperience: data.profile.yearsOfExperience || 0,
-                            skills: data.competencies?.flatMap(c => c.skills) || []
-                        }
-                        : undefined
-                }
-            />
 
             {/* Print-only copy: untransformed (no scale() wrapper), portaled to
                 <body> so it sits outside the app shell. Only #resume-print-root

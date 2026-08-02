@@ -10,6 +10,8 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
+import { SITE_NAME, SITE_URL } from "@/lib/seo/constants";
+import { buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
 // Soft Signal typeface pair (see globals.css --font-sans/--font-mono/
@@ -56,8 +58,7 @@ const splineMono = Spline_Sans_Mono({
   weight: ["400", "500", "600"],
 });
 
-const SITE_URL = "https://intervu.cc";
-const SITE_TITLE = "Intervu";
+const SITE_TITLE = SITE_NAME;
 // Reused verbatim from the jobs page's own <PageHeader> copy (src/app/page.tsx)
 // now that jobs is the root experience — no new marketing copy per PR 1.
 const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk before you spend time on them.";
@@ -71,7 +72,6 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_TITLE,
   keywords: [
-    "interview prep",
     "resume builder",
     "job application tracker",
     "cover letter",
@@ -98,6 +98,8 @@ export const metadata: Metadata = {
   },
 };
 
+const websiteJsonLd = buildWebsiteJsonLd();
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -109,6 +111,12 @@ export default function RootLayout({
         className={`${plusJakarta.variable} ${schibstedGrotesk.variable} ${jetbrainsMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        {/* Site-wide WebSite graph + SearchAction, so search engines can offer
+            a sitelinks search box pointed at intervu's own jobs search. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
+        />
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}
         <script
           dangerouslySetInnerHTML={{
