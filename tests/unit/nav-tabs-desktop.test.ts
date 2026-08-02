@@ -3,14 +3,18 @@ import assert from "node:assert/strict";
 import { NAV_TABS, NAV_TABS_DESKTOP } from "../../src/components/layout/nav-tabs";
 
 /**
- * `MobileTabBar` renders one fixed icon per `NAV_TABS` entry off a
- * hand-written `TAB_ICONS` array (4 icons) — it isn't driven by this file,
- * so nothing type-checks that invariant. This test is the guard: `NAV_TABS`
- * must stay at exactly 4 entries, and any new top-level nav destination
- * (like Market trends) belongs in `NAV_TABS_DESKTOP` instead.
+ * `MobileTabBar` renders one icon per `NAV_TABS` entry straight off that
+ * entry's own `icon` field (nav-tabs.tsx) — replaced a hand-written 4-icon
+ * array kept in lockstep by convention, so the invariant worth guarding is
+ * now "every NAV_TABS entry supplies its own icon," not a specific count.
+ * Adding or removing a tab in NAV_TABS is covered by construction; this test
+ * would only fail if a *new* entry forgot to set `icon`.
  */
-test("NAV_TABS stays at 4 entries — MobileTabBar has exactly 4 hardcoded icons", () => {
-    assert.equal(NAV_TABS.length, 4);
+test("every NAV_TABS entry carries its own icon (MobileTabBar has nothing left to hardcode)", () => {
+    assert.ok(NAV_TABS.length > 0);
+    for (const tab of NAV_TABS) {
+        assert.ok(tab.icon, `${tab.href} is missing an icon`);
+    }
 });
 
 test("NAV_TABS_DESKTOP is NAV_TABS plus exactly one additional (desktop-only) tab", () => {

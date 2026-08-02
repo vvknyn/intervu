@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Briefcase, CalendarBlank, CaretRight, Check, CurrencyDollar, Eye, Lightning, MapPin, ShieldCheck, Sparkle, Target, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Briefcase, CalendarBlank, CaretRight, Check, CurrencyDollar, Eye, Lightning, MapPin, Scales, ShieldCheck, Sparkle, Target, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { buildFactChips, ghostCheckedText, type FactChipKind } from "@/components/jobs/job-detail-facts";
@@ -126,6 +126,114 @@ export function JobDetailSkeleton() {
                 <div className="skeleton-bar h-3.5 w-2/3" />
             </div>
         </div>
+    );
+}
+
+/**
+ * Bottom CTA row for an open job detail — the ONE place this renders (P27
+ * mobile pass, Task "sticky mobile action bar"). Previously two near-identical
+ * hand-copies lived in app/page.tsx (the desktop aside and the mobile sheet),
+ * which is how a duplicate like this drifts; both callers now render this
+ * instead, and `/yours/[id]`'s sheet — which had no action bar at all — picks
+ * one up for free by rendering it too.
+ *
+ * Two responsive presentations, one component:
+ *  - **Mobile (<lg):** `fixed` to the viewport, escaping whatever scroll
+ *    container it's nested in (the job-detail Sheet's own `overflow-y-auto`),
+ *    so it stays pinned in the thumb zone while the description scrolls
+ *    underneath. Offset by `--mobile-tabbar-h` (globals.css) + the iOS safe
+ *    area so it stacks ABOVE `MobileTabBar` rather than fighting it for the
+ *    same fixed `bottom-0` — deliberate: both are `lg:hidden` and can render
+ *    at the same time (MobileTabBar has no route-based reason to hide while
+ *    a job sheet is open), so this can't assume the sheet alone keeps them
+ *    apart. Primary is "Apply" (reuses `onOpenPosting` — the exact handler
+ *    the SERP card's own "Apply" button calls, `app/page.tsx`'s
+ *    `handleOpenPosting`, which already funnels a signed-out tap through the
+ *    existing `gate` pending-action instead of a new one); secondary is
+ *    "Am I a fit?" when the caller wires a fit-check surface (`onFit`).
+ *  - **Desktop (lg+):** unchanged from before — `sticky bottom-0` footer of
+ *    the scrolling aside panel, Apply + Prep. The aside only ever mounts at
+ *    lg+ (`isDesktop && selectedId` in page.tsx), so the `lg:` overrides
+ *    below are belt-and-suspenders there, not load-bearing.
+ */
+export function JobDetailActionBar({
+    job,
+    onOpenPosting,
+    onPrep,
+    onFit,
+}: {
+    job: PublicJob;
+    onOpenPosting: () => void;
+    onPrep: () => void;
+    /** Omitted by callers with no fit-check surface — the bar then falls
+     *  back to Prep on every breakpoint instead of a second required wire. */
+    onFit?: () => void;
+}) {
+    // `fixed` (mobile) takes the bar out of the scrolling sheet's normal flow
+    // entirely, unlike the old `sticky` bar it replaced — which reserved its
+    // own space just by being an in-flow box. Without compensating for that,
+    // a fully-scrolled long description's tail ends up drawn UNDER the
+    // opaque bar instead of above it (caught visually during the P27 mobile
+    // pass, verified against a real Meilisearch-shaped fixture: the last
+    // content pixel needs to clear not just the bar's own height but ALSO
+    // the `--mobile-tabbar-h` gap it sits above — scrolled to its natural
+    // max, content's last pixel lands at the true screen bottom, i.e. behind
+    // BOTH). The fix: measure the bar's own rendered height (ResizeObserver,
+    // same pattern as TourOverlay's card-height measure) and render an
+    // invisible flow spacer of `barHeight + that same gap` right before it,
+    // reusing the identical `--mobile-tabbar-h`/safe-area calc the bar's own
+    // `bottom` offset uses so the two can't drift apart. Self-adjusting if
+    // the bar's content ever wraps to a second line. Desktop's `lg:sticky`
+    // bar needs none of this (already in-flow), hence `lg:hidden`.
+    const barRef = useRef<HTMLDivElement>(null);
+    const [barHeight, setBarHeight] = useState(0);
+    useEffect(() => {
+        const el = barRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) setBarHeight(entry.contentRect.height);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <>
+            <div
+                aria-hidden
+                className="lg:hidden"
+                style={{ height: `calc(${barHeight}px + var(--mobile-tabbar-h, 0px) + env(safe-area-inset-bottom, 0px))` }}
+            />
+            <div
+                ref={barRef}
+                data-testid="job-detail-action-bar"
+                className={cn(
+                    "z-20 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+                    "fixed inset-x-0 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px))] lg:sticky lg:inset-x-auto lg:bottom-0",
+                )}
+            >
+                {job.apply_url && (
+                    <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:h-9" onClick={onOpenPosting}>
+                        <ArrowSquareOut size={16} />
+                        Apply
+                    </Button>
+                )}
+                {onFit && (
+                    <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:hidden" onClick={onFit}>
+                        <Scales size={16} />
+                        Am I a fit?
+                    </Button>
+                )}
+                <Button
+                    variant="outline"
+                    className={cn("h-11 flex-1 gap-1.5 lg:h-9", onFit && "hidden lg:inline-flex")}
+                    onClick={onPrep}
+                >
+                    <Lightning size={14} weight="fill" />
+                    Prep for this
+                </Button>
+            </div>
+        </>
     );
 }
 

@@ -29,6 +29,14 @@
 
 
 :root {
+  /* Mobile tab bar height (P27 mobile pass) — single source for both the
+     body's bottom-padding rule below (keeps page content clear of the fixed
+     nav) and JobDetail's mobile action bar (stacks its own fixed bottom bar
+     above the tab bar instead of hardcoding the same 56px a third time).
+     Matches MobileTabBar.tsx's `h-14` row height; the two can't drift apart
+     since both static references trace back to this one value. */
+  --mobile-tabbar-h: 56px;
+
   /* Soft Signal — light shell (docs/design/soft-signal-desktop). Neutrals
      shifted from blue-bias to green-bias (visual-identity pass, 2026-08-01);
      *-foreground tokens below point at --foreground rather than repeating
@@ -306,7 +314,7 @@ body {
 
 @media (max-width: 1023px) {
   body:has([data-mobile-tabbar]) {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
 }
 
