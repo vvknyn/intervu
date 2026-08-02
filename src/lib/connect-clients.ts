@@ -20,13 +20,7 @@ export const CONNECT_CLIENTS = [
     badge: "paid plans · developer mode",
     supportsDirectConnect: true,
   },
-  {
-    id: "gemini",
-    label: "Gemini",
-    badge: "via Gemini CLI today",
-    supportsDirectConnect: false,
-  },
-  { id: "gemini-cli", label: "Gemini CLI", badge: undefined, supportsDirectConnect: true },
+  { id: "gemini", label: "Gemini", badge: "via Gemini CLI", supportsDirectConnect: true },
   { id: "cursor", label: "Cursor", badge: undefined, supportsDirectConnect: true },
 ] as const;
 
