@@ -22,9 +22,7 @@ const STEP1_INTRO: Record<ConnectClientId, string> = {
   chatgpt:
     "In ChatGPT: Settings → Connectors (developer mode) → Add — requires a paid plan.",
   gemini:
-    "The Gemini app doesn't support custom MCP connectors yet — use the Gemini CLI tab instead for a connection that works today.",
-  "gemini-cli":
-    "In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
+    "The Gemini app can't take custom MCP connectors yet. In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
   cursor: "In Cursor, open Settings → MCP and add a new server pointing at:",
 };
 
@@ -171,7 +169,7 @@ export function ConnectClient() {
 
         <div className="rounded-none border border-border p-6">
           <StepLabel n={2} label="Approve" />
-          <p className="mt-3 text-sm text-foreground">One click — like pairing earbuds.</p>
+          <p className="mt-3 text-sm text-foreground">Approve once — you're paired.</p>
           <ul className="mt-3 space-y-1.5 text-sm">
             <li className="flex items-start gap-2 text-brand">
               <span aria-hidden="true">✓</span>
