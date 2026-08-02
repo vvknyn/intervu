@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast, confirmToast } from "@/lib/toast";
-import { AGENT, claudeCodeConnectCommand } from "@/lib/agent/config";
+import { AGENT, claudeCodeConnectCommand, chatAppConnectInstruction } from "@/lib/agent/config";
 import type { User } from "@/lib/firebase/client-auth";
 import {
     listAgentCredentialsAction,
@@ -149,6 +149,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     }
 
     const mcpUrl = `${AGENT.issuer()}/api/mcp`;
+    const chatAppInstruction = chatAppConnectInstruction();
 
     return (
         <section className="pt-6 border-t border-border">
@@ -237,8 +238,8 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <code className="font-mono">{claudeCodeConnectCommand(mcpUrl)}</code>
                     </li>
                     <li>
-                        <span className="text-foreground font-medium">Chat apps with custom connectors:</span> add a
-                        connector by URL, paste the address above, and use your token as the bearer credential.
+                        <span className="text-foreground font-medium">Chat apps with custom connectors:</span>{" "}
+                        {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
                 <a href="/agents" className="inline-block text-xs text-brand underline hover:text-brand/80">

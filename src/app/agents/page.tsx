@@ -3,9 +3,8 @@ import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { AGENT, claudeCodeConnectCommand } from "@/lib/agent/config";
+import { AGENT, claudeCodeConnectCommand, chatAppConnectInstruction } from "@/lib/agent/config";
 
 export const metadata: Metadata = {
   title: "AI agents",
@@ -44,6 +43,7 @@ const JOURNEY = [
  */
 export default function AgentsPage() {
   const mcpUrl = `${AGENT.issuer()}/api/mcp`;
+  const chatAppInstruction = chatAppConnectInstruction();
 
   return (
     <PageLayout header={<PageHeader title="Agents" description="Bring your own AI agent to intervu" />}>
@@ -101,8 +101,8 @@ export default function AgentsPage() {
             <h2 className="text-xl font-semibold tracking-tight">Connect your agent</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Search and tracking work in any app that supports remote connectors — just add intervu and start
-              asking. The full loop — actually filling out and submitting an application — needs an agent
-              with its own browser hands. We&apos;ve verified that end-to-end with Claude Code.
+              asking. Agents with browser control can take it from there: they open the posting, fill it in,
+              and stop for your approval.
             </p>
           </div>
 
@@ -115,11 +115,12 @@ export default function AgentsPage() {
             <TabsContent value="chat" className="mt-4">
               <Card>
                 <CardContent className="space-y-3 pt-6">
-                  <p className="text-sm">Add intervu as a connector, paste this address, and log in when asked:</p>
+                  <p className="text-sm">{chatAppInstruction.primary} Use this address:</p>
                   <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">{mcpUrl}</code>
                   <p className="text-xs text-muted-foreground">
                     That&apos;s intervu&apos;s MCP endpoint — the address any compatible app connects to.
                   </p>
+                  <p className="text-xs text-muted-foreground">{chatAppInstruction.alternate}</p>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -127,7 +128,9 @@ export default function AgentsPage() {
             <TabsContent value="cli" className="mt-4">
               <Card>
                 <CardContent className="space-y-3 pt-6">
-                  <Badge variant="brand">Verified with Claude Code</Badge>
+                  <p className="text-xs text-muted-foreground">
+                    We test the search-and-track connection with Claude Code.
+                  </p>
                   <p className="text-sm">
                     Generate a token in{" "}
                     <Link href="/settings" className="text-brand underline hover:text-brand/80">

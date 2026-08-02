@@ -30,3 +30,18 @@ export const AGENT = {
 export function claudeCodeConnectCommand(mcpUrl: string): string {
     return `claude mcp add --transport http intervu ${mcpUrl} --header "Authorization: Bearer YOUR_TOKEN"`;
 }
+
+/**
+ * The one chat-apps connect story. Both the settings page's "Connected
+ * agents" section and the public /agents page describe how a chat app
+ * connects — `primary` is the connector flow, `alternate` is the
+ * manual-token fallback — so the two surfaces can never tell two different
+ * stories about the same category of client (one saying OAuth, the other
+ * saying paste-a-token).
+ */
+export function chatAppConnectInstruction(): { primary: string; alternate: string } {
+    return {
+        primary: "Add intervu as a connector by URL and sign in when your app asks.",
+        alternate: "Some apps ask for a token instead — generate one in Settings → Connected agents.",
+    };
+}
