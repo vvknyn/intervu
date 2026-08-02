@@ -129,7 +129,7 @@ export default function AgentsPage() {
               <Card>
                 <CardContent className="space-y-3 pt-6">
                   <p className="text-xs text-muted-foreground">
-                    We test the search-and-track connection with Claude Code.
+                    We test this connection ourselves — the same protocol any MCP client uses.
                   </p>
                   <p className="text-sm">
                     Generate a token in{" "}
