@@ -3,14 +3,14 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
-import { validate, updateApplicationSchema, upsertPursuitSchema, createManualPursuitSchema } from "@/lib/validation";
+import { validate, updateApplicationSchema, createManualPursuitSchema } from "@/lib/validation";
 import {
-    mergeGuestPursuit,
     buildManualPursuitSnapshot,
     type JobSnapshot,
     type Pursuit as PursuitType,
     type PursuitStage,
 } from "@/lib/pursuits/types";
+import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
 import { isNewAppliedTransition, assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -199,81 +199,9 @@ export async function upsertPursuitForJob(
     job: JobSnapshot & { job_id: string },
     stage: PursuitStage,
 ): Promise<{ data?: Application; error?: string }> {
-    try {
-        const user = await getServerUser();
-        if (!user) return { error: "User not authenticated" };
-
-        const parsed = validate(upsertPursuitSchema, { ...job, stage });
-        if (!parsed.ok) return { error: parsed.error };
-
-        const db = getAdminDb();
-        const existingSnap = await db
-            .collection("applications")
-            .where("user_id", "==", user.uid)
-            .where("job_id", "==", parsed.data.job_id)
-            .limit(1)
-            .get();
-
-        const now = new Date().toISOString();
-        const snapshot: JobSnapshot = {
-            title: parsed.data.title,
-            company: parsed.data.company,
-            location: parsed.data.location,
-            description: parsed.data.description,
-            apply_url: parsed.data.apply_url,
-        };
-
-        if (!existingSnap.empty) {
-            const doc = existingSnap.docs[0];
-            const existing = { id: doc.id, ...doc.data() } as Application;
-            const merged = mergeGuestPursuit(existing, {
-                ...existing,
-                status: parsed.data.stage,
-                job_snapshot: snapshot,
-            });
-            // `merged.status` (not `parsed.data.stage`) is the real decision —
-            // mergeGuestPursuit may keep an already-more-advanced existing
-            // stage, in which case this write isn't an applied transition at
-            // all and must not consume a cap slot (idempotency).
-            if (isNewAppliedTransition(merged.status, existing.status)) {
-                await assertUnderDailyApplyCap(user.uid);
-            }
-            await doc.ref.update({
-                status: merged.status,
-                job_snapshot: merged.job_snapshot ?? null,
-                updated_at: now,
-            });
-            revalidatePath("/yours");
-            return { data: { ...merged, updated_at: now } };
-        }
-
-        // Brand-new pursuit, so this is a NEW applied transition whenever the
-        // stage itself is "applied" (free-plan cap).
-        if (isNewAppliedTransition(parsed.data.stage, undefined)) {
-            await assertUnderDailyApplyCap(user.uid);
-        }
-
-        const docData = {
-            user_id: user.uid,
-            company_name: snapshot.company ?? "",
-            position: snapshot.title,
-            job_url: snapshot.apply_url || undefined,
-            status: parsed.data.stage,
-            job_id: parsed.data.job_id,
-            job_snapshot: snapshot,
-            created_at: now,
-            updated_at: now,
-        };
-        // The Admin SDK rejects `undefined` field values.
-        const clean = Object.fromEntries(Object.entries(docData).filter(([, v]) => v !== undefined));
-
-        const docRef = await db.collection("applications").add(clean);
-        revalidatePath("/yours");
-        return { data: { id: docRef.id, ...clean } as Application };
-    } catch (error) {
-        console.error("Error upserting pursuit:", error);
-        return { error: error instanceof Error ? error.message : "Failed to save pursuit" };
-    }
+    const user = await getServerUser();
+    if (!user) return { error: "User not authenticated" };
+    return upsertPursuitCore(user.uid, job, stage);
 }
 
 /** "Go after this job" (spec §3) — the single verb on every job page.

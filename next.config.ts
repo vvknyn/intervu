@@ -80,6 +80,16 @@ const nextConfig: NextConfig = {
         destination: "/connect",
         permanent: false,
       },
+      // /agents was the agent-MCP marketing page before /connect became the
+      // canonical human landing spot for the feature (front-of-house
+      // consolidation, 2026-08-02) — permanent since, unlike /mcp above,
+      // nothing about this route is still undecided. Query params pass
+      // through automatically.
+      {
+        source: "/agents",
+        destination: "/connect",
+        permanent: true,
+      },
       // Jobs flipped to root (jobs-first-bloom PR 1). Query params (e.g.
       // ?job=<id>) pass through automatically — Next preserves them on 301s.
       {

@@ -60,13 +60,18 @@ export function getJobsBackendStatus(): {
  * waits on the vocabulary fetch is a cold instance's very first one, and a
  * failed fetch yields an empty vocabulary (place parsing just doesn't happen)
  * that retries on a short leash rather than caching the failure for an hour.
+ *
+ * Exported (Task 12 review fix) so `toolSearchJobs` (agent/tools.ts) can
+ * resolve its own `location` filter through the SAME cached vocabulary
+ * `searchJobs` below already builds for free-text queries, via `ToolDeps`,
+ * rather than a second vocabulary-fetching path.
  */
 const VOCAB_TTL_MS = 60 * 60 * 1000;
 const VOCAB_RETRY_MS = 60 * 1000;
 let vocabCache: { vocab: LocationVocabulary; at: number } | null = null;
 let vocabInFlight: Promise<LocationVocabulary> | null = null;
 
-async function locationVocabulary(): Promise<LocationVocabulary> {
+export async function locationVocabulary(): Promise<LocationVocabulary> {
   const ttl = vocabCache && vocabCache.vocab.byText.size > 0 ? VOCAB_TTL_MS : VOCAB_RETRY_MS;
   if (vocabCache && Date.now() - vocabCache.at < ttl) return vocabCache.vocab;
   if (!vocabInFlight) {

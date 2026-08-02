@@ -1,0 +1,70 @@
+import { NextResponse } from "next/server";
+import { firestoreStore } from "@/lib/agent/store";
+import { registerClient } from "@/lib/agent/oauth";
+import { AGENT } from "@/lib/agent/config";
+import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/agent/rate-limit";
+
+/**
+ * The DCR request body is attacker-controlled JSON — every field read from it
+ * must be type-validated at this boundary, not just `redirect_uris`. RFC 7591
+ * lets a server ignore invalid client metadata rather than reject the whole
+ * registration, so a non-string `client_name` (object, array, number, empty
+ * string) is treated as absent instead of flowing untyped into storage, where
+ * it would later crash the consent page's React render. A wildly long name
+ * (still just a display label, not something structural like a redirect_uri)
+ * is truncated rather than rejected — the client just gets a shorter label,
+ * not a failed registration.
+ */
+export function sanitizeClientName(value: unknown): string | undefined {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return undefined;
+    return trimmed.length > AGENT.MAX_CLIENT_NAME_LENGTH ? trimmed.slice(0, AGENT.MAX_CLIENT_NAME_LENGTH) : trimmed;
+}
+
+/**
+ * POST /api/oauth/register — RFC 7591 dynamic client registration.
+ * Public/unauthenticated: any MCP client can self-register (token_endpoint_auth_method
+ * is always "none" — PKCE is the client-side secret, per OAuth 2.1 public-client model).
+ * Rate-limited per caller IP (no credential exists yet at this point) before any
+ * parsing or storage work happens, so an anonymous flood can't rack up unbounded
+ * Firestore writes. Budgeted at `AGENT.PUBLIC_RATE_LIMIT`, not the default
+ * per-credential `AGENT.RATE_LIMIT` — this route is keyed by IP, and hosted
+ * connectors (claude.ai, ChatGPT) share one egress IP across every one of
+ * their users (see `PUBLIC_RATE_LIMIT`'s doc comment, config.ts).
+ */
+export async function POST(request: Request) {
+    const rate = checkRateLimit(`dcr:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT);
+    if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
+
+    let body: { client_name?: unknown; redirect_uris?: unknown };
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
+    }
+
+    if (!Array.isArray(body.redirect_uris) || !body.redirect_uris.every((uri) => typeof uri === "string")) {
+        return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
+    }
+
+    const result = await registerClient(firestoreStore(), {
+        client_name: sanitizeClientName(body.client_name),
+        redirect_uris: body.redirect_uris,
+    });
+
+    if ("error" in result) {
+        console.error(`[oauth/register] registerClient rejected: ${result.error}`);
+        return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
+    }
+
+    return NextResponse.json(
+        {
+            client_id: result.client.id,
+            client_name: result.client.name,
+            redirect_uris: result.client.redirectUris,
+            token_endpoint_auth_method: "none",
+        },
+        { status: 201 }
+    );
+}

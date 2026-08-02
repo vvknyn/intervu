@@ -29,8 +29,11 @@ export const AI_ANSWER_ENGINE_BOTS = [
   "meta-externalagent",
 ] as const;
 
-/** Authed/API/private surfaces — never worth crawling regardless of bot. */
-export const PRIVATE_PATHS = ["/api/", "/admin", "/settings", "/account", "/reset-password"];
+/** Authed/API/private surfaces — never worth crawling regardless of bot.
+ *  `/oauth/` covers the MCP OAuth 2.1 AS's authorize/token/consent
+ *  endpoints — auth-flow pages carrying state/token query params, never a
+ *  marketing surface worth indexing. */
+export const PRIVATE_PATHS = ["/api/", "/admin", "/settings", "/account", "/reset-password", "/oauth/"];
 
 /**
  * Query-parameterized search-result permutations of the job-search surface

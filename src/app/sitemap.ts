@@ -48,7 +48,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
-      // MCP pairing / waitlist — pre-launch beta, publicly linkable.
+      // MCP pairing / waitlist — pre-launch beta, publicly linkable. Also
+      // the canonical human landing spot for the agent/MCP surface (Task 10
+      // page consolidation): `/agents` now permanently redirects here rather
+      // than carrying its own sitemap entry, so a redirecting URL never
+      // competes with its own target for crawl budget.
       url: `${SITE_URL}/connect`,
       lastModified,
       changeFrequency: "weekly",

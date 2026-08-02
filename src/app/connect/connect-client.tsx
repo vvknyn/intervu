@@ -171,7 +171,7 @@ export function ConnectClient() {
 
         <div className="rounded-none border border-border p-6">
           <StepLabel n={2} label="Approve" />
-          <p className="mt-3 text-sm text-foreground">Approve once — you're paired.</p>
+          <p className="mt-3 text-sm text-foreground">Approve once — you&apos;re paired.</p>
           <ul className="mt-3 space-y-1.5 text-sm">
             <li className="flex items-start gap-2 text-brand">
               <span aria-hidden="true">✓</span>
@@ -186,12 +186,21 @@ export function ConnectClient() {
               <span>It can never apply anywhere without you</span>
             </li>
           </ul>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Every client above can search and track for you out of the box. Actually opening a posting and
+            filling it in takes an agent with browser control (like Claude Code) — either way, intervu never
+            submits applications for you; you approve the moment it hits submit.
+          </p>
         </div>
 
         <div className="rounded-none border border-border p-6">
           <StepLabel n={3} label="Ask" />
           <p className="mt-3 text-sm italic text-foreground">
             &ldquo;What&apos;s the next job I should apply to?&rdquo;
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Job descriptions are third-party text pulled from the original posting — we label them as data, not
+            instructions, in every response your agent gets.
           </p>
         </div>
       </div>
