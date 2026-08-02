@@ -64,8 +64,6 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
-import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
-import { FitDrawer } from "@/components/jobs/FitDrawer";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -318,7 +316,6 @@ function JobCard({
     active,
     opened,
     onClick,
-    onFit,
     onCompany,
     onOpenPosting,
     now,
@@ -331,7 +328,6 @@ function JobCard({
     active: boolean;
     opened: boolean;
     onClick: () => void;
-    onFit?: (job: PublicJob) => void;
     onCompany?: (job: PublicJob) => void;
     onOpenPosting?: (job: PublicJob) => void;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -453,24 +449,10 @@ function JobCard({
                         {verdict.code.toLowerCase()}
                     </div>
                 )}
-                {onFit && (
-                    <button
-                        type="button"
-                        data-testid="am-i-a-fit"
-                        // min-h-11 + flex centering (not padding) gives this a
-                        // deterministic ≥44px tap target regardless of the
-                        // 13px text's own line-height (P27 mobile pass — was
-                        // an 18px-tall text link, well under the mobile tap
-                        // target floor).
-                        className="mt-1 inline-flex min-h-11 items-center text-[13px] font-medium text-brand hover:underline"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onFit(job);
-                        }}
-                    >
-                        Am I a fit? →
-                    </button>
-                )}
+                {/* "Am I a fit?" removed 2026-08-02 (AI intelligence moved to
+                    MCP) — a list row is too tight for a handoff line, so
+                    this degrades by omission; the one line for the whole
+                    screen lives in JobDetail's "How you match" rail. */}
                 <div className="mt-2.5 border-t border-border pt-2.5">
                     <CompanyIntelStrip job={job} elite={elite} />
                 </div>
@@ -480,8 +462,7 @@ function JobCard({
                     <button
                         type="button"
                         // min-h-11 + flex centering, same tap-target fix as
-                        // "Am I a fit?" below — was 30px tall (py-1.5 sizing
-                        // off the 12px label alone).
+                        // JobDetail's Apply button.
                         className="flex min-h-11 w-full items-center justify-center rounded-lg border border-foreground/20 px-2 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -937,7 +918,6 @@ function JobsContent() {
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const isDesktop = useSyncExternalStore(subscribeDesktopMq, getDesktopMqSnapshot, getDesktopMqServerSnapshot);
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
-    const [fitJob, setFitJob] = useState<PublicJob | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -1132,8 +1112,6 @@ function JobsContent() {
     const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
-    const [tailorOpen, setTailorOpen] = useState(false);
-    const [tailorJob, setTailorJob] = useState<TailorJob | null>(null);
 
     // Which results mode we're in, the resume backing Match/Explore, the
     // import modal, and the in-flight Explore call + its suggested titles.
@@ -1200,8 +1178,8 @@ function JobsContent() {
     // to the posting and start tracking this application" (the value line
     // rendered above the dialog). `openAuth` resets it to false on every
     // open; `handleApplyGate` is the one call site that then flips it back
-    // on, so a "Mark as applied" gate, a session-expiry re-auth, or
-    // FitDrawer/TailorAnalysisSheet's own auth requirement never show it.
+    // on, so a "Mark as applied" gate or a session-expiry re-auth never
+    // show it.
     const [authGateValueLine, setAuthGateValueLine] = useState(false);
 
     useEffect(() => {
@@ -2128,28 +2106,11 @@ function JobsContent() {
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
-    // Open the in-place analysis slideout for a job. Tailoring is AI-backed
-    // (login-gated), so prompt sign-in first and resume once authenticated.
-    const openTailor = (job: PublicJob) => {
-        setTailorJob({
-            company: cleanCompany(job.company),
-            position: decodeText(job.title),
-            description: job.description ?? "",
-            url: job.apply_url || undefined,
-        });
-        setTailorOpen(true);
-    };
-    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — signed
-    // out, "Apply with tailored resume" is one of the four apply-adjacent
-    // CTAs that gate through `handleApplyGate` instead of its own pre-auth
-    // behavior; signed in it's unchanged (opens the tailor slideout).
-    const handleTailor = (job: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(job);
-            return;
-        }
-        openTailor(job);
-    };
+    // "Apply with tailored resume" / the fit-check drawer moved to MCP
+    // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
+    // TailorAnalysisSheet mounts they drove are gone; `handleApplyGate`
+    // stays (Apply, Go after this job, and Open posting still gate through
+    // it — see its own comment).
     const handlePrep = (job: PublicJob) => {
         const p = new URLSearchParams();
         p.set("company", job.company ?? "");
@@ -2922,7 +2883,6 @@ function JobsContent() {
             active={selectedId === j.id}
             opened={openedIds.has(j.id)}
             onClick={() => openJob(j.id)}
-            onFit={setFitJob}
             onCompany={j.company_domain ? handleCompany : undefined}
             onOpenPosting={handleOpenPosting}
             now={nowMs}
@@ -3615,14 +3575,10 @@ function JobsContent() {
                                             now={nowMs}
                                             applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                             applying={applyingId === detailJob.id}
-                                            onTailor={() => handleTailor(detailJob)}
                                             onOpenPosting={() => handleOpenPosting(detailJob)}
                                             onMarkApplied={() => handleMarkApplied(detailJob)}
                                             onPrep={() => handlePrep(detailJob)}
                                             onGoAfter={() => handleGoAfter(detailJob)}
-                                            onFit={() => setFitJob(detailJob)}
-                                            onAuthRequired={openAuth}
-                                            isAuthed={!!user}
                                             variants={detailVariants}
                                             pursuit={detailPursuit}
                                             goingAfter={goingAfterId === detailJob.id}
@@ -3693,23 +3649,6 @@ function JobsContent() {
                     )
                 }
             />
-            <TailorAnalysisSheet
-                open={tailorOpen}
-                onOpenChange={setTailorOpen}
-                job={tailorJob}
-                onAuthRequired={() => setAuthOpen(true)}
-            />
-            <FitDrawer
-                open={!!fitJob}
-                job={fitJob}
-                onOpenChange={(open) => {
-                    if (!open) setFitJob(null);
-                }}
-                onTailor={() => fitJob && handleTailor(fitJob)}
-                onPrep={() => fitJob && handlePrep(fitJob)}
-                onApply={() => fitJob && handleMarkApplied(fitJob)}
-                onAuthRequired={openAuth}
-            />
             <ResumeImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
@@ -3745,32 +3684,27 @@ function JobsContent() {
                                 now={nowMs}
                                 applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                 applying={applyingId === detailJob.id}
-                                onTailor={() => handleTailor(detailJob)}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
-                                onFit={() => setFitJob(detailJob)}
-                                onAuthRequired={openAuth}
-                                isAuthed={!!user}
                                 variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
                             />
                             {/* Sticky mobile action bar (P27 mobile pass) — reuses
                                 the SAME onOpenPosting/onPrep handlers passed to
-                                JobDetail just above (no new handlers), plus onFit
-                                to reopen the same FitDrawer/setFitJob the SERP
-                                card's "Am I a fit?" link already uses. JobDetail's
-                                own CTAs live at the top and scroll out of view on
-                                a long description; this keeps Apply/fit-check
-                                reachable — see JobDetailActionBar's doc comment
-                                for the fixed-vs-sticky/stacking design. */}
+                                JobDetail just above (no new handlers). Its
+                                "Am I a fit?" button moved to MCP 2026-08-02 —
+                                see JobDetailActionBar's own doc comment.
+                                JobDetail's own CTAs live at the top and scroll
+                                out of view on a long description; this keeps
+                                Apply reachable — see JobDetailActionBar's doc
+                                comment for the fixed-vs-sticky/stacking design. */}
                             <JobDetailActionBar
                                 job={detailJob}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onPrep={() => handlePrep(detailJob)}
-                                onFit={() => setFitJob(detailJob)}
                             />
                         </>
                     ) : isDeadJobConfirmed ? (

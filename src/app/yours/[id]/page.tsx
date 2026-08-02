@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { updateApplication } from "@/actions/application";
 import { searchJobsAction } from "@/actions/jobs";
 import { classifyExistenceCheck } from "@/lib/jobs/result-state";
 import { JobDetail } from "@/components/jobs/JobDetail";
+import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import type { PublicJob } from "@/lib/jobs/types";
 import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
@@ -29,7 +30,6 @@ import { hasReachedStage, nextAction, stageLabel, type Pursuit } from "@/lib/pur
  */
 export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
-    const router = useRouter();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
     const { pursuits, loading } = usePursuits();
     const [interviewDate, setInterviewDate] = useState("");
@@ -137,12 +137,6 @@ export default function PursuitDetailPage() {
         </>
     );
 
-    // `?pursuit=` rather than company+position: those two strings name the role
-    // but carry no posting text, so the tailor page could never analyse
-    // anything from them and had to ask the user for what this record already
-    // knows. The id lets it resolve the posting and run on arrival.
-    const tailorHref = `/resume-tailor?pursuit=${encodeURIComponent(pursuit.id)}`;
-
     return (
         <PageLayout header={<PageHeader title={pursuit.company_name} description={pursuit.position} actions={backLink} />}>
             <div className="space-y-6">
@@ -176,11 +170,10 @@ export default function PursuitDetailPage() {
                 </div>
 
                 <div className="rounded-xl border border-border bg-card p-6">
-                    {action.kind === "tailor" && (
-                        <Button asChild className="gap-2">
-                            <Link href={tailorHref}>{action.label}</Link>
-                        </Button>
-                    )}
+                    {/* Tailoring moved to MCP 2026-08-02 — the in-app
+                        /resume-tailor link is gone; the quiet handoff note
+                        replaces it (same pattern as the "prep" note below). */}
+                    {action.kind === "tailor" && <McpHandoffNote />}
 
                     {action.kind === "apply" && (
                         <div className="flex flex-wrap gap-2">
@@ -261,7 +254,6 @@ export default function PursuitDetailPage() {
                             pursuit={pursuit}
                             goingAfter={false}
                             onGoAfter={() => {}}
-                            onTailor={() => router.push(tailorHref)}
                             onOpenPosting={() => {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");

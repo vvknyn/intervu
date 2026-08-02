@@ -61,15 +61,8 @@ test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
         await expect(page).not.toHaveURL(/board=elite/);
     });
 
-    test('am I a fit control is on rows when results exist', async ({ page }) => {
-        await enterBrowseMode(page);
-
-        const row = page.getByTestId('job-row').first();
-        if ((await row.count()) === 0) {
-            test.skip(true, 'No job rows — backend unconfigured or empty corpus');
-        }
-
-        await expect(row).toBeVisible({ timeout: 30_000 });
-        await expect(row.getByTestId('am-i-a-fit')).toBeVisible();
-    });
+    // "am I a fit" row control removed 2026-08-02 — fit assessment moved to
+    // MCP; the row no longer renders that control (degrade by omission, see
+    // JobCard in src/app/page.tsx), so the smoke test asserting its presence
+    // is gone with it.
 });

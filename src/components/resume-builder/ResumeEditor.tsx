@@ -6,13 +6,8 @@ import Link from "next/link";
 import { ResumeData } from "@/types/resume";
 import { LiveResumePreview } from "./LiveResumePreview";
 import { EditingPanel } from "./EditingPanel";
-import { AIWritingModal } from "./AIWritingModal";
 import { Button } from "@/components/ui/button";
-import { generateSummary, generateExperienceBullets } from "@/actions/generate-resume-content";
-import { ProviderConfig } from "@/lib/llm/types";
 import { exportToDocx } from "@/lib/export-docx";
-import { toast } from "@/lib/toast";
-import { classifySentinel, sentinelMessage } from "@/lib/llm/sentinels";
 import { printResume } from "@/lib/resume/print-resume";
 
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
@@ -38,86 +33,12 @@ interface ResumeEditorProps {
 
 export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = 'saved', versionsToggle, originalData, isTailoredMode }: ResumeEditorProps) {
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
-    const [aiModalOpen, setAiModalOpen] = useState(false);
-    const [currentAISection, setCurrentAISection] = useState<string | null>(null);
     const handleDownloadWord = async () => {
         await exportToDocx(data);
     };
 
     // Portal target for the print copy only exists client-side.
     const mounted = useMounted();
-
-    const handleGenerateWithAI = (section: string) => {
-        setCurrentAISection(section);
-        setAiModalOpen(true);
-    };
-
-    // Surface an AI-action error, branching on the cost/auth gate's sentinels.
-    const showAIError = (err: unknown, fallback: string) => {
-        const sentinel = classifySentinel(err);
-        if (sentinel === "auth") {
-            toast.info(sentinelMessage(err) || "Sign in to use the built-in AI (or add your own key in Settings).");
-        } else if (sentinel === "credits") {
-            toast.error(sentinelMessage(err), 7000);
-        } else {
-            const msg = typeof err === "string" ? err : err instanceof Error ? err.message : fallback;
-            toast.error(msg || fallback);
-        }
-    };
-
-    const handleAIGenerate = async (params: any) => {
-        if (!currentAISection) return;
-
-        try {
-            if (currentAISection === "summary") {
-                const skills = params.skillsText ? params.skillsText.split(',').map((s: string) => s.trim()) : [];
-                const result = await generateSummary({
-                    role: params.role || "",
-                    yearsExperience: params.yearsExperience || 0,
-                    keySkills: skills
-                });
-
-                if (result.error) {
-                    showAIError(result.error, "Failed to generate summary.");
-                    return;
-                }
-
-                if (result.summary) {
-                    onUpdate({ generatedSummary: result.summary });
-                    setAiModalOpen(false);
-                }
-            } else if (currentAISection.startsWith("experience-")) {
-                const expId = currentAISection.replace("experience-", "");
-                const exp = data.experience?.find(e => e.id === expId);
-
-                if (!exp) return;
-
-                const result = await generateExperienceBullets({
-                    role: exp.role || "",
-                    company: exp.company || "",
-                    description: params.description || ""
-                });
-
-                if (result.error) {
-                    showAIError(result.error, "Failed to generate bullet points.");
-                    return;
-                }
-
-                if (result.bullets && result.bullets.length > 0) {
-                    const bulletText = result.bullets.map(b => `• ${b}`).join('\n');
-                    onUpdate({
-                        experience: data.experience?.map(e =>
-                            e.id === expId ? { ...e, description: bulletText } : e
-                        )
-                    });
-                    setAiModalOpen(false);
-                }
-            }
-        } catch (error) {
-            console.error("AI Generation Error:", error);
-            showAIError(error, "Failed to generate content. Please try again.");
-        }
-    };
 
     const [mobileTab, setMobileTab] = useState<'preview' | 'edit'>('edit');
 
@@ -222,43 +143,11 @@ export function ResumeEditor({ data, onUpdate, onClear, onImport, syncStatus = '
                             selectedSection={selectedSection}
                             data={data}
                             onUpdate={onUpdate}
-                            onGenerateWithAI={handleGenerateWithAI}
                             onNavigateSection={(section) => setSelectedSection(section)}
                         />
                     </div>
                 </div>
             </div>
-
-            {/* AI Modal */}
-            <AIWritingModal
-                isOpen={aiModalOpen}
-                onClose={() => setAiModalOpen(false)}
-                section={currentAISection || ""}
-                onGenerate={handleAIGenerate}
-                experienceContext={
-                    currentAISection?.startsWith("experience-")
-                        ? (() => {
-                            const expId = currentAISection.replace("experience-", "");
-                            const exp = data.experience?.find(e => e.id === expId);
-                            return exp ? {
-                                role: exp.role || "",
-                                company: exp.company || "",
-                                dates: exp.dates || "",
-                                existingDescription: exp.description || ""
-                            } : undefined;
-                        })()
-                        : undefined
-                }
-                summaryContext={
-                    currentAISection === "summary"
-                        ? {
-                            profession: data.profile.profession || "",
-                            yearsOfExperience: data.profile.yearsOfExperience || 0,
-                            skills: data.competencies?.flatMap(c => c.skills) || []
-                        }
-                        : undefined
-                }
-            />
 
             {/* Print-only copy: untransformed (no scale() wrapper), portaled to
                 <body> so it sits outside the app shell. Only #resume-print-root
