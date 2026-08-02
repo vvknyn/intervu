@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { Sun, Moon } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -194,9 +195,11 @@ export function TopBar() {
                 <button
                     onClick={toggleDark}
                     data-testid="topbar-theme"
-                    className="font-mono text-[12px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                    aria-label={dark ? "Switch to day mode" : "Switch to night mode"}
+                    title={dark ? "Switch to day mode" : "Switch to night mode"}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground"
                 >
-                    {dark ? "day" : "night"}
+                    {dark ? <Sun size={16} weight="bold" /> : <Moon size={16} weight="bold" />}
                 </button>
 
                 {user ? (
