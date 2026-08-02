@@ -32,7 +32,7 @@ import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
-import { addGuestPursuit, addManualGuestPursuit } from "@/lib/pursuits/guest-store";
+import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard, EXPLORE_SUGGEST_TIMEOUT_MS } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -65,7 +65,7 @@ import {
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
-import { JobDetail } from "@/components/jobs/JobDetail";
+import { JobDetail, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
@@ -117,6 +117,7 @@ import {
     queuePending,
     clearPending,
     takeReplay,
+    resolveApplyGateDecision,
     type PendingState,
 } from "@/lib/jobs/pending-actions";
 import { toast } from "@/lib/toast";
@@ -596,13 +597,48 @@ const MAX_REACHABLE = 100_000;
  *  the point where someone is demonstrably reading rather than glancing. */
 const RESUME_MOMENT_OPENS = 3;
 
+/**
+ * One skeleton row shaped like `JobCard` below (same grid, same avatar/
+ * title/meta proportions) — kept next to `JobsListSplash`, its only caller,
+ * so the two shapes can't silently drift apart.
+ */
+function JobCardSkeleton() {
+    return (
+        <div
+            aria-hidden="true"
+            className="mb-2.5 grid grid-cols-[48px_minmax(0,1fr)_72px] gap-3 rounded-[14px] border border-border bg-card p-4"
+        >
+            <div className="skeleton-bar h-12 w-12 rounded-xl" />
+            <div className="min-w-0 space-y-2.5 py-0.5">
+                <div className="skeleton-bar h-4 w-3/4" />
+                <div className="skeleton-bar h-3 w-1/2" />
+                <div className="flex gap-2 pt-1">
+                    <div className="skeleton-bar h-5 w-16 rounded-full" />
+                    <div className="skeleton-bar h-5 w-20 rounded-full" />
+                </div>
+            </div>
+            <div className="skeleton-bar h-7 w-full self-start rounded-lg" />
+        </div>
+    );
+}
+
 /** Left-aligned loading line shown while the ledger's first page loads —
- *  no centered card, no decorative icon (anti-marker 5/6). */
+ *  no centered card, no decorative icon (anti-marker 5/6). Job 1a
+ *  (2026-08-01) added 5 shaped skeleton rows below the existing copy line
+ *  (kept verbatim) so the wait reads as "results are shaped like this,
+ *  arriving" instead of a bare sentence. */
 function JobsListSplash() {
     return (
-        <p className="py-8 font-mono text-[13px] text-muted-foreground">
-            Finding live roles… screening each posting for ghost-job signals.
-        </p>
+        <div>
+            <p className="pt-8 font-mono text-[13px] text-muted-foreground">
+                Finding live roles… screening each posting for ghost-job signals.
+            </p>
+            <div className="mt-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <JobCardSkeleton key={i} />
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -733,6 +769,7 @@ type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
 function EmptyResults({
     entries,
     onClearEntry,
+    onClearFilters,
     query,
     onClearQuery,
     ghostRevealCount,
@@ -740,17 +777,35 @@ function EmptyResults({
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
+    /** Job 1c — the existing all-filters-reset funnel (`panelClearAll` /
+     *  `applyFilterState(PRISTINE_FILTER_STATE)`, page.tsx), passed through
+     *  rather than re-derived here so there is exactly one place that knows
+     *  how to reset a `FilterState` to pristine. */
+    onClearFilters: () => void;
     query: string;
     onClearQuery: () => void;
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
 }) {
     const hasQuery = query.trim().length > 0;
+    const hasFilters = entries.length > 0;
     return (
         <div className="py-8 text-left">
-            <p className="text-[14px] text-foreground">No roles match.</p>
-            {(hasQuery || entries.length > 0) && (
+            <p className="text-[14px] text-foreground">
+                {hasFilters ? "Nothing matches these filters." : "No roles match."}
+            </p>
+            {(hasQuery || hasFilters) && (
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
+                    {hasFilters && (
+                        <button
+                            type="button"
+                            data-testid="empty-state-clear-filters"
+                            onClick={onClearFilters}
+                            className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                        >
+                            Clear filters
+                        </button>
+                    )}
                     {hasQuery && (
                         <button
                             type="button"
@@ -1176,18 +1231,28 @@ function JobsContent() {
         }
     };
 
-    // All four "run this after the user signs in" actions (apply / tailor /
+    // All four "run this after the user signs in" actions (apply / gate /
     // upload / explore) live in one pure pending-state ref so only the LATEST
     // intent is ever queued and a dismissed action can never replay. See
-    // lib/jobs/pending-actions.ts. `authedRef` is the deterministic success
-    // signal from this page's AuthPopover (`onAuthed`) — replay fires only when
-    // it's set, so an unrelated later sign-in (e.g. the sidebar "Log in", which
-    // never touches this popover) replays nothing, race-free regardless of
+    // lib/jobs/pending-actions.ts — `gate` is the generic apply-intent gate
+    // (Job 2, 2026-08-01) shared by every apply-adjacent CTA reachable signed
+    // out. `authedRef` is the deterministic success signal from this page's
+    // AuthPopover (`onAuthed`) — replay fires only when it's set, so an
+    // unrelated later sign-in (e.g. the sidebar "Log in", which never
+    // touches this popover) replays nothing, race-free regardless of
     // whether `setUser(true)` or the popover-close lands first.
     const pendingRef = useRef<PendingState<PublicJob, PublicJob, ResumeData>>(
         emptyPending<PublicJob, PublicJob, ResumeData>(),
     );
     const authedRef = useRef(false);
+    // True only while the currently-open auth dialog was opened by
+    // `handleApplyGate` below — the ONLY path that promises "we'll take you
+    // to the posting and start tracking this application" (the value line
+    // rendered above the dialog). `openAuth` resets it to false on every
+    // open; `handleApplyGate` is the one call site that then flips it back
+    // on, so a "Mark as applied" gate, a session-expiry re-auth, or
+    // FitDrawer/TailorAnalysisSheet's own auth requirement never show it.
+    const [authGateValueLine, setAuthGateValueLine] = useState(false);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -2099,10 +2164,13 @@ function JobsContent() {
         });
         setTailorOpen(true);
     };
+    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — signed
+    // out, "Apply with tailored resume" is one of the four apply-adjacent
+    // CTAs that gate through `handleApplyGate` instead of its own pre-auth
+    // behavior; signed in it's unchanged (opens the tailor slideout).
     const handleTailor = (job: PublicJob) => {
-        if (!user) {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "tailor", payload: job });
-            openAuth();
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
             return;
         }
         openTailor(job);
@@ -2119,7 +2187,16 @@ function JobsContent() {
         if (!job.company_domain) return;
         router.push(`/co/${domainToSlug(job.company_domain)}`);
     };
+    // Job 2 — the card "Apply" button and the detail panel's "Open posting"
+    // button both call this (see JobCard's `onOpenPosting` prop and
+    // JobDetail's `onOpenPosting` prop), so gating here covers both by
+    // construction. Signed in: unchanged, new-tab `window.open` (safe —
+    // this always runs synchronously inside the click's own gesture stack).
     const handleOpenPosting = (job: PublicJob) => {
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
+            return;
+        }
         if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
     };
 
@@ -2153,7 +2230,7 @@ function JobsContent() {
         }
     };
     const handleMarkApplied = (job: PublicJob) => {
-        if (!user) {
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             pendingRef.current = queuePending(pendingRef.current, { kind: "apply", payload: job });
             openAuth();
             return;
@@ -2161,12 +2238,41 @@ function JobsContent() {
         void doMarkApplied(job);
     };
 
-    // "Go after this job" (spec §3) — the one verb, no auth wall: signed out
-    // writes straight to the guest store (merged at sign-in, see
-    // `guestPursuitSyncRef` below); signed in calls the server chokepoint.
+    // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
+    // "Mark as applied" uses, not a second copy of it — then navigates
+    // same-tab to the posting. `window.open` (used by the signed-in
+    // `handleOpenPosting` above) would be popup-blocked here: this runs
+    // asynchronously after the login round-trip completes, outside the
+    // click's own gesture stack, which is exactly the condition browsers
+    // block a new-tab popup under. Awaiting the write first (rather than
+    // firing it and navigating immediately) also means the tab unloading
+    // can't race the request and drop it silently.
+    const replayApplyGate = async (job: PublicJob) => {
+        await doMarkApplied(job);
+        if (job.apply_url) window.location.href = job.apply_url;
+    };
+
+    // Job 2 (2026-08-01, Vivek: account creation BEFORE applying) — the ONE
+    // gate every apply-adjacent CTA reachable signed out funnels through:
+    // card "Apply", "Go after this job", "Open posting", and "Apply with
+    // tailored resume" (see their own call sites above/below) all call this
+    // instead of performing their own action or keeping their own pre-auth
+    // behavior. A fifth gated button is covered by calling this too, not by
+    // adding another branch here or another case in `maybeReplay` below.
+    const handleApplyGate = (job: PublicJob) => {
+        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: job });
+        openAuth();
+        setAuthGateValueLine(true);
+    };
+
+    // "Go after this job" (spec §3) — used to write straight to the guest
+    // store with no auth wall at all; Job 2 (2026-08-01) overrides that for
+    // THIS button specifically (account creation before applying), so
+    // signed out it now gates like the other three apply-adjacent CTAs.
+    // Signed in: unchanged, still the server chokepoint below.
     const handleGoAfter = (job: PublicJob) => {
-        if (!user) {
-            addGuestPursuit(job);
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(job);
             return;
         }
         void (async () => {
@@ -2247,7 +2353,7 @@ function JobsContent() {
     // Run whatever the user queued before signing in — exactly once, and ONLY
     // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
     // other path to being logged-in (sidebar login, an already-signed-in tab)
-    // never sets `authedRef`, so a stale apply/tailor/upload/explore can't fire.
+    // never sets `authedRef`, so a stale apply/gate/upload/explore can't fire.
     // `takeReplay` empties the state, so the dispatch is idempotent no matter
     // how many times this runs or in what order relative to `setUser`.
     const maybeReplay = useCallback(() => {
@@ -2259,8 +2365,8 @@ function JobsContent() {
             case "apply":
                 void doMarkApplied(action.payload);
                 break;
-            case "tailor":
-                openTailor(action.payload);
+            case "gate":
+                void replayApplyGate(action.payload);
                 break;
             case "upload":
                 setImportOpen(true);
@@ -2269,17 +2375,22 @@ function JobsContent() {
                 void runExplore(action.payload);
                 break;
         }
-        // doMarkApplied / openTailor / runExplore read no changing component
-        // state (only stable setters + the action payload), so capturing the
-        // first render's closures here is safe — keep a stable identity.
+        // doMarkApplied / replayApplyGate / runExplore read no changing
+        // component state (only stable setters + the action payload), so
+        // capturing the first render's closures here is safe — keep a
+        // stable identity.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Open the auth popover for a freshly-queued action. Resetting `authedRef`
     // here scopes the "success" signal to THIS attempt, so a prior confirmed
-    // sign-in can't be mistaken for the new one.
+    // sign-in can't be mistaken for the new one. Also resets the Job 2 value-
+    // line flag — `handleApplyGate` (the only caller that wants it shown)
+    // flips it back on immediately after calling this, synchronously in the
+    // same handler, so the two writes land as one state update.
     const openAuth = () => {
         authedRef.current = false;
+        setAuthGateValueLine(false);
         setAuthOpen(true);
     };
 
@@ -2394,12 +2505,13 @@ function JobsContent() {
     // double-spend a credit. (review fix, 2026-07-18)
     const exploreInFlightRef = useRef(false);
 
-    // Cancel ANY action queued for after sign-in (apply / tailor / upload /
+    // Cancel ANY action queued for after sign-in (apply / gate / upload /
     // explore) so a later, unrelated login can't hijack the user into it — or
     // silently spend an Explore credit / write a phantom application they didn't
     // ask for. Called by every alternate path (results-mode entry, gate choice)
     // and on a dismiss of the popover. (code review, 2026-06-07; pending-state
-    // unified + apply/tailor leak closed, 2026-06-08)
+    // unified + apply/tailor leak closed, 2026-06-08; apply-gate added Job 2,
+    // 2026-08-01)
     const clearPendingGate = () => {
         pendingRef.current = clearPending(pendingRef.current);
         resumeActionAfterImportRef.current = null;
@@ -3122,9 +3234,12 @@ function JobsContent() {
                         band (SerpFilters), wired to the same single
                         `applyFilterState` funnel the old FilterPanel card used. */}
                     {!isOverlayAsk && filtersOpen && (
+                        // Motion tokens (Job 1e) — `.panel-enter` (globals.css)
+                        // plays once on mount, i.e. on expand; the band has no
+                        // separate collapse animation since it unmounts on close.
                         <div
                             data-testid="filters-panel"
-                            className="mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-muted/30 p-5 custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-muted/30 p-5 custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -3315,6 +3430,7 @@ function JobsContent() {
                                 <EmptyResults
                                     entries={activeEntries}
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
+                                    onClearFilters={panelClearAll}
                                     query={query}
                                     onClearQuery={() => {
                                         setQuery("");
@@ -3455,7 +3571,11 @@ function JobsContent() {
                 </div>
 
                 {isDesktop && selectedId && (
-                    <aside className="hidden min-h-0 pt-4 lg:block">
+                    // Motion tokens (Job 1e) — `.panel-enter` (globals.css,
+                    // driven by --transition-panel) plays once per mount, i.e.
+                    // on open (this whole `<aside>` unmounts on close, there's
+                    // no separate close transition to add motion to).
+                    <aside className="panel-enter hidden min-h-0 pt-4 lg:block">
                         <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-[14px] border border-border bg-card shadow-sm custom-scrollbar">
                             <div className="relative">
                                 <button
@@ -3520,12 +3640,46 @@ function JobsContent() {
                                             checking={isDeadJobChecking}
                                         />
                                     </div>
+                                ) : loading ? (
+                                    // Job 1b — the one real gap: a deep-linked
+                                    // `?job=` id whose first search page hasn't
+                                    // resolved yet, so `detailJob` is null but
+                                    // this isn't "confirmed gone" or "checking
+                                    // a dead-link candidate" either (both
+                                    // handled above) — this branch used to
+                                    // fall through to `null` and render
+                                    // nothing at all while the first page was
+                                    // still in flight.
+                                    <div className="p-4">
+                                        <JobDetailSkeleton />
+                                    </div>
                                 ) : null}
                             </div>
                         </div>
                     </aside>
                 )}
                 </main>
+            )}
+
+            {/* Job 2 auth-gate value line — AuthPopover (components/auth/
+                auth-popover.tsx) owns the dialog itself and doesn't accept a
+                heading/children prop to render this INSIDE it, and it's not
+                a file this pass may touch. Rendered as its own small fixed
+                banner above the dialog instead so it stays visually tied to
+                the popover opening/closing without editing that component.
+                FOLLOW-UP for whoever owns auth-popover.tsx: a one-line
+                `heading`/`children` prop would let this render inside
+                DialogContent properly instead of as a separate overlay. */}
+            {authOpen && authGateValueLine && (
+                <div
+                    aria-hidden="true"
+                    className="line-enter fixed inset-x-0 top-[18%] z-[70] flex justify-center px-4"
+                >
+                    <p className="max-w-[380px] rounded-xl border border-border bg-card px-4 py-3 text-center text-sm text-foreground shadow-[var(--shadow-lg)]">
+                        Create a free account — we&apos;ll take you straight to the posting and start tracking this
+                        application.
+                    </p>
+                </div>
             )}
 
             <AuthPopover
@@ -3575,7 +3729,14 @@ function JobsContent() {
                     if (!open) router.back();
                 }}
             >
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0">
+                <SheetContent
+                    side="bottom"
+                    // Motion tokens (Job 1e) — same retarget as FitDrawer's
+                    // SheetContent, see its own comment for why `duration-`
+                    // (not a plain `transition-*` class) is the right utility
+                    // to override here.
+                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-2xl p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                >
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
@@ -3637,6 +3798,11 @@ function JobsContent() {
                                 canShowSimilar={canShowSimilarRoles}
                                 checking={isDeadJobChecking}
                             />
+                        </div>
+                    ) : loading ? (
+                        // Job 1b — same gap as the desktop aside above.
+                        <div className="p-4">
+                            <JobDetailSkeleton />
                         </div>
                     ) : null}
                 </SheetContent>

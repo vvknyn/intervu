@@ -6,6 +6,7 @@ import {
     clearPending,
     takeReplay,
     hasPending,
+    resolveApplyGateDecision,
     type PendingState,
 } from '../../src/lib/jobs/pending-actions';
 
@@ -17,7 +18,7 @@ type S = PendingState<string, string, string>;
 describe('emptyPending', () => {
     it('starts with nothing pending', () => {
         const s = emptyPending<string, string, string>();
-        assert.deepEqual(s, { apply: null, tailor: null, upload: null, explore: null });
+        assert.deepEqual(s, { apply: null, gate: null, upload: null, explore: null });
         assert.equal(hasPending(s), false);
     });
 });
@@ -29,33 +30,33 @@ describe('queuePending — only the latest action is ever pending', () => {
         assert.equal(hasPending(s), true);
     });
 
-    it('queuing apply clears a previously-queued tailor', () => {
+    it('queuing apply clears a previously-queued gate', () => {
         let s: S = emptyPending<string, string, string>();
-        s = queuePending(s, { kind: 'tailor', payload: 'job-T' });
-        assert.equal(s.tailor, 'job-T');
+        s = queuePending(s, { kind: 'gate', payload: 'job-G' });
+        assert.equal(s.gate, 'job-G');
         s = queuePending(s, { kind: 'apply', payload: 'job-A' });
         assert.equal(s.apply, 'job-A');
-        assert.equal(s.tailor, null, 'queuing apply must clear the stale tailor');
+        assert.equal(s.gate, null, 'queuing apply must clear the stale gate');
         assert.equal(s.upload, null);
         assert.equal(s.explore, null);
     });
 
-    it('queuing tailor clears a previously-queued apply', () => {
+    it('queuing gate clears a previously-queued apply', () => {
         let s: S = emptyPending<string, string, string>();
         s = queuePending(s, { kind: 'apply', payload: 'job-A' });
-        s = queuePending(s, { kind: 'tailor', payload: 'job-T' });
-        assert.equal(s.tailor, 'job-T');
-        assert.equal(s.apply, null, 'queuing tailor must clear the stale apply');
+        s = queuePending(s, { kind: 'gate', payload: 'job-G' });
+        assert.equal(s.gate, 'job-G');
+        assert.equal(s.apply, null, 'queuing gate must clear the stale apply');
     });
 
-    it('queuing upload clears apply/tailor/explore (gate vs action are mutually exclusive)', () => {
+    it('queuing upload clears apply/gate/explore (gate vs action are mutually exclusive)', () => {
         let s: S = emptyPending<string, string, string>();
         s = queuePending(s, { kind: 'apply', payload: 'job-A' });
         s = queuePending(s, { kind: 'explore', payload: 'resume-1' });
         s = queuePending(s, { kind: 'upload', payload: true });
         assert.equal(s.upload, true);
         assert.equal(s.apply, null);
-        assert.equal(s.tailor, null);
+        assert.equal(s.gate, null);
         assert.equal(s.explore, null);
     });
 
@@ -72,7 +73,7 @@ describe('clearPending — alternate path / dismiss empties everything', () => {
     it('empties whatever was pending', () => {
         let s: S = queuePending(emptyPending<string, string, string>(), { kind: 'apply', payload: 'job-A' });
         s = clearPending(s);
-        assert.deepEqual(s, { apply: null, tailor: null, upload: null, explore: null });
+        assert.deepEqual(s, { apply: null, gate: null, upload: null, explore: null });
         assert.equal(hasPending(s), false);
     });
 
@@ -95,10 +96,14 @@ describe('takeReplay — consume the queued action exactly once on sign-in', () 
         assert.equal(hasPending(again.next), false);
     });
 
-    it('returns the queued tailor action once', () => {
-        const s0: S = queuePending(emptyPending<string, string, string>(), { kind: 'tailor', payload: 'job-T' });
+    // Job 2 (2026-08-01) — the generic apply-gate kind queued by card "Apply",
+    // "Go after this job", "Open posting", and "Apply with tailored resume"
+    // when signed out. A second, distinct action kind from 'apply' above,
+    // proving the fix is class-wide rather than hard-coded to one button.
+    it('returns the queued gate action once', () => {
+        const s0: S = queuePending(emptyPending<string, string, string>(), { kind: 'gate', payload: 'job-G' });
         const { next, action } = takeReplay(s0);
-        assert.deepEqual(action, { kind: 'tailor', payload: 'job-T' });
+        assert.deepEqual(action, { kind: 'gate', payload: 'job-G' });
         assert.equal(hasPending(next), false);
     });
 
@@ -129,5 +134,15 @@ describe('takeReplay — consume the queued action exactly once on sign-in', () 
     it('an empty state replays nothing', () => {
         const { action } = takeReplay(emptyPending<string, string, string>());
         assert.equal(action, null);
+    });
+});
+
+describe('resolveApplyGateDecision — signed-in vs signed-out branch for the apply gate', () => {
+    it('signed out always gates', () => {
+        assert.equal(resolveApplyGateDecision(false), 'gate');
+    });
+
+    it('signed in always performs the action immediately, no dialog', () => {
+        assert.equal(resolveApplyGateDecision(true), 'perform');
     });
 });
