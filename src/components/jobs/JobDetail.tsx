@@ -84,6 +84,51 @@ function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     );
 }
 
+/**
+ * Detail-panel loading placeholder (Job 1b, 2026-08-01) — shown by app/page.tsx
+ * in place of `<JobDetail>` for the one real gap in the desktop aside / mobile
+ * sheet's job-resolution chain: a deep-linked `?job=` id whose first search
+ * page hasn't resolved yet, so neither `selected` nor the dead-link existence
+ * check has an answer (that check's own in-flight state already renders its
+ * own spinner via `DeadJobUnresolved`, a distinct, later state). Exported
+ * from here rather than duplicated in page.tsx so the skeleton's shape (title
+ * bar, chips row, action row, paragraph bars) stays next to the real layout
+ * it mirrors — one place to keep both in sync. `.skeleton-bar` (globals.css)
+ * carries the shimmer sweep and is disabled under `prefers-reduced-motion` by
+ * the existing site-wide animation-neutralizing rule there.
+ */
+export function JobDetailSkeleton() {
+    return (
+        <div className="overflow-hidden rounded-[14px] border border-border bg-card" aria-hidden="true">
+            <div className="border-b border-border p-6">
+                <div className="flex items-start gap-4">
+                    <div className="skeleton-bar h-12 w-12 shrink-0 rounded-xl" />
+                    <div className="min-w-0 flex-1 space-y-2.5">
+                        <div className="skeleton-bar h-5 w-2/3" />
+                        <div className="skeleton-bar h-3.5 w-1/3" />
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            <div className="skeleton-bar h-5 w-20 rounded-full" />
+                            <div className="skeleton-bar h-5 w-24 rounded-full" />
+                            <div className="skeleton-bar h-5 w-16 rounded-full" />
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                    <div className="skeleton-bar h-9 w-40 rounded-lg" />
+                    <div className="skeleton-bar h-9 w-48 rounded-lg" />
+                    <div className="skeleton-bar h-9 w-32 rounded-lg" />
+                </div>
+            </div>
+            <div className="space-y-2.5 p-6">
+                <div className="skeleton-bar h-3.5 w-full" />
+                <div className="skeleton-bar h-3.5 w-full" />
+                <div className="skeleton-bar h-3.5 w-5/6" />
+                <div className="skeleton-bar h-3.5 w-2/3" />
+            </div>
+        </div>
+    );
+}
+
 export function JobDetail({
     job,
     now,

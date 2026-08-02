@@ -113,6 +113,20 @@
   --shadow-sm: 0 1px 2px rgb(18 21 26 / 0.04);
   --shadow-md: 0 1px 2px rgb(18 21 26 / 0.04), 0 6px 20px rgb(18 21 26 / 0.05);
   --shadow-lg: 0 2px 4px rgb(18 21 26 / 0.04), 0 12px 32px rgb(18 21 26 / 0.08);
+
+  /* Motion tokens (in-flow states pass, 2026-08-01) — the one shared
+     duration scale for panel/dialog motion (detail panel, filter panel
+     expand, FitDrawer slide, the auth-gate value line). Pure durations, not
+     duration+ease bundles: that lets the SAME token drop into both a plain
+     `transition-duration` declaration (custom enter/exit classes below) and
+     Tailwind's `duration-[var(...)]` utility on the Radix Sheet/Dialog
+     primitives, which only accept a bare time value. Every call site pairs
+     these with the same `ease-out` timing function — that repetition (not a
+     third --ease-* token) is what "one consistent ease" means here, since
+     the task asked for exactly these two named tokens. Zeroed under
+     prefers-reduced-motion below. */
+  --transition-fast: 120ms;
+  --transition-panel: 180ms;
 }
 
 .dark {
@@ -348,6 +362,67 @@ h4 {
   animation-delay: 0.5s;
 }
 
+/* Skeleton shimmer (in-flow loading states, 2026-08-01) — the SERP's 5
+   job-card placeholders (JobsListSplash, app/page.tsx), the detail panel's
+   loading skeleton (JobDetailSkeleton, JobDetail.tsx), and the FitDrawer
+   signed-out preview (FitDrawer.tsx) all share this one class rather than
+   each hand-rolling its own pulse. A moving gradient sweep (background-
+   position), not a layout-affecting property, so it's cheap and never
+   causes reflow. The site-wide `prefers-reduced-motion` rule below already
+   collapses its animation-duration to ~0, so it needs no separate opt-out
+   here. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-bar {
+  border-radius: 6px;
+  background-color: rgb(var(--muted));
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--foreground) / 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on
+   mount to surfaces that previously just popped in with no transition at
+   all: the desktop detail panel (app/page.tsx aside) and the apply-gate's
+   value line above the auth dialog (app/page.tsx, see its own comment for
+   why it can't live inside AuthPopover itself). `--transition-panel` for
+   the detail panel (an actual panel), `--transition-fast` for the value
+   line (a small in-place line, not a panel). Both share the same `ease-out`
+   curve — see the token comment above for why that's the "one consistent
+   ease" instead of a third custom property. */
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-enter {
+  animation: panel-enter var(--transition-panel) ease-out both;
+}
+
+.line-enter {
+  animation: panel-enter var(--transition-fast) ease-out both;
+}
+
 /* Selection colors tied to brand */
 ::selection {
   background-color: rgb(var(--brand) / 0.2);
@@ -461,6 +536,18 @@ textarea::selection {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Motion tokens (Job 1e) — the wildcard rule just above already collapses
+     every `animation`/`transition-duration` in the app to ~0, which covers
+     anything consuming these tokens. This makes it explicit at the source
+     too (belt and suspenders per the spec: "actually set them to none/0",
+     not just rely on a near-zero duration elsewhere) so a future call site
+     reading the token's raw value directly (not through a `transition`/
+     `animation` shorthand) still gets a real zero. */
+  :root {
+    --transition-fast: 0s;
+    --transition-panel: 0s;
   }
 }
 
