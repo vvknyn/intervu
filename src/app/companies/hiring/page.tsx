@@ -53,7 +53,7 @@ export default async function HotCompaniesPage() {
         ) : result.companies.length === 0 ? (
           <p className="text-sm text-[color:var(--elite-muted)]">No elite companies indexed right now.</p>
         ) : (
-          <div className="overflow-hidden rounded-[12px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)]">
+          <div className="overflow-hidden border border-[color:var(--elite-border)] bg-[color:var(--elite-card)]">
             <table className="w-full border-collapse">
               <thead className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)]">
                 <tr>
@@ -104,7 +104,7 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
         <Link href={`/co/${company.slug}`} className="flex items-center gap-3">
           <CompanyInitialTile
             name={company.name}
-            className="h-9 w-9 rounded-lg text-base"
+            className="h-9 w-9 text-base"
           />
           <div className="min-w-0">
             <div className="text-[14.5px] font-semibold">{company.name}</div>

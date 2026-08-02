@@ -38,7 +38,7 @@ export function CompanyGhostMixBand({
                   "w-32 shrink-0 sm:w-40",
                   tone
                     ? cn(
-                        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        "inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-medium",
                         STATUS_PILL[tone],
                       )
                     : "text-[12.5px] text-muted-foreground",

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchMarketTrends } from "@/lib/jobs/market-trends";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { TrendsHero } from "@/components/trends/TrendsHero";
 import { TopCountriesList } from "@/components/trends/TopCountriesList";
 import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
@@ -36,12 +37,18 @@ export default async function TrendsPage() {
 
   return (
     <main data-testid="trends-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <header>
-        <h1 className="font-display text-display font-extrabold text-foreground">Market trends</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Live stats from the jobs corpus we track — scraped from companies&apos; own career pages, not curated.
-        </p>
-      </header>
+      {/* `bare`: this page isn't rendered through `PageLayout`'s `header`
+          slot, so it needs the title row only, embedded inline in its own
+          content column (same shape as Prep's landing view). No `actions`
+          status line — the mock's "snapshot · updated Xh ago" needs an
+          as-of timestamp `fetchMarketTrends` doesn't return, and fabricating
+          one would misrepresent freshness. */}
+      <PageHeader
+        bare
+        size="display"
+        title="Market trends"
+        description="Live stats from the jobs corpus we track — scraped from companies&apos; own career pages, not curated."
+      />
 
       <TrendsHero
         liveJobs={data.liveJobs}

@@ -111,7 +111,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         <header className="mb-7 flex gap-4">
           <CompanyInitialTile
             name={data.name}
-            className="h-16 w-16 rounded-[12px] text-[22px]"
+            className="h-16 w-16 text-[22px]"
           />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
@@ -144,12 +144,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </header>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi value={formatKpi(data.openCount)} label="Open roles" hot={data.openCount > 0} />
-          <Kpi
-            value={formatKpi(data.opened90d)}
-            label="Opened 90d"
-            hot={typeof data.opened90d === "number" && data.opened90d > 0}
-          />
+          <Kpi value={formatKpi(data.openCount)} label="Open roles" />
+          <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
           <Kpi
             value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
@@ -177,9 +173,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   <li key={job.id}>
                     <Link
                       href={`/?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center justify-between gap-4 rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
+                      className="flex items-center gap-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
                     >
-                      <div className="min-w-0">
+                      <CompanyInitialTile
+                        name={data.name}
+                        className="h-11 w-11 shrink-0 text-base"
+                      />
+                      <div className="min-w-0 flex-1">
                         <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
                         <div className="mt-1 font-mono text-xs text-[color:var(--elite-muted)]">
                           {roleMeta(job)}
@@ -236,18 +236,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   );
 }
 
-function Kpi({ value, label, hot }: { value: string; label: string; hot?: boolean }) {
+function Kpi({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[10px] border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
-      <div
-        className={cn(
-          "font-display text-[26px] font-bold tracking-tight",
-          hot && "text-[color:var(--elite-brand)]",
-        )}
-      >
+    <div className="border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
+      <span className="inline-block border-b-[3px] border-[color:var(--elite-brand)] pb-1 font-mono text-[26px] font-medium tracking-tight">
         {value}
-      </div>
-      <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
+      </span>
+      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
         {label}
       </div>
     </div>

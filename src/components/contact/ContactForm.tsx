@@ -65,6 +65,7 @@ export function ContactForm() {
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    className="rounded-none focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20"
                 />
             </div>
 
@@ -76,6 +77,7 @@ export function ContactForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="rounded-none focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20"
                 />
             </div>
 
@@ -85,7 +87,7 @@ export function ContactForm() {
                     id="message"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="min-h-[120px]"
+                    className="min-h-[120px] rounded-none focus-visible:border-foreground focus-visible:ring-foreground/20"
                     required
                     minLength={10}
                 />

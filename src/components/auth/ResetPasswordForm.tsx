@@ -72,7 +72,7 @@ export function ResetPasswordForm() {
             <div className="min-h-screen flex items-center justify-center px-4">
                 <div className="w-full max-w-xs text-center">
                     <div className="mb-6 flex justify-center">
-                        <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-none bg-green-50 dark:bg-green-950/30 flex items-center justify-center">
                             <CheckCircle size={24} weight="fill" className="text-green-600 dark:text-green-400" />
                         </div>
                     </div>
@@ -114,7 +114,7 @@ export function ResetPasswordForm() {
                             required
                             placeholder="New password"
                             minLength={6}
-                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:text-white"
+                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
                         />
                     </div>
 
@@ -126,7 +126,7 @@ export function ResetPasswordForm() {
                             required
                             placeholder="Confirm password"
                             minLength={6}
-                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:text-white"
+                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
                         />
                     </div>
 

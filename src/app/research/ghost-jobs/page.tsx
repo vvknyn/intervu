@@ -23,6 +23,23 @@ const articleJsonLd = buildArticleJsonLd({
   path: "/research/ghost-jobs",
 });
 
+// Squared "rtable" treatment (docs-mockup.html lines 281-284, "THE RULES" #4):
+// one hairline border around the whole table, header cells mono/uppercase
+// with no top border, every data-row cell gets a top hairline instead of a
+// bottom one so hairlines live inside the table, never floating outside it.
+// Single source of truth for all three tables on this page.
+const RTABLE_TH =
+  "px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
+const RTABLE_TD = "border-t border-foreground/10 px-4 py-3";
+const RTABLE = {
+  table: "w-full border-collapse border border-foreground/10 text-[13.5px]",
+  th: RTABLE_TH,
+  thNum: `${RTABLE_TH} text-right`,
+  td: RTABLE_TD,
+  tdMono: `${RTABLE_TD} font-mono`,
+  tdNum: `${RTABLE_TD} text-right font-mono`,
+};
+
 export default function GhostJobsResearchPage() {
   return (
     <main data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -30,7 +47,10 @@ export default function GhostJobsResearchPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <h1 className="font-display text-display font-extrabold text-foreground">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+        From our research · July 2026 snapshot
+      </p>
+      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
         Ghost Jobs Aren&apos;t the Problem. Wasted Applications Are.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">
@@ -65,39 +85,39 @@ export default function GhostJobsResearchPage() {
         </p>
 
         <div className="not-prose my-6 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className={RTABLE.table}>
             <thead>
-              <tr className="border-b border-foreground">
-                <th className="py-2 pr-4 text-left font-medium">Grade</th>
-                <th className="py-2 pr-4 text-left font-medium">What it means</th>
-                <th className="py-2 pr-4 text-right font-medium">Count</th>
-                <th className="py-2 text-right font-medium">Share</th>
+              <tr>
+                <th className={RTABLE.th}>Grade</th>
+                <th className={RTABLE.th}>What it means</th>
+                <th className={RTABLE.thNum}>Count</th>
+                <th className={RTABLE.thNum}>Share</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">A</td>
-                <td className="py-1.5 pr-4">Excellent — clear, fresh, transparent</td>
-                <td className="py-1.5 pr-4 text-right font-mono">80</td>
-                <td className="py-1.5 text-right font-mono">0.2%</td>
+              <tr>
+                <td className={RTABLE.tdMono}>A</td>
+                <td className={RTABLE.td}>Excellent — clear, fresh, transparent</td>
+                <td className={RTABLE.tdNum}>80</td>
+                <td className={RTABLE.tdNum}>0.2%</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">B</td>
-                <td className="py-1.5 pr-4">Good — solid listing, minor gaps</td>
-                <td className="py-1.5 pr-4 text-right font-mono">20,067</td>
-                <td className="py-1.5 text-right font-mono">51.7%</td>
+              <tr>
+                <td className={RTABLE.tdMono}>B</td>
+                <td className={RTABLE.td}>Good — solid listing, minor gaps</td>
+                <td className={RTABLE.tdNum}>20,067</td>
+                <td className={RTABLE.tdNum}>51.7%</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">C</td>
-                <td className="py-1.5 pr-4">Ambiguous — missing key signals</td>
-                <td className="py-1.5 pr-4 text-right font-mono">15,302</td>
-                <td className="py-1.5 text-right font-mono">39.4%</td>
+              <tr>
+                <td className={RTABLE.tdMono}>C</td>
+                <td className={RTABLE.td}>Ambiguous — missing key signals</td>
+                <td className={RTABLE.tdNum}>15,302</td>
+                <td className={RTABLE.tdNum}>39.4%</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">D–F</td>
-                <td className="py-1.5 pr-4">Low quality — likely not worth applying</td>
-                <td className="py-1.5 pr-4 text-right font-mono">3,357</td>
-                <td className="py-1.5 text-right font-mono">8.7%</td>
+              <tr>
+                <td className={RTABLE.tdMono}>D–F</td>
+                <td className={RTABLE.td}>Low quality — likely not worth applying</td>
+                <td className={RTABLE.tdNum}>3,357</td>
+                <td className={RTABLE.tdNum}>8.7%</td>
               </tr>
             </tbody>
           </table>
@@ -146,24 +166,24 @@ export default function GhostJobsResearchPage() {
 
         <h3>Salary transparency is the #1 signal</h3>
         <div className="not-prose my-6 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className={RTABLE.table}>
             <thead>
-              <tr className="border-b border-foreground">
-                <th className="py-2 pr-4 text-left font-medium"></th>
-                <th className="py-2 pr-4 text-right font-medium">Jobs</th>
-                <th className="py-2 text-right font-medium">Avg Quality Score</th>
+              <tr>
+                <th className={RTABLE.th}></th>
+                <th className={RTABLE.thNum}>Jobs</th>
+                <th className={RTABLE.thNum}>Avg Quality Score</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">Salary posted</td>
-                <td className="py-1.5 pr-4 text-right font-mono">12,970</td>
-                <td className="py-1.5 text-right font-mono">0.677</td>
+              <tr>
+                <td className={RTABLE.td}>Salary posted</td>
+                <td className={RTABLE.tdNum}>12,970</td>
+                <td className={RTABLE.tdNum}>0.677</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">No salary</td>
-                <td className="py-1.5 pr-4 text-right font-mono">25,839</td>
-                <td className="py-1.5 text-right font-mono">0.598</td>
+              <tr>
+                <td className={RTABLE.td}>No salary</td>
+                <td className={RTABLE.tdNum}>25,839</td>
+                <td className={RTABLE.tdNum}>0.598</td>
               </tr>
             </tbody>
           </table>
@@ -181,24 +201,24 @@ export default function GhostJobsResearchPage() {
 
         <h3>Remote jobs are higher quality</h3>
         <div className="not-prose my-6 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className={RTABLE.table}>
             <thead>
-              <tr className="border-b border-foreground">
-                <th className="py-2 pr-4 text-left font-medium"></th>
-                <th className="py-2 pr-4 text-right font-medium">Jobs</th>
-                <th className="py-2 text-right font-medium">Avg Quality Score</th>
+              <tr>
+                <th className={RTABLE.th}></th>
+                <th className={RTABLE.thNum}>Jobs</th>
+                <th className={RTABLE.thNum}>Avg Quality Score</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">Remote</td>
-                <td className="py-1.5 pr-4 text-right font-mono">3,940</td>
-                <td className="py-1.5 text-right font-mono">0.678</td>
+              <tr>
+                <td className={RTABLE.td}>Remote</td>
+                <td className={RTABLE.tdNum}>3,940</td>
+                <td className={RTABLE.tdNum}>0.678</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">Non-remote</td>
-                <td className="py-1.5 pr-4 text-right font-mono">34,869</td>
-                <td className="py-1.5 text-right font-mono">0.619</td>
+              <tr>
+                <td className={RTABLE.td}>Non-remote</td>
+                <td className={RTABLE.tdNum}>34,869</td>
+                <td className={RTABLE.tdNum}>0.619</td>
               </tr>
             </tbody>
           </table>
@@ -210,33 +230,33 @@ export default function GhostJobsResearchPage() {
 
         <h3>Bigger companies post better listings</h3>
         <div className="not-prose my-6 overflow-x-auto">
-          <table className="w-full text-[13.5px]">
+          <table className={RTABLE.table}>
             <thead>
-              <tr className="border-b border-foreground">
-                <th className="py-2 pr-4 text-left font-medium">Company size</th>
-                <th className="py-2 pr-4 text-right font-medium">Companies</th>
-                <th className="py-2 pr-4 text-right font-medium">Jobs</th>
-                <th className="py-2 text-right font-medium">Avg Quality Score</th>
+              <tr>
+                <th className={RTABLE.th}>Company size</th>
+                <th className={RTABLE.thNum}>Companies</th>
+                <th className={RTABLE.thNum}>Jobs</th>
+                <th className={RTABLE.thNum}>Avg Quality Score</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">50+ open roles</td>
-                <td className="py-1.5 pr-4 text-right font-mono">211</td>
-                <td className="py-1.5 pr-4 text-right font-mono">16,366</td>
-                <td className="py-1.5 text-right font-mono">0.651</td>
+              <tr>
+                <td className={RTABLE.td}>50+ open roles</td>
+                <td className={RTABLE.tdNum}>211</td>
+                <td className={RTABLE.tdNum}>16,366</td>
+                <td className={RTABLE.tdNum}>0.651</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">10–49 roles</td>
-                <td className="py-1.5 pr-4 text-right font-mono">747</td>
-                <td className="py-1.5 pr-4 text-right font-mono">15,931</td>
-                <td className="py-1.5 text-right font-mono">0.621</td>
+              <tr>
+                <td className={RTABLE.td}>10–49 roles</td>
+                <td className={RTABLE.tdNum}>747</td>
+                <td className={RTABLE.tdNum}>15,931</td>
+                <td className={RTABLE.tdNum}>0.621</td>
               </tr>
-              <tr className="border-b border-foreground/10">
-                <td className="py-1.5 pr-4">&lt; 10 roles</td>
-                <td className="py-1.5 pr-4 text-right font-mono">2,170</td>
-                <td className="py-1.5 pr-4 text-right font-mono">6,512</td>
-                <td className="py-1.5 text-right font-mono">0.568</td>
+              <tr>
+                <td className={RTABLE.td}>&lt; 10 roles</td>
+                <td className={RTABLE.tdNum}>2,170</td>
+                <td className={RTABLE.tdNum}>6,512</td>
+                <td className={RTABLE.tdNum}>0.568</td>
               </tr>
             </tbody>
           </table>
@@ -291,7 +311,10 @@ export default function GhostJobsResearchPage() {
           This page is a static July 2026 snapshot. For live, market-wide numbers, see{" "}
           <Link href="/trends">market trends</Link>.
         </p>
-        <p>Data: the Subspace jobs corpus.</p>
+        <div className="not-prose mt-6 flex items-center gap-2.5 font-mono text-[13px] text-muted-foreground">
+          <span className="h-[9px] w-[9px] bg-brand" aria-hidden />
+          data · the Subspace jobs corpus
+        </div>
       </article>
     </main>
   );

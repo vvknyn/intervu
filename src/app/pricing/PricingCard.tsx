@@ -49,12 +49,12 @@ export function PricingCard({ pack }: { pack: Pack }) {
     <div
       data-testid={`pricing-card-${pack.id}`}
       className={cn(
-        "flex flex-col gap-4 rounded-xl border p-6",
-        highlighted ? "border-brand bg-brand/5" : "border-border bg-background",
+        "flex flex-col gap-4 p-6",
+        highlighted ? "relative border-2 border-foreground bg-background" : "border border-border bg-background",
       )}
     >
       {highlighted && (
-        <span className="w-fit rounded-full bg-brand px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-brand-foreground">
+        <span className="absolute -top-3 left-[18px] bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-brand-foreground">
           Most popular
         </span>
       )}
@@ -111,13 +111,13 @@ export function PricingCard({ pack }: { pack: Pack }) {
             </p>
           )}
 
-          <Button type="submit" variant={highlighted ? "brand" : "outline"} disabled={status === "loading"}>
+          <Button type="submit" variant={highlighted ? "default" : "outline"} disabled={status === "loading"}>
             {status === "loading" && <Spinner className="h-4 w-4 animate-spin" />}
             Join the waitlist
           </Button>
         </form>
       ) : (
-        <Button type="button" variant={highlighted ? "brand" : "outline"} onClick={() => setShowForm(true)}>
+        <Button type="button" variant={highlighted ? "default" : "outline"} onClick={() => setShowForm(true)}>
           Join the waitlist
         </Button>
       )}
