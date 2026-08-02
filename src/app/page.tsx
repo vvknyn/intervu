@@ -2597,6 +2597,9 @@ function JobsContent() {
                             <Button asChild size="lg">
                                 <Link href="/connect">Connect your AI</Link>
                             </Button>
+                            <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+                                Claude · ChatGPT · OpenClaw — and any MCP client
+                            </p>
                         </div>
                     )}
                     <div
