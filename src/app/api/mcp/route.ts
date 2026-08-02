@@ -48,14 +48,19 @@ export function unauthorizedResponse(): Response {
 
 /**
  * Wraps a tool's plain-object result as MCP `tools/call` content. The one
- * place a tool's `{ error: ... }` shape (job not found, upsert failure, ...)
- * becomes the wire's `isError` flag, so every tool marks failures the same
- * way instead of each callback deciding it separately.
+ * place a tool failure — either an `{ error: ... }` shape (job not found,
+ * upsert failure, ...) OR `search_jobs`'s `unavailable: true` shape (backend
+ * down, `SearchOut` in tools.ts) — becomes the wire's `isError` flag, so
+ * every tool marks failures the same way instead of each callback deciding
+ * it separately. Before this, `unavailable: true` alone (no sibling `error`
+ * key) rendered as a normal, non-error tool result — an MCP client has no
+ * reason to treat that payload as a failure unless `isError` says so.
  */
 export function toolResult(payload: object): { content: Array<{ type: "text"; text: string }>; isError?: boolean } {
+    const isFailure = "error" in payload || (payload as { unavailable?: boolean }).unavailable === true;
     return {
         content: [{ type: "text", text: JSON.stringify(payload) }],
-        ...("error" in payload ? { isError: true } : {}),
+        ...(isFailure ? { isError: true } : {}),
     };
 }
 

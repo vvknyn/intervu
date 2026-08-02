@@ -61,4 +61,12 @@ describe('mcp route: tool result wire wrapping', () => {
     assert.equal(result.isError, true);
     assert.deepEqual(JSON.parse(result.content[0].text), { error: 'job not found' });
   });
+  it('FOLDED — flags isError for search_jobs\' unavailable:true shape even with no sibling error key', () => {
+    const result = toolResult({ hits: [], total: 0, unavailable: true, note: 'search backend unavailable' });
+    assert.equal(result.isError, true);
+  });
+  it('does not flag isError for unavailable:false', () => {
+    const result = toolResult({ hits: [], total: 0, unavailable: false });
+    assert.equal(result.isError, undefined);
+  });
 });
