@@ -84,9 +84,9 @@ describe('POST /api/oauth/register — per-IP rate limit (public, unauthenticate
     });
   }
 
-  it('429s after AGENT.RATE_LIMIT requests from the same IP', async () => {
+  it('429s after AGENT.PUBLIC_RATE_LIMIT requests from the same IP', async () => {
     const ip = '198.51.100.10';
-    for (let i = 0; i < AGENT.RATE_LIMIT; i++) {
+    for (let i = 0; i < AGENT.PUBLIC_RATE_LIMIT; i++) {
       const res = await POST(reqFrom(ip));
       assert.equal(res.status, 400, `request ${i + 1} should still be under budget`);
     }
@@ -95,9 +95,18 @@ describe('POST /api/oauth/register — per-IP rate limit (public, unauthenticate
     assert.deepEqual(await limited.json(), { error: 'rate_limited' });
   });
 
+  it('IMPORTANT 4 — the 61st request is still ok (past the 60 per-credential default, under the wider public budget)', async () => {
+    const ip = '198.51.100.11';
+    assert.ok(AGENT.PUBLIC_RATE_LIMIT > AGENT.RATE_LIMIT);
+    for (let i = 0; i < AGENT.RATE_LIMIT + 1; i++) {
+      const res = await POST(reqFrom(ip));
+      assert.equal(res.status, 400, `request ${i + 1} should be under the public budget, not the 60 default`);
+    }
+  });
+
   it('does not share budget across different caller IPs (keyed by IP, not global)', async () => {
     const ipA = '198.51.100.20';
-    for (let i = 0; i < AGENT.RATE_LIMIT; i++) await POST(reqFrom(ipA));
+    for (let i = 0; i < AGENT.PUBLIC_RATE_LIMIT; i++) await POST(reqFrom(ipA));
     assert.equal((await POST(reqFrom(ipA))).status, 429);
 
     const ipB = '198.51.100.21';

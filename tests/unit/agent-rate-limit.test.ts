@@ -34,6 +34,21 @@ describe('agent rate limit', () => {
     const r = checkRateLimit('cred-f');
     assert.equal(r.ok, true);
   });
+
+  it('IMPORTANT 4 — an explicit limit override replaces AGENT.RATE_LIMIT entirely, independent of the 60 default', () => {
+    const now = 4_000_000;
+    const publicLimit = AGENT.PUBLIC_RATE_LIMIT;
+    assert.ok(publicLimit > AGENT.RATE_LIMIT, 'test assumes the public limit is wider than the default');
+    // The 61st call is past the DEFAULT budget but must still be ok under the wider override.
+    for (let i = 0; i < AGENT.RATE_LIMIT + 1; i++) {
+      const r = checkRateLimit('cred-public', now, publicLimit);
+      assert.equal(r.ok, true, `call ${i + 1} (past the 60 default) should still be ok under the ${publicLimit} override`);
+    }
+    // Drain the rest of the override budget, then the next call is denied.
+    for (let i = AGENT.RATE_LIMIT + 1; i < publicLimit; i++) checkRateLimit('cred-public', now, publicLimit);
+    const denied = checkRateLimit('cred-public', now, publicLimit);
+    assert.equal(denied.ok, false);
+  });
 });
 
 describe('clientIpFromRequest — keying for the two public unauthenticated OAuth endpoints', () => {

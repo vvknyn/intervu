@@ -28,10 +28,13 @@ export function sanitizeClientName(value: unknown): string | undefined {
  * is always "none" — PKCE is the client-side secret, per OAuth 2.1 public-client model).
  * Rate-limited per caller IP (no credential exists yet at this point) before any
  * parsing or storage work happens, so an anonymous flood can't rack up unbounded
- * Firestore writes.
+ * Firestore writes. Budgeted at `AGENT.PUBLIC_RATE_LIMIT`, not the default
+ * per-credential `AGENT.RATE_LIMIT` — this route is keyed by IP, and hosted
+ * connectors (claude.ai, ChatGPT) share one egress IP across every one of
+ * their users (see `PUBLIC_RATE_LIMIT`'s doc comment, config.ts).
  */
 export async function POST(request: Request) {
-    const rate = checkRateLimit(`dcr:${clientIpFromRequest(request)}`);
+    const rate = checkRateLimit(`dcr:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT);
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
     let body: { client_name?: unknown; redirect_uris?: unknown };

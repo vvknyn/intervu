@@ -8,12 +8,19 @@ import { AGENT } from './config';
 
 const hits = new Map<string, number[]>();
 
-export function checkRateLimit(credentialId: string, now?: number) {
+/**
+ * `limit` defaults to the standard per-credential `AGENT.RATE_LIMIT`; the two
+ * public, unauthenticated OAuth routes (register/token) pass
+ * `AGENT.PUBLIC_RATE_LIMIT` instead — same sliding-window mechanism, a wider
+ * budget, because they key by shared egress IP rather than by credential
+ * (see `PUBLIC_RATE_LIMIT`'s doc comment, config.ts).
+ */
+export function checkRateLimit(credentialId: string, now?: number, limit: number = AGENT.RATE_LIMIT) {
     const at = now ?? Date.now();
     const cutoff = at - AGENT.RATE_WINDOW_MS;
     const timestamps = (hits.get(credentialId) ?? []).filter((t) => t > cutoff);
 
-    if (timestamps.length >= AGENT.RATE_LIMIT) {
+    if (timestamps.length >= limit) {
         const retryAfterSec = Math.ceil((timestamps[0] + AGENT.RATE_WINDOW_MS - at) / 1000);
         hits.set(credentialId, timestamps);
         return { ok: false, remaining: 0, retryAfterSec };
@@ -21,7 +28,7 @@ export function checkRateLimit(credentialId: string, now?: number) {
 
     timestamps.push(at);
     hits.set(credentialId, timestamps);
-    return { ok: true, remaining: AGENT.RATE_LIMIT - timestamps.length, retryAfterSec: 0 };
+    return { ok: true, remaining: limit - timestamps.length, retryAfterSec: 0 };
 }
 
 export function _resetRateLimits(): void {
