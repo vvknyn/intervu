@@ -279,11 +279,7 @@ export default function PursuitDetailPage() {
                     {/* Prep surface removed 2026-08-02 — no more link into a
                         prep tool for the "interviewing" stage's next action;
                         a quiet note instead (spec: no link, no new feature). */}
-                    {action.kind === "prep" && (
-                        <div className="rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
-                            Interviewing? Ask your AI to prep you with this job&apos;s context.
-                        </div>
-                    )}
+                    {action.kind === "prep" && <McpHandoffNote variant="prep" />}
 
                     {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
                 </div>

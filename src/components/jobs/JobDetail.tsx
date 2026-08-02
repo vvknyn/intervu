@@ -395,11 +395,9 @@ export function JobDetail({
                         </Button>
                     )}
                 </div>
-                {/* Prep surface removed 2026-08-02 — the CTA that opened /prep is
-                    gone; this is a quiet note, not a link, not a feature. */}
-                <div className="mt-2.5 rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
-                    Interviewing? Ask your AI to prep you with this job&apos;s context.
-                </div>
+                {/* Prep runs in the user's AI (2026-08-02) — this nudge is the
+                    pairing funnel's in-context entry point. */}
+                <McpHandoffNote variant="prep" className="mt-2.5" />
                 {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
                     line now lives once, in the "How you match" rail below,
                     not repeated here. */}
