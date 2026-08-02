@@ -24,6 +24,8 @@ const STEP1_INTRO: Record<ConnectClientId, string> = {
   gemini:
     "The Gemini app can't take custom MCP connectors yet. In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
   cursor: "In Cursor, open Settings → MCP and add a new server pointing at:",
+  openclaw:
+    "In your openclaw.json, add intervu under mcpServers pointing at the URL below. Headless setups authenticate with a personal key — issued here when the agent surface ships.",
 };
 
 function CopyUrlBar() {

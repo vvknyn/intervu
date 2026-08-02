@@ -22,6 +22,7 @@ export const CONNECT_CLIENTS = [
   },
   { id: "gemini", label: "Gemini", badge: "via Gemini CLI", supportsDirectConnect: true },
   { id: "cursor", label: "Cursor", badge: undefined, supportsDirectConnect: true },
+  { id: "openclaw", label: "OpenClaw", badge: "self-hosted · personal key", supportsDirectConnect: true },
 ] as const;
 
 export type ConnectClientId = (typeof CONNECT_CLIENTS)[number]["id"];
