@@ -3746,27 +3746,6 @@ function JobsContent() {
                 </main>
             )}
 
-            {/* Job 2 auth-gate value line — AuthPopover (components/auth/
-                auth-popover.tsx) owns the dialog itself and doesn't accept a
-                heading/children prop to render this INSIDE it, and it's not
-                a file this pass may touch. Rendered as its own small fixed
-                banner above the dialog instead so it stays visually tied to
-                the popover opening/closing without editing that component.
-                FOLLOW-UP for whoever owns auth-popover.tsx: a one-line
-                `heading`/`children` prop would let this render inside
-                DialogContent properly instead of as a separate overlay. */}
-            {authOpen && authGateValueLine && (
-                <div
-                    aria-hidden="true"
-                    className="line-enter fixed inset-x-0 top-[18%] z-[70] flex justify-center px-4"
-                >
-                    <p className="max-w-[380px] rounded-xl border border-border bg-card px-4 py-3 text-center text-sm text-foreground shadow-[var(--shadow-lg)]">
-                        Create a free account — we&apos;ll take you straight to the posting and start tracking this
-                        application.
-                    </p>
-                </div>
-            )}
-
             <AuthPopover
                 open={authOpen}
                 onOpenChange={(open) => {
@@ -3780,6 +3759,14 @@ function JobsContent() {
                 }}
                 onAuthed={handleAuthed}
                 showTrigger={false}
+                valueLine={
+                    authGateValueLine && (
+                        <>
+                            <b className="text-foreground">Create a free account</b> — we&apos;ll take you straight
+                            to the posting and start tracking this application.
+                        </>
+                    )
+                }
             />
             <TailorAnalysisSheet
                 open={tailorOpen}

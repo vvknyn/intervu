@@ -39,10 +39,13 @@ export function TrendsHero({
           <p
             className={cn(
               "mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground",
-              // Signature underline on the live-count number only — it's
-              // the one figure on this page reflecting the corpus RIGHT
-              // NOW (see .verified-underline's doc comment, globals.css).
-              tile.testId === "trends-stat-live" && "verified-underline",
+              // Comp F underlines every stat tile uniformly (mock's
+              // `.bignum`, 3px) — reuse the shared 2px `.verified-underline`
+              // utility (verified corpus data, doc-commented in globals.css,
+              // shared with other pages) and layer a local 3px override at
+              // this call site only, rather than widening the shared
+              // utility's width for one page.
+              "verified-underline border-b-[3px]",
             )}
           >
             {formatCorpusCount(tile.value)}

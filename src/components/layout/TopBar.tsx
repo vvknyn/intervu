@@ -219,7 +219,10 @@ export function TopBar() {
                                 title={user.displayName || user.email || "Account"}
                                 className="flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
                             >
-                                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-green-tint-border bg-green-tint-bg font-mono text-xs font-bold text-brand">
+                                {/* Squared design-system pass (docs-mockup.html "THE RULES" #1 —
+                                    pills retired app-wide): the avatar was the last rounded-full
+                                    shape in the masthead. */}
+                                <div className="grid h-8 w-8 shrink-0 place-items-center border border-green-tint-border bg-green-tint-bg font-mono text-xs font-bold text-brand">
                                     {initialsOf(user)}
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">▾</span>

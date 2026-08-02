@@ -33,11 +33,7 @@ export default function PricingPage() {
 
       <section className="mt-8 border-t border-foreground pt-6">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Free, always</h2>
-        <ul className="mt-3 space-y-2 text-sm text-foreground">
-          {FREE_FEATURES.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+        <p className="mt-3 text-sm leading-loose text-foreground">{FREE_FEATURES.join(" · ")}</p>
       </section>
 
       <section className="mt-8">

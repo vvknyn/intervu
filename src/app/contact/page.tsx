@@ -17,6 +17,13 @@ export default function ContactPage() {
       </header>
 
       <ContactForm />
+
+      {/* Status line (docs-mockup.html Comp J / .status): same green-square +
+          mono shape as the landing hero's sourcing line (see page.tsx). */}
+      <div className="mt-8 flex items-center gap-2.5 font-mono text-[13px] tracking-[0.02em] text-muted-foreground">
+        <span aria-hidden className="inline-block h-[9px] w-[9px] bg-brand" />
+        the intervu team · job data by Subspace
+      </div>
     </main>
   );
 }
