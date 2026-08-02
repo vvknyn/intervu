@@ -14,6 +14,7 @@ import {
   salaryText,
 } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { buildCompanyFaqItems, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { cn } from "@/lib/utils";
 
 const ROLES_PREVIEW = 10;
@@ -47,6 +48,16 @@ function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
   return null;
 }
 
+/** Real page data only — degrades to a generic line when there are zero
+ *  open roles rather than fabricating a count. */
+function companyMetaDescription(data: CompanyPageData): string {
+  if (data.openCount > 0) {
+    const roles = data.openCount === 1 ? "role" : "roles";
+    return `${data.name} has ${data.openCount} live, verified open ${roles} tracked on intervu, screened for ghost-job risk.`;
+  }
+  return `Track live verified job postings and ghost-job risk signals for ${data.name} on intervu.`;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -55,7 +66,10 @@ export async function generateMetadata({
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
   if (!data) return { title: "Company not found" };
-  return { title: data.name, description: data.oneLiner ?? undefined };
+  return {
+    title: `Is ${data.name} hiring? Live verified jobs & ghost-job risk`,
+    description: companyMetaDescription(data),
+  };
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -67,9 +81,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const prepUrl = prepHref(data);
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
+  const faqJsonLd = buildFaqPageJsonLd(
+    buildCompanyFaqItems({
+      companyName: data.name,
+      openCount: data.openCount,
+      ghostFlaggedPct: data.ghostFlaggedPct,
+    }),
+  );
 
   return (
     <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
+        />
+      )}
       <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
         <nav className="mx-auto max-w-[900px] font-mono text-xs text-[color:var(--elite-faint)]">
           <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
