@@ -20,3 +20,13 @@ export const AGENT = {
     CODE_TTL_MS: 300_000,
     ACCESS_TTL_MS: 3_600_000,
 };
+
+/**
+ * The canonical `claude mcp add` invocation for connecting Claude Code to
+ * this server. Both the settings page's "Connected agents" section and the
+ * public /agents page show this exact command — one function, not two
+ * hand-typed copies, so the two surfaces can never drift apart.
+ */
+export function claudeCodeConnectCommand(mcpUrl: string): string {
+    return `claude mcp add --transport http intervu ${mcpUrl} --header "Authorization: Bearer YOUR_TOKEN"`;
+}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast, confirmToast } from "@/lib/toast";
-import { AGENT } from "@/lib/agent/config";
+import { AGENT, claudeCodeConnectCommand } from "@/lib/agent/config";
 import type { User } from "@/lib/firebase/client-auth";
 import {
     listAgentCredentialsAction,
@@ -234,9 +234,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
                     <li>
                         <span className="text-foreground font-medium">Claude Code:</span>{" "}
-                        <code className="font-mono">
-                            claude mcp add --transport http intervu {mcpUrl} --header &quot;Authorization: Bearer YOUR_TOKEN&quot;
-                        </code>
+                        <code className="font-mono">{claudeCodeConnectCommand(mcpUrl)}</code>
                     </li>
                     <li>
                         <span className="text-foreground font-medium">Chat apps with custom connectors:</span> add a
