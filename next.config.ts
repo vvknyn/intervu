@@ -91,6 +91,21 @@ const nextConfig: NextConfig = {
         destination: "/stories",
         permanent: true,
       },
+      // Prep surface removed (2026-08-02 product decision — the user's own AI
+      // does prep now; intervu is corpus + browse + pair + tracker). Query
+      // params (e.g. ?company=&position=) pass through automatically.
+      {
+        source: "/prep",
+        destination: "/jobs",
+        permanent: true,
+      },
+      // /dashboard was a bare `redirect("/prep")` page with no other content
+      // — removed alongside /prep rather than left pointing at a dead route.
+      {
+        source: "/dashboard",
+        destination: "/jobs",
+        permanent: true,
+      },
     ];
   },
 };

@@ -97,8 +97,10 @@ export interface Pursuit {
     job_snapshot?: JobSnapshot | null;
     interview_date?: string;
     /** ISO timestamp of the most recent prep session run against this
-     *  pursuit (spec §3 stage 4) — set by `recordPursuitPrepVisit`
-     *  (actions/pursuit-prep.ts), read back by `stageLabel` below. */
+     *  pursuit (spec §3 stage 4). Nothing writes this anymore — the prep
+     *  surface was removed 2026-08-02 — but existing values are historical
+     *  data, read back by `stageLabel`/`boardTruthLine` below, and stay
+     *  valid to display. */
     last_prepped_at?: string;
 }
 

@@ -4,9 +4,8 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: NAV - Navigation Tests
  *
  * Tests all navigation paths and page accessibility across the application.
- * Post-flip (jobs-first-bloom PR 1): `/` is jobs search, `/prep` is interview
- * prep, and the old 6-item sidebar is gone — nav destinations (Prep, Resumes,
- * Yours, Stories, Settings) live in the signed-in avatar's dropdown
+ * Post-flip (jobs-first-bloom PR 1): `/` is jobs search, and the old 6-item
+ * sidebar is gone — nav destinations live in the signed-in avatar's dropdown
  * menu (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
  * default state in these tests, no login fixture here — only see the
  * wordmark, "All jobs" (data-testid="topbar-alljobs"), and "Log in"
@@ -91,23 +90,6 @@ test.describe('NAV - Navigation Tests', () => {
   });
 
   /**
-   * TC-NAV-005: Navigate to Prep via avatar menu
-   *
-   * Opens the signed-in avatar dropdown and clicks Prep.
-   * No-ops when signed out.
-   */
-  test('TC-NAV-005: Navigate to Prep via avatar menu', async ({ page }) => {
-    await page.goto('/');
-
-    const avatar = page.getByTestId('topbar-avatar');
-    if (await avatar.isVisible()) {
-      await avatar.click();
-      await page.getByRole('menuitem', { name: 'Prep' }).click();
-      await expect(page).toHaveURL('/prep');
-    }
-  });
-
-  /**
    * TC-NAV-005b: Navigate to Stories via avatar menu
    *
    * Opens the signed-in avatar dropdown and clicks Stories.
@@ -152,7 +134,6 @@ test.describe('NAV - Navigation Tests', () => {
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
       { url: '/', title: 'Intervu' },
-      { url: '/prep', title: 'Intervu' },
       { url: '/resume-builder', title: 'Resume' },
       { url: '/resume-tailor', title: 'Tailor' },
       { url: '/yours', title: 'Yours' },
@@ -170,13 +151,14 @@ test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-008: Dashboard redirect works
    *
-   * /dashboard should redirect to /prep (bookmarks belong to prep users;
-   * `/` is jobs now).
+   * /dashboard is a bookmark from the pre-removal prep surface (2026-08-02).
+   * It permanently redirects to /jobs, which itself redirects to `/` — the
+   * jobs-first root — so a followed browser navigation lands on `/`.
    */
   test('TC-NAV-008: Dashboard redirect works', async ({ page }) => {
     await page.goto('/dashboard');
 
-    await expect(page).toHaveURL('/prep');
+    await expect(page).toHaveURL('/');
   });
 
   /**
