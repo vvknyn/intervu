@@ -28,4 +28,10 @@ describe('agent rate limit', () => {
     const other = checkRateLimit('cred-d', now);
     assert.equal(other.ok, true);
   });
+  it('accepts an omitted now (optional param defaults to Date.now())', () => {
+    _resetRateLimits();
+    assert.doesNotThrow(() => checkRateLimit('cred-e'));
+    const r = checkRateLimit('cred-f');
+    assert.equal(r.ok, true);
+  });
 });
