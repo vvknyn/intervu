@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { memoryStore } from '../../src/lib/agent/store';
-import { issueCredential, verifySecret, revokeCredential, listCredentials, hashSecret } from '../../src/lib/agent/tokens';
+import { issueCredential, verifySecret, revokeCredential, revokeByClient, listCredentials, hashSecret } from '../../src/lib/agent/tokens';
 describe('agent tokens', () => {
   it('issues and verifies a manual token', async () => {
     const s = memoryStore();
@@ -44,5 +44,34 @@ describe('agent tokens', () => {
     assert.equal(v?.lastUsedAt, null); // returned value reflects pre-update state
     const stored = (await listCredentials(s, 'u3'))[0];
     assert.notEqual(stored.lastUsedAt, null);
+  });
+
+  describe('revokeByClient — CRITICAL 2, disconnecting a whole OAuth client, not one row', () => {
+    it('kills BOTH the access and refresh row for the client, leaving an unrelated manual token alive', async () => {
+      const s = memoryStore();
+      const access = await issueCredential(s, { uid: 'u4', kind: 'access', clientId: 'client-a', clientName: 'Claude' });
+      const refresh = await issueCredential(s, { uid: 'u4', kind: 'refresh', clientId: 'client-a', clientName: 'Claude' });
+      const manual = await issueCredential(s, { uid: 'u4', kind: 'manual' });
+
+      const count = await revokeByClient(s, 'u4', 'client-a');
+      assert.equal(count, 2);
+      assert.equal(await verifySecret(s, access.secret), null);
+      assert.equal(await verifySecret(s, refresh.secret), null);
+      assert.notEqual(await verifySecret(s, manual.secret), null);
+    });
+
+    it('enforces uid ownership — a different uid revokes nothing', async () => {
+      const s = memoryStore();
+      const access = await issueCredential(s, { uid: 'u5', kind: 'access', clientId: 'client-b', clientName: 'ChatGPT' });
+      const count = await revokeByClient(s, 'attacker', 'client-b');
+      assert.equal(count, 0);
+      assert.notEqual(await verifySecret(s, access.secret), null);
+    });
+
+    it('returns 0 for a clientId the uid has no credentials under', async () => {
+      const s = memoryStore();
+      await issueCredential(s, { uid: 'u6', kind: 'manual' });
+      assert.equal(await revokeByClient(s, 'u6', 'no-such-client'), 0);
+    });
   });
 });

@@ -107,6 +107,26 @@ export async function revokeCredential(store: AgentStore, uid: string, id: strin
     return true;
 }
 
+/**
+ * Revokes every active credential sharing `uid` + `clientId` — one OAuth
+ * "connection" is an access row AND a refresh row (`issueTokenPair`,
+ * oauth.ts), and every refresh rotation (`refreshAccess`) mints a fresh pair
+ * under that SAME `clientId`, so revoking a single row (as the settings UI
+ * used to) always left a sibling alive to silently re-mint access. This is
+ * the one place "disconnect this app" is carried out, for however many rows
+ * that turns out to be. Reuses `revokeCredential` per row (same ownership
+ * check, same single write path) rather than a parallel bulk-update — the
+ * real count revoked is returned, never guessed. Ownership-scoped exactly
+ * like `revokeCredential`: a `uid` that owns none of the matching rows
+ * revokes zero.
+ */
+export async function revokeByClient(store: AgentStore, uid: string, clientId: string): Promise<number> {
+    const rows = await listCredentials(store, uid);
+    const targets = rows.filter((c) => c.clientId === clientId && isCredentialActive(c));
+    const outcomes = await Promise.all(targets.map((c) => revokeCredential(store, uid, c.id)));
+    return outcomes.filter(Boolean).length;
+}
+
 export async function listCredentials(store: AgentStore, uid: string): Promise<Omit<Credential, "tokenHash">[]> {
     const rows = await store.findByField(AGENT.collections.credentials, "uid", uid);
     return rows.map(({ id, ...doc }) => {
@@ -115,25 +135,44 @@ export async function listCredentials(store: AgentStore, uid: string): Promise<O
     });
 }
 
-/** The wire-safe shape a UI is allowed to show for one credential — never a
+/** The UI-facing kind: a manual token is always its own row; every OAuth
+ *  credential kind ("access"/"refresh") collapses to one "oauth" row per
+ *  client (see `toActiveCredentialSummaries`) — the storage-level distinction
+ *  between an access and a refresh row is never a UI concern. */
+export type CredentialSummaryKind = "manual" | "oauth";
+
+/** The wire-safe shape a UI is allowed to show for one CONNECTION — never a
  *  `tokenHash`, `uid`, or `clientId`, even though callers already pass the
  *  hash-stripped type; this is the one place that decides the public
  *  projection, so a future field added to `Credential` can't leak here by
- *  accident. */
+ *  accident. For `kind: "oauth"`, `id` is the client id itself — the one
+ *  stable key shared by every row (access + refresh, and every row a
+ *  refresh rotation subsequently mints) that make up that connection, so a
+ *  revoke action can hand it straight to `revokeByClient`. */
 export interface CredentialSummary {
     id: string;
-    kind: CredentialKind;
+    kind: CredentialSummaryKind;
     clientName: string | null;
     createdAt: number;
     lastUsedAt: number | null;
 }
 
 /**
- * The "connected agents" view: active credentials only. A revoked or expired
- * credential isn't a live connection anymore (this is the same rule
- * `isCredentialActive`/`verifySecret` use to decide whether a secret still
- * authenticates), so it drops out of the list here rather than lingering
- * until some separate cleanup job runs.
+ * The "connected agents" view: one row per live CONNECTION, active
+ * credentials only. A revoked or expired credential isn't a live connection
+ * anymore (this is the same rule `isCredentialActive`/`verifySecret` use to
+ * decide whether a secret still authenticates), so it drops out of the list
+ * here rather than lingering until some separate cleanup job runs.
+ *
+ * An OAuth connection is physically TWO rows sharing one `clientId` — an
+ * access credential and a refresh credential (`issueTokenPair`, oauth.ts) —
+ * and every refresh rotation mints a fresh pair under that same `clientId`.
+ * Projecting 1:1 (the pre-fix behavior) showed the user duplicate
+ * "connections" and let a "Revoke" click on either row alone leave the
+ * other's secret live to silently re-mint access. Grouping by `clientId`
+ * here is what makes the list — and downstream, revoke — match what a user
+ * actually thinks of as one connected app. A manual token has no client
+ * behind it, so it's exempt from grouping and stays one row per credential.
  *
  * Lives here (not in the "use server" actions file that calls it) because a
  * "use server" module may only export async functions — this is a pure,
@@ -143,7 +182,27 @@ export function toActiveCredentialSummaries(
     rows: Omit<Credential, "tokenHash">[],
     now: number = Date.now()
 ): CredentialSummary[] {
-    return rows
-        .filter((c) => isCredentialActive(c, now))
-        .map(({ id, kind, clientName, createdAt, lastUsedAt }) => ({ id, kind, clientName, createdAt, lastUsedAt }));
+    const active = rows.filter((c) => isCredentialActive(c, now));
+
+    const manual: CredentialSummary[] = active
+        .filter((c) => c.kind === "manual")
+        .map(({ id, clientName, createdAt, lastUsedAt }) => ({ id, kind: "manual" as const, clientName, createdAt, lastUsedAt }));
+
+    const byClient = new Map<string, Omit<Credential, "tokenHash">[]>();
+    for (const c of active) {
+        if (c.kind === "manual" || !c.clientId) continue;
+        byClient.set(c.clientId, [...(byClient.get(c.clientId) ?? []), c]);
+    }
+    const oauth: CredentialSummary[] = Array.from(byClient.entries()).map(([clientId, group]) => {
+        const lastUsedTimestamps = group.map((c) => c.lastUsedAt).filter((t): t is number => t != null);
+        return {
+            id: clientId,
+            kind: "oauth" as const,
+            clientName: group[0].clientName,
+            createdAt: Math.min(...group.map((c) => c.createdAt)),
+            lastUsedAt: lastUsedTimestamps.length ? Math.max(...lastUsedTimestamps) : null,
+        };
+    });
+
+    return [...manual, ...oauth];
 }

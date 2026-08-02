@@ -41,7 +41,7 @@ describe('toActiveCredentialSummaries (pure) — the Settings "Connected agents"
     const out = toActiveCredentialSummaries(rows);
     assert.deepEqual(out, [
       { id: 'manual-1', kind: 'manual', clientName: null, createdAt: 10, lastUsedAt: 20 },
-      { id: 'oauth-1', kind: 'access', clientName: 'Some Client', createdAt: 30, lastUsedAt: null },
+      { id: 'client-a', kind: 'oauth', clientName: 'Some Client', createdAt: 30, lastUsedAt: null },
     ]);
     for (const summary of out) {
       assert.equal('tokenHash' in summary, false);
@@ -62,5 +62,40 @@ describe('toActiveCredentialSummaries (pure) — the Settings "Connected agents"
 
   it('returns an empty list for a user with no credentials', () => {
     assert.deepEqual(toActiveCredentialSummaries([]), []);
+  });
+
+  it('CRITICAL 2 — groups an access+refresh pair sharing one clientId into ONE oauth row, not two', () => {
+    const rows = [
+      row({ id: 'access-1', kind: 'access', clientId: 'client-a', clientName: 'Claude', createdAt: 100, lastUsedAt: 500 }),
+      row({ id: 'refresh-1', kind: 'refresh', clientId: 'client-a', clientName: 'Claude', createdAt: 100, lastUsedAt: null }),
+    ];
+    const out = toActiveCredentialSummaries(rows);
+    assert.equal(out.length, 1);
+    assert.deepEqual(out[0], { id: 'client-a', kind: 'oauth', clientName: 'Claude', createdAt: 100, lastUsedAt: 500 });
+  });
+
+  it('groups a rotated refresh pair (a SECOND access+refresh row from a later refresh) under the SAME clientId, taking earliest createdAt and max lastUsedAt', () => {
+    const rows = [
+      row({ id: 'access-1', kind: 'access', clientId: 'client-a', clientName: 'Claude', createdAt: 100, lastUsedAt: 200 }),
+      row({ id: 'refresh-1', kind: 'refresh', clientId: 'client-a', clientName: 'Claude', createdAt: 100, lastUsedAt: null }),
+      row({ id: 'access-2', kind: 'access', clientId: 'client-a', clientName: 'Claude', createdAt: 400, lastUsedAt: 900 }),
+      row({ id: 'refresh-2', kind: 'refresh', clientId: 'client-a', clientName: 'Claude', createdAt: 400, lastUsedAt: null }),
+    ];
+    const out = toActiveCredentialSummaries(rows);
+    assert.equal(out.length, 1);
+    assert.deepEqual(out[0], { id: 'client-a', kind: 'oauth', clientName: 'Claude', createdAt: 100, lastUsedAt: 900 });
+  });
+
+  it('keeps distinct clients as distinct rows, and a manual token alongside them as its own row', () => {
+    const rows = [
+      row({ id: 'manual-1', kind: 'manual', clientName: null, createdAt: 5, lastUsedAt: null }),
+      row({ id: 'access-a', kind: 'access', clientId: 'client-a', clientName: 'Claude', createdAt: 10, lastUsedAt: null }),
+      row({ id: 'refresh-a', kind: 'refresh', clientId: 'client-a', clientName: 'Claude', createdAt: 10, lastUsedAt: null }),
+      row({ id: 'access-b', kind: 'access', clientId: 'client-b', clientName: 'ChatGPT', createdAt: 20, lastUsedAt: null }),
+      row({ id: 'refresh-b', kind: 'refresh', clientId: 'client-b', clientName: 'ChatGPT', createdAt: 20, lastUsedAt: null }),
+    ];
+    const out = toActiveCredentialSummaries(rows);
+    assert.equal(out.length, 3);
+    assert.deepEqual(out.map((s) => s.id).sort(), ['client-a', 'client-b', 'manual-1']);
   });
 });

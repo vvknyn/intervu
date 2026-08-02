@@ -114,7 +114,10 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     const handleRevoke = async (credential: AgentCredentialSummary) => {
         const ok = await confirmToast({
             title: `Disconnect ${displayName(credential)}?`,
-            description: "It won't be able to reach your intervu account anymore. You can always connect it again later.",
+            description:
+                credential.kind === "oauth"
+                    ? "This disconnects the app entirely, including its ability to silently refresh its own access — it won't be able to reach your intervu account anymore. You can always connect it again later."
+                    : "It won't be able to reach your intervu account anymore. You can always connect it again later.",
             confirmLabel: "Disconnect",
             destructive: true,
         });
@@ -122,7 +125,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
         setRevokingId(credential.id);
         try {
-            const res = await revokeAgentCredentialAction(credential.id);
+            const res = await revokeAgentCredentialAction(credential.id, credential.kind);
             if (res.error) {
                 toast.error(res.error);
                 return;
