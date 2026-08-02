@@ -3006,6 +3006,28 @@ function JobsContent() {
                     : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
             )}
         >
+            {/* Screen-1 corner links (Vivek, Google-homepage pattern): product
+                surfaces + Log in live top-right so the center composition stays
+                brand + search + claim only. Same NAV_TABS_DESKTOP source as the
+                footer, same skip rules as the old inline row. */}
+            {isOverlayAsk && (
+                <div className="absolute right-5 top-4 flex items-center gap-4 text-[13px] font-medium text-muted-foreground">
+                    {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab) => (
+                        <Link
+                            key={tab.href}
+                            href={tab.href}
+                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
+                        >
+                            {tab.label}
+                        </Link>
+                    ))}
+                    {!user && (
+                        <Button size="sm" data-testid="landing-login" onClick={() => setAuthOpen(true)}>
+                            Log in
+                        </Button>
+                    )}
+                </div>
+            )}
             <div
                 className={cn(
                     "w-full shrink-0",
@@ -3219,35 +3241,6 @@ function JobsContent() {
                             <p data-testid="landing-claim" className="max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
                                 {marketingClaim(marketingStats)}
                             </p>
-                            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[13px] font-medium text-muted-foreground">
-                                {NAV_TABS_DESKTOP.filter((tab) => tab.href !== "/" && tab.href !== "/yours").map((tab, i, arr) => (
-                                    <span key={tab.href} className="flex items-center gap-x-3">
-                                        <Link href={tab.href} className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline">
-                                            {tab.label}
-                                        </Link>
-                                        {i < arr.length - 1 && (
-                                            <span aria-hidden className="text-faint">
-                                                ·
-                                            </span>
-                                        )}
-                                    </span>
-                                ))}
-                                {!user && (
-                                    <span className="flex items-center gap-x-3">
-                                        <span aria-hidden className="text-faint">
-                                            ·
-                                        </span>
-                                        <button
-                                            type="button"
-                                            data-testid="landing-login"
-                                            onClick={() => setAuthOpen(true)}
-                                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
-                                        >
-                                            Log in
-                                        </button>
-                                    </span>
-                                )}
-                            </div>
                         </div>
                     )}
 
