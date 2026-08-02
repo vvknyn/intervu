@@ -6,9 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
     MagnifyingGlass,
-    ArrowSquareOut,
     WarningCircle,
-    Lightning,
     Compass,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -66,7 +64,7 @@ import {
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { TailorAnalysisSheet, type TailorJob } from "@/components/jobs/TailorAnalysisSheet";
 import { FitDrawer } from "@/components/jobs/FitDrawer";
-import { JobDetail, JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
@@ -447,7 +445,12 @@ function JobCard({
                     <button
                         type="button"
                         data-testid="am-i-a-fit"
-                        className="mt-2 text-[13px] font-medium text-brand hover:underline"
+                        // min-h-11 + flex centering (not padding) gives this a
+                        // deterministic ≥44px tap target regardless of the
+                        // 13px text's own line-height (P27 mobile pass — was
+                        // an 18px-tall text link, well under the mobile tap
+                        // target floor).
+                        className="mt-1 inline-flex min-h-11 items-center text-[13px] font-medium text-brand hover:underline"
                         onClick={(e) => {
                             e.stopPropagation();
                             onFit(job);
@@ -464,7 +467,10 @@ function JobCard({
                 {job.apply_url && onOpenPosting && (
                     <button
                         type="button"
-                        className="w-full rounded-lg border border-foreground/20 px-2 py-1.5 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
+                        // min-h-11 + flex centering, same tap-target fix as
+                        // "Am I a fit?" below — was 30px tall (py-1.5 sizing
+                        // off the 12px label alone).
+                        className="flex min-h-11 w-full items-center justify-center rounded-lg border border-foreground/20 px-2 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
                         onClick={(e) => {
                             e.stopPropagation();
                             onOpenPosting(job);
@@ -3608,26 +3614,11 @@ function JobsContent() {
                                             pursuit={detailPursuit}
                                             goingAfter={goingAfterId === detailJob.id}
                                         />
-                                        <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-                                            {detailJob.apply_url && (
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1 gap-1.5"
-                                                    onClick={() => handleOpenPosting(detailJob)}
-                                                >
-                                                    <ArrowSquareOut size={16} />
-                                                    Apply ↗
-                                                </Button>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                className="flex-1 gap-1.5"
-                                                onClick={() => handlePrep(detailJob)}
-                                            >
-                                                <Lightning size={14} weight="fill" />
-                                                Prep for this
-                                            </Button>
-                                        </div>
+                                        <JobDetailActionBar
+                                            job={detailJob}
+                                            onOpenPosting={() => handleOpenPosting(detailJob)}
+                                            onPrep={() => handlePrep(detailJob)}
+                                        />
                                     </>
                                 ) : isDeadJobConfirmed ? (
                                     <div className="p-4">
@@ -3762,31 +3753,21 @@ function JobsContent() {
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
                             />
-                            {/* Task 10 — thumb-zone sticky bar. Reuses the SAME
-                                onOpenPosting/onPrep handlers passed to JobDetail
-                                just above (no new handlers) — JobDetail's own CTAs
-                                live at the top and scroll out of view on a long
-                                description; this keeps Apply/Prep reachable. */}
-                            <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-                                {detailJob.apply_url && (
-                                    <Button
-                                        variant="outline"
-                                        className="flex-1 gap-1.5"
-                                        onClick={() => handleOpenPosting(detailJob)}
-                                    >
-                                        <ArrowSquareOut size={16} />
-                                        Apply ↗
-                                    </Button>
-                                )}
-                                <Button
-                                    variant="outline"
-                                    className="flex-1 gap-1.5"
-                                    onClick={() => handlePrep(detailJob)}
-                                >
-                                    <Lightning size={14} weight="fill" />
-                                    Prep for this
-                                </Button>
-                            </div>
+                            {/* Sticky mobile action bar (P27 mobile pass) — reuses
+                                the SAME onOpenPosting/onPrep handlers passed to
+                                JobDetail just above (no new handlers), plus onFit
+                                to reopen the same FitDrawer/setFitJob the SERP
+                                card's "Am I a fit?" link already uses. JobDetail's
+                                own CTAs live at the top and scroll out of view on
+                                a long description; this keeps Apply/fit-check
+                                reachable — see JobDetailActionBar's doc comment
+                                for the fixed-vs-sticky/stacking design. */}
+                            <JobDetailActionBar
+                                job={detailJob}
+                                onOpenPosting={() => handleOpenPosting(detailJob)}
+                                onPrep={() => handlePrep(detailJob)}
+                                onFit={() => setFitJob(detailJob)}
+                            />
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">
