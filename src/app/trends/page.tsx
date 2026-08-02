@@ -5,10 +5,17 @@ import { TopCountriesList } from "@/components/trends/TopCountriesList";
 import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
 import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
 
-export const metadata: Metadata = {
-  title: "Market trends",
-  description: "Live market stats from the jobs we track — hiring countries, posting freshness, ghost-job risk.",
-};
+// A plain `export const metadata` object can't carry the current month, so
+// this is `generateMetadata` instead — computed at request/revalidation
+// time (same cadence as the page's own `revalidate` below), never a
+// hand-maintained date literal that goes stale.
+export async function generateMetadata(): Promise<Metadata> {
+  const asOf = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return {
+    title: "Market trends",
+    description: `Live ghost-job and hiring stats — hiring countries, posting freshness, ghost-job risk. Snapshot as of ${asOf}.`,
+  };
+}
 
 // ISR: every Meili aggregation this page needs is batched server-side into
 // ONE /multi-search round trip (see fetchMarketTrends) and cached for this

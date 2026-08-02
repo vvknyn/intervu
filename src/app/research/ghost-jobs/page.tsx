@@ -1,15 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+
+const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
+const DESCRIPTION =
+  "We scored 38,806 job listings from corporate ATS platforms. Only 6% are outright junk, but nearly half are missing the signals you need to decide if they're worth your time.";
+// The article is a static July 2026 snapshot (see copy below); this file was
+// last touched 2026-08-01 (`git log`), which is what dateModified reflects.
+const DATE_PUBLISHED = "2026-07-01";
+const DATE_MODIFIED = "2026-08-01";
 
 export const metadata: Metadata = {
-  title: "Ghost jobs aren't the problem — wasted applications are",
-  description:
-    "We scored 38,806 job listings from corporate ATS platforms. Only 6% are outright junk, but nearly half are missing the signals you need to decide if they're worth your time.",
+  title: HEADLINE,
+  description: DESCRIPTION,
 };
+
+const articleJsonLd = buildArticleJsonLd({
+  headline: HEADLINE,
+  datePublished: DATE_PUBLISHED,
+  dateModified: DATE_MODIFIED,
+  description: DESCRIPTION,
+  path: "/research/ghost-jobs",
+});
 
 export default function GhostJobsResearchPage() {
   return (
     <main data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
+      />
       <h1 className="font-display text-display font-extrabold text-foreground">
         Ghost Jobs Aren&apos;t the Problem. Wasted Applications Are.
       </h1>
