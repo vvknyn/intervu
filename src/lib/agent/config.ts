@@ -19,6 +19,12 @@ export const AGENT = {
     RESULT_CAP: 20,
     CODE_TTL_MS: 300_000,
     ACCESS_TTL_MS: 3_600_000,
+    /** DCR (`/api/oauth/register`) request body caps — this endpoint is
+     *  public/unauthenticated, so its attacker-controlled fields need a
+     *  ceiling before they ever reach storage. */
+    MAX_REDIRECT_URIS: 10,
+    MAX_REDIRECT_URI_LENGTH: 2048,
+    MAX_CLIENT_NAME_LENGTH: 256,
 };
 
 /**

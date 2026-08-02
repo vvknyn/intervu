@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { memoryStore } from '../../src/lib/agent/store';
 import { registerClient, getClient, createAuthCode, exchangeCode, refreshAccess } from '../../src/lib/agent/oauth';
 import { issueCredential } from '../../src/lib/agent/tokens';
+import { AGENT } from '../../src/lib/agent/config';
 
 const verifier = 'test-verifier-string-43-chars-minimum-okays1';
 const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -176,6 +177,28 @@ describe('agent oauth', () => {
 
     const https = await registerClient(s, { client_name: 'HTTPS Anywhere', redirect_uris: ['https://anywhere.example/cb'] });
     assert.ok('client' in https);
+  });
+
+  it('registerClient rejects more than MAX_REDIRECT_URIS entries', async () => {
+    const s = memoryStore();
+    const tooMany = Array.from({ length: AGENT.MAX_REDIRECT_URIS + 1 }, (_, i) => `https://client.example/cb${i}`);
+    const result = await registerClient(s, { client_name: 'Spammy', redirect_uris: tooMany });
+    assert.ok('error' in result);
+
+    const atCap = tooMany.slice(0, AGENT.MAX_REDIRECT_URIS);
+    const ok = await registerClient(s, { client_name: 'At Cap', redirect_uris: atCap });
+    assert.ok('client' in ok);
+  });
+
+  it('registerClient rejects a redirect_uri longer than MAX_REDIRECT_URI_LENGTH chars', async () => {
+    const s = memoryStore();
+    const longPath = 'a'.repeat(AGENT.MAX_REDIRECT_URI_LENGTH);
+    const tooLong = await registerClient(s, { client_name: 'Long', redirect_uris: [`https://client.example/${longPath}`] });
+    assert.ok('error' in tooLong);
+
+    const atCapPath = 'a'.repeat(AGENT.MAX_REDIRECT_URI_LENGTH - 'https://client.example/'.length);
+    const ok = await registerClient(s, { client_name: 'At Cap', redirect_uris: [`https://client.example/${atCapPath}`] });
+    assert.ok('client' in ok);
   });
 
   it('createAuthCode expires after CODE_TTL_MS', async () => {

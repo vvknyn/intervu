@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
-  extractBearerToken, unauthorizedResponse, rateLimitedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS,
+  extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 
@@ -26,7 +26,7 @@ describe('mcp route: bearer extraction', () => {
   });
 });
 
-describe('mcp route: 401/429 wire contract', () => {
+describe('mcp route: 401 wire contract', () => {
   it('unauthorizedResponse carries the exact body and WWW-Authenticate challenge', async () => {
     const res = unauthorizedResponse();
     assert.equal(res.status, 401);
@@ -36,12 +36,8 @@ describe('mcp route: 401/429 wire contract', () => {
       `Bearer resource_metadata="${AGENT.issuer()}/.well-known/oauth-protected-resource"`
     );
   });
-  it('rateLimitedResponse carries Retry-After in seconds', async () => {
-    const res = rateLimitedResponse(42);
-    assert.equal(res.status, 429);
-    assert.equal(res.headers.get('Retry-After'), '42');
-    assert.deepEqual(await res.json(), { error: 'rate_limited' });
-  });
+  // rateLimitedResponse itself now lives in (and is tested by) rate-limit.test.ts —
+  // it's shared by this route and both /api/oauth/* routes, not mcp-route-specific.
 });
 
 describe('mcp route: credential-kind gate (CARRIED FINDING, Task 6)', () => {

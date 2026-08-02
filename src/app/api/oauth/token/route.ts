@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { firestoreStore } from "@/lib/agent/store";
 import { exchangeCode, refreshAccess } from "@/lib/agent/oauth";
+import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/agent/rate-limit";
 
 /** RFC 6749 token requests are form-urlencoded by spec, but MCP clients vary — accept JSON too. */
 async function parseTokenRequestBody(request: Request): Promise<Record<string, string>> {
@@ -20,8 +21,15 @@ async function parseTokenRequestBody(request: Request): Promise<Record<string, s
  * safe to hand to the wire — per RFC 6749 §5.2, every grant failure here
  * collapses to the single generic `invalid_grant` (or `invalid_request` for
  * a malformed request shape), with the real reason logged server-side only.
+ *
+ * Rate-limited per caller IP before any parsing: a code/refresh-token guess
+ * is exactly the kind of request an anonymous flood would use to brute-force
+ * this endpoint, so the limiter has to run before any of that work, not after.
  */
 export async function POST(request: Request) {
+    const rate = checkRateLimit(`token:${clientIpFromRequest(request)}`);
+    if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
+
     let body: Record<string, string>;
     try {
         body = await parseTokenRequestBody(request);

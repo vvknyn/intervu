@@ -5,7 +5,7 @@ import type { ServerContext } from "@modelcontextprotocol/server";
 import { AGENT } from "@/lib/agent/config";
 import { firestoreStore } from "@/lib/agent/store";
 import { verifySecret, type CredentialKind } from "@/lib/agent/tokens";
-import { checkRateLimit } from "@/lib/agent/rate-limit";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied, type ToolDeps } from "@/lib/agent/tools";
 import { searchJobs } from "@/lib/jobs/search";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
@@ -43,13 +43,6 @@ export function unauthorizedResponse(): Response {
                 "WWW-Authenticate": `Bearer resource_metadata="${AGENT.issuer()}/.well-known/oauth-protected-resource"`,
             },
         }
-    );
-}
-
-export function rateLimitedResponse(retryAfterSec: number): Response {
-    return NextResponse.json(
-        { error: "rate_limited" },
-        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
     );
 }
 

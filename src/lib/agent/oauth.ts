@@ -48,6 +48,12 @@ export async function registerClient(
     input: { client_name?: string; redirect_uris: string[] }
 ): Promise<{ client: OAuthClient } | { error: string }> {
     if (input.redirect_uris.length === 0) return { error: "redirect_uris must not be empty" };
+    if (input.redirect_uris.length > AGENT.MAX_REDIRECT_URIS) {
+        return { error: `redirect_uris must not exceed ${AGENT.MAX_REDIRECT_URIS} entries` };
+    }
+    if (input.redirect_uris.some((uri) => uri.length > AGENT.MAX_REDIRECT_URI_LENGTH)) {
+        return { error: `redirect_uris entries must not exceed ${AGENT.MAX_REDIRECT_URI_LENGTH} chars` };
+    }
     if (!input.redirect_uris.every(isAllowedRedirectUri)) {
         return { error: "redirect_uris must be https:, or http: on localhost/127.0.0.1 only" };
     }

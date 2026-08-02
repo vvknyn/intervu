@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { firestoreStore } from "@/lib/agent/store";
 import { registerClient } from "@/lib/agent/oauth";
+import { AGENT } from "@/lib/agent/config";
+import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/agent/rate-limit";
 
 /**
  * The DCR request body is attacker-controlled JSON — every field read from it
@@ -8,20 +10,30 @@ import { registerClient } from "@/lib/agent/oauth";
  * lets a server ignore invalid client metadata rather than reject the whole
  * registration, so a non-string `client_name` (object, array, number, empty
  * string) is treated as absent instead of flowing untyped into storage, where
- * it would later crash the consent page's React render.
+ * it would later crash the consent page's React render. A wildly long name
+ * (still just a display label, not something structural like a redirect_uri)
+ * is truncated rather than rejected — the client just gets a shorter label,
+ * not a failed registration.
  */
 export function sanitizeClientName(value: unknown): string | undefined {
     if (typeof value !== "string") return undefined;
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+    if (trimmed.length === 0) return undefined;
+    return trimmed.length > AGENT.MAX_CLIENT_NAME_LENGTH ? trimmed.slice(0, AGENT.MAX_CLIENT_NAME_LENGTH) : trimmed;
 }
 
 /**
  * POST /api/oauth/register — RFC 7591 dynamic client registration.
  * Public/unauthenticated: any MCP client can self-register (token_endpoint_auth_method
  * is always "none" — PKCE is the client-side secret, per OAuth 2.1 public-client model).
+ * Rate-limited per caller IP (no credential exists yet at this point) before any
+ * parsing or storage work happens, so an anonymous flood can't rack up unbounded
+ * Firestore writes.
  */
 export async function POST(request: Request) {
+    const rate = checkRateLimit(`dcr:${clientIpFromRequest(request)}`);
+    if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
+
     let body: { client_name?: unknown; redirect_uris?: unknown };
     try {
         body = await request.json();
