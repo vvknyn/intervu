@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
-import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
 import { getProofBandStatsAction } from "./proof-band-actions";
 import type { ProofBandStats } from "./proof-band";
 
@@ -37,10 +36,15 @@ export function ProofBand() {
     { label: "Flagged likely-ghost", value: formatCorpusCount(stats.flaggedCount), testId: "proof-flagged" },
   ];
 
+  // Degrade by omission, never repetition: the Screen-1 claim line already
+  // carries the qualitative message, so with no live numbers this band
+  // renders nothing at all (L-137) — no orphaned copy between hairlines.
+  if (!tiles) return null;
+
   return (
     <section aria-label="Corpus proof" data-testid="marketing-proof-band" className="border-t border-border py-12">
       <div className="mx-auto w-full max-w-[1280px] px-4 lg:px-8">
-        {tiles ? (
+        {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             {tiles.map((tile) => (
               <div key={tile.testId} data-testid={tile.testId}>
@@ -53,11 +57,7 @@ export function ProofBand() {
               </div>
             ))}
           </div>
-        ) : (
-          <p className="max-w-md text-sm text-muted-foreground">
-            Every listing is {CORPUS_SOURCE_DESCRIPTOR}.
-          </p>
-        )}
+        }
       </div>
     </section>
   );

@@ -80,9 +80,12 @@ export function LandingMarketing() {
     <div data-testid="landing-marketing">
       <ProofBand />
 
-      <section aria-label="Why intervu" className="border-t border-border py-14">
+      <section aria-label="Why intervu" className="border-t border-border py-16">
         <div className="mx-auto w-full max-w-[1280px] px-4 lg:px-8">
-          <h2 className="max-w-2xl text-2xl font-semibold text-foreground sm:text-3xl">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
+            From our research · July 2026
+          </p>
+          <h2 className="mt-3 max-w-2xl text-2xl font-semibold text-foreground sm:text-3xl">
             The real cost isn&apos;t just fake jobs — it&apos;s the hours wasted applying to them.
           </h2>
           <FeatureGrid items={DIFFERENTIATORS} />
