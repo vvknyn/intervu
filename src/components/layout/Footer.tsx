@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
+import { NAV_TABS, TRENDS_TAB } from "@/components/layout/nav-tabs";
 import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
 
 /** Company/legal links — only the footer renders this row, so it lives here
@@ -33,7 +33,7 @@ export function Footer() {
         <footer data-testid="site-footer" className="shrink-0 border-t border-border bg-card">
             <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center gap-3 px-4 py-6 text-center lg:px-8">
                 <nav aria-label="Product" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[13px] font-medium text-muted-foreground">
-                    {NAV_TABS_DESKTOP.map((tab) => (
+                    {[...NAV_TABS, TRENDS_TAB].map((tab) => (
                         <Link
                             key={tab.href}
                             href={tab.href}

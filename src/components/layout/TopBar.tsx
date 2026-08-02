@@ -17,7 +17,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NAV_TABS_DESKTOP } from "@/components/layout/nav-tabs";
+import { NAV_TABS } from "@/components/layout/nav-tabs";
+import { Button } from "@/components/ui/button";
 
 /** Jobs empty-ask sets `data-jobs-overlay-ask` so TopBar yields the brand to the hero morph. */
 const OVERLAY_ASK_ATTR = "data-jobs-overlay-ask";
@@ -76,12 +77,14 @@ function initialsOf(user: User): string {
 }
 
 /**
- * Secondary dropdown entries under the avatar (spec: "credits, Stories,
- * Settings, Feedback, sign out"). Prep/Resumes/Tracker/Trends moved out —
- * they're now top-level tabs in NAV_TABS_DESKTOP, so keeping them here too
- * would be a redundant second path to the same destinations.
+ * Secondary dropdown entries under the avatar (spec: "credits, Tracker,
+ * Stories, Settings, Feedback, sign out"). Tracker lives here specifically
+ * because it's signed-in-only — this dropdown only renders inside the
+ * `user ? ... : ...` branch below — not because it moved out of a
+ * top-level list; it isn't in `NAV_TABS` at all.
  */
 const NAV_DESTINATIONS = [
+    { label: "Tracker", href: "/yours" },
     { label: "Stories", href: "/stories" },
     { label: "Settings", href: "/settings" },
 ];
@@ -173,7 +176,14 @@ export function TopBar() {
                     aria-label="Primary"
                     className="no-scrollbar hidden min-w-0 items-center gap-6 overflow-x-auto text-[13.5px] font-medium lg:flex"
                 >
-                    {NAV_TABS_DESKTOP.map((tab) => {
+                    {NAV_TABS.map((tab) => {
+                        if (tab.variant === "cta") {
+                            return (
+                                <Button asChild size="sm" key={tab.href} data-testid={tab.testId}>
+                                    <Link href={tab.href}>{tab.label}</Link>
+                                </Button>
+                            );
+                        }
                         const active = tab.match(pathname);
                         return (
                             <Link
