@@ -7,7 +7,9 @@
 1. **Primary goal:** differentiation story — a credible working demo + a visible "works with your agent" product surface. NOT (yet) a supported platform bet or an acquisition channel.
 2. **Mechanism:** thin remote MCP server with per-user tokens. Not an npm stdio package, not REST-only.
 3. **Demo stopping point:** agent preps everything and stops at the ATS review screen; the human hits submit. No autonomous submission, ever, anywhere in the story.
-4. **MCP shape:** Streamable HTTP endpoint served by the existing Next app, bearer-token auth.
+4. **MCP shape:** Streamable HTTP endpoint served by the existing Next app.
+5. **Auth (revised Aug 2, "magic setup"):** OAuth-first — v1 ships the OAuth authorization flow so users connect from inside ChatGPT/Claude with a login screen, no token pasting. Manual bearer tokens remain as the advanced/CLI fallback. Vivek explicitly rejected token-pasting as the primary setup ("not happy with this level of manual setup").
+6. **Line held:** intervu never hosts the automation (no hosted browser agent, no intervu-owned WhatsApp bot number). The platforms' agent modes provide the "hands"; we free-ride their improvement.
 
 ## Positioning
 
@@ -19,9 +21,11 @@ One-liner direction: *"Bring your own agent. We make sure it applies to real job
 
 - **Endpoint:** new route handler in the intervu Next app (working name `POST /api/mcp`), implementing MCP **Streamable HTTP** transport with the official `@modelcontextprotocol/sdk`. Served from the existing Contabo container behind Caddy. No new service, no new host.
 - **Search path reuse:** tools call the existing `src/lib/jobs/search.ts` path (same code the UI's Server Action uses). No parallel query implementation. (Ground truth from repo scout: no REST job API exists today — search is a Server Action, so this route is net-new surface but reuses the whole search lib.)
-- **Auth:** `Authorization: Bearer <token>`. First personal-access-token infra in intervu:
-  - New **Settings → Agent access** section: generate one token, revoke/regenerate. Show a copy-paste connection snippet (OpenClaw / Claude Code / Claude Desktop).
-  - Token stored **hashed**; lookup maps token → Firebase user. Storage backend: same store that backs pursuits/user data — the implementation plan must confirm which store that is (unverified at design time).
+- **Auth (OAuth-first):**
+  - **Primary path:** OAuth 2.1 authorization flow per the MCP auth spec — authorization-code + PKCE, consent screen ("<client> wants to search jobs and update your tracker as you"), token issuance/refresh, revocation. Dynamic client registration to the extent the MCP spec/clients require it — the implementation plan pins the exact flow against the current spec + what Claude/ChatGPT connectors actually demand (verify at build, don't design from memory).
+  - **Fallback path:** manual bearer token for CLI/self-hosted clients (OpenClaw et al.), generated in settings.
+  - **Settings → Connected agents:** list of connected clients + last-used, revoke per client; advanced section holds the manual token.
+  - All secrets stored **hashed**; lookup maps credential → Firebase user. Storage backend: same store that backs pursuits/user data — implementation plan confirms which store that is (unverified at design time).
 - **robots/discovery:** add `llms.txt` at the site root pointing agents to the endpoint + `/agents` docs page.
 
 ## MCP tools (v1 — exactly four)
@@ -49,13 +53,18 @@ thesubspace.io is about to sell this corpus to investors (alt-data pivot, Aug 1)
 Persona: candidate who already runs an agent (OpenClaw on their own machine, or a Claude client).
 
 1. **Discover:** `/agents` page promise — "your agent job-hunts through intervu: it targets only verified-real jobs, preps every application, you approve." Explicit non-promise: we never submit for you.
-2. **Setup (once, at a computer):** sign up → Settings → Agent access → generate token → paste the pre-filled connection snippet into the agent. Phone needs nothing installed.
+2. **Setup (once, ~60 seconds, phone alone is enough for Tier 1):** inside ChatGPT/Claude, add the intervu connector (or tap "Connect" on `/agents`) → OAuth login/consent → done. No tokens, no config files, no computer required for search+tracker. CLI/self-hosted agents (OpenClaw) use the fallback token from Settings → Connected agents.
 3. **Session (desktop or phone):** user asks the agent for new real roles → agent calls `search_jobs`, filters against tracker via truth data, replies with a *short, defensible* list ("3 verified-live, skipped 2 likely-ghosts, 1 already applied").
 4. **Apply loop — TWO approval gates per job (Vivek, Aug 2):**
    - **Gate 1, tailored resume:** before touching the ATS, the agent adapts the resume to the job and presents the changes as a short diff summary (+ the file). Identity gate — her name on the document; she approves, edits, or keeps the original. Approved versions are reusable across similar roles.
    - **Gate 2, filled application:** agent fills the ATS form with the approved resume, stops at the review screen. Desktop: human reads and clicks submit. Phone: screenshot into the chat, human replies "submit." Always per-application.
    Human-in-the-loop means both gates, on both desktop and phone.
 5. **Close the loop:** agent calls `mark_applied` → intervu tracker is the system of record and the agent's memory across sessions (no double-applies; survives switching agents).
+
+**Provider neutrality (Vivek, Aug 2 — candidate main selling point):** the MCP endpoint is model-agnostic; MCP is adopted across Anthropic (Claude clients), OpenAI (ChatGPT connectors, ~Mar 2025) and Google (Gemini API/CLI, ~Apr 2025) — adoption facts from training knowledge, exact per-client state to be verified at build time. Two honest compatibility tiers, to be published as a matrix on `/agents`:
+- **Tier 1 — search + tracker:** any MCP-capable chat client (Claude Desktop/Code, ChatGPT w/ connectors, Gemini CLI). Works everywhere.
+- **Tier 2 — full apply loop:** requires an agent with browser control (+ messaging channel for the phone story): OpenClaw-class, Claude Code + browser, ChatGPT agent mode. The model brand is interchangeable; the agent's "hands" are the variable.
+Strategy note: lead-hook positioning, sequenced — ship `/agents` as flagship, measure (token generations, page traffic), promote to homepage hero only after the demo is real and the page pulls. Copy direction keeps truth data as the noun: *"Only real jobs. Browse them yourself — or send your agent."*
 
 **Phone/messaging requirement (Vivek, Aug 2):** the journey must work from WhatsApp/messaging. This costs intervu almost nothing — chat channels are the agent's concern (OpenClaw is messaging-native), not ours. Our only obligations: **chat-sized tool responses** (compact summaries, caps already in place) and phone-first framing on `/agents`.
 
@@ -81,7 +90,8 @@ Persona: candidate who already runs an agent (OpenClaw on their own machine, or 
 
 ## Security (preview — full `security-pass` before ship)
 
-- Hashed, revocable tokens; constant-time comparison; no token logging.
+- **OAuth surface (new, from the magic-setup decision):** strict redirect-URI validation, PKCE enforced, short-lived access tokens + refresh rotation, consent screen that names the client and the exact scopes, dynamic-client-registration abuse limits (rate-limit registrations, no wildcard redirects). This is the largest new attack surface in the feature; security-pass treats it as the headline item.
+- Hashed, revocable credentials; constant-time comparison; no token logging.
 - Writes scoped strictly to the authenticated user's own records.
 - Rate limits as above; MCP route excluded from any CDN/page caching.
 - **Prompt injection:** job descriptions are third-party text flowing into users' agents. A poisoned description is an injection vector into *their* agent. Tool responses label description content as untrusted data; `/agents` docs state it plainly.
@@ -101,7 +111,8 @@ Persona: candidate who already runs an agent (OpenClaw on their own machine, or 
 3. Rate-limit implementation point (middleware vs. in-route) given the Caddy/Next stack.
 4. Demo account setup with a realistic profile + resume.
 5. Vivek's yes/no on ClawHub + MCP-directory listings.
+6. Compatibility-matrix verification sweep: per-client MCP support state (Claude Desktop/Code, ChatGPT connectors + agent mode, Gemini CLI/app, OpenClaw) → publish verified matrix on `/agents`; never list a client we haven't connected once.
 
 ## Estimate
 
-MCP route + token infra + settings UI + `/agents` page + `llms.txt`: ~1–2 focused days. Demo recording + video edit: additional. Timebox honestly; the alt-data pivot outranks this.
+MCP route + OAuth flow + token fallback + settings UI + `/agents` page + `llms.txt`: ~3–4 focused days (OAuth adds ~1–2 days over the original token-only estimate — accepted trade for magic setup). Demo recording + video edit: additional. Timebox honestly; the alt-data pivot outranks this.
