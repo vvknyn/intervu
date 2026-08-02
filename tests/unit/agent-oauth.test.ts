@@ -52,7 +52,13 @@ describe('agent oauth', () => {
     assert.ok('error' in second);
   });
 
-  it('rejects exchange with the wrong verifier', async () => {
+  // 'wrong-verifier-value' is 21 chars — shorter than RFC 7636's 43-char
+  // floor, so this trips `isValidCodeVerifier`'s length guard and never
+  // reaches the hash comparison at all. Kept as its own test because it
+  // documents that guard; it does NOT prove the hash comparison itself
+  // rejects a mismatched verifier — see the VALID-SHAPE test right below
+  // (IMPORTANT 7 review fix) for that.
+  it('rejects exchange with a too-short wrong verifier (documents the length guard, not the hash check)', async () => {
     const s = memoryStore();
     const client = await registerOk(s);
     const code = await createAuthCode(s, {
@@ -60,6 +66,23 @@ describe('agent oauth', () => {
     });
     const result = await exchangeCode(s, {
       code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: 'wrong-verifier-value',
+    });
+    assert.ok('error' in result);
+  });
+
+  it('rejects a VALID-SHAPE wrong verifier (43+ chars, legal RFC 7636 charset) — proves the hash comparison itself rejects a mismatch, not just the length guard', async () => {
+    const s = memoryStore();
+    const client = await registerOk(s);
+    const code = await createAuthCode(s, {
+      uid: 'user-1', clientId: client.id, redirectUri: 'https://client.example/cb', codeChallenge: challenge,
+    });
+    // Same length/charset class as `verifier` (legal per CODE_VERIFIER_RE),
+    // but a different string — so it clears the length guard and lands on
+    // the sha256(verifier) === codeChallenge comparison, which must reject it.
+    const validShapeWrongVerifier = 'z'.repeat(50);
+    assert.notEqual(validShapeWrongVerifier, verifier);
+    const result = await exchangeCode(s, {
+      code, clientId: client.id, redirectUri: 'https://client.example/cb', codeVerifier: validShapeWrongVerifier,
     });
     assert.ok('error' in result);
   });
