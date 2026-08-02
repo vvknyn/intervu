@@ -18,6 +18,7 @@ import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { LandingMarketing } from "@/components/marketing/LandingMarketing";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -3226,6 +3227,11 @@ function JobsContent() {
                             </div>
                         </div>
                     )}
+
+                    {/* Marketing sections (P2.6·C) — below the fold of the
+                        Screen 1 composition; the fixed overlay container
+                        scrolls, so the landing doubles as the marketing page. */}
+                    {isOverlayAsk && <LandingMarketing />}
 
                     {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
