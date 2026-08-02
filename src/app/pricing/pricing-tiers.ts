@@ -43,7 +43,7 @@ export const PRICING_TIERS: PricingTier[] = [
     priceNote: "intelligence is free — yours or ours",
     bullets: [
       { text: "Search + every truth signal" },
-      { text: "Tracker · resume builder · prep" },
+      { text: "Tracker · resume builder" },
       { text: "Tailoring & fit checks" },
       { text: "Connect your AI (MCP) · personal key, daily quota", href: "/connect" },
     ],
