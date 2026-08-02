@@ -1,12 +1,15 @@
 /**
- * Single source of truth for the /pricing ladder (v2 — "your AI thinks for
- * free, we only meter corpus truth"). One array, rendered via `.map()` in
- * `page.tsx` — a 5th tier is one entry here, never a hand-copied JSX block.
+ * Single source of truth for the /pricing ladder (v3 — free-only launch,
+ * product decision 2026-08-02). One array, rendered via `.map()` in
+ * `page.tsx` — a future paid tier is one entry here, never a hand-copied JSX
+ * block. `PricingTier`'s `carriesFrom`/`highlight` are unused by the single
+ * tier below but kept on the type: paid truth tiers come back later (see
+ * /pricing's own copy), not a hypothetical.
  *
  * Replaces the v1 "AI-feature credit packs" framing (`src/lib/pricing.ts`,
- * `src/lib/llm/credit-gate.ts` — untouched, still power other surfaces).
- * Credits here mean truth-units only: verified jobs, watches, history pulls —
- * never AI/LLM actions, which are free and run through the user's own MCP key.
+ * `src/lib/llm/credit-gate.ts` — untouched, still power other surfaces) and
+ * the v2 4-tier ladder. All AI actions (fit checks, tailoring, prep) moved to
+ * MCP-only (2026-08-02) — the web app is search + truth signals + tracker.
  */
 
 export interface PricingBullet {
@@ -37,56 +40,17 @@ export interface PricingTier {
 
 export const PRICING_TIERS: PricingTier[] = [
   {
-    name: "Looking",
+    name: "Free",
     price: "$0",
-    tagline: "the hunt itself — and the thinking",
-    priceNote: "intelligence is free — yours or ours",
+    tagline: "everything below — no card required",
+    priceNote: "paid truth tiers come later",
     bullets: [
-      { text: "Search + every truth signal" },
-      { text: "Tracker · resume builder" },
-      { text: "Tailoring & fit checks" },
-      { text: "Connect your AI (MCP) · personal key, daily quota", href: "/connect" },
+      { text: "Search 1.5M+ live verified jobs" },
+      { text: "Ghost-signal truth on every posting" },
+      { text: "Application tracker" },
+      { text: "Connect your AI (MCP) — fit, tailoring, prep run in YOUR AI", href: "/connect" },
+      { text: "Up to 20 applications a day" },
     ],
     cta: { kind: "link", label: "Start free", href: "/", variant: "default" },
-  },
-  {
-    name: "Hunting",
-    price: "$5–19",
-    tagline: "one-time truth packs · never expire",
-    priceNote: "credits = units of truth",
-    carriesFrom: "Looking",
-    bullets: [
-      { text: "Deep history pulls · reposts, closures" },
-      { text: "Bulk verify · “which are live?”" },
-      { text: "High-volume MCP calls" },
-    ],
-    cta: { kind: "disabled", label: "Get credits — coming in beta", variant: "quiet" },
-    highlight: "Serious hunts",
-  },
-  {
-    name: "Watching",
-    price: "credits/week",
-    tagline: "standing watches · ~1–2 credits per watch per week",
-    priceNote: "pause any time · no subscription to cancel",
-    carriesFrom: "Hunting",
-    bullets: [
-      { text: "Watch companies & roles" },
-      { text: "Your AI gets pinged via MCP" },
-      { text: "Email alerts, verified-only" },
-    ],
-    cta: { kind: "disabled", label: "Start watching — coming in beta", variant: "quiet" },
-  },
-  {
-    name: "Building",
-    price: "let's talk",
-    tagline: "commercial API · the Subspace corpus",
-    priceNote: "data by Subspace",
-    bullets: [
-      { text: "Commercial MCP/API keys" },
-      { text: "Per-call licensing" },
-      { text: "Bulk quotas · SLA" },
-      { text: "Build your own job product" },
-    ],
-    cta: { kind: "link", label: "Contact us", href: "https://thesubspace.io", variant: "outline" },
   },
 ];

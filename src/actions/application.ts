@@ -11,6 +11,7 @@ import {
     type Pursuit as PursuitType,
     type PursuitStage,
 } from "@/lib/pursuits/types";
+import { isNewAppliedTransition, assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
@@ -107,6 +108,12 @@ export async function createApplication(application: CreateApplicationData) {
             return { error: "User not authenticated" };
         }
 
+        // A fresh create has no prior stage, so this is always a NEW applied
+        // transition when the caller is creating one directly (free-plan cap).
+        if (isNewAppliedTransition(application.status, undefined)) {
+            await assertUnderDailyApplyCap(user.uid);
+        }
+
         const db = getAdminDb();
         const now = new Date().toISOString();
         const docData = {
@@ -145,6 +152,13 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
 
         if (!doc.exists || doc.data()?.user_id !== user.uid) {
             return { error: "Application not found" };
+        }
+
+        // Free-plan daily apply cap: only consume a slot when this update is
+        // itself the transition into "applied" (idempotent re-marks of an
+        // already-applied-or-further pursuit are free — see isNewAppliedTransition).
+        if (parsed.data.status && isNewAppliedTransition(parsed.data.status, doc.data()?.status as PursuitStage | undefined)) {
+            await assertUnderDailyApplyCap(user.uid);
         }
 
         // The Admin SDK rejects `undefined` field values (ignoreUndefinedProperties
@@ -217,6 +231,13 @@ export async function upsertPursuitForJob(
                 status: parsed.data.stage,
                 job_snapshot: snapshot,
             });
+            // `merged.status` (not `parsed.data.stage`) is the real decision —
+            // mergeGuestPursuit may keep an already-more-advanced existing
+            // stage, in which case this write isn't an applied transition at
+            // all and must not consume a cap slot (idempotency).
+            if (isNewAppliedTransition(merged.status, existing.status)) {
+                await assertUnderDailyApplyCap(user.uid);
+            }
             await doc.ref.update({
                 status: merged.status,
                 job_snapshot: merged.job_snapshot ?? null,
@@ -224,6 +245,12 @@ export async function upsertPursuitForJob(
             });
             revalidatePath("/yours");
             return { data: { ...merged, updated_at: now } };
+        }
+
+        // Brand-new pursuit, so this is a NEW applied transition whenever the
+        // stage itself is "applied" (free-plan cap).
+        if (isNewAppliedTransition(parsed.data.stage, undefined)) {
+            await assertUnderDailyApplyCap(user.uid);
         }
 
         const docData = {
