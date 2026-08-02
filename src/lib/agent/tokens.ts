@@ -99,7 +99,10 @@ export async function revokeCredential(store: AgentStore, uid: string, id: strin
     return true;
 }
 
-export async function listCredentials(store: AgentStore, uid: string): Promise<Credential[]> {
+export async function listCredentials(store: AgentStore, uid: string): Promise<Omit<Credential, "tokenHash">[]> {
     const rows = await store.findByField(AGENT.collections.credentials, "uid", uid);
-    return rows.map(({ id, ...doc }) => toCredential(id, doc));
+    return rows.map(({ id, ...doc }) => {
+        const { tokenHash: _tokenHash, ...rest } = toCredential(id, doc);
+        return rest;
+    });
 }

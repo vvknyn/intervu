@@ -25,6 +25,7 @@ describe('agent tokens', () => {
     assert.equal(await revokeCredential(s, 'attacker', m.credential.id), false);
     const rows = await listCredentials(s, 'u1');
     assert.equal(rows.length, 1);
+    assert.equal('tokenHash' in rows[0], false);
   });
   it('issues distinct-prefixed secrets and verifies across all three kinds', async () => {
     const s = memoryStore();
