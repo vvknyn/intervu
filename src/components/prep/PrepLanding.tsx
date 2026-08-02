@@ -7,6 +7,7 @@ import type { StarStory } from "@/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export interface PrepLandingProps {
   onStartNew: () => void;
@@ -119,10 +120,7 @@ export function PrepLanding({
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
         <div>
           <div className="mb-7">
-            <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Interview prep</h1>
-            <p className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">
-              {prepLandingSubline(cachedPlans, resumableSessions)}
-            </p>
+            <PageHeader bare size="display" title="Interview prep" description={prepLandingSubline(cachedPlans, resumableSessions)} />
           </div>
 
           <section className="border-b border-border pb-6">
@@ -188,7 +186,9 @@ export function PrepLanding({
           )}
 
           {!hasSessions && !hasPlans && (
-            <p className="mt-7 text-[13.5px] text-muted-foreground">No sessions yet — start one above.</p>
+            <p className="mt-7 text-[13.5px] text-muted-foreground" data-testid="prep-no-sessions">
+              Nothing here yet — start your first session above.
+            </p>
           )}
         </div>
 
@@ -197,32 +197,46 @@ export function PrepLanding({
             <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
               Story bank
             </span>
-            <Link
-              href="/stories"
-              className="font-mono text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-            >
-              open story bank →
-            </Link>
+            {stories.length > 0 && (
+              <Link
+                href="/stories"
+                className="font-mono text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+              >
+                open story bank →
+              </Link>
+            )}
           </div>
-          <p className="font-mono text-[12.5px] text-foreground">
-            <span className="tabular-nums">{storyCounts.ready}</span> ready · <span className="tabular-nums">{storyCounts.draft}</span> draft · <span className="tabular-nums">{storyCounts.missing}</span> missing
-          </p>
           {stories.length > 0 ? (
-            <div className="mt-3 flex flex-col gap-2">
-              {stories.slice(0, 5).map((story) => {
-                const meta = READINESS_META[storyReadiness(story)];
-                return (
-                  <div key={story.id} className="flex items-center gap-2 text-[13px]">
-                    <span className={cn("font-mono", meta.cls)} aria-hidden="true">
-                      {meta.glyph}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{story.title}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <p className="font-mono text-[12.5px] text-foreground">
+                <span className="tabular-nums">{storyCounts.ready}</span> ready · <span className="tabular-nums">{storyCounts.draft}</span> draft · <span className="tabular-nums">{storyCounts.missing}</span> missing
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                {stories.slice(0, 5).map((story) => {
+                  const meta = READINESS_META[storyReadiness(story)];
+                  return (
+                    <div key={story.id} className="flex items-center gap-2 text-[13px]">
+                      <span className={cn("font-mono", meta.cls)} aria-hidden="true">
+                        {meta.glyph}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{story.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           ) : (
-            <p className="mt-3 text-[13px] text-muted-foreground">No stories saved yet.</p>
+            <div data-testid="story-bank-empty">
+              <p className="text-[13px] text-muted-foreground">
+                No stories yet — your best interview answers, saved and reusable.
+              </p>
+              <Link
+                href="/stories"
+                className="mt-2 inline-block font-mono text-xs text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
+              >
+                Add your first story →
+              </Link>
+            </div>
           )}
         </aside>
       </div>

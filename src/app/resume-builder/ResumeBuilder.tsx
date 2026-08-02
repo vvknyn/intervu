@@ -13,6 +13,7 @@ import { TailoringSidebarCard } from "@/components/resume-builder/TailoringSideb
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { fetchTailoredVersions, saveTailoredVersion, SaveVersionInput } from "@/actions/tailor-resume";
 import { PageLayout } from "@/components/layout/PageLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { onAuthChange, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { useDebouncedCallback } from "use-debounce";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -21,6 +22,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { toast, confirmToast } from "@/lib/toast";
 import { printResume } from "@/lib/resume/print-resume";
+import { hasResumeContent } from "@/lib/resume/has-content";
 
 const INITIAL_DATA: ResumeData = {
     profile: {
@@ -169,15 +171,11 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 }
             }
 
-            // Helper: check if resume data has meaningful content
-            const hasContent = (d: ResumeData) =>
-                !!(d.profile?.profession || d.experience?.length || d.generatedSummary);
-
             // Priority 2: Load from database if authenticated (and not tailored mode)
             if (!resumeLoaded && user) {
                 console.log("[ResumeBuilder] Loading from DB (Base)...");
                 const { data: dbData, error } = await fetchResumeData();
-                if (dbData && !error && hasContent(dbData)) {
+                if (dbData && !error && hasResumeContent(dbData)) {
                     setData(dbData);
                     resumeLoaded = true;
                     console.log("[ResumeBuilder] Loaded from database. Profile:", dbData.profile?.profession);
@@ -193,7 +191,7 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        if (hasContent(parsed)) {
+                        if (hasResumeContent(parsed)) {
                             setData(parsed);
                             resumeLoaded = true;
                             console.log("[ResumeBuilder] Loaded from localStorage");
@@ -492,16 +490,27 @@ export default function ResumeBuilder({ versionId, source, applicationId, openTa
                 logic (ResumeEditor internals untouched); this just frames it. */}
             <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-7 px-4 pb-16 pt-6 sm:px-6 lg:grid-cols-[1fr_350px] lg:px-14">
                 <div className="min-w-0">
-                    <div className="mb-[18px] flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                            <h1 className="font-display text-[30px] font-extrabold tracking-[-0.02em] sm:text-[34px]">
-                                Resume
-                            </h1>
-                            <p className="mt-1.5 font-mono text-xs text-muted-foreground">
-                                {versionCount} version{versionCount === 1 ? "" : "s"}
+                    <div className="mb-[18px]">
+                        <PageHeader
+                            bare
+                            size="display"
+                            title="Resume"
+                            description={`${versionCount} version${versionCount === 1 ? "" : "s"}`}
+                            actions={<Button onClick={printResume}>Export PDF</Button>}
+                        />
+                        {!hasResumeContent(data) && (
+                            <p className="mt-3 text-[13px] text-muted-foreground" data-testid="resume-empty-hint">
+                                Nothing here yet — add your name and most recent role to get started, or{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => (user ? setImportModalOpen(true) : setAuthPopoverOpen(true))}
+                                    className="text-foreground underline underline-offset-2 transition-colors duration-100 hover:opacity-70"
+                                >
+                                    import an existing resume
+                                </button>
+                                .
                             </p>
-                        </div>
-                        <Button onClick={printResume}>Export PDF</Button>
+                        )}
                     </div>
 
                     <VersionCardsRow versions={versions} activeVersionId={versionId} />

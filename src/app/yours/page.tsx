@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
@@ -26,22 +27,12 @@ import {
     type Pursuit,
 } from "@/lib/pursuits/types";
 
-/** The page's one display moment (spec: "Archivo 800, the page's one
- *  heading") plus a mono subtitle line — rendered identically for every
- *  page state (loading / guest gate / populated board) via PageLayout's
- *  `header` slot, so "Tracker" never competes with a second heading below it. */
+/** The page's one display moment, rendered identically for every page state
+ *  (loading / guest gate / populated board) via the shared `PageHeader` in
+ *  its "display" size — so "Tracker" never competes with a second heading
+ *  below it, and the masthead matches Stories/Prep/Resume's rhythm exactly. */
 function TrackerHeader({ subtitle, actions }: { subtitle: React.ReactNode; actions?: React.ReactNode }) {
-    return (
-        <div className="border-b border-border bg-background">
-            <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-end justify-between gap-3 px-6 pb-4 pt-8 sm:px-10 lg:px-14">
-                <div>
-                    <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Tracker</h1>
-                    <div className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">{subtitle}</div>
-                </div>
-                {actions}
-            </div>
-        </div>
-    );
+    return <PageHeader size="display" fullWidth sticky={false} title="Tracker" description={subtitle} actions={actions} />;
 }
 
 const SUMMARY_COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string }[] = [

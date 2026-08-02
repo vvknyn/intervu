@@ -19,12 +19,15 @@ export default function NotFound() {
           />
         </svg>
       </div>
-      <p className="mt-6 text-sm font-medium tracking-wide text-brand">404</p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+      <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
+        intervu
+      </span>
+      <p className="mt-3 font-mono text-xs uppercase tracking-[0.08em] text-brand">404</p>
+      <h1 className="mt-1 font-display text-2xl font-extrabold tracking-[-0.02em] text-foreground">
         Page not found
       </h1>
       <p className="mt-2 max-w-md text-text-2">
-        The page you’re looking for doesn’t exist or may have moved.
+        That page doesn&apos;t exist, or it moved. Let&apos;s get you back on track.
       </p>
       <Link
         href="/"
