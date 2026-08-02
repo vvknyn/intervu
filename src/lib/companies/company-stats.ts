@@ -29,6 +29,7 @@ import {
   type FreshnessBucket,
 } from "@/lib/jobs/posting-age-buckets";
 import { decodeText } from "@/lib/jobs/presentation";
+import { isBuildPhase } from "@/lib/next-phase";
 import { hasMeilisearch, searchMeili } from "@/lib/jobs/meilisearch";
 import type { GhostBadge, PublicJob } from "@/lib/jobs/types";
 
@@ -67,15 +68,6 @@ export interface CompanyProfile {
   freshness: { bucket: FreshnessBucket; count: number }[];
 }
 
-/**
- * True while `next build` is prerendering. Mirrors `market-trends.ts`'s
- * (module-private) `isBuildPhase` — same semantics, duplicated rather than
- * imported since that module doesn't export it and this file's ownership
- * boundary doesn't extend to editing market-trends.ts to add one.
- */
-const isBuildPhase = () =>
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.npm_lifecycle_event === "build";
 
 /** Case/decoding-insensitive company-name key, for matching a search hit's
  *  `company` field back to the name this page was requested for. */

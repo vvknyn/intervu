@@ -14,6 +14,7 @@
  * on, extended here rather than reimplemented.
  */
 import { resolveCorpusCount, type CorpusCount } from "./corpus-count";
+import { isBuildPhase } from "@/lib/next-phase";
 import {
   rollupCountryDistribution,
   type CountryRollupRow,
@@ -48,14 +49,6 @@ function toCorpusCount(result: MeiliAggregationResult): CorpusCount {
   });
 }
 
-/**
- * True while `next build` is prerendering. During the build there is no
- * stale ISR copy to fall back to, so a live-Meili failure must degrade to
- * the page's null-state instead of failing the whole build/deploy.
- */
-const isBuildPhase = () =>
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.npm_lifecycle_event === "build";
 
 /**
  * Fetch and assemble every number the /trends page renders. Returns `null`

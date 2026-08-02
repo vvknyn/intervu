@@ -129,3 +129,34 @@
 .elite-signal .elite-fit-overlay {
   background: rgba(28, 27, 22, 0.12) !important;
 }
+
+/* Night theme — the elite scope hardcodes light values above (including the
+   token remaps), which stomped `.dark`'s tokens and left this page light in
+   night mode. Same scoping mechanism, dark values drawn from globals.css's
+   `.dark` shell. */
+.dark .elite-signal {
+  --elite-page: #0f1216;
+  --elite-surface: #141920;
+  --elite-card: #16191e;
+  --elite-ink: #eceef2;
+  --elite-muted: #8b939e;
+  --elite-faint: #6e7580;
+  --elite-brand: #5eb496;
+  --elite-brand-hover: #74c4a6;
+  --elite-live: #5eb496;
+  --elite-border: #2a2f36;
+  --elite-border-strong: #343a42;
+  --elite-rule: #232830;
+  --elite-tint-bg: #14231d;
+  --elite-tint-border: #2a4a3c;
+
+  /* Token remaps, night values */
+  --background: 15 18 22;
+  --card: 22 25 30;
+  --foreground: 236 238 242;
+  --muted-foreground: 139 147 158;
+  --border: 42 47 54;
+  --brand: 94 180 150;
+  --brand-foreground: 15 18 22;
+  --st-offer: 94 180 150;
+}

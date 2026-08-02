@@ -1,4 +1,5 @@
 import { domainToSlug } from "@/lib/boards/slug";
+import { isBuildPhase } from "@/lib/next-phase";
 import { searchJobs } from "@/lib/jobs/search";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -96,7 +97,11 @@ export async function getHotCompaniesList(
 ): Promise<HotCompaniesListResult> {
   const fetched = await fetchEliteBoardJobHits(search);
   if ("unavailable" in fetched) {
-    return { status: "unavailable", message: fetched.message };
+    // Build: degrade so the deploy doesn't fail. Runtime: THROW, so ISR
+    // keeps serving the last good hourly snapshot instead of caching this
+    // degraded page for revalidate=3600s (same class fix as /trends, PR #40).
+    if (isBuildPhase()) return { status: "unavailable", message: fetched.message };
+    throw new Error(fetched.message);
   }
 
   return { status: "ok", companies: orderHotCompanyRows(aggregateHotCompaniesFromJobs(fetched.hits)) };
