@@ -17,6 +17,7 @@ import {
 } from "../pursuits/types";
 import { buildResumeVersionSnapshot } from "../pursuits/resume-version";
 import type { BaseResume } from "../resume/base-resume";
+import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
 
 export interface ToolDeps {
@@ -53,6 +54,13 @@ export interface ToolDeps {
     pursuitId: string,
     input: { content: string; label: string },
   ) => Promise<{ data?: ResumeVersionSnapshot; error?: string }>;
+  /** The caller's own saved job-search preferences and standing application
+   *  answers (`profiles/<uid>.agent_preferences`) — injected so
+   *  `get_preferences`/`set_preferences` never touch Firestore directly,
+   *  matching every other I/O dep here. See `getAgentPreferences`/
+   *  `setAgentPreferences` (`lib/agent/preferences.ts`). */
+  getPreferences: (uid: string) => Promise<AgentPreferences>;
+  setPreferences: (uid: string, patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
 }
 
 /**
@@ -498,4 +506,30 @@ export async function toolGetResume(
   _input: Record<string, never>,
 ): Promise<BaseResume> {
   return deps.getBaseResume(deps.uid);
+}
+
+/** Returns the caller's own saved job-search preferences and standing
+ *  application answers — never another user's, and never fabricated when
+ *  nothing is saved yet (`configured: false`). See `getAgentPreferences`
+ *  (`lib/agent/preferences.ts`). */
+export async function toolGetPreferences(
+  deps: ToolDeps,
+  // `get_preferences` needs no input — `uid` comes from `deps` — kept as a
+  // real param (matching the `(deps, input)` shape `withDeps` expects)
+  // rather than dropped, so this stays consistent with every other tool
+  // here (see `toolGetResume`'s identical convention above).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _input: Record<string, never>,
+): Promise<AgentPreferences> {
+  return deps.getPreferences(deps.uid);
+}
+
+/** Saves a partial patch of the caller's own preferences — never another
+ *  user's. See `setAgentPreferences`/`mergeAgentPreferences`
+ *  (`lib/agent/preferences.ts`) for the per-section/per-field merge. */
+export async function toolSetPreferences(
+  deps: ToolDeps,
+  input: AgentPreferencesPatch,
+): Promise<AgentPreferences> {
+  return deps.setPreferences(deps.uid, input);
 }

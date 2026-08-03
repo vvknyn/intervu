@@ -52,6 +52,14 @@ export const AGENT = {
      *  straight into a Firestore document, so it needs a hard ceiling before
      *  it ever reaches storage, same spirit as the DCR caps above. */
     RESUME_TEXT_MAX_CHARS: 50_000,
+    /** `set_preferences`'s per-field string cap (route.ts) — same DoS/cost-
+     *  amplification guard as `RESUME_TEXT_MAX_CHARS` above, sized for a
+     *  single preference/answer field rather than a whole resume. */
+    PREFERENCES_STRING_MAX_CHARS: 500,
+    /** `set_preferences`'s `answers.custom` entry-count ceiling (route.ts) —
+     *  bounds how many custom Q&A pairs an agent can write into one
+     *  Firestore document per request, same DoS/cost-amplification spirit. */
+    PREFERENCES_CUSTOM_ANSWERS_MAX: 40,
 };
 
 /**

@@ -9,8 +9,11 @@ import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
+    toolGetPreferences, toolSetPreferences,
     EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, type ToolDeps,
 } from "@/lib/agent/tools";
+import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
+import { optionalString } from "@/lib/validation";
 import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
 import { upsertPursuitCore, findPursuitByJobId } from "@/lib/pursuits/upsert-core";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
@@ -19,7 +22,7 @@ import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 /**
  * POST/GET/DELETE /api/mcp — Streamable HTTP entrypoint for intervu's agent
  * tools (search_jobs, get_job, save_job, mark_applied, get_resume,
- * save_resume_variant, get_resume_variant).
+ * save_resume_variant, get_resume_variant, get_preferences, set_preferences).
  *
  * Auth is hand-rolled rather than routed through `mcp-handler`'s
  * `withMcpAuth`: that helper's own 401/403 response (an RFC 6749 OAuth error
@@ -87,6 +90,8 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
             getBaseResume: getBaseResumeForUser,
             findPursuitByJobId,
             saveResumeVersion: saveResumeVersionForPursuit,
+            getPreferences: getAgentPreferences,
+            setPreferences: setAgentPreferences,
         };
         return toolResult(await run(deps, input));
     };
@@ -101,9 +106,15 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
  *  `employment_type` reuse the SAME `EXPERIENCE_LEVELS`/`EMPLOYMENT_TYPES`
  *  arrays `tools.ts` maps with, so the wire's allowed values and the mapping
  *  logic's allowed values can never drift apart. */
+/** The one `postedWithinDays` 7|30|90 union — shared by `searchJobsInput`
+ *  and `set_preferences`'s `search` patch schema below, so the wire's
+ *  allowed values can never drift between the two tools that both carry a
+ *  `postedWithinDays` field. */
+const postedWithinDaysSchema = z.union([z.literal(7), z.literal(30), z.literal(90)]);
+
 export const searchJobsInput = z.object({
     query: z.string().optional(),
-    postedWithinDays: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
+    postedWithinDays: postedWithinDaysSchema.optional(),
     includeGhostFlagged: z.boolean().optional(),
     limit: z.number().int().min(1).max(AGENT.RESULT_CAP).optional(),
     location: z.string().max(128).optional(),
@@ -136,6 +147,61 @@ export const saveResumeVariantInput = jobIdFieldInput.extend({
 });
 
 export const getResumeVariantInput = jobIdFieldInput;
+
+export const getPreferencesInput = z.object({});
+
+/** The ONE capped-string builder for every ~500-char preference/answer
+ *  field below — reuses `optionalString` (lib/validation.ts, already
+ *  trimmed/capped/empty-to-undefined) rather than writing new trim/cap
+ *  logic here, so there is exactly one 500-char-cap-string zod builder in
+ *  this file. */
+const prefString = () => optionalString(AGENT.PREFERENCES_STRING_MAX_CHARS);
+
+/** `set_preferences`'s `search` patch — every field optional (partial,
+ *  section-and-field-level merge; see `mergeAgentPreferences`).
+ *  `experienceLevel`/`employmentType`/`postedWithinDays` reuse the SAME
+ *  `EXPERIENCE_LEVELS`/`EMPLOYMENT_TYPES`/`postedWithinDaysSchema`
+ *  `search_jobs` already validates against, so the two tools' wire
+ *  vocabularies can never drift apart. */
+const searchPreferencesPatchInput = z.object({
+    query: prefString(),
+    location: prefString(),
+    remoteOnly: z.boolean().optional(),
+    experienceLevel: z.enum(EXPERIENCE_LEVELS).optional(),
+    employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
+    salaryMin: z.number().int().min(0).optional(),
+    postedWithinDays: postedWithinDaysSchema.optional(),
+});
+
+/** `set_preferences`'s `answers` patch — every field optional; `custom` is
+ *  capped both per-entry (200-char key, `PREFERENCES_STRING_MAX_CHARS`-char
+ *  value) and in entry count (`PREFERENCES_CUSTOM_ANSWERS_MAX`) — the same
+ *  DoS/cost-amplification spirit as `RESUME_TEXT_MAX_CHARS`, since this
+ *  writes straight into a Firestore document. */
+const answerPreferencesPatchInput = z.object({
+    workAuthorization: prefString(),
+    relocation: prefString(),
+    noticePeriod: prefString(),
+    startDate: prefString(),
+    salaryExpectation: prefString(),
+    custom: z
+        .record(z.string().max(200), z.string().max(AGENT.PREFERENCES_STRING_MAX_CHARS))
+        .refine(
+            (obj) => Object.keys(obj).length <= AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX,
+            `custom answers capped at ${AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX} entries`,
+        )
+        .optional(),
+});
+
+/** `set_preferences`'s top-level input — a partial patch, either or both
+ *  sections present. Not `.strict()` — same non-strict convention as every
+ *  other schema in this file (see `saveResumeVariantInput`'s doc comment):
+ *  an attacker-controlled `uid`/`user_id` field is silently stripped by
+ *  zod's default behavior, never read. */
+export const setPreferencesInput = z.object({
+    search: searchPreferencesPatchInput.optional(),
+    answers: answerPreferencesPatchInput.optional(),
+});
 
 const mcpHandler = createMcpHandler(
     (server) => {
@@ -224,6 +290,33 @@ const mcpHandler = createMcpHandler(
                 inputSchema: getResumeVariantInput,
             },
             withDeps(toolGetResumeVariant)
+        );
+        server.registerTool(
+            "get_preferences",
+            {
+                title: "Get your agent preferences",
+                description:
+                    "Get YOUR OWN saved job-search preferences and standing application answers, on file at " +
+                    "intervu and shared across every AI client paired to your account — not just this one — so " +
+                    "a fresh agent session can pick up where a previous one left off instead of re-interviewing " +
+                    "you. Returns configured:false with empty sections when nothing is saved yet — never " +
+                    "fabricated defaults.",
+                inputSchema: getPreferencesInput,
+            },
+            withDeps(toolGetPreferences)
+        );
+        server.registerTool(
+            "set_preferences",
+            {
+                title: "Set your agent preferences",
+                description:
+                    "Save YOUR OWN search preferences and/or standing application answers, shared across every " +
+                    "AI client paired to your account. Give just the section(s) that are changing — search and " +
+                    "answers merge independently per field, so setting one value (e.g. just location) never " +
+                    "wipes sibling fields in that section or touches the other section.",
+                inputSchema: setPreferencesInput,
+            },
+            withDeps(toolSetPreferences)
         );
     },
     { serverInfo: { name: "intervu-agent", version: "1.0.0" } }
