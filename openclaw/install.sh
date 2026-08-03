@@ -76,7 +76,7 @@ EXISTING_CRON="$(openclaw cron list 2>/dev/null || true)"
 if echo "$EXISTING_CRON" | grep -q "intervu-apply-digest"; then
   echo "    intervu-apply-digest already exists, skipping."
 else
-  openclaw cron add --name intervu-apply-digest --schedule "0 8 * * *" \
+  openclaw cron add --name intervu-apply-digest --cron "0 8 * * *" \
     --session main --system-event "Run the intervu-apply morning digest (SKILL.md §1)."
   echo "    intervu-apply-digest armed."
 fi
@@ -84,7 +84,7 @@ fi
 if echo "$EXISTING_CRON" | grep -q "intervu-apply-recap"; then
   echo "    intervu-apply-recap already exists, skipping."
 else
-  openclaw cron add --name intervu-apply-recap --schedule "0 18 * * 0" \
+  openclaw cron add --name intervu-apply-recap --cron "0 18 * * 0" \
     --session main --system-event "Run the intervu-apply weekly recap (SKILL.md §6)."
   echo "    intervu-apply-recap armed."
 fi
