@@ -20,6 +20,14 @@
 export const OPENCLAW_HEADLINE =
   "While you slept, it found jobs, tailored your resume, and filled out the form. You just hit submit.";
 
+/**
+ * Honest status qualifier for the headline above — the skill itself isn't
+ * installable yet (see module comment). Rendered by `OpenclawStatusBadge`
+ * (`./OpenclawStatusBadge`) wherever `OPENCLAW_HEADLINE` appears, so the
+ * claim and its qualifier can never drift out of sync.
+ */
+export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · not installable yet";
+
 export type ThreadRole = "agent" | "user";
 
 export interface ThreadMessage {
