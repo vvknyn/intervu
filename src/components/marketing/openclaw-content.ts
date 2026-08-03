@@ -25,6 +25,9 @@ export type ThreadRole = "agent" | "user";
 export interface ThreadMessage {
   role: ThreadRole;
   text: string;
+  /** Rendered as a small label above the bubble, not inline in the message
+   *  text — only the first message carries one. */
+  timestamp?: string;
   /** aria-label for a small attachment chip rendered after `text` — the
    *  "[screenshot]" beat from the product spec renders as a real chip, never
    *  literal bracket text. */
@@ -41,7 +44,8 @@ export interface ThreadMessage {
 export const WHATSAPP_THREAD: readonly ThreadMessage[] = [
   {
     role: "agent",
-    text: '8:10am — "3 fit you today. 1 · Senior PM, Ramp — posted 6h ago · 2 · Product Lead, Vanta · 3 · Senior PM, Deel. Reply with a number."',
+    text: "3 fit you today. 1 · Senior PM, Ramp — posted 6h ago · 2 · Product Lead, Vanta · 3 · Senior PM, Deel. Reply with a number.",
+    timestamp: "8:10am",
   },
   { role: "user", text: "1" },
   {

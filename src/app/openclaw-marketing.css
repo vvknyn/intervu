@@ -24,6 +24,12 @@
   --oc-amber: 255 179 71; /* #FFB347 */
   --oc-surface: 255 249 244; /* #FFF9F4 — warm off-white, light-mode surface */
   --oc-ink: 20 16 38; /* #141026 — light-mode text */
+  /* Night/violet blend for the WhatsAppThreadHero mockup — that panel is a
+     lit phone screen, not page chrome, so it stays this fixed dark tone in
+     BOTH light and dark site theme (identical value in both blocks below,
+     same as the other oc-* accents). White text at 90% opacity on this
+     checked at ~15:1 — comfortably above AA. */
+  --oc-bubble: 42 31 78;
 
   /* Semantic remaps consumed by Button/Input/etc. so those components just
      work themed inside this scope with zero new button/input components. */
@@ -48,6 +54,7 @@
   --oc-amber: 255 179 71;
   --oc-surface: 24 19 44; /* near-night, slightly lifted so cards read */
   --oc-ink: 240 236 248; /* off-white */
+  --oc-bubble: 42 31 78;
 
   --background: var(--oc-surface);
   --foreground: var(--oc-ink);
