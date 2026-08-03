@@ -8,6 +8,8 @@ import {
     MagnifyingGlass,
     WarningCircle,
     Compass,
+    Sun,
+    Moon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -19,9 +21,12 @@ import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { LandingMarketing } from "@/components/marketing/LandingMarketing";
 import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
-import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import { OpenclawStatusBadge } from "@/components/marketing/OpenclawStatusBadge";
-import { OPENCLAW_HEADLINE } from "@/components/marketing/openclaw-content";
+import { WatchingWall } from "@/components/marketing/WatchingWall";
+import { DawnGlow } from "@/components/marketing/DawnGlow";
+import { OPENCLAW_HEADLINE, OPENCLAW_SUBLINE } from "@/components/marketing/openclaw-content";
+import { CONNECT_CLIENTS } from "@/lib/connect-clients";
+import { subscribeDark, getDarkSnapshot, getDarkServerSnapshot, toggleDark } from "@/lib/theme/dark-mode";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -57,7 +62,6 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
     recordRecentSearch,
-    removeRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
 import {
@@ -873,6 +877,11 @@ function JobsContent() {
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
     const isDesktop = useSyncExternalStore(subscribeDesktopMq, getDesktopMqSnapshot, getDesktopMqServerSnapshot);
+    // Hero nav's own theme toggle (2026-08-03) — same shared mechanism
+    // TopBar's masthead toggle uses (`src/lib/theme/dark-mode.ts`), read here
+    // too since the hero nav is a separate on-screen instance while
+    // isOverlayAsk covers the masthead (see `data-jobs-overlay-ask`).
+    const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -2457,8 +2466,8 @@ function JobsContent() {
     // fabricated number while `marketingStats` is still null/failed.
     const searchPlaceholder = isOverlayAsk
         ? marketingStats
-            ? `or search ${formatCorpusCount(marketingStats.liveJobs)} live jobs…`
-            : "or search live jobs…"
+            ? `Search ${formatCorpusCount(marketingStats.liveJobs)} live jobs…`
+            : "Search live jobs…"
         : "What kind of work are you looking for?";
 
     // The one grey line under the pinned box. It states the posted-date window
@@ -2537,98 +2546,147 @@ function JobsContent() {
                     : "flex min-h-screen flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden",
             )}
         >
-            {/* Screen-1 corner links (Vivek, Google-homepage pattern): product
-                surfaces + Log in live top-right so the center composition stays
-                brand + search + claim only. Same NAV_TABS source as the
-                footer, same skip rules as the old inline row. The cta
-                (Connect your AI) entry is excluded here — it gets its own
-                giant CTA button in the hero itself, so it shouldn't also
-                appear as a small corner link. */}
-            {isOverlayAsk && (
-                <div className="absolute right-5 top-4 flex items-center gap-4 text-[13px] font-medium text-muted-foreground">
-                    {NAV_TABS.filter((tab) => tab.href !== "/" && tab.variant !== "cta").map((tab) => (
-                        <Link
-                            key={tab.href}
-                            href={tab.href}
-                            className="underline-offset-2 transition-colors duration-100 hover:text-foreground hover:underline"
-                        >
-                            {tab.label}
-                        </Link>
-                    ))}
-                    {!user && (
-                        <Button size="sm" data-testid="landing-login" onClick={() => setAuthOpen(true)}>
-                            Log in
-                        </Button>
-                    )}
-                </div>
-            )}
             <div
                 className={cn(
                     "w-full shrink-0",
-                    // pt reduced from 16dvh (Vivek's original mock) to 8dvh
-                    // for the OpenClaw pitch pass (2026-08-02) — the new
-                    // hero (thread mockup + waitlist form) is taller than
-                    // the CTA button it replaced, so the composition needs
-                    // less top air to keep the fold line in a sane place.
-                    isOverlayAsk ? "max-w-3xl pb-16 pt-[8dvh]" : "border-b border-border bg-card",
+                    // One-viewport hero rebuild (2026-08-03, Vivek — the old
+                    // giant-wordmark + dark-panel + search vertical stack read
+                    // as amateur). `.openclaw` scopes the theme-invariant
+                    // night palette (--oc-night/--oc-coral/--oc-violet, same
+                    // values in both `.openclaw` and `.dark .openclaw`) across
+                    // the WHOLE scene, not just the old pitch block — the
+                    // brief calls for a fixed night surface in both site
+                    // themes. `lg:h-dvh` + flex-col makes the nav row and the
+                    // hero grid below it together fill exactly one viewport at
+                    // desktop widths; `overflow-hidden` contains the
+                    // watching-wall background so it can't introduce scroll.
+                    isOverlayAsk
+                        ? "openclaw relative flex flex-col overflow-hidden bg-[rgb(var(--oc-night))] lg:h-dvh"
+                        : "border-b border-border bg-card",
                 )}
             >
-                <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
-                    {/* Empty ask: brand above the line as one composition.
-                        Shared layoutIds morph into TopBar when results load. */}
-                    {isOverlayAsk && (
-                        /* Poster hero (Vivek's mock, 2026-08-02): wordmark at
-                           display-poster scale with the BETA chip as an outlined
-                           box riding its shoulder. Same shared layoutIds — the
-                           morph into TopBar is unchanged, only Screen 1's scale. */
-                        <div className="mb-9 flex items-start justify-center gap-4">
+                {isOverlayAsk && <WatchingWall className="absolute inset-0" />}
+                {/* Slim nav row (2026-08-03): replaces the old absolute
+                    corner-links row AND the giant wordmark below — the brand
+                    now lives here at masthead scale, always visible, not as a
+                    Screen-1-only poster. Same shared layoutIds as TopBar's own
+                    brand (`intervu-brand`/`intervu-beta`) so leaving this
+                    screen still morphs smoothly into the masthead, even
+                    though both ends are now the same size. NAV_TABS minus
+                    "/" (Jobs — redundant on the page you're already on)
+                    covers Research/Pricing/Connect-your-AI by the tab's own
+                    `variant` property, not by naming them — a future NAV_TABS
+                    entry is covered for free. */}
+                {isOverlayAsk && (
+                    <header className="relative z-10 flex h-14 shrink-0 items-center justify-between px-4 lg:px-8">
+                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
                             <motion.span
                                 layoutId="intervu-brand"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="font-display text-[clamp(64px,11vw,132px)] font-black leading-[0.85] tracking-[-0.035em] text-foreground"
+                                className="font-display text-[18px] font-extrabold leading-none tracking-tight text-white"
                             >
                                 intervu
                             </motion.span>
                             <motion.span
                                 layoutId="intervu-beta"
                                 transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.8 }}
-                                className="mt-[clamp(8px,1.8vw,22px)] border-[1.5px] border-foreground/55 px-3 py-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.18em] text-foreground/70"
+                                className="rounded border border-white/25 px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-white/60"
                             >
                                 beta
                             </motion.span>
-                        </div>
+                        </Link>
+                        <nav aria-label="Primary" className="flex items-center gap-5">
+                            <div className="hidden items-center gap-5 text-[13.5px] font-medium text-white/70 sm:flex">
+                                {NAV_TABS.filter((tab) => tab.href !== "/" && tab.variant !== "cta").map((tab) => (
+                                    <Link
+                                        key={tab.href}
+                                        href={tab.href}
+                                        className="transition-colors duration-100 hover:text-white"
+                                    >
+                                        {tab.label}
+                                    </Link>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={toggleDark}
+                                // Distinct from TopBar's own `topbar-theme` (2026-08-03
+                                // fix): TopBar keeps rendering its full nav — tabs, theme
+                                // toggle, cta — even while `isOverlayAsk` is true; only its
+                                // wordmark hides. That real (if visually-covered-by-the-
+                                // z-50 overlay) button shares this page, so reusing its
+                                // testid here produced two matches for one query and broke
+                                // a Playwright locator (verified live).
+                                data-testid="hero-theme-toggle"
+                                aria-label={dark ? "Switch to day mode" : "Switch to night mode"}
+                                title={dark ? "Switch to day mode" : "Switch to night mode"}
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-white/70 transition-colors duration-100 hover:bg-white/10 hover:text-white"
+                            >
+                                {dark ? <Sun size={16} weight="bold" /> : <Moon size={16} weight="bold" />}
+                            </button>
+                            {!user && (
+                                <button
+                                    type="button"
+                                    data-testid="landing-login"
+                                    onClick={() => setAuthOpen(true)}
+                                    className="hidden text-[13px] font-medium text-white/70 transition-colors duration-100 hover:text-white sm:inline"
+                                >
+                                    Log in
+                                </button>
+                            )}
+                            {NAV_TABS.filter((tab) => tab.variant === "cta").map((tab) => (
+                                // Same "distinct from TopBar's own" reasoning as the theme
+                                // toggle above — `data-testid="hero-connect-cta"` rather than
+                                // `tab.testId` (TopBar's cta button already claims that one).
+                                <Button asChild size="sm" variant="brand" key={tab.href} data-testid="hero-connect-cta">
+                                    <Link href={tab.href}>{tab.label}</Link>
+                                </Button>
+                            ))}
+                        </nav>
+                    </header>
+                )}
+                <div
+                    className={cn(
+                        isOverlayAsk
+                            ? "relative z-10 mx-auto w-full max-w-[1200px] flex-1 px-4 pb-10 pt-2 lg:grid lg:grid-cols-[7fr_5fr] lg:items-center lg:gap-x-14 lg:px-8 lg:py-0"
+                            : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6",
                     )}
-                    {isOverlayAsk && (
-                        /* OpenClaw pitch hero (2026-08-02) — replaces the old
-                           MCP-pairing CTA block. Scoped `.openclaw` for the
-                           new violet/coral/amber palette (openclaw-marketing.css);
-                           the wordmark/beta chip above and the search box
-                           below stay on the app's normal palette on purpose —
-                           they're shared-layout / functional elements, not
-                           part of this pitch. */
-                        <div className="openclaw mb-9 flex flex-col items-center gap-6 rounded-3xl bg-background px-4 py-8 sm:px-8">
-                            <OpenclawStatusBadge />
-                            <h1 className="max-w-xl text-center text-[clamp(24px,3.6vw,38px)] font-bold leading-snug text-foreground">
-                                {OPENCLAW_HEADLINE}
-                            </h1>
-                            <WhatsAppThreadHero />
-                            <OpenclawWaitlistForm className="w-full max-w-sm" />
-                            <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-                                <Link href="/openclaw" className="underline underline-offset-2 hover:text-foreground">
-                                    See how it works
-                                </Link>
-                            </p>
-                        </div>
-                    )}
+                >
+                    {/* Left column: badge/headline/sub-line, the search line,
+                        works-with row, trust line. This wrapper is always
+                        rendered (only its className toggles between a grid
+                        column and CSS `contents` pass-through) so
+                        `data-search-line` below never changes ancestor shape
+                        between the two screens — see the file-level comment
+                        above `return` for why that must hold across every
+                        keystroke. Shared layoutIds (`intervu-brand`/
+                        `intervu-beta`, now in the slim nav row above) still
+                        morph into TopBar when results load; both ends are the
+                        same size now, so the "morph" is mostly seamless
+                        continuity rather than the old poster-to-masthead
+                        scale change. */}
+                    <div className={isOverlayAsk ? "flex min-w-0 flex-col gap-6 lg:col-start-1" : "contents"}>
+                        {isOverlayAsk && (
+                            <div className="flex flex-col gap-5">
+                                <OpenclawStatusBadge />
+                                <h1 className="font-display text-[clamp(36px,3.6vw,48px)] font-black leading-[1.06] tracking-[-0.02em] text-white [text-wrap:balance]">
+                                    {OPENCLAW_HEADLINE}
+                                </h1>
+                                <p className="max-w-md text-[15px] leading-relaxed text-white/60">{OPENCLAW_SUBLINE}</p>
+                            </div>
+                        )}
                     <div
                         data-search-line
                         className={cn(
                             isOverlayAsk
-                                ? // Poster bar: one sharp-cornered 2px ink rectangle,
-                                  // input + attached ink search block (the mock's
-                                  // squared geometry is Screen-1-only; the app keeps
-                                  // its radius system everywhere else).
-                                  "flex items-stretch border-2 border-foreground bg-card"
+                                ? // First-class product element (2026-08-03):
+                                  // a solid white pill on the night scene —
+                                  // deliberately NOT theme tokens (bg-white/
+                                  // text-neutral-900 are literal, not
+                                  // --background/--foreground) since this
+                                  // whole scene stays night in both site
+                                  // themes.
+                                  "flex h-[60px] items-stretch rounded-2xl bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]"
                                 : "flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3",
                         )}
                     >
@@ -2647,7 +2705,14 @@ function JobsContent() {
                             placeholder={searchPlaceholder}
                             className={cn(
                                 isOverlayAsk
-                                    ? "h-16 rounded-none border-0 bg-transparent px-5 text-[19px] shadow-none focus-visible:border-0 focus-visible:ring-0"
+                                    ? // `dark:bg-transparent` is load-bearing, not redundant:
+                                      // `Input`'s own base classes carry `dark:bg-muted/20`,
+                                      // which otherwise wins the cascade over a plain
+                                      // `bg-transparent` once the SITE is in dark mode,
+                                      // tinting this always-white pill grey (verified live,
+                                      // 2026-08-03) — this scene must not react to the site
+                                      // theme at all.
+                                      "h-[60px] rounded-2xl border-0 bg-transparent px-5 text-[16px] text-neutral-900 shadow-none placeholder:text-neutral-500 focus-visible:border-0 focus-visible:ring-2 focus-visible:ring-[rgb(var(--oc-coral))] focus-visible:ring-offset-0 dark:bg-transparent"
                                     : "h-11 rounded-xl border border-border bg-muted/40 px-3 text-[15px] shadow-none focus-visible:border-foreground focus-visible:ring-0",
                             )}
                             containerClassName="min-w-0 flex-1"
@@ -2658,9 +2723,9 @@ function JobsContent() {
                                 aria-label="Search"
                                 data-testid="hero-search-button"
                                 onClick={() => submitSearch(query)}
-                                className="flex w-16 shrink-0 items-center justify-center bg-foreground text-background transition-opacity duration-100 hover:opacity-90"
+                                className="flex w-16 shrink-0 items-center justify-center rounded-r-2xl bg-[rgb(var(--oc-coral))] text-white transition-opacity duration-100 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                             >
-                                <MagnifyingGlass size={26} weight="bold" />
+                                <MagnifyingGlass size={24} weight="bold" />
                             </button>
                         )}
                         {!isOverlayAsk && (
@@ -2690,6 +2755,31 @@ function JobsContent() {
                             </Button>
                         )}
                     </div>
+                        {isOverlayAsk && (
+                            <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-white/40">
+                                <span>works with</span>
+                                {CONNECT_CLIENTS.map((c) => (
+                                    <span
+                                        key={c.id}
+                                        className="rounded border border-white/15 px-2 py-0.5 text-white/60"
+                                    >
+                                        {c.label}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        {isOverlayAsk && (
+                            <p className="font-mono text-[11px] text-white/35">
+                                never submits for you · verified real listings · free
+                            </p>
+                        )}
+                    </div>
+                    {isOverlayAsk && (
+                        <div className="relative mt-10 flex items-center justify-center lg:col-start-2 lg:mt-0 lg:h-full">
+                            <DawnGlow className="absolute h-[420px] w-[420px]" />
+                            <WhatsAppThreadHero className="relative z-10" />
+                        </div>
+                    )}
 
                     {!isOverlayAsk && (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -2745,49 +2835,17 @@ function JobsContent() {
                         </div>
                     )}
 
-                    {isOverlayAsk ? (
-                        /* Seed chips (Vivek's mock): squared outline chips under the
-                           bar's left edge — recent searches first (each with a real
-                           per-chip ×), curated starters padding the row for a first
-                           visit (no × — there's nothing to remove). Click = search. */
-                        <div className="mt-4 flex flex-wrap gap-3">
-                            {searchSeeds.slice(0, 4).map((q) => {
-                                const isRecent = recentSearches.some(
-                                    (r) => r.toLowerCase() === q.toLowerCase(),
-                                );
-                                return (
-                                    <span
-                                        key={q}
-                                        className="flex h-11 items-stretch border border-border bg-card text-[15px] text-foreground transition-colors duration-100 hover:border-foreground"
-                                    >
-                                        <button
-                                            type="button"
-                                            data-testid="recent-search-chip"
-                                            onClick={() => submitSearch(q)}
-                                            className={cn("flex items-center pl-4", isRecent ? "pr-1.5" : "pr-4")}
-                                        >
-                                            {q}
-                                        </button>
-                                        {isRecent && (
-                                            <button
-                                                type="button"
-                                                aria-label={`Remove ${q} from recent searches`}
-                                                onClick={() => removeRecentSearch(q)}
-                                                className="flex items-center pl-1 pr-3 text-faint transition-colors duration-100 hover:text-foreground"
-                                            >
-                                                ×
-                                            </button>
-                                        )}
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    ) : null}
-
-                    {/* Marketing sections (P2.6·C) — below the fold of the
-                        Screen 1 composition; the fixed overlay container
-                        scrolls, so the landing doubles as the marketing page. */}
-                    {isOverlayAsk && <LandingMarketing />}
+                    {/* The old seed-chips row (recent/curated one-tap searches)
+                        and the below-the-fold `LandingMarketing` mount both
+                        lived here — dropped from Screen 1 (2026-08-03) to fit
+                        the one-viewport hero's fixed six-element budget
+                        (badge, headline, sub-line, search, works-with, trust
+                        line); `LandingMarketing` now mounts as a sibling
+                        below the whole hero block instead (still isOverlayAsk-
+                        gated, still requires scrolling past the hero to
+                        reach — see below `</div></div>`). The seed-chips'
+                        own `isSerpAsk` instance (chrome-preserving empty
+                        query) is untouched. */}
 
                     {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
                         the pinned band so it never scrolls away from the line it
@@ -2823,6 +2881,16 @@ function JobsContent() {
                     )}
                 </div>
             </div>
+
+            {/* Marketing sections (P2.6·C) — below the fold of the Screen 1
+                composition; moved here (2026-08-03) as a sibling of the hero
+                block above rather than nested inside it, since the hero
+                block is now a fixed one-viewport-tall flex column and
+                anything inside it would be clipped, not just scrolled past.
+                The fixed overlay container (this div's parent) still
+                scrolls, so the landing still doubles as the marketing page
+                below the fold. */}
+            {isOverlayAsk && <LandingMarketing />}
 
             {!isOverlayAsk && (
                 <main className="mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-1 gap-5 px-4 pb-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-hidden lg:px-8">
