@@ -19,7 +19,7 @@ import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { LandingMarketing } from "@/components/marketing/LandingMarketing";
+import { Footer } from "@/components/layout/Footer";
 import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
 import { OpenclawStatusBadge } from "@/components/marketing/OpenclawStatusBadge";
 import { WatchingWall } from "@/components/marketing/WatchingWall";
@@ -2836,14 +2836,13 @@ function JobsContent() {
                     )}
 
                     {/* The old seed-chips row (recent/curated one-tap searches)
-                        and the below-the-fold `LandingMarketing` mount both
                         lived here — dropped from Screen 1 (2026-08-03) to fit
                         the one-viewport hero's fixed six-element budget
                         (badge, headline, sub-line, search, works-with, trust
-                        line); `LandingMarketing` now mounts as a sibling
-                        below the whole hero block instead (still isOverlayAsk-
-                        gated, still requires scrolling past the hero to
-                        reach — see below `</div></div>`). The seed-chips'
+                        line). Below the fold there is now only the site
+                        Footer (see the sibling mount after the hero block);
+                        the condensed marketing sections were cut entirely —
+                        the full story lives at /openclaw. The seed-chips'
                         own `isSerpAsk` instance (chrome-preserving empty
                         query) is untouched. */}
 
@@ -2882,15 +2881,22 @@ function JobsContent() {
                 </div>
             </div>
 
-            {/* Marketing sections (P2.6·C) — below the fold of the Screen 1
-                composition; moved here (2026-08-03) as a sibling of the hero
-                block above rather than nested inside it, since the hero
-                block is now a fixed one-viewport-tall flex column and
-                anything inside it would be clipped, not just scrolled past.
-                The fixed overlay container (this div's parent) still
-                scrolls, so the landing still doubles as the marketing page
-                below the fold. */}
-            {isOverlayAsk && <LandingMarketing />}
+            {/* Below the one-viewport scene: just the site footer
+                (2026-08-03 — the condensed marketing sections that used to
+                live here were cut; the hero says it all and the full story
+                lives at /openclaw). The overlay covers the layout-mounted
+                Footer, so the SAME component mounts again inside the
+                overlay's scroll flow — wrapped in `.dark` because the hero
+                scene is theme-invariant night and the footer's semantic
+                tokens must resolve against that, not the site theme. */}
+            {isOverlayAsk && (
+                // `self-stretch -mx-6` escapes the overlay's `items-center`
+                // + `px-6` so the footer band runs full-bleed like a real
+                // site footer, not a centered content-width card.
+                <div className="dark -mx-6 self-stretch">
+                    <Footer />
+                </div>
+            )}
 
             {!isOverlayAsk && (
                 <main className="mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-1 gap-5 px-4 pb-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-hidden lg:px-8">
