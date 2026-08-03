@@ -47,6 +47,11 @@ export const AGENT = {
     MAX_REDIRECT_URIS: 10,
     MAX_REDIRECT_URI_LENGTH: 2048,
     MAX_CLIENT_NAME_LENGTH: 256,
+    /** `save_resume_variant`'s `resume_text` cap (tools.ts) — DoS/cost-
+     *  amplification guard: this field is agent-supplied free text written
+     *  straight into a Firestore document, so it needs a hard ceiling before
+     *  it ever reaches storage, same spirit as the DCR caps above. */
+    RESUME_TEXT_MAX_CHARS: 50_000,
 };
 
 /**

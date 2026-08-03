@@ -1,11 +1,15 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
-  toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied, type ToolDeps,
+  toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
+  toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
+  type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/jobs/query-understanding';
 import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
+import type { Pursuit, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
+import type { BaseResume } from '../../src/lib/resume/base-resume';
 
 /** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
  *  fixture matches production shape exactly — "Toronto"/"Canada" both clear
@@ -58,14 +62,28 @@ type SearchResultExtra = Partial<JobSearchResult> & {
   meta?: { degraded: boolean; servedFrom: 'live' | 'cache'; cachedAtMs?: number };
 };
 
+/** Extra stubbable behavior for the resume tools (Task: MCP resume tools) —
+ *  bundled as one optional trailing object rather than more positional
+ *  params, so every existing `stubDeps(...)` call site above stays
+ *  untouched. */
+interface ResumeStubDeps {
+  baseResume?: BaseResume;
+  pursuitByJobId?: Pick<Pursuit, 'id' | 'resume_versions'> | null;
+  saveResumeVersionResult?: { data?: ResumeVersionSnapshot; error?: string };
+}
+
 function stubDeps(
   hits: PublicJob[],
-  upsertResult: { data?: unknown; error?: string } = { data: { id: 'app-1' } },
+  upsertResult: { data?: Pick<Pursuit, 'id' | 'resume_versions'>; error?: string } = { data: { id: 'app-1' } },
   searchResultExtra: SearchResultExtra = {},
   vocab: LocationVocabulary = TEST_VOCAB,
+  resumeDeps: ResumeStubDeps = {},
 ) {
   const searchCalls: JobSearchParams[] = [];
   const upsertCalls: Array<{ uid: string; job: unknown; stage: string }> = [];
+  const getBaseResumeCalls: string[] = [];
+  const findPursuitCalls: Array<{ uid: string; jobId: string }> = [];
+  const saveResumeVersionCalls: Array<{ uid: string; pursuitId: string; input: { content: string; label: string } }> = [];
   const deps: ToolDeps = {
     uid: 'user-abc',
     search: async (p: JobSearchParams): Promise<JobSearchResult> => {
@@ -80,8 +98,22 @@ function stubDeps(
       upsertCalls.push({ uid, job, stage });
       return upsertResult;
     },
+    getBaseResume: async (uid) => {
+      getBaseResumeCalls.push(uid);
+      return resumeDeps.baseResume ?? { source: 'none' };
+    },
+    findPursuitByJobId: async (uid, jobId) => {
+      findPursuitCalls.push({ uid, jobId });
+      return resumeDeps.pursuitByJobId ?? null;
+    },
+    saveResumeVersion: async (uid, pursuitId, input) => {
+      saveResumeVersionCalls.push({ uid, pursuitId, input });
+      return resumeDeps.saveResumeVersionResult ?? {
+        data: { content: input.content, label: input.label, saved_at: '2026-08-02T00:00:00.000Z' },
+      };
+    },
   };
-  return { deps, searchCalls, upsertCalls };
+  return { deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls };
 }
 
 describe('toolSearchJobs', () => {
@@ -304,9 +336,24 @@ describe('toolMarkApplied', () => {
   it('upserts with stage "applied" using deps.uid', async () => {
     const { deps, upsertCalls } = stubDeps([makeJob()]);
     const out = await toolMarkApplied(deps, { id: 'job-1' });
-    assert.deepEqual(out, { marked: true });
+    assert.deepEqual(out, { marked: true, resume_on_file: false });
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'applied');
+  });
+
+  it('resume_on_file: false when the upserted pursuit has no resume_versions', async () => {
+    const { deps } = stubDeps([makeJob()], { data: { id: 'app-1', resume_versions: [] } });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { marked: true, resume_on_file: false });
+  });
+
+  it('resume_on_file: true when the upserted pursuit already carries a resume version — a pure read of existing state, not a new write', async () => {
+    const { deps, saveResumeVersionCalls } = stubDeps([makeJob()], {
+      data: { id: 'app-1', resume_versions: [{ content: 'c', label: 'v1', saved_at: '2026-08-01T00:00:00.000Z' }] },
+    });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { marked: true, resume_on_file: true });
+    assert.equal(saveResumeVersionCalls.length, 0);
   });
 
   it('returns an error object for an unknown id', async () => {
@@ -547,5 +594,138 @@ describe('toolSearchJobs — cursor pagination (Task 12 + review fix: page size 
     const out = await toolSearchJobs(deps, { cursor });
     assert.deepEqual(out, { error: 'invalid cursor' });
     assert.equal(searchCalls.length, 0);
+  });
+});
+
+describe('toolGetResume', () => {
+  it('relays deps.getBaseResume verbatim — resume_data source', async () => {
+    const baseResume: BaseResume = {
+      source: 'resume_data',
+      resume_data: {
+        profile: { name: 'Ada', profession: 'Engineer', yearsOfExperience: 5, location: '', email: '', phone: '' },
+        experience: [], competencies: [], education: [], generatedSummary: '',
+      },
+    };
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { baseResume });
+    const out = await toolGetResume(deps, {});
+    assert.deepEqual(out, baseResume);
+  });
+
+  it('relays deps.getBaseResume verbatim — resume_text source', async () => {
+    const baseResume: BaseResume = { source: 'resume_text', resume_text: 'Plain text resume' };
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { baseResume });
+    const out = await toolGetResume(deps, {});
+    assert.deepEqual(out, baseResume);
+  });
+
+  it('empty state: neither resume_data nor resume_text on file returns an explicit none, never a fabricated placeholder', async () => {
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { baseResume: { source: 'none' } });
+    const out = await toolGetResume(deps, {});
+    assert.deepEqual(out, { source: 'none' });
+  });
+
+  it('uid never taken from input — always deps.uid, even if an attacker-controlled input carries its own uid field', async () => {
+    const { deps, getBaseResumeCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { baseResume: { source: 'none' } });
+    await toolGetResume(deps, { uid: 'attacker-controlled-uid' } as unknown as Record<string, never>);
+    assert.deepEqual(getBaseResumeCalls, ['user-abc']);
+  });
+});
+
+describe('toolSaveResumeVariant', () => {
+  it('validates content+label BEFORE touching the pursuit: blank resume_text errors and creates nothing', async () => {
+    const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()]);
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: '   ', label: 'v1' });
+    assert.ok('error' in out);
+    assert.equal(upsertCalls.length, 0);
+    assert.equal(saveResumeVersionCalls.length, 0);
+  });
+
+  it('validates content+label BEFORE touching the pursuit: blank label errors and creates nothing', async () => {
+    const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()]);
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'My resume', label: '  ' });
+    assert.ok('error' in out);
+    assert.equal(upsertCalls.length, 0);
+    assert.equal(saveResumeVersionCalls.length, 0);
+  });
+
+  it('resolves/creates the pursuit at stage "interested" (never consumes the apply cap) then files the snapshot', async () => {
+    const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()], { data: { id: 'app-1' } });
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'My tailored resume', label: 'Acme v1' });
+    assert.deepEqual(out, { saved: true });
+    assert.equal(upsertCalls.length, 1);
+    assert.equal(upsertCalls[0].uid, 'user-abc');
+    assert.equal(upsertCalls[0].stage, 'interested');
+    assert.equal(saveResumeVersionCalls.length, 1);
+    assert.equal(saveResumeVersionCalls[0].uid, 'user-abc');
+    assert.equal(saveResumeVersionCalls[0].pursuitId, 'app-1');
+    assert.deepEqual(saveResumeVersionCalls[0].input, { content: 'My tailored resume', label: 'Acme v1' });
+  });
+
+  it('returns an error for an unknown job_id and never calls saveResumeVersion', async () => {
+    const { deps, saveResumeVersionCalls } = stubDeps([makeJob()]);
+    const out = await toolSaveResumeVariant(deps, { job_id: 'nope', resume_text: 'text', label: 'v1' });
+    assert.deepEqual(out, { error: 'job not found' });
+    assert.equal(saveResumeVersionCalls.length, 0);
+  });
+
+  it('propagates backend-unavailable and never calls upsert or saveResumeVersion', async () => {
+    const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([], undefined, { unavailable: true });
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'text', label: 'v1' });
+    assert.deepEqual(out, { error: 'search backend unavailable' });
+    assert.equal(upsertCalls.length, 0);
+    assert.equal(saveResumeVersionCalls.length, 0);
+  });
+
+  it('propagates a real saveResumeVersion error instead of fabricating success', async () => {
+    const { deps } = stubDeps([makeJob()], { data: { id: 'app-1' } }, {}, TEST_VOCAB, {
+      saveResumeVersionResult: { error: 'Pursuit not found' },
+    });
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'text', label: 'v1' });
+    assert.deepEqual(out, { error: 'Pursuit not found' });
+  });
+
+  it('uid never taken from input — always deps.uid, even if an attacker-controlled input carries its own uid field', async () => {
+    const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()], { data: { id: 'app-1' } });
+    await toolSaveResumeVariant(deps, {
+      job_id: 'job-1', resume_text: 'text', label: 'v1', uid: 'attacker-controlled-uid',
+    } as unknown as SaveResumeVariantInput);
+    assert.equal(upsertCalls[0].uid, 'user-abc');
+    assert.equal(saveResumeVersionCalls[0].uid, 'user-abc');
+  });
+});
+
+describe('toolGetResumeVariant', () => {
+  it('empty state: no pursuit on file for this job_id returns an empty array, not an error', async () => {
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: null });
+    const out = await toolGetResumeVariant(deps, { job_id: 'job-1' });
+    assert.deepEqual(out, { variants: [] });
+  });
+
+  it('empty state: a pursuit exists but has no resume_versions filed returns an empty array', async () => {
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: { id: 'app-1' } });
+    const out = await toolGetResumeVariant(deps, { job_id: 'job-1' });
+    assert.deepEqual(out, { variants: [] });
+  });
+
+  it('returns filed variants latest-first', async () => {
+    const oldest: ResumeVersionSnapshot = { content: 'c1', label: 'v1', saved_at: '2026-07-01T00:00:00.000Z' };
+    const newest: ResumeVersionSnapshot = { content: 'c2', label: 'v2', saved_at: '2026-08-01T00:00:00.000Z' };
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, {
+      pursuitByJobId: { id: 'app-1', resume_versions: [oldest, newest] },
+    });
+    const out = await toolGetResumeVariant(deps, { job_id: 'job-1' });
+    assert.deepEqual(out, { variants: [newest, oldest] });
+  });
+
+  it('scopes the lookup to the caller: findPursuitByJobId is called with the job_id and deps.uid', async () => {
+    const { deps, findPursuitCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: null });
+    await toolGetResumeVariant(deps, { job_id: 'job-1' });
+    assert.deepEqual(findPursuitCalls, [{ uid: 'user-abc', jobId: 'job-1' }]);
+  });
+
+  it('uid never taken from input — always deps.uid, even if an attacker-controlled input carries its own uid field', async () => {
+    const { deps, findPursuitCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: null });
+    await toolGetResumeVariant(deps, { job_id: 'job-1', uid: 'attacker-controlled-uid' } as unknown as { job_id: string });
+    assert.deepEqual(findPursuitCalls, [{ uid: 'user-abc', jobId: 'job-1' }]);
   });
 });

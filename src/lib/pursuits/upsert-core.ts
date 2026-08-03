@@ -5,6 +5,27 @@ import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } 
 import { isNewAppliedTransition, assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 
 /**
+ * Find the caller's own pursuit for a job_id, or `null` if none exists yet —
+ * the ONE place the `user_id == uid AND job_id == jobId` query is written.
+ * `upsertPursuitCore` below uses it as its find-half; callers that need to
+ * know "does a pursuit already exist for this job" WITHOUT creating one
+ * (e.g. the MCP `get_resume_variant` tool, `ToolDeps.findPursuitByJobId` in
+ * `lib/agent/tools.ts`) call this directly instead of duplicating the query.
+ */
+export async function findPursuitByJobId(uid: string, jobId: string): Promise<Pursuit | null> {
+    const db = getAdminDb();
+    const snap = await db
+        .collection("applications")
+        .where("user_id", "==", uid)
+        .where("job_id", "==", jobId)
+        .limit(1)
+        .get();
+    if (snap.empty) return null;
+    const doc = snap.docs[0];
+    return { id: doc.id, ...doc.data() } as Pursuit;
+}
+
+/**
  * The find-or-create-by-job_id chokepoint every "this job is now (at least)
  * this far along" write funnels through — `goAfterJobAction` (stage
  * "interested") and `markJobAppliedAction` (stage "applied", see
@@ -41,12 +62,7 @@ export async function upsertPursuitCore(
         if (!parsed.ok) return { error: parsed.error };
 
         const db = getAdminDb();
-        const existingSnap = await db
-            .collection("applications")
-            .where("user_id", "==", uid)
-            .where("job_id", "==", parsed.data.job_id)
-            .limit(1)
-            .get();
+        const existing = await findPursuitByJobId(uid, parsed.data.job_id);
 
         const now = new Date().toISOString();
         const snapshot: JobSnapshot = {
@@ -57,9 +73,7 @@ export async function upsertPursuitCore(
             apply_url: parsed.data.apply_url,
         };
 
-        if (!existingSnap.empty) {
-            const doc = existingSnap.docs[0];
-            const existing = { id: doc.id, ...doc.data() } as Pursuit;
+        if (existing) {
             const merged = mergeGuestPursuit(existing, {
                 ...existing,
                 status: parsed.data.stage,
@@ -72,7 +86,7 @@ export async function upsertPursuitCore(
             if (isNewAppliedTransition(merged.status, existing.status)) {
                 await assertUnderDailyApplyCap(uid);
             }
-            await doc.ref.update({
+            await db.collection("applications").doc(existing.id).update({
                 status: merged.status,
                 job_snapshot: merged.job_snapshot ?? null,
                 updated_at: now,

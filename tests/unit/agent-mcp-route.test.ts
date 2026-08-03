@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
   extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS, searchJobsInput,
+  getResumeInput, saveResumeVariantInput, getResumeVariantInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 
@@ -123,5 +124,67 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
 
   it('every new field stays optional (an empty object still parses)', () => {
     assert.equal(searchJobsInput.safeParse({}).success, true);
+  });
+});
+
+describe('mcp route: get_resume wire schema (MCP resume tools)', () => {
+  it('accepts an empty object — get_resume needs no input, uid comes from deps', () => {
+    assert.equal(getResumeInput.safeParse({}).success, true);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = getResumeInput.parse({ uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
+    assert.deepEqual(parsed, {});
+  });
+});
+
+describe('mcp route: save_resume_variant wire schema (MCP resume tools)', () => {
+  const valid = { job_id: 'job-1', resume_text: 'My tailored resume', label: 'Acme v1' };
+
+  it('accepts a well-formed input', () => {
+    assert.equal(saveResumeVariantInput.safeParse(valid).success, true);
+  });
+
+  it('rejects a missing job_id', () => {
+    assert.equal(saveResumeVariantInput.safeParse({ resume_text: valid.resume_text, label: valid.label }).success, false);
+  });
+
+  it('rejects an empty resume_text', () => {
+    assert.equal(saveResumeVariantInput.safeParse({ ...valid, resume_text: '' }).success, false);
+  });
+
+  it('rejects an empty label', () => {
+    assert.equal(saveResumeVariantInput.safeParse({ ...valid, label: '' }).success, false);
+  });
+
+  it('DoS/cost-amplification guard: rejects resume_text longer than AGENT.RESUME_TEXT_MAX_CHARS', () => {
+    assert.equal(AGENT.RESUME_TEXT_MAX_CHARS, 50_000);
+    const tooLong = { ...valid, resume_text: 'x'.repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1) };
+    assert.equal(saveResumeVariantInput.safeParse(tooLong).success, false);
+  });
+
+  it('accepts resume_text right at the cap', () => {
+    const atCap = { ...valid, resume_text: 'x'.repeat(AGENT.RESUME_TEXT_MAX_CHARS) };
+    assert.equal(saveResumeVariantInput.safeParse(atCap).success, true);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = saveResumeVariantInput.parse({ ...valid, uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
+    assert.deepEqual(parsed, valid);
+  });
+});
+
+describe('mcp route: get_resume_variant wire schema (MCP resume tools)', () => {
+  it('accepts a well-formed input', () => {
+    assert.equal(getResumeVariantInput.safeParse({ job_id: 'job-1' }).success, true);
+  });
+
+  it('rejects a missing job_id', () => {
+    assert.equal(getResumeVariantInput.safeParse({}).success, false);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = getResumeVariantInput.parse({ job_id: 'job-1', uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
+    assert.deepEqual(parsed, { job_id: 'job-1' });
   });
 });
