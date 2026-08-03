@@ -7,9 +7,14 @@
  * of forking a second, drifting copy of the list.
  *
  * Stealth: no founder names or personal identity anywhere in this copy.
- * Product status: NOT shippable yet (skill unmerged, resume MCP tools
- * undeployed) — every surface reading this module frames it as early
- * access / join-the-list, never "install now."
+ * Product status (2026-08-02): the resume MCP tools (get_resume /
+ * save_resume_variant / get_resume_variant) are live — this copy is not
+ * waiting on those. The one still-unavailable piece is the OpenClaw skill
+ * itself: merged into a private repo with no public home yet, and the
+ * mcporter pairing path is untested. Every surface reading this module
+ * should frame its ask around that one specific gap (never a vague "beta"
+ * label — a generic badge on one unshipped piece reads like the whole
+ * product is unshipped) and never "install now."
  */
 
 export const OPENCLAW_HEADLINE =

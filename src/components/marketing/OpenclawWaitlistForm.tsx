@@ -21,8 +21,8 @@ interface OpenclawWaitlistFormProps {
  * copy that actually differs per placement is a prop.
  */
 export function OpenclawWaitlistForm({
-  ctaLabel = "Get early access",
-  successMessage = "You're on the list — we'll email you when it's ready.",
+  ctaLabel = "Email me when it's ready",
+  successMessage = "You're on the list — we'll email you the moment the OpenClaw skill is installable.",
   className,
 }: OpenclawWaitlistFormProps) {
   const [email, setEmail] = useState("");

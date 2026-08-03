@@ -19,7 +19,7 @@ import {
 export const metadata: Metadata = {
   title: "OpenClaw — an overnight job-application agent",
   description:
-    "A self-hosted agent that finds matching roles overnight, tailors your resume, fills out the form, and hands you a finished draft to review on WhatsApp. You always click submit. Early access.",
+    "A self-hosted agent that finds matching roles overnight, tailors your resume, fills out the form, and hands you a finished draft to review on WhatsApp. You always click submit. The skill isn't installable yet — join the list to be notified.",
 };
 
 export default function OpenclawPage() {
@@ -28,7 +28,7 @@ export default function OpenclawPage() {
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
         <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]">
-          OpenClaw · Early access
+          OpenClaw skill · not installable yet
         </p>
         <h1 className="mt-4 max-w-2xl font-display text-[clamp(28px,4.4vw,44px)] font-extrabold leading-[1.1] text-foreground">
           {OPENCLAW_HEADLINE}
@@ -144,10 +144,10 @@ export default function OpenclawPage() {
       <section aria-label="Join the waitlist" className="border-t border-border py-16">
         <div className="mx-auto flex max-w-3xl flex-col items-center px-4 text-center sm:px-6">
           <h2 className="font-display text-[clamp(22px,3vw,30px)] font-bold text-foreground">
-            Join early access
+            Get notified when it&apos;s installable
           </h2>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
-            We&apos;ll email you the moment it&apos;s ready to pair with your resume.
+            We&apos;ll email you the moment the OpenClaw skill is installable.
           </p>
           <OpenclawWaitlistForm className="mt-6 w-full max-w-sm" />
           <p className="mt-8 text-xs text-muted-foreground">
