@@ -1,0 +1,100 @@
+<!doctype html>
+<!--
+  intervu-apply resume template.
+
+  Filled by ../scripts/render-resume.mjs via plain {{TOKEN}} string substitution.
+  No template engine, no external assets — must render correctly opened as a
+  bare file:// URL with zero network access, then printed with `browser pdf`.
+
+  Token contract:
+    Plain text tokens   — NAME, TITLE, EMAIL, PHONE, LOCATION, LINKS, SUMMARY, SKILLS
+    HTML fragment tokens — EXPERIENCE, EDUCATION, PROJECTS
+      Each is a caller-built string of one or more:
+        <div class="entry">
+          <div class="entry-header"><span>Role</span><span>Dates</span></div>
+          <div class="entry-sub"><span>Company</span><span>Location</span></div>
+          <ul><li>Bullet...</li></ul>
+        </div>
+      Pass "" for a section that doesn't apply (e.g. no PROJECTS) — the
+      section header still renders, empty. That's fine for v1.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{NAME}} — Resume</title>
+<style>
+  @page { size: letter; margin: 0.6in; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1a1a1a;
+    max-width: 7.5in;
+    margin: 0 auto;
+    padding: 0.4in 0.3in;
+    line-height: 1.4;
+    font-size: 10.5pt;
+  }
+  header { text-align: center; margin-bottom: 14px; border-bottom: 1.5px solid #1a1a1a; padding-bottom: 10px; }
+  h1 { font-size: 20pt; margin: 0 0 2px; letter-spacing: 0.5px; }
+  .title { font-size: 11pt; color: #444; margin: 0 0 6px; }
+  .contact { font-size: 9pt; color: #444; }
+  .contact span:not(:last-child)::after { content: " \00b7 "; }
+  section { margin-top: 14px; }
+  section:first-of-type { margin-top: 0; }
+  h2 {
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #999;
+    margin: 0 0 8px;
+    padding-bottom: 2px;
+  }
+  .entry { margin-bottom: 8px; }
+  .entry:last-child { margin-bottom: 0; }
+  .entry-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 10.5pt; }
+  .entry-sub { display: flex; justify-content: space-between; font-style: italic; color: #444; font-size: 9.5pt; margin-bottom: 2px; }
+  ul { margin: 2px 0 0; padding-left: 18px; }
+  li { margin-bottom: 2px; }
+  p { margin: 0; }
+  @media print {
+    body { padding: 0; }
+    .entry { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>{{NAME}}</h1>
+    <p class="title">{{TITLE}}</p>
+    <p class="contact">
+      <span>{{EMAIL}}</span><span>{{PHONE}}</span><span>{{LOCATION}}</span><span>{{LINKS}}</span>
+    </p>
+  </header>
+
+  <section>
+    <h2>Summary</h2>
+    <p>{{SUMMARY}}</p>
+  </section>
+
+  <section>
+    <h2>Experience</h2>
+    {{EXPERIENCE}}
+  </section>
+
+  <section>
+    <h2>Skills</h2>
+    <p>{{SKILLS}}</p>
+  </section>
+
+  <section>
+    <h2>Education</h2>
+    {{EDUCATION}}
+  </section>
+
+  <section>
+    <h2>Projects</h2>
+    {{PROJECTS}}
+  </section>
+</body>
+</html>
