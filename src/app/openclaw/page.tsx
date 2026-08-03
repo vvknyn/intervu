@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Check, X } from "@phosphor-icons/react/dist/ssr";
 import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
+import { OpenclawStatusBadge } from "@/components/marketing/OpenclawStatusBadge";
 import { CopyCommand } from "@/components/marketing/CopyCommand";
 import {
   OPENCLAW_HEADLINE,
@@ -27,9 +28,7 @@ export default function OpenclawPage() {
     <main data-testid="openclaw-page" className="openclaw bg-background">
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]">
-          OpenClaw skill · not installable yet
-        </p>
+        <OpenclawStatusBadge />
         <h1 className="mt-4 max-w-2xl font-display text-[clamp(28px,4.4vw,44px)] font-extrabold leading-[1.1] text-foreground">
           {OPENCLAW_HEADLINE}
         </h1>

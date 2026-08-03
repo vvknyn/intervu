@@ -20,6 +20,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { LandingMarketing } from "@/components/marketing/LandingMarketing";
 import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
+import { OpenclawStatusBadge } from "@/components/marketing/OpenclawStatusBadge";
 import { OPENCLAW_HEADLINE } from "@/components/marketing/openclaw-content";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
@@ -2606,6 +2607,7 @@ function JobsContent() {
                            they're shared-layout / functional elements, not
                            part of this pitch. */
                         <div className="openclaw mb-9 flex flex-col items-center gap-6 rounded-3xl bg-background px-4 py-8 sm:px-8">
+                            <OpenclawStatusBadge />
                             <h1 className="max-w-xl text-center text-[clamp(24px,3.6vw,38px)] font-bold leading-snug text-foreground">
                                 {OPENCLAW_HEADLINE}
                             </h1>
