@@ -103,7 +103,7 @@ export interface SetupStep extends ContentStep {
 /** Setup in 3 steps — condensed (landing) shows titles only, full
  *  (/openclaw) shows title + body + the copyable command on step 2. */
 export const SETUP_STEPS: readonly SetupStep[] = [
-  { title: "Install OpenClaw", body: "Set up the self-hosted agent framework on your own machine." },
+  { title: "Install OpenClaw", body: "The open-source assistant that runs on your own machine." },
   {
     title: "Authenticate",
     body: "Point it at intervu's data with your own key.",

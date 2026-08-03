@@ -34,8 +34,8 @@ export default function OpenclawPage() {
           {OPENCLAW_HEADLINE}
         </h1>
         <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-          A self-hosted AI agent framework that runs an overnight loop against your resume and the real job market,
-          then hands you a finished draft to review — never one it sent for you.
+          A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you
+          sleep and messages you on WhatsApp when an application is ready. You read it, you send it.
         </p>
         <WhatsAppThreadHero className="mt-10" />
         <OpenclawWaitlistForm className="mt-10 w-full max-w-sm" />
