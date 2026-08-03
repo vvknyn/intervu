@@ -21,6 +21,17 @@ export const OPENCLAW_HEADLINE =
   "While you slept, it found jobs, tailored your resume, and filled out the form. You just hit submit.";
 
 /**
+ * The one-line qualifier under the headline — verbatim from /openclaw's own
+ * hero paragraph (`src/app/openclaw/page.tsx`), hoisted here so the landing
+ * hero (2026-08-03 rebuild) reads the same sentence instead of new marketing
+ * copy. /openclaw's own JSX still has its own inline copy of this text (that
+ * page is out of scope for the landing rebuild); a follow-up can point it at
+ * this export too so there is only one place to edit.
+ */
+export const OPENCLAW_SUBLINE =
+  "A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you sleep and messages you on WhatsApp when an application is ready. You read it, you send it.";
+
+/**
  * Honest status qualifier for the headline above — the skill itself isn't
  * installable yet (see module comment). Rendered by `OpenclawStatusBadge`
  * (`./OpenclawStatusBadge`) wherever `OPENCLAW_HEADLINE` appears, so the

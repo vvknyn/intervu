@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { Sun, Moon } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { subscribeDark, getDarkSnapshot, getDarkServerSnapshot, toggleDark } from "@/lib/theme/dark-mode";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
@@ -35,37 +36,6 @@ function getOverlayAskServerSnapshot(): boolean {
 }
 
 const BRAND_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.8 };
-
-// Dark mode ported from AppShell's footer toggle: same class-on-<html> flip,
-// same "intervu-dark" persistence key (which layout.tsx's no-flash inline
-// script reads before paint). Only the React wiring differs — AppShell read
-// the class into state in a mount effect, which the react-hooks lint now
-// rejects (set-state-in-effect); useSyncExternalStore is the equivalent
-// hydration-safe shape: server snapshot false = what SSR renders, the client
-// snapshot reads the real class, toggleDark writes then notifies.
-const darkListeners = new Set<() => void>();
-function subscribeDark(onChange: () => void) {
-    darkListeners.add(onChange);
-    return () => darkListeners.delete(onChange);
-}
-function getDarkSnapshot(): boolean {
-    return document.documentElement.classList.contains("dark");
-}
-function getDarkServerSnapshot(): boolean {
-    return false;
-}
-function toggleDark() {
-    const root = document.documentElement;
-    const next = !root.classList.contains("dark");
-    if (next) root.classList.add("dark");
-    else root.classList.remove("dark");
-    try {
-        localStorage.setItem("intervu-dark", next ? "1" : "0");
-    } catch {
-        /* ignore */
-    }
-    darkListeners.forEach((cb) => cb());
-}
 
 function initialsOf(user: User): string {
     const src = (user.displayName || user.email || "?").trim();
