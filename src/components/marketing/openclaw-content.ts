@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the OpenClaw pitch copy, shared between the
  * landing hero (`src/app/page.tsx`), the condensed landing sections
- * (`LandingMarketing.tsx`), and the full story at `src/app/openclaw/page.tsx`.
+ * (hero in `src/app/page.tsx`), and the full story at `src/app/openclaw/page.tsx`.
  * All three read from these exports rather than each hand-copying the same
  * sentences — "condensed" placements slice/shorten these same arrays instead
  * of forking a second, drifting copy of the list.
