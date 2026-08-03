@@ -9,20 +9,23 @@ import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
-    toolGetPreferences, toolSetPreferences,
-    EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, type ToolDeps,
+    toolGetPreferences, toolSetPreferences, toolGetApplications,
+    EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ToolDeps,
 } from "@/lib/agent/tools";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { optionalString } from "@/lib/validation";
 import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
 import { upsertPursuitCore, findPursuitByJobId } from "@/lib/pursuits/upsert-core";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
+import { listPursuitsForUser } from "@/lib/pursuits/list";
+import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 
 /**
  * POST/GET/DELETE /api/mcp — Streamable HTTP entrypoint for intervu's agent
  * tools (search_jobs, get_job, save_job, mark_applied, get_resume,
- * save_resume_variant, get_resume_variant, get_preferences, set_preferences).
+ * save_resume_variant, get_resume_variant, get_applications, get_preferences,
+ * set_preferences).
  *
  * Auth is hand-rolled rather than routed through `mcp-handler`'s
  * `withMcpAuth`: that helper's own 401/403 response (an RFC 6749 OAuth error
@@ -92,6 +95,7 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
             saveResumeVersion: saveResumeVersionForPursuit,
             getPreferences: getAgentPreferences,
             setPreferences: setAgentPreferences,
+            listApplications: listPursuitsForUser,
         };
         return toolResult(await run(deps, input));
     };
@@ -106,11 +110,19 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
  *  `employment_type` reuse the SAME `EXPERIENCE_LEVELS`/`EMPLOYMENT_TYPES`
  *  arrays `tools.ts` maps with, so the wire's allowed values and the mapping
  *  logic's allowed values can never drift apart. */
-/** The one `postedWithinDays` 7|30|90 union — shared by `searchJobsInput`
- *  and `set_preferences`'s `search` patch schema below, so the wire's
- *  allowed values can never drift between the two tools that both carry a
- *  `postedWithinDays` field. */
-const postedWithinDaysSchema = z.union([z.literal(7), z.literal(30), z.literal(90)]);
+/** The one `postedWithinDays` 7|30|90 union — built from `tools.ts`'s
+ *  `POSTED_WITHIN_DAYS_OPTIONS` (the same array `POSTED_WITHIN_DAYS_TO_BUCKET`
+ *  keys off of) rather than a second literal 7|30|90 union, and shared by
+ *  `searchJobsInput` and `set_preferences`'s `search` patch schema below, so
+ *  the wire's allowed values can never drift from the tools' or between the
+ *  two tools that both carry a `postedWithinDays` field. `z.union` needs a
+ *  literal tuple for clean literal-type inference, so this reads each entry
+ *  off `POSTED_WITHIN_DAYS_OPTIONS` by index rather than `.map()`ing it. */
+const postedWithinDaysSchema = z.union([
+    z.literal(POSTED_WITHIN_DAYS_OPTIONS[0]),
+    z.literal(POSTED_WITHIN_DAYS_OPTIONS[1]),
+    z.literal(POSTED_WITHIN_DAYS_OPTIONS[2]),
+]);
 
 export const searchJobsInput = z.object({
     query: z.string().optional(),
@@ -177,7 +189,9 @@ const searchPreferencesPatchInput = z.object({
  *  capped both per-entry (200-char key, `PREFERENCES_STRING_MAX_CHARS`-char
  *  value) and in entry count (`PREFERENCES_CUSTOM_ANSWERS_MAX`) — the same
  *  DoS/cost-amplification spirit as `RESUME_TEXT_MAX_CHARS`, since this
- *  writes straight into a Firestore document. */
+ *  writes straight into a Firestore document. A `custom` value of `null`
+ *  deletes that key on merge (`.nullable()` — see
+ *  `AgentPreferencesPatch.answers.custom`'s doc comment in preferences.ts). */
 const answerPreferencesPatchInput = z.object({
     workAuthorization: prefString(),
     relocation: prefString(),
@@ -185,7 +199,7 @@ const answerPreferencesPatchInput = z.object({
     startDate: prefString(),
     salaryExpectation: prefString(),
     custom: z
-        .record(z.string().max(200), z.string().max(AGENT.PREFERENCES_STRING_MAX_CHARS))
+        .record(z.string().max(200), z.string().max(AGENT.PREFERENCES_STRING_MAX_CHARS).nullable())
         .refine(
             (obj) => Object.keys(obj).length <= AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX,
             `custom answers capped at ${AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX} entries`,
@@ -201,6 +215,15 @@ const answerPreferencesPatchInput = z.object({
 export const setPreferencesInput = z.object({
     search: searchPreferencesPatchInput.optional(),
     answers: answerPreferencesPatchInput.optional(),
+});
+
+/** `get_applications`'s `status` filter reuses `PURSUIT_STAGES`
+ *  (`lib/pursuits/types.ts`) — the ONE place every pursuit status value is
+ *  enumerated — so this tool's wire vocabulary can never drift from the
+ *  values `listPursuitsForUser` actually stores/queries against. */
+export const getApplicationsInput = z.object({
+    status: z.enum(PURSUIT_STAGES).optional(),
+    limit: z.number().int().min(1).max(AGENT.APPLICATIONS_MAX_LIMIT).optional(),
 });
 
 const mcpHandler = createMcpHandler(
@@ -292,6 +315,21 @@ const mcpHandler = createMcpHandler(
             withDeps(toolGetResumeVariant)
         );
         server.registerTool(
+            "get_applications",
+            {
+                title: "Get your application history",
+                description:
+                    "Get YOUR OWN application/pursuit history on file at intervu — never another user's — the " +
+                    "same tracker intervu's own /yours page shows. Optionally filter by status " +
+                    `(${PURSUIT_STAGES.join("|")}). Newest-updated first. Returns up to ` +
+                    `${AGENT.APPLICATIONS_MAX_LIMIT} results per call (default ${AGENT.APPLICATIONS_DEFAULT_LIMIT}). ` +
+                    "Each entry reports resume_on_file/latest_resume_label but never the resume content itself — " +
+                    "call get_resume_variant for that.",
+                inputSchema: getApplicationsInput,
+            },
+            withDeps(toolGetApplications)
+        );
+        server.registerTool(
             "get_preferences",
             {
                 title: "Get your agent preferences",
@@ -313,7 +351,8 @@ const mcpHandler = createMcpHandler(
                     "Save YOUR OWN search preferences and/or standing application answers, shared across every " +
                     "AI client paired to your account. Give just the section(s) that are changing — search and " +
                     "answers merge independently per field, so setting one value (e.g. just location) never " +
-                    "wipes sibling fields in that section or touches the other section.",
+                    "wipes sibling fields in that section or touches the other section. Custom answers merge " +
+                    "key-by-key too — set a custom answer's value to null to remove it.",
                 inputSchema: setPreferencesInput,
             },
             withDeps(toolSetPreferences)

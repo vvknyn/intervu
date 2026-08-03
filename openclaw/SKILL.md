@@ -45,11 +45,11 @@ check is a real call (e.g. `get_resume`). If a real call returns an OAuth/401
 error, THEN ask the user to run `mcporter auth intervu-cc-mcp` and continue
 after they say done.
 
-All nine tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
+All ten tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
 (returns `resume_on_file`), `get_resume`, `save_resume_variant`,
-`get_resume_variant`, `get_preferences`, `set_preferences`. If a resume tool
-errors, say so and stop the PREPARE flow there — do not invent resume content
-to route around it.
+`get_resume_variant`, `get_applications`, `get_preferences`,
+`set_preferences`. If a resume tool errors, say so and stop the PREPARE flow
+there — do not invent resume content to route around it.
 
 ## State
 
@@ -312,9 +312,12 @@ their own words — not inferred from silence or a screenshot):
 Build ONLY from what this skill's own state and the intervu tools can verify
 — never invent counts:
 
-1. From `memory`/state: how many applications were prepared this week, how
-   many the user confirmed submitted (RECORD runs), what's still sitting in
-   `preparedAwaitingSubmit`.
+1. `mcporter call intervu-cc-mcp.get_applications --args '{"status":"applied","limit":50}' --output json`
+   — intervu's own tracker, not local state, is the source of truth for how
+   many applications actually got submitted (filter its `updated_at` to this
+   week). Local `memory`/state stays authoritative ONLY for what nothing else
+   tracks: how many applications were prepared this week, and what's still
+   sitting in `preparedAwaitingSubmit`.
 2. For each job the user submitted to in the last 30 days (from state), call
    `mcporter call intervu-cc-mcp.get_job --args '{"id":"<id>"}'` and report
    any that closed or turned ghost (`vacancy_status` / `ghost_badge`

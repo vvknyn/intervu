@@ -74,6 +74,26 @@ describe("mergeAgentPreferences", () => {
         });
     });
 
+    it("a custom key patched to null is removed while sibling custom keys survive", () => {
+        const withSiblings: AgentPreferences = {
+            ...existing,
+            answers: { ...existing.answers, custom: { visa: "no sponsorship needed", clearance: "none" } },
+        };
+        const out = mergeAgentPreferences(withSiblings, { answers: { custom: { visa: null } } });
+        assert.deepEqual(out.answers.custom, { clearance: "none" });
+    });
+
+    it("adding a new custom key and deleting an old one in the SAME call does both correctly", () => {
+        const withSiblings: AgentPreferences = {
+            ...existing,
+            answers: { ...existing.answers, custom: { visa: "no sponsorship needed", clearance: "none" } },
+        };
+        const out = mergeAgentPreferences(withSiblings, {
+            answers: { custom: { visa: null, salary_history: "not disclosed" } },
+        });
+        assert.deepEqual(out.answers.custom, { clearance: "none", salary_history: "not disclosed" });
+    });
+
     it("an empty patch still returns configured:true and a fresh updated_at", () => {
         const out = mergeAgentPreferences(existing, {});
         assert.equal(out.configured, true);

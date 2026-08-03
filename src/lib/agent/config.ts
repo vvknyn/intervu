@@ -60,6 +60,13 @@ export const AGENT = {
      *  bounds how many custom Q&A pairs an agent can write into one
      *  Firestore document per request, same DoS/cost-amplification spirit. */
     PREFERENCES_CUSTOM_ANSWERS_MAX: 40,
+    /** `get_applications`'s default page size (tools.ts) — how many pursuits
+     *  `listPursuitsForUser` returns when the caller omits `limit`. */
+    APPLICATIONS_DEFAULT_LIMIT: 20,
+    /** `get_applications`'s page-size ceiling (tools.ts, route.ts) — same
+     *  corpus/cost-protection spirit as `RESULT_CAP`, sized for a user's own
+     *  application history rather than the whole job corpus. */
+    APPLICATIONS_MAX_LIMIT: 50,
 };
 
 /**

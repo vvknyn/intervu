@@ -2,14 +2,15 @@ import { describe, it } from 'node:test'; import assert from 'node:assert/strict
 import {
   toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
   toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
-  toolGetPreferences, toolSetPreferences,
+  toolGetPreferences, toolSetPreferences, toolGetApplications,
   type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/jobs/query-understanding';
 import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
-import type { Pursuit, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
+import type { Pursuit, PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
+import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
 import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agent/preferences';
 
@@ -74,6 +75,7 @@ interface ResumeStubDeps {
   saveResumeVersionResult?: { data?: ResumeVersionSnapshot; error?: string };
   preferences?: AgentPreferences;
   setPreferencesResult?: AgentPreferences;
+  applicationsResult?: ApplicationSummary[];
 }
 
 function stubDeps(
@@ -90,6 +92,7 @@ function stubDeps(
   const saveResumeVersionCalls: Array<{ uid: string; pursuitId: string; input: { content: string; label: string } }> = [];
   const getPreferencesCalls: string[] = [];
   const setPreferencesCalls: Array<{ uid: string; patch: AgentPreferencesPatch }> = [];
+  const listApplicationsCalls: Array<{ uid: string; opts: { status?: PursuitStage; limit: number } }> = [];
   const deps: ToolDeps = {
     uid: 'user-abc',
     search: async (p: JobSearchParams): Promise<JobSearchResult> => {
@@ -126,10 +129,14 @@ function stubDeps(
       setPreferencesCalls.push({ uid, patch });
       return resumeDeps.setPreferencesResult ?? { configured: true, search: {}, answers: { custom: {} }, updated_at: '2026-08-02T00:00:00.000Z' };
     },
+    listApplications: async (uid, opts) => {
+      listApplicationsCalls.push({ uid, opts });
+      return resumeDeps.applicationsResult ?? [];
+    },
   };
   return {
     deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls,
-    getPreferencesCalls, setPreferencesCalls,
+    getPreferencesCalls, setPreferencesCalls, listApplicationsCalls,
   };
 }
 
@@ -794,5 +801,40 @@ describe('toolSetPreferences', () => {
     await toolSetPreferences(deps, spoofedInput);
     assert.equal(setPreferencesCalls[0].uid, 'user-abc');
     assert.deepEqual(setPreferencesCalls[0].patch, spoofedInput);
+  });
+});
+
+describe('toolGetApplications', () => {
+  it('applies AGENT.APPLICATIONS_DEFAULT_LIMIT when input omits limit', async () => {
+    const { deps, listApplicationsCalls } = stubDeps([]);
+    await toolGetApplications(deps, {});
+    assert.equal(listApplicationsCalls[0].opts.limit, AGENT.APPLICATIONS_DEFAULT_LIMIT);
+  });
+
+  it('clamps an input limit above AGENT.APPLICATIONS_MAX_LIMIT down to the cap', async () => {
+    const { deps, listApplicationsCalls } = stubDeps([]);
+    await toolGetApplications(deps, { limit: 500 });
+    assert.equal(listApplicationsCalls[0].opts.limit, AGENT.APPLICATIONS_MAX_LIMIT);
+  });
+
+  it('passes status through untouched to deps.listApplications', async () => {
+    const { deps, listApplicationsCalls } = stubDeps([]);
+    await toolGetApplications(deps, { status: 'interviewing' });
+    assert.equal(listApplicationsCalls[0].opts.status, 'interviewing');
+  });
+
+  it('calls deps.listApplications with deps.uid — never anything from input — even if an attacker-controlled input carries its own uid field', async () => {
+    const { deps, listApplicationsCalls } = stubDeps([]);
+    await toolGetApplications(deps, { uid: 'attacker-controlled-uid' } as unknown as { status?: PursuitStage; limit?: number });
+    assert.equal(listApplicationsCalls[0].uid, 'user-abc');
+  });
+
+  it('relays deps.listApplications result verbatim as { applications }', async () => {
+    const applications: ApplicationSummary[] = [
+      { id: 'p1', job_id: 'job-1', title: 'Engineer', company: 'Acme', status: 'applied', updated_at: '2026-08-01T00:00:00.000Z', resume_on_file: true, latest_resume_label: 'v1' },
+    ];
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { applicationsResult: applications });
+    const out = await toolGetApplications(deps, {});
+    assert.deepEqual(out, { applications });
   });
 });
