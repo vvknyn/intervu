@@ -50,7 +50,12 @@ export function WatchingWall({ className }: { className?: string }) {
         // `transparent` — which made the whole wall vanish everywhere, not
         // just on the left, until this was caught by screenshot (verified
         // live, 2026-08-03).
-        "[mask-image:linear-gradient(to_right,transparent_0%,transparent_38%,white_66%,white_100%)]",
+        // Two gradients INTERSECTED: the horizontal fade above plus a
+        // vertical one that clears the nav band at the top and the viewport
+        // edge at the bottom — titles crossing the nav row read as clutter
+        // next to the CTA (caught by screenshot review, 2026-08-03).
+        "[mask-image:linear-gradient(to_right,transparent_0%,transparent_38%,white_66%,white_92%,rgba(255,255,255,0.45)_100%),linear-gradient(to_bottom,transparent_0%,transparent_9%,white_18%,white_88%,transparent_100%)]",
+        "[mask-composite:intersect]",
         className,
       )}
     >

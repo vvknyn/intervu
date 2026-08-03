@@ -2466,8 +2466,8 @@ function JobsContent() {
     // fabricated number while `marketingStats` is still null/failed.
     const searchPlaceholder = isOverlayAsk
         ? marketingStats
-            ? `or search ${formatCorpusCount(marketingStats.liveJobs)} live jobs…`
-            : "or search live jobs…"
+            ? `Search ${formatCorpusCount(marketingStats.liveJobs)} live jobs…`
+            : "Search live jobs…"
         : "What kind of work are you looking for?";
 
     // The one grey line under the pinned box. It states the posted-date window
@@ -2669,7 +2669,7 @@ function JobsContent() {
                         {isOverlayAsk && (
                             <div className="flex flex-col gap-5">
                                 <OpenclawStatusBadge />
-                                <h1 className="font-display text-[clamp(40px,4.5vw,64px)] font-black leading-[1.05] tracking-[-0.02em] text-white">
+                                <h1 className="font-display text-[clamp(36px,3.6vw,48px)] font-black leading-[1.06] tracking-[-0.02em] text-white [text-wrap:balance]">
                                     {OPENCLAW_HEADLINE}
                                 </h1>
                                 <p className="max-w-md text-[15px] leading-relaxed text-white/60">{OPENCLAW_SUBLINE}</p>
