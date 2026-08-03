@@ -1,5 +1,6 @@
 /**
- * Primary nav tabs (Jobs · Companies · Research · Pricing · Connect your AI).
+ * Primary nav tabs (Jobs · Research · Pricing · Connect your AI). Companies
+ * is temporarily removed — see the comment above `NAV_TABS` below.
  * Also drives the mobile tab bar (`MobileTabBar`), which renders one icon per
  * entry straight off this array's own `icon` field — a new tab is covered by
  * adding one entry here, not by also updating a second array kept in
@@ -36,16 +37,6 @@ function JobsIcon() {
     );
 }
 
-function CompaniesIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M4 21V5a1 1 0 011-1h8a1 1 0 011 1v16" />
-            <path d="M14 10h5a1 1 0 011 1v10" />
-            <path d="M8 8h.01M8 12h.01M8 16h.01" />
-        </svg>
-    );
-}
-
 function ResearchIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -76,14 +67,10 @@ function ConnectIcon() {
 
 export const NAV_TABS: NavTab[] = [
     { label: "Jobs", shortLabel: "Jobs", href: "/", testId: "topbar-jobs", match: (p) => p === "/", icon: JobsIcon },
-    {
-        label: "Companies",
-        shortLabel: "Companies",
-        href: "/companies/hiring",
-        testId: "topbar-companies",
-        match: (p) => p.startsWith("/companies"),
-        icon: CompaniesIcon,
-    },
+    // Companies (/companies/hiring) removed from nav 2026-08-02 — page is
+    // redirected to /jobs until it can be served correctly, see
+    // src/app/companies/hiring/page.tsx for why. Re-add the entry here when
+    // that page is restored.
     {
         label: "Research",
         shortLabel: "Research",

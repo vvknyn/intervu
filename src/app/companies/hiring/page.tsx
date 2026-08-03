@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { getHotCompaniesList, type HotCompanyRow } from "@/lib/companies/hot-list";
@@ -14,11 +15,34 @@ export const metadata: Metadata = {
 
 export const revalidate = 3600;
 
+/**
+ * TEMPORARILY DOWN — redirected to /jobs 2026-08-02, nav entry removed
+ * (nav-tabs.tsx). Two root causes, verified live against meili-box that day:
+ *   1. `company_domain` is not in the index's `filterableAttributes`, so
+ *      `fetchEliteBoardJobHits`'s `board:"elite"` query errors.
+ *   2. WORSE: `company_opened_90d` / `company_open_count` don't exist on the
+ *      indexed documents at all yet. Even with (1) fixed, `rankHotCompanies`
+ *      would drop every row (it requires `opened90d` to be a number), so the
+ *      page would silently rank by whatever order the fetched sample
+ *      happened to come back in while its subtitle still claims "Ranked by
+ *      roles opened in the last 90 days" — a wrong page that LOOKS correct.
+ * Do not just delete the redirect once (1) is fixed — restore it only after
+ * BOTH the metric fields are indexed AND `company_domain` is filterable.
+ * `HotCompaniesPage` below (the real render tree, `getHotCompaniesList` from
+ * `@/lib/companies/hot-list`, still covered by tests/unit/hot-list.test.ts)
+ * is kept as a named export rather than deleted — restoring is: change this
+ * `export default function HotCompaniesRedirect` back to
+ * `export default HotCompaniesPage` and delete the redirect body.
+ */
+export default function HotCompaniesRedirect() {
+  redirect("/jobs");
+}
+
 function heatLabel(row: HotCompanyRow): string {
   return typeof row.opened90d === "number" ? `${row.opened90d} opened / 90d` : "—";
 }
 
-export default async function HotCompaniesPage() {
+export async function HotCompaniesPage() {
   const result = await getHotCompaniesList();
 
   return (
