@@ -18,6 +18,9 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { LandingMarketing } from "@/components/marketing/LandingMarketing";
+import { WhatsAppThreadHero } from "@/components/marketing/WhatsAppThreadHero";
+import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
+import { OPENCLAW_HEADLINE } from "@/components/marketing/openclaw-content";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -2561,7 +2564,12 @@ function JobsContent() {
             <div
                 className={cn(
                     "w-full shrink-0",
-                    isOverlayAsk ? "max-w-3xl pb-16 pt-[16dvh]" : "border-b border-border bg-card",
+                    // pt reduced from 16dvh (Vivek's original mock) to 8dvh
+                    // for the OpenClaw pitch pass (2026-08-02) — the new
+                    // hero (thread mockup + waitlist form) is taller than
+                    // the CTA button it replaced, so the composition needs
+                    // less top air to keep the fold line in a sane place.
+                    isOverlayAsk ? "max-w-3xl pb-16 pt-[8dvh]" : "border-b border-border bg-card",
                 )}
             >
                 <div className={isOverlayAsk ? undefined : "mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6"}>
@@ -2590,15 +2598,23 @@ function JobsContent() {
                         </div>
                     )}
                     {isOverlayAsk && (
-                        <div className="mb-9 flex flex-col items-center gap-5">
-                            <p className="max-w-xl text-center text-[clamp(22px,3.2vw,34px)] font-bold leading-snug text-foreground">
-                                Your AI already knows how to job hunt. Give it the real market.
-                            </p>
-                            <Button asChild size="lg">
-                                <Link href="/connect">Connect your AI</Link>
-                            </Button>
-                            <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-                                Claude · ChatGPT · OpenClaw — and any MCP client
+                        /* OpenClaw pitch hero (2026-08-02) — replaces the old
+                           MCP-pairing CTA block. Scoped `.openclaw` for the
+                           new violet/coral/amber palette (openclaw-marketing.css);
+                           the wordmark/beta chip above and the search box
+                           below stay on the app's normal palette on purpose —
+                           they're shared-layout / functional elements, not
+                           part of this pitch. */
+                        <div className="openclaw mb-9 flex flex-col items-center gap-6 rounded-3xl bg-background px-4 py-8 sm:px-8">
+                            <h1 className="max-w-xl text-center text-[clamp(24px,3.6vw,38px)] font-bold leading-snug text-foreground">
+                                {OPENCLAW_HEADLINE}
+                            </h1>
+                            <WhatsAppThreadHero />
+                            <OpenclawWaitlistForm className="w-full max-w-sm" />
+                            <p className="font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+                                <Link href="/openclaw" className="underline underline-offset-2 hover:text-foreground">
+                                    See how it works
+                                </Link>
                             </p>
                         </div>
                     )}
