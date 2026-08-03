@@ -11,7 +11,12 @@
 import type { JobSearchParams, JobSearchResult, PlaceFilter, PostedBucket, PublicJob } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
-import { buildJobSnapshot, type JobSnapshot } from "../pursuits/types";
+import {
+  buildJobSnapshot, orderResumeVersionsLatestFirst,
+  type JobSnapshot, type Pursuit, type ResumeVersionSnapshot,
+} from "../pursuits/types";
+import { buildResumeVersionSnapshot } from "../pursuits/resume-version";
+import type { BaseResume } from "../resume/base-resume";
 import { AGENT } from "./config";
 
 export interface ToolDeps {
@@ -30,7 +35,24 @@ export interface ToolDeps {
     uid: string,
     job: JobSnapshot & { job_id: string },
     stage: "interested" | "applied",
-  ) => Promise<{ data?: unknown; error?: string }>;
+  ) => Promise<{ data?: Pick<Pursuit, "id" | "resume_versions">; error?: string }>;
+  /** The caller's own base résumé (`profiles/<uid>`) — injected so
+   *  `get_resume` never touches Firestore directly, matching every other I/O
+   *  dep here. See `getBaseResumeForUser` (`lib/resume/base-resume.ts`). */
+  getBaseResume: (uid: string) => Promise<BaseResume>;
+  /** Read-only job_id -> pursuit lookup scoped to `uid` — the SAME query
+   *  `upsertPursuitCore` uses internally (`findPursuitByJobId`,
+   *  `lib/pursuits/upsert-core.ts`), injected here so `get_resume_variant`
+   *  can check "does a pursuit exist for this job" without creating one as a
+   *  side effect of a read. */
+  findPursuitByJobId: (uid: string, jobId: string) => Promise<Pick<Pursuit, "id" | "resume_versions"> | null>;
+  /** Appends an immutable resume-version snapshot to a pursuit — see
+   *  `saveResumeVersionForPursuit` (`lib/pursuits/resume-version.ts`). */
+  saveResumeVersion: (
+    uid: string,
+    pursuitId: string,
+    input: { content: string; label: string },
+  ) => Promise<{ data?: ResumeVersionSnapshot; error?: string }>;
 }
 
 /**
@@ -377,19 +399,23 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
   };
 }
 
-/** Shared by save/mark-applied: both find-by-id then advance the same
- *  pursuit via `upsertPursuitCore` (Task 5) — only the stage differs. */
+/** Shared by save/mark-applied/save-resume-variant: all three find-by-id
+ *  then advance the same pursuit via `upsertPursuitCore` (Task 5) — only the
+ *  stage differs. Surfaces the resulting pursuit (id + resume_versions, not
+ *  just `{ok:true}`) because `toolMarkApplied` needs to report whether a
+ *  resume is on file and `toolSaveResumeVariant` needs the pursuit id to
+ *  file a snapshot against. */
 async function upsertFromId(
   deps: ToolDeps,
   id: string,
   stage: "interested" | "applied",
-): Promise<{ error: string } | { ok: true }> {
+): Promise<{ error: string } | { ok: true; pursuit: Pick<Pursuit, "id" | "resume_versions"> }> {
   const lookup = await lookupJobById(deps, id);
   if (lookup.kind === "unavailable") return { error: "search backend unavailable" };
   if (lookup.kind === "not_found") return { error: "job not found" };
   const res = await deps.upsert(deps.uid, { job_id: lookup.job.id, ...buildJobSnapshot(lookup.job) }, stage);
-  if (res.error) return { error: res.error };
-  return { ok: true };
+  if (res.error || !res.data) return { error: res.error ?? "failed to save pursuit" };
+  return { ok: true, pursuit: res.data };
 }
 
 export async function toolSaveJob(deps: ToolDeps, input: { id: string }): Promise<{ saved: boolean } | { error: string }> {
@@ -397,7 +423,79 @@ export async function toolSaveJob(deps: ToolDeps, input: { id: string }): Promis
   return "error" in res ? res : { saved: true };
 }
 
-export async function toolMarkApplied(deps: ToolDeps, input: { id: string }): Promise<{ marked: boolean } | { error: string }> {
+/** `resume_on_file` closes the loop for an agent marking a job applied: it's
+ *  a read of state the pursuit already carries (`resume_versions`, appended
+ *  only by `toolSaveResumeVariant`/`saveResumeVersionForPursuit`), never a
+ *  write — filing a resume stays `save_resume_variant`'s job alone. */
+export async function toolMarkApplied(
+  deps: ToolDeps,
+  input: { id: string },
+): Promise<{ marked: boolean; resume_on_file: boolean } | { error: string }> {
   const res = await upsertFromId(deps, input.id, "applied");
-  return "error" in res ? res : { marked: true };
+  if ("error" in res) return res;
+  return { marked: true, resume_on_file: (res.pursuit.resume_versions ?? []).length > 0 };
+}
+
+export interface SaveResumeVariantInput {
+  job_id: string;
+  resume_text: string;
+  label: string;
+}
+
+/**
+ * Files a tailored resume against the caller's own pursuit for `job_id`.
+ * Validates via `buildResumeVersionSnapshot` FIRST — before `upsertFromId`
+ * ever creates/touches a pursuit — so the common validation-failure case
+ * (blank content or label) can't leave behind an "interested" pursuit with
+ * zero resume variants on it. Stage is always "interested": preparing a
+ * resume must never consume the free-plan daily apply-cap slot, which only
+ * an "applied" transition does (`isNewAppliedTransition`, apply-cap.ts).
+ */
+export async function toolSaveResumeVariant(
+  deps: ToolDeps,
+  input: SaveResumeVariantInput,
+): Promise<{ saved: true } | { error: string }> {
+  const built = buildResumeVersionSnapshot(input.resume_text, input.label);
+  if (!built.data) return { error: built.error ?? "Invalid resume version" };
+
+  const upserted = await upsertFromId(deps, input.job_id, "interested");
+  if ("error" in upserted) return upserted;
+
+  const saved = await deps.saveResumeVersion(deps.uid, upserted.pursuit.id, {
+    content: input.resume_text,
+    label: input.label,
+  });
+  if (saved.error || !saved.data) return { error: saved.error ?? "failed to save resume version" };
+  return { saved: true };
+}
+
+export interface GetResumeVariantOut {
+  variants: ResumeVersionSnapshot[];
+}
+
+/** Empty array — never an error — when the caller has no pursuit for this
+ *  job_id yet (never saved/applied to it) or has one with nothing filed;
+ *  both are honest "nothing on file" states, not failures. */
+export async function toolGetResumeVariant(
+  deps: ToolDeps,
+  input: { job_id: string },
+): Promise<GetResumeVariantOut> {
+  const pursuit = await deps.findPursuitByJobId(deps.uid, input.job_id);
+  if (!pursuit) return { variants: [] };
+  return { variants: orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []) };
+}
+
+/** Returns the caller's own base résumé — never another user's, and never a
+ *  fabricated placeholder when neither field is on file (`source: "none"`).
+ *  See `getBaseResumeForUser` (`lib/resume/base-resume.ts`) for the
+ *  resume_data-vs-resume_text canonicalization. */
+export async function toolGetResume(
+  deps: ToolDeps,
+  // `get_resume` needs no input — `uid` comes from `deps` — kept as a real
+  // param (matching the `(deps, input)` shape `withDeps` expects) rather than
+  // dropped, so this stays consistent with every other tool here.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _input: Record<string, never>,
+): Promise<BaseResume> {
+  return deps.getBaseResume(deps.uid);
 }
