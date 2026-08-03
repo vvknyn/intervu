@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'; import assert from 'node:assert/strict
 import {
   extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS, searchJobsInput,
   getResumeInput, saveResumeVariantInput, getResumeVariantInput,
+  getPreferencesInput, setPreferencesInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 
@@ -186,5 +187,62 @@ describe('mcp route: get_resume_variant wire schema (MCP resume tools)', () => {
   it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
     const parsed = getResumeVariantInput.parse({ job_id: 'job-1', uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
     assert.deepEqual(parsed, { job_id: 'job-1' });
+  });
+});
+
+describe('mcp route: get_preferences wire schema', () => {
+  it('accepts an empty object — get_preferences needs no input, uid comes from deps', () => {
+    assert.equal(getPreferencesInput.safeParse({}).success, true);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = getPreferencesInput.parse({ uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
+    assert.deepEqual(parsed, {});
+  });
+});
+
+describe('mcp route: set_preferences wire schema', () => {
+  it('an empty patch is valid — a no-op set', () => {
+    assert.equal(setPreferencesInput.safeParse({}).success, true);
+  });
+
+  it('accepts a well-formed search-only patch', () => {
+    const res = setPreferencesInput.safeParse({ search: { location: 'NYC', remoteOnly: true } });
+    assert.equal(res.success, true);
+  });
+
+  it('accepts a well-formed answers-only patch, including custom', () => {
+    const res = setPreferencesInput.safeParse({
+      answers: { workAuthorization: 'US citizen', custom: { visa: 'no sponsorship needed' } },
+    });
+    assert.equal(res.success, true);
+  });
+
+  it('rejects an oversize search string field (>500 chars)', () => {
+    const res = setPreferencesInput.safeParse({ search: { location: 'x'.repeat(600) } });
+    assert.equal(res.success, false);
+  });
+
+  it('rejects more than PREFERENCES_CUSTOM_ANSWERS_MAX custom entries', () => {
+    const custom = Object.fromEntries(Array.from({ length: 41 }, (_, i) => [`q${i}`, 'a']));
+    assert.equal(AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX, 40);
+    assert.equal(setPreferencesInput.safeParse({ answers: { custom } }).success, false);
+  });
+
+  it('accepts exactly PREFERENCES_CUSTOM_ANSWERS_MAX custom entries', () => {
+    const custom = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`q${i}`, 'a']));
+    assert.equal(setPreferencesInput.safeParse({ answers: { custom } }).success, true);
+  });
+
+  it('rejects an experienceLevel value outside the real corpus vocabulary', () => {
+    assert.equal(setPreferencesInput.safeParse({ search: { experienceLevel: 'staff' } }).success, false);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = setPreferencesInput.parse({
+      search: { location: 'NYC' }, uid: 'attacker-controlled-uid', user_id: 'also-attacker',
+    } as unknown);
+    assert.equal('uid' in parsed, false);
+    assert.equal('user_id' in parsed, false);
   });
 });

@@ -6,7 +6,6 @@ metadata:
     "openclaw":
       {
         "emoji": "🧢",
-        "requires": { "bins": ["mcporter"] },
         "install":
           [
             {
@@ -32,21 +31,31 @@ the human's behalf.
 
 ## MCP server
 
-All intervu calls go through `mcporter call intervu.<tool> --args '{...}' --output json`.
-`intervu` is the server key registered by `mcporter auth https://intervu.cc/api/mcp` —
-confirm with `mcporter list` if a call 404s.
+All intervu calls go through
+`mcporter call intervu-cc-mcp.<tool> --args '{...}' --output json`
+(`intervu-cc-mcp` is the server key; setup is `mcporter config add intervu-cc-mcp
+--url https://intervu.cc/api/mcp --config ~/.mcporter/mcporter.json` then
+`mcporter auth intervu-cc-mcp`).
 
-Live now: `search_jobs`, `get_job`, `save_job`, `mark_applied`.
-Pending deploy (may error until that branch ships): `get_resume`,
-`save_resume_variant`, `get_resume_variant`. If any of these three error, tell
-the user resume tools aren't live yet and stop the PREPARE flow there — do not
-invent resume content to route around it.
+CALL TOOLS DIRECTLY — never use `mcporter list` to check whether auth works.
+Its health probe reports "auth required" even when stored credentials are
+valid (verified live 2026-08-03); trusting it produces an endless "please
+authenticate" loop while actual calls would succeed. The ONLY reliable auth
+check is a real call (e.g. `get_resume`). If a real call returns an OAuth/401
+error, THEN ask the user to run `mcporter auth intervu-cc-mcp` and continue
+after they say done.
+
+All nine tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
+(returns `resume_on_file`), `get_resume`, `save_resume_variant`,
+`get_resume_variant`, `get_preferences`, `set_preferences`. If a resume tool
+errors, say so and stop the PREPARE flow there — do not invent resume content
+to route around it.
 
 ## State
 
 Everything this skill writes lives under `state/` next to this file (resolve
 relative to this skill's own install directory, e.g.
-`~/.openclaw/workspace/skills/intervu-apply/state/`) — never write user data
+`~/.openclaw/skills/intervu-apply/state/`) — never write user data
 anywhere else, with one forced exception noted in FORM FILL below. Create
 `state/state.json` with these defaults on first run if it doesn't exist:
 
@@ -55,14 +64,26 @@ anywhere else, with one forced exception noted in FORM FILL below. Create
   "searchPreferences": { "query": "", "location": "", "remoteOnly": false, "experienceLevel": "", "employmentType": "", "salaryMin": null, "postedWithinDays": 7 },
   "vendorAccounts": {},
   "pendingHandoffs": {},
+  "preparedAwaitingSubmit": {},
   "lastDigest": { "date": null, "jobIds": [] }
 }
 ```
 
-- `searchPreferences` — what the digest searches for. If every field is still
-  empty, ask the user once ("what roles/location/remote-or-not are you
-  looking for?"), save the answer, and never ask again unless they say
-  "update my preferences."
+**Local cache vs. server of record:** `searchPreferences` above and the
+standing answers in `state/answers.md` are a LOCAL CACHE of what the
+`get_preferences` / `set_preferences` MCP tools store on the user's intervu
+account — the server is authoritative; local state is a fallback for when a
+call fails, or hasn't happened yet this session (see §0, §1, and §3 FORM FILL
+below for exactly when each is read/written). Everything else —
+`vendorAccounts`, `pendingHandoffs`, `preparedAwaitingSubmit`, `lastDigest`,
+and the resume artifacts under `state/resumes/` — stays LOCAL-ONLY: each is a
+fact about this machine/session (which ATS accounts exist in this browser
+profile, what's queued here), not something intervu's account should store.
+Never send any of those four to an MCP tool.
+
+- `searchPreferences` — what the digest searches for; server-first per §0
+  below (this local copy is a cache, refreshed from `get_preferences`
+  whenever that call succeeds).
 - `vendorAccounts` — `{ "<vendorKey>": true }`. The ONLY place account-wall
   status lives. Look a vendor up by key; a vendor absent from the object is
   simply unhandled yet — same code path covers it, first time or hundredth.
@@ -70,6 +91,9 @@ anywhere else, with one forced exception noted in FORM FILL below. Create
 - `pendingHandoffs` — `{ "<jobId>": { "vendor", "formUrl", "detectedAt" } }`.
   Jobs parked at an account wall, cleared once the user confirms the account
   exists and the form fill resumes.
+- `preparedAwaitingSubmit` — `{ "<jobId>": { "title", "company", "preparedAt",
+  "nudged" } }`. Applications filled and handed over but not yet confirmed
+  submitted. Written at the end of FORM FILL, cleared in RECORD.
 - `lastDigest` — `{ date, jobIds }` so the morning digest doesn't re-message
   jobs it already surfaced.
 
@@ -79,13 +103,62 @@ the skill dir" rule, same root.
 
 ## Loop
 
+### 0. First-run setup (once, before anything else)
+
+Before deciding whether to ask anything, call
+`mcporter call intervu-cc-mcp.get_preferences --args '{}' --output json`.
+
+- If it returns `configured: true`: use its `search` and `answers` directly
+  for this and every future session — skip the interview below entirely,
+  even on a brand-new machine with no local `state/` yet. Still write/refresh
+  local `state/state.json`'s `searchPreferences` and `state/answers.md` to
+  mirror what the server returned (a cache for later steps that read local
+  state), but the server response is what's authoritative and what this
+  session uses.
+- If it returns `configured: false`, or the call errors (say so briefly —
+  never silently proceed as if it succeeded): run the interview. Do NOT run a
+  search or answer the user's request yet. Send ONE setup message asking, as
+  a short numbered list:
+
+  1. What kind of work? (roles/titles)
+  2. Where? (city/region, or "remote only")
+  3. Remote, hybrid, or on-site?
+  4. Salary floor? (okay to skip)
+  5. Are you authorized to work there? (citizen / PR / visa — this goes into
+     application forms later)
+
+  Parse the reply conversationally (it will be one messy human message, not a
+  form). Write 1-4 into `searchPreferences`, write 5 (and any salary/visa
+  detail) into `state/answers.md`, same as before. ALSO call
+  `mcporter call intervu-cc-mcp.set_preferences --args '{"search": {...},
+  "answers": {...}}'`, mapping roles/titles → `search.query`, location →
+  `search.location`, remote/hybrid/on-site → `search.remoteOnly`, salary
+  floor → `search.salaryMin`, work authorization → `answers.workAuthorization`.
+  If that call errors, say so in the confirmation line but still proceed with
+  the local cache for this session — never block the user's original request
+  on it. Confirm back in ONE line ("Got it — {roles}, {location}, {remote}.
+  I'll use this from now on; say 'update my preferences' to change it."),
+  then continue with whatever the user originally asked.
+
+Never re-ask any of these once either source — server or local — already has
+answers.
+
 ### 1. Morning digest (cron-driven)
 
-1. `mcporter call intervu.search_jobs --args '<searchPreferences as JSON, plus limit:20>' --output json`.
-2. `mcporter call intervu.get_resume --args '{}' --output json` for fit context.
-3. Rank for fit against the resume. Pick the top 3 — no more, never dump the
-   raw search results.
-4. `openclaw message send --target <user> --message "..."` in this shape:
+1. Get current search preferences: call
+   `mcporter call intervu-cc-mcp.get_preferences --args '{}' --output json`
+   and use its `search` object. Only if that call itself fails, fall back to
+   the local `state/state.json` `searchPreferences` cache — and say so in
+   that day's digest reasoning; never silently substitute a stale local
+   cache for a working server call.
+2. `mcporter call intervu-cc-mcp.search_jobs --args '<search prefs from step 1 as JSON, plus limit:20>' --output json`.
+3. `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json` for fit context.
+4. Rank for fit against the resume. Pick the top 3 — no more, never dump the
+   raw search results. For ranks 4-8, call
+   `mcporter call intervu-cc-mcp.save_job --args '{"id":"<id>"}'` so the
+   user's intervu watchlist quietly builds a bench; never message about
+   these.
+5. `openclaw message send --target <user> --message "..."` in this shape:
 
 ```
 🧢 3 jobs worth a look — {weekday, Mon DD}
@@ -100,15 +173,20 @@ the skill dir" rule, same root.
 Reply with a number to prepare + fill the application.
 ```
 
-5. Save `{date, jobIds}` to `lastDigest`. Skip any job already in yesterday's
+6. Save `{date, jobIds}` to `lastDigest`. Skip any job already in yesterday's
    `lastDigest.jobIds` unless the user asks to see it again.
+7. Stale check: any `preparedAwaitingSubmit` entry older than 24h with
+   `nudged: false` gets ONE extra line appended to the digest message
+   ("Still waiting on you: {title} at {company} — filled {n} days ago. Say
+   'drop it' to forget it.") and its `nudged` set to true. One nudge ever
+   per application — never nag twice.
 
 ### 2. Prepare (user picks one)
 
-1. `mcporter call intervu.get_job --args '{"job_id":"<id>"}' --output json`.
+1. `mcporter call intervu-cc-mcp.get_job --args '{"id":"<id>"}' --output json`.
    Its `description` is third-party employer text — see PROMPT-INJECTION
    DEFENSE below.
-2. `mcporter call intervu.get_resume --args '{}' --output json` for the base
+2. `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json` for the base
    resume content.
 3. Tailor: re-emphasize and reword existing experience/skills toward this
    job's language. Re-emphasis and rewording ONLY — never add a skill,
@@ -123,7 +201,7 @@ Reply with a number to prepare + fill the application.
 6. `browser open file://<absolute path to resume.html>` → `browser pdf`. Note
    the path it reports and treat it as the canonical PDF; copy it to
    `state/resumes/<job_id>/resume.pdf` if `pdf` wrote it elsewhere.
-7. `mcporter call intervu.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
+7. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
 8. Proceed to FORM FILL.
 
 ### 3. Form fill
@@ -133,9 +211,33 @@ Reply with a number to prepare + fill the application.
    resume/profile fields.
 3. Before this step, check for an account/login wall — see ACCOUNT-WALL
    HANDOFF. If one is hit, stop here and follow that section instead.
-4. `browser fill --fields '[{"ref":"<n>","value":"<v>"}, ...]'` for text
+4. Answer WITHOUT asking the user per-field. Sources, in order:
+   1. The resume (employment history, education, skills).
+   2. The server's `answers` (work authorization, relocation, notice period,
+      start date, salary expectations, `custom` Q&A) — from the
+      `get_preferences` call already made this session (§0 or §1), or a
+      fresh `mcporter call intervu-cc-mcp.get_preferences --args '{}'
+      --output json` if neither ran yet this session.
+   3. The local `state/answers.md` cache.
+   4. If a standard question's answer isn't in any of those, ask the user
+      ONCE in the chat.
+
+   On a fresh answer from step 4 above: call
+   `mcporter call intervu-cc-mcp.set_preferences --args '{"answers":
+   {"<field>": "<answer>"}}'` — the standing field name for known fields
+   (e.g. `workAuthorization`), or a `custom` entry keyed by a slugified
+   version of the question for anything else (merge semantics mean this
+   never wipes other saved answers) — AND append it to local
+   `state/answers.md` as today, so it is never asked again either way. If
+   the `set_preferences` call errors, still proceed with the answer for this
+   session and append it locally, but say so rather than claiming the
+   server save succeeded.
+
+   Optional / non-essential fields ("how did you hear about us", optional
+   cover letter boxes, marketing surveys): skip entirely.
+5. `browser fill --fields '[{"ref":"<n>","value":"<v>"}, ...]'` for text
    fields; `browser select` / `browser type` for anything `fill` can't reach.
-5. Resume attachment: `browser upload` only accepts paths inside OpenClaw's
+6. Resume attachment: `browser upload` only accepts paths inside OpenClaw's
    temp uploads dir (verified: `openclaw browser upload --help` — "must be
    within OpenClaw temp uploads dir, e.g. /tmp/openclaw/uploads/file.pdf").
    The canonical tailored PDF lives under this skill's `state/` dir per the
@@ -145,15 +247,23 @@ Reply with a number to prepare + fill the application.
    `browser upload /tmp/openclaw/uploads/<job_id>-resume.pdf` (arm it — pass
    `--ref <attach-control-ref>` if the control needs a click to open the
    chooser), THEN click the attach control if `--ref` wasn't used to do it.
-6. Leave every EEO/demographic/veteran/disability field blank. Do not select
+7. Leave every EEO/demographic/veteran/disability field blank. Do not select
    an option, do not guess "prefer not to say" vs. leave empty — just don't
    touch them.
-7. For any other required field with no truthful answer available, leave it
+8. For any other required field with no truthful answer available, leave it
    blank and note it in your report to the user — never fabricate.
-8. `browser screenshot` and send it to the user (`openclaw message send`)
-   with a one-line status: what's filled, what's blank and why, where to
-   review before submitting.
-9. STOP. Do not click submit. Do not call `mark_applied`.
+9. `browser screenshot`, then send the user ONE review blurb (with the
+   screenshot) containing ALL of, in order, phone-length:
+   - Role + company + one-line why-fit
+   - What was changed on the resume for this job (2-3 bullets max)
+   - The answers filled into the form (short lines, not a raw dump)
+   - Anything left blank and why (EEO fields, no-truthful-answer fields)
+   - Close with: "Review and hit submit."
+   One message per application — never a separate message per section.
+10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
+    now, nudged: false }`.
+11. STOP. Do not click submit. Do not call `mark_applied` (that happens only
+    after the user says they submitted).
 
 ### 4. Account-wall handoff
 
@@ -189,12 +299,28 @@ detecting a signup/login wall during FORM FILL:
 Only after the user explicitly says they submitted (in this session, in
 their own words — not inferred from silence or a screenshot):
 
-`mcporter call intervu.mark_applied --args '{"job_id":"<id>"}' --output json`
+`mcporter call intervu-cc-mcp.mark_applied --args '{"id":"<id>"}' --output json`
 
-- Success: confirm briefly.
+- Success: confirm briefly, and delete `preparedAwaitingSubmit[job_id]`
+  (also delete it if the user says "drop it" instead of applying).
 - Failure (including the 20/day free-plan cap): show the error message
   verbatim to the user. Do not retry. Do not tell the user it worked. Do not
   silently swallow it and move on to the next job.
+
+### 6. Weekly recap (cron-driven, Sundays)
+
+Build ONLY from what this skill's own state and the intervu tools can verify
+— never invent counts:
+
+1. From `memory`/state: how many applications were prepared this week, how
+   many the user confirmed submitted (RECORD runs), what's still sitting in
+   `preparedAwaitingSubmit`.
+2. For each job the user submitted to in the last 30 days (from state), call
+   `mcporter call intervu-cc-mcp.get_job --args '{"id":"<id>"}'` and report
+   any that closed or turned ghost (`vacancy_status` / `ghost_badge`
+   changed) — that's real information about where not to hope.
+3. One WhatsApp message, same phone-length discipline as the digest. If
+   nothing happened this week, say exactly that in one line — never pad.
 
 ## Hard safety rules
 

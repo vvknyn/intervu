@@ -15,53 +15,48 @@ submits for you. Full behavior is in `SKILL.md` — this file is install-only.
 ## Install
 
 ```bash
-# 1. Auth against the intervu MCP server (OAuth flow opens in your browser)
-mcporter auth https://intervu.cc/api/mcp
-
-# 2. Copy this skill into OpenClaw's workspace skills dir
-cp -R openclaw ~/.openclaw/workspace/skills/intervu-apply
-
-# 3. Confirm it's discovered and its requirements are met
-openclaw skills list
-openclaw skills check
+bash install.sh
 ```
+
+What it does, in order:
+
+- Confirms OpenClaw is installed (exits with a link if not).
+- Installs `mcporter` if it isn't already on your machine.
+- Registers the intervu MCP server (`intervu-cc-mcp`) with mcporter, if not
+  already registered.
+- Runs `mcporter auth intervu-cc-mcp` — a browser window opens for you to
+  approve access (see landmine below on timing).
+- Copies this skill into `~/.openclaw/skills/intervu-apply`.
+- Restarts the OpenClaw gateway so it picks up the newly installed skill.
+- Arms the `intervu-apply-digest` (`0 8 * * *`) and `intervu-apply-recap`
+  (`0 18 * * 0`) cron jobs, skipping either that's already armed.
+
+Every step is safe to re-run.
 
 `state/` inside the installed skill dir is created lazily on first run — see
 `SKILL.md`'s State section for the schema. Nothing needs to be pre-seeded.
 
-## Schedule the morning digest
+## Landmines
 
-```bash
-openclaw cron add \
-  --name intervu-morning-digest \
-  --cron "0 8 * * 1-5" \
-  --tz "America/Los_Angeles" \
-  --message "Run the intervu-apply morning digest." \
-  --announce
-```
+- **The OAuth window during `mcporter auth` is short — about 60 seconds.**
+  Be ready to click through it as soon as `install.sh` opens it.
+- **Start a FRESH agent session after installing.** Send `/new` on WhatsApp
+  — a session already running won't pick up the newly installed skill.
+- **mcporter's config lives at `~/.mcporter/mcporter.json`.**
+- **Never trust `mcporter list`'s auth-status labels.** Its health probe
+  reports "auth required" even when stored credentials are valid; the only
+  reliable check is an actual tool call.
 
-Adjust `--cron`/`--tz` to taste. `openclaw cron list` / `openclaw cron rm`
-manage it after.
+## Managing the cron jobs
 
-## Pending-deploy note (read before relying on PREPARE)
-
-`SKILL.md`'s PREPARE step calls three intervu MCP tools that are **on an
-in-flight branch, not yet deployed**: `get_resume`, `save_resume_variant`,
-`get_resume_variant`. Until that branch ships, calls to them will error —
-the skill is written to surface that error and stop rather than fabricate
-resume content. `search_jobs`, `get_job`, `save_job`, and `mark_applied` are
-live now, so the MORNING DIGEST and RECORD steps work today.
-
-## Verifying the MCP server key
-
-`SKILL.md` assumes `mcporter auth` registers the server under the key
-`intervu` (`mcporter call intervu.<tool> ...`). Confirm with `mcporter list`
-after step 1 above — if it registers under a different key, that's the only
-place the name needs to change; nothing else in the skill depends on it.
+`install.sh` arms both cron jobs for you (see Install above). To inspect,
+change, or remove them directly: `openclaw cron list` / `openclaw cron rm
+<name>`.
 
 ## Uninstall
 
 ```bash
-rm -rf ~/.openclaw/workspace/skills/intervu-apply
-openclaw cron rm intervu-morning-digest
+rm -rf ~/.openclaw/skills/intervu-apply
+openclaw cron rm intervu-apply-digest
+openclaw cron rm intervu-apply-recap
 ```

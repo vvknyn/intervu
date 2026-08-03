@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'; import assert from 'node:assert/strict
 import {
   toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
   toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
+  toolGetPreferences, toolSetPreferences,
   type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
@@ -10,6 +11,7 @@ import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/
 import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
 import type { Pursuit, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
+import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agent/preferences';
 
 /** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
  *  fixture matches production shape exactly — "Toronto"/"Canada" both clear
@@ -70,6 +72,8 @@ interface ResumeStubDeps {
   baseResume?: BaseResume;
   pursuitByJobId?: Pick<Pursuit, 'id' | 'resume_versions'> | null;
   saveResumeVersionResult?: { data?: ResumeVersionSnapshot; error?: string };
+  preferences?: AgentPreferences;
+  setPreferencesResult?: AgentPreferences;
 }
 
 function stubDeps(
@@ -84,6 +88,8 @@ function stubDeps(
   const getBaseResumeCalls: string[] = [];
   const findPursuitCalls: Array<{ uid: string; jobId: string }> = [];
   const saveResumeVersionCalls: Array<{ uid: string; pursuitId: string; input: { content: string; label: string } }> = [];
+  const getPreferencesCalls: string[] = [];
+  const setPreferencesCalls: Array<{ uid: string; patch: AgentPreferencesPatch }> = [];
   const deps: ToolDeps = {
     uid: 'user-abc',
     search: async (p: JobSearchParams): Promise<JobSearchResult> => {
@@ -112,8 +118,19 @@ function stubDeps(
         data: { content: input.content, label: input.label, saved_at: '2026-08-02T00:00:00.000Z' },
       };
     },
+    getPreferences: async (uid) => {
+      getPreferencesCalls.push(uid);
+      return resumeDeps.preferences ?? { configured: false, search: {}, answers: { custom: {} } };
+    },
+    setPreferences: async (uid, patch) => {
+      setPreferencesCalls.push({ uid, patch });
+      return resumeDeps.setPreferencesResult ?? { configured: true, search: {}, answers: { custom: {} }, updated_at: '2026-08-02T00:00:00.000Z' };
+    },
   };
-  return { deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls };
+  return {
+    deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls,
+    getPreferencesCalls, setPreferencesCalls,
+  };
 }
 
 describe('toolSearchJobs', () => {
@@ -727,5 +744,55 @@ describe('toolGetResumeVariant', () => {
     const { deps, findPursuitCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: null });
     await toolGetResumeVariant(deps, { job_id: 'job-1', uid: 'attacker-controlled-uid' } as unknown as { job_id: string });
     assert.deepEqual(findPursuitCalls, [{ uid: 'user-abc', jobId: 'job-1' }]);
+  });
+});
+
+describe('toolGetPreferences', () => {
+  it('relays deps.getPreferences verbatim', async () => {
+    const preferences: AgentPreferences = {
+      configured: true,
+      search: { query: 'backend engineer' },
+      answers: { workAuthorization: 'US citizen', custom: {} },
+      updated_at: '2026-08-01T00:00:00.000Z',
+    };
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { preferences });
+    const out = await toolGetPreferences(deps, {});
+    assert.deepEqual(out, preferences);
+  });
+
+  it('empty state: nothing saved yet returns configured:false with empty sections, never a fabricated default', async () => {
+    const { deps } = stubDeps([]);
+    const out = await toolGetPreferences(deps, {});
+    assert.deepEqual(out, { configured: false, search: {}, answers: { custom: {} } });
+  });
+
+  it('calls deps.getPreferences with deps.uid — never anything from input', async () => {
+    const { deps, getPreferencesCalls } = stubDeps([]);
+    await toolGetPreferences(deps, { uid: 'attacker-controlled-uid' } as unknown as Record<string, never>);
+    assert.deepEqual(getPreferencesCalls, ['user-abc']);
+  });
+});
+
+describe('toolSetPreferences', () => {
+  it('calls deps.setPreferences with deps.uid and the given patch', async () => {
+    const { deps, setPreferencesCalls } = stubDeps([]);
+    const patch: AgentPreferencesPatch = { search: { location: 'NYC' } };
+    const out = await toolSetPreferences(deps, patch);
+    assert.equal(setPreferencesCalls.length, 1);
+    assert.equal(setPreferencesCalls[0].uid, 'user-abc');
+    assert.deepEqual(setPreferencesCalls[0].patch, patch);
+    assert.equal(out.configured, true);
+  });
+
+  it('uid never taken from input — always deps.uid, even if an attacker-controlled input carries its own uid/user_id field', async () => {
+    const { deps, setPreferencesCalls } = stubDeps([]);
+    const spoofedInput = {
+      search: { location: 'NYC' },
+      uid: 'attacker-controlled-uid',
+      user_id: 'also-attacker',
+    } as unknown as AgentPreferencesPatch;
+    await toolSetPreferences(deps, spoofedInput);
+    assert.equal(setPreferencesCalls[0].uid, 'user-abc');
+    assert.deepEqual(setPreferencesCalls[0].patch, spoofedInput);
   });
 });
