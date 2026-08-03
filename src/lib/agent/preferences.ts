@@ -47,7 +47,11 @@ export interface AgentPreferences {
 
 export interface AgentPreferencesPatch {
     search?: Partial<SearchPreferences>;
-    answers?: Partial<Omit<AnswerPreferences, "custom">> & { custom?: Record<string, string> };
+    /** A `custom` entry set to `null` deletes that key on merge (see
+     *  `mergeAgentPreferences`) — `undefined` can't signal this since it
+     *  doesn't survive JSON over the MCP wire and the Admin SDK rejects a
+     *  literal `undefined` field value on write. */
+    answers?: Partial<Omit<AnswerPreferences, "custom">> & { custom?: Record<string, string | null> };
 }
 
 /**
@@ -84,8 +88,13 @@ export function shapeAgentPreferences(stored: unknown): AgentPreferences {
  * versa); a patch section that's present merges field-by-field so a lone
  * changed field never drops its siblings. `answers.custom` merges
  * key-by-key for the same reason — adding one custom Q&A must never drop
- * previously-saved ones. Always returns `configured: true` and a fresh
- * `updated_at`, since a merge only ever happens on an actual set.
+ * previously-saved ones — with one exception: a key patched to `null` is
+ * dropped from the merged result rather than stored, which is how a caller
+ * deletes a custom Q&A (see `AgentPreferencesPatch.answers.custom`'s doc
+ * comment). The stored/returned `custom` is therefore always
+ * `Record<string, string>` — the `null` sentinel never survives past this
+ * function. Always returns `configured: true` and a fresh `updated_at`,
+ * since a merge only ever happens on an actual set.
  */
 export function mergeAgentPreferences(
     existing: AgentPreferences,
@@ -95,7 +104,15 @@ export function mergeAgentPreferences(
         configured: true,
         search: patch.search ? { ...existing.search, ...patch.search } : existing.search,
         answers: patch.answers
-            ? { ...existing.answers, ...patch.answers, custom: { ...existing.answers.custom, ...patch.answers.custom } }
+            ? {
+                  ...existing.answers,
+                  ...patch.answers,
+                  custom: Object.fromEntries(
+                      Object.entries({ ...existing.answers.custom, ...patch.answers.custom }).filter(
+                          ([, v]) => v !== null,
+                      ),
+                  ) as Record<string, string>,
+              }
             : existing.answers,
         updated_at: new Date().toISOString(),
     };

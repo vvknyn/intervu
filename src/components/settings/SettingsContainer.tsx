@@ -20,6 +20,7 @@ import { SecureStorage } from "@/lib/security";
 import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { SETTINGS_MESSAGES, OUTPUT_PREF_DESCRIPTIONS } from "@/lib/copy";
 import { ModelSettings } from "@/components/settings/ModelSettings";
+import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 
@@ -381,6 +382,9 @@ export function SettingsContainer() {
                         )}
                     </div>
                 </section>
+
+                {/* Section: Your agent's answers */}
+                <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
 
                 {/* Section: Connected agents */}
                 <AgentAccessSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />

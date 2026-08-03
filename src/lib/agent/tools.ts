@@ -13,12 +13,23 @@ import { degradedResultsNote } from "../jobs/result-state";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
 import {
   buildJobSnapshot, orderResumeVersionsLatestFirst,
-  type JobSnapshot, type Pursuit, type ResumeVersionSnapshot,
+  type JobSnapshot, type Pursuit, type PursuitStage, type ResumeVersionSnapshot,
 } from "../pursuits/types";
 import { buildResumeVersionSnapshot } from "../pursuits/resume-version";
+import type { ApplicationSummary } from "../pursuits/list";
 import type { BaseResume } from "../resume/base-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
+import {
+  EXPERIENCE_LEVELS, type ExperienceLevel,
+  EMPLOYMENT_TYPES, type EmploymentType,
+  POSTED_WITHIN_DAYS_OPTIONS, type PostedWithinDays,
+} from "./facets";
+// Re-exported so existing `@/lib/agent/tools` importers (route.ts,
+// agent-tools.test.ts) keep working unchanged — see facets.ts for the
+// client-bundle reason these three live there now.
+export { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS };
+export type { ExperienceLevel, EmploymentType, PostedWithinDays };
 
 export interface ToolDeps {
   uid: string;
@@ -61,6 +72,11 @@ export interface ToolDeps {
    *  `setAgentPreferences` (`lib/agent/preferences.ts`). */
   getPreferences: (uid: string) => Promise<AgentPreferences>;
   setPreferences: (uid: string, patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
+  /** The caller's own application/pursuit history, newest-`updated_at`-first
+   *  and optionally filtered to one `status` — injected so `get_applications`
+   *  never touches Firestore directly, matching every other I/O dep here.
+   *  See `listPursuitsForUser` (`lib/pursuits/list.ts`). */
+  listApplications: (uid: string, opts: { status?: PursuitStage; limit: number }) => Promise<ApplicationSummary[]>;
 }
 
 /**
@@ -69,9 +85,12 @@ export interface ToolDeps {
  * cumulative "posted within N days" filter — see `BUCKET_MS` in
  * meilisearch.ts). 7 and 30 have exact members; 90 doesn't, so it narrows to
  * the tightest bucket still available (30d) rather than silently searching
- * wider than the agent asked for, and says so via `note`.
+ * wider than the agent asked for, and says so via `note`. Keyed off
+ * `POSTED_WITHIN_DAYS_OPTIONS` (`facets.ts`, re-exported above) rather than
+ * a second `7|30|90` literal union, so this lookup's allowed keys and the
+ * wire schema's allowed values can never drift apart.
  */
-const POSTED_WITHIN_DAYS_TO_BUCKET: Record<7 | 30 | 90, { bucket: PostedBucket; note?: string }> = {
+const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBucket; note?: string }> = {
   7: { bucket: "7d" },
   30: { bucket: "30d" },
   90: {
@@ -79,26 +98,6 @@ const POSTED_WITHIN_DAYS_TO_BUCKET: Record<7 | 30 | 90, { bucket: PostedBucket; 
     note: 'postedWithinDays=90 has no matching bucket; narrowed to the nearest stricter bucket ("30d").',
   },
 };
-
-/**
- * Real, user-selectable `experience_level` facet values (Task 12) —
- * types.ts:30's doc comment and resume-match.ts:32's independent
- * `Seniority` union both agree on entry|mid|senior. The corpus's own
- * "unknown" sentinel (also documented at types.ts:30) is deliberately
- * excluded: FilterPanel.tsx's `SENTINEL_VALUES` already keeps it out of every
- * UI-rendered filter chip, so it is never a value a person — or now an
- * agent — actually picks.
- */
-export const EXPERIENCE_LEVELS = ["entry", "mid", "senior"] as const;
-export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
-
-/**
- * Real, user-selectable `employment_type` facet values (Task 12) —
- * types.ts:28's doc comment; "unknown" excluded for the same reason as
- * `EXPERIENCE_LEVELS` above.
- */
-export const EMPLOYMENT_TYPES = ["full_time", "contract"] as const;
-export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 
 /**
  * The ONE wire allowlist for job objects exposed to an agent (CRITICAL 1
@@ -187,7 +186,7 @@ function isBackendDown(result: JobSearchResult): boolean {
 
 export interface SearchJobsInput {
   query?: string;
-  postedWithinDays?: 7 | 30 | 90;
+  postedWithinDays?: PostedWithinDays;
   includeGhostFlagged?: boolean;
   limit?: number;
   /** → `places` (Task 12 review fix), via the SAME place-parsing path
@@ -532,4 +531,15 @@ export async function toolSetPreferences(
   input: AgentPreferencesPatch,
 ): Promise<AgentPreferences> {
   return deps.setPreferences(deps.uid, input);
+}
+
+/** Returns the caller's own application history — never another user's.
+ *  Clamps `limit` defensively even though the wire schema already caps it
+ *  (same defense-in-depth spirit as `decodeCursor`'s clamps above). */
+export async function toolGetApplications(
+  deps: ToolDeps,
+  input: { status?: PursuitStage; limit?: number },
+): Promise<{ applications: ApplicationSummary[] }> {
+  const limit = Math.min(input.limit ?? AGENT.APPLICATIONS_DEFAULT_LIMIT, AGENT.APPLICATIONS_MAX_LIMIT);
+  return { applications: await deps.listApplications(deps.uid, { status: input.status, limit }) };
 }
