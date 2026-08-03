@@ -1,9 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { joinConnectWaitlist } from "@/actions/connect-waitlist";
+import { useState } from "react";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 
 /**
@@ -70,50 +67,11 @@ function StepLabel({ n, label }: { n: number; label: string }) {
   );
 }
 
-function WaitlistBand({ activeClient }: { activeClient: ConnectClientId }) {
-  const [email, setEmail] = useState("");
-  const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ ok: boolean; message?: string } | null>(null);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    startTransition(async () => {
-      const res = await joinConnectWaitlist({ email, client: activeClient });
-      setResult(res.error ? { ok: false, message: res.error } : { ok: true });
-    });
-  };
-
-  return (
-    <section className="mt-10 rounded-none border-2 border-foreground p-6 sm:p-8">
-      <h2 className="text-lg font-semibold text-foreground">Rolling out in beta</h2>
-      {result?.ok ? (
-        <p className="mt-3 text-sm text-brand">
-          You&apos;re on the list — we&apos;ll email you when it&apos;s ready.
-        </p>
-      ) : (
-        <>
-          <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <Input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              disabled={pending}
-              className="rounded-none"
-            />
-            <Button type="submit" variant="brand" disabled={pending} className="rounded-none">
-              {pending ? "Joining…" : "Get early access"}
-            </Button>
-          </form>
-          {result && !result.ok ? (
-            <p className="mt-2 text-sm text-foreground">{result.message}</p>
-          ) : null}
-        </>
-      )}
-    </section>
-  );
-}
+const TRY_THESE_PROMPTS = [
+  "Find senior product manager roles in Berlin posted this week",
+  "Is this posting real, or is it a ghost job?",
+  "Save that one and tailor my resume for it",
+];
 
 export function ConnectClient() {
   const [activeClient, setActiveClient] = useState<ConnectClientId>(CONNECT_CLIENTS[0].id);
@@ -205,7 +163,16 @@ export function ConnectClient() {
         </div>
       </div>
 
-      <WaitlistBand activeClient={activeClient} />
+      <section className="mt-10 rounded-none border-2 border-foreground p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-foreground">Try these first</h2>
+        <ul className="mt-3 space-y-2">
+          {TRY_THESE_PROMPTS.map((prompt) => (
+            <li key={prompt} className="text-sm italic text-foreground">
+              &ldquo;{prompt}&rdquo;
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <p className="mt-6 max-w-xl text-xs text-muted-foreground">
         Revocable any time in settings. Your AI&apos;s subscription does the thinking —
