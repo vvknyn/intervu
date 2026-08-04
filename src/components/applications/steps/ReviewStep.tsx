@@ -131,14 +131,16 @@ export function ReviewStep({ draft, onUpdate, onGoToStep }: ReviewStepProps) {
                 </div>
             </div>
 
-            {/* Resume Version Preview */}
+            {/* Resume Version Preview — no wizard step edits this anymore
+                (tailoring moved to MCP, 2026-08-03); selectedRecommendations
+                is always empty now, so this always renders the "Original"
+                branch below. Read-only, no onEdit. */}
             <CollapsibleSection
                 title="Resume Version"
                 icon={<FileText size={18} />}
                 badge={selectedCount > 0 ? `${selectedCount} changes` : "Original"}
                 isExpanded={expandedSections.has("changes")}
                 onToggle={() => toggleSection("changes")}
-                onEdit={() => onGoToStep(2)}
             >
                 {selectedCount > 0 ? (
                     <div className="space-y-3">
@@ -187,7 +189,7 @@ export function ReviewStep({ draft, onUpdate, onGoToStep }: ReviewStepProps) {
                 badge={draft.coverLetter ? "Included" : "Not included"}
                 isExpanded={expandedSections.has("coverLetter")}
                 onToggle={() => toggleSection("coverLetter")}
-                onEdit={() => onGoToStep(3)}
+                onEdit={() => onGoToStep(2)}
             >
                 {draft.coverLetter ? (
                     <div className="prose prose-sm max-w-none text-foreground/80 bg-muted/20 p-4 rounded-lg border border-border/50">

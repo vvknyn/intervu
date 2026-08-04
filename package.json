@@ -12,8 +12,6 @@
     "test:headed": "playwright test --headed",
     "test:nav": "playwright test tests/e2e/navigation.spec.ts",
     "test:auth": "playwright test tests/e2e/auth.spec.ts",
-    "test:resume": "playwright test tests/e2e/resume-builder.spec.ts",
-    "test:tailor": "playwright test tests/e2e/resume-tailor.spec.ts",
     "test:apps": "playwright test tests/e2e/yours.spec.ts",
     "test:settings": "playwright test tests/e2e/settings.spec.ts",
     "test:mobile": "playwright test tests/e2e/mobile.spec.ts",

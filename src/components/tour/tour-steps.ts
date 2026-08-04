@@ -54,31 +54,6 @@ export const tourSteps: Record<string, TourStep[]> = {
       optional: true,
     },
   ],
-  "resume-builder": [
-    {
-      selector: '[data-tour="resume-editor"]',
-      title: "Resume Editor",
-      description:
-        "Build and edit your resume section by section. Changes save automatically. Use the up and down arrows to reorder sections.",
-      placement: "right",
-    },
-    {
-      selector: '[data-tour="resume-import"]',
-      title: "Import Resume",
-      description:
-        "Import an existing resume from PDF, DOCX, or plain text. The AI will parse and populate the editor fields.",
-      placement: "bottom",
-      optional: true,
-    },
-    {
-      selector: '[data-tour="resume-tailor"]',
-      title: "Tailor & Versions",
-      description:
-        "Tailor your resume to a specific job description. The AI suggests changes, and you can save multiple versions.",
-      placement: "bottom",
-      optional: true,
-    },
-  ],
   applications: [
     {
       selector: '[data-tour="new-app-button"]',

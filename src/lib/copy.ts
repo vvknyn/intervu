@@ -207,18 +207,6 @@ export const AUTH_MESSAGES = {
 };
 
 // ---------------------------------------------------------------------------
-// Resume tailor messages (resume-tailor/page.tsx)
-// ---------------------------------------------------------------------------
-export const RESUME_MESSAGES = {
-    noJobPosting:
-        "Paste a job posting first — we need to know what we're tailoring to.",
-    noResumeData:
-        "No resume found. Head to the Resume Builder to create one first.",
-    analyzeFirst:
-        "Analyze the job posting first, then we can work our magic.",
-};
-
-// ---------------------------------------------------------------------------
 // Loading step messages (DashboardContainer.tsx — specific step indicators)
 // ---------------------------------------------------------------------------
 export const LOADING_STEPS = {
