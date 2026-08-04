@@ -62,7 +62,14 @@ export default async function HomePage() {
     return (
         <>
             <section className="relative flex min-h-[calc(100dvh-58px)] flex-col overflow-x-clip px-4 lg:px-8">
-                <WatchingWall className="absolute inset-0" />
+                {/* The scrolling job-title wall was a device for the old dark
+                    night scene, where white-on-black at 5% read as texture. On
+                    the light surface the same layer is ink at 5% over cream,
+                    which reads as a smudge behind the headline rather than as
+                    atmosphere — and texture-behind-text is exactly what the
+                    whitespace-over-decoration rule in DESIGN-LANGUAGE.md exists
+                    to prevent. Kept for dark, where it still works. */}
+                <WatchingWall className="absolute inset-0 hidden dark:block" />
 
                 {/* Returning-searcher memory (lib/jobs-visitor-cookie.ts) —
                     never auto-redirects, just a slim reminder above the

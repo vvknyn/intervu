@@ -114,7 +114,7 @@ Known debt, to be repaid rather than extended (from the 2026-08-04 audit):
 - 13 files hardcode raw Tailwind palette colours.
 - ~~Two competing shadow systems (`shadow-[var(--shadow-sm)]` and plain `shadow-sm`) — both go to
   none.~~ **Done (2026-08-04, one-visual-world PR):** `--shadow-sm/md/lg` are `none` in both
-  `:root` and `.dark`, which flattens every `shadow-[var(--shadow-*)]` call site for free. The
+  `:root` and `.dark`, which flattens every call site reading one of those three tokens. The
   plain-class side was swept in the files that PR touched for other reasons — `ui/card.tsx`,
   `ui/button.tsx` (`brand` variant), `ui/input.tsx`, `ui/dropdown-menu.tsx`,
   `ui/popover.tsx`, `FavoritesModal.tsx`, `StoryManager.tsx`, `WhatsAppThreadHero.tsx` — not

@@ -110,9 +110,14 @@
 
   /* Shadow tokens — elevation retired (2026-08-04 one-visual-world pass,
      docs/design/DESIGN-LANGUAGE.md "Elevation: none"). Separation now comes
-     from a 1px --border plus whitespace, everywhere. Every
-     `shadow-[var(--shadow-*)]` call site (21 at last count) goes flat from
-     this one chokepoint — none of them needed to change. */
+     from a 1px --border plus whitespace, everywhere. Every call site reading
+     one of these three tokens (21 at last count) goes flat from this one
+     chokepoint — none of them needed to change.
+     NOTE: do not write an arbitrary-value utility (square-bracket syntax)
+     inside a comment in this file. Tailwind v4 scans CSS for class names and
+     does not skip comments, so it will emit a real utility from the comment
+     text — a wildcard in one produced `--tw-shadow: var(--shadow-*)`, which
+     is invalid CSS and took the whole stylesheet (and every route) down. */
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
