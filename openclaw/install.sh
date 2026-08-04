@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The gateway takes a few seconds to accept connections after a restart —
+# any scheduler/cron command fired too early dies with "gateway closed
+# (1006)". Poll until it answers (caught live on the first real user
+# walkthrough, 2026-08-03).
+wait_for_gateway() {
+  for _ in $(seq 1 15); do
+    if openclaw cron list >/dev/null 2>&1; then return 0; fi
+    sleep 2
+  done
+  echo "    Gateway did not come back within 30s — run 'openclaw gateway status', then re-run this installer." >&2
+  return 1
+}
+
+
 # intervu-apply — installer
 #
 # Registers the intervu MCP server with mcporter, authenticates it, downloads
@@ -116,6 +130,7 @@ fi
 
 # --- 7. Arm the cron jobs (idempotent) ---------------------------------------
 echo "==> Arming cron jobs..."
+wait_for_gateway
 EXISTING_CRON="$(openclaw cron list 2>/dev/null || true)"
 
 if echo "$EXISTING_CRON" | grep -q "intervu-apply-digest"; then
