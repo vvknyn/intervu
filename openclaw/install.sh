@@ -3,16 +3,20 @@ set -euo pipefail
 
 # intervu-apply — installer
 #
-# Registers the intervu MCP server with mcporter, authenticates it, copies
-# this skill directory into OpenClaw's skills dir, restarts the gateway, and
-# arms the two cron jobs the skill relies on (morning digest + weekly
+# Registers the intervu MCP server with mcporter, authenticates it, downloads
+# and installs this skill into OpenClaw's skills dir, restarts the gateway,
+# and arms the two cron jobs the skill relies on (morning digest + weekly
 # recap). Every step below is safe to re-run: it checks current state first
 # and no-ops if already done.
+#
+# Designed to run as: curl -fsSL https://intervu.cc/install | bash
+# There is no script file on disk in that mode, so this deliberately never
+# references $0/$BASH_SOURCE or a repo checkout.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_NAME="intervu-apply"
 MCP_SERVER_KEY="intervu-cc-mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
+SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
 
 # --- 1. OpenClaw must already be installed ---------------------------------
 echo "==> Checking OpenClaw is installed..."
@@ -38,25 +42,39 @@ echo "==============================================================="
 echo "  A browser window is about to open for you to approve intervu."
 echo "  YOU HAVE ABOUT 60 SECONDS — be ready to click through it now."
 echo "==============================================================="
-mcporter auth "$MCP_SERVER_KEY"
+mcporter auth "$MCP_SERVER_KEY" || {
+  echo "Auth failed. Re-run 'mcporter auth $MCP_SERVER_KEY' — make sure you click through the browser prompt within ~60 seconds this time."
+  exit 1
+}
 echo "    Auth flow complete."
 
 # --- 5. Install the skill ----------------------------------------------------
-echo "==> Installing the skill..."
+echo "==> Downloading and installing the skill..."
 INSTALL_DIR="$HOME/.openclaw/skills/$SKILL_NAME"
 # ~/.openclaw/skills/ — NOT ~/.openclaw/workspace/skills/ — is the directory
 # OpenClaw actually injects into the agent's context; the workspace skills
 # dir is never read by the gateway. This is a verified, hard-won finding, not
 # a guess — installing anywhere else silently produces an agent that doesn't
 # have this skill.
-rm -rf "$INSTALL_DIR"
-if command -v rsync >/dev/null 2>&1; then
-  mkdir -p "$INSTALL_DIR"
-  rsync -a --exclude='.git' "$SCRIPT_DIR"/ "$INSTALL_DIR"
-else
-  echo "    rsync not found — falling back to cp -R (a .git directory, if this checkout has one, will be copied too)."
-  cp -R "$SCRIPT_DIR" "$INSTALL_DIR"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+if ! curl -fsSL "$SKILL_TARBALL_URL" -o "$TMP_DIR/skill.tar.gz"; then
+  echo "Failed to download the skill payload from $SKILL_TARBALL_URL — aborting without touching $INSTALL_DIR."
+  exit 1
 fi
+
+mkdir -p "$TMP_DIR/skill"
+tar -xzf "$TMP_DIR/skill.tar.gz" -C "$TMP_DIR/skill"
+
+if [[ ! -f "$TMP_DIR/skill/SKILL.md" ]]; then
+  echo "Downloaded skill payload is missing SKILL.md — aborting without touching $INSTALL_DIR."
+  exit 1
+fi
+
+rm -rf "$INSTALL_DIR"
+mkdir -p "$(dirname "$INSTALL_DIR")"
+mv "$TMP_DIR/skill" "$INSTALL_DIR"
 echo "    Installed to $INSTALL_DIR."
 
 # --- 6. Restart the gateway so the newly installed skill is picked up -------
