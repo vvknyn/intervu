@@ -22,6 +22,12 @@ import { deriveMessageTime } from "./whatsapp-message-time";
 const MESSAGE_DELAY_MS = 500;
 const MESSAGE_DURATION_S = 0.32;
 
+// Fixed height of the message-reveal viewport (between the date pill and the
+// composer) — chosen so the full 7-message thread fits with a few px of
+// slack. The device frame is a fixed shell, not a card that grows with the
+// conversation, so this never changes with `displayCount`.
+const MESSAGE_VIEWPORT_HEIGHT_PX = 416;
+
 // Faint repeating-doodle wallpaper texture behind the chat, at ~4% opacity
 // via the wrapping layer's `opacity-[0.04]` below (not baked into the SVG
 // itself) — a tiny inline data-URI dot pattern rather than an image asset.
@@ -33,15 +39,22 @@ const DOODLE_BACKGROUND_IMAGE =
  * screenshot (status bar, chat header, doodle-textured message area, WA
  * bubble colors/tails, composer), built entirely from Tailwind + inline SVG
  * (via `@phosphor-icons/react`, already a dependency) with no image assets.
- * Reveals `WHATSAPP_THREAD` one bubble at a time on mount, mounting each
- * message only once its turn arrives (rather than rendering all of them up
- * front at `opacity: 0`) so the panel actually grows with the conversation
- * instead of pre-reserving its full final height as blank space. Reuses
- * framer-motion's `useReducedMotion()` (already used by `TourOverlay.tsx`)
- * rather than hand-rolling a matchMedia subscription; the animated-vs-instant
- * branch itself lives in the pure `resolveThreadRenderMode` so it's
- * unit-testable without rendering this component. This is the only thing
- * that animates on either page it mounts on.
+ * The phone shell (frame, status bar, header, date pill, composer) renders
+ * at a fixed size on first paint, like a real phone that's already there —
+ * it never grows or shrinks. Only the message-reveal viewport between the
+ * date pill and composer changes: it's a fixed-height `overflow-hidden`
+ * flex column with `justify-end`, so as `WHATSAPP_THREAD` reveals one
+ * bubble at a time (mounting each message only once its turn arrives,
+ * rather than rendering all of them up front at `opacity: 0`), the newest
+ * bubble anchors to the bottom and earlier ones get pushed up and clipped
+ * off the top once the stack outgrows the viewport — the same behavior a
+ * real WhatsApp thread has, achieved with plain flexbox rather than
+ * scroll-position tracking. Reuses framer-motion's `useReducedMotion()`
+ * (already used by `TourOverlay.tsx`) rather than hand-rolling a
+ * matchMedia subscription; the animated-vs-instant branch itself lives in
+ * the pure `resolveThreadRenderMode` so it's unit-testable without
+ * rendering this component. This is the only thing that animates on either
+ * page it mounts on.
  *
  * The phone screen's colors are literal WhatsApp dark-theme hex values
  * (`#0B141A` chat bg, `#1F2C34` header/composer chrome, `#005C4B` outgoing /
@@ -124,73 +137,83 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
             className="pointer-events-none absolute inset-0 opacity-[0.04]"
             style={{ backgroundImage: DOODLE_BACKGROUND_IMAGE, backgroundSize: "60px 60px" }}
           />
-          <div className="relative flex flex-col gap-0.5 px-2.5 pb-1.5 pt-1.5">
-            <span className="mx-auto mb-0.5 rounded-md bg-[#1F2C34] px-2.5 py-0.5 text-[10px] text-white/55">
+          <div className="relative flex flex-col">
+            {/* Date pill — part of the fixed shell, always rendered. */}
+            <span className="mx-auto mb-0.5 mt-1.5 rounded-md bg-[#1F2C34] px-2.5 py-0.5 text-[10px] text-white/55">
               Today
             </span>
-            <AnimatePresence initial={false}>
-              {WHATSAPP_THREAD.slice(0, displayCount).map((msg, i) => {
-                // Generic "starts a new run" check — compares this message's
-                // role to the PREVIOUS message's role (not a hardcoded
-                // index), so the tail placement stays correct however the
-                // content's role sequence is authored.
-                const isFirstOfRun = i === 0 || WHATSAPP_THREAD[i - 1].role !== msg.role;
-                const time = baseTimestamp ? deriveMessageTime(baseTimestamp, i) : undefined;
-                return (
-                  <motion.div
-                    key={i}
-                    initial={mode === "animated" ? { opacity: 0, y: 8 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: MESSAGE_DURATION_S, ease: "easeOut" }}
-                    className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
-                  >
-                    <div
-                      className={cn(
-                        "relative max-w-[80%] rounded-lg px-2.5 py-1 text-[13px] leading-[1.2] text-white",
-                        msg.role === "user"
-                          ? cn("bg-[#005C4B]", isFirstOfRun && "rounded-br-none")
-                          : cn("bg-[#202C33]", isFirstOfRun && "rounded-bl-none"),
-                      )}
+            {/* Fixed-height clipping viewport — bottom-anchored so the
+                newest bubble stays put and earlier ones clip off the top
+                once the stack outgrows this height, instead of the panel
+                growing to fit every message. */}
+            <div
+              className="flex flex-col justify-end gap-0.5 overflow-hidden px-2.5 pb-1.5"
+              style={{ height: MESSAGE_VIEWPORT_HEIGHT_PX }}
+            >
+              <AnimatePresence initial={false}>
+                {WHATSAPP_THREAD.slice(0, displayCount).map((msg, i) => {
+                  // Generic "starts a new run" check — compares this message's
+                  // role to the PREVIOUS message's role (not a hardcoded
+                  // index), so the tail placement stays correct however the
+                  // content's role sequence is authored.
+                  const isFirstOfRun = i === 0 || WHATSAPP_THREAD[i - 1].role !== msg.role;
+                  const time = baseTimestamp ? deriveMessageTime(baseTimestamp, i) : undefined;
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={mode === "animated" ? { opacity: 0, y: 8 } : false}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: MESSAGE_DURATION_S, ease: "easeOut" }}
+                      className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
                     >
-                      {isFirstOfRun ? (
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "absolute bottom-0 h-2.5 w-2.5",
-                            msg.role === "user"
-                              ? "-right-[7px] bg-[#005C4B] [clip-path:polygon(0_0,100%_100%,0_100%)]"
-                              : "-left-[7px] bg-[#202C33] [clip-path:polygon(100%_0,100%_100%,0_100%)]",
-                          )}
-                        />
-                      ) : null}
-                      <p>{msg.text}</p>
-                      {msg.attachment ? (
-                        <div
-                          role="img"
-                          aria-label={msg.attachment}
-                          className="mt-1 flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1"
-                        >
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10">
-                            <FileText size={13} weight="bold" className="text-white/80" aria-hidden="true" />
-                          </span>
-                          <span className="flex min-w-0 flex-col leading-tight">
-                            <span className="truncate text-[11.5px] text-white">resume.pdf</span>
-                            <span className="text-[9.5px] text-white/50">128 kB · pdf</span>
-                          </span>
-                        </div>
-                      ) : null}
-                      {msg.followText ? <p className="mt-0.5">{msg.followText}</p> : null}
-                      <div className="flex items-center justify-end gap-1">
-                        {time ? <span className="text-[10px] text-white/45">{time}</span> : null}
-                        {msg.role === "user" ? (
-                          <Checks size={13} className="text-[#53BDEB]" aria-hidden="true" />
+                      <div
+                        className={cn(
+                          "relative max-w-[80%] rounded-lg px-2.5 py-1 text-[13px] leading-[1.2] text-white",
+                          msg.role === "user"
+                            ? cn("bg-[#005C4B]", isFirstOfRun && "rounded-br-none")
+                            : cn("bg-[#202C33]", isFirstOfRun && "rounded-bl-none"),
+                        )}
+                      >
+                        {isFirstOfRun ? (
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "absolute bottom-0 h-2.5 w-2.5",
+                              msg.role === "user"
+                                ? "-right-[7px] bg-[#005C4B] [clip-path:polygon(0_0,100%_100%,0_100%)]"
+                                : "-left-[7px] bg-[#202C33] [clip-path:polygon(100%_0,100%_100%,0_100%)]",
+                            )}
+                          />
                         ) : null}
+                        <p>{msg.text}</p>
+                        {msg.attachment ? (
+                          <div
+                            role="img"
+                            aria-label={msg.attachment}
+                            className="mt-1 flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1"
+                          >
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10">
+                              <FileText size={13} weight="bold" className="text-white/80" aria-hidden="true" />
+                            </span>
+                            <span className="flex min-w-0 flex-col leading-tight">
+                              <span className="truncate text-[11.5px] text-white">resume.pdf</span>
+                              <span className="text-[9.5px] text-white/50">128 kB · pdf</span>
+                            </span>
+                          </div>
+                        ) : null}
+                        {msg.followText ? <p className="mt-0.5">{msg.followText}</p> : null}
+                        <div className="flex items-center justify-end gap-1">
+                          {time ? <span className="text-[10px] text-white/45">{time}</span> : null}
+                          {msg.role === "user" ? (
+                            <Checks size={13} className="text-[#53BDEB]" aria-hidden="true" />
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
