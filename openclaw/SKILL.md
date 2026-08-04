@@ -334,6 +334,18 @@ failure).
    touch them.
 8. For any other required field with no truthful answer available, leave it
    blank and note it in your report to the user — never fabricate.
+8b. MISTAKE = FRESH TAB. If you put a wrong value somewhere, picked the
+   wrong option in a multi-step wizard, or the form state looks confused
+   (validation errors you didn't expect, fields showing values you didn't
+   enter): do NOT repair the form in place. `browser close` the FORM tab,
+   reopen `apply_url` in a new tab, and refill from the start — every
+   answer re-derives from the resume and preferences, so a clean refill is
+   cheaper and safer than surgery on a half-broken page. If the reopened
+   form shows a server-side draft of the earlier attempt (Workday-class
+   vendors autosave), verify EVERY prefilled field per the normal protocol
+   — assume nothing survived correctly. Two fresh attempts maximum; if the
+   second also goes wrong, stop and tell the user exactly what keeps
+   failing — never hand over a form you patched around.
 9. Screenshot BOTH tabs — `browser screenshot` the FORM tab, focus the
    RESUME tab, `browser screenshot` it too — then send the user ONE review
    blurb with both images attached, containing ALL of, in order,
