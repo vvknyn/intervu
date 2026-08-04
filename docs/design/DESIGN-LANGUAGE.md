@@ -38,6 +38,15 @@ coral/violet night palette and forces dark regardless of the user's toggle. **Th
 of the "doesn't feel like the same product" jump from landing to search, and it is retired.**
 Marketing pages use the same tokens, the same shell and the same theme toggle as the app.
 
+**Done (2026-08-04, one-visual-world PR):** `openclaw-marketing.css` is deleted (nothing needed
+its `--oc-*` accents once the core-token remaps came out — the ones that did, like the front
+door's status-line dot, now read `--brand`). `/` and `/openclaw` render in light by default and
+follow the toggle. There is also exactly one nav component now — `TopBar`, mounted once in the
+root layout on every route including `/` — `FrontDoorNav` (a second brand-mark/nav
+implementation that duplicated `TopBar`'s `layoutId`-based brand mark for a cross-page morph that
+had already gone dead) is deleted, and the now-uncontested `MotionRoot`/`LayoutGroup` wrapper it
+existed for went with it.
+
 Scoped remaps of core token names are forbidden. If a surface needs a distinct treatment, it
 composes from the tokens below — it does not redefine them.
 
@@ -52,7 +61,11 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 
 - **Radius: 0.** All nine `--radius-*` keys are `0px`. `rounded-full` and arbitrary
   `rounded-[Npx]` bypass the theme, so they are banned in components except where a shape is
-  genuinely circular (avatars, dots, spinners).
+  genuinely circular (avatars, dots, spinners) — plus one standing exception:
+  `WhatsAppThreadHero`'s `rounded-[30px]` phone bezel, because it depicts a literal phone and a
+  phone has rounded corners. That component is otherwise a self-contained artifact (its own
+  fixed WhatsApp hex colours, not theme tokens) that must never leak its palette onto the page
+  around it — elevation still applies to it though: no exception on `shadow-*` there.
 - **Elevation: none.** `--shadow-sm/md/lg` are `none`. Separation comes from a 1px `--border`
   and whitespace — ollama's rule, and it suits a squared system. Never `shadow-lg`,
   `shadow-2xl`, or a raw `shadow-*` class.
@@ -99,8 +112,15 @@ Known debt, to be repaid rather than extended (from the 2026-08-04 audit):
 - Three independently built toggle switches in two recipes — **there is no `Switch` primitive;
   build one** rather than writing a fourth.
 - 13 files hardcode raw Tailwind palette colours.
-- Two competing shadow systems (`shadow-[var(--shadow-sm)]` and plain `shadow-sm`) — both go to
-  none.
+- ~~Two competing shadow systems (`shadow-[var(--shadow-sm)]` and plain `shadow-sm`) — both go to
+  none.~~ **Done (2026-08-04, one-visual-world PR):** `--shadow-sm/md/lg` are `none` in both
+  `:root` and `.dark`, which flattens every call site reading one of those three tokens. The
+  plain-class side was swept in the files that PR touched for other reasons — `ui/card.tsx`,
+  `ui/button.tsx` (`brand` variant), `ui/input.tsx`, `ui/dropdown-menu.tsx`,
+  `ui/popover.tsx`, `FavoritesModal.tsx`, `StoryManager.tsx`, `WhatsAppThreadHero.tsx` — not
+  repo-wide. Plain `shadow-*` still remains in `sheet.tsx`, `dialog.tsx`, `tooltip.tsx`,
+  `select.tsx`, `tabs.tsx`, `textarea.tsx`, and the resume-builder / applications / admin-panel /
+  tour / toast surfaces; the rule below still applies to those the next time a PR is in there.
 
 **Rule: any PR touching one of those files fixes it to the primitive on the way past.** No new
 hand-rolled buttons, cards, or switches.

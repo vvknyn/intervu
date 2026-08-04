@@ -92,7 +92,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-[360px] rounded-[30px] bg-black p-[3px] shadow-2xl",
+        "mx-auto w-full max-w-[360px] rounded-[30px] bg-black p-[3px]",
         className,
       )}
       role="group"

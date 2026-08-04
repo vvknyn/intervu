@@ -4,20 +4,21 @@ import { OPENCLAW_STATUS_BADGE } from "./openclaw-content";
 /**
  * Honest-status qualifier rendered directly above `OPENCLAW_HEADLINE`
  * wherever that headline appears (landing hero, /openclaw hero) — shared
- * so the two placements can never drift apart. Styled to match the rest of
- * /openclaw's mono/uppercase section labels; `text-[rgb(var(--oc-coral))]`
- * resolves against the `.openclaw` scope's `--oc-coral`, which is declared
- * identically in both light and dark blocks of openclaw-marketing.css, so
- * it reads on both site themes without a separate dark-mode override.
+ * so the two placements can never drift apart. Label text stays neutral ink
+ * (one-visual-world pass, 2026-08-04 — the site's one accent color is
+ * spent scarcely); the single `--brand` dot is the one "small mark" this
+ * status line gets, the same role a live-verdict dot plays elsewhere
+ * (see `/pricing`'s identical `h-[9px] w-[9px] bg-brand` dot).
  */
 export function OpenclawStatusBadge({ className }: { className?: string }) {
   return (
     <p
       className={cn(
-        "font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]",
+        "inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
         className,
       )}
     >
+      <span className="h-[7px] w-[7px] shrink-0 bg-brand" aria-hidden="true" />
       {OPENCLAW_STATUS_BADGE}
     </p>
   );

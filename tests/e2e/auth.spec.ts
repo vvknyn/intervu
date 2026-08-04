@@ -6,19 +6,15 @@ import { test, expect, type Page } from '@playwright/test';
  * Tests authentication flows including sign in, sign up, sign out,
  * guest mode, and login form validation.
  *
- * Automation-first front door (2026-08-03): on `/`, TopBar stays mounted
- * underneath the front door's fixed night scene (shared layoutId brand
- * animation with FrontDoorNav) but is fully covered by it, so its own "Log
- * in" button (data-testid="topbar-login") is present in the DOM but not
- * clickable. `/`'s real, clickable login entry point is FrontDoorNav's own
- * trigger (data-testid="landing-login") — a generic `button:has-text("Log
- * in")` locator's `.first()` can resolve to the covered TopBar button
- * instead and hang forever waiting for it to become clickable. See
- * FrontDoorNav.tsx's `hero-theme-toggle` doc comment for the same
- * collision-avoidance reasoning applied there.
+ * One visual world (2026-08-04): `/` used to render its own `FrontDoorNav`
+ * over a hidden `TopBar`, so tests had to target FrontDoorNav's separate
+ * `landing-login` trigger. `FrontDoorNav` is deleted — `TopBar` is now the
+ * only nav on every route, front door included — so `/`'s real, clickable
+ * login entry point is the same `topbar-login` trigger every other page
+ * uses.
  */
 function frontDoorLogin(page: Page) {
-  return page.getByTestId('landing-login');
+  return page.getByTestId('topbar-login');
 }
 
 test.describe('AUTH - Authentication Tests', () => {
