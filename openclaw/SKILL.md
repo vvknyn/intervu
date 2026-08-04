@@ -42,8 +42,12 @@ Its health probe reports "auth required" even when stored credentials are
 valid (verified live 2026-08-03); trusting it produces an endless "please
 authenticate" loop while actual calls would succeed. The ONLY reliable auth
 check is a real call (e.g. `get_resume`). If a real call returns an OAuth/401
-error, THEN ask the user to run `mcporter auth intervu-cc-mcp` and continue
-after they say done.
+error, FIX IT YOURSELF: run `mcporter auth intervu-cc-mcp` via exec — a
+browser window opens on this machine — and tell the user only: "I need a
+quick re-approval — a browser window just opened on your computer; click
+Approve (you have about 60 seconds)." Then retry the original call. If the
+auth times out, run it again when the user says they're ready. Never paste
+commands for the user to run; the only thing they ever do is click Approve.
 
 All eleven tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
 (returns `resume_on_file`), `get_resume`, `save_resume_variant`,
@@ -185,8 +189,12 @@ preferences" request reopens it.
    cache for a working server call.
 2. `mcporter call intervu-cc-mcp.search_jobs --args '<search prefs from step 1 as JSON, plus limit:20>' --output json`.
 3. `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json` for fit context.
-4. Rank for fit against the resume. Pick the top 3 — no more, never dump the
-   raw search results. For ranks 4-8, call
+4. Rank per `RANKING.md` (next to this file) — it IS the relevance
+   algorithm: hard excludes, ordered scoring signals, tie-breakers, and the
+   why-line discipline. Precedence is absolute: the user's `fit_notes`
+   (step 1's `answers.custom`) first, then RANKING.md, then your own
+   judgment only where both are silent. Pick the top 3 — no more, never
+   dump the raw search results. For ranks 4-8, call
    `mcporter call intervu-cc-mcp.save_job --args '{"id":"<id>"}'` so the
    user's intervu watchlist quietly builds a bench; never message about
    these.
@@ -212,6 +220,17 @@ Reply with a number to prepare + fill the application.
    ("Still waiting on you: {title} at {company} — filled {n} days ago. Say
    'drop it' to forget it.") and its `nudged` set to true. One nudge ever
    per application — never nag twice.
+8. TUNING BY TALKING (applies any time, not just digest mornings): when the
+   user critiques results — "too junior", "no customer-success roles",
+   "more 0→1 startup roles" — distill the critique into a short standing
+   rule, merge it into the server-side notes via
+   `mcporter call intervu-cc-mcp.set_preferences --args
+   '{"answers":{"custom":{"fit_notes":"<updated combined rules>"}}}'`
+   (read the existing `fit_notes` first and append/edit — never drop prior
+   rules), confirm in ONE line ("Noted — excluding customer-success,
+   weighting product leadership. That sticks."), and apply it from the very
+   next ranking. Preference edits in plain words ("only remote from now
+   on") update `search` the same way.
 
 ### 2. Prepare (user picks one)
 
