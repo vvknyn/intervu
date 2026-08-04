@@ -60,8 +60,10 @@ const splineMono = Spline_Sans_Mono({
 });
 
 const SITE_TITLE = SITE_NAME;
-// Reused verbatim from the jobs page's own <PageHeader> copy (src/app/page.tsx)
-// now that jobs is the root experience — no new marketing copy per PR 1.
+// Fallback for any route that doesn't set its own `metadata` — `/jobs`
+// (a "use client" page, which can't export metadata of its own) is the
+// main consumer today. `/` (the automation-first front door) overrides
+// this with its own metadata in src/app/page.tsx.
 const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk before you spend time on them.";
 
 export const metadata: Metadata = {
@@ -78,9 +80,10 @@ export const metadata: Metadata = {
     "cover letter",
     "job search",
   ],
-  alternates: {
-    canonical: "/",
-  },
+  // No blanket canonical here — a route without its own metadata (like
+  // `/jobs`, a "use client" page that can't export one) is better served
+  // by no canonical tag than a wrong one pointing at `/`. `/` sets its own
+  // in src/app/page.tsx.
   openGraph: {
     type: "website",
     siteName: SITE_TITLE,

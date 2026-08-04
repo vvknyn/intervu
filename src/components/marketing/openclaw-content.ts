@@ -39,6 +39,16 @@ export const OPENCLAW_SUBLINE =
  */
 export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · not installable yet";
 
+/**
+ * The landing front door's primary CTA for people who already run OpenClaw
+ * — a Homebrew-style one-liner rather than the `mcporter auth` step above
+ * (that's `/openclaw`'s guided 3-step setup; this is the fast path for
+ * someone who just wants the command). Hits the public installer route
+ * (owned by a parallel branch as of this writing) rather than duplicating
+ * its logic here.
+ */
+export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install | bash";
+
 export type ThreadRole = "agent" | "user";
 
 export interface ThreadMessage {

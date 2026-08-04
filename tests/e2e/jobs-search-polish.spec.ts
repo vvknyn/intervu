@@ -9,18 +9,22 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 async function enterBrowseMode(page: Page) {
-    // Portal redesign flipped jobs to the root route (`/jobs` now 301s here —
-    // next.config.ts's `redirects()`); going straight there skips the hop.
+    // Automation-first front door (2026-08-03) moved the SERP off `/` to
+    // `/jobs` — going straight there is now required, not just a shortcut:
+    // `/` no longer redirects for a bare filter (only a `q=` deep link does,
+    // per next.config.ts's `redirects()`), and bare `/` renders the OpenClaw
+    // marketing front door, not the ledger.
     //
-    // Some intent is now required to reach the ledger at all: `/` with nothing
-    // asked for renders the ask screen instead of browsing the corpus. The
-    // intent used here is a FILTER (`posted=any`, i.e. no date restriction)
-    // rather than a query, because a query would also change what these suites
-    // measure — relevance ranking would displace the default "freshest" sort,
-    // and TC-JOBS-SORT-001/002 assert precisely that default. A filter leaves
-    // the query empty and the sort untouched, so this stays the old
-    // browse-everything landing in every respect the tests care about.
-    await page.goto('/?posted=any');
+    // Some intent is still required to reach the ledger at all: `/jobs` with
+    // nothing asked for renders the ask screen instead of browsing the
+    // corpus. The intent used here is a FILTER (`posted=any`, i.e. no date
+    // restriction) rather than a query, because a query would also change
+    // what these suites measure — relevance ranking would displace the
+    // default "freshest" sort, and TC-JOBS-SORT-001/002 assert precisely
+    // that default. A filter leaves the query empty and the sort untouched,
+    // so this stays the old browse-everything landing in every respect the
+    // tests care about.
+    await page.goto('/jobs?posted=any');
     await page.waitForLoadState('networkidle');
     await expect(
         page.getByRole('listbox', { name: 'Job results' })
@@ -67,7 +71,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
      * distinctive word with it.
      */
     test('TC-JOBS-RELEVANCE-001: a multi-word role search returns rows that match its words', async ({ page }) => {
-        await page.goto('/?q=Technical%20Account%20Manager');
+        await page.goto('/jobs?q=Technical%20Account%20Manager');
         await page.waitForLoadState('networkidle');
 
         const rows = page.getByTestId('job-row');

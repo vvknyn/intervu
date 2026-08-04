@@ -1,11 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * TEST GROUP: AUTH - Authentication Tests
  *
  * Tests authentication flows including sign in, sign up, sign out,
  * guest mode, and login form validation.
+ *
+ * Automation-first front door (2026-08-03): on `/`, TopBar stays mounted
+ * underneath the front door's fixed night scene (shared layoutId brand
+ * animation with FrontDoorNav) but is fully covered by it, so its own "Log
+ * in" button (data-testid="topbar-login") is present in the DOM but not
+ * clickable. `/`'s real, clickable login entry point is FrontDoorNav's own
+ * trigger (data-testid="landing-login") — a generic `button:has-text("Log
+ * in")` locator's `.first()` can resolve to the covered TopBar button
+ * instead and hang forever waiting for it to become clickable. See
+ * FrontDoorNav.tsx's `hero-theme-toggle` doc comment for the same
+ * collision-avoidance reasoning applied there.
  */
+function frontDoorLogin(page: Page) {
+  return page.getByTestId('landing-login');
+}
 
 test.describe('AUTH - Authentication Tests', () => {
 
@@ -43,7 +57,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Click login button (sidebar or nav)
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
 
@@ -62,7 +76,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
       await page.waitForTimeout(500);
@@ -85,7 +99,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
 
@@ -103,7 +117,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
       await page.waitForTimeout(500);
@@ -134,13 +148,13 @@ test.describe('AUTH - Authentication Tests', () => {
    * Verifies unauthenticated users can still use the application.
    */
   test('TC-AUTH-006: Guest mode allows access to all features', async ({ page }) => {
-    // Can access home without auth
+    // Can access the front door without auth
     await page.goto('/');
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    await expect(page).toHaveURL('/');
 
-    // Can access resume builder without auth
-    await page.goto('/resume-builder');
-    await expect(page).toHaveURL('/resume-builder');
+    // Can access the jobs SERP (search chrome lives here now) without auth
+    await page.goto('/jobs');
+    await expect(page.locator('input[type="text"]').first()).toBeVisible();
 
     // Can access yours without auth
     await page.goto('/yours');
@@ -174,7 +188,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
       await expect(page.locator('input[type="password"]').first()).toBeVisible({ timeout: 5000 });
@@ -196,7 +210,7 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const loginButton = page.locator('button:has-text("Log in"), button:has-text("login")').first();
+    const loginButton = frontDoorLogin(page);
     if (await loginButton.isVisible()) {
       await loginButton.click();
       await page.waitForTimeout(500);
@@ -229,7 +243,8 @@ test.describe('AUTH - Authentication Tests', () => {
    * Guest users can enter a search query and trigger analysis without logging in.
    */
   test('TC-AUTH-011: Guest search works without login', async ({ page }) => {
-    await page.goto('/');
+    // Search chrome lives on /jobs now (front door has no search input).
+    await page.goto('/jobs');
     await page.evaluate(() => {
       localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_123456789012345' }));
     });

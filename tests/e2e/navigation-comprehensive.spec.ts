@@ -4,13 +4,19 @@ import { test, expect, Page } from '@playwright/test';
  * COMPREHENSIVE NAVIGATION TESTS
  *
  * Tests that all pages have working navigation to all other pages.
- * Post-flip (jobs-first-bloom PR 1), the shell is:
+ * The shell is:
  * - TopBar (data-testid="topbar") on every page — wordmark, "All jobs"
  *   (data-testid="topbar-alljobs"), and an auth-conditional avatar
  *   (data-testid="topbar-avatar") or "Log in" (data-testid="topbar-login").
  * - The old 6-item desktop sidebar and mobile bottom tab bar are deleted,
  *   not hidden. Nav destinations (Resumes, Yours, Library,
  *   Settings) live inside the signed-in avatar's dropdown menu instead.
+ *
+ * Automation-first front door (2026-08-03): jobs search moved off `/` to
+ * `/jobs`. `/` is now the OpenClaw marketing pitch, whose content is a
+ * fixed, full-viewport overlay that visually covers the shared TopBar
+ * underneath it — so wherever this file previously used `/` as "the jobs
+ * page" (a working page to open the avatar menu from), it now uses `/jobs`.
  *
  * None of these tests run against an authenticated session (no login
  * fixture exists in this suite), so avatar-menu interactions are guarded
@@ -20,7 +26,6 @@ import { test, expect, Page } from '@playwright/test';
 
 // Pages reachable from the signed-in avatar dropdown.
 const NAV_PAGES = [
-    { name: 'Resume', path: '/resume-builder', label: 'Resumes' },
     { name: 'Yours', path: '/yours', label: 'Yours' },
     { name: 'Settings', path: '/settings', label: 'Settings' },
 ];
@@ -39,7 +44,7 @@ test.describe('NAVIGATION - Desktop Top Bar', () => {
     });
 
     test('NAV-001: Top bar is visible on all pages', async ({ page }) => {
-        for (const navPage of [{ name: 'Jobs', path: '/', label: 'Jobs' }, ...NAV_PAGES]) {
+        for (const navPage of [{ name: 'Jobs', path: '/jobs', label: 'Jobs' }, ...NAV_PAGES]) {
             await page.goto(navPage.path);
             await page.waitForLoadState('domcontentloaded');
 
@@ -49,28 +54,18 @@ test.describe('NAVIGATION - Desktop Top Bar', () => {
         }
     });
 
-    test('NAV-002: Can navigate from Yours to jobs root via wordmark', async ({ page }) => {
+    test('NAV-002: Can navigate from Yours to the front door via wordmark', async ({ page }) => {
         await page.goto('/yours');
         await page.waitForLoadState('domcontentloaded');
 
-        // The wordmark is always a link to "/", regardless of auth state.
+        // The wordmark is always a link to "/" (the front door, since
+        // 2026-08-03 — the jobs SERP moved to /jobs), regardless of auth state.
         const homeLink = page.locator('a[href="/"]').first();
         await expect(homeLink).toBeVisible({ timeout: 10000 });
         await homeLink.click();
 
         await page.waitForURL('/');
-        console.log('✓ Navigated from Yours to jobs root');
-    });
-
-    test('NAV-003: Can navigate from Yours to Resume Builder via avatar menu', async ({ page }) => {
-        await page.goto('/yours');
-        await page.waitForLoadState('domcontentloaded');
-
-        if (await openAvatarMenu(page)) {
-            await page.getByRole('menuitem', { name: 'Resumes' }).click();
-            await page.waitForURL(/\/resume-builder/);
-            console.log('✓ Navigated from Yours to Resume Builder');
-        }
+        console.log('✓ Navigated from Yours to the front door');
     });
 
     test('NAV-004: Can navigate from Yours to Settings via avatar menu', async ({ page }) => {
@@ -86,28 +81,13 @@ test.describe('NAVIGATION - Desktop Top Bar', () => {
 
     test('NAV-005: Can navigate from jobs root to all avatar-menu pages', async ({ page }) => {
         for (const destPage of NAV_PAGES) {
-            await page.goto('/');
+            await page.goto('/jobs');
             await page.waitForLoadState('domcontentloaded');
 
             if (await openAvatarMenu(page)) {
                 await page.getByRole('menuitem', { name: destPage.label }).click();
                 await page.waitForURL(new RegExp(destPage.path.replace('/', '\\/')));
                 console.log(`✓ Jobs root → ${destPage.name}`);
-            }
-        }
-    });
-
-    test('NAV-006: Can navigate from Resume Builder to all avatar-menu pages', async ({ page }) => {
-        for (const destPage of NAV_PAGES) {
-            if (destPage.path === '/resume-builder') continue;
-
-            await page.goto('/resume-builder');
-            await page.waitForLoadState('domcontentloaded');
-
-            if (await openAvatarMenu(page)) {
-                await page.getByRole('menuitem', { name: destPage.label }).click();
-                await page.waitForURL(new RegExp(destPage.path.replace('/', '\\/')));
-                console.log(`✓ Resume Builder → ${destPage.name}`);
             }
         }
     });
@@ -151,7 +131,7 @@ test.describe('NAVIGATION - Mobile Top Bar', () => {
     });
 
     test('NAV-M-001: Top bar is visible on all pages', async ({ page }) => {
-        for (const navPage of [{ name: 'Jobs', path: '/', label: 'Jobs' }, ...NAV_PAGES]) {
+        for (const navPage of [{ name: 'Jobs', path: '/jobs', label: 'Jobs' }, ...NAV_PAGES]) {
             await page.goto(navPage.path);
             await page.waitForLoadState('domcontentloaded');
 
@@ -164,8 +144,7 @@ test.describe('NAVIGATION - Mobile Top Bar', () => {
 
     test('NAV-M-002: Can navigate via avatar menu on mobile', async ({ page }) => {
         const routes = [
-            { from: '/', to: '/resume-builder', label: 'Resumes' },
-            { from: '/resume-builder', to: '/yours', label: 'Yours' },
+            { from: '/jobs', to: '/yours', label: 'Yours' },
             { from: '/yours', to: '/settings', label: 'Settings' },
         ];
 
@@ -226,15 +205,6 @@ test.describe('NAVIGATION - Page Integrity', () => {
         await expect(body).toContainText(/application|track|job/i);
 
         console.log('✓ Yours page has top bar and content');
-    });
-
-    test('NAV-P-003: Resume Builder page has both top bar and content', async ({ page }) => {
-        await page.goto('/resume-builder');
-        await page.waitForLoadState('domcontentloaded');
-
-        await expect(page.getByTestId('topbar')).toBeVisible({ timeout: 10000 });
-
-        console.log('✓ Resume Builder page has top bar and content');
     });
 });
 
