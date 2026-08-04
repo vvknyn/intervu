@@ -277,6 +277,11 @@ pay the browser boot cost.
      specifies — order is part of correctness, not taste;
    - name/contact block right; no leftover template tokens ("{{", "}}"),
      no "undefined", no empty section headings, nothing truncated.
+   - the render matches the standard template's LAYOUT, not just its
+     content: centered name/contact line, ruled uppercase section headers,
+     justified body, right-aligned dates — data can be correct while the
+     layout has silently drifted from `templates/resume.html`, and that's
+     still a failure.
    Any failure → fix `data.json`, re-render (step 5), re-verify. KEEP THIS
    TAB OPEN — it is the resume tab for the two-tab protocol in FORM FILL.
 8. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
