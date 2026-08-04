@@ -37,7 +37,7 @@ export const OPENCLAW_SUBLINE =
  * (`./OpenclawStatusBadge`) wherever `OPENCLAW_HEADLINE` appears, so the
  * claim and its qualifier can never drift out of sync.
  */
-export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · not installable yet";
+export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · self-hosted · free";
 
 /**
  * The landing front door's primary CTA for people who already run OpenClaw
