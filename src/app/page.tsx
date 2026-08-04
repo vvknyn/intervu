@@ -62,41 +62,47 @@ export default async function HomePage() {
                     </div>
                 )}
 
-                <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8 px-4 py-12 text-center lg:px-8">
-                    <OpenclawStatusBadge />
-                    <h1 className="font-display text-[clamp(32px,4.4vw,48px)] font-black leading-[1.08] tracking-[-0.02em] text-white [text-wrap:balance]">
-                        {OPENCLAW_HEADLINE}
-                    </h1>
-                    <p className="max-w-lg text-[15px] leading-relaxed text-white/60">{OPENCLAW_SUBLINE}</p>
+                {/* One-viewport composition (Vivek, 2026-08-04: "so I don't
+                    have to scroll") — same two-column shape as the approved
+                    jobs-era hero: pitch + doors on the left, the phone on
+                    the right. Stacks (and scrolls, unavoidably) below lg. */}
+                <div className="relative z-10 mx-auto grid w-full max-w-[1200px] flex-1 grid-cols-1 content-center items-center gap-8 px-4 py-2 lg:grid-cols-[7fr_5fr] lg:gap-12 lg:px-8">
+                    <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
+                        <OpenclawStatusBadge />
+                        <h1 className="font-display text-[clamp(30px,3.4vw,44px)] font-black leading-[1.08] tracking-[-0.02em] text-white [text-wrap:balance]">
+                            {OPENCLAW_HEADLINE}
+                        </h1>
+                        <p className="max-w-lg text-[15px] leading-relaxed text-white/60">{OPENCLAW_SUBLINE}</p>
 
-                    <div className="relative mt-2 flex items-center justify-center">
+                        {/* Primary CTA — already running OpenClaw. */}
+                        <div className="mt-1 w-full max-w-md">
+                            <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.1em] text-white/40">
+                                Have OpenClaw? One command:
+                            </p>
+                            <CopyCommand command={OPENCLAW_INSTALL_COMMAND} />
+                        </div>
+
+                        {/* Secondary CTA — no agent yet. */}
+                        <div className="w-full max-w-md">
+                            <p className="mb-2 text-[13px] text-white/60">
+                                No agent? The hosted version is coming — join the waitlist
+                            </p>
+                            <OpenclawWaitlistForm className="w-full" />
+                        </div>
+
+                        {/* Tertiary escape hatch — quiet, not a competing CTA. */}
+                        <p className="font-mono text-[11px] text-white/35">
+                            Prefer searching yourself?{" "}
+                            <Link href="/jobs" className="underline underline-offset-2 hover:text-white/60">
+                                Browse the job board →
+                            </Link>
+                        </p>
+                    </div>
+
+                    <div className="relative flex items-center justify-center">
                         <DawnGlow className="absolute h-[420px] w-[420px]" />
                         <WhatsAppThreadHero className="relative z-10" />
                     </div>
-
-                    {/* Primary CTA — already running OpenClaw. */}
-                    <div className="w-full max-w-sm">
-                        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.1em] text-white/40">
-                            Have OpenClaw? One command:
-                        </p>
-                        <CopyCommand command={OPENCLAW_INSTALL_COMMAND} />
-                    </div>
-
-                    {/* Secondary CTA — no agent yet. */}
-                    <div className="w-full max-w-sm">
-                        <p className="mb-2 text-[13px] text-white/60">
-                            No agent? The hosted version is coming — join the waitlist
-                        </p>
-                        <OpenclawWaitlistForm className="w-full" />
-                    </div>
-
-                    {/* Tertiary escape hatch — quiet, not a competing CTA. */}
-                    <p className="font-mono text-[11px] text-white/35">
-                        Prefer searching yourself?{" "}
-                        <Link href="/jobs" className="underline underline-offset-2 hover:text-white/60">
-                            Browse the job board →
-                        </Link>
-                    </p>
                 </div>
             </div>
 
