@@ -113,6 +113,13 @@ the skill dir" rule, same root.
 No questionnaire. Search preferences come FROM the resume on file, not an
 interview — a resume upload is the setup step.
 
+SESSION-START SYNC: the FIRST action of every new session (fresh /new, a
+cron wake, any first message) is `mcporter call intervu-cc-mcp.get_resume`
+— the account's CURRENT resume is this session's working copy. Never carry
+a resume from a previous session's memory or a local file: the user may
+have uploaded a new version from any device since. Same rule for
+preferences (`get_preferences`) before the first search of a session.
+
 1. First contact: call
    `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json`.
    - Real resume on file (`source` is `resume_data` or `resume_text`, not
@@ -258,12 +265,25 @@ failure).
 6. `browser open file://<absolute path to resume.html>` → `browser pdf`. Note
    the path it reports and treat it as the canonical PDF; copy it to
    `state/resumes/<job_id>/resume.pdf` if `pdf` wrote it elsewhere.
-7. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
-8. Proceed to FORM FILL.
+7. VERIFY THE RENDER — never upload a resume you haven't looked at (real
+   failure this guards: a mis-read data file rendered a BLANK resume).
+   In the resume tab, `browser snapshot` and check against `data.json`:
+   - every section present and in the exact `sectionOrder` the data
+     specifies — order is part of correctness, not taste;
+   - name/contact block right; no leftover template tokens ("{{", "}}"),
+     no "undefined", no empty section headings, nothing truncated.
+   Any failure → fix `data.json`, re-render (step 5), re-verify. KEEP THIS
+   TAB OPEN — it is the resume tab for the two-tab protocol in FORM FILL.
+8. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
+9. Proceed to FORM FILL.
 
 ### 3. Form fill
 
-1. `browser open <apply_url>` (from `get_job`).
+1. `browser open <apply_url>` (from `get_job`) — in a NEW tab, keeping the
+   resume tab from §2 step 7 open. You now run a TWO-TAB protocol: the FORM
+   tab (application being filled) and the RESUME tab (what will be
+   uploaded), switching with `browser tabs` / `browser focus`. Both stay
+   open until RECORD.
 2. `browser snapshot` (use `--efficient` on large pages) — map refs to
    resume/profile fields.
 3. Before this step, check for an account/login wall — see ACCOUNT-WALL
@@ -304,13 +324,20 @@ failure).
    `browser upload /tmp/openclaw/uploads/<job_id>-resume.pdf` (arm it — pass
    `--ref <attach-control-ref>` if the control needs a click to open the
    chooser), THEN click the attach control if `--ref` wasn't used to do it.
+   Before arming: focus the RESUME tab and confirm it still shows the final
+   verified render (§2 step 7). After attaching: back in the FORM tab,
+   `browser snapshot` and confirm the form actually shows the attached
+   filename — an upload you didn't verify landed is an upload that didn't
+   happen.
 7. Leave every EEO/demographic/veteran/disability field blank. Do not select
    an option, do not guess "prefer not to say" vs. leave empty — just don't
    touch them.
 8. For any other required field with no truthful answer available, leave it
    blank and note it in your report to the user — never fabricate.
-9. `browser screenshot`, then send the user ONE review blurb (with the
-   screenshot) containing ALL of, in order, phone-length:
+9. Screenshot BOTH tabs — `browser screenshot` the FORM tab, focus the
+   RESUME tab, `browser screenshot` it too — then send the user ONE review
+   blurb with both images attached, containing ALL of, in order,
+   phone-length:
    - Role + company + one-line why-fit
    - What was changed on the resume for this job (2-3 bullets max)
    - The answers filled into the form (short lines, not a raw dump)
