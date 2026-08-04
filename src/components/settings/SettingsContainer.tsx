@@ -21,6 +21,7 @@ import { MotivationalBanner } from "@/components/ui/motivational-banner";
 import { SETTINGS_MESSAGES, OUTPUT_PREF_DESCRIPTIONS } from "@/lib/copy";
 import { ModelSettings } from "@/components/settings/ModelSettings";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
+import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 
@@ -382,6 +383,9 @@ export function SettingsContainer() {
                         )}
                     </div>
                 </section>
+
+                {/* Section: Your resume */}
+                <YourResumeSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
 
                 {/* Section: Your agent's answers */}
                 <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
