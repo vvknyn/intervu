@@ -18,13 +18,40 @@ MCP_SERVER_KEY="intervu-cc-mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
 SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
 
-# --- 1. OpenClaw must already be installed ---------------------------------
+# --- 1. OpenClaw must be installed and onboarded ----------------------------
 echo "==> Checking OpenClaw is installed..."
-if ! command -v openclaw >/dev/null 2>&1; then
-  echo "OpenClaw not found — install it first: https://docs.openclaw.ai"
-  exit 1
+if command -v openclaw >/dev/null 2>&1; then
+  echo "    OpenClaw found."
+else
+  echo "OpenClaw not found — installing it now (npm i -g openclaw)."
+  npm i -g openclaw
+  echo "    OpenClaw installed."
+
+  echo "==> Handing off to OpenClaw's own onboarding wizard..."
+  echo "    Model provider, API keys, and channel/WhatsApp linking are its call —"
+  echo "    this installer does not automate any of that, just launches it."
+  # Under curl|bash, stdin is the pipe, not a terminal, so the wizard can't
+  # read prompts from it — re-attach it to /dev/tty (the standard pattern for
+  # interactive installers run this way). Probe openability in a subshell
+  # first (a plain `-r /dev/tty` file-permission check can read true even
+  # with no controlling terminal, e.g. under CI, since it only checks
+  # permission bits on the device node, not whether it can actually be
+  # opened; the subshell keeps the probe's fds from leaking into the rest of
+  # this script either way).
+  if ( exec 2>/dev/null 3<>/dev/tty ); then
+    openclaw onboard < /dev/tty || {
+      echo "OpenClaw onboarding did not finish. Once you're ready, run 'openclaw onboard' yourself, then re-run: curl -fsSL https://intervu.cc/install | bash"
+      exit 1
+    }
+    echo "    Onboarding complete."
+  else
+    echo "No interactive terminal available here to run the OpenClaw onboarding wizard."
+    echo "Run these two commands yourself once you have a real terminal:"
+    echo "  openclaw onboard"
+    echo "  curl -fsSL https://intervu.cc/install | bash"
+    exit 1
+  fi
 fi
-echo "    OpenClaw found."
 
 # --- 2. mcporter (install if missing) ---------------------------------------
 echo "==> Checking mcporter is installed..."

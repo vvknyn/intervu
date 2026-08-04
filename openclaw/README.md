@@ -22,7 +22,10 @@ No repo checkout needed — the command above works standalone.
 
 What it does, in order:
 
-- Confirms OpenClaw is installed (exits with a link if not).
+- Confirms OpenClaw is installed. If not, installs it (`npm i -g openclaw`)
+  and hands off to OpenClaw's own `openclaw onboard` wizard — model
+  provider, API keys, and channel/WhatsApp linking are its call, not this
+  script's — then continues automatically once onboarding finishes.
 - Installs `mcporter` if it isn't already on your machine.
 - Registers the intervu MCP server (`intervu-cc-mcp`) with mcporter, if not
   already registered.
