@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 
 export default function OpenclawPage() {
   return (
-    <main data-testid="openclaw-page" className="openclaw bg-background">
+    <main data-testid="openclaw-page" className="bg-background">
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
         <OpenclawStatusBadge />
@@ -45,14 +45,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="while-you-slept-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]"
+            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             While you slept
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {WHILE_YOU_SLEPT_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--oc-amber))] font-mono text-[12px] font-bold text-[rgb(var(--oc-night))]">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border font-mono text-[12px] font-bold text-foreground">
                   {i + 1}
                 </span>
                 <div>
@@ -70,7 +70,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="wont-do-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]"
+            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             What it won&apos;t do
           </h2>
@@ -83,7 +83,7 @@ export default function OpenclawPage() {
                 <X
                   size={18}
                   weight="bold"
-                  className="mt-0.5 shrink-0 text-[rgb(var(--oc-coral))]"
+                  className="mt-0.5 shrink-0 text-foreground"
                   aria-hidden="true"
                 />
                 <div>
@@ -101,7 +101,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="runs-local-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]"
+            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             Runs on your machine
           </h2>
@@ -114,14 +114,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="setup-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--oc-coral))]"
+            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             Setup in 3 steps
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {SETUP_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--oc-violet))] font-mono text-[12px] font-bold text-white">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border font-mono text-[12px] font-bold text-foreground">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -150,7 +150,7 @@ export default function OpenclawPage() {
           </p>
           <OpenclawWaitlistForm className="mt-6 w-full max-w-sm" />
           <p className="mt-8 text-xs text-muted-foreground">
-            <Check size={12} weight="bold" className="mr-1 inline text-[rgb(var(--oc-coral))]" aria-hidden="true" />
+            <Check size={12} weight="bold" className="mr-1 inline text-brand" aria-hidden="true" />
             Already using intervu&apos;s search?{" "}
             <Link href="/" className="font-medium text-foreground underline underline-offset-2">
               Back to jobs

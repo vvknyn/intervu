@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { Sun, Moon } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { subscribeDark, getDarkSnapshot, getDarkServerSnapshot, toggleDark } from "@/lib/theme/dark-mode";
@@ -20,8 +19,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS } from "@/components/layout/nav-tabs";
 import { Button } from "@/components/ui/button";
-
-const BRAND_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.8 };
 
 function initialsOf(user: User): string {
     const src = (user.displayName || user.email || "?").trim();
@@ -76,12 +73,11 @@ export function TopBar() {
         return () => unsubscribe();
     }, []);
 
-    // "/" (the automation-first front door, src/app/page.tsx) renders its own
-    // FrontDoorNav and owns the full page — it used to rely on being a
-    // `fixed inset-0` layer to visually cover this header for free, but that
-    // page is now a normal flowing document, so this header would otherwise
-    // render as a second, redundant nav bar above it.
-    const hideNav = pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth");
+    // One shell, one nav (2026-08-04 one-visual-world pass) — "/" (the
+    // automation-first front door) used to render its own FrontDoorNav
+    // (deleted) so this header stayed hidden there; TopBar is now the only
+    // nav component in the app, front door included.
+    const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
     if (hideNav) return null;
 
     // Same pattern as SettingsContainer's handleSignOut: clear locally-cached
@@ -105,24 +101,14 @@ export function TopBar() {
                 and search share one left edge — Soft Signal desktop grid. */}
             <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between gap-4 px-4 lg:px-8">
             <div className="flex min-w-0 items-center gap-6">
-                {/* Reserved slot so nav doesn't jump while the brand morphs
-                    from the empty-state hero into the masthead. */}
                 <div className="flex h-[18px] min-w-[7.25rem] shrink-0 items-center">
                     <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                        <motion.span
-                            layoutId="intervu-brand"
-                            transition={BRAND_SPRING}
-                            className="font-display text-[18px] font-extrabold leading-none tracking-tight"
-                        >
+                        <span className="font-display text-[18px] font-extrabold leading-none tracking-tight">
                             intervu
-                        </motion.span>
-                        <motion.span
-                            layoutId="intervu-beta"
-                            transition={BRAND_SPRING}
-                            className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
-                        >
+                        </span>
+                        <span className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint">
                             beta
-                        </motion.span>
+                        </span>
                     </Link>
                 </div>
 

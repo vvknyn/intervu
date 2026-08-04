@@ -108,10 +108,14 @@
   /* Sidebar width */
   --sb-w: 250px;
 
-  /* Shadow tokens — soft elevation (Soft Signal desktop mock). */
-  --shadow-sm: 0 1px 2px rgb(18 21 26 / 0.04);
-  --shadow-md: 0 1px 2px rgb(18 21 26 / 0.04), 0 6px 20px rgb(18 21 26 / 0.05);
-  --shadow-lg: 0 2px 4px rgb(18 21 26 / 0.04), 0 12px 32px rgb(18 21 26 / 0.08);
+  /* Shadow tokens — elevation retired (2026-08-04 one-visual-world pass,
+     docs/design/DESIGN-LANGUAGE.md "Elevation: none"). Separation now comes
+     from a 1px --border plus whitespace, everywhere. Every
+     `shadow-[var(--shadow-*)]` call site (21 at last count) goes flat from
+     this one chokepoint — none of them needed to change. */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 
   /* Motion tokens (in-flow states pass, 2026-08-01) — the one shared
      duration scale for panel/dialog motion (detail panel, filter panel
@@ -204,10 +208,10 @@
   --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 39 27 24;
 
-  /* Shadow tokens (dark) */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
-  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.2), 0 6px 20px rgb(0 0 0 / 0.25);
-  --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.2), 0 12px 32px rgb(0 0 0 / 0.3);
+  /* Shadow tokens (dark) — none, same rationale as :root above. */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 
 @theme inline {

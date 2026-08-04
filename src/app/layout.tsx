@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, JetBrains_Mono, Plus_Jakarta_Sans, Schibsted_Grotesk, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
-import "./openclaw-marketing.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { Footer } from "@/components/layout/Footer";
-import { MotionRoot } from "@/components/layout/MotionRoot";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
@@ -129,12 +127,10 @@ export default function RootLayout({
         />
         <ThemeProvider>
           <TourProvider>
-            <MotionRoot>
-              <TopBar />
-              {children}
-              <Footer />
-              <MobileTabBar />
-            </MotionRoot>
+            <TopBar />
+            {children}
+            <Footer />
+            <MobileTabBar />
             <TourOverlay />
             <TourTrigger />
             <Toaster />

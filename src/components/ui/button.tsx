@@ -11,7 +11,7 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[inset_0_-1.5px_0_rgba(0,0,0,.28)] active:translate-y-[0.5px]",
-        brand: "bg-brand text-brand-foreground hover:bg-brand/90 shadow-sm",
+        brand: "bg-brand text-brand-foreground hover:bg-brand/90",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         // Squared design-system pass (docs-mockup.html "THE RULES" #3 — "one

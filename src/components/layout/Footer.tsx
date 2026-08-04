@@ -16,15 +16,7 @@ const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Terms", href: "/terms" },
 ];
 
-/**
- * The actual footer markup, exported on its own so a page that mounts its
- * own instance — the automation-first front door (`src/app/page.tsx`) wraps
- * this in `.dark` inside its own scroll flow — can render it directly
- * without going through `Footer`'s route-based hide check below. That check
- * exists for the root layout's single shared mount; a page that
- * intentionally owns its own copy shouldn't be subject to a "hide on this
- * route" rule keyed on the very route it's rendering on.
- */
+/** The actual footer markup, mounted once by `Footer` below. */
 export function FooterContent() {
     return (
         <footer data-testid="site-footer" className="shrink-0 border-t border-border bg-card">
@@ -74,12 +66,12 @@ export function FooterContent() {
  * Quiet product band, mounted once in the root layout (same as `TopBar` and
  * `MobileTabBar`) rather than per-page. Hides on the same routes `TopBar`
  * hides its own chrome on — a login/auth screen shouldn't repeat the product
- * nav. Also hides on "/" (the automation-first front door), which mounts its
- * own `FooterContent` instance instead — see that component's doc comment.
+ * nav. One shell (2026-08-04): the front door ("/") used to mount its own
+ * copy and hide this one; it now renders through this same shared mount.
  */
 export function Footer() {
     const pathname = usePathname();
-    const hideNav = pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth");
+    const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
     if (hideNav) return null;
 
     return <FooterContent />;

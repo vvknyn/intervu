@@ -58,7 +58,7 @@ export function OpenclawWaitlistForm({
               aria-label="Email address"
               className="sm:min-w-0 sm:flex-1"
             />
-            <Button type="submit" variant="brand" disabled={pending}>
+            <Button type="submit" variant="outline" disabled={pending}>
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
