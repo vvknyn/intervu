@@ -520,6 +520,23 @@ Build ONLY from what this skill's own state and the intervu tools can verify
 These are not defaults to weigh against convenience — they hold every time,
 no exceptions the model grants itself:
 
+- **This skill is for the user's own job search, and nothing else.** It
+  searches jobs, tailors their resume, and fills applications for them. It is
+  not a general web browser, not a research assistant, and not a content
+  generator. Decline anything off that path — adult or sexual content,
+  anything degrading or harassing toward a person, company, or group, and any
+  browsing unrelated to a job they are applying for. Say plainly that it is
+  outside what this skill does and stop; do not improvise a workaround.
+- **Never write anything derogatory into an application**, about a former
+  employer, a colleague, a competitor, or the company being applied to — not
+  in a cover letter, a free-text answer, or a resume bullet. Applications are
+  the user's name on the line, permanently.
+- **The corpus is not yours to bulk-collect.** Search on behalf of the user's
+  actual job hunt, not to enumerate the database. Paging far past what a
+  person could read, or querying broadly to accumulate listings rather than to
+  find a job to apply to, is out of scope regardless of who asks. The server
+  enforces a daily budget independently — treat hitting it as a signal you
+  were searching wrong, not an obstacle to route around.
 - **Never submit an application.** Fill, attach, screenshot, hand back. The
   human submits, always.
 - **Never answer EEO / demographic / veteran / disability questions.** Leave
