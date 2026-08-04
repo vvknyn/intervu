@@ -55,6 +55,19 @@ function main() {
   const templatePath = args.template || DEFAULT_TEMPLATE;
   const template = readFileSync(templatePath, "utf8");
   const data = JSON.parse(readFileSync(args.data, "utf8"));
+
+// Fail LOUDLY on unusable data — a resume with no name, or with every
+// content section empty, must never render "successfully" as a blank page
+// (that exact silent-blank shipped once; see SKILL.md §2 step 7).
+const fragmentKeys = ["SUMMARY", "COMPETENCIES", "EXPERIENCE", "PROJECTS", "EDUCATION"];
+if (!data.NAME || !String(data.NAME).trim()) {
+  console.error("render-resume: refusing to render — NAME is empty. Check the data file matches the token contract in templates/resume.html.");
+  process.exit(1);
+}
+if (fragmentKeys.every((k) => !data[k] || !String(data[k]).trim())) {
+  console.error("render-resume: refusing to render — every content section is empty. Wrong data shape? See the token contract in templates/resume.html.");
+  process.exit(1);
+}
   const filled = fillTemplate(template, data);
 
   mkdirSync(dirname(args.out), { recursive: true });
