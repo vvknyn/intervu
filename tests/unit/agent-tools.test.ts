@@ -78,6 +78,9 @@ interface ResumeStubDeps {
   preferences?: AgentPreferences;
   setPreferencesResult?: AgentPreferences;
   applicationsResult?: ApplicationSummary[];
+  /** Stubs the daily record-budget check (record-budget.ts) — defaults to
+   *  always allowing, since most tests here aren't exercising the budget. */
+  consumeRecordBudgetResult?: { ok: true } | { ok: false; error: string };
 }
 
 function stubDeps(
@@ -96,6 +99,7 @@ function stubDeps(
   const getPreferencesCalls: string[] = [];
   const setPreferencesCalls: Array<{ uid: string; patch: AgentPreferencesPatch }> = [];
   const listApplicationsCalls: Array<{ uid: string; opts: { status?: PursuitStage; limit: number } }> = [];
+  const consumeRecordBudgetCalls: number[] = [];
   const deps: ToolDeps = {
     uid: 'user-abc',
     search: async (p: JobSearchParams): Promise<JobSearchResult> => {
@@ -140,10 +144,14 @@ function stubDeps(
       listApplicationsCalls.push({ uid, opts });
       return resumeDeps.applicationsResult ?? [];
     },
+    consumeRecordBudget: async (count) => {
+      consumeRecordBudgetCalls.push(count);
+      return resumeDeps.consumeRecordBudgetResult ?? { ok: true };
+    },
   };
   return {
     deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls, setBaseResumeCalls,
-    getPreferencesCalls, setPreferencesCalls, listApplicationsCalls,
+    getPreferencesCalls, setPreferencesCalls, listApplicationsCalls, consumeRecordBudgetCalls,
   };
 }
 
@@ -153,6 +161,20 @@ describe('toolSearchJobs', () => {
     await toolSearchJobs(deps, { limit: 50 });
     assert.equal(searchCalls[0].limit, AGENT.RESULT_CAP);
     assert.equal(AGENT.RESULT_CAP, 20);
+  });
+
+  it('meters the daily record budget by the ACTUAL number of hits returned, not the requested limit', async () => {
+    const { deps, consumeRecordBudgetCalls } = stubDeps([makeJob(), makeJob({ id: 'job-2' })]);
+    await toolSearchJobs(deps, { limit: 10 });
+    assert.deepEqual(consumeRecordBudgetCalls, [2]);
+  });
+
+  it('returns the budget error instead of hits when the daily record budget is exhausted', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, {
+      consumeRecordBudgetResult: { ok: false, error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' },
+    });
+    const out = await toolSearchJobs(deps, {});
+    assert.deepEqual(out, { error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' });
   });
 
   it('defaults limit to 10 when omitted', async () => {
@@ -314,6 +336,26 @@ describe('toolGetJob', () => {
     const keys = Object.keys(out);
     assert.ok(!keys.includes('company_closed_90d'));
     assert.ok(!keys.includes('secret_internal_x'));
+  });
+
+  it('meters the daily record budget by 1 — get_job draws from the SAME budget search_jobs does', async () => {
+    const { deps, consumeRecordBudgetCalls } = stubDeps([makeJob()]);
+    await toolGetJob(deps, { id: 'job-1' });
+    assert.deepEqual(consumeRecordBudgetCalls, [1]);
+  });
+
+  it('returns the budget error instead of job detail when the daily record budget is exhausted', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, {
+      consumeRecordBudgetResult: { ok: false, error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' },
+    });
+    const out = await toolGetJob(deps, { id: 'job-1' });
+    assert.deepEqual(out, { error: 'Daily corpus budget reached: resets at 2026-08-05T00:00:00.000Z' });
+  });
+
+  it('never consumes the record budget on a not-found lookup (nothing was exposed)', async () => {
+    const { deps, consumeRecordBudgetCalls } = stubDeps([makeJob()]);
+    await toolGetJob(deps, { id: 'does-not-exist' });
+    assert.deepEqual(consumeRecordBudgetCalls, []);
   });
 });
 

@@ -86,6 +86,17 @@ export interface ToolDeps {
    *  never touches Firestore directly, matching every other I/O dep here.
    *  See `listPursuitsForUser` (`lib/pursuits/list.ts`). */
   listApplications: (uid: string, opts: { status?: PursuitStage; limit: number }) => Promise<ApplicationSummary[]>;
+  /** Persisted per-credential DAILY budget on job records returned (see
+   *  `record-budget.ts`) — `count` is the ACTUAL number of records a call
+   *  is about to hand back, never the requested page size, so the
+   *  accounting can't be gamed by asking for a small limit and paging
+   *  more. Call this wherever a tool is about to hand real corpus job
+   *  fields back to the caller — today that's `toolSearchJobs` (with
+   *  `hits.length`) and `toolGetJob` (with `1`); a future corpus-reading
+   *  tool must call it too, the same way it must build its payload through
+   *  `toJobDetailFields`/`toSearchHit` above. Injected so tools never touch
+   *  the store directly, matching every other I/O dep here. */
+  consumeRecordBudget: (count: number) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 /**
@@ -375,6 +386,10 @@ export async function toolSearchJobs(
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
   const hits = result.hits.slice(0, depthCapRemaining(offset)).map(toSearchHit);
+  // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
+  // against the credential's daily record budget before handing them back.
+  const budget = await deps.consumeRecordBudget(hits.length);
+  if (!budget.ok) return { error: budget.error };
   const nextCursor = nextCursorFor(offset, hits.length, result.total, limit);
   return {
     hits,
@@ -408,6 +423,10 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
   const lookup = await lookupJobById(deps, input.id);
   if (lookup.kind === "unavailable") return { error: "search backend unavailable" };
   if (lookup.kind === "not_found") return { error: "job not found" };
+  // Corpus-harvesting guardrail — same daily record budget search_jobs
+  // meters against, so get_job can't be used to route around it.
+  const budget = await deps.consumeRecordBudget(1);
+  if (!budget.ok) return { error: budget.error };
   return {
     ...toJobDetailFields(lookup.job),
     description: { untrusted: true, text: lookup.job.description },
