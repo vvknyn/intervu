@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
   extractBearerToken, unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS, searchJobsInput,
-  getResumeInput, saveResumeVariantInput, getResumeVariantInput,
+  getResumeInput, saveResumeVariantInput, getResumeVariantInput, setResumeInput,
   getPreferencesInput, setPreferencesInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
@@ -187,6 +187,55 @@ describe('mcp route: get_resume_variant wire schema (MCP resume tools)', () => {
   it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
     const parsed = getResumeVariantInput.parse({ job_id: 'job-1', uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
     assert.deepEqual(parsed, { job_id: 'job-1' });
+  });
+});
+
+describe('mcp route: set_resume wire schema (MCP resume tools)', () => {
+  it('accepts resume_text alone — resume_data and label are both optional', () => {
+    assert.equal(setResumeInput.safeParse({ resume_text: 'My resume text' }).success, true);
+  });
+
+  it('accepts resume_text with a permissive resume_data object and a label', () => {
+    const res = setResumeInput.safeParse({
+      resume_text: 'My resume text',
+      resume_data: { profile: { name: 'Ada' }, experience: [] },
+      label: 'chat upload',
+    });
+    assert.equal(res.success, true);
+  });
+
+  it('rejects an empty resume_text', () => {
+    assert.equal(setResumeInput.safeParse({ resume_text: '' }).success, false);
+  });
+
+  it('rejects a missing resume_text', () => {
+    assert.equal(setResumeInput.safeParse({}).success, false);
+  });
+
+  it('DoS/cost-amplification guard: rejects resume_text longer than AGENT.RESUME_TEXT_MAX_CHARS — the SAME cap save_resume_variant uses', () => {
+    assert.equal(AGENT.RESUME_TEXT_MAX_CHARS, 50_000);
+    const tooLong = { resume_text: 'x'.repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1) };
+    assert.equal(setResumeInput.safeParse(tooLong).success, false);
+  });
+
+  it('accepts resume_text right at the cap', () => {
+    const atCap = { resume_text: 'x'.repeat(AGENT.RESUME_TEXT_MAX_CHARS) };
+    assert.equal(setResumeInput.safeParse(atCap).success, true);
+  });
+
+  it('rejects a resume_data that is not an object (e.g. a plain string masquerading as one)', () => {
+    const res = setResumeInput.safeParse({ resume_text: 'text', resume_data: 'not an object' });
+    assert.equal(res.success, false);
+  });
+
+  it('is permissive at the wire level: a structurally malformed resume_data (missing every real ResumeData field) still parses here — the strict shape check lives only in setBaseResumeForUser', () => {
+    const res = setResumeInput.safeParse({ resume_text: 'text', resume_data: { garbage: true } });
+    assert.equal(res.success, true);
+  });
+
+  it('security: a uid/user_id field on the input is silently stripped, never accepted as identity', () => {
+    const parsed = setResumeInput.parse({ resume_text: 'text', uid: 'attacker-controlled-uid', user_id: 'also-attacker' } as unknown);
+    assert.deepEqual(parsed, { resume_text: 'text' });
   });
 });
 

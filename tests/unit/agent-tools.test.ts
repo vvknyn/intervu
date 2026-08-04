@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
   toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
-  toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
+  toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
   toolGetPreferences, toolSetPreferences, toolGetApplications,
   type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
@@ -12,6 +12,7 @@ import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
 import type { Pursuit, PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
 import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
+import type { SetBaseResumeResult } from '../../src/lib/resume/set-resume';
 import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agent/preferences';
 
 /** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
@@ -73,6 +74,7 @@ interface ResumeStubDeps {
   baseResume?: BaseResume;
   pursuitByJobId?: Pick<Pursuit, 'id' | 'resume_versions'> | null;
   saveResumeVersionResult?: { data?: ResumeVersionSnapshot; error?: string };
+  setBaseResumeResult?: SetBaseResumeResult;
   preferences?: AgentPreferences;
   setPreferencesResult?: AgentPreferences;
   applicationsResult?: ApplicationSummary[];
@@ -90,6 +92,7 @@ function stubDeps(
   const getBaseResumeCalls: string[] = [];
   const findPursuitCalls: Array<{ uid: string; jobId: string }> = [];
   const saveResumeVersionCalls: Array<{ uid: string; pursuitId: string; input: { content: string; label: string } }> = [];
+  const setBaseResumeCalls: Array<{ uid: string; input: { text: string; data?: unknown; label?: string } }> = [];
   const getPreferencesCalls: string[] = [];
   const setPreferencesCalls: Array<{ uid: string; patch: AgentPreferencesPatch }> = [];
   const listApplicationsCalls: Array<{ uid: string; opts: { status?: PursuitStage; limit: number } }> = [];
@@ -110,6 +113,10 @@ function stubDeps(
     getBaseResume: async (uid) => {
       getBaseResumeCalls.push(uid);
       return resumeDeps.baseResume ?? { source: 'none' };
+    },
+    setBaseResume: async (uid, input) => {
+      setBaseResumeCalls.push({ uid, input });
+      return resumeDeps.setBaseResumeResult ?? { source: 'resume_text', resume_text: input.text, version_saved: true, normalized: false };
     },
     findPursuitByJobId: async (uid, jobId) => {
       findPursuitCalls.push({ uid, jobId });
@@ -135,7 +142,7 @@ function stubDeps(
     },
   };
   return {
-    deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls,
+    deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls, setBaseResumeCalls,
     getPreferencesCalls, setPreferencesCalls, listApplicationsCalls,
   };
 }
@@ -652,6 +659,41 @@ describe('toolGetResume', () => {
     const { deps, getBaseResumeCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { baseResume: { source: 'none' } });
     await toolGetResume(deps, { uid: 'attacker-controlled-uid' } as unknown as Record<string, never>);
     assert.deepEqual(getBaseResumeCalls, ['user-abc']);
+  });
+});
+
+describe('toolSetResume', () => {
+  it('passes resume_text/resume_data/label straight through to deps.setBaseResume', async () => {
+    const { deps, setBaseResumeCalls } = stubDeps([]);
+    await toolSetResume(deps, { resume_text: 'My resume text', resume_data: { profile: {} }, label: 'v2' });
+    assert.equal(setBaseResumeCalls.length, 1);
+    assert.deepEqual(setBaseResumeCalls[0].input, { text: 'My resume text', data: { profile: {} }, label: 'v2' });
+  });
+
+  it('relays deps.setBaseResume\'s result verbatim (BaseResume shape + version_saved/normalized/issues)', async () => {
+    const setBaseResumeResult: SetBaseResumeResult = {
+      source: 'resume_text', resume_text: 'text', version_saved: true, normalized: false,
+      issues: [{ path: ['profile', 'email'], message: 'Required' }],
+    };
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { setBaseResumeResult });
+    const out = await toolSetResume(deps, { resume_text: 'text' });
+    assert.deepEqual(out, setBaseResumeResult);
+  });
+
+  it('uid never taken from input — always deps.uid, even if an attacker-controlled input carries its own uid field, proving one user\'s call can never touch another user\'s profile', async () => {
+    const { deps, setBaseResumeCalls } = stubDeps([]);
+    await toolSetResume(deps, { resume_text: 'text', uid: 'attacker-controlled-uid' } as unknown as Parameters<typeof toolSetResume>[1]);
+    assert.equal(setBaseResumeCalls[0].uid, 'user-abc');
+  });
+
+  it('two callers with different deps.uid values never cross-contaminate each other\'s setBaseResume calls (deps built fresh per request)', async () => {
+    const callerA = stubDeps([]);
+    const callerB = stubDeps([]);
+    const depsForB: ToolDeps = { ...callerB.deps, uid: 'user-xyz' };
+    await toolSetResume(callerA.deps, { resume_text: 'A resume' });
+    await toolSetResume(depsForB, { resume_text: 'B resume' });
+    assert.deepEqual(callerA.setBaseResumeCalls, [{ uid: 'user-abc', input: { text: 'A resume', data: undefined, label: undefined } }]);
+    assert.deepEqual(callerB.setBaseResumeCalls, [{ uid: 'user-xyz', input: { text: 'B resume', data: undefined, label: undefined } }]);
   });
 });
 

@@ -67,6 +67,19 @@ export const AGENT = {
      *  corpus/cost-protection spirit as `RESULT_CAP`, sized for a user's own
      *  application history rather than the whole job corpus. */
     APPLICATIONS_MAX_LIMIT: 50,
+    /** `set_resume`'s `resume_data` cap for a single free-text field
+     *  (an experience description, the generated summary) — same DoS/cost-
+     *  amplification guard as `RESUME_TEXT_MAX_CHARS`, smaller since it
+     *  bounds ONE field of a résumé rather than the whole document. See
+     *  `lib/resume/set-resume.ts`. */
+    RESUME_DATA_FIELD_MAX_CHARS: 5_000,
+    /** `set_resume`'s `resume_data` cap on how many entries any one list in
+     *  the structure may hold (experience entries, competency categories,
+     *  education entries, skills within a category) — same DoS/cost-
+     *  amplification spirit as `PREFERENCES_CUSTOM_ANSWERS_MAX`, one shared
+     *  ceiling since no real résumé list runs longer than this. See
+     *  `lib/resume/set-resume.ts`. */
+    RESUME_DATA_ARRAY_MAX_ITEMS: 50,
 };
 
 /**
