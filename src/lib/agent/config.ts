@@ -15,6 +15,8 @@ export const AGENT = {
         clients: "agent_clients",
         codes: "agent_codes",
         credentials: "agent_credentials",
+        /** One doc per credential — see record-budget.ts. */
+        recordBudgets: "agent_record_budgets",
     },
     RATE_LIMIT: 60,
     /**
@@ -39,6 +41,28 @@ export const AGENT = {
      * license to walk the whole index one page at a time.
      */
     SEARCH_DEPTH_CAP: 100,
+    /**
+     * Per-credential DAILY budget on job RECORDS returned across every
+     * corpus-reading tool (search_jobs, get_job — see record-budget.ts) —
+     * orthogonal to RATE_LIMIT, which bounds CALLS per hour, not records
+     * per day. RATE_LIMIT alone permits 60 calls/hr x RESULT_CAP(20)/call =
+     * ~28,800 records/day/credential, sustained indefinitely — far beyond
+     * any real job search and a viable slow-exfiltration path against a
+     * multi-million-row corpus that is the product's core commercial asset.
+     * A genuine digest reads on the order of 20-100 records/day; a heavy
+     * manual user maybe a few hundred. 1,000/day is generous for any real
+     * usage pattern and still ~28x below today's effective per-credential
+     * ceiling.
+     */
+    DAILY_RECORD_BUDGET: 1_000,
+    /**
+     * Rolling-window length for DAILY_RECORD_BUDGET: 24h from the first
+     * record consumed in the current window, not a UTC-calendar-day reset.
+     * Simpler to reason about (one stored timestamp, no timezone math) and
+     * closes the "burst at 23:59, burst again at 00:01" double-budget
+     * loophole a calendar-day reset would open.
+     */
+    RECORD_BUDGET_WINDOW_MS: 86_400_000,
     CODE_TTL_MS: 300_000,
     ACCESS_TTL_MS: 3_600_000,
     /** DCR (`/api/oauth/register`) request body caps — this endpoint is

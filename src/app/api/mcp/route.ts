@@ -6,6 +6,7 @@ import { AGENT } from "@/lib/agent/config";
 import { firestoreStore } from "@/lib/agent/store";
 import { verifySecret, type CredentialKind } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
+import { consumeRecordBudget } from "@/lib/agent/record-budget";
 import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
@@ -88,7 +89,8 @@ export function toolResult(payload: object): { content: Array<{ type: "text"; te
 function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Promise<Out>) {
     return async (input: In, ctx: ServerContext) => {
         const uid = ctx.http?.authInfo?.extra?.uid;
-        if (typeof uid !== "string") return toolResult({ error: "unauthorized" });
+        const credentialId = ctx.http?.authInfo?.extra?.credentialId;
+        if (typeof uid !== "string" || typeof credentialId !== "string") return toolResult({ error: "unauthorized" });
         const deps: ToolDeps = {
             uid, search: searchJobs, locationVocabulary, upsert: upsertPursuitCore,
             getBaseResume: getBaseResumeForUser,
@@ -98,6 +100,7 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
             getPreferences: getAgentPreferences,
             setPreferences: setAgentPreferences,
             listApplications: listPursuitsForUser,
+            consumeRecordBudget: (count) => consumeRecordBudget(firestoreStore(), credentialId, count),
         };
         return toolResult(await run(deps, input));
     };
@@ -257,7 +260,9 @@ const mcpHandler = createMcpHandler(
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
                     `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
                     `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +
-                    `(the page size that minted a cursor stays pinned for the rest of that walk).`,
+                    `(the page size that minted a cursor stays pinned for the rest of that walk). Each credential ` +
+                    `also has a ${AGENT.DAILY_RECORD_BUDGET}-record daily budget shared with get_job, generous for ` +
+                    `real search sessions.`,
                 inputSchema: searchJobsInput,
             },
             withDeps(toolSearchJobs)
@@ -416,7 +421,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
         token: secret,
         clientId: credential.clientId ?? credential.id,
         scopes: [],
-        extra: { uid: credential.uid },
+        extra: { uid: credential.uid, credentialId: credential.id },
     };
     return mcpHandler(request);
 }
