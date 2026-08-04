@@ -37,6 +37,24 @@ this file — never SKILL.md. Precedence, absolute and in this order:
    scoring to rescue a `caution` posting into the top 3 over a `clear` one
    of similar fit.
 
+## Company-signal enrichment (finalists only)
+
+After scoring produces ~5 finalists and BEFORE picking the final top 3,
+spend one quick lookup per finalist on company health:
+
+- **News check (your own web tools):** recent layoffs, hiring freezes,
+  acquisition turmoil → drop or demote, and say why in the why-line.
+  Fresh funding, strong growth coverage → boost, and cite it ("Series C
+  three weeks ago — hiring push is real"). No news found = neutral; never
+  invent a signal you didn't see, never cite a source you didn't read.
+- **Our own corpus signals, when present on the job record:** a company
+  whose postings historically close (hires happen) beats one that lets
+  them rot; rising open-role counts corroborate a genuine hiring push.
+  Absent fields are neutral — never guess at data we don't serve.
+
+This step is capped: finalists only, one lookup each — never bulk-search
+news for all 20 results.
+
 ## Tie-breakers, in order
 
 Company has other live postings in the same family (hiring push, not a
@@ -54,3 +72,6 @@ write a specific why-line, the job does not belong in the top 3.
 
 - 2026-08-03: initial rubric (extracted from SKILL.md §1 so relevance is
   tunable in one place).
+- 2026-08-03 (v2): company-signal enrichment — agent-side news check for
+  finalists + corpus health fields when present (owner: rank by how the
+  company is actually doing, not just the posting).
