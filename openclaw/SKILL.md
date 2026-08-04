@@ -294,94 +294,113 @@ pay the browser boot cost.
 
 ### 3. Form fill
 
-1. `browser open <apply_url>` (from `get_job`) — in a NEW tab, keeping the
-   resume tab from §2 step 7 open. You now run a TWO-TAB protocol: the FORM
-   tab (application being filled) and the RESUME tab (what will be
-   uploaded), switching with `browser tabs` / `browser focus`. Both stay
-   open until RECORD.
-2. `browser snapshot` (use `--efficient` on large pages) — map refs to
-   resume/profile fields.
-3. Before this step, check for an account/login wall — see ACCOUNT-WALL
-   HANDOFF. If one is hit, stop here and follow that section instead.
-4. Answer WITHOUT asking the user per-field. Sources, in order:
-   1. The resume (employment history, education, skills).
-   2. The server's `answers` (work authorization, relocation, notice period,
-      start date, salary expectations, `custom` Q&A) — from the
-      `get_preferences` call already made this session (§0 or §1), or a
-      fresh `mcporter call intervu-cc-mcp.get_preferences --args '{}'
-      --output json` if neither ran yet this session.
-   3. The local `state/answers.md` cache.
-   4. If a standard question's answer isn't in any of those, ask the user
-      ONCE in the chat.
+**AUDIT** = run `browser evaluate --fn "$(cat scripts/form-audit.js)"` on
+the FORM tab and read its JSON — the ONLY source of truth for what a form
+holds and requires. `browser snapshot` (`--format ai` or `--format aria`)
+does NOT expose checked/pressed state at all, so it cannot tell you whether
+a box is checked; only AUDIT can. Never report a field filled, a box
+checked, or a file attached from memory of what you just did — only from an
+AUDIT run after the fact, quoting the value (and, for uploads, the
+filename) it read back from the DOM.
 
-   On a fresh answer from step 4 above: call
+1. `browser open <apply_url>` (from `get_job`) in a NEW tab, keeping the
+   resume tab from §2 step 7 open. TWO-TAB protocol: FORM tab and RESUME
+   tab, switching with `browser tabs` / `browser focus`. Both stay open
+   until RECORD.
+2. Check for an account/login wall — see ACCOUNT-WALL HANDOFF; if hit, stop
+   and follow that section instead.
+3. **PRE-FLIGHT AUDIT.** AUDIT the freshly opened form. Diff
+   `summary.requiredAndEmpty` against the resume and the server's `answers`
+   (`get_preferences`, from §0/§1 or a fresh call). Two kinds of gap go into
+   ONE consolidated ask before filling a single field: (a) anything not in
+   the resume or preferences at all (street address, postal code, work-auth
+   specifics), and (b) every COMMITMENT question — days on-site/hybrid,
+   relocation, notice period, start date, salary, travel percentage —
+   which is HUMAN-ONLY regardless of what the resume seems to imply:
+   answerable only from a stored `answers.custom` entry or the reply to
+   this ask, never inferred from `search.location`/`remoteOnly`/the resume,
+   never copied from a different application's answer (seen live: the same
+   commitment answered Yes on one job, left blank on another, traceable to
+   neither). Work authorization is not a commitment question — it's a
+   stored fact (`answers.workAuthorization`), answered from it directly.
+   Never discover a gap mid-form and stop there to ask.
+4. **BATCH FILL.** Answer every field from, in order: (1) the resume
+   (employment history, education, skills) — EXCEPT commitment questions,
+   which skip straight to (2)/(4), never (1); (2) the server's `answers`
+   (work authorization, relocation, notice period, start date, salary,
+   location, on-site/hybrid/remote, `custom` Q&A); (3) local
+   `state/answers.md`; (4) the human's Phase-A reply. No answer in any of
+   those for a required field → it stays blank, into "still needs you"
+   (Phase C) — never fabricate one. A fresh answer from (4): call
    `mcporter call intervu-cc-mcp.set_preferences --args '{"answers":
-   {"<field>": "<answer>"}}'` — the standing field name for known fields
-   (e.g. `workAuthorization`), or a `custom` entry keyed by a slugified
-   version of the question for anything else (merge semantics mean this
-   never wipes other saved answers) — AND append it to local
-   `state/answers.md` as today, so it is never asked again either way. If
-   the `set_preferences` call errors, still proceed with the answer for this
-   session and append it locally, but say so rather than claiming the
-   server save succeeded.
+   {"<field>": "<answer>"}}'` (standing field name, or a `custom` entry
+   keyed by a slugified question — merge semantics, never wipes other
+   answers) and append it to `state/answers.md`. If `set_preferences`
+   errors, still use the answer this session and append it locally, but say
+   so. Skip optional/non-essential fields entirely ("how did you hear about
+   us", marketing surveys).
 
-   Optional / non-essential fields ("how did you hear about us", optional
-   cover letter boxes, marketing surveys): skip entirely.
-5. `browser fill --fields '[{"ref":"<n>","value":"<v>"}, ...]'` for text
-   fields; `browser select` / `browser type` for anything `fill` can't reach.
+   Legitimate questions ARE answered, including checkbox/radio/toggle
+   controls, whenever a source above supports one — work authorization,
+   on-site/hybrid/remote, notice period, location. Leaving a real question
+   blank "to be safe" is wrong, not cautious. The one exception stays
+   EEO/demographic/veteran/disability controls — untouched, per Hard safety
+   rules; every other answerable control gets answered here and confirmed
+   in Phase C.
+5. `browser snapshot` (`--efficient` on large pages) for refs, then fill
+   every text-like field in ONE call: `browser fill --fields
+   '[{"ref":"e13","value":"..."}, {"ref":"e23","value":"..."}]'` (or
+   `--fields-file <path>` for long forms) — verified shape: a JSON array of
+   `{"ref": "<ref from snapshot>", "value": "<string>"}`. One round-trip
+   for the whole form, not one per field. `browser click` for
+   checkboxes/radios/toggles, `browser select` for dropdowns fill can't
+   reach. `fill` returning `"ok":true` is NOT proof the value landed — most
+   ATSes (Ashby included) are React apps with controlled inputs, and a
+   programmatic value that doesn't fire the right input/change event can sit
+   in the DOM without the app ever registering it. Phase C's AUDIT is what
+   actually proves it; see the per-field fallback there.
 6. Resume attachment: `browser upload` only accepts paths inside OpenClaw's
-   temp uploads dir (verified: `openclaw browser upload --help` — "must be
-   within OpenClaw temp uploads dir, e.g. /tmp/openclaw/uploads/file.pdf").
-   Stage the upload FROM the Downloads artifact of record (§2 step 9) —
-   copy `~/Downloads/<Company>-<Title>-resume-<date>.pdf` to
-   `/tmp/openclaw/uploads/<job_id>-resume.pdf` first, so the file uploaded
-   is byte-identical to the file the user holds —
-   this is a staging copy mandated by the platform, not a second home for the
-   data, and it's fine to leave for OpenClaw to manage. Then:
-   `browser upload /tmp/openclaw/uploads/<job_id>-resume.pdf` (arm it — pass
-   `--ref <attach-control-ref>` if the control needs a click to open the
-   chooser), THEN click the attach control if `--ref` wasn't used to do it.
-   Before arming: focus the RESUME tab and confirm it still shows the final
-   verified render (§2 step 7). After attaching: back in the FORM tab,
-   `browser snapshot` and confirm the form actually shows the attached
-   filename — an upload you didn't verify landed is an upload that didn't
-   happen.
-7. Leave every EEO/demographic/veteran/disability field blank. Do not select
-   an option, do not guess "prefer not to say" vs. leave empty — just don't
-   touch them.
-8. For any other required field with no truthful answer available, leave it
-   blank and note it in your report to the user — never fabricate.
-8b. MISTAKE = FRESH TAB. If you put a wrong value somewhere, picked the
-   wrong option in a multi-step wizard, or the form state looks confused
-   (validation errors you didn't expect, fields showing values you didn't
-   enter): do NOT repair the form in place. `browser close` the FORM tab,
-   reopen `apply_url` in a new tab, and refill from the start — every
-   answer re-derives from the resume and preferences, so a clean refill is
-   cheaper and safer than surgery on a half-broken page. If the reopened
-   form shows a server-side draft of the earlier attempt (Workday-class
-   vendors autosave), verify EVERY prefilled field per the normal protocol
-   — assume nothing survived correctly. Two fresh attempts maximum; if the
-   second also goes wrong, stop and tell the user exactly what keeps
-   failing — never hand over a form you patched around.
-9. Screenshot BOTH tabs — `browser screenshot` the FORM tab, focus the
-   RESUME tab, `browser screenshot` it too — then send the user ONE review
-   blurb with both images attached, containing ALL of, in order,
-   phone-length:
+   temp uploads dir. Stage FROM the Downloads artifact of record (§2 step
+   9) — copy `~/Downloads/<Company>-<Title>-resume-<date>.pdf` to
+   `/tmp/openclaw/uploads/<job_id>-resume.pdf` first, byte-identical to what
+   the user holds. Focus the RESUME tab and confirm it still shows the
+   final verified render (§2 step 7), then `browser upload
+   /tmp/openclaw/uploads/<job_id>-resume.pdf --ref <attach-control-ref>`.
+7. MISTAKE = FRESH TAB. Wrong value, wrong option in a wizard, or confused
+   form state (unexpected validation errors, values you didn't enter): do
+   NOT repair in place. `browser close` the FORM tab, reopen `apply_url` in
+   a new tab, restart from Phase A — a server-side draft (Workday-class
+   autosave) gets the same fresh AUDIT as a blank form, assume nothing
+   survived until AUDIT says so. Two fresh attempts maximum; if the second
+   also fails, stop and tell the user exactly what keeps failing.
+8. **POST-FILL AUDIT — blocking, never skip, never summarize from memory.**
+   AUDIT the FORM tab again. Non-empty `summary.requiredAndEmpty` is a real
+   gap: answerable ones go back to Phase B, the rest go into "still needs
+   you" below. EEO fields showing empty here is expected, not a gap.
+   PER-FIELD FALLBACK: any field step 5 filled that AUDIT still shows empty
+   or holding its old value is the React-controlled-input case (batch
+   `fill` didn't register) — `browser type` that field individually, then
+   re-run AUDIT. `fill`'s own `"ok":true` is never the evidence; AUDIT
+   always is, the same way an upload's filename is only real once AUDIT
+   reads it back, never because `upload` returned success.
+9. Screenshot BOTH tabs (FORM, then focus RESUME and screenshot again),
+   then ONE review blurb, phone-length, built FROM step 8's AUDIT output,
+   in order:
    - Role + company + one-line why-fit
-   - What was changed on the resume for this job (2-3 bullets max)
-   - The answers filled into the form (short lines, not a raw dump)
-   - Anything left blank and why (EEO fields, no-truthful-answer fields)
-   - The resume FILE itself: send the PDF as a document via
-     `openclaw message send --media ~/Downloads/<Company>-<Title>-resume-<date>.pdf`
-     and name it in the text ("Applied-with file: <name>.pdf — also in your
-     Downloads"). The user must never have to ask "what resume did you
-     apply with?" — the answer is in their hand and on their disk.
+   - What changed on the resume for this job (2-3 bullets max)
+   - The answers AUDIT confirmed are in the form (short lines, not a raw
+     dump), including which boxes ended up checked, by name
+   - "Still needs you": every leftover `requiredAndEmpty` control (EEO
+     fields noted as your choice, everything else as a real gap)
+   - The resume FILE: `openclaw message send --media
+     ~/Downloads/<Company>-<Title>-resume-<date>.pdf`, named in the text —
+     the user should never have to ask what they applied with.
    - Close with: "Review and hit submit."
-   One message per application — never a separate message per section.
+   One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
     now, nudged: false }`.
-11. STOP. Do not click submit. Do not call `mark_applied` (that happens only
-    after the user says they submitted).
+11. STOP. Do not click submit. Do not call `mark_applied` (only after the
+    user says they submitted).
 
 ### 4. Account-wall handoff
 
