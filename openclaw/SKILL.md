@@ -292,9 +292,15 @@ pay the browser boot cost.
    `state/resumes/<job_id>/data.json`.
 5. Render:
    `node scripts/render-resume.mjs --data state/resumes/<job_id>/data.json --out state/resumes/<job_id>/resume.html`
-6. `browser open file://<absolute path to resume.html>` → `browser pdf`. Note
-   the path it reports and treat it as the canonical PDF; copy it to
-   `state/resumes/<job_id>/resume.pdf` if `pdf` wrote it elsewhere.
+6. ⛔ **The browser blocks the `file:` protocol** — `browser open file://…`
+   fails with `Navigation blocked: unsupported protocol "file:"` (verified
+   2026-08-04, both `file:///abs/path` and `file://~/…`). Local files MUST be
+   served over HTTP. Start one server per session and reuse it:
+   `python3 -m http.server 8765 --directory <skill dir>/state/resumes &`
+   then open `http://localhost:8765/<job_id>/resume.html` → `browser pdf`.
+   Note the path `pdf` reports and treat it as the canonical PDF; copy it to
+   `state/resumes/<job_id>/resume.pdf` if `pdf` wrote it elsewhere. Never
+   re-derive this — a `file://` URL is not a thing that can be made to work.
 7. VERIFY THE RENDER — never upload a resume you haven't looked at (real
    failure this guards: a mis-read data file rendered a BLANK resume).
    In the resume tab, `browser snapshot` and check against `data.json`:
@@ -331,11 +337,15 @@ AUDIT run after the fact, quoting the value (and, for uploads, the
 filename) it read back from the DOM.
 
 1. `browser open <apply_url>` (from `get_job`) in a NEW tab — the FORM tab.
-   Immediately after, `browser open
-   file://~/Downloads/<Company>-<Title>-resume-<date>.pdf` (the exact
-   export from §2 step 9) in another new tab — the RESUME tab, opened right
-   after the FORM tab so the two sit adjacent; its tab title is the
-   filename itself, so the resume you're reviewing identifies itself.
+   Immediately after, open the RESUME tab on the exact PDF exported to
+   Downloads in §2 step 9. `file:` is blocked (see §2 step 6), so serve the
+   Downloads folder and open it over HTTP:
+   `python3 -m http.server 8766 --directory ~/Downloads &` then
+   `browser open http://localhost:8766/<Company>-<Title>-resume-<date>.pdf`.
+   It goes in a new tab right after the FORM tab so the two sit adjacent,
+   and the URL ends in the filename itself, so the resume you are reviewing
+   identifies itself. This is the SAME bytes that get uploaded — that is the
+   whole point of the pairing.
    TWO-TAB protocol: FORM tab and RESUME tab, switching with `browser tabs`
    / `browser focus`. Both stay open until RECORD. (Chrome tab GROUPS
    aren't available — `openclaw browser` has no `group` command — adjacency
