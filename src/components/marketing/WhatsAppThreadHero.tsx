@@ -2,32 +2,56 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { FileText } from "@phosphor-icons/react";
+import {
+  ArrowLeft,
+  BatteryFull,
+  CellSignalFull,
+  Checks,
+  DotsThreeVertical,
+  FileText,
+  Microphone,
+  Phone,
+  VideoCamera,
+  WifiHigh,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_THREAD } from "./openclaw-content";
 import { resolveThreadRenderMode } from "./thread-render-mode";
+import { deriveMessageTime } from "./whatsapp-message-time";
 
 const MESSAGE_DELAY_MS = 500;
 const MESSAGE_DURATION_S = 0.32;
 
+// Faint repeating-doodle wallpaper texture behind the chat, at ~4% opacity
+// via the wrapping layer's `opacity-[0.04]` below (not baked into the SVG
+// itself) — a tiny inline data-URI dot pattern rather than an image asset.
+const DOODLE_BACKGROUND_IMAGE =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='8' cy='10' r='1.6'/%3E%3Ccircle cx='36' cy='22' r='1.6'/%3E%3Ccircle cx='50' cy='46' r='1.6'/%3E%3Ccircle cx='16' cy='50' r='1.6'/%3E%3Ccircle cx='44' cy='6' r='1.6'/%3E%3C/g%3E%3C/svg%3E\")";
+
 /**
- * The signature phone mockup — reveals `WHATSAPP_THREAD` one bubble at a
- * time on mount, mounting each message only once its turn arrives (rather
- * than rendering all of them up front at `opacity: 0`) so the panel actually
- * grows with the conversation instead of pre-reserving its full final
- * height as blank space. Reuses framer-motion's `useReducedMotion()`
- * (already used by `TourOverlay.tsx`) rather than hand-rolling a matchMedia
- * subscription; the animated-vs-instant branch itself lives in the pure
- * `resolveThreadRenderMode` so it's unit-testable without rendering this
- * component. This is the only thing that animates on either page it mounts
- * on.
+ * The signature phone mockup — a photoreal replica of a WhatsApp dark-mode
+ * screenshot (status bar, chat header, doodle-textured message area, WA
+ * bubble colors/tails, composer), built entirely from Tailwind + inline SVG
+ * (via `@phosphor-icons/react`, already a dependency) with no image assets.
+ * Reveals `WHATSAPP_THREAD` one bubble at a time on mount, mounting each
+ * message only once its turn arrives (rather than rendering all of them up
+ * front at `opacity: 0`) so the panel actually grows with the conversation
+ * instead of pre-reserving its full final height as blank space. Reuses
+ * framer-motion's `useReducedMotion()` (already used by `TourOverlay.tsx`)
+ * rather than hand-rolling a matchMedia subscription; the animated-vs-instant
+ * branch itself lives in the pure `resolveThreadRenderMode` so it's
+ * unit-testable without rendering this component. This is the only thing
+ * that animates on either page it mounts on.
  *
- * The phone panel is deliberately a fixed dark/night tone in BOTH site
- * light and dark mode — it's a lit phone screen, not page chrome, so it
- * doesn't track `--background`/`--card` the way the rest of `.openclaw`
- * does. `--oc-night` / `--oc-coral` / `--oc-bubble` are defined identically
- * in `.openclaw` and `.dark .openclaw` (openclaw-marketing.css)
- * specifically so referencing them here is theme-invariant.
+ * The phone screen's colors are literal WhatsApp dark-theme hex values
+ * (`#0B141A` chat bg, `#1F2C34` header/composer chrome, `#005C4B` outgoing /
+ * `#202C33` incoming bubbles, `#53BDEB` WA blue for read receipts) — fixed
+ * regardless of the site's own light/dark theme, the same "lit phone screen,
+ * not page chrome" rationale this component has always documented. Unlike
+ * the previous build, these are NOT the site's `--oc-*` tokens: a real
+ * WhatsApp screenshot doesn't repaint itself when the surrounding page's
+ * theme toggles, so this intentionally does not read `--oc-night` /
+ * `--oc-coral` / `--oc-bubble` at all.
  */
 export function WhatsAppThreadHero({ className }: { className?: string }) {
   const prefersReducedMotion = useReducedMotion();
@@ -47,66 +71,141 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
     return () => clearTimeout(timer);
   }, [mode, visibleCount]);
 
+  // The one message that carries a real `timestamp` (found generically,
+  // not assumed to be index 0) is the single source of truth every other
+  // bubble's displayed time derives from — see `whatsapp-message-time.ts`.
+  const baseTimestamp = WHATSAPP_THREAD.find((message) => message.timestamp)?.timestamp;
+
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-[360px] overflow-hidden rounded-[26px] border border-border bg-[rgb(var(--oc-night))] shadow-lg",
+        "mx-auto w-full max-w-[360px] rounded-[30px] bg-black p-[3px] shadow-2xl",
         className,
       )}
       role="group"
       aria-label="Example WhatsApp conversation with the agent"
     >
-      <div className="flex items-center gap-2 border-b border-white/10 bg-[rgb(var(--oc-night))] px-4 py-2.5">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-[rgb(var(--oc-coral))]" aria-hidden="true" />
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-white/75">
-          WhatsApp · Agent
-        </span>
-      </div>
-      <div className="flex flex-col gap-2 bg-[rgb(var(--oc-night))] px-3 py-3.5">
-        <AnimatePresence initial={false}>
-          {WHATSAPP_THREAD.slice(0, displayCount).map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={mode === "animated" ? { opacity: 0, y: 8 } : false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: MESSAGE_DURATION_S, ease: "easeOut" }}
-              className={cn(
-                "flex max-w-[82%] flex-col",
-                msg.role === "user" ? "self-end items-end" : "self-start items-start",
-              )}
-            >
-              {msg.timestamp ? (
-                <span className="mb-1 ml-1 font-mono text-[10px] text-white/40">{msg.timestamp}</span>
-              ) : null}
-              <div
-                className={cn(
-                  "rounded-2xl text-[13px] leading-snug",
-                  msg.role === "user"
-                    ? "min-w-[2.75rem] rounded-tr-sm bg-[rgb(var(--oc-coral))] px-4 py-2.5 text-center text-white"
-                    : "rounded-tl-sm border border-white/10 bg-[rgb(var(--oc-bubble))] px-3 py-2 text-left text-white/90",
-                )}
-              >
-                <p>{msg.text}</p>
-                {msg.attachment ? (
-                  <span
-                    role="img"
-                    aria-label={msg.attachment}
-                    className={cn(
-                      "mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px]",
-                      msg.role === "user"
-                        ? "border border-white/35 text-white"
-                        : "border border-white/15 bg-black/20 text-white/70",
-                    )}
+      <div className="overflow-hidden rounded-[27px] bg-[#0B141A]">
+        {/* Status bar */}
+        <div className="relative flex items-center justify-between bg-[#0B141A] px-4 pb-0.5 pt-1">
+          <span
+            aria-hidden="true"
+            className="absolute left-1/2 top-0.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-black"
+          />
+          <span className="text-[10px] font-medium text-white/80">8:10</span>
+          <span className="flex items-center gap-1 text-white/70" aria-hidden="true">
+            <WifiHigh size={11} weight="bold" />
+            <CellSignalFull size={11} weight="bold" />
+            <BatteryFull size={13} weight="bold" />
+          </span>
+        </div>
+
+        {/* Chat header */}
+        <div className="flex items-center gap-2.5 border-b border-black/20 bg-[#1F2C34] px-3 py-1.5">
+          <ArrowLeft size={17} className="shrink-0 text-white/80" aria-hidden="true" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2A3942] text-[11px] font-semibold text-white/80">
+            in
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col leading-tight">
+            <span className="truncate text-[13px] font-medium text-white">intervu — your agent</span>
+            <span className="text-[10px] text-[#8AAB9A]">online</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-3 text-white/75" aria-hidden="true">
+            <VideoCamera size={16} />
+            <Phone size={15} />
+            <DotsThreeVertical size={16} weight="bold" />
+          </span>
+        </div>
+
+        {/* Chat area */}
+        <div className="relative bg-[#0B141A]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.04]"
+            style={{ backgroundImage: DOODLE_BACKGROUND_IMAGE, backgroundSize: "60px 60px" }}
+          />
+          <div className="relative flex flex-col gap-0.5 px-2.5 pb-1.5 pt-1.5">
+            <span className="mx-auto mb-0.5 rounded-md bg-[#1F2C34] px-2.5 py-0.5 text-[10px] text-white/55">
+              Today
+            </span>
+            <AnimatePresence initial={false}>
+              {WHATSAPP_THREAD.slice(0, displayCount).map((msg, i) => {
+                // Generic "starts a new run" check — compares this message's
+                // role to the PREVIOUS message's role (not a hardcoded
+                // index), so the tail placement stays correct however the
+                // content's role sequence is authored.
+                const isFirstOfRun = i === 0 || WHATSAPP_THREAD[i - 1].role !== msg.role;
+                const time = baseTimestamp ? deriveMessageTime(baseTimestamp, i) : undefined;
+                return (
+                  <motion.div
+                    key={i}
+                    initial={mode === "animated" ? { opacity: 0, y: 8 } : false}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: MESSAGE_DURATION_S, ease: "easeOut" }}
+                    className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
                   >
-                    <FileText size={13} weight="bold" aria-hidden="true" />
-                    resume.pdf
-                  </span>
-                ) : null}
-                {msg.followText ? <p className="mt-1">{msg.followText}</p> : null}
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                    <div
+                      className={cn(
+                        "relative max-w-[80%] rounded-lg px-2.5 py-1 text-[13px] leading-[1.2] text-white",
+                        msg.role === "user"
+                          ? cn("bg-[#005C4B]", isFirstOfRun && "rounded-br-none")
+                          : cn("bg-[#202C33]", isFirstOfRun && "rounded-bl-none"),
+                      )}
+                    >
+                      {isFirstOfRun ? (
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "absolute bottom-0 h-2.5 w-2.5",
+                            msg.role === "user"
+                              ? "-right-[7px] bg-[#005C4B] [clip-path:polygon(0_0,100%_100%,0_100%)]"
+                              : "-left-[7px] bg-[#202C33] [clip-path:polygon(100%_0,100%_100%,0_100%)]",
+                          )}
+                        />
+                      ) : null}
+                      <p>{msg.text}</p>
+                      {msg.attachment ? (
+                        <div
+                          role="img"
+                          aria-label={msg.attachment}
+                          className="mt-1 flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10">
+                            <FileText size={13} weight="bold" className="text-white/80" aria-hidden="true" />
+                          </span>
+                          <span className="flex min-w-0 flex-col leading-tight">
+                            <span className="truncate text-[11.5px] text-white">resume.pdf</span>
+                            <span className="text-[9.5px] text-white/50">128 kB · pdf</span>
+                          </span>
+                        </div>
+                      ) : null}
+                      {msg.followText ? <p className="mt-0.5">{msg.followText}</p> : null}
+                      <div className="flex items-center justify-end gap-1">
+                        {time ? <span className="text-[10px] text-white/45">{time}</span> : null}
+                        {msg.role === "user" ? (
+                          <Checks size={13} className="text-[#53BDEB]" aria-hidden="true" />
+                        ) : null}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Composer */}
+        <div className="flex items-center gap-2 bg-[#1F2C34] px-3 py-1">
+          <span className="flex-1 truncate rounded-full bg-[#2A3942] px-3 py-1 text-[12px] text-white/40">
+            Message
+          </span>
+          <span
+            aria-hidden="true"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/70"
+          >
+            <Microphone size={16} />
+          </span>
+        </div>
       </div>
     </div>
   );
