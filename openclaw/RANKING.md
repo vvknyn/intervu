@@ -17,6 +17,40 @@ in the running for is not a discovery. Ranking without this call is how the
 digest ends up pitching a company the user is interviewing with tomorrow —
 which reads as an agent that isn't paying attention to their week.
 
+## An empty result set is a FINDING, never a quiet "nothing today"
+
+The user's stored `search` filters can be tighter than their market. When the
+search run with their configured filters returns zero hits, the digest has
+found something worth saying — it has NOT found nothing.
+
+Never send "no new jobs today" off a single zero-result search. Instead:
+
+1. Re-run widening ONE constraint at a time, in this order, stopping as soon
+   as there are candidates:
+   - `postedWithinDays` — the API accepts ONLY `7 | 30 | 90` (verified in
+     `src/app/api/mcp/route.ts`; anything else is rejected as "Invalid input",
+     and `90` is silently narrowed to the 30-day bucket with a server note).
+     So the ladder is exactly 7 → 30. Do not invent intermediate values.
+   - `location` — drop the region qualifier ("Toronto, Ontario" → "Toronto"),
+     then drop location entirely if the user's preferences allow remote.
+   - `query` — fall back to the single strongest role term rather than the
+     full comma-separated list.
+2. Rank whatever that yields by the rubric below, exactly as normal.
+3. SAY WHAT YOU WIDENED AND WHY, in one line at the top of the digest: which
+   constraint was binding, what the user's setting is, and what it had to
+   become to find anything — e.g. "nothing posted in your last-7-days window;
+   these are the freshest matches, oldest 11 days. Your window may be tighter
+   than your market."
+
+A digest that silently reports nothing teaches the user their market is dead,
+when what actually happened is that a setting excluded everything. That is
+the worst failure this file can produce: it is invisible, it looks like the
+product working, and it repeats every single day.
+
+If even the fully-widened search is empty, say THAT explicitly too, naming
+the filters tried — an honest "your corpus has no match for these roles in
+this region at any recency" is a real answer the user can act on.
+
 ## Hard excludes (never in the top 3, never on the bench)
 
 - Same role already in the pipeline at any status other than `rejected` or
@@ -95,6 +129,11 @@ write a specific why-line, the job does not belong in the top 3.
 
 - 2026-08-03: initial rubric (extracted from SKILL.md §1 so relevance is
   tunable in one place).
+- 2026-08-04 (v4): an empty result set is a finding — widen one constraint at
+  a time and say what was widened, instead of reporting "no new jobs today".
+  Written after the owner's own saved filters (7-day window + "Toronto,
+  Ontario") were measured returning zero every run while a 30-day window
+  returned 14 — a silently empty digest that looked like a quiet market.
 - 2026-08-04 (v3): pipeline awareness — `get_applications` is loaded before
   scoring; already-in-flight roles are hard-excluded and other roles at those
   companies are annotated with where the user already stands. Written after
