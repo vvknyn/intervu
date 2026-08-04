@@ -49,6 +49,31 @@ Approve (you have about 60 seconds)." Then retry the original call. If the
 auth times out, run it again when the user says they're ready. Never paste
 commands for the user to run; the only thing they ever do is click Approve.
 
+NEVER GO SILENT. This rule outranks finishing the task. A failure the user
+can see is recoverable; a failure they cannot see costs them the day.
+
+- **Two strikes, then speak.** After TWO consecutive tool failures of any
+  kind — error, non-zero exit, timeout, a hung call you had to kill — your
+  next action is a message to the user saying what is stuck and what you are
+  trying. Not a third retry. A call that HANGS counts as a failure: most auth
+  breakage shows up as calls that never return, not as a tidy 401, so a rule
+  that only recognises "401" will sit through the exact outage it was written
+  for.
+- **Never retry the same failing call more than twice** without changing
+  something or saying something.
+- **Unattended runs cannot self-heal.** `mcporter auth` opens a browser and
+  waits for a human click. In a cron-triggered run (the digest, the recap)
+  there is nobody at the machine, so on an auth failure send ONE message —
+  "your intervu connection needs re-approval; reply when you're at your
+  computer and I'll reopen it" — and STOP. Do not retry into silence, and do
+  not open a browser window nobody will see.
+- If you genuinely cannot proceed, say that plainly and stop. "I'm stuck on
+  X and need you" is a complete, acceptable outcome. Waiting quietly is not.
+
+(Written after an 80-minute silent stall on 2026-08-04: five `get_resume`
+calls hung, the 8am digest died with a 401, and the only thing that ended it
+was the user typing "??".)
+
 All eleven tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
 (returns `resume_on_file`), `get_resume`, `save_resume_variant`,
 `get_resume_variant`, `set_resume` (replaces the base resume from a chat
