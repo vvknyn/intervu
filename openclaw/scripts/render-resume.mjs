@@ -43,6 +43,38 @@ export function fillTemplate(template, data) {
   );
 }
 
+// Sections in this template are not nested, so a non-greedy match across
+// <section ...>...</section> safely captures each one as a single block.
+const SECTION_RE = /<section\b([^>]*)>([\s\S]*?)<\/section>/g;
+
+// Pure decision, no I/O: every content section in the template declares its
+// owning token via data-token="TOKEN" (see templates/resume.html). A section
+// whose token is empty/whitespace/missing in `data` is dropped entirely
+// (heading included) unless it's marked data-required, in which case this
+// throws instead — the caller decides how to report that. Kept sections have
+// their authoring attributes (data-token/data-required) stripped so they
+// don't leak into shipped HTML. New sections need zero changes here: nothing
+// in this function names a section — it only reads the attribute.
+export function pruneEmptySections(html, data) {
+  return html.replace(SECTION_RE, (match, attrs, body) => {
+    const tokenMatch = attrs.match(/data-token="([A-Z_]+)"/);
+    if (!tokenMatch) return match;
+    const token = tokenMatch[1];
+    const value = data[token];
+    const isEmpty = !value || !String(value).trim();
+    if (!isEmpty) {
+      const cleanAttrs = attrs
+        .replace(/\s*data-token="[A-Z_]+"/, "")
+        .replace(/\s*data-required\b/, "");
+      return `<section${cleanAttrs}>${body}</section>`;
+    }
+    if (/\bdata-required\b/.test(attrs)) {
+      throw new Error(`required section ${token} is empty`);
+    }
+    return "";
+  });
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.data || !args.out) {
@@ -56,22 +88,27 @@ function main() {
   const template = readFileSync(templatePath, "utf8");
   const data = JSON.parse(readFileSync(args.data, "utf8"));
 
-// Fail LOUDLY on unusable data — a resume with no name, or with every
-// content section empty, must never render "successfully" as a blank page
-// (that exact silent-blank shipped once; see SKILL.md §2 step 7).
-const fragmentKeys = ["SUMMARY", "COMPETENCIES", "EXPERIENCE", "PROJECTS", "EDUCATION"];
+// Fail LOUDLY on unusable data — a resume with no name must never render
+// "successfully" as a blank page (that exact silent-blank shipped once; see
+// SKILL.md §2 step 7). Every-section-empty is a special case of "a required
+// section is empty" (EXPERIENCE is data-required in the template), so it's
+// already covered by pruneEmptySections below — no separate check needed.
 if (!data.NAME || !String(data.NAME).trim()) {
   console.error("render-resume: refusing to render — NAME is empty. Check the data file matches the token contract in templates/resume.html.");
   process.exit(1);
 }
-if (fragmentKeys.every((k) => !data[k] || !String(data[k]).trim())) {
-  console.error("render-resume: refusing to render — every content section is empty. Wrong data shape? See the token contract in templates/resume.html.");
-  process.exit(1);
-}
   const filled = fillTemplate(template, data);
 
+  let finalHtml;
+  try {
+    finalHtml = pruneEmptySections(filled, data);
+  } catch (err) {
+    console.error(`render-resume: refusing to render — ${err.message}. Check the data file matches the token contract in templates/resume.html.`);
+    process.exit(1);
+  }
+
   mkdirSync(dirname(args.out), { recursive: true });
-  writeFileSync(args.out, filled, "utf8");
+  writeFileSync(args.out, finalHtml, "utf8");
   console.log(args.out);
 }
 

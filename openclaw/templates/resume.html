@@ -34,7 +34,11 @@
       EDUCATION: a single flat bullet list, no entry wrapper, no dates —
         <ul><li>Degree | Institution</li>...</ul>
       Pass "" for a section that doesn't apply (e.g. no PROJECTS) — the
-      section header still renders, empty. That's fine for v1.
+      renderer strips that section (heading included) entirely rather than
+      leaving an empty heading on the page. Each content section below
+      carries a data-token attribute naming its owning token, plus
+      data-required on the ones a resume can't exist without; see
+      ../scripts/render-resume.mjs for how those attributes are read.
 
   Section order is fixed and canonical (mirrors ResumeData.sectionOrder's
   default, src/types/resume.ts): PROFESSIONAL SUMMARY, CORE COMPETENCIES,
@@ -103,27 +107,27 @@
     </p>
   </header>
 
-  <section>
+  <section data-token="SUMMARY">
     <h2>Professional Summary</h2>
     <p>{{SUMMARY}}</p>
   </section>
 
-  <section>
+  <section data-token="COMPETENCIES">
     <h2>Core Competencies</h2>
     {{COMPETENCIES}}
   </section>
 
-  <section>
+  <section data-token="EXPERIENCE" data-required>
     <h2>Professional Experience</h2>
     {{EXPERIENCE}}
   </section>
 
-  <section>
+  <section data-token="PROJECTS">
     <h2>Independent Projects</h2>
     {{PROJECTS}}
   </section>
 
-  <section>
+  <section data-token="EDUCATION">
     <h2>Education &amp; Professional Development</h2>
     {{EDUCATION}}
   </section>
