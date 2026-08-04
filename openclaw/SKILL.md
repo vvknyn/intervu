@@ -124,9 +124,26 @@ interview — a resume upload is the setup step.
      `search.location`, remote/hybrid/on-site → `search.remoteOnly`, level →
      `search.experienceLevel`. Then continue with whatever the user
      originally asked. No 5-question interview when a resume exists.
-   - `source: "none"`: say "Send me your resume (PDF or text is fine)." and
-     stop — wait for the next message. Do not run a search or interview in
-     the meantime.
+   - `source: "none"`: say "Send me your resume (PDF or text is fine) — or
+     if you don't have one, just tell me about your work history and I'll
+     build you one." and stop — wait for the next message. Do not run a
+     search in the meantime.
+   - BUILD-A-RESUME path (user has no resume and starts telling you their
+     history, or pastes rough notes/bullets): gather the facts
+     conversationally — employers, titles, dates, what they actually did,
+     education, location. Ask short follow-ups only for gaps a resume
+     genuinely needs; don't run a 20-question intake. Then write the resume
+     FROM THEIR STATED FACTS ONLY: wordsmithing their real history into
+     strong bullets is the job; adding an employer, date, degree, metric,
+     or skill they never said is forbidden — ask instead. Read the facts
+     back in a compact summary for confirmation BEFORE saving. On confirm:
+     build `ResumeData`, call `set_resume` (text + structured), then render
+     it with the standard template (`scripts/render-resume.mjs` +
+     `templates/resume.html`, same pipeline §2 uses for tailoring), and
+     SEND the PDF in chat: "This is your base resume now — tell me what to
+     fix." Iterate on their edits (each accepted edit = another
+     `set_resume` call). Then proceed to the step-1 preference
+     confirmation.
 2. Resume attachment handling — triggers any day a document arrives (first
    contact or the hundredth, this is how step 3 below fires too): read it via
    OpenClaw's inbound-attachment template variables, `{{AttachmentPath}}`
