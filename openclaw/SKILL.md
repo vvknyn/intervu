@@ -280,7 +280,12 @@ pay the browser boot cost.
    Any failure → fix `data.json`, re-render (step 5), re-verify. KEEP THIS
    TAB OPEN — it is the resume tab for the two-tab protocol in FORM FILL.
 8. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
-9. Proceed to FORM FILL.
+9. Export the user's copy: copy the verified PDF to
+   `~/Downloads/<Company>-<Title>-resume-<YYYY-MM-DD>.pdf` (spaces →
+   dashes, no special chars). This Downloads file is the ARTIFACT OF
+   RECORD — the exact file that gets uploaded, named so the user can find
+   it at interview time without asking anyone.
+10. Proceed to FORM FILL.
 
 ### 3. Form fill
 
@@ -322,8 +327,10 @@ pay the browser boot cost.
 6. Resume attachment: `browser upload` only accepts paths inside OpenClaw's
    temp uploads dir (verified: `openclaw browser upload --help` — "must be
    within OpenClaw temp uploads dir, e.g. /tmp/openclaw/uploads/file.pdf").
-   The canonical tailored PDF lives under this skill's `state/` dir per the
-   rule above; copy it to `/tmp/openclaw/uploads/<job_id>-resume.pdf` first —
+   Stage the upload FROM the Downloads artifact of record (§2 step 9) —
+   copy `~/Downloads/<Company>-<Title>-resume-<date>.pdf` to
+   `/tmp/openclaw/uploads/<job_id>-resume.pdf` first, so the file uploaded
+   is byte-identical to the file the user holds —
    this is a staging copy mandated by the platform, not a second home for the
    data, and it's fine to leave for OpenClaw to manage. Then:
    `browser upload /tmp/openclaw/uploads/<job_id>-resume.pdf` (arm it — pass
@@ -359,6 +366,11 @@ pay the browser boot cost.
    - What was changed on the resume for this job (2-3 bullets max)
    - The answers filled into the form (short lines, not a raw dump)
    - Anything left blank and why (EEO fields, no-truthful-answer fields)
+   - The resume FILE itself: send the PDF as a document via
+     `openclaw message send --media ~/Downloads/<Company>-<Title>-resume-<date>.pdf`
+     and name it in the text ("Applied-with file: <name>.pdf — also in your
+     Downloads"). The user must never have to ask "what resume did you
+     apply with?" — the answer is in their hand and on their disk.
    - Close with: "Review and hit submit."
    One message per application — never a separate message per section.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
