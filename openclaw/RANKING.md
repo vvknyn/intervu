@@ -8,8 +8,19 @@ this file — never SKILL.md. Precedence, absolute and in this order:
 2. This rubric
 3. Your model judgment (only where 1 and 2 are silent)
 
+## Load the pipeline first (one call, before any scoring)
+
+`mcporter call intervu-cc-mcp.get_applications --args '{"limit":100}' --output json`
+
+The user's own pipeline outranks every signal below: a job they are already
+in the running for is not a discovery. Ranking without this call is how the
+digest ends up pitching a company the user is interviewing with tomorrow —
+which reads as an agent that isn't paying attention to their week.
+
 ## Hard excludes (never in the top 3, never on the bench)
 
+- Same role already in the pipeline at any status other than `rejected` or
+  `withdrawn` — they've seen it; re-surfacing it is noise, not a find.
 - Violates any rule in the user's `fit_notes`.
 - `ghost_badge` is `likely_ghost` — flagged-fake postings are never
   recommended even when they match perfectly.
@@ -55,6 +66,18 @@ spend one quick lookup per finalist on company health:
 This step is capped: finalists only, one lookup each — never bulk-search
 news for all 20 results.
 
+## Companies already in the pipeline (annotate, never pretend)
+
+A DIFFERENT role at a company the user is already engaged with is allowed in
+the top 3 — people do get hired into a second team — but it is never
+presented as a fresh discovery. The why-line must lead with where they
+already stand ("you interview here Thursday — this is the adjacent PM req,
+same org"). Silently listing it as a new opportunity makes the user correct
+the agent, which is the one thing the digest exists to avoid.
+
+`interviewing` and `offer` outrank `applied`: mentioning a live conversation
+matters more than mentioning a form they submitted a month ago.
+
 ## Tie-breakers, in order
 
 Company has other live postings in the same family (hiring push, not a
@@ -72,6 +95,11 @@ write a specific why-line, the job does not belong in the top 3.
 
 - 2026-08-03: initial rubric (extracted from SKILL.md §1 so relevance is
   tunable in one place).
+- 2026-08-04 (v3): pipeline awareness — `get_applications` is loaded before
+  scoring; already-in-flight roles are hard-excluded and other roles at those
+  companies are annotated with where the user already stands. Written after
+  the digest recommended a company the user was interviewing with the next
+  day and he had to say so himself.
 - 2026-08-03 (v2): company-signal enrichment — agent-side news check for
   finalists + corpus health fields when present (owner: rank by how the
   company is actually doing, not just the posting).
