@@ -10,7 +10,11 @@ this file — never SKILL.md. Precedence, absolute and in this order:
 
 ## Load the pipeline first (one call, before any scoring)
 
-`mcporter call intervu-cc-mcp.get_applications --args '{"limit":100}' --output json`
+`mcporter call intervu-cc-mcp.get_applications --args '{"limit":50}' --output json`
+
+50 is the server's maximum (`AGENT.APPLICATIONS_MAX_LIMIT`); anything higher is
+rejected outright as `limit: Too big`, costing a wasted call and a retry on
+every single run. Do not raise it here without changing that constant first.
 
 The user's own pipeline outranks every signal below: a job they are already
 in the running for is not a discovery. Ranking without this call is how the
