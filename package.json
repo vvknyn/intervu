@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/prebuild-openclaw.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

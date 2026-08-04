@@ -42,8 +42,12 @@ Its health probe reports "auth required" even when stored credentials are
 valid (verified live 2026-08-03); trusting it produces an endless "please
 authenticate" loop while actual calls would succeed. The ONLY reliable auth
 check is a real call (e.g. `get_resume`). If a real call returns an OAuth/401
-error, THEN ask the user to run `mcporter auth intervu-cc-mcp` and continue
-after they say done.
+error, FIX IT YOURSELF: run `mcporter auth intervu-cc-mcp` via exec — a
+browser window opens on this machine — and tell the user only: "I need a
+quick re-approval — a browser window just opened on your computer; click
+Approve (you have about 60 seconds)." Then retry the original call. If the
+auth times out, run it again when the user says they're ready. Never paste
+commands for the user to run; the only thing they ever do is click Approve.
 
 All eleven tools are live: `search_jobs`, `get_job`, `save_job`, `mark_applied`
 (returns `resume_on_file`), `get_resume`, `save_resume_variant`,
@@ -124,9 +128,26 @@ interview — a resume upload is the setup step.
      `search.location`, remote/hybrid/on-site → `search.remoteOnly`, level →
      `search.experienceLevel`. Then continue with whatever the user
      originally asked. No 5-question interview when a resume exists.
-   - `source: "none"`: say "Send me your resume (PDF or text is fine)." and
-     stop — wait for the next message. Do not run a search or interview in
-     the meantime.
+   - `source: "none"`: say "Send me your resume (PDF or text is fine) — or
+     if you don't have one, just tell me about your work history and I'll
+     build you one." and stop — wait for the next message. Do not run a
+     search in the meantime.
+   - BUILD-A-RESUME path (user has no resume and starts telling you their
+     history, or pastes rough notes/bullets): gather the facts
+     conversationally — employers, titles, dates, what they actually did,
+     education, location. Ask short follow-ups only for gaps a resume
+     genuinely needs; don't run a 20-question intake. Then write the resume
+     FROM THEIR STATED FACTS ONLY: wordsmithing their real history into
+     strong bullets is the job; adding an employer, date, degree, metric,
+     or skill they never said is forbidden — ask instead. Read the facts
+     back in a compact summary for confirmation BEFORE saving. On confirm:
+     build `ResumeData`, call `set_resume` (text + structured), then render
+     it with the standard template (`scripts/render-resume.mjs` +
+     `templates/resume.html`, same pipeline §2 uses for tailoring), and
+     SEND the PDF in chat: "This is your base resume now — tell me what to
+     fix." Iterate on their edits (each accepted edit = another
+     `set_resume` call). Then proceed to the step-1 preference
+     confirmation.
 2. Resume attachment handling — triggers any day a document arrives (first
    contact or the hundredth, this is how step 3 below fires too): read it via
    OpenClaw's inbound-attachment template variables, `{{AttachmentPath}}`
@@ -168,8 +189,12 @@ preferences" request reopens it.
    cache for a working server call.
 2. `mcporter call intervu-cc-mcp.search_jobs --args '<search prefs from step 1 as JSON, plus limit:20>' --output json`.
 3. `mcporter call intervu-cc-mcp.get_resume --args '{}' --output json` for fit context.
-4. Rank for fit against the resume. Pick the top 3 — no more, never dump the
-   raw search results. For ranks 4-8, call
+4. Rank per `RANKING.md` (next to this file) — it IS the relevance
+   algorithm: hard excludes, ordered scoring signals, tie-breakers, and the
+   why-line discipline. Precedence is absolute: the user's `fit_notes`
+   (step 1's `answers.custom`) first, then RANKING.md, then your own
+   judgment only where both are silent. Pick the top 3 — no more, never
+   dump the raw search results. For ranks 4-8, call
    `mcporter call intervu-cc-mcp.save_job --args '{"id":"<id>"}'` so the
    user's intervu watchlist quietly builds a bench; never message about
    these.
@@ -195,6 +220,17 @@ Reply with a number to prepare + fill the application.
    ("Still waiting on you: {title} at {company} — filled {n} days ago. Say
    'drop it' to forget it.") and its `nudged` set to true. One nudge ever
    per application — never nag twice.
+8. TUNING BY TALKING (applies any time, not just digest mornings): when the
+   user critiques results — "too junior", "no customer-success roles",
+   "more 0→1 startup roles" — distill the critique into a short standing
+   rule, merge it into the server-side notes via
+   `mcporter call intervu-cc-mcp.set_preferences --args
+   '{"answers":{"custom":{"fit_notes":"<updated combined rules>"}}}'`
+   (read the existing `fit_notes` first and append/edit — never drop prior
+   rules), confirm in ONE line ("Noted — excluding customer-success,
+   weighting product leadership. That sticks."), and apply it from the very
+   next ranking. Preference edits in plain words ("only remote from now
+   on") update `search` the same way.
 
 ### 2. Prepare (user picks one)
 
