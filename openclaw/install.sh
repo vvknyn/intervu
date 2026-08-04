@@ -78,6 +78,20 @@ grep -q "$MCP_SERVER_KEY" "$MCPORTER_CONFIG" 2>/dev/null || \
   mcporter config add "$MCP_SERVER_KEY" --url https://intervu.cc/api/mcp --config "$MCPORTER_CONFIG"
 echo "    Registered."
 
+# Keep the MCP connection warm — without this every tool call pays a full
+# cold handshake (~4.4s measured); with the daemon it drops to ~1s. The
+# lifecycle field is what `mcporter daemon` auto-detects; python edits the
+# JSON because `mcporter config add` has no lifecycle flag.
+python3 - "$MCPORTER_CONFIG" "$MCP_SERVER_KEY" <<'PYJSON'
+import json, sys
+p, key = sys.argv[1], sys.argv[2]
+d = json.load(open(p))
+d["mcpServers"][key]["lifecycle"] = "keep-alive"
+json.dump(d, open(p, "w"), indent=2)
+PYJSON
+mcporter daemon restart >/dev/null 2>&1 || true
+echo "    Connection keep-alive daemon started."
+
 # --- 4. Auth (opens a browser window) ---------------------------------------
 echo "==============================================================="
 echo "  A browser window is about to open for you to approve intervu."
