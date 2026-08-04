@@ -21,20 +21,6 @@ import {
 import { NAV_TABS } from "@/components/layout/nav-tabs";
 import { Button } from "@/components/ui/button";
 
-/** Jobs empty-ask sets `data-jobs-overlay-ask` so TopBar yields the brand to the hero morph. */
-const OVERLAY_ASK_ATTR = "data-jobs-overlay-ask";
-function subscribeOverlayAsk(onChange: () => void) {
-    const obs = new MutationObserver(onChange);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: [OVERLAY_ASK_ATTR] });
-    return () => obs.disconnect();
-}
-function getOverlayAskSnapshot(): boolean {
-    return document.documentElement.getAttribute(OVERLAY_ASK_ATTR) === "1";
-}
-function getOverlayAskServerSnapshot(): boolean {
-    return false;
-}
-
 const BRAND_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.8 };
 
 function initialsOf(user: User): string {
@@ -71,11 +57,6 @@ export function TopBar() {
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const dark = useSyncExternalStore(subscribeDark, getDarkSnapshot, getDarkServerSnapshot);
-    const overlayAsk = useSyncExternalStore(
-        subscribeOverlayAsk,
-        getOverlayAskSnapshot,
-        getOverlayAskServerSnapshot,
-    );
     const sessionRefreshed = useRef(false);
 
     useEffect(() => {
@@ -95,7 +76,12 @@ export function TopBar() {
         return () => unsubscribe();
     }, []);
 
-    const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
+    // "/" (the automation-first front door, src/app/page.tsx) renders its own
+    // FrontDoorNav and owns the full page — it used to rely on being a
+    // `fixed inset-0` layer to visually cover this header for free, but that
+    // page is now a normal flowing document, so this header would otherwise
+    // render as a second, redundant nav bar above it.
+    const hideNav = pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth");
     if (hideNav) return null;
 
     // Same pattern as SettingsContainer's handleSignOut: clear locally-cached
@@ -122,24 +108,22 @@ export function TopBar() {
                 {/* Reserved slot so nav doesn't jump while the brand morphs
                     from the empty-state hero into the masthead. */}
                 <div className="flex h-[18px] min-w-[7.25rem] shrink-0 items-center">
-                    {!overlayAsk && (
-                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                            <motion.span
-                                layoutId="intervu-brand"
-                                transition={BRAND_SPRING}
-                                className="font-display text-[18px] font-extrabold leading-none tracking-tight"
-                            >
-                                intervu
-                            </motion.span>
-                            <motion.span
-                                layoutId="intervu-beta"
-                                transition={BRAND_SPRING}
-                                className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
-                            >
-                                beta
-                            </motion.span>
-                        </Link>
-                    )}
+                    <Link href="/" className="flex shrink-0 items-center gap-2.5">
+                        <motion.span
+                            layoutId="intervu-brand"
+                            transition={BRAND_SPRING}
+                            className="font-display text-[18px] font-extrabold leading-none tracking-tight"
+                        >
+                            intervu
+                        </motion.span>
+                        <motion.span
+                            layoutId="intervu-beta"
+                            transition={BRAND_SPRING}
+                            className="rounded border border-border px-[5px] py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest text-faint"
+                        >
+                            beta
+                        </motion.span>
+                    </Link>
                 </div>
 
                 <nav

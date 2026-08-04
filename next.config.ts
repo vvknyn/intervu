@@ -99,12 +99,18 @@ const nextConfig: NextConfig = {
         destination: "/connect",
         permanent: true,
       },
-      // Jobs flipped to root (jobs-first-bloom PR 1). Query params (e.g.
-      // ?job=<id>) pass through automatically — Next preserves them on 301s.
+      // Automation-first front door (2026-08-03) — `/` is the OpenClaw
+      // pitch now, `/jobs` is the manual SERP. A deep link with a search
+      // query (`?q=...`, e.g. from an old bookmark or shared URL) still
+      // means "show me results," so it redirects to `/jobs` with every
+      // query param preserved; NOT permanent since `/`'s content itself
+      // isn't gone, just relocated for this one param shape. Bare `/`
+      // (no `q`) is the front door and must NOT redirect.
       {
-        source: "/jobs",
-        destination: "/",
-        permanent: true,
+        source: "/",
+        has: [{ type: "query", key: "q" }],
+        destination: "/jobs",
+        permanent: false,
       },
       // The applications tracker became the pursuit list (jobs-first-bloom
       // PR 2). Query params (e.g. ?view=new) pass through automatically.
@@ -133,6 +139,21 @@ const nextConfig: NextConfig = {
       {
         source: "/dashboard",
         destination: "/jobs",
+        permanent: true,
+      },
+      // Resume building/tailoring removed (2026-08-03 — "no AI on website"
+      // doctrine, part 2). All AI resume work now happens through the
+      // user's own agent (MCP/WhatsApp); /yours is where a signed-in user
+      // lands to see their tracked applications and (separately) their base
+      // resume in Settings.
+      {
+        source: "/resume-builder",
+        destination: "/yours",
+        permanent: true,
+      },
+      {
+        source: "/resume-tailor",
+        destination: "/yours",
         permanent: true,
       },
     ];

@@ -114,7 +114,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
 
         // Navigate away and back
         await page.goto('/settings');
-        await page.goto('/resume-builder');
+        await page.goto('/yours');
 
         const storedResume = await page.evaluate(() => localStorage.getItem('interview-os-resume-data'));
         expect(storedResume).toContain('John Doe');

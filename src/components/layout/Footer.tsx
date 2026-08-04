@@ -17,18 +17,15 @@ const LEGAL_LINKS: { label: string; href: string }[] = [
 ];
 
 /**
- * Quiet product band, mounted once in the root layout (same as `TopBar` and
- * `MobileTabBar`) rather than per-page. Hides on the same routes `TopBar`
- * hides its own chrome on — a login/auth screen shouldn't repeat the product
- * nav. It's also naturally invisible during the landing's overlay-ask screen
- * (`page.tsx`'s `isOverlayAsk`), which renders as a `fixed inset-0 z-50`
- * layer above the rest of the tree, no extra check needed here.
+ * The actual footer markup, exported on its own so a page that mounts its
+ * own instance — the automation-first front door (`src/app/page.tsx`) wraps
+ * this in `.dark` inside its own scroll flow — can render it directly
+ * without going through `Footer`'s route-based hide check below. That check
+ * exists for the root layout's single shared mount; a page that
+ * intentionally owns its own copy shouldn't be subject to a "hide on this
+ * route" rule keyed on the very route it's rendering on.
  */
-export function Footer() {
-    const pathname = usePathname();
-    const hideNav = pathname.startsWith("/login") || pathname.startsWith("/auth");
-    if (hideNav) return null;
-
+export function FooterContent() {
     return (
         <footer data-testid="site-footer" className="shrink-0 border-t border-border bg-card">
             <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center gap-3 px-4 py-6 text-center lg:px-8">
@@ -71,4 +68,19 @@ export function Footer() {
             </div>
         </footer>
     );
+}
+
+/**
+ * Quiet product band, mounted once in the root layout (same as `TopBar` and
+ * `MobileTabBar`) rather than per-page. Hides on the same routes `TopBar`
+ * hides its own chrome on — a login/auth screen shouldn't repeat the product
+ * nav. Also hides on "/" (the automation-first front door), which mounts its
+ * own `FooterContent` instance instead — see that component's doc comment.
+ */
+export function Footer() {
+    const pathname = usePathname();
+    const hideNav = pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth");
+    if (hideNav) return null;
+
+    return <FooterContent />;
 }

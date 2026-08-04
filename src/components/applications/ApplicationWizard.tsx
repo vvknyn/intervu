@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Check, Briefcase, FileText, Envelope, Eye, X, ArrowsClockwise } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Check, Briefcase, Envelope, Eye, X, ArrowsClockwise } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { fetchResumeData } from "@/actions/resume";
 import type { PursuitStage } from "@/lib/pursuits/types";
 
 // Step Components
 import { JobDetailsStep } from "./steps/JobDetailsStep";
-import { ResumeTailoringStep } from "./steps/ResumeTailoringStep";
 import { CoverLetterStep } from "./steps/CoverLetterStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
@@ -22,17 +21,17 @@ export interface ApplicationDraft {
     jobText?: string;
     jobAnalysis?: JobAnalysis;
 
-    // Step 2: Resume Tailoring
+    // Base resume (auto-fetched, no dedicated step — tailoring moved to MCP)
     baseResume?: ResumeData;
     recommendations?: TailoringRecommendation[];
     selectedRecommendations?: TailoringRecommendation[];
     tailoredResume?: Partial<TailoredResumeVersion>;
     versionName?: string;
 
-    // Step 3: Cover Letter
+    // Step 2: Cover Letter
     coverLetter?: string;
 
-    // Step 4: Review
+    // Step 3: Review
     applicationDate?: string;
     status?: PursuitStage;
 }
@@ -75,9 +74,8 @@ function clearCache() {
 
 const STEPS = [
     { id: 1, name: "Job Details", icon: Briefcase, description: "Paste or link the job posting" },
-    { id: 2, name: "Tailor Resume", icon: FileText, description: "Attach and adjust your resume" },
-    { id: 3, name: "Cover Letter", icon: Envelope, description: "Write a personalized letter" },
-    { id: 4, name: "Review", icon: Eye, description: "Review and track your application" },
+    { id: 2, name: "Cover Letter", icon: Envelope, description: "Write a personalized letter" },
+    { id: 3, name: "Review", icon: Eye, description: "Review and track your application" },
 ];
 
 interface ApplicationWizardProps {
@@ -101,17 +99,14 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
         };
     });
 
-    // Track whether we restored from cache (affects resume loading)
-    const restoredFromCache = useRef(!!getCachedState()?.draft?.baseResume);
-
-    // Pre-fetch resume when wizard opens — so it's ready by Step 2
-    // If cache already has baseResume, skip the loading state
+    // Pre-fetch the user's base resume when the wizard opens — no dedicated
+    // step attaches it anymore (tailoring moved to MCP, 2026-08-03), but
+    // ReviewStep and the eventual saved application still read draft.baseResume.
+    // If cache already has it, skip straight to a background refresh.
     const [resumeData, setResumeData] = useState<ResumeData | null>(() => {
         const cached = getCachedState();
         return cached?.draft?.baseResume || null;
     });
-    const [resumeLoading, setResumeLoading] = useState(() => !restoredFromCache.current);
-    const [resumeError, setResumeError] = useState<string | null>(null);
 
     // Persist draft + step to sessionStorage on every change
     useEffect(() => {
@@ -119,27 +114,13 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
     }, [draft, currentStep]);
 
     useEffect(() => {
-        // If we already have resume from cache, still refresh in background
-        // but don't block the UI
         let cancelled = false;
-        const loadResume = async () => {
-            try {
-                const result = await fetchResumeData();
-                if (cancelled) return;
-                if (result.error) {
-                    // Only set error if we don't already have cached resume data
-                    if (!resumeData) setResumeError(result.error);
-                } else if (result.data) {
-                    setResumeData(result.data);
-                    setDraft(prev => ({ ...prev, baseResume: result.data }));
-                }
-            } catch {
-                if (!cancelled && !resumeData) setResumeError("Failed to load resume");
-            } finally {
-                if (!cancelled) setResumeLoading(false);
+        fetchResumeData().then((result) => {
+            if (!cancelled && result.data) {
+                setResumeData(result.data);
+                setDraft(prev => ({ ...prev, baseResume: result.data }));
             }
-        };
-        loadResume();
+        }).catch(() => { /* base resume stays unset — non-critical for the wizard */ });
         return () => { cancelled = true; };
     }, []);
 
@@ -149,12 +130,8 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
             case 1:
                 return !!(draft.jobAnalysis?.companyName && draft.jobAnalysis?.positionTitle);
             case 2:
-                // Tailoring is optional — user can always proceed.
-                // If they generated recommendations, great. If not, they track with original resume.
-                return true;
-            case 3:
                 return true; // Cover letter is optional
-            case 4:
+            case 3:
                 return true;
             default:
                 return false;
@@ -172,7 +149,7 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
     };
 
     const nextStep = () => {
-        if (currentStep < 4 && canProceed) {
+        if (currentStep < 3 && canProceed) {
             setCurrentStep(currentStep + 1);
         }
     };
@@ -185,13 +162,6 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
 
     const updateDraft = useCallback((updates: Partial<ApplicationDraft>) => {
         setDraft(prev => ({ ...prev, ...updates }));
-    }, []);
-
-    const handleResumeLoaded = useCallback((data: ResumeData) => {
-        setResumeData(data);
-        setResumeLoading(false);
-        setResumeError(null);
-        setDraft(prev => ({ ...prev, baseResume: data }));
     }, []);
 
     const handleComplete = () => {
@@ -310,22 +280,12 @@ export function ApplicationWizard({ onComplete, onCancel, initialData }: Applica
                         />
                     )}
                     {currentStep === 2 && (
-                        <ResumeTailoringStep
-                            draft={draft}
-                            onUpdate={updateDraft}
-                            resumeData={resumeData}
-                            resumeLoading={resumeLoading}
-                            resumeError={resumeError}
-                            onResumeLoaded={handleResumeLoaded}
-                        />
-                    )}
-                    {currentStep === 3 && (
                         <CoverLetterStep
                             draft={draft}
                             onUpdate={updateDraft}
                         />
                     )}
-                    {currentStep === 4 && (
+                    {currentStep === 3 && (
                         <ReviewStep
                             draft={draft}
                             onUpdate={updateDraft}

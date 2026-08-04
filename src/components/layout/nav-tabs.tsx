@@ -66,7 +66,7 @@ function ConnectIcon() {
 }
 
 export const NAV_TABS: NavTab[] = [
-    { label: "Jobs", shortLabel: "Jobs", href: "/", testId: "topbar-jobs", match: (p) => p === "/", icon: JobsIcon },
+    { label: "Jobs", shortLabel: "Jobs", href: "/jobs", testId: "topbar-jobs", match: (p) => p === "/jobs", icon: JobsIcon },
     // Companies (/companies/hiring) removed from nav 2026-08-02 — page is
     // redirected to /jobs until it can be served correctly, see
     // src/app/companies/hiring/page.tsx for why. Re-add the entry here when

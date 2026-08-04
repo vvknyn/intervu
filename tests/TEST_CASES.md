@@ -94,43 +94,10 @@ npm run test:report
 
 ---
 
-### RESUME - Resume Builder Tests (`resume-builder.spec.ts`)
-
-| Test ID | Description |
-|---------|-------------|
-| TC-RESUME-001 | Resume builder page loads |
-| TC-RESUME-002 | Profile form fields are editable |
-| TC-RESUME-003 | Experience section allows adding entries |
-| TC-RESUME-004 | Skills section is present |
-| TC-RESUME-005 | Live preview panel exists |
-| TC-RESUME-006 | Export DOCX button is present |
-| TC-RESUME-007 | Print/PDF button is present |
-| TC-RESUME-008 | Tailor link navigates to resume-tailor |
-| TC-RESUME-009 | Back navigation works |
-| TC-RESUME-010 | Mobile view has edit/preview toggle |
-| TC-RESUME-011 | Education section is present |
-| TC-RESUME-012 | AI writing assistant button exists |
-| TC-RESUME-013 | Form inputs have labels |
-| TC-RESUME-014 | Clear/Reset button exists |
-
----
-
-### TAILOR - Resume Tailor Tests (`resume-tailor.spec.ts`)
-
-| Test ID | Description |
-|---------|-------------|
-| TC-TAILOR-001 | Resume tailor page loads |
-| TC-TAILOR-002 | Job URL input field exists |
-| TC-TAILOR-003 | Job description textarea exists |
-| TC-TAILOR-004 | Analyze button exists |
-| TC-TAILOR-005 | Page handles no resume state |
-| TC-TAILOR-006 | Back navigation works |
-| TC-TAILOR-007 | Generate recommendations button exists |
-| TC-TAILOR-008 | Save version button exists |
-| TC-TAILOR-009 | Textarea accepts job description input |
-| TC-TAILOR-010 | Page responsive on mobile |
-
----
+<!-- RESUME (resume-builder.spec.ts) and TAILOR (resume-tailor.spec.ts) suites
+     removed 2026-08-03: resume building/tailoring moved to MCP ("no AI on
+     website" doctrine, part 2). /resume-builder and /resume-tailor now
+     308-redirect to /yours — see NAV - Navigation Tests, TC-NAV-010. -->
 
 ### APPS - Application Tracker Tests (`applications.spec.ts`)
 

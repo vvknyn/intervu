@@ -46,15 +46,36 @@ export function canonicalizeBaseResume(
     return { source: "none" };
 }
 
-export async function getBaseResumeForUser(uid: string): Promise<BaseResume> {
+/** Shared doc fetch behind both `getBaseResumeForUser` (the MCP-facing seam
+ *  — unchanged shape, other tools depend on it) and
+ *  `getBaseResumeSummaryForUser` (adds `updatedAt` for the Settings card),
+ *  so there's exactly one place that reads `profiles/<uid>` for this and one
+ *  place that decides the canonical source. */
+async function fetchBaseResumeDoc(uid: string): Promise<{ base: BaseResume; updatedAt: string | null }> {
     const db = getAdminDb();
     const doc = await db.collection("profiles").doc(uid).get();
-    if (!doc.exists) return { source: "none" };
+    if (!doc.exists) return { base: { source: "none" }, updatedAt: null };
 
     const docData = doc.data();
     const resumeData = docData?.resume_data as ResumeData | undefined;
     if (resumeData?.profile) {
         resumeData.profile = migrateLegacyProfile(resumeData.profile);
     }
-    return canonicalizeBaseResume(resumeData, docData?.resume_text as string | undefined);
+    const base = canonicalizeBaseResume(resumeData, docData?.resume_text as string | undefined);
+    return { base, updatedAt: (docData?.resume_last_updated as string | undefined) ?? null };
+}
+
+export async function getBaseResumeForUser(uid: string): Promise<BaseResume> {
+    return (await fetchBaseResumeDoc(uid)).base;
+}
+
+/**
+ * `getBaseResumeForUser`'s result plus `resume_last_updated` (written by
+ * both `saveResumeData` (`actions/resume.ts`) and `setBaseResumeForUser`
+ * (`set-resume.ts`) on every write) — the "when was this last touched" fact
+ * the Settings résumé card needs that no MCP tool currently cares about.
+ */
+export async function getBaseResumeSummaryForUser(uid: string): Promise<BaseResume & { updatedAt: string | null }> {
+    const { base, updatedAt } = await fetchBaseResumeDoc(uid);
+    return { ...base, updatedAt };
 }

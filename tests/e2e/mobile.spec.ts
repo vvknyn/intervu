@@ -24,8 +24,9 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // Brand should be visible
     await expect(page.locator('text=Intervu').first()).toBeVisible();
 
-    // Search input should be visible
-    await expect(page.locator('input[type="text"]').first()).toBeVisible();
+    // Front door has no search box (that's /jobs now) — its own form is
+    // the OpenClaw waitlist email input.
+    await expect(page.locator('input[type="email"]').first()).toBeVisible();
 
     // No horizontal scroll
     const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
@@ -40,34 +41,18 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * Resume · Prep). TopBar keeps wordmark + avatar only.
    */
   test('TC-MOBILE-002: Mobile tab bar is accessible', async ({ page }) => {
-    await page.goto('/');
+    // `/` is the front door now (job-board split, 2026-08-03) — TopBar
+    // still mounts underneath it (wordmark + avatar reachable), so check
+    // on /jobs, a normal page where the full chrome is actually usable.
+    await page.goto('/jobs');
 
     await expect(page.getByTestId('topbar')).toBeVisible();
     await expect(page.getByTestId('mobile-tabbar')).toBeVisible();
-    await expect(page.getByTestId('topbar-alljobs')).toBeVisible();
-  });
-
-  /**
-   * TC-MOBILE-003: Resume builder mobile tabs work
-   *
-   * Verifies edit/preview tabs work on mobile resume builder.
-   */
-  test('TC-MOBILE-003: Resume builder mobile tabs work', async ({ page }) => {
-    await page.goto('/resume-builder');
-
-    // Look for mobile tab buttons
-    const tabs = page.locator('button:has-text("Edit"), button:has-text("Preview")');
-    const count = await tabs.count();
-
-    if (count >= 2) {
-      // Click preview tab
-      await page.locator('button:has-text("Preview")').click();
-      await page.waitForTimeout(300);
-
-      // Click edit tab
-      await page.locator('button:has-text("Edit")').click();
-      await page.waitForTimeout(300);
-    }
+    // NAV_TABS renamed "All jobs" -> "Jobs" (testId: topbar-jobs) when the
+    // nav was restructured for the split; the same testId renders both in
+    // TopBar's desktop-only row (hidden on mobile) and MobileTabBar, so
+    // scope to the mobile tab bar to avoid matching TopBar's hidden copy.
+    await expect(page.getByTestId('mobile-tabbar').getByTestId('topbar-jobs')).toBeVisible();
   });
 
   /**
@@ -76,7 +61,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * Verifies all main pages can be scrolled vertically.
    */
   test('TC-MOBILE-004: All pages are scrollable on mobile', async ({ page }) => {
-    const pages = ['/', '/resume-builder', '/resume-tailor', '/yours', '/settings'];
+    const pages = ['/', '/yours', '/settings'];
 
     for (const p of pages) {
       await page.goto(p);
@@ -117,7 +102,8 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * Verifies form inputs are accessible and usable on mobile.
    */
   test('TC-MOBILE-006: Forms are usable on mobile', async ({ page }) => {
-    await page.goto('/');
+    // Search chrome lives on /jobs now (front door has no search input).
+    await page.goto('/jobs');
 
     // Fill search on mobile
     const searchInput = page.locator('input[type="text"]').first();
@@ -166,8 +152,8 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await page.goto('/settings');
     await expect(page).toHaveURL('/settings');
 
-    await page.goto('/resume-builder');
-    await expect(page).toHaveURL('/resume-builder');
+    await page.goto('/yours');
+    await expect(page).toHaveURL('/yours');
   });
 
   /**

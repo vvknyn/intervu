@@ -36,8 +36,8 @@ export function JobDetailsStep({ draft, onUpdate }: JobDetailsStepProps) {
     const [urlFetchFailed, setUrlFetchFailed] = useState(false);
 
     // Keeps the existing JobAnalysis shape intact (required fields filled with
-    // sane defaults) so the wizard's step-1 gate, ReviewStep, and
-    // ResumeTailoringStep's versionName default all keep working unchanged.
+    // sane defaults) so the wizard's step-1 gate and ReviewStep keep working
+    // unchanged.
     const updateJobDetails = (company: string, position: string) => {
         const jobAnalysis: JobAnalysis = {
             ...draft.jobAnalysis,

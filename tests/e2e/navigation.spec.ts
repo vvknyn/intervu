@@ -4,9 +4,14 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: NAV - Navigation Tests
  *
  * Tests all navigation paths and page accessibility across the application.
- * Post-flip (jobs-first-bloom PR 1): `/` is jobs search, and the old 6-item
- * sidebar is gone — nav destinations live in the signed-in avatar's dropdown
- * menu (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
+ * Automation-first front door (2026-08-03): `/` is now the OpenClaw
+ * marketing pitch, not jobs search — the SERP moved to `/jobs` (same
+ * component, same testids). `/`'s content is a fixed, full-viewport
+ * overlay (src/app/page.tsx), which visually covers the shared TopBar
+ * underneath it, so avatar-menu tests below navigate to `/jobs` (a normal
+ * page with a reachable TopBar) rather than `/`. The old 6-item sidebar is
+ * gone — nav destinations live in the signed-in avatar's dropdown menu
+ * (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
  * default state in these tests, no login fixture here — only see the
  * wordmark, "All jobs" (data-testid="topbar-alljobs"), and "Log in"
  * (data-testid="topbar-login"), so menu-driven navigation tests below are
@@ -16,13 +21,14 @@ test.describe('NAV - Navigation Tests', () => {
   /**
    * TC-NAV-001: Home page loads successfully
    *
-   * Verifies the root (jobs search) page loads with core elements:
+   * Verifies the jobs search page (`/jobs` — moved off `/` by the
+   * automation-first front door, 2026-08-03) loads with core elements:
    * - Logo and brand name "Intervu"
    * - Search input field
    * - Analyze button
    */
   test('TC-NAV-001: Home page loads successfully', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/jobs');
 
     // Wait for page to hydrate
     await page.waitForLoadState('networkidle');
@@ -39,30 +45,13 @@ test.describe('NAV - Navigation Tests', () => {
   });
 
   /**
-   * TC-NAV-002: Navigate to Resume Builder via avatar menu
-   *
-   * Opens the signed-in avatar dropdown and clicks Resumes.
-   * No-ops when signed out (avatar isn't rendered — see file header).
-   */
-  test('TC-NAV-002: Navigate to Resume Builder via avatar menu', async ({ page }) => {
-    await page.goto('/');
-
-    const avatar = page.getByTestId('topbar-avatar');
-    if (await avatar.isVisible()) {
-      await avatar.click();
-      await page.getByRole('menuitem', { name: 'Resumes' }).click();
-      await expect(page).toHaveURL('/resume-builder');
-    }
-  });
-
-  /**
    * TC-NAV-003: Navigate to Yours via avatar menu
    *
    * Opens the signed-in avatar dropdown and clicks Yours.
    * No-ops when signed out.
    */
   test('TC-NAV-003: Navigate to Yours via avatar menu', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/jobs');
 
     const avatar = page.getByTestId('topbar-avatar');
     if (await avatar.isVisible()) {
@@ -79,7 +68,7 @@ test.describe('NAV - Navigation Tests', () => {
    * No-ops when signed out.
    */
   test('TC-NAV-004: Navigate to Settings via avatar menu', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/jobs');
 
     const avatar = page.getByTestId('topbar-avatar');
     if (await avatar.isVisible()) {
@@ -96,7 +85,7 @@ test.describe('NAV - Navigation Tests', () => {
    * No-ops when signed out.
    */
   test('TC-NAV-005b: Navigate to Stories via avatar menu', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/jobs');
 
     const avatar = page.getByTestId('topbar-avatar');
     if (await avatar.isVisible()) {
@@ -107,11 +96,12 @@ test.describe('NAV - Navigation Tests', () => {
   });
 
   /**
-   * TC-NAV-006: Wordmark click returns to jobs root
+   * TC-NAV-006: Wordmark click returns to the front door
    *
-   * From any page, clicking the TopBar wordmark should return to `/`.
+   * From any page, clicking the TopBar wordmark should return to `/` — the
+   * automation-first front door (2026-08-03), not the jobs SERP (`/jobs`).
    */
-  test('TC-NAV-006: Wordmark click returns to jobs root', async ({ page }) => {
+  test('TC-NAV-006: Wordmark click returns to the front door', async ({ page }) => {
     await page.goto('/settings');
 
     const homeLink = page.locator('a[href="/"]').first();
@@ -134,8 +124,6 @@ test.describe('NAV - Navigation Tests', () => {
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
       { url: '/', title: 'Intervu' },
-      { url: '/resume-builder', title: 'Resume' },
-      { url: '/resume-tailor', title: 'Tailor' },
       { url: '/yours', title: 'Yours' },
       { url: '/settings', title: 'Settings' },
     ];
@@ -152,13 +140,14 @@ test.describe('NAV - Navigation Tests', () => {
    * TC-NAV-008: Dashboard redirect works
    *
    * /dashboard is a bookmark from the pre-removal prep surface (2026-08-02).
-   * It permanently redirects to /jobs, which itself redirects to `/` — the
-   * jobs-first root — so a followed browser navigation lands on `/`.
+   * It permanently redirects to /jobs — the job search SERP — directly, now
+   * that /jobs is a real page rather than a second hop through `/` (the
+   * automation-first front door since 2026-08-03).
    */
   test('TC-NAV-008: Dashboard redirect works', async ({ page }) => {
     await page.goto('/dashboard');
 
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/jobs');
   });
 
   /**
@@ -175,5 +164,20 @@ test.describe('NAV - Navigation Tests', () => {
 
     // Should be back at the jobs root
     await expect(page).toHaveURL('/');
+  });
+
+  /**
+   * TC-NAV-010: Resume builder/tailor routes permanently redirect to /yours
+   *
+   * Resume building/tailoring removed (2026-08-03 — "no AI on website"
+   * doctrine, part 2). Both routes are gone; a 308 keeps old bookmarks and
+   * any indexed links landing somewhere real instead of 404ing.
+   */
+  test('TC-NAV-010: Resume builder/tailor routes permanently redirect to /yours', async ({ page }) => {
+    for (const url of ['/resume-builder', '/resume-tailor']) {
+      const response = await page.request.get(url, { maxRedirects: 0 });
+      expect(response.status()).toBe(308);
+      expect(response.headers()['location']).toContain('/yours');
+    }
   });
 });
