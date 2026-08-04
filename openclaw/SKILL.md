@@ -282,8 +282,10 @@ pay the browser boot cost.
      justified body, right-aligned dates — data can be correct while the
      layout has silently drifted from `templates/resume.html`, and that's
      still a failure.
-   Any failure → fix `data.json`, re-render (step 5), re-verify. KEEP THIS
-   TAB OPEN — it is the resume tab for the two-tab protocol in FORM FILL.
+   Any failure → fix `data.json`, re-render (step 5), re-verify. This tab's
+   job ends here — close it once export (step 9) succeeds. FORM FILL opens
+   its own RESUME tab from the exported Downloads PDF, not this HTML render
+   (see §3 step 1).
 8. `mcporter call intervu-cc-mcp.save_resume_variant --args '{"job_id":"<id>","resume_text":"<plain-text version>","label":"tailored"}'`.
 9. Export the user's copy: copy the verified PDF to
    `~/Downloads/<Company>-<Title>-resume-<YYYY-MM-DD>.pdf` (spaces →
@@ -303,10 +305,16 @@ checked, or a file attached from memory of what you just did — only from an
 AUDIT run after the fact, quoting the value (and, for uploads, the
 filename) it read back from the DOM.
 
-1. `browser open <apply_url>` (from `get_job`) in a NEW tab, keeping the
-   resume tab from §2 step 7 open. TWO-TAB protocol: FORM tab and RESUME
-   tab, switching with `browser tabs` / `browser focus`. Both stay open
-   until RECORD.
+1. `browser open <apply_url>` (from `get_job`) in a NEW tab — the FORM tab.
+   Immediately after, `browser open
+   file://~/Downloads/<Company>-<Title>-resume-<date>.pdf` (the exact
+   export from §2 step 9) in another new tab — the RESUME tab, opened right
+   after the FORM tab so the two sit adjacent; its tab title is the
+   filename itself, so the resume you're reviewing identifies itself.
+   TWO-TAB protocol: FORM tab and RESUME tab, switching with `browser tabs`
+   / `browser focus`. Both stay open until RECORD. (Chrome tab GROUPS
+   aren't available — `openclaw browser` has no `group` command — adjacency
+   plus the shared filename is how the pair stays identifiable.)
 2. Check for an account/login wall — see ACCOUNT-WALL HANDOFF; if hit, stop
    and follow that section instead.
 3. **PRE-FLIGHT AUDIT.** AUDIT the freshly opened form. Diff
@@ -362,10 +370,12 @@ filename) it read back from the DOM.
 6. Resume attachment: `browser upload` only accepts paths inside OpenClaw's
    temp uploads dir. Stage FROM the Downloads artifact of record (§2 step
    9) — copy `~/Downloads/<Company>-<Title>-resume-<date>.pdf` to
-   `/tmp/openclaw/uploads/<job_id>-resume.pdf` first, byte-identical to what
-   the user holds. Focus the RESUME tab and confirm it still shows the
-   final verified render (§2 step 7), then `browser upload
-   /tmp/openclaw/uploads/<job_id>-resume.pdf --ref <attach-control-ref>`.
+   `/tmp/openclaw/uploads/<Company>-<Title>-resume-<date>.pdf`, same
+   filename, byte-identical bytes, so the ATS displays the exact name the
+   user already has in Downloads and in the RESUME tab — never a UUID.
+   Focus the RESUME tab and confirm it's still that PDF, then `browser
+   upload /tmp/openclaw/uploads/<Company>-<Title>-resume-<date>.pdf --ref
+   <attach-control-ref>`.
 7. MISTAKE = FRESH TAB. Wrong value, wrong option in a wizard, or confused
    form state (unexpected validation errors, values you didn't enter): do
    NOT repair in place. `browser close` the FORM tab, reopen `apply_url` in
@@ -377,6 +387,13 @@ filename) it read back from the DOM.
    AUDIT the FORM tab again. Non-empty `summary.requiredAndEmpty` is a real
    gap: answerable ones go back to Phase B, the rest go into "still needs
    you" below. EEO fields showing empty here is expected, not a gap.
+   UPLOAD IDENTITY CHECK: pipe that same AUDIT output into `node
+   scripts/check-upload.mjs --expect <Company>-<Title>-resume-<date>.pdf` —
+   exit 0 confirms the form shows the exact filename the user has in
+   Downloads and in the RESUME tab; non-zero names the mismatch and is a
+   POST-FILL AUDIT failure like any other — MISTAKE = FRESH TAB (step 7),
+   re-upload, re-check. This is the mechanical version of "is that the
+   right resume" — never eyeball it instead.
    PER-FIELD FALLBACK: any field step 5 filled that AUDIT still shows empty
    or holding its old value is the React-controlled-input case (batch
    `fill` didn't register) — `browser type` that field individually, then
@@ -394,7 +411,8 @@ filename) it read back from the DOM.
      fields noted as your choice, everything else as a real gap)
    - The resume FILE: `openclaw message send --media
      ~/Downloads/<Company>-<Title>-resume-<date>.pdf`, named in the text —
-     the user should never have to ask what they applied with.
+     the same file `check-upload.mjs` just confirmed is attached to the
+     form, so the user never has to ask what they applied with.
    - Close with: "Review and hit submit."
    One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
