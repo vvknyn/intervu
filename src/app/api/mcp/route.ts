@@ -8,7 +8,7 @@ import { verifySecret, type CredentialKind } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import {
     toolSearchJobs, toolGetJob, toolSaveJob, toolMarkApplied,
-    toolGetResume, toolSaveResumeVariant, toolGetResumeVariant,
+    toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
     toolGetPreferences, toolSetPreferences, toolGetApplications,
     EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ToolDeps,
 } from "@/lib/agent/tools";
@@ -20,12 +20,13 @@ import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
 import { listPursuitsForUser } from "@/lib/pursuits/list";
 import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
+import { setBaseResumeForUser } from "@/lib/resume/set-resume";
 
 /**
  * POST/GET/DELETE /api/mcp — Streamable HTTP entrypoint for intervu's agent
  * tools (search_jobs, get_job, save_job, mark_applied, get_resume,
- * save_resume_variant, get_resume_variant, get_applications, get_preferences,
- * set_preferences).
+ * save_resume_variant, get_resume_variant, set_resume, get_applications,
+ * get_preferences, set_preferences).
  *
  * Auth is hand-rolled rather than routed through `mcp-handler`'s
  * `withMcpAuth`: that helper's own 401/403 response (an RFC 6749 OAuth error
@@ -91,6 +92,7 @@ function withDeps<In, Out extends object>(run: (deps: ToolDeps, input: In) => Pr
         const deps: ToolDeps = {
             uid, search: searchJobs, locationVocabulary, upsert: upsertPursuitCore,
             getBaseResume: getBaseResumeForUser,
+            setBaseResume: setBaseResumeForUser,
             findPursuitByJobId,
             saveResumeVersion: saveResumeVersionForPursuit,
             getPreferences: getAgentPreferences,
@@ -159,6 +161,21 @@ export const saveResumeVariantInput = jobIdFieldInput.extend({
 });
 
 export const getResumeVariantInput = jobIdFieldInput;
+
+/** `set_resume`'s wire input. `resume_data` is deliberately PERMISSIVE at
+ *  this layer — a plain string-keyed record, not the strict `ResumeData`
+ *  shape — so a structurally invalid payload never rejects the whole call
+ *  (the way a `.strict()` shape here would, since zod's `inputSchema`
+ *  parsing runs before a tool callback ever gets to decide anything). The
+ *  actual strict shape/cap check happens exactly once, inside
+ *  `setBaseResumeForUser` (`lib/resume/set-resume.ts`'s `validateResumeData`)
+ *  — see that module's doc comment. `resume_text` reuses the same
+ *  `RESUME_TEXT_MAX_CHARS` cap `save_resume_variant` already uses above. */
+export const setResumeInput = z.object({
+    resume_text: z.string().min(1).max(AGENT.RESUME_TEXT_MAX_CHARS),
+    resume_data: z.record(z.string(), z.unknown()).optional(),
+    label: z.string().max(100).optional(),
+});
 
 export const getPreferencesInput = z.object({});
 
@@ -313,6 +330,22 @@ const mcpHandler = createMcpHandler(
                 inputSchema: getResumeVariantInput,
             },
             withDeps(toolGetResumeVariant)
+        );
+        server.registerTool(
+            "set_resume",
+            {
+                title: "Set your base resume",
+                description:
+                    "Replace YOUR OWN base resume on file at intervu — never another user's — effective " +
+                    "immediately everywhere it's used, and keeps every prior version in resume history. Always " +
+                    "pass resume_text (the raw extracted content, verbatim). Format it into intervu's structured " +
+                    "ResumeData shape yourself and pass it as resume_data too — the server validates that " +
+                    "structure but never reformats it itself; if it fails validation, resume_text is still saved " +
+                    "and the response's normalized:false plus issues tells you what to fix to retry. " +
+                    `resume_text is capped at ${AGENT.RESUME_TEXT_MAX_CHARS} characters.`,
+                inputSchema: setResumeInput,
+            },
+            withDeps(toolSetResume)
         );
         server.registerTool(
             "get_applications",

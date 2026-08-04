@@ -18,6 +18,7 @@ import {
 import { buildResumeVersionSnapshot } from "../pursuits/resume-version";
 import type { ApplicationSummary } from "../pursuits/list";
 import type { BaseResume } from "../resume/base-resume";
+import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
 import {
@@ -52,6 +53,14 @@ export interface ToolDeps {
    *  `get_resume` never touches Firestore directly, matching every other I/O
    *  dep here. See `getBaseResumeForUser` (`lib/resume/base-resume.ts`). */
   getBaseResume: (uid: string) => Promise<BaseResume>;
+  /** Sets the caller's own base résumé from an agent-formatted chat upload
+   *  — injected so `set_resume` never touches Firestore directly, matching
+   *  every other I/O dep here. `data` is raw/unvalidated agent-submitted
+   *  structure (not yet a trusted `ResumeData`) — `setBaseResumeForUser` is
+   *  the ONE place that structure is validated (`validateResumeData`,
+   *  `lib/resume/set-resume.ts`), so `toolSetResume` below stays a thin
+   *  pass-through instead of duplicating that decision. */
+  setBaseResume: (uid: string, input: { text: string; data?: unknown; label?: string }) => Promise<SetBaseResumeResult>;
   /** Read-only job_id -> pursuit lookup scoped to `uid` — the SAME query
    *  `upsertPursuitCore` uses internally (`findPursuitByJobId`,
    *  `lib/pursuits/upsert-core.ts`), injected here so `get_resume_variant`
@@ -505,6 +514,23 @@ export async function toolGetResume(
   _input: Record<string, never>,
 ): Promise<BaseResume> {
   return deps.getBaseResume(deps.uid);
+}
+
+export interface SetResumeInput {
+  resume_text: string;
+  /** Raw, agent-submitted — validated inside `deps.setBaseResume`, never
+   *  here (see that dep's doc comment). */
+  resume_data?: unknown;
+  label?: string;
+}
+
+/** Replaces the caller's own base résumé — never another user's — from an
+ *  agent-formatted chat upload. `uid` is always read off `deps`, never
+ *  input, same as every tool here. See `setBaseResumeForUser`
+ *  (`lib/resume/set-resume.ts`) for the history-snapshot and
+ *  validate-or-clear write behavior this thinly wraps. */
+export async function toolSetResume(deps: ToolDeps, input: SetResumeInput): Promise<SetBaseResumeResult> {
+  return deps.setBaseResume(deps.uid, { text: input.resume_text, data: input.resume_data, label: input.label });
 }
 
 /** Returns the caller's own saved job-search preferences and standing
