@@ -8,6 +8,26 @@
 
 **Tech Stack:** Node 22 (already required by OpenClaw), plain `node:http`, `werift@0.24.3` (pure-JS WebRTC), Next.js 16.1.5 App Router, Firebase Admin, `node:test` + `tsx` for unit tests, Playwright for e2e.
 
+## Status — 2026-08-05
+
+**Tasks 1 and 2 are DONE, verified on Vivek's actual phone ("yup works").** 27/27 unit
+tests pass. Commits: `10cee0a`, `8f382bc`, `6f81de1`, `b0c848e`, `ba8277c`.
+
+Work done beyond the original Task 1–2 scope, all forced by real-device testing:
+
+- `openclaw/scripts/viewer/crop.mjs` — new. Decides which slice of the screen the phone
+  draws. Unit-tested in Node **and** served to the page, so the arithmetic has one home.
+- Auto-follow of the focused field replaced fit-to-width (**spec D3 → D3a**). Fit-to-width
+  measured 26% on a 390px phone against a 1512px viewport; following the field measures
+  0.75×.
+- `createFramePump` gained `pollFocus()` / `onFocus`; the timer lives in `viewer.mjs`.
+- The SSE payload is now JSON (`{f, r, dw}`), not a bare base64 string. The transport
+  still ships opaque strings, so the seam is unchanged.
+- Static assets (`/crop.mjs`, `/favicon.ico`) are served **ahead of** the token gate.
+
+See "Implementation findings" in the spec for the three defects and why each was invisible
+to unit tests. **Tasks 3–7 below are unchanged and not yet started.**
+
 ## Global Constraints
 
 - **Watch-only.** v1 forwards no input. No `Input.dispatchMouseEvent`, no click/type handlers on the phone page. (Spec D1)

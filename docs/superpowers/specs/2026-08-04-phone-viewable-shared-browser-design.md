@@ -47,7 +47,8 @@ Two constraints stated during design:
 |---|---|---|
 | D1 | Watch-only in v1; revisit control after first real use | Smallest build; a leaked link is a window, not a steering wheel |
 | D2 | Ship the doorbell (signaling) in v1, not LAN-only | "On the go" is the actual use case; LAN-only does not deliver it |
-| D3 | Fit-to-width + pinch zoom on the phone | Simplest; auto-follow-the-active-field deferred until we've seen a real form on a real phone |
+| D3 | ~~Fit-to-width + pinch zoom on the phone~~ **SUPERSEDED — see D3a** | Simplest; auto-follow-the-active-field deferred until we've seen a real form on a real phone |
+| D3a | **The phone crops to the field the agent is filling and follows it** (2026-08-05, after seeing D3 on a real phone) | D3 was falsified by arithmetic, not taste. Measured: the agent's viewport is **1512×861 CSS px** and a phone in portrait is ~390, so fit-to-width renders at **26%** — a 14px label lands under 4px. Landscape only reaches 56%. Cropping to the active field reaches **0.75× (measured live)**, a 2.9× improvement, and is also the right subject: when reviewing a form being filled, the field being filled is what you want to see. A tap toggles back to the whole page for orientation. Viewport emulation stays rejected — it would change the DOM the agent drives |
 | D4 | Phone requires normal intervu login | Proper auth; a leaked WhatsApp link is useless to anyone else. One familiar login, our own product's |
 | D5 | The doorbell is **free**, not paid tier | Doctrine 4's line is *runtime ownership*. We own no runtime here — browser, compute and every pixel stay on the user's machine. We host an introduction, not a runtime |
 | D6 | Media is peer-to-peer, never relayed through our servers | Keeps per-user cost at zero, and makes "we cannot see your screen" true by construction |
@@ -241,9 +242,41 @@ every component test and was only exposed by running the whole loop; the same di
 applies here. E2E means: run the real agent against a real ATS form and open the link on an
 actual phone, on cellular, off the home WiFi.
 
+## Implementation findings (v1, 2026-08-05)
+
+Three defects found only by running it on a real phone. All three share one
+root property worth stating once, because it will bite again:
+**`Page.startScreencast` emits only when pixels change.**
+
+1. **Blank on a still page.** A form that has finished rendering emits nothing
+   at all (measured: 0 frames in 5s static, 1 the instant a pixel moved). The
+   efficiency property and the bug are the same fact. Fixed as a rule — *any
+   subscriber, connecting at any time, immediately receives the current
+   screen* — via a `Page.captureScreenshot` on start plus a retained last
+   frame replayed to each new subscriber. That also closed a second, unreported
+   instance: SSE has no replay, so a late-joining phone saw nothing either.
+2. **Stuck full-page after focus is discovered.** Same root property: with no
+   new frame coming, learning the focused field later never reaches the phone.
+   A focus change re-publishes the last frame.
+3. **Page never started.** A browser resolves the page's `./crop.mjs` import
+   with no query string, so a module request cannot carry the viewer token;
+   the 403 killed the whole module script silently. Static assets are now
+   served ahead of the token gate — the token protects the screen, not
+   arithmetic. `/favicon.ico` answers 204 for the same reason.
+
+**Process note:** all three passed unit tests. A test that speaks the protocol
+is not a test that loads the page — browser-facing changes must be opened in a
+real browser before being called done.
+
 ## Deferred to v2
 
 - Input forwarding (tap, type, submit) and the harder auth gate it requires.
-- Auto-follow of the active form field instead of fit-to-width.
+- ~~Auto-follow of the active form field~~ — **pulled into v1**, see D3a.
+- Crop geometry (520px floor, 100px padding, 1.2 aspect) is unmeasured
+  judgement; tune against a real ATS form.
+- The initial `captureScreenshot` ignores the 1280px cap `startScreencast`
+  honours, so the first frame is ~45 KB against ~10–15 KB for deltas. Matters
+  for the cellular path.
+- The LAN port is fixed at 18801; two concurrent applications would collide.
 - TURN relay for networks where peer-to-peer fails — explicitly **not** on the Contabo box.
 - Metering seam in the doorbell, should D5 ever be revisited.
