@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<title>Watching your agent</title>
+<style>
+  html, body { margin: 0; background: #111; color: #eee;
+               font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  header { padding: 10px 14px; border-bottom: 1px solid #2a2a2a;
+           display: flex; gap: 8px; align-items: center;
+           position: sticky; top: 0; background: #111; }
+  #dot { width: 8px; height: 8px; border-radius: 9999px; background: #666; flex: none; }
+  #dot.live { background: #3ddc84; }
+  canvas { display: block; width: 100%; height: auto; }
+</style>
+<header><span id="dot"></span><span id="status">connecting…</span></header>
+<canvas id="screen"></canvas>
+<script>
+  const canvas = document.getElementById('screen');
+  const ctx = canvas.getContext('2d');
+  const dot = document.getElementById('dot');
+  const status = document.getElementById('status');
+  const token = new URLSearchParams(location.search).get('t');
+
+  function draw(base64) {
+    const img = new Image();
+    img.onload = () => {
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+      ctx.drawImage(img, 0, 0);
+      dot.className = 'live';
+      status.textContent = 'live';
+    };
+    img.src = 'data:image/jpeg;base64,' + base64;
+  }
+
+  const es = new EventSource('/stream?t=' + encodeURIComponent(token));
+  es.onmessage = (e) => draw(e.data);
+  es.onerror = () => {
+    dot.className = '';
+    status.textContent = 'disconnected — the agent may have finished';
+  };
+</script>
