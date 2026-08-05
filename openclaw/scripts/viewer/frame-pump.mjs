@@ -29,6 +29,17 @@ const FOCUS_EXPRESSION = `JSON.stringify((() => {
   return { dw: window.innerWidth, r: r && r.width ? { x: r.x, y: r.y, width: r.width, height: r.height } : null };
 })())`;
 
+/**
+ * @typedef {{ x: number, y: number, width: number, height: number }} FocusRect
+ * @typedef {{ dw: number, r: FocusRect | null }} FocusReport
+ *
+ * @typedef {{ id: number, method: string, params: Record<string, unknown> }} CdpCommand
+ *
+ * @param {object} deps
+ * @param {(message: CdpCommand) => void} deps.send        Writes one CDP command.
+ * @param {(frame: { data: string, metadata: object }) => void} deps.onFrame
+ * @param {(focus: FocusReport | null) => void} [deps.onFocus]  null when the page could not be asked.
+ */
 export function createFramePump({ send, onFrame, onFocus = () => {} }) {
     let nextId = 1;
     let initialShotId = null;

@@ -23,6 +23,16 @@ const PAGE = readFileSync(join(HERE, "watch-page.html"), "utf8");
 // stays unit-testable in Node.
 const CROP_MODULE = readFileSync(join(HERE, "crop.mjs"), "utf8");
 
+/**
+ * Only three fields of an interface record matter here, so that is all the
+ * parameter promises — which keeps a test free to hand over a plain literal
+ * instead of a full os.NetworkInterfaceInfo.
+ *
+ * @param {number} port
+ * @param {string} token
+ * @param {Record<string, Array<{ family: string, internal: boolean, address: string }> | undefined>} [ifaces]
+ * @returns {string[]}
+ */
 export function lanUrls(port, token, ifaces = networkInterfaces()) {
     return Object.values(ifaces)
         .flat()

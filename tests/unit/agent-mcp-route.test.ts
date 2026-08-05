@@ -1,12 +1,13 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import {
-  unauthorizedResponse, toolResult, AUTHORIZED_CREDENTIAL_KINDS, searchJobsInput,
+  unauthorizedResponse, toolResult, searchJobsInput,
   getResumeInput, saveResumeVariantInput, getResumeVariantInput, setResumeInput,
   getPreferencesInput, setPreferencesInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
 
 // Bearer extraction moved to src/lib/agent/http.ts — see agent-http.test.ts.
+// The credential-kind gate moved to src/lib/agent/tokens.ts — see agent-tokens.test.ts.
 
 describe('mcp route: 401 wire contract', () => {
   it('unauthorizedResponse carries the exact body and WWW-Authenticate challenge', async () => {
@@ -20,16 +21,6 @@ describe('mcp route: 401 wire contract', () => {
   });
   // rateLimitedResponse itself now lives in (and is tested by) rate-limit.test.ts —
   // it's shared by this route and both /api/oauth/* routes, not mcp-route-specific.
-});
-
-describe('mcp route: credential-kind gate (CARRIED FINDING, Task 6)', () => {
-  it('authorizes manual and access credentials', () => {
-    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('manual'), true);
-    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('access'), true);
-  });
-  it('does not authorize a refresh credential', () => {
-    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('refresh'), false);
-  });
 });
 
 describe('mcp route: tool result wire wrapping', () => {

@@ -2,6 +2,9 @@ import { describe, it } from 'node:test'; import assert from 'node:assert/strict
 import { listPageTargets, pickActiveTarget } from '../../openclaw/scripts/viewer/cdp-targets.mjs';
 import { createFramePump } from '../../openclaw/scripts/viewer/frame-pump.mjs';
 
+/** Exactly what the pump writes to `send` — see the JSDoc on createFramePump. */
+type CdpCommand = { id: number; method: string; params: Record<string, unknown> };
+
 const TARGETS = [
   { id: 'a', type: 'page', title: 'Ashby — Apply', url: 'https://jobs.ashbyhq.com/x', webSocketDebuggerUrl: 'ws://127.0.0.1:18800/devtools/page/a' },
   { id: 'b', type: 'page', title: 'Resume', url: 'http://localhost:9000/resume.html', webSocketDebuggerUrl: 'ws://127.0.0.1:18800/devtools/page/b' },
@@ -40,35 +43,37 @@ describe('cdp-targets', () => {
 
 describe('frame-pump', () => {
   it('enables the page and starts a screencast on start()', () => {
-    const sent: Record<string, unknown>[] = [];
-    const pump = createFramePump({ send: (m: Record<string, unknown>) => sent.push(m), onFrame: () => {} });
+    const sent: CdpCommand[] = [];
+    const pump = createFramePump({ send: (m: CdpCommand) => sent.push(m), onFrame: () => {} });
     pump.start();
     const methods = sent.map((m) => m.method);
     assert.ok(methods.includes('Page.enable'));
     assert.ok(methods.includes('Page.startScreencast'));
-    const cast = sent.find((m) => m.method === 'Page.startScreencast') as { params: { format: string } };
+    const cast = sent.find((m) => m.method === 'Page.startScreencast');
+    assert.ok(cast);
     assert.equal(cast.params.format, 'jpeg');
   });
 
   it('emits each frame and acknowledges it so Chrome sends the next', () => {
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const frames: string[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: (f: { data: string }) => frames.push(f.data),
     });
     pump.start();
     pump.handle({ method: 'Page.screencastFrame', params: { data: 'AAAA', sessionId: 7, metadata: {} } });
     assert.deepEqual(frames, ['AAAA']);
-    const ack = sent.find((m) => m.method === 'Page.screencastFrameAck') as { params: { sessionId: number } };
+    const ack = sent.find((m) => m.method === 'Page.screencastFrameAck');
+    assert.ok(ack);
     assert.equal(ack.params.sessionId, 7);
   });
 
   it('ignores unrelated CDP messages without emitting or acking', () => {
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const frames: string[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: (f: { data: string }) => frames.push(f.data),
     });
     pump.start();
@@ -83,10 +88,10 @@ describe('frame-pump', () => {
     // Page.startScreencast emits only on pixel change. Without an explicit
     // first capture, a finished form produces zero frames and the phone
     // shows nothing at all. Verified live: 0 frames in 5s while static.
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const frames: string[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: (f: { data: string }) => frames.push(f.data),
     });
     pump.start();
@@ -97,10 +102,10 @@ describe('frame-pump', () => {
   });
 
   it('does not mistake an unrelated command response for a frame', () => {
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const frames: string[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: (f: { data: string }) => frames.push(f.data),
     });
     pump.start();
@@ -110,28 +115,28 @@ describe('frame-pump', () => {
   });
 
   it('asks the page for the focused field so the phone can crop to it', () => {
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const seen: unknown[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: () => {},
       onFocus: (f: unknown) => seen.push(f),
     });
     pump.start();
     pump.pollFocus();
-    const evalCmd = sent.find((m) => m.method === 'Runtime.evaluate') as { id: number; params: { expression: string } };
+    const evalCmd = sent.find((m) => m.method === 'Runtime.evaluate');
     assert.ok(evalCmd, 'pollFocus() must issue a Runtime.evaluate');
-    assert.match(evalCmd.params.expression, /activeElement/);
+    assert.match(String(evalCmd.params.expression), /activeElement/);
 
     pump.handle({ id: evalCmd.id, result: { result: { value: JSON.stringify({ dw: 1512, r: { x: 10, y: 20, width: 300, height: 40 } }) } } });
     assert.deepEqual(seen, [{ dw: 1512, r: { x: 10, y: 20, width: 300, height: 40 } }]);
   });
 
   it('reports no focus rather than guessing when the page returns nothing usable', () => {
-    const sent: Record<string, unknown>[] = [];
+    const sent: CdpCommand[] = [];
     const seen: unknown[] = [];
     const pump = createFramePump({
-      send: (m: Record<string, unknown>) => sent.push(m),
+      send: (m: CdpCommand) => sent.push(m),
       onFrame: () => {},
       onFocus: (f: unknown) => seen.push(f),
     });
@@ -143,8 +148,8 @@ describe('frame-pump', () => {
   });
 
   it('uses a unique id for every outbound command', () => {
-    const sent: Record<string, unknown>[] = [];
-    const pump = createFramePump({ send: (m: Record<string, unknown>) => sent.push(m), onFrame: () => {} });
+    const sent: CdpCommand[] = [];
+    const pump = createFramePump({ send: (m: CdpCommand) => sent.push(m), onFrame: () => {} });
     pump.start();
     pump.handle({ method: 'Page.screencastFrame', params: { data: 'B', sessionId: 1, metadata: {} } });
     const ids = sent.map((m) => m.id);
