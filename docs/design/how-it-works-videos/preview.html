@@ -11,6 +11,7 @@
       --text: #e8eaed;
       --muted: #9aa0a6;
       --border: #2a2f36;
+      --iris: #7cb87a;
     }
     * { box-sizing: border-box; }
     body {
@@ -46,7 +47,7 @@
     figcaption {
       font-size: 0.9rem;
       font-weight: 600;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
       letter-spacing: 0.01em;
     }
     figcaption span {
@@ -55,6 +56,18 @@
       color: var(--muted);
       font-size: 0.8rem;
       margin-top: 0.25rem;
+    }
+    .beats {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.75rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .beats li::before {
+      content: "→ ";
+      color: var(--iris);
     }
     video {
       width: 100%;
@@ -67,14 +80,21 @@
 </head>
 <body>
   <h1>How it works — loop preview</h1>
-  <p class="lead">Muted H.264 loops (~16s). Ken Burns + crossfade from locked keyframes.</p>
+  <p class="lead">Muted H.264 loops (~14s). Ken Burns + crossfade — 5 beats each, pain → relief.</p>
 
   <div class="grid">
     <figure>
       <figcaption>
         Claude / ChatGPT (MCP)
-        <span>Paste connector → OAuth approve → ask for jobs</span>
+        <span>Ghost jobs &amp; blank chat → connect → approve → ask → verified roles</span>
       </figcaption>
+      <ul class="beats">
+        <li>0–2.5s · Pain — ghost jobs, tab chaos, empty Claude</li>
+        <li>2.5–5.0s · Connect — paste MCP URL</li>
+        <li>5.0–7.5s · Approve — OAuth Allow</li>
+        <li>7.5–10.0s · Ask — prompt in chat</li>
+        <li>10.0–14.0s · Relief — 3 verified roles</li>
+      </ul>
       <video
         src="video-a-mcp-loop.mp4"
         poster="poster-a-mcp.png"
@@ -89,8 +109,15 @@
     <figure>
       <figcaption>
         OpenClaw
-        <span>curl install → browser auth → WhatsApp digest</span>
+        <span>Apply fatigue → curl install → auth → overnight → WhatsApp draft</span>
       </figcaption>
+      <ul class="beats">
+        <li>0–2.5s · Pain — 47 apps, tab chaos</li>
+        <li>2.5–5.5s · Install — one curl command</li>
+        <li>5.5–8.0s · Auth — browser Allow</li>
+        <li>8.0–11.0s · Overnight — agent runs while you sleep</li>
+        <li>11.0–14.0s · Relief — WhatsApp digest + draft resume</li>
+      </ul>
       <video
         src="video-b-openclaw-loop.mp4"
         poster="poster-b-openclaw.png"
