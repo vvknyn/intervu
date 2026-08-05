@@ -15,9 +15,24 @@
 const MAX_DIMENSION = 1280;
 const JPEG_QUALITY = 60;
 
-export function createFramePump({ send, onFrame }) {
+/**
+ * Reports the focused field's box, plus the viewport width the box is
+ * measured against. BODY and HTML are excluded deliberately: when nothing is
+ * focused `document.activeElement` is BODY, whose rect is the whole page —
+ * which would silently produce a full-page "crop" that looks like the
+ * feature is broken rather than idle.
+ */
+const FOCUS_EXPRESSION = `JSON.stringify((() => {
+  const el = document.activeElement;
+  const usable = el && el.getBoundingClientRect && !["BODY", "HTML"].includes(el.tagName);
+  const r = usable ? el.getBoundingClientRect() : null;
+  return { dw: window.innerWidth, r: r && r.width ? { x: r.x, y: r.y, width: r.width, height: r.height } : null };
+})())`;
+
+export function createFramePump({ send, onFrame, onFocus = () => {} }) {
     let nextId = 1;
     let initialShotId = null;
+    const focusIds = new Set();
 
     const command = (method, params) => {
         const id = nextId++;
@@ -46,7 +61,21 @@ export function createFramePump({ send, onFrame }) {
             });
         },
 
+        /** Timer lives in the caller; the decision of what to ask lives here. */
+        pollFocus() {
+            focusIds.add(command("Runtime.evaluate", { expression: FOCUS_EXPRESSION, returnByValue: true }));
+        },
+
         handle(message) {
+            if (message?.id !== undefined && focusIds.has(message.id)) {
+                focusIds.delete(message.id);
+                try {
+                    onFocus(JSON.parse(message.result.result.value));
+                } catch {
+                    onFocus(null);
+                }
+                return;
+            }
             if (message?.method === "Page.screencastFrame") {
                 const { data, sessionId, metadata } = message.params;
                 onFrame({ data, metadata });

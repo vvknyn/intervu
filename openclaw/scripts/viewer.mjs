@@ -34,13 +34,37 @@ async function main() {
     if (url) console.log(`WATCH-LAN: ${url}`);
     else console.error("No local network address found — this machine appears to be offline.");
 
+    // What the phone draws is one frame plus the box to crop it to. Kept
+    // here so a focus change can re-send the last frame: on a page that is
+    // not changing, no new frame is coming, and the view would otherwise
+    // stay stuck on the whole page after focus is discovered.
+    let lastFrameData = null;
+    let focus = { dw: null, r: null };
+
+    const publish = () => {
+        if (!lastFrameData) return;
+        const payload = JSON.stringify({ f: lastFrameData, r: focus.r, dw: focus.dw });
+        for (const t of transports) t.sendFrame(payload);
+    };
+
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     const pump = createFramePump({
         send: (message) => socket.send(JSON.stringify(message)),
-        onFrame: (frame) => { for (const t of transports) t.sendFrame(frame.data); },
+        onFrame: (frame) => { lastFrameData = frame.data; publish(); },
+        onFocus: (next) => {
+            const incoming = next ?? { dw: focus.dw, r: null };
+            if (JSON.stringify(incoming) === JSON.stringify(focus)) return;
+            focus = incoming;
+            publish();
+        },
     });
 
-    socket.addEventListener("open", () => pump.start());
+    const FOCUS_POLL_MS = 400;
+    let focusTimer = null;
+    socket.addEventListener("open", () => {
+        pump.start();
+        focusTimer = setInterval(() => pump.pollFocus(), FOCUS_POLL_MS);
+    });
     socket.addEventListener("message", (event) => pump.handle(JSON.parse(event.data)));
     socket.addEventListener("error", () => {
         console.error(`Lost the connection to Chrome (tab ${target.id}).`);
@@ -48,6 +72,7 @@ async function main() {
     });
 
     const shutdown = async () => {
+        if (focusTimer) clearInterval(focusTimer);
         await Promise.allSettled(transports.map((t) => t.close()));
         socket.close();
         process.exit(0);

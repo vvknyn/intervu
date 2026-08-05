@@ -17,7 +17,11 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PAGE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "watch-page.html"), "utf8");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PAGE = readFileSync(join(HERE, "watch-page.html"), "utf8");
+// Served rather than inlined so the crop arithmetic has exactly one home and
+// stays unit-testable in Node.
+const CROP_MODULE = readFileSync(join(HERE, "crop.mjs"), "utf8");
 
 export function lanUrls(port, token, ifaces = networkInterfaces()) {
     return Object.values(ifaces)
@@ -40,6 +44,10 @@ export function createLanTransport({ port = 18801, token }) {
         if (url.searchParams.get("t") !== token) {
             res.writeHead(403, { "content-type": "text/plain" });
             return res.end("forbidden");
+        }
+        if (url.pathname === "/crop.mjs") {
+            res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+            return res.end(CROP_MODULE);
         }
         if (url.pathname === "/stream") {
             res.writeHead(200, {

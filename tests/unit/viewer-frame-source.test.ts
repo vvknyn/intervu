@@ -109,6 +109,39 @@ describe('frame-pump', () => {
     assert.deepEqual(frames, []);
   });
 
+  it('asks the page for the focused field so the phone can crop to it', () => {
+    const sent: Record<string, unknown>[] = [];
+    const seen: unknown[] = [];
+    const pump = createFramePump({
+      send: (m: Record<string, unknown>) => sent.push(m),
+      onFrame: () => {},
+      onFocus: (f: unknown) => seen.push(f),
+    });
+    pump.start();
+    pump.pollFocus();
+    const evalCmd = sent.find((m) => m.method === 'Runtime.evaluate') as { id: number; params: { expression: string } };
+    assert.ok(evalCmd, 'pollFocus() must issue a Runtime.evaluate');
+    assert.match(evalCmd.params.expression, /activeElement/);
+
+    pump.handle({ id: evalCmd.id, result: { result: { value: JSON.stringify({ dw: 1512, r: { x: 10, y: 20, width: 300, height: 40 } }) } } });
+    assert.deepEqual(seen, [{ dw: 1512, r: { x: 10, y: 20, width: 300, height: 40 } }]);
+  });
+
+  it('reports no focus rather than guessing when the page returns nothing usable', () => {
+    const sent: Record<string, unknown>[] = [];
+    const seen: unknown[] = [];
+    const pump = createFramePump({
+      send: (m: Record<string, unknown>) => sent.push(m),
+      onFrame: () => {},
+      onFocus: (f: unknown) => seen.push(f),
+    });
+    pump.start();
+    pump.pollFocus();
+    const evalCmd = sent.find((m) => m.method === 'Runtime.evaluate') as { id: number };
+    pump.handle({ id: evalCmd.id, result: { result: { value: 'not json' } } });
+    assert.deepEqual(seen, [null]);
+  });
+
   it('uses a unique id for every outbound command', () => {
     const sent: Record<string, unknown>[] = [];
     const pump = createFramePump({ send: (m: Record<string, unknown>) => sent.push(m), onFrame: () => {} });
