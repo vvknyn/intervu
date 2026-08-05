@@ -61,6 +61,7 @@ export function computeCustomAnswersPatch(
 interface AgentPreferencesSectionProps {
     user: User | null;
     onLoginClick: () => void;
+    embedded?: boolean;
 }
 
 /**
@@ -71,7 +72,7 @@ interface AgentPreferencesSectionProps {
  * directly rather than keeping a separate copy. Mirrors AgentAccessSection's
  * section shape, load-retry pattern, and styling conventions.
  */
-export function AgentPreferencesSection({ user, onLoginClick }: AgentPreferencesSectionProps) {
+export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentPreferencesSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [configured, setConfigured] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -200,8 +201,10 @@ export function AgentPreferencesSection({ user, onLoginClick }: AgentPreferences
 
     if (!user) {
         return (
-            <section className="pt-6 border-t border-border">
-                <h2 className="text-lg font-semibold mb-1">Your agent&apos;s answers</h2>
+            <section className={embedded ? undefined : "pt-6 border-t border-border"}>
+                <h2 className={embedded ? "text-[15px] font-semibold tracking-[-0.02em] mb-1" : "text-lg font-semibold mb-1"}>
+                    {embedded ? "Job search" : "Your agent's answers"}
+                </h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
                         login
@@ -213,12 +216,16 @@ export function AgentPreferencesSection({ user, onLoginClick }: AgentPreferences
     }
 
     return (
-        <section className="pt-6 border-t border-border">
-            <h2 className="text-lg font-semibold mb-1">Your agent&apos;s answers</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-                What your AI fills into applications for you. It learns these when you first talk to it — or set
-                them here.
-            </p>
+        <section className={embedded ? undefined : "pt-6 border-t border-border"}>
+            {!embedded && (
+                <>
+                    <h2 className="text-lg font-semibold mb-1">Your agent&apos;s answers</h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        What your AI fills into applications for you. It learns these when you first talk to it — or set
+                        them here.
+                    </p>
+                </>
+            )}
 
             {status === "loading" && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
@@ -245,7 +252,14 @@ export function AgentPreferencesSection({ user, onLoginClick }: AgentPreferences
                     )}
 
                     <div className="space-y-4">
-                        <p className="text-sm font-medium">Job search</p>
+                        <div>
+                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Job search</p>
+                            {embedded && (
+                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                    Defaults for the board filters and overnight search. Same language as Jobs.
+                                </p>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Roles</Label>
@@ -327,7 +341,14 @@ export function AgentPreferencesSection({ user, onLoginClick }: AgentPreferences
                     </div>
 
                     <div className="space-y-4">
-                        <p className="text-sm font-medium">Standing answers</p>
+                        <div>
+                            <p className="text-[15px] font-semibold tracking-[-0.02em]">Standing answers</p>
+                            {embedded && (
+                                <p className="mt-1 text-[13px] text-muted-foreground">
+                                    What forms ask every time. Keep short — your agent fills these in.
+                                </p>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Work authorization</Label>

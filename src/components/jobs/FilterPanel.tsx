@@ -5,6 +5,7 @@
  * other surfaces (FilterChipsRow, search-payload, page.tsx, SerpFilters) and
  * needs exactly one home.
  */
+import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 
 const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
@@ -48,6 +49,14 @@ export function postedBucketLabel(v: PostedBucket): string {
 /** How many facet values a group shows before "top N" truncation — shared
  *  with SerpFilters.tsx's country/experience/employment groups. */
 export const TOP_N = 6;
+
+/** Static facet option ladders — always shown in SerpFilters even when the
+ *  current result set's distribution is empty (selected values still merge in). */
+export const STATIC_FACET_LADDERS: Partial<Record<FacetKey, readonly string[]>> = {
+    work_type: WORK_TYPES,
+    experience_level: EXPERIENCE_LEVELS,
+    employment_type: EMPLOYMENT_TYPES,
+};
 
 /** Non-informative sentinel values — a filter that matches "unknown" is just noise. */
 const SENTINEL_VALUES = new Set(["", "unknown", "null", "undefined", "n/a", "none"]);

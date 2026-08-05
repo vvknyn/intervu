@@ -1,12 +1,12 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
     facetValueLabel,
     isNoiseFacetValue,
     POSTED_BUCKET_PRESETS,
     SALARY_PRESETS,
+    STATIC_FACET_LADDERS,
     TOP_N,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
@@ -24,9 +24,11 @@ function facetOptions(
     selected: string[],
     key: FacetKey,
     cap?: number,
+    staticLadder?: readonly string[],
 ): [string, number][] {
     const dist = distribution?.[key];
     const merged = new Map<string, number>(dist ? Object.entries(dist) : []);
+    for (const v of staticLadder ?? []) if (!merged.has(v)) merged.set(v, 0);
     for (const v of selected) if (!merged.has(v)) merged.set(v, 0);
     const all = [...merged.entries()]
         .filter(([v]) => selected.includes(v) || !isNoiseFacetValue(key, v))
@@ -40,53 +42,42 @@ function Affordance({
     count,
     children,
     testId,
+    inputType = "checkbox",
 }: {
     active: boolean;
     onClick: () => void;
     count?: number;
     children: React.ReactNode;
     testId?: string;
+    inputType?: "checkbox" | "radio";
 }) {
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
+        <label
             data-testid={testId}
-            className={cn(
-                // min-h-11 (44px) rather than the old min-h-7 (28px) — every
-                // row in the filters band (Date Posted, Work Type, Salary,
-                // …) routes through this one Affordance, so the P27 mobile
-                // tap-target fix lands class-wide from this single edit
-                // instead of touching each FacetGroup/toggle separately.
-                "flex min-h-11 w-full items-center gap-2 text-left text-[13px] font-medium transition-colors duration-100",
-                active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
+            className="flex min-h-9 cursor-pointer items-center gap-2 text-[13px] text-foreground"
         >
-            <span
-                className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center border-[1.5px] text-[10px] leading-none",
-                    active ? "border-foreground bg-foreground text-background" : "border-border bg-card",
-                )}
-                aria-hidden
-            >
-                {active ? "✓" : null}
-            </span>
+            <input
+                type={inputType}
+                checked={active}
+                readOnly
+                onClick={onClick}
+                className="h-3.5 w-3.5 shrink-0 accent-foreground"
+            />
             <span className="min-w-0 flex-1">{children}</span>
             {typeof count === "number" && (
                 <span className="ml-auto font-mono text-[11px] text-faint tabular-nums">{count.toLocaleString()}</span>
             )}
-        </button>
+        </label>
     );
 }
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <div className="flex flex-col gap-1.5">
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="flex flex-col">
+            <h4 className="mb-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-faint">
                 {label}
-            </div>
-            <div className="flex flex-col gap-1.5">{children}</div>
+            </h4>
+            <div className="flex flex-col gap-2">{children}</div>
         </div>
     );
 }
@@ -107,7 +98,7 @@ function FacetGroup({
     cap?: number;
 }) {
     const selected = state.facets[facetKey] ?? [];
-    const options = facetOptions(distribution, selected, facetKey, cap);
+    const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
     if (options.length === 0) return null;
     return (
         <Group label={label}>
@@ -115,7 +106,7 @@ function FacetGroup({
                 <Affordance
                     key={value}
                     active={selected.includes(value)}
-                    count={n}
+                    count={n > 0 ? n : undefined}
                     onClick={() => onToggleFacet(facetKey, value)}
                 >
                     {facetValueLabel(facetKey, value)}
@@ -162,98 +153,112 @@ export function SerpFilters({
             : "Hide likely ghosts";
 
     return (
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-3">
-            {postedDateSupported && (
-                <Group label="Date posted">
-                    {POSTED_BUCKET_PRESETS.map((o) => (
+        <>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4">
+                {postedDateSupported && (
+                    <Group label="Date posted">
+                        {POSTED_BUCKET_PRESETS.map((o) => (
+                            <Affordance
+                                key={o.label}
+                                inputType="radio"
+                                active={state.postedBucket === o.value}
+                                onClick={() => onPostedBucket(o.value)}
+                            >
+                                {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
+                            </Affordance>
+                        ))}
+                    </Group>
+                )}
+
+                <Group label="Salary">
+                    {SALARY_PRESETS.map((s) => (
                         <Affordance
-                            key={o.label}
-                            active={state.postedBucket === o.value}
-                            onClick={() => onPostedBucket(o.value)}
+                            key={s.value}
+                            inputType="radio"
+                            active={state.salaryMin === s.value}
+                            onClick={() => onSalaryMin(s.value)}
                         >
-                            {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
+                            {s.label}
                         </Affordance>
                     ))}
                 </Group>
-            )}
 
-            <FacetGroup
-                label="Work type"
-                facetKey="work_type"
-                distribution={distribution}
-                state={state}
-                onToggleFacet={onToggleFacet}
-            />
+                <FacetGroup
+                    label="Work mode"
+                    facetKey="work_type"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                />
 
-            <Group label="Salary">
-                {SALARY_PRESETS.map((s) => (
-                    <Affordance key={s.value} active={state.salaryMin === s.value} onClick={() => onSalaryMin(s.value)}>
-                        {s.label}
+                <FacetGroup
+                    label="Experience"
+                    facetKey="experience_level"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                    cap={TOP_N}
+                />
+
+                <FacetGroup
+                    label="Employment"
+                    facetKey="employment_type"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                    cap={TOP_N}
+                />
+
+                <FacetGroup
+                    label="Country"
+                    facetKey="location_country"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                    cap={TOP_N}
+                />
+
+                <Group label="Ghost risk">
+                    <Affordance inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
+                        {ghostHideLabel}
                     </Affordance>
-                ))}
-            </Group>
+                    <Affordance inputType="radio" active={!hideGhosts} onClick={() => onHideGhosts(false)}>
+                        Show all postings
+                    </Affordance>
+                </Group>
 
-            <FacetGroup
-                label="Country"
-                facetKey="location_country"
-                distribution={distribution}
-                state={state}
-                onToggleFacet={onToggleFacet}
-                cap={TOP_N}
-            />
+                {onBoardChange && (
+                    <Group label="Boards">
+                        <Affordance
+                            testId="board-filter-elite"
+                            inputType="radio"
+                            active={board === "elite"}
+                            onClick={() => onBoardChange("elite")}
+                        >
+                            Elite startups
+                        </Affordance>
+                        <Affordance
+                            testId="board-filter-all"
+                            inputType="radio"
+                            active={board !== "elite"}
+                            onClick={() => onBoardChange("all")}
+                        >
+                            All companies
+                        </Affordance>
+                    </Group>
+                )}
+            </div>
 
-            <FacetGroup
-                label="Experience"
-                facetKey="experience_level"
-                distribution={distribution}
-                state={state}
-                onToggleFacet={onToggleFacet}
-                cap={TOP_N}
-            />
-
-            <FacetGroup
-                label="Employment"
-                facetKey="employment_type"
-                distribution={distribution}
-                state={state}
-                onToggleFacet={onToggleFacet}
-                cap={TOP_N}
-            />
-
-            <Group label="Ghost risk">
-                <Affordance active={hideGhosts} onClick={() => onHideGhosts(true)}>
-                    {ghostHideLabel}
-                </Affordance>
-                <Affordance active={!hideGhosts} onClick={() => onHideGhosts(false)}>
-                    Show all postings
-                </Affordance>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-3 border-t border-border pt-3.5">
                 <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
                     Sponsors visas
                 </Affordance>
-            </Group>
-
-            {onBoardChange && (
-                <Group label="Boards">
-                    <Affordance
-                        testId="board-filter-elite"
-                        active={board === "elite"}
-                        onClick={() => onBoardChange("elite")}
-                    >
-                        Elite startups
-                    </Affordance>
-                    <Affordance testId="board-filter-all" active={board !== "elite"} onClick={() => onBoardChange("all")}>
-                        All companies
-                    </Affordance>
-                </Group>
-            )}
-
-            {activeCount > 0 && (
-                <Group label="Active">
+                {activeCount > 0 && (
                     <Affordance active onClick={onClearAll}>
                         Reset all ✕
                     </Affordance>
-                </Group>
-            )}
-        </div>
+                )}
+            </div>
+        </>
     );
 }

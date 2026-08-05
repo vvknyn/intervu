@@ -6,13 +6,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Visual-identity pass (2026-08-01): Schibsted Grotesk leads sans/display,
-     with the prior Plus Jakarta Sans + system stack kept intact as fallback
-     (not deleted) so a failed font load degrades gracefully. --font-mono is
-     untouched — data chips / BETA badge stay on JetBrains Mono. */
-  --font-sans: var(--font-schibsted-grotesk), var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
-  --font-display: var(--font-schibsted-grotesk), var(--font-plus-jakarta), var(--font-sans);
+  /* Frozen UI typeface pair — DM Sans leads sans/display; IBM Plex Mono for
+     data strings. System stack is the only fallback if a font load fails. */
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-dm-sans), var(--font-sans);
 
   /* Display scale addition (visual-identity pass) — the landing-hero
      wordmark morph (app/page.tsx) and the /trends h1 both size off this one
@@ -37,12 +35,11 @@
      since both static references trace back to this one value. */
   --mobile-tabbar-h: 56px;
 
-  /* Soft Signal — light shell (docs/design/soft-signal-desktop). Neutrals
-     shifted from blue-bias to green-bias (visual-identity pass, 2026-08-01);
+  /* Frozen UI — light shell (intervu-*-coherent.html / FROZEN mocks).
      *-foreground tokens below point at --foreground rather than repeating
      its triplet, so the ink value has exactly one source. */
-  --background: 246 246 243;
-  --foreground: 20 24 22;
+  --background: 238 240 243;
+  --foreground: 26 31 38;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
   --popover: 255 255 255;
@@ -52,20 +49,20 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 94 106 100;
+  --muted-foreground: 106 114 124;
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 169 62 40;
   --destructive-foreground: 255 255 255;
-  --border: 228 231 227;
+  --border: 215 221 228;
   --input: var(--border-strong);
   --ring: var(--brand);
 
   /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
      (lib/themes.ts, default preset) applies the same values at runtime. */
-  --brand: 13 110 86;
+  --brand: 124 184 122;
   --brand-foreground: 255 255 255;
-  --brand-muted: 125 189 163;
+  --brand-muted: 168 208 166;
 
   /* Surface + text levels */
   --surface: 255 255 255;
@@ -73,11 +70,11 @@
   --surface-2: var(--chip);
   --surface-3: 208 213 220;
   --border-strong: var(--foreground);
-  --text-2: 69 74 82;
-  --text-3: 92 101 112;
+  --text-2: 106 114 124;
+  --text-3: 139 147 158;
 
   /* Soft Signal accents */
-  --chip: 237 240 244;
+  --chip: 238 240 243;
   --faint: 139 147 158;
   --live: 18 155 110;
   --green-tint-bg: 230 244 239;
@@ -109,10 +106,9 @@
   --sb-w: 250px;
 
   /* Shadow tokens — elevation retired (2026-08-04 one-visual-world pass,
-     docs/design/DESIGN-LANGUAGE.md "Elevation: none"). Separation now comes
-     from a 1px --border plus whitespace, everywhere. Every call site reading
-     one of these three tokens (21 at last count) goes flat from this one
-     chokepoint — none of them needed to change.
+     docs/design/DESIGN-LANGUAGE.md "Elevation: none"). Frozen instrument
+     pass also zeros hairline borders (see @layer utilities below) — separation
+     is surface fill + whitespace only.
      NOTE: do not write an arbitrary-value utility (square-bracket syntax)
      inside a comment in this file. Tailwind v4 scans CSS for class names and
      does not skip comments, so it will emit a real utility from the comment
@@ -138,15 +134,15 @@
 }
 
 .dark {
-  /* Soft Signal — cool dark shell (not warm carbon paper). */
-  --background: 15 18 22;
-  --foreground: 236 238 242;
-  --card: 22 25 30;
-  --card-foreground: 236 238 242;
-  --popover: 22 25 30;
-  --popover-foreground: 236 238 242;
-  --primary: 236 238 242;
-  --primary-foreground: 15 18 22;
+  /* Match landing instrument void (#12151a) — one dark world with / . */
+  --background: 18 21 26;
+  --foreground: 236 238 236;
+  --card: 26 30 36;
+  --card-foreground: 236 238 236;
+  --popover: 26 30 36;
+  --popover-foreground: 236 238 236;
+  --primary: 236 238 236;
+  --primary-foreground: 18 21 26;
   --secondary: var(--chip);
   --secondary-foreground: 236 238 242;
   --muted: var(--chip);
@@ -179,11 +175,11 @@
   --brand-muted: 58 140 110;
 
   /* Surface + text levels */
-  --surface: 22 25 30;
+  --surface: 26 30 36;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
   --surface-3: 42 47 54;
-  --border-strong: 236 238 242;
+  --border-strong: 236 238 236;
   --text-2: 181 186 194;
   --text-3: 139 147 158;
 
@@ -308,6 +304,37 @@
   --color-sidebar-accent-foreground: rgb(var(--sidebar-accent-foreground));
   --color-sidebar-border: rgb(var(--sidebar-border));
   --color-sidebar-ring: rgb(var(--sidebar-ring));
+}
+
+/*
+ * Frozen instrument: hairline borders are 0px. Keep thicker intentional
+ * borders (border-2, border-l-2 error rails, etc.) — those utilities set an
+ * explicit width and win over these defaults.
+ */
+@layer utilities {
+  .border {
+    border-width: 0;
+  }
+  .border-x {
+    border-left-width: 0;
+    border-right-width: 0;
+  }
+  .border-y {
+    border-top-width: 0;
+    border-bottom-width: 0;
+  }
+  .border-t {
+    border-top-width: 0;
+  }
+  .border-r {
+    border-right-width: 0;
+  }
+  .border-b {
+    border-bottom-width: 0;
+  }
+  .border-l {
+    border-left-width: 0;
+  }
 }
 
 /* Base Styles */
@@ -604,6 +631,28 @@ textarea::selection {
     display: block !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+}
+
+@keyframes instrument-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 184, 122, 0);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(124, 184, 122, 0.12);
+    opacity: 0.9;
+  }
+}
+
+.instrument-breathe {
+  animation: instrument-breathe 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .instrument-breathe {
+    animation: none;
   }
 }
 

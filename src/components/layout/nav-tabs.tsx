@@ -1,12 +1,7 @@
 /**
- * Primary nav tabs (Jobs · Research · Pricing · Connect your AI). Companies
- * is temporarily removed — see the comment above `NAV_TABS` below.
- * Also drives the mobile tab bar (`MobileTabBar`), which renders one icon per
- * entry straight off this array's own `icon` field — a new tab is covered by
- * adding one entry here, not by also updating a second array kept in
- * lockstep by hand (the old `TAB_ICONS` positional array this replaced; see
- * PR #46 / P27 mobile pass). Market trends is footer-only chrome (see
- * `TRENDS_TAB` below) precisely so it doesn't have to grow this one.
+ * Primary nav — frozen coherent chrome:
+ * Jobs · Tracker · Connect · (avatar → Account)
+ * Research / Pricing / Trends live in the footer.
  */
 import type { ComponentType } from "react";
 
@@ -16,15 +11,7 @@ export type NavTab = {
     href: string;
     testId: string;
     match: (pathname: string) => boolean;
-    /** Rendered at 22×22 by MobileTabBar. Every `NAV_TABS` entry carries one;
-     *  optional only because `TRENDS_TAB` (footer-only, never reaches the
-     *  mobile tab bar) never needs one — left `undefined` there rather than
-     *  borrowing an unrelated icon. */
     icon?: ComponentType;
-    /** Set on the one entry every renderer (TopBar, Footer, MobileTabBar,
-     *  the landing corner-links row) should render as an accent CTA button
-     *  instead of a plain link — checked as a property, never by matching
-     *  the label, so a future CTA tab needs no renderer changes. */
     variant?: "cta";
 };
 
@@ -37,20 +24,10 @@ function JobsIcon() {
     );
 }
 
-function ResearchIcon() {
+function TrackerIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M3 20h18" />
-            <path d="M6 20v-6M12 20V9M18 20v-9" />
-        </svg>
-    );
-}
-
-function PricingIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M12.59 2.59a2 2 0 00-1.42-.59H4a2 2 0 00-2 2v7.17a2 2 0 00.59 1.42l9 9a2 2 0 002.82 0l7.17-7.17a2 2 0 000-2.82z" />
-            <path d="M7 7h.01" />
+            <path d="M4 6h16M4 12h10M4 18h13" />
         </svg>
     );
 }
@@ -65,44 +42,53 @@ function ConnectIcon() {
     );
 }
 
+function AccountIcon() {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+        </svg>
+    );
+}
+
 export const NAV_TABS: NavTab[] = [
-    { label: "Jobs", shortLabel: "Jobs", href: "/jobs", testId: "topbar-jobs", match: (p) => p === "/jobs", icon: JobsIcon },
-    // Companies (/companies/hiring) removed from nav 2026-08-02 — page is
-    // redirected to /jobs until it can be served correctly, see
-    // src/app/companies/hiring/page.tsx for why. Re-add the entry here when
-    // that page is restored.
     {
-        label: "Research",
-        shortLabel: "Research",
-        href: "/research/ghost-jobs",
-        testId: "topbar-research",
-        match: (p) => p.startsWith("/research"),
-        icon: ResearchIcon,
+        label: "Jobs",
+        shortLabel: "Jobs",
+        href: "/jobs",
+        testId: "topbar-jobs",
+        match: (p) => p === "/jobs" || p.startsWith("/jobs/"),
+        icon: JobsIcon,
     },
     {
-        label: "Pricing",
-        shortLabel: "Pricing",
-        href: "/pricing",
-        testId: "topbar-pricing",
-        match: (p) => p.startsWith("/pricing"),
-        icon: PricingIcon,
+        label: "Tracker",
+        shortLabel: "Tracker",
+        href: "/yours",
+        testId: "topbar-tracker",
+        match: (p) => p.startsWith("/yours"),
+        icon: TrackerIcon,
     },
     {
-        label: "Connect your AI",
+        label: "Connect",
         shortLabel: "Connect",
-        href: "/connect",
+        href: "/",
         testId: "topbar-connect",
-        match: (p) => p.startsWith("/connect"),
+        // Landing is the agent instrument door (frozen mock).
+        match: (p) => p === "/" || p.startsWith("/connect") || p.startsWith("/openclaw"),
         icon: ConnectIcon,
-        variant: "cta",
     },
 ];
 
-/**
- * Footer-only addition — never reaches `NAV_TABS`/`MobileTabBar` (same
- * reasoning this file already used for the old Market-trends entry), so no
- * icon needed.
- */
+/** Mobile-only: Account as fourth tab (desktop uses DP avatar). */
+export const MOBILE_ACCOUNT_TAB: NavTab = {
+    label: "Account",
+    shortLabel: "Account",
+    href: "/settings",
+    testId: "topbar-account",
+    match: (p) => p.startsWith("/settings") || p.startsWith("/account"),
+    icon: AccountIcon,
+};
+
 export const TRENDS_TAB: NavTab = {
     label: "Market trends",
     shortLabel: "Trends",
@@ -110,3 +96,21 @@ export const TRENDS_TAB: NavTab = {
     testId: "topbar-trends",
     match: (p) => p.startsWith("/trends"),
 };
+
+export const FOOTER_EXTRA_TABS: NavTab[] = [
+    {
+        label: "Research",
+        shortLabel: "Research",
+        href: "/research/ghost-jobs",
+        testId: "footer-research",
+        match: (p) => p.startsWith("/research"),
+    },
+    {
+        label: "Pricing",
+        shortLabel: "Pricing",
+        href: "/pricing",
+        testId: "footer-pricing",
+        match: (p) => p.startsWith("/pricing"),
+    },
+    TRENDS_TAB,
+];

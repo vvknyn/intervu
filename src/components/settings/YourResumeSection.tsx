@@ -9,6 +9,7 @@ import { fetchResumeSummaryAction, type ResumeSummary } from "@/actions/resume-s
 interface YourResumeSectionProps {
     user: User | null;
     onLoginClick: () => void;
+    embedded?: boolean;
 }
 
 const TEXT_PREVIEW_LINES = 40;
@@ -43,7 +44,7 @@ function downloadBlob(content: string, filename: string, type: string) {
  * "your AI does this" pointer used elsewhere in Settings). Mirrors
  * AgentPreferencesSection's section shape and load-retry pattern.
  */
-export function YourResumeSection({ user, onLoginClick }: YourResumeSectionProps) {
+export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [summary, setSummary] = useState<ResumeSummary | null>(null);
     // Bumped by the "Try again" button to re-run the same effect below —
@@ -79,8 +80,8 @@ export function YourResumeSection({ user, onLoginClick }: YourResumeSectionProps
 
     if (!user) {
         return (
-            <section className="pt-6 border-t border-border">
-                <h2 className="text-lg font-semibold mb-1">Your resume</h2>
+            <section className={embedded ? undefined : "pt-6 border-t border-border"}>
+                <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Your resume</h2>
                 <p className="text-sm text-muted-foreground">
                     <button onClick={onLoginClick} className="underline text-brand hover:text-brand/80">
                         login
@@ -92,9 +93,13 @@ export function YourResumeSection({ user, onLoginClick }: YourResumeSectionProps
     }
 
     return (
-        <section className="pt-6 border-t border-border">
-            <h2 className="text-lg font-semibold mb-1">Your resume</h2>
-            <p className="text-sm text-muted-foreground mb-4">The resume your agent has on file.</p>
+        <section className={embedded ? undefined : "pt-6 border-t border-border"}>
+            <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Your resume</h2>
+            <p className="text-[13px] text-muted-foreground mb-4">
+                {embedded
+                    ? "One base file. Your agent uses this overnight; the tracker links versions per role later if needed."
+                    : "The resume your agent has on file."}
+            </p>
 
             {status === "loading" && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">

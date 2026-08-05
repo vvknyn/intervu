@@ -90,7 +90,13 @@ export async function syncGuestPursuitsToServer(): Promise<boolean> {
                       },
                       g.status,
                   )
-                : createManualPursuit({ company: g.company_name, position: g.position, status: g.status }),
+                : createManualPursuit({
+                      company: g.company_name,
+                      position: g.position,
+                      status: g.status,
+                      job_url: g.job_url,
+                      note: g.note,
+                  }),
         ),
     );
     // Server actions return {error} rather than throwing, so Promise.all never

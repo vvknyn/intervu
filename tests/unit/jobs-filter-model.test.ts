@@ -4,6 +4,7 @@ import {
     activeFilterEntries,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
+    STATIC_FACET_LADDERS,
     type FilterState,
 } from "../../src/components/jobs/FilterPanel";
 
@@ -51,4 +52,10 @@ test("toggleFacetValue drops the key entirely once its last value is removed", (
 test("toggleFacetValue leaves other facet keys untouched", () => {
     const next = toggleFacetValue({ source: ["greenhouse"] }, "work_type", "remote");
     assert.deepEqual(next, { source: ["greenhouse"], work_type: ["remote"] });
+});
+
+test("STATIC_FACET_LADDERS seeds the canonical work/experience/employment values", () => {
+    assert.deepEqual(STATIC_FACET_LADDERS.work_type, ["remote", "hybrid", "onsite"]);
+    assert.deepEqual(STATIC_FACET_LADDERS.experience_level, ["entry", "mid", "senior"]);
+    assert.deepEqual(STATIC_FACET_LADDERS.employment_type, ["full_time", "contract"]);
 });

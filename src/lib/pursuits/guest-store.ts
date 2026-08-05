@@ -98,16 +98,22 @@ export function addGuestPursuit(job: PublicJob, status: PursuitStage = "interest
  * pursuit: unlike `addGuestPursuit` there is no job_id to find-or-create by,
  * so a repeat seed submission is a distinct pursuit by design.
  */
-export function addManualGuestPursuit(company: string, position: string): Pursuit {
+export function addManualGuestPursuit(
+    company: string,
+    position: string,
+    extras?: { status?: PursuitStage; job_url?: string; note?: string },
+): Pursuit {
     const now = new Date().toISOString();
     const pursuit: Pursuit = {
         id: newGuestId("manual"),
         user_id: "guest",
         company_name: company,
         position,
-        status: "interviewing",
+        status: extras?.status ?? "interviewing",
         job_id: null,
         job_snapshot: buildManualPursuitSnapshot(company, position),
+        job_url: extras?.job_url,
+        note: extras?.note,
         created_at: now,
         updated_at: now,
     };

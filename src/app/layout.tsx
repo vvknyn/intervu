@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, JetBrains_Mono, Plus_Jakarta_Sans, Schibsted_Grotesk, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { Bricolage_Grotesque, DM_Sans, IBM_Plex_Mono, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -13,29 +13,21 @@ import { SITE_NAME, SITE_URL } from "@/lib/seo/constants";
 import { buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
-// Soft Signal typeface pair (see globals.css --font-sans/--font-mono/
-// --font-display). Plus Jakarta Sans covers UI, wordmark, and headings;
-// JetBrains Mono carries numbers, timestamps, verdicts, and micro-labels.
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta",
+// Frozen UI typeface pair (see globals.css --font-sans/--font-mono/
+// --font-display). DM Sans covers UI, wordmark, and headings; IBM Plex Mono
+// carries numbers, timestamps, verdicts, and micro-labels.
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-// Visual-identity pass (2026-08-01): Schibsted Grotesk leads --font-sans/
-// --font-display (globals.css), with Plus Jakarta Sans kept as the next
-// fallback rather than removed — see globals.css's font token comment.
-const schibstedGrotesk = Schibsted_Grotesk({
-  variable: "--font-schibsted-grotesk",
-  subsets: ["latin"],
-  weight: "variable",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 /** Elite mock surfaces only (scoped via `.elite-signal` in elite-signal.css). */
@@ -110,7 +102,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${plusJakarta.variable} ${schibstedGrotesk.variable} ${jetbrainsMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
+        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph + SearchAction, so search engines can offer
@@ -122,7 +114,7 @@ export default function RootLayout({
         {/* Apply persisted dark mode before paint (no flash). Default = light. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('intervu-dark')==='1'){document.documentElement.classList.add('dark')}}catch(e){}`,
+            __html: `try{if(localStorage.getItem('intervu-dark')!=='0'){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}`,
           }}
         />
         <ThemeProvider>

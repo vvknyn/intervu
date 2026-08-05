@@ -37,10 +37,10 @@ export const themes: Record<string, Theme> = {
     label: "Green",
     colors: {
       light: {
-        // Soft Signal brand #0D6E56
-        brand: "13 110 86",
+        // Frozen UI brand #7cb87a
+        brand: "124 184 122",
         "brand-foreground": "255 255 255",
-        "brand-muted": "125 189 163",
+        "brand-muted": "168 208 166",
       },
       dark: {
         brand: "94 180 150",

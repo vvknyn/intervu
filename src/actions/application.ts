@@ -30,6 +30,7 @@ export interface CreateApplicationData {
     status: PursuitStage;
     resume_version_id?: string;
     cover_letter?: string;
+    note?: string;
 }
 
 export interface UpdateApplicationData {
@@ -41,6 +42,7 @@ export interface UpdateApplicationData {
     resume_version_id?: string;
     cover_letter?: string;
     interview_date?: string;
+    note?: string;
 }
 
 export async function getApplications() {
@@ -234,7 +236,7 @@ export async function goAfterJobAction(job: PublicJob): Promise<{ data?: Applica
  * it to before signing in, rather than resetting it back to "interviewing".
  */
 export async function createManualPursuit(
-    input: { company: string; position: string; status?: PursuitStage },
+    input: { company: string; position: string; status?: PursuitStage; job_url?: string; note?: string },
 ): Promise<{ data?: Application; error?: string }> {
     try {
         const user = await getServerUser();
@@ -246,7 +248,7 @@ export async function createManualPursuit(
         const db = getAdminDb();
         const now = new Date().toISOString();
         const snapshot = buildManualPursuitSnapshot(parsed.data.company, parsed.data.position);
-        const docData = {
+        const docData: Record<string, unknown> = {
             user_id: user.uid,
             company_name: snapshot.company ?? "",
             position: snapshot.title,
@@ -256,6 +258,8 @@ export async function createManualPursuit(
             created_at: now,
             updated_at: now,
         };
+        if (parsed.data.job_url) docData.job_url = parsed.data.job_url;
+        if (parsed.data.note) docData.note = parsed.data.note;
 
         const docRef = await db.collection("applications").add(docData);
         revalidatePath("/yours");
