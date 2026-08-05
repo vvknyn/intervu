@@ -14,6 +14,10 @@ FPS=30
 W=1920
 H=1080
 XFADE=0.9
+# Hold per segment (seconds). Stable visibility before next xfade:
+#   first/last beat: hold - XFADE
+#   middle beats:    hold - 2*XFADE  (fade in + fade out)
+# Target ~2.5–3.0s stable → first/last hold ≥3.4s, middle hold ≥4.3s.
 # segment(input, output, hold_seconds)
 # Captions burned into keyframe PNGs; drawtext skipped (ffmpeg build lacks libfreetype).
 # Static frames only — no zoom/pan (eliminates Ken Burns jitter on AI keyframes).
@@ -103,26 +107,26 @@ build_video() {
 
 # Video A — Claude MCP (6 beats, ~60% post-setup)
 build_video "video-a-mcp-loop" \
-  "intervu-video-a-mcp-keyframe-0-title.png|2.5|1|Connect Claude to the job market" \
-  "intervu-video-a-mcp-keyframe-1-connect.png|2.0|2|Add connector" \
-  "intervu-video-a-mcp-keyframe-2-approve.png|2.0|3|Approve once" \
+  "intervu-video-a-mcp-keyframe-0-title.png|3.9|1|Connect Claude to the job market" \
+  "intervu-video-a-mcp-keyframe-1-connect.png|4.5|2|Add connector" \
+  "intervu-video-a-mcp-keyframe-2-approve.png|4.5|3|Approve once" \
   "intervu-video-a-mcp-keyframe-3-ask.png|4.5|4|Ask in chat" \
   "intervu-video-a-mcp-keyframe-4-results.png|4.5|5|Real jobs - save to tracker" \
-  "intervu-video-a-mcp-keyframe-5-payoff.png|3.5|6|You stay in control"
+  "intervu-video-a-mcp-keyframe-5-payoff.png|3.9|6|You stay in control"
 
 # Video B — OpenClaw (6 beats, ~60% post-setup)
 build_video "video-b-openclaw-loop" \
-  "intervu-video-b-openclaw-keyframe-0-title.png|2.5|1|Overnight prep on your machine" \
-  "intervu-video-b-openclaw-keyframe-1-install.png|2.0|2|One command install" \
-  "intervu-video-b-openclaw-keyframe-2-approve.png|2.0|3|Approve in browser" \
-  "intervu-video-b-openclaw-keyframe-3-overnight.png|4.0|4|Agent works overnight" \
+  "intervu-video-b-openclaw-keyframe-0-title.png|3.9|1|Overnight prep on your machine" \
+  "intervu-video-b-openclaw-keyframe-1-install.png|4.5|2|One command install" \
+  "intervu-video-b-openclaw-keyframe-2-approve.png|4.5|3|Approve in browser" \
+  "intervu-video-b-openclaw-keyframe-3-overnight.png|4.5|4|Agent works overnight" \
   "intervu-video-b-openclaw-keyframe-4-digest.png|4.5|5|Wake up to drafts" \
-  "intervu-video-b-openclaw-keyframe-5-payoff.png|3.5|6|You always click submit"
+  "intervu-video-b-openclaw-keyframe-5-payoff.png|3.9|6|You always click submit"
 
 cp "$KF/intervu-video-a-mcp-keyframe-0-title.png" "$OUT/poster-a-mcp.png"
 cp "$KF/intervu-video-b-openclaw-keyframe-0-title.png" "$OUT/poster-b-openclaw.png"
 
-total_a=$(echo "2.5+2.0+2.0+4.5+4.5+3.5 - 5*$XFADE" | bc -l)
-total_b=$(echo "2.5+2.0+2.0+4.0+4.5+3.5 - 5*$XFADE" | bc -l)
+total_a=$(echo "3.9+4.5+4.5+4.5+4.5+3.9 - 5*$XFADE" | bc -l)
+total_b=$(echo "3.9+4.5+4.5+4.5+4.5+3.9 - 5*$XFADE" | bc -l)
 echo "Done: $OUT/video-a-mcp-loop.mp4 (~${total_a}s silent explainer)"
 echo "Done: $OUT/video-b-openclaw-loop.mp4 (~${total_b}s silent explainer)"

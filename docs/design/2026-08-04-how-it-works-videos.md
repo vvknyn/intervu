@@ -41,7 +41,7 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 | Mood | Clean digital illustration, dark void, iris accents |
 | Hierarchy | Number badge → short caption → UI frame |
 | Audio | **Silent explainer · no audio needed** — mute + loop |
-| Length | **~15s** each (6 beats, variable hold, 0.4s crossfade), seamless loop |
+| Length | **~21s** each (6 beats, variable hold, 0.9s crossfade), seamless loop |
 | Format | 1920×1080 H.264 `.mp4`, poster PNG from title keyframe |
 | Brand | Dark intervu UI on-screen (`#12151a` void, iris `#7cb87a`); no purple neon |
 
@@ -64,21 +64,21 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 
 ---
 
-## Video A — Claude MCP (~15.5s)
+## Video A — Claude MCP (~21.3s)
 
 **Job:** Silent explainer — connect Claude via MCP, then show real usage after one-time approve.  
 **Hero client:** Claude Desktop (continuous). ChatGPT = caption only: *“Works with ChatGPT too — same connector URL.”*  
 **CTA after watch:** Copy `https://intervu.cc/api/mcp` (already on the lane).  
-**Post-setup weight:** 11.0s / 15.5s = **71%**
+**Post-setup weight:** 15.6s / 21.3s = **73%**
 
 | t | # | Beat | Caption (burned) | UI detail |
 |---|---|---|---|---|
-| 0.0–2.5s | 1 | **Title** | Connect Claude to the job market | Title card, step badge 1 |
-| 2.5–4.5s | 2 | **Setup** | Add connector | Claude Settings → Connectors → URL `https://intervu.cc/api/mcp` (iris valid ring) → Save |
-| 4.5–6.5s | 3 | **Setup** | Approve once | OAuth: *Search jobs*, *Save to tracker*, *Never apply without you* → Allow |
-| 6.5–10.5s | 4 | **Use** | Ask in chat | User prompt: *“Find senior PM roles in Berlin posted this week.”* |
-| 10.5–14.5s | 5 | **Use** | Real jobs · save to tracker | 3 verified roles + “Save to tracker” chips |
-| 14.5–15.5s | 6 | **Payoff** | You stay in control | “Never applies without you” + tracker view. Loops to Title. |
+| 0.0–3.9s | 1 | **Title** | Connect Claude to the job market | Title card, step badge 1 |
+| 3.9–7.5s | 2 | **Setup** | Add connector | Claude Settings → Connectors → URL `https://intervu.cc/api/mcp` (iris valid ring) → Save |
+| 7.5–11.1s | 3 | **Setup** | Approve once | OAuth: *Search jobs*, *Save to tracker*, *Never apply without you* → Allow |
+| 11.1–14.7s | 4 | **Use** | Ask in chat | User prompt: *“Find senior PM roles in Berlin posted this week.”* |
+| 14.7–18.3s | 5 | **Use** | Real jobs · save to tracker | 3 verified roles + “Save to tracker” chips |
+| 18.3–21.3s | 6 | **Payoff** | You stay in control | “Never applies without you” + tracker view. Loops to Title. |
 
 **Must show:** connector paste, OAuth approve, ask-in-chat, verified results, tracker save, human control.  
 **Must not show:** resume upload, ChatGPT UI, pain/desk montage, auto-apply.  
@@ -88,20 +88,20 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 
 ---
 
-## Video B — OpenClaw (~15.0s)
+## Video B — OpenClaw (~21.3s)
 
 **Job:** Silent explainer — one install, approve once, then overnight agent + morning review.  
 **CTA after watch:** Copy `curl -fsSL https://intervu.cc/install | bash`.  
-**Post-setup weight:** 10.5s / 15.0s = **70%**
+**Post-setup weight:** 15.6s / 21.3s = **73%**
 
 | t | # | Beat | Caption (burned) | UI detail |
 |---|---|---|---|---|
-| 0.0–2.5s | 1 | **Title** | Overnight prep on your machine | Title card, step badge 1 |
-| 2.5–4.5s | 2 | **Setup** | One command install | `curl -fsSL https://intervu.cc/install \| bash` → Installation complete |
-| 4.5–6.5s | 3 | **Setup** | Approve in browser | OAuth beside terminal: *Run job search locally*, *Draft tailored resumes*, *Never apply without you* → Allow |
-| 6.5–10.0s | 4 | **Use** | Agent works overnight | Terminal logs: *Scanning…*, *Found 3 matches*, *Tailoring resume…*, *Draft ready* (2:14 AM) |
-| 10.0–14.5s | 5 | **Use** | Wake up to drafts | WhatsApp: *“3 roles fit you today”* + draft PDF chip + *“Review and hit submit”* |
-| 14.5–15.0s | 6 | **Payoff** | You always click submit | Submit button + shield. Loops to Title. |
+| 0.0–3.9s | 1 | **Title** | Overnight prep on your machine | Title card, step badge 1 |
+| 3.9–7.5s | 2 | **Setup** | One command install | `curl -fsSL https://intervu.cc/install \| bash` → Installation complete |
+| 7.5–11.1s | 3 | **Setup** | Approve in browser | OAuth beside terminal: *Run job search locally*, *Draft tailored resumes*, *Never apply without you* → Allow |
+| 11.1–14.7s | 4 | **Use** | Agent works overnight | Terminal logs: *Scanning…*, *Found 3 matches*, *Tailoring resume…*, *Draft ready* (2:14 AM) |
+| 14.7–18.3s | 5 | **Use** | Wake up to drafts | WhatsApp: *“3 roles fit you today”* + draft PDF chip + *“Review and hit submit”* |
+| 18.3–21.3s | 6 | **Payoff** | You always click submit | Submit button + shield. Loops to Title. |
 
 **Must show:** curl install, browser OAuth, overnight logs, WhatsApp digest, draft chip, human submit gate.  
 **Must not show:** hosted waitlist as install path, auto-submit, resume upload screen, desk fatigue montage.  
@@ -127,8 +127,8 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 
 1. **Keyframe comps** — 6 PNGs per video in `how-it-works-keyframes/` with burned step + caption.
 2. **Loop builder** — `./build-loops.sh` in `how-it-works-videos/`:
-   - Variable hold per beat (2.0–4.0s)
-   - 0.4s crossfade between beats
+   - Variable hold per beat (3.9–4.5s; ≥2.5s settled visibility)
+   - 0.9s crossfade between beats
    - ffmpeg `drawtext` step badge + caption overlay when libfreetype build available; keyframes carry captions regardless
    - Subtle zoom (max 1.02) — not Ken Burns desk pan
 3. **Review pass** — mute playback at 400px modal width; every beat self-explanatory; iris on CTAs; no purple drift.
