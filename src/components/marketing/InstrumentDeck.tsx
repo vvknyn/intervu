@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import {
     INSTRUMENT_META,
@@ -11,6 +12,7 @@ import {
     OPENCLAW_INSTALL_COMMAND,
     OPENCLAW_INSTALL_HINT,
 } from "@/components/marketing/openclaw-content";
+import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 
 type Lane = "mcp" | "claw";
 
@@ -34,6 +36,7 @@ const tabActive = {
 export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
     const [lane, setLane] = useState<Lane>("mcp");
     const [copied, setCopied] = useState(false);
+    const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
 
     const active = LANE_CONTENT[lane];
 
@@ -149,6 +152,15 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                 {active.hint}
             </p>
 
+            <button
+                type="button"
+                onClick={() => setFilm(lane)}
+                className="mt-3 cursor-pointer border-0 bg-transparent font-mono text-[11px] uppercase tracking-[0.08em] text-[#7cb87a] underline-offset-4 transition-colors hover:text-[#9fd09d] hover:underline"
+                data-testid="how-it-works"
+            >
+                How it works
+            </button>
+
             {lane === "claw" ? (
                 <div className="mt-6 w-full max-w-[520px]">
                     <p className="mb-2 text-center text-[13px] text-[#8b919a]">
@@ -158,6 +170,7 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                 </div>
             ) : null}
 
+            <HowItWorksFilm film={film} onOpenChange={(open) => !open && setFilm(null)} />
         </main>
     );
 }
