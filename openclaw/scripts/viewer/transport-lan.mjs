@@ -70,8 +70,21 @@ export function createLanTransport({ port = 18801, token }) {
         }
 
         if (url.searchParams.get("t") !== token) {
-            res.writeHead(403, { "content-type": "text/plain" });
-            return res.end("forbidden");
+            // A bare "forbidden" is indistinguishable from a broken feature.
+            // The overwhelmingly likely cause is a link that lost characters
+            // in transit or was retyped by hand — the token is 32 characters
+            // of base64url and ends in things like `-` or `_` — so say that,
+            // and say what to do about it.
+            res.writeHead(403, { "content-type": "text/html; charset=utf-8" });
+            return res.end(`<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Link not valid</title>
+<style>body{margin:0;background:#111;color:#eee;font:16px/1.5 -apple-system,system-ui,sans-serif;
+display:grid;place-items:center;min-height:100dvh;padding:24px;text-align:center}
+p{max-width:30ch;color:#aaa;font-size:14px}</style>
+<div><h1 style="font-size:18px;margin:0 0 8px">This watch link isn't valid</h1>
+<p>It was probably cut short on the way here — the link ends in a random code that has to arrive whole.
+Ask your agent for a fresh link, and open it by tapping rather than retyping.</p></div>`);
         }
         if (url.pathname === "/stream") {
             res.writeHead(200, {
@@ -90,9 +103,26 @@ export function createLanTransport({ port = 18801, token }) {
     };
 
     return {
+        /**
+         * Falls back to an ephemeral port when the preferred one is taken.
+         *
+         * A second application being prepared while the first is still open
+         * would otherwise die on EADDRINUSE — and as an unhandled 'error'
+         * event, meaning a raw stack trace and no watch link at all. Nothing
+         * depends on the port number: it travels inside the URL, and the
+         * token changes every run, so there is nothing to bookmark.
+         */
         async start() {
             server = createServer(handler);
-            await new Promise((resolve) => server.listen(port, resolve));
+            const bound = await new Promise((resolve) => {
+                server.once("error", (err) => {
+                    if (err.code !== "EADDRINUSE") throw err;
+                    console.error(`Port ${port} is busy (another application is probably still open) — using a free one instead.`);
+                    server.listen(0, () => resolve(true));
+                });
+                server.listen(port, () => resolve(true));
+            });
+            if (!bound) throw new Error("the viewer's local server failed to start");
             return { url: lanUrls(server.address().port, token)[0] ?? null };
         },
 

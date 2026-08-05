@@ -35,7 +35,9 @@ function fakeDoorbell() {
   const fetchImpl = async (url: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? 'GET';
     if (url.endsWith('/api/viewer/session') && method === 'POST') {
-      return json({ sessionId: 'sess-1', watchUrl: 'https://intervu.cc/watch/sess-1', expiresAt: Date.now() + 60_000 });
+      // No watchUrl: the server cannot know the origin the phone should
+      // dial, so the transport composes the link from the base it used.
+      return json({ sessionId: 'sess-1', expiresAt: Date.now() + 60_000 });
     }
     if (method === 'POST') {
       const body = JSON.parse(init!.body!) as { role: 'host' | 'guest'; sdp: string };
@@ -67,7 +69,8 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     const { url, connected } = await transport.start();
 
     // The link must exist before anyone has opened it — the phone cannot
-    // answer a link it has not been sent.
+    // answer a link it has not been sent — and must point at the origin
+    // this side dialled, not at whatever the server thinks it is.
     assert.equal(url, 'https://intervu.cc/watch/sess-1');
     assert.ok(doorbell.state.host, 'the offer must be posted by the time start() returns');
     assert.equal(doorbell.state.guest, null, 'nothing may be waited on before the link is handed over');

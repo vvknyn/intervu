@@ -12,20 +12,40 @@ describe('signalUrl', () => {
 });
 
 describe('pollUntilGuest', () => {
+  const soon = () => Date.now() + 5_000;
+
   it('returns the guest blob as soon as it appears', async () => {
     let n = 0;
     const fake = async () => ({ ok: true, json: async () => (++n < 3 ? { guest: null } : { guest: { sdp: 'v=0' } }) });
-    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { attempts: 10, delayMs: 0 });
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: soon(), delayMs: 0 });
     assert.equal(guest.sdp, 'v=0');
     assert.equal(n, 3, 'must stop polling the moment the phone answers');
   });
 
-  it('gives up after the attempt budget rather than hanging forever', async () => {
-    const fake = async () => ({ ok: true, json: async () => ({ guest: null }) });
+  it('waits for the whole session, not some shorter budget of its own', async () => {
+    // The first version gave up after 60 attempts x 2s = 2 minutes on a
+    // session that lives 15, so anyone slower than that to pick up their
+    // phone got a link that could never connect. The deadline IS the
+    // session's expiry, so the two cannot disagree.
+    let calls = 0;
+    const fake = async () => { calls++; return { ok: true, json: async () => ({ guest: null }) }; };
+    const deadline = Date.now() + 120;
     await assert.rejects(
-      () => pollUntilGuest(fake as unknown as typeof fetch, 'u', { attempts: 3, delayMs: 0 }),
-      (e: Error) => /never connected/i.test(e.message),
+      () => pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline, delayMs: 10 }),
+      (e: Error) => /expired/i.test(e.message),
     );
+    assert.ok(Date.now() >= deadline, 'must keep polling right up to the deadline');
+    assert.ok(calls > 3, `expected repeated polling, saw ${calls}`);
+  });
+
+  it('does not poll at all once the session has already expired', async () => {
+    let calls = 0;
+    const fake = async () => { calls++; return { ok: true, json: async () => ({ guest: null }) }; };
+    await assert.rejects(
+      () => pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: Date.now() - 1, delayMs: 0 }),
+      (e: Error) => /expired/i.test(e.message),
+    );
+    assert.equal(calls, 0);
   });
 
   it('keeps waiting through a transient server error instead of aborting the session', async () => {
@@ -35,7 +55,7 @@ describe('pollUntilGuest', () => {
     const fake = async () => (++n === 1
       ? { ok: false, status: 503, json: async () => ({}) }
       : { ok: true, json: async () => ({ guest: { sdp: 'v=0' } }) });
-    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { attempts: 5, delayMs: 0 });
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: soon(), delayMs: 0 });
     assert.equal(guest.sdp, 'v=0');
   });
 });

@@ -93,6 +93,23 @@ describe('createLanTransport', () => {
     assert.match(seen, /data: LATEJOINER/);
   });
 
+  it('starts on a free port when the preferred one is already taken', async () => {
+    // Preparing a second application while the first is still open used to
+    // die on EADDRINUSE as an unhandled 'error' event: a raw stack trace and
+    // no watch link. Nothing depends on the number — it rides in the URL.
+    const taken = transport.port()!;
+    const second = createLanTransport({ port: taken, token: 'second-token' });
+    try {
+      await second.start();
+      assert.notEqual(second.port(), taken, 'must not claim a port already in use');
+      const res = await fetch(`http://127.0.0.1:${second.port()}/?t=second-token`);
+      assert.equal(res.status, 200, 'the fallback port must serve the page like any other');
+      await res.text();
+    } finally {
+      await second.close();
+    }
+  });
+
   it('pushes a frame to a subscribed client as an SSE event', async () => {
     const res = await fetch(`${base}/stream?t=secret-token`);
     assert.equal(res.status, 200);

@@ -23,14 +23,31 @@ export function signalUrl(apiBase, id) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Waits for the phone to open the link. A transient non-200 is treated as
- * "not yet" rather than a failure: the user may take a minute to pick the
- * phone up, and one 503 from a redeploy should not end a session that would
- * otherwise have worked. Running out of attempts throws, because a silent
- * hang is the one outcome with no diagnosis.
+ * Waits for the phone to open the link, until the session itself expires.
+ *
+ * Bounded by the server's own `expiresAt` rather than an attempt count
+ * chosen separately: a fixed count is a second, silently disagreeing copy of
+ * the session lifetime, and the first version gave up after two minutes on a
+ * session that lived fifteen — so anyone slower than that to pick up their
+ * phone got a link that could never connect.
+ *
+ * A transient non-200 counts as "not yet", not as failure: one 503 from a
+ * redeploy should not end a session that would otherwise have worked.
+ * Passing the deadline throws, because a silent hang is the one outcome with
+ * no diagnosis.
+ *
+ * @param {typeof fetch} fetchImpl
+ * @param {string} url
+ * @param {{deadline: number, delayMs?: number, headers?: Record<string,string>}} options
+ *        `deadline` is the session's own expiresAt, in epoch ms.
+ * @returns {Promise<{sdp: string}>}
  */
-export async function pollUntilGuest(fetchImpl, url, { attempts = 60, delayMs = 2000, headers = {} } = {}) {
-    for (let i = 0; i < attempts; i++) {
+export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 2000, headers = {} } = {}) {
+    // Without this a missing deadline makes the comparison below false and
+    // the function gives up instantly, which reads exactly like a phone that
+    // never connected.
+    if (!Number.isFinite(deadline)) throw new Error("pollUntilGuest needs the session's expiresAt as `deadline`");
+    while (Date.now() < deadline) {
         const res = await fetchImpl(url, { headers });
         if (res.ok) {
             const body = await res.json();
@@ -38,7 +55,7 @@ export async function pollUntilGuest(fetchImpl, url, { attempts = 60, delayMs = 
         }
         await sleep(delayMs);
     }
-    throw new Error("The phone never connected — the watch link may not have been opened.");
+    throw new Error("The phone never connected before the watch link expired — it may not have been opened.");
 }
 
 export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
@@ -65,8 +82,12 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
             if (!created.ok) {
                 throw new Error(`could not open a viewer session (HTTP ${created.status}) — the agent's intervu login may have expired; 'mcporter auth intervu-cc-mcp' renews it`);
             }
-            const { sessionId: id, watchUrl } = await created.json();
+            const { sessionId: id, expiresAt } = await created.json();
             sessionId = id;
+            // Composed here rather than returned by the server: this side
+            // chose the origin, so this side is the only one that can be
+            // sure the phone can reach it.
+            const watchUrl = `${base}/watch/${sessionId}`;
 
             pc = new RTCPeerConnection(STUN);
             channel = pc.createDataChannel("frames");
@@ -79,7 +100,7 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
                 body: JSON.stringify({ role: "host", sdp: pc.localDescription.sdp }),
             });
 
-            const connected = pollUntilGuest(fetchImpl, url, { headers: auth })
+            const connected = pollUntilGuest(fetchImpl, url, { headers: auth, deadline: expiresAt })
                 .then((guest) => pc.setRemoteDescription({ type: "answer", sdp: guest.sdp }));
 
             return { url: watchUrl, connected };

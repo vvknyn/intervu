@@ -24,11 +24,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
+    // No watch URL here on purpose. Building one needs the origin the phone
+    // should dial, and this handler cannot know it: `new URL(request.url)`
+    // reported the dev server's bind address (0.0.0.0) rather than the host
+    // actually called, and behind Caddy it would report the container's. The
+    // caller dialled a specific origin, so the caller composes the link.
     const session = await createSession(credential.uid);
-    const origin = new URL(request.url).origin;
-    return NextResponse.json({
-        sessionId: session.id,
-        watchUrl: `${origin}/watch/${session.id}`,
-        expiresAt: session.expiresAt,
-    });
+    return NextResponse.json({ sessionId: session.id, expiresAt: session.expiresAt });
 }
