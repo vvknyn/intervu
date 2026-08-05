@@ -50,6 +50,32 @@ describe('createLanTransport', () => {
     assert.match(await ok.text(), /<canvas/);
   });
 
+  it('serves every asset the page references using only the page URL', async () => {
+    // A browser resolves `./crop.mjs` with no query string, so a module
+    // import cannot carry the token. Gating static assets behind it makes the
+    // import 403, which kills the whole module script and leaves the page
+    // stuck on "connecting" with no error anywhere.
+    const html = await (await fetch(`${base}/?t=secret-token`)).text();
+    const refs = [...html.matchAll(/(?:from|src)\s*=?\s*['"](\.\/[^'"]+)['"]/g)].map((m) => m[1]);
+    assert.ok(refs.length > 0, 'expected the page to reference at least one asset');
+    for (const ref of refs) {
+      const res = await fetch(new URL(ref, `${base}/`).toString());
+      assert.equal(res.status, 200, `${ref} must load without a token`);
+      await res.text();
+    }
+  });
+
+  it('answers the favicon the browser asks for unprompted instead of logging a 403', async () => {
+    const res = await fetch(`${base}/favicon.ico`);
+    assert.equal(res.status, 204);
+    await res.text();
+  });
+
+  it('still refuses the screen itself to an unauthorised caller', async () => {
+    assert.equal((await fetch(`${base}/?t=wrong`)).status, 403);
+    assert.equal((await fetch(`${base}/stream?t=wrong`)).status, 403);
+  });
+
   it('rejects an unauthorised stream subscriber', async () => {
     const res = await fetch(`${base}/stream?t=wrong`);
     assert.equal(res.status, 403);

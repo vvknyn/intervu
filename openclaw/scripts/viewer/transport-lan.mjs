@@ -41,13 +41,27 @@ export function createLanTransport({ port = 18801, token }) {
 
     const handler = (req, res) => {
         const url = new URL(req.url, "http://localhost");
-        if (url.searchParams.get("t") !== token) {
-            res.writeHead(403, { "content-type": "text/plain" });
-            return res.end("forbidden");
-        }
+
+        // Ahead of the token gate on purpose. A browser resolves the page's
+        // `./crop.mjs` import with no query string, so a module request
+        // cannot carry the token; gating it makes the import 403, which kills
+        // the entire module script and leaves the page silently stuck. The
+        // token exists to protect the SCREEN — this file is arithmetic and
+        // contains nothing about the user.
         if (url.pathname === "/crop.mjs") {
             res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
             return res.end(CROP_MODULE);
+        }
+        // Browsers request this on their own; 403-ing it puts a red error in
+        // the console that has nothing to do with any real problem.
+        if (url.pathname === "/favicon.ico") {
+            res.writeHead(204);
+            return res.end();
+        }
+
+        if (url.searchParams.get("t") !== token) {
+            res.writeHead(403, { "content-type": "text/plain" });
+            return res.end("forbidden");
         }
         if (url.pathname === "/stream") {
             res.writeHead(200, {
