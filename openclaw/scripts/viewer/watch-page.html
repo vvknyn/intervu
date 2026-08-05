@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<title>Watching your agent</title>
+<style>
+  html, body { margin: 0; background: #111; color: #eee;
+               font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  header { padding: 10px 14px; border-bottom: 1px solid #2a2a2a;
+           display: flex; gap: 8px; align-items: center;
+           position: sticky; top: 0; background: #111; z-index: 1; }
+  #dot { width: 8px; height: 8px; border-radius: 9999px; background: #666; flex: none; }
+  #dot.live { background: #3ddc84; }
+  #mode { margin-left: auto; opacity: .6; font-size: 12px; }
+  canvas { display: block; width: 100%; height: auto; }
+</style>
+<header>
+  <span id="dot"></span><span id="status">connecting…</span>
+  <span id="mode">tap to zoom out</span>
+</header>
+<canvas id="screen"></canvas>
+<script type="module">
+  import { computeCrop } from './crop.mjs';
+
+  const canvas = document.getElementById('screen');
+  const ctx = canvas.getContext('2d');
+  const dot = document.getElementById('dot');
+  const statusEl = document.getElementById('status');
+  const modeEl = document.getElementById('mode');
+  const token = new URLSearchParams(location.search).get('t');
+
+  // Following the focused field is the default because a mirrored 1512px
+  // desktop viewport renders at ~26% on a phone. Tapping shows the whole
+  // page for orientation.
+  let follow = true;
+  let latest = null;
+
+  document.body.addEventListener('click', () => {
+    follow = !follow;
+    modeEl.textContent = follow ? 'tap to zoom out' : 'tap to follow field';
+    if (latest) render(latest);
+  });
+
+  function render({ img, rect, deviceWidth }) {
+    const crop = follow
+      ? computeCrop(rect, { imageWidth: img.width, imageHeight: img.height, deviceWidth: deviceWidth || img.width })
+      : null;
+    const { sx, sy, sw, sh } = crop ?? { sx: 0, sy: 0, sw: img.width, sh: img.height };
+    if (canvas.width !== sw || canvas.height !== sh) { canvas.width = sw; canvas.height = sh; }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    dot.className = 'live';
+    statusEl.textContent = crop ? 'live — following the field' : 'live';
+  }
+
+  function onPayload(text) {
+    let payload;
+    try { payload = JSON.parse(text); } catch { return; }
+    const img = new Image();
+    img.onload = () => { latest = { img, rect: payload.r, deviceWidth: payload.dw }; render(latest); };
+    img.src = 'data:image/jpeg;base64,' + payload.f;
+  }
+
+  const es = new EventSource('/stream?t=' + encodeURIComponent(token));
+  es.onmessage = (e) => onPayload(e.data);
+  es.onerror = () => {
+    dot.className = '';
+    statusEl.textContent = 'disconnected — the agent may have finished';
+  };
+</script>

@@ -3,8 +3,9 @@ import { z } from "zod";
 import { createMcpHandler } from "mcp-handler";
 import type { ServerContext } from "@modelcontextprotocol/server";
 import { AGENT } from "@/lib/agent/config";
+import { extractBearerToken } from "@/lib/agent/http";
 import { firestoreStore } from "@/lib/agent/store";
-import { verifySecret, type CredentialKind } from "@/lib/agent/tokens";
+import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { consumeRecordBudget } from "@/lib/agent/record-budget";
 import {
@@ -41,13 +42,6 @@ import { setBaseResumeForUser } from "@/lib/resume/set-resume";
  * `ctx.http.authInfo`), so `uid` still flows per-request, never through
  * module-level state.
  */
-
-export const AUTHORIZED_CREDENTIAL_KINDS: ReadonlySet<CredentialKind> = new Set(["manual", "access"]);
-
-export function extractBearerToken(request: Request): string | undefined {
-    const [type, token] = (request.headers.get("authorization") ?? "").split(" ");
-    return type?.toLowerCase() === "bearer" && token ? token : undefined;
-}
 
 export function unauthorizedResponse(): Response {
     return NextResponse.json(

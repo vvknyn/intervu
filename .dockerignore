@@ -22,3 +22,7 @@ playwright.config.ts
 # stripped (the **/*.md rule above was silently gutting SKILL.md/RANKING.md
 # from the served tarball — caught live 2026-08-03).
 !openclaw/**
+# ...except a developer's local `npm i --prefix openclaw`, which is built for
+# whatever machine they are on and is re-installed on the user's own machine
+# by install.sh. The top-level `node_modules` rule above does not reach it.
+openclaw/node_modules

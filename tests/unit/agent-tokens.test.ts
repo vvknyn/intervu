@@ -1,6 +1,17 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { memoryStore } from '../../src/lib/agent/store';
-import { issueCredential, verifySecret, revokeCredential, revokeByClient, listCredentials, hashSecret } from '../../src/lib/agent/tokens';
+import { issueCredential, verifySecret, revokeCredential, revokeByClient, listCredentials, hashSecret, AUTHORIZED_CREDENTIAL_KINDS } from '../../src/lib/agent/tokens';
+
+describe('credential-kind gate (CARRIED FINDING, Task 6)', () => {
+  it('authorizes manual and access credentials', () => {
+    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('manual'), true);
+    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('access'), true);
+  });
+  it('does not authorize a refresh credential', () => {
+    assert.equal(AUTHORIZED_CREDENTIAL_KINDS.has('refresh'), false);
+  });
+});
+
 describe('agent tokens', () => {
   it('issues and verifies a manual token', async () => {
     const s = memoryStore();

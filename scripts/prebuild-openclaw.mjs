@@ -29,9 +29,20 @@ mkdirSync(publicDir, { recursive: true });
 // business being inside a user's ~/.openclaw/skills/intervu-apply — it's the
 // installer, not the skill). Exclude-based so new files added to openclaw/
 // later (e.g. more templates/scripts) are packaged automatically.
+//
+// node_modules is excluded because a developer's local `npm i --prefix
+// openclaw` would otherwise ship inside the public tarball — megabytes of
+// someone else's machine, built for whatever platform they happened to be
+// on. install.sh installs the dependencies on the user's own machine after
+// extraction instead.
 execFileSync(
   "tar",
-  ["--exclude=install.sh", "-czf", join(publicDir, "intervu-apply-skill.tar.gz"), "-C", openclawDir, "."],
+  [
+    "--exclude=install.sh",
+    "--exclude=./node_modules",
+    "-czf", join(publicDir, "intervu-apply-skill.tar.gz"),
+    "-C", openclawDir, ".",
+  ],
   { stdio: "inherit" },
 );
 

@@ -89,6 +89,13 @@ export function isCredentialActive(c: Pick<Credential, "revokedAt" | "expiresAt"
     return true;
 }
 
+/** The kinds that may authorize a call to a protected resource. A refresh
+ *  credential exists solely to mint access tokens and must never stand in for
+ *  one, so it is absent by construction. Lives here beside `CredentialKind`
+ *  rather than in any one route, because every bearer-authenticated route
+ *  applies the same rule and a second copy is a second thing to get wrong. */
+export const AUTHORIZED_CREDENTIAL_KINDS: ReadonlySet<CredentialKind> = new Set(["manual", "access"]);
+
 export async function verifySecret(store: AgentStore, secret: string): Promise<Credential | null> {
     const hash = hashSecret(secret);
     const rows = await store.findByField(AGENT.collections.credentials, "tokenHash", hash);
