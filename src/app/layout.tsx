@@ -102,7 +102,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
+        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-[#12151a] text-[#ececec]`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph + SearchAction, so search engines can offer
@@ -111,10 +111,12 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
         />
-        {/* Persist theme before paint. Default = dark (matches landing void). */}
+        {/* Instrument product is dark-void only. Force `.dark` before paint and
+            migrate any leftover light preference (`intervu-dark=0`) so the
+            TopBar can never render as a light strip over dark pages. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var d=localStorage.getItem('intervu-dark');if(d==='0'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}`,
+            __html: `try{document.documentElement.classList.add('dark');if(localStorage.getItem('intervu-dark')==='0'){localStorage.setItem('intervu-dark','1')}}catch(e){document.documentElement.classList.add('dark')}`,
           }}
         />
         <ThemeProvider>

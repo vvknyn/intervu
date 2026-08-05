@@ -27,18 +27,16 @@ export function getDarkSnapshot(): boolean {
 }
 
 export function getDarkServerSnapshot(): boolean {
-    // Default dark to match the landing instrument; SSR must agree with the
-    // layout no-flash script (dark unless localStorage explicitly `'0'`).
+    // Instrument product is dark-void only — SSR and client agree.
     return true;
 }
 
+/** Kept for call sites; always stays on dark (landing / jobs one visual world). */
 export function toggleDark() {
     const root = document.documentElement;
-    const next = !root.classList.contains("dark");
-    if (next) root.classList.add("dark");
-    else root.classList.remove("dark");
+    root.classList.add("dark");
     try {
-        localStorage.setItem("intervu-dark", next ? "1" : "0");
+        localStorage.setItem("intervu-dark", "1");
     } catch {
         /* ignore */
     }
