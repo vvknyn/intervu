@@ -8,7 +8,44 @@
 
 **Tech Stack:** Node 22 (already required by OpenClaw), plain `node:http`, `werift@0.24.3` (pure-JS WebRTC), Next.js 16.1.5 App Router, Firebase Admin, `node:test` + `tsx` for unit tests, Playwright for e2e.
 
-## Status — 2026-08-05
+## Status — 2026-08-05 (all 7 tasks done)
+
+**Tasks 1–7 are implemented and committed.** `npx tsc --noEmit` is clean at
+zero errors, `npm run test:viewer` is 44/44, `npm run test:agent` is 275/275,
+`npm run build` compiles, and the served tarball carries every viewer file
+with zero `node_modules` entries.
+
+**The one thing NOT verified: the deployed doorbell and a real phone over
+cellular.** The routes exist only on this branch, so nothing has ever called
+them against a live Firestore — this worktree has no `.env*` file and
+therefore no Admin credentials. The peer connection underneath is covered by
+`tests/unit/viewer-webrtc-loopback.test.ts`, which opens a real data channel
+between two werift peers and sends a frame through it, but a stand-in phone
+is not mobile Safari on cellular. Treat remote viewing as unproven until it
+runs on hardware after a deploy.
+
+### What the tasks found that the plan had wrong
+
+| Plan said | Reality |
+|---|---|
+| `pc.iceGatheringStateChangeDone?.()` | Does not exist on werift 0.24.3. Not needed either: `await setLocalDescription()` leaves `iceGatheringState` at `complete` with a `typ srflx` candidate in the SDP. Trickle ICE and `SignalBlob.ice` were both deleted. |
+| `INTERVU_BEARER` env var | No such variable. Auth is OAuth via mcporter; the token is read from `~/.mcporter/credentials.json`, matched on `serverName` because the entry key carries an unpredictable hash. |
+| `redirect('/login?next=…')` | `/login` is a four-line redirect to `/`. The repo's convention for a URL worth keeping is `oauth/authorize`'s logged-out card, which is also the right behaviour: a redirect would discard the session id. |
+| `start()` awaits the phone | Would have withheld the watch URL until the phone had already used it. `start()` now returns `{ url, connected }`. |
+| 403 for another account's session | 404, identical to a missing session. A 403 confirms to a leaked-link holder that the link is real. |
+| Tests at `tests/unit/viewer-http.test.ts` | The five assertions already existed in `agent-mcp-route.test.ts` and moved to `agent-http.test.ts`, named for the module. A second suite would have been duplication. |
+
+Two extractions the plan did not call for, both to stop a security rule
+having two copies: `AUTHORIZED_CREDENTIAL_KINDS` moved to `tokens.ts`, and
+`sessions.ts` was split from `session-store.ts` so the access rule is
+testable without the Admin SDK.
+
+Also installed `mcp-handler` and `@modelcontextprotocol/server` — declared in
+`package.json` and pinned in the committed lockfile, but absent from this
+worktree's `node_modules` and its parent's. Until then `tsc`, `next build`
+and one file of `test:agent` were all failing on this pre-existing gap.
+
+## Status — 2026-08-05 (Tasks 1–2)
 
 **Tasks 1 and 2 are DONE, verified on Vivek's actual phone ("yup works").** 27/27 unit
 tests pass. Commits: `10cee0a`, `8f382bc`, `6f81de1`, `b0c848e`, `ba8277c`.

@@ -194,11 +194,28 @@ Verified on Vivek's machine, 2026-08-04:
 - `werift@0.24.3` — `engines: node >=16`, dependency tree is pure JavaScript
   (`@noble/curves`, `tweetnacl`, `@peculiar/x509`, …), **no `node-gyp`**.
 
-Assumptions, explicitly not verified:
+Verified 2026-08-05, during implementation:
 
-- `werift` has been checked by **package metadata only** — it has not been executed. If it
-  fails in practice, `node-datachannel@0.32.3` is the fallback, but it is a native module
-  and would reintroduce a compile step, which would break the invisible-install property.
+- **`werift` runs.** Installed and executed. `await setLocalDescription()` leaves
+  `iceGatheringState` at `complete` and the SDP carries a `typ srflx` candidate, so STUN
+  works and **no trickle-ICE relay is needed** — one SDP each way is the whole handshake.
+  The `node-datachannel` fallback is therefore not required.
+- **A real data channel carries a frame.** `tests/unit/viewer-webrtc-loopback.test.ts` drives
+  the transport against a second werift peer standing in for the phone: link handed over
+  before the peer answers, channel opens, frame arrives, session deleted on close.
+- **There is no `INTERVU_BEARER`.** Auth is OAuth through mcporter; its access token lives in
+  `~/.mcporter/credentials.json` under an entry keyed `<serverName>|<hash>`, so it must be
+  matched on `serverName`. Reading it there is what keeps "no new prompt, account or login"
+  literally true.
+
+Assumptions, still not verified:
+
+- **The doorbell has never been called against a live Firestore.** The routes exist only on
+  the feature branch, and this worktree has no `.env*` file, so there are no Admin
+  credentials to run them with. Unproven until deployed.
+- **No real phone has connected over cellular.** A werift peer is not mobile Safari. The
+  browser side waits for `icegatheringstatechange` to reach `complete`, which is the
+  documented behaviour but has not been observed on a device.
 - Peer-to-peer fails on some restrictive networks. The commonly cited figure is roughly
   10–20% of connections; **this is an industry rule of thumb, not a measurement of our
   users.** The LAN transport is the v1 fallback; a TURN relay is a v2 question and must not
