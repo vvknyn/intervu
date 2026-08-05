@@ -100,7 +100,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased`}
         suppressHydrationWarning
@@ -111,10 +111,10 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
         />
-        {/* Apply persisted dark mode before paint (no flash). Default = light. */}
+        {/* Persist theme before paint. Default = dark (matches landing void). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('intervu-dark')!=='0'){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}`,
+            __html: `try{var d=localStorage.getItem('intervu-dark');if(d==='0'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}`,
           }}
         />
         <ThemeProvider>

@@ -2437,7 +2437,13 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div className="min-h-screen bg-background">
+        <div
+            className="min-h-screen text-foreground"
+            style={{
+                background:
+                    "radial-gradient(900px 500px at 50% 20%, #1a1f27 0%, transparent 55%), #12151a",
+            }}
+        >
             <main className="mx-auto w-full max-w-[920px] px-4 pb-20 pt-7 sm:px-5">
                 <a
                     href="#jobs-results-list"
@@ -2446,7 +2452,7 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                <section className="rounded-none border-0 bg-card p-3">
+                <section className="rounded-none border-0 bg-black/30 p-3 backdrop-blur-[18px]">
                     <div data-search-line className="flex flex-wrap gap-2">
                         <SearchAutocomplete
                             value={query}
@@ -2457,7 +2463,7 @@ function JobsContent() {
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-muted px-3.5 text-sm shadow-none focus-visible:border-0 focus-visible:bg-muted focus-visible:ring-0"
+                            className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
                             containerClassName="min-w-0 flex-1"
                         />
                         <Input
@@ -2473,12 +2479,12 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-muted px-3.5 text-sm shadow-none focus-visible:border-0 focus-visible:bg-muted focus-visible:ring-0"
+                            className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
                         />
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-[46px] rounded-none bg-foreground px-[18px] text-[13px] font-semibold text-background hover:opacity-90"
+                            className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90"
                         >
                             Search
                         </Button>
@@ -2497,8 +2503,8 @@ function JobsContent() {
                             aria-expanded={filtersOpen}
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                "rounded-none border-0 bg-muted px-3 py-1.5 text-xs font-medium text-foreground",
-                                filtersOpen && "bg-foreground text-background",
+                                "rounded-none border-0 bg-black/40 px-3 py-1.5 text-xs font-medium text-[#ececec]",
+                                filtersOpen && "bg-[#ececec] text-[#12151a]",
                                 activeCount > 0 && "has-active",
                             )}
                         >
@@ -2511,7 +2517,7 @@ function JobsContent() {
                             <button
                                 type="button"
                                 onClick={clearFit}
-                                className="text-xs text-foreground underline underline-offset-2"
+                                className="text-xs text-[#ececec] underline underline-offset-2"
                             >
                                 ranked by your résumé ✕
                             </button>
@@ -2521,7 +2527,7 @@ function JobsContent() {
                     {filtersOpen && (
                         <div
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border-0 bg-muted p-4 custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border-0 bg-black/40 p-4 text-[#ececec] custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -2972,10 +2978,13 @@ function JobsContent() {
 
 function JobsLoading() {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background">
+        <div
+            className="flex min-h-screen items-center justify-center text-[#8b919a]"
+            style={{ background: "#12151a" }}
+        >
             <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
-                <p className="text-sm text-muted-foreground">Loading jobs…</p>
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7cb87a]/20 border-t-[#7cb87a]" />
+                <p className="text-sm">Loading jobs…</p>
             </div>
         </div>
     );
