@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
+import { siteChrome } from "@/components/layout/site-chrome";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
+import { cn } from "@/lib/utils";
 
 /** Quiet footer links — Research/Pricing live here (not primary nav). */
 const LEGAL_LINKS: { label: string; href: string }[] = [
@@ -19,29 +21,35 @@ const LEGAL_LINKS: { label: string; href: string }[] = [
 /** The actual footer markup, mounted once by `Footer` below. */
 export function FooterContent() {
     return (
-        <footer data-testid="site-footer" className="hidden shrink-0 bg-background lg:block">
+        <footer
+            data-testid="site-footer"
+            className={cn("hidden shrink-0 border-t lg:block", siteChrome.bar, siteChrome.border)}
+        >
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 py-6 sm:px-7">
-                <p className="max-w-md text-[12px] text-faint">
+                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>
                     Every listing is {CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated.
                 </p>
-                <nav aria-label="Company" className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-faint">
+                <nav
+                    aria-label="Company"
+                    className={cn("flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]", siteChrome.faint)}
+                >
                     {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                         <Link
                             key={link.href}
                             href={link.href}
-                            className="transition-colors duration-100 hover:text-foreground"
+                            className="transition-colors duration-100 hover:text-[#ececec]"
                         >
                             {link.label}
                         </Link>
                     ))}
                 </nav>
-                <p className="max-w-md text-[12px] text-faint">
+                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>
                     Job data by{" "}
                     <a
                         href="https://thesubspace.io"
                         target="_blank"
                         rel="noopener"
-                        className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+                        className="underline decoration-dotted underline-offset-2 hover:text-[#ececec]"
                     >
                         Subspace
                     </a>

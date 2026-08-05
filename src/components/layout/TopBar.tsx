@@ -16,8 +16,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS } from "@/components/layout/nav-tabs";
+import { siteChrome } from "@/components/layout/site-chrome";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { cn } from "@/lib/utils";
 
 function initialsOf(user: User): string {
     const src = (user.displayName || user.email || "?").trim();
@@ -63,15 +65,18 @@ export function TopBar() {
         pathname.startsWith("/settings") || pathname.startsWith("/account");
 
     return (
-        <header data-testid="topbar" className="shrink-0 bg-background">
+        <header
+            data-testid="topbar"
+            className={cn("shrink-0 border-b", siteChrome.bar, siteChrome.border)}
+        >
             <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2.5 text-foreground"
+                    className="flex shrink-0 items-center gap-2.5 text-[#ececec]"
                     data-testid="topbar-logo"
                 >
-                    <BrandMark className="h-9 w-9" />
-                    <span className="text-[19px] font-semibold tracking-[-0.03em]">
+                    <BrandMark className="h-10 w-10" />
+                    <span className="text-[22px] font-semibold tracking-[-0.03em]">
                         intervu
                     </span>
                 </Link>
@@ -88,11 +93,7 @@ export function TopBar() {
                                 href={tab.href}
                                 data-testid={tab.testId}
                                 aria-current={active ? "page" : undefined}
-                                className={`transition-colors ${
-                                    active
-                                        ? "font-[550] text-foreground"
-                                        : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                className={active ? siteChrome.active : siteChrome.mutedHover}
                             >
                                 {tab.label}
                             </Link>
@@ -106,11 +107,10 @@ export function TopBar() {
                                     data-testid="topbar-avatar"
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
-                                    className={`ml-1 grid h-[30px] w-[30px] place-items-center rounded-full bg-foreground text-[12px] font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground/30 ${
-                                        accountActive
-                                            ? "ring-2 ring-background ring-offset-2 ring-offset-foreground"
-                                            : ""
-                                    }`}
+                                    className={cn(
+                                        "ml-1 grid h-[32px] w-[32px] place-items-center rounded-full bg-[#ececec] text-[12px] font-medium text-[#12151a] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[#ececec]/30",
+                                        accountActive && "ring-2 ring-[#12151a] ring-offset-2 ring-offset-[#ececec]",
+                                    )}
                                 >
                                     {initialsOf(user)}
                                 </button>
@@ -139,7 +139,7 @@ export function TopBar() {
                         <button
                             data-testid="topbar-login"
                             onClick={() => setAuthPopoverOpen(true)}
-                            className="ml-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                            className={cn("ml-1 text-[13px]", siteChrome.mutedHover)}
                         >
                             Log in
                         </button>
