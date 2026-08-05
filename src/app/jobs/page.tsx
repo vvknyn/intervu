@@ -73,6 +73,7 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
+    shouldBackOnDetailSheetClose,
     degradedResultsNote,
 } from "@/lib/jobs/result-state";
 import { clusterJobs } from "@/lib/jobs/cluster";
@@ -2908,7 +2909,7 @@ function JobsContent() {
             <Sheet
                 open={detailSheetOpen}
                 onOpenChange={(open) => {
-                    if (!open) router.back();
+                    if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) router.back();
                 }}
             >
                 <SheetContent
