@@ -64,14 +64,14 @@ export function TopBar() {
 
     return (
         <header data-testid="topbar" className="shrink-0 bg-background">
-            <div className="mx-auto flex h-14 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
+            <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2 text-foreground"
+                    className="flex shrink-0 items-center gap-2.5 text-foreground"
                     data-testid="topbar-logo"
                 >
-                    <BrandMark className="h-7 w-7" />
-                    <span className="text-[15px] font-semibold tracking-tight">
+                    <BrandMark className="h-9 w-9" />
+                    <span className="text-[19px] font-semibold tracking-[-0.03em]">
                         intervu
                     </span>
                 </Link>
