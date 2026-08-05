@@ -29,6 +29,11 @@ export function lanUrls(port, token, ifaces = networkInterfaces()) {
 export function createLanTransport({ port = 18801, token }) {
     const clients = new Set();
     let server = null;
+    // SSE has no replay and Chrome only emits on change, so a phone that
+    // connects between changes would otherwise see nothing. Holding the most
+    // recent frame means any subscriber, at any moment, opens onto the
+    // current screen.
+    let lastFrame = null;
 
     const handler = (req, res) => {
         const url = new URL(req.url, "http://localhost");
@@ -43,6 +48,7 @@ export function createLanTransport({ port = 18801, token }) {
                 connection: "keep-alive",
             });
             res.write(": connected\n\n");
+            if (lastFrame) res.write(`data: ${lastFrame}\n\n`);
             clients.add(res);
             req.on("close", () => clients.delete(res));
             return;
@@ -63,6 +69,7 @@ export function createLanTransport({ port = 18801, token }) {
         },
 
         sendFrame(base64) {
+            lastFrame = base64;
             for (const res of clients) res.write(`data: ${base64}\n\n`);
         },
 

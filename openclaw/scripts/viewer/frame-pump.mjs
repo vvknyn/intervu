@@ -17,11 +17,26 @@ const JPEG_QUALITY = 60;
 
 export function createFramePump({ send, onFrame }) {
     let nextId = 1;
-    const command = (method, params) => send({ id: nextId++, method, params });
+    let initialShotId = null;
+
+    const command = (method, params) => {
+        const id = nextId++;
+        send({ id, method, params });
+        return id;
+    };
 
     return {
         start() {
             command("Page.enable", {});
+            // The same property that makes this cheap makes it start blank:
+            // a page that has finished rendering changes no pixels and so
+            // emits no frames at all (measured: 0 frames in 5s on a static
+            // page). Capture the current screen once so a viewer always
+            // opens onto something rather than waiting for the agent to move.
+            initialShotId = command("Page.captureScreenshot", {
+                format: "jpeg",
+                quality: JPEG_QUALITY,
+            });
             command("Page.startScreencast", {
                 format: "jpeg",
                 quality: JPEG_QUALITY,
@@ -32,10 +47,16 @@ export function createFramePump({ send, onFrame }) {
         },
 
         handle(message) {
-            if (message?.method !== "Page.screencastFrame") return;
-            const { data, sessionId, metadata } = message.params;
-            onFrame({ data, metadata });
-            command("Page.screencastFrameAck", { sessionId });
+            if (message?.method === "Page.screencastFrame") {
+                const { data, sessionId, metadata } = message.params;
+                onFrame({ data, metadata });
+                command("Page.screencastFrameAck", { sessionId });
+                return;
+            }
+            if (initialShotId !== null && message?.id === initialShotId) {
+                initialShotId = null;
+                if (message.result?.data) onFrame({ data: message.result.data, metadata: {} });
+            }
         },
     };
 }

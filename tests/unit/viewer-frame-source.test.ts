@@ -79,6 +79,36 @@ describe('frame-pump', () => {
     assert.equal(sent.length, before);
   });
 
+  it('captures an initial frame, so a page that never changes is not blank', () => {
+    // Page.startScreencast emits only on pixel change. Without an explicit
+    // first capture, a finished form produces zero frames and the phone
+    // shows nothing at all. Verified live: 0 frames in 5s while static.
+    const sent: Record<string, unknown>[] = [];
+    const frames: string[] = [];
+    const pump = createFramePump({
+      send: (m: Record<string, unknown>) => sent.push(m),
+      onFrame: (f: { data: string }) => frames.push(f.data),
+    });
+    pump.start();
+    const shot = sent.find((m) => m.method === 'Page.captureScreenshot') as { id: number } | undefined;
+    assert.ok(shot, 'start() must request an initial screenshot');
+    pump.handle({ id: shot!.id, result: { data: 'INITIAL' } });
+    assert.deepEqual(frames, ['INITIAL']);
+  });
+
+  it('does not mistake an unrelated command response for a frame', () => {
+    const sent: Record<string, unknown>[] = [];
+    const frames: string[] = [];
+    const pump = createFramePump({
+      send: (m: Record<string, unknown>) => sent.push(m),
+      onFrame: (f: { data: string }) => frames.push(f.data),
+    });
+    pump.start();
+    const shot = sent.find((m) => m.method === 'Page.captureScreenshot') as { id: number };
+    pump.handle({ id: shot.id + 999, result: { data: 'NOT-A-FRAME' } });
+    assert.deepEqual(frames, []);
+  });
+
   it('uses a unique id for every outbound command', () => {
     const sent: Record<string, unknown>[] = [];
     const pump = createFramePump({ send: (m: Record<string, unknown>) => sent.push(m), onFrame: () => {} });
