@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
 import { deleteAccount } from "@/actions/auth";
@@ -14,6 +13,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SecureStorage } from "@/lib/security";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
+import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
@@ -222,6 +222,10 @@ export function SettingsContainer() {
                             )}
                         </SettingsCard>
 
+                        <SettingsCard>
+                            <AgentAccessSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
+                        </SettingsCard>
+
                         {user && (
                             <SettingsCard>
                                 <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Danger zone</h2>
@@ -237,14 +241,6 @@ export function SettingsContainer() {
                         )}
                     </>
                 )}
-
-                <p className="mt-7 text-[12px] text-[#8b939e]">
-                    Connected agents live on the{" "}
-                    <Link href="/" className="underline underline-offset-2 hover:text-foreground">
-                        landing page
-                    </Link>
-                    .
-                </p>
 
                 <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
 

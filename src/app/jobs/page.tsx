@@ -7,6 +7,9 @@ import {
     MagnifyingGlass,
     WarningCircle,
     Compass,
+    CaretDown,
+    CaretUp,
+    FunnelSimple,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +18,7 @@ import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
+import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -26,6 +30,7 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction, createManualPursuit } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
+import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
@@ -53,12 +58,19 @@ import {
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
 import {
+    subscribeSavedSearches,
+    getSavedSearchesSnapshot,
+    getSavedSearchesServerSnapshot,
+} from "@/lib/jobs/saved-searches";
+import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
+import {
     activeFilterEntries,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -145,6 +157,30 @@ const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
 /** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
 function modeToUrlSort(mode: JobSortMode): UrlSort {
     return mode === "salary_desc" ? "salary" : mode;
+}
+
+function SortSegment({
+    label,
+    pressed,
+    onClick,
+}: {
+    label: string;
+    pressed: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            aria-pressed={pressed}
+            onClick={onClick}
+            className={cn(
+                "font-mono text-[11px] uppercase tracking-[0.04em] transition-colors",
+                pressed ? "text-[#ececec] underline underline-offset-[3px]" : "text-[#aeb4bd] hover:text-[#ececec]",
+            )}
+        >
+            {label}
+        </button>
+    );
 }
 
 /**
@@ -328,10 +364,13 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2 grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
                 active && "border-foreground shadow-[0_0_0_1px_hsl(var(--foreground))]",
             )}
         >
+            <div className="row-span-2 self-start">
+                <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
+            </div>
             <div className="min-w-0">
                 <div
                     data-testid="job-title"
@@ -509,8 +548,11 @@ function JobCardSkeleton() {
     return (
         <div
             aria-hidden="true"
-            className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 rounded-[14px] border border-border bg-card p-4"
+            className="mb-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4"
         >
+            <div className="row-span-2 self-start">
+                <div className="skeleton-bar h-12 w-12 rounded-[10px]" />
+            </div>
             <div className="min-w-0 space-y-2">
                 <div className="skeleton-bar h-4 w-3/4" />
                 <div className="skeleton-bar h-3 w-1/3" />
@@ -856,6 +898,11 @@ function JobsContent() {
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
+    const savedSearches = useSyncExternalStore(
+        subscribeSavedSearches,
+        getSavedSearchesSnapshot,
+        getSavedSearchesServerSnapshot,
+    );
     const { follows, hasAny: hasFollows } = useFollows();
 
     // Assembles the full URL-state object from current component state, with
@@ -913,10 +960,6 @@ function JobsContent() {
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-    /** Anonymous depth cap (shield): set when a load-more comes back
-     *  `meta.gated` — pagination pauses behind the account gate. Cleared on a
-     *  new search or sign-in; signed-in users are never gated server-side. */
-    const [depthGated, setDepthGated] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
@@ -1015,9 +1058,11 @@ function JobsContent() {
 
     const [user, setUser] = useState<User | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
+    const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
-    const { byJobId: pursuitsByJobId } = usePursuits();
+    const { byJobId: pursuitsByJobId, pursuits: trackedPursuits } = usePursuits();
+    const trackedCount = trackedPursuits.length;
     const [applyingId, setApplyingId] = useState<string | null>(null);
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const [seedSubmitting, setSeedSubmitting] = useState(false);
@@ -1107,12 +1152,6 @@ function JobsContent() {
         // real and the results must be re-fetched in the new order.
         [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
     );
-
-    // New search or successful sign-in lifts the depth gate (the server
-    // re-decides per request; this only clears the paused UI).
-    useEffect(() => {
-        setDepthGated(false);
-    }, [searchKey, user]);
 
     // Single source: résumé usable, hoisted here (instead of
     // `resumeIsUsable(resume ?? undefined)` at each call site) so the two
@@ -1761,13 +1800,6 @@ function JobsContent() {
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
-            // Shield depth cap: an anonymous request past the free window
-            // comes back `meta.gated` with zero hits — pause pagination
-            // behind the account gate instead of silently ending the list.
-            if ((r as { meta?: { gated?: boolean } }).meta?.gated) {
-                setDepthGated(true);
-                return;
-            }
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -2147,6 +2179,7 @@ function JobsContent() {
     useEffect(() => {
         if (user && !guestPursuitSyncRef.current && !guestSyncInFlightRef.current) {
             guestSyncInFlightRef.current = true;
+            const guestPursuitCount = listGuestPursuits().length;
             void (async () => {
                 try {
                     const [pursuitsOk, followsOk] = await Promise.all([
@@ -2155,6 +2188,11 @@ function JobsContent() {
                     ]);
                     if (pursuitsOk && followsOk) {
                         guestPursuitSyncRef.current = true;
+                        if (guestPursuitCount > 0) {
+                            toast.success(
+                                `Synced ${guestPursuitCount} guest role${guestPursuitCount === 1 ? "" : "s"}`,
+                            );
+                        }
                     }
                 } finally {
                     guestSyncInFlightRef.current = false;
@@ -2269,6 +2307,32 @@ function JobsContent() {
         }
         handleUploadClick();
     };
+
+    const chooseSort = (mode: JobSortMode) => {
+        fitIntentRef.current!.begin();
+        setFitActive(false);
+        setSortOverride(mode);
+        applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
+    };
+
+    const chooseBestMatch = () => {
+        fitIntentRef.current!.begin();
+        if (!query.trim()) {
+            void handleRankByFit();
+            return;
+        }
+        setFitActive(false);
+        setSortOverride("relevance");
+        applyUrlState(buildUrlState({ sort: "relevance" }), "replace");
+    };
+
+    const applySavedSearch = (href: string) => {
+        router.push(`/jobs${href.startsWith("?") ? href : `?${href}`}`);
+    };
+
+    const canSaveSearch = Boolean(
+        query.trim() || activeCount > 0 || fitActive || sortOverride || board,
+    );
 
     // Task 11 review fix — the tombstone's "similar roles" CTA clears the
     // job selection (local state + URL) before dropping back to a plain
@@ -2423,11 +2487,7 @@ function JobsContent() {
     };
 
     const resultsCountLabel =
-        loading && hits.length > 0
-            ? "updating…"
-            : !loading && !result?.widened && totalCount.value > 0
-              ? `${totalCount.value.toLocaleString()} role${totalCount.value === 1 ? "" : "s"}`
-              : resultCountLine;
+        loading && hits.length > 0 ? "updating…" : resultCountLine;
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -2444,7 +2504,7 @@ function JobsContent() {
                     "radial-gradient(900px 500px at 50% 20%, #1a1f27 0%, transparent 55%), #12151a",
             }}
         >
-            <main className="mx-auto w-full max-w-[920px] px-4 pb-20 pt-7 sm:px-5">
+            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-7 sm:px-5">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -2452,7 +2512,7 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                <section className="rounded-none border-0 bg-black/30 p-3 backdrop-blur-[18px]">
+                <section className="rounded-none border border-white/10 bg-black/30 p-3 backdrop-blur-[18px]">
                     <div data-search-line className="flex flex-wrap gap-2">
                         <SearchAutocomplete
                             value={query}
@@ -2489,46 +2549,118 @@ function JobsContent() {
                             Search
                         </Button>
                     </div>
+                </section>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
-                        <Link
-                            href="/"
-                            className="text-[13px] text-foreground underline underline-offset-[3px] hover:text-foreground/80"
-                        >
-                            There&apos;s a version of this that works while you sleep →
-                        </Link>
+                <section
+                    data-testid="jobs-toolbar"
+                    className="mt-5 rounded-none border border-[#8b919a] bg-[#2a313c] px-3 py-3"
+                >
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <button
                             type="button"
                             data-testid="filters-toggle"
                             aria-expanded={filtersOpen}
+                            aria-haspopup="true"
+                            aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                "rounded-none border-0 bg-black/40 px-3 py-1.5 text-xs font-medium text-[#ececec]",
-                                filtersOpen && "bg-[#ececec] text-[#12151a]",
+                                "inline-flex h-9 items-center gap-1.5 rounded-none border-2 border-[#ececec] bg-transparent px-3 text-[13px] font-semibold text-[#ececec] hover:bg-[#ececec]/12",
+                                filtersOpen && "border-[#ececec] bg-[#ececec] text-[#12151a] hover:bg-[#ececec]",
                                 activeCount > 0 && "has-active",
                             )}
                         >
+                            <FunnelSimple size={14} weight="bold" aria-hidden />
                             Filters
                             {activeCount > 0 && (
-                                <span className="ml-1 font-mono text-[10px] opacity-75">· {activeCount}</span>
+                                <span className="font-mono text-[10px] opacity-80">· {activeCount}</span>
                             )}
+                            {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
                         {fitActive && (
                             <button
                                 type="button"
                                 onClick={clearFit}
-                                className="text-xs text-[#ececec] underline underline-offset-2"
+                                className="text-xs text-[#c4c9d1] underline underline-offset-2 hover:text-[#ececec]"
                             >
                                 ranked by your résumé ✕
                             </button>
                         )}
+                        {trackedCount > 0 && (
+                            <Link
+                                href="/yours"
+                                data-testid="jobs-tracked-count"
+                                className="font-mono text-[12px] font-medium text-[#c4c9d1] underline underline-offset-[3px] hover:text-[#ececec]"
+                            >
+                                {trackedCount} tracked
+                            </Link>
+                        )}
+                        {result?.configured && (
+                            <div
+                                role="group"
+                                aria-label="Sort"
+                                className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1"
+                            >
+                                {postedDateSupported && (
+                                    <SortSegment
+                                        label="freshest"
+                                        pressed={!fitActive && effectiveSort === "newest"}
+                                        onClick={() => chooseSort("newest")}
+                                    />
+                                )}
+                                <SortSegment
+                                    label="top pay"
+                                    pressed={!fitActive && effectiveSort === "salary_desc"}
+                                    onClick={() => chooseSort("salary_desc")}
+                                />
+                                <SortSegment
+                                    label="best match"
+                                    pressed={
+                                        fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
+                                    }
+                                    onClick={chooseBestMatch}
+                                />
+                            </div>
+                        )}
                     </div>
+
+                    {!isSerpAsk && (
+                        <Link
+                            href="/"
+                            className="mt-2 inline-block text-[12px] text-[#8b919a] underline underline-offset-[3px] hover:text-[#c4c9d1]"
+                        >
+                            There&apos;s a version of this that works while you sleep →
+                        </Link>
+                    )}
 
                     {filtersOpen && (
                         <div
+                            id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border-0 bg-black/40 p-4 text-[#ececec] custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border border-[#5c636e] bg-[#12151a] p-4 text-[#ececec] custom-scrollbar"
                         >
+                            {result?.configured && (
+                                <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
+                                    {postedDateSupported && (
+                                        <SortSegment
+                                            label="freshest"
+                                            pressed={!fitActive && effectiveSort === "newest"}
+                                            onClick={() => chooseSort("newest")}
+                                        />
+                                    )}
+                                    <SortSegment
+                                        label="top pay"
+                                        pressed={!fitActive && effectiveSort === "salary_desc"}
+                                        onClick={() => chooseSort("salary_desc")}
+                                    />
+                                    <SortSegment
+                                        label="best match"
+                                        pressed={
+                                            fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
+                                        }
+                                        onClick={chooseBestMatch}
+                                    />
+                                </div>
+                            )}
                             <SerpFilters
                                 distribution={result?.facetDistribution}
                                 postedDateSupported={postedDateSupported}
@@ -2547,9 +2679,17 @@ function JobsContent() {
                             />
                         </div>
                     )}
+
+                    <SavedSearchesPanel
+                        saved={savedSearches}
+                        urlState={buildUrlState()}
+                        canSave={canSaveSearch}
+                        onApply={applySavedSearch}
+                        className="mt-2 px-0.5"
+                    />
                 </section>
 
-                <div className="mt-9">
+                <div className="mt-9 flex min-h-0 flex-1 flex-col">
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
                             to word-dropping (`shouldRelaxSearch`, lib/jobs/meilisearch.ts).
@@ -2624,15 +2764,21 @@ function JobsContent() {
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
                                 <div className="text-left" data-testid="serp-ask">
-                                    <p className="text-[13px] text-muted-foreground">which role? your filters stay on</p>
-                                    <div className="mt-3.5 flex flex-wrap gap-x-[18px] gap-y-2.5">
+                                    <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#aeb4bd]">
+                                        Suggested roles
+                                    </p>
+                                    <p className="mt-1 text-[13px] text-muted-foreground">
+                                        Tap one to search — your filters stay on
+                                    </p>
+                                    <div className="mt-3.5 flex flex-wrap gap-x-[18px] gap-y-2.5" role="list" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
                                                 type="button"
                                                 data-testid="serp-ask-seed"
+                                                title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="text-sm font-medium text-foreground transition-colors duration-100 hover:underline hover:underline-offset-[3px]"
+                                                className="max-w-[min(100%,14rem)] truncate text-[13px] font-medium text-[#ececec] underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                             >
                                                 {seed}
                                             </button>
@@ -2685,6 +2831,21 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
+                                            {!user && !guestTipDismissed && (
+                                                <div
+                                                    data-testid="guest-serp-tip"
+                                                    className="mb-3 flex items-baseline justify-between gap-3 font-mono text-[11px] text-faint"
+                                                >
+                                                    <span>{GUEST_SERP_TIP}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setGuestTipDismissed(true)}
+                                                        className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                                    >
+                                                        Dismiss
+                                                    </button>
+                                                </div>
+                                            )}
                                             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
                                                 <span
                                                     data-testid="result-line"
@@ -2836,22 +2997,7 @@ function JobsContent() {
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {depthGated && !user ? (
-                                        // Depth-gate row (docs-mockup.html Comp B)
-                                        // — a dashed-border block, distinct from
-                                        // every solid-bordered card on the page:
-                                        // it's a boundary the corpus imposes, not
-                                        // a result.
-                                        <div className="flex flex-col items-center gap-3 border border-dashed border-border bg-card py-6 text-center">
-                                            <p className="text-[13.5px] text-muted-foreground">
-                                                That&apos;s the free preview — create a free account to see every
-                                                result.
-                                            </p>
-                                            <Button size="sm" onClick={() => setAuthOpen(true)}>
-                                                Create free account
-                                            </Button>
-                                        </div>
-                                    ) : hasMore ? (
+                                    {hasMore ? (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {loadingMore ? (
                                                 <span className="font-mono text-xs text-muted-foreground">Loading more roles…</span>
@@ -2876,11 +3022,6 @@ function JobsContent() {
                                 </>
                             )}
                         </div>
-
-                <p className="mt-10 max-w-[52ch] text-xs leading-relaxed text-faint">
-                    Every listing is scraped from companies&apos; own career pages, screened for ghost-job risk — never
-                    resold, never curated. Same market your agent sees via MCP.
-                </p>
                 </div>
             </main>
 
@@ -2939,6 +3080,11 @@ function JobsContent() {
                                 now={nowMs}
                                 applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
                                 applying={applyingId === detailJob.id}
+                                signedIn={Boolean(user)}
+                                onRequestSignIn={() => {
+                                    setAuthGateValueLine(true);
+                                    setAuthOpen(true);
+                                }}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
@@ -2948,10 +3094,13 @@ function JobsContent() {
                                 onClose={() => router.back()}
                                 className="border-0 bg-transparent shadow-none"
                             />
+                            {user ? (
                             <JobDetailActionBar
                                 job={detailJob}
+                                signedIn
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                             />
+                            ) : null}
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">

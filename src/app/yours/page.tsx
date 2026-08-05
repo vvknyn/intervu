@@ -12,6 +12,7 @@ import { createApplication, deleteApplication, updateApplication } from "@/actio
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
+import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { addManualGuestPursuit, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
@@ -25,6 +26,7 @@ import {
 import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
+import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
 
@@ -109,13 +111,21 @@ function YoursContent() {
     useEffect(() => {
         if (user && !guestSyncRef.current && !guestSyncInFlightRef.current) {
             guestSyncInFlightRef.current = true;
+            const guestPursuitCount = listGuestPursuits().length;
             void (async () => {
                 try {
                     const [pursuitsOk, followsOk] = await Promise.all([
                         syncGuestPursuitsToServer(),
                         syncGuestFollowsToServer(),
                     ]);
-                    if (pursuitsOk && followsOk) guestSyncRef.current = true;
+                    if (pursuitsOk && followsOk) {
+                        guestSyncRef.current = true;
+                        if (guestPursuitCount > 0) {
+                            toast.success(
+                                `Synced ${guestPursuitCount} guest role${guestPursuitCount === 1 ? "" : "s"}`,
+                            );
+                        }
+                    }
                 } finally {
                     guestSyncInFlightRef.current = false;
                 }
@@ -228,9 +238,22 @@ function YoursContent() {
             header={
                 <TrackerHeader
                     actions={
-                        <Button size="sm" onClick={openAdd}>
-                            Track a role
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {pursuits.length > 0 && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    data-testid="tracker-export-csv"
+                                    onClick={() => downloadTrackerExport(pursuits, "csv")}
+                                >
+                                    Export CSV
+                                </Button>
+                            )}
+                            <Button size="sm" onClick={openAdd}>
+                                Track a role
+                            </Button>
+                        </div>
                     }
                 />
             }
@@ -316,6 +339,14 @@ function YoursContent() {
                     if (!selected) return;
                     const ok = await mutate(selected.id, { note });
                     if (ok) toast.success("Note saved");
+                }}
+                onInterviewDateSave={async (date) => {
+                    if (!selected) return;
+                    const ok = await mutate(selected.id, {
+                        status: "interviewing",
+                        interview_date: new Date(date).toISOString(),
+                    });
+                    if (ok) toast.success("Interview date saved");
                 }}
                 onRemove={async () => {
                     if (!selected) return;

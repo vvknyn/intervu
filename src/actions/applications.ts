@@ -2,7 +2,7 @@
 
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { ApplicationDraft } from "@/components/applications/ApplicationWizard";
+import type { ApplicationDraft } from "@/lib/applications/draft";
 import { assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
 import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";

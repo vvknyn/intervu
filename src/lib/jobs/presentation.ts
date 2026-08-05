@@ -113,9 +113,23 @@ function tokenize(s: string): string[] {
  *      doesn't already carry.
  */
 export function cleanCompany(s: string | null | undefined): string {
-    let out = decodeText(s)
+    let out = decodeText(s).trim();
+    if (!out) return "";
+
+    // ATS portal hostnames aren't company names — callers fall back to "Unknown company".
+    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters)\.(com|io|net)\b/i.test(out)) {
+        return "";
+    }
+    // Bare domain used as a company placeholder (e.g. "acme.applicantpro.com").
+    if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(out) && !out.includes(" ")) {
+        return "";
+    }
+
+    out = out
         .replace(/^[A-Z]{2,5}\d{2,6}\s+/, "")
         .replace(/^[A-Z0-9]{2,10}_[A-Z0-9]{2,10}\s+(?=\S)/, "")
+        .replace(/^[A-Z]{2,6}-\s*/, "")
+        .replace(/^C\d{4}\s+/, "")
         .trim();
 
     const parenMatch = out.match(/\s*\(([^()]+)\)\s*$/);
@@ -188,12 +202,52 @@ const SALARY_PERIOD: Record<string, string> = {
     hourly: "hr", hour: "hr", monthly: "mo", month: "mo", weekly: "wk", daily: "day",
 };
 
+const ANNUAL_SALARY_PERIODS = new Set(["yearly", "year", "annual", "annually"]);
+
+/** Typical annual comp band — used only to accept scale corrections, not to invent pay. */
+const ANNUAL_SALARY_BAND = { min: 25_000, max: 750_000 } as const;
+
+function isAnnualSalaryPeriod(period: string | null | undefined): boolean {
+    if (!period) return true;
+    return ANNUAL_SALARY_PERIODS.has(period.toLowerCase());
+}
+
+/**
+ * Correct upstream scale accidents on annual salaries (cents-as-dollars, an
+ * extra trailing zero) without touching hourly/monthly values or plausible
+ * six-figure comp below the "1560k" absurdity threshold.
+ */
+export function normalizeSalaryAmount(amount: number, period?: string | null): number {
+    if (!Number.isFinite(amount) || amount <= 0 || !isAnnualSalaryPeriod(period)) return amount;
+
+    const inBand = (n: number) => n >= ANNUAL_SALARY_BAND.min && n <= ANNUAL_SALARY_BAND.max;
+
+    if (amount >= 1_000_000 && amount % 100 === 0) {
+        const asDollars = amount / 100;
+        if (inBand(asDollars)) return asDollars;
+    }
+    if (amount >= 1_500_000 && amount % 10 === 0) {
+        const scaled = amount / 10;
+        if (inBand(scaled)) return scaled;
+    }
+    return amount;
+}
+
+function formatSalaryAmount(amount: number): string {
+    if (amount >= 1_000_000) {
+        const millions = amount / 1_000_000;
+        const rounded = Math.round(millions * 10) / 10;
+        return Number.isInteger(rounded) ? `${rounded}M` : `${rounded.toFixed(1)}M`;
+    }
+    return amount >= 1000 ? `${Math.round(amount / 1000)}k` : `${amount}`;
+}
+
 export function salaryText(j: PublicJob): string | null {
     if (j.salary_min == null && j.salary_max == null) return null;
     const cur = j.salary_currency ? `${j.salary_currency} ` : "";
     const period = j.salary_period ? SALARY_PERIOD[j.salary_period.toLowerCase()] ?? j.salary_period : "";
     const per = period ? `/${period}` : "";
-    const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`);
+    const fmt = (n: number) => formatSalaryAmount(normalizeSalaryAmount(n, j.salary_period));
     if (j.salary_min != null && j.salary_max != null) {
         return `${cur}${fmt(j.salary_min)}–${fmt(j.salary_max)}${per}`;
     }

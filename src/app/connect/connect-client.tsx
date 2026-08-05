@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
+import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
+import { CONNECT_HEALTH_COPY } from "@/lib/mcp/connect-health-copy";
+import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 
 function filmForClient(id: ConnectClientId): HowItWorksFilmId {
@@ -76,19 +80,31 @@ function StepLabel({ n, label }: { n: number; label: string }) {
 const TRY_THESE_PROMPTS = [
   "Find senior product manager roles in Berlin posted this week",
   "Is this posting real, or is it a ghost job?",
-  "Save that one and tailor my resume for it",
+  "Save that role and mark it applied",
 ];
 
 export function ConnectClient() {
+  const searchParams = useSearchParams();
   const [activeClient, setActiveClient] = useState<ConnectClientId>(CONNECT_CLIENTS[0].id);
   const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
   const activeClientMeta = CONNECT_CLIENTS.find((c) => c.id === activeClient)!;
+
+  useEffect(() => {
+    const fromQuery = parseConnectClientParam(searchParams.get("client"));
+    if (!fromQuery) return;
+    setActiveClient(fromQuery);
+    const handoff = handoffClientFromConnectTab(fromQuery);
+    if (handoff) saveHandoffClient(handoff);
+  }, [searchParams]);
 
   return (
     <div>
       <h1 className="font-display text-display font-extrabold text-foreground">
         Your AI already knows how to job hunt. Give it the real market.
       </h1>
+      <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+        Sign-in linked this browser. Next: allow your AI in the connector popup.
+      </p>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
         Pair intervu with the AI client you already use through MCP, and let it search and
         track verified job listings for you.{" "}
@@ -114,7 +130,11 @@ export function ConnectClient() {
             type="button"
             role="tab"
             aria-selected={activeClient === client.id}
-            onClick={() => setActiveClient(client.id)}
+            onClick={() => {
+              setActiveClient(client.id);
+              const handoff = handoffClientFromConnectTab(client.id);
+              if (handoff) saveHandoffClient(handoff);
+            }}
             className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border px-4 py-2 text-sm font-medium transition ${
               activeClient === client.id
                 ? "border-foreground bg-foreground text-background"
@@ -190,6 +210,10 @@ export function ConnectClient() {
       </section>
 
       <p className="mt-6 max-w-xl text-xs text-muted-foreground">
+        {CONNECT_HEALTH_COPY}
+      </p>
+
+      <p className="mt-3 max-w-xl text-xs text-muted-foreground">
         Revocable any time in settings. Your AI&apos;s subscription does the thinking —
         intervu provides the data.
       </p>
