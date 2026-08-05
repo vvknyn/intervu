@@ -1,0 +1,655 @@
+/* ============================================================================
+ * how-it-works film — shared stage
+ *
+ * Governed by docs/design/DESIGN-LANGUAGE.md: radius 0, elevation none, colour
+ * from tokens only, brand used sparingly. Values come from tokens.generated.css,
+ * which is lifted straight out of src/app/globals.css.
+ *
+ * MOTION EXCEPTION (DESIGN-LANGUAGE.md:72 requires the reason in writing):
+ * the app's rule is "colour transitions only, 150ms". These pages are not an
+ * interactive surface — they are frames of a rendered film, and motion is the
+ * medium. The restraint is kept in the vocabulary instead: fades, translates of
+ * 8-20px, typing, and list stagger. No bounce, no spring, no parallax, and the
+ * app's own easing curve throughout, so the film moves like the product.
+ * `prefers-reduced-motion` cannot apply to a video file; the player honours it
+ * by showing the poster instead of autoplaying.
+ * ========================================================================== */
+
+@import "./tokens.generated.css";
+@import "./fonts/fonts.css";
+
+:root {
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Canvas */
+  --W: 1920px;
+  --H: 1080px;
+  --margin: 120px;
+
+  /* Beats-2..5 split: caption rail | 1px rule | device stage */
+  --rail-x: 120px;
+  --rail-w: 500px;
+  --rule-x: 664px;
+  --stage-x: 744px;
+  --stage-w: 1056px;
+
+  /* Type. The film is watched at ~400px modal width, a 4.8x downscale, so the
+     source sizes are large by page standards: a 60px caption lands at ~12px. */
+  --t-display: 104px;
+  --t-caption: 60px;
+  --t-step: 26px;
+  --t-hero: 34px; /* strings that must be legible downscaled: URLs, prompts */
+  --t-ui: 24px; /* mock body copy — reads as texture, caption carries meaning */
+  --t-ui-sm: 19px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: var(--W);
+  height: var(--H);
+  overflow: hidden;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Beat layers ---------------------------------------------------------
+ * Each beat is an opaque full-bleed layer that fades in at its own --start and
+ * is then covered by the next one. Hard cuts, no crossfade. DOM order is
+ * stacking order, so a beat never has to remove itself. */
+
+.beat {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--background));
+  opacity: 0;
+  animation: beat-in 260ms var(--ease) var(--start) forwards;
+}
+
+@keyframes beat-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.rail {
+  position: absolute;
+  left: var(--rail-x);
+  top: 392px;
+  width: var(--rail-w);
+}
+
+.step {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--t-step);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: rgb(var(--muted-foreground));
+  margin-bottom: 28px;
+}
+
+.caption {
+  font-size: var(--t-caption);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.rule {
+  position: absolute;
+  left: var(--rule-x);
+  top: 200px;
+  width: 1px;
+  height: 680px;
+  background: rgb(var(--border));
+  transform-origin: 50% 0;
+}
+
+.stage {
+  position: absolute;
+  left: var(--stage-x);
+  width: var(--stage-w);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* --- Title / payoff beats ------------------------------------------------ */
+
+/* Sits below the centred wordmark, which occupies roughly y 340-450. */
+.center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 536px;
+  text-align: center;
+}
+
+.display {
+  font-size: var(--t-display);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+.sub {
+  margin-top: 36px;
+  font-size: 32px;
+  color: rgb(var(--muted-foreground));
+  letter-spacing: -0.005em;
+}
+
+/* --- The wordmark spine --------------------------------------------------
+ * One element for the whole film. It sits centred on the title beat, travels to
+ * the top-left corner for the working beats, and returns for the payoff. It is
+ * the only thing on screen at t=0 and at t=end, which is what makes the loop
+ * close without a visible jump. */
+
+.wordmark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  transform-origin: 0 0;
+  font-size: 56px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.wordmark svg {
+  width: 62px;
+  height: auto;
+  display: block;
+}
+
+/* The spine's whole path, on the 21300ms film clock. It holds centre through
+   the title, travels to the corner as the first working beat cuts in, waits
+   there, and comes back for the payoff. Because it is the only thing on screen
+   at 0ms and at 21300ms, the loop point is invisible. */
+.wordmark {
+  animation: spine 21300ms var(--ease) 0ms both;
+}
+
+@keyframes spine {
+  0%,
+  16.901% {
+    transform: translate(744px, 340px) scale(1.7);
+  }
+  19.718%,
+  85.915% {
+    transform: translate(120px, 92px) scale(0.62);
+  }
+  88.732%,
+  100% {
+    transform: translate(744px, 340px) scale(1.7);
+  }
+}
+
+/* --- Device primitives ---------------------------------------------------
+ * Separation is a 1px border and whitespace. No radius, no shadow. */
+
+.win {
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  overflow: hidden;
+}
+
+.win-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 28px;
+  height: 64px;
+  border-bottom: 1px solid rgb(var(--border));
+  font-size: var(--t-ui-sm);
+  color: rgb(var(--muted-foreground));
+}
+
+/* Genuinely circular, so exempt from the radius rule. Monochrome on purpose —
+   macOS traffic-light colours would be three raw hexes off our palette. */
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgb(var(--faint) / 0.42);
+  flex: none;
+}
+
+.win-title {
+  flex: 1;
+  text-align: center;
+  margin-right: 57px;
+}
+
+.win-body {
+  padding: 36px 36px 40px;
+}
+
+.label {
+  font-size: var(--t-ui-sm);
+  color: rgb(var(--muted-foreground));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  height: 76px;
+  padding: 0 24px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--background));
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--t-hero);
+}
+
+/* The one place brand is allowed to carry meaning: a control reporting valid. */
+.field.valid {
+  border-color: rgb(var(--brand));
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 68px;
+  padding: 0 40px;
+  font-size: 26px;
+  font-weight: 500;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.btn.ghost {
+  background: transparent;
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--border));
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 26px 0;
+  border-bottom: 1px solid rgb(var(--border));
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.row-meta {
+  font-size: var(--t-ui-sm);
+  color: rgb(var(--muted-foreground));
+  margin-top: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  font-size: var(--t-ui-sm);
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.chip.done {
+  border-color: rgb(var(--brand) / 0.55);
+  color: rgb(var(--brand));
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgb(var(--brand));
+  flex: none;
+}
+
+.term {
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--background));
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 27px;
+  line-height: 1.85;
+  padding: 34px 36px;
+}
+
+.term .muted {
+  color: rgb(var(--muted-foreground));
+}
+
+.term .ok {
+  color: rgb(var(--brand));
+}
+
+/* --- Phone ---------------------------------------------------------------
+ * The film's one radius exception, granted for exactly the reason
+ * DESIGN-LANGUAGE.md grants it to WhatsAppThreadHero: this depicts a literal
+ * phone, and a phone has rounded corners. The palette inside the bezel is
+ * WhatsApp's own — the same fixed hexes that component carries — and, as there,
+ * it must not leak onto anything outside the frame. */
+
+.phone {
+  width: 476px;
+  height: 916px;
+  margin: 0 auto;
+  border: 1px solid rgb(var(--border));
+  border-radius: 44px;
+  background: #0b141a;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wa-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 30px 22px 16px;
+  background: #202c33;
+  color: #e9edef;
+}
+
+.wa-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #1f2c34;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.wa-avatar svg {
+  width: 30px;
+  color: #8aab9a;
+}
+
+.wa-name {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.wa-sub {
+  font-size: 15px;
+  color: #8aab9a;
+}
+
+.wa-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 18px;
+}
+
+.wa-msg {
+  align-self: flex-start;
+  max-width: 88%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #1f2c34;
+  color: #e9edef;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.wa-msg b {
+  font-weight: 600;
+}
+
+.wa-role {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.wa-role span {
+  color: #8aab9a;
+}
+
+.wa-doc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #2a3942;
+  font-size: 18px;
+}
+
+.wa-time {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #8aab9a;
+  text-align: right;
+}
+
+.wa-tick {
+  color: #53bdeb;
+}
+
+.wa-composer {
+  padding: 16px 20px 30px;
+  background: #202c33;
+  color: #8aab9a;
+  font-size: 18px;
+}
+
+/* --- Typing --------------------------------------------------------------
+ * Monospace strings reveal by character with steps(); --n is the character
+ * count, so the width lands exactly on a glyph boundary every frame. */
+
+.type {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  width: 0;
+  animation: type var(--type-dur) steps(var(--n)) var(--type-at) forwards;
+}
+
+@keyframes type {
+  to {
+    width: var(--type-w, calc(var(--n) * 1ch));
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 3px;
+  height: 1.1em;
+  vertical-align: text-bottom;
+  background: rgb(var(--foreground));
+  opacity: 0;
+  animation:
+    caret-on 1ms linear var(--caret-from) forwards,
+    caret-blink 900ms steps(2, jump-none) var(--caret-from) infinite;
+}
+
+@keyframes caret-on {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* --- Entrance utilities --------------------------------------------------
+ * Every delay is absolute film time, which is what makes the pages readable:
+ * a rule says when in the film the thing happens, not when in its own beat. */
+
+.rise {
+  opacity: 0;
+  animation: rise 520ms var(--ease) var(--at) forwards;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade {
+  opacity: 0;
+  animation: fade 420ms var(--ease) var(--at) forwards;
+}
+
+@keyframes fade {
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-out {
+  animation: fade-out 420ms var(--ease) var(--at) forwards;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.grow {
+  transform: scaleY(0);
+  animation: grow 700ms var(--ease) var(--at) forwards;
+}
+
+@keyframes grow {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* --- Pointer -------------------------------------------------------------
+ * Lives inside the control it clicks (.target sets the containing block), so
+ * its travel is expressed in local offsets. Nothing here depends on where the
+ * control landed on the canvas, which is what keeps the beats editable. */
+
+.target {
+  position: relative;
+}
+
+.pointer {
+  position: absolute;
+  left: 62%;
+  top: 54%;
+  z-index: 9;
+  width: 38px;
+  height: 38px;
+  opacity: 0;
+  animation:
+    fade 320ms var(--ease) var(--at) forwards,
+    point 820ms var(--ease) var(--at) forwards;
+}
+
+@keyframes point {
+  from {
+    transform: translate(96px, 76px);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+/* --- Composites ----------------------------------------------------------
+ * `animation` is a shorthand, so two classes each declaring one do not merge —
+ * the later rule replaces the earlier outright. Anything that needs two timed
+ * behaviours declares both in one list here rather than stacking classes. */
+
+/* Enters, then takes a click. `press` sits later in the list so it owns
+   transform once it starts; before that it contributes nothing (fill:forwards)
+   and `rise` governs. They never overlap. */
+.btn-in {
+  opacity: 0;
+  animation:
+    rise 520ms var(--ease) var(--at) forwards,
+    press 260ms var(--ease) var(--at-press) forwards;
+}
+
+@keyframes press {
+  50% {
+    transform: scale(0.972);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Enters, then reports valid. The brand ring is the one moment a control is
+   allowed to carry colour. */
+.field-in {
+  opacity: 0;
+  animation:
+    fade 420ms var(--ease) var(--at) forwards,
+    validate 320ms var(--ease) var(--at-valid) forwards;
+}
+
+@keyframes validate {
+  to {
+    border-color: rgb(var(--brand));
+  }
+}
+
+/* One chip replaced in place by another — no reflow, so the row does not
+   twitch when the label changes length. */
+.swap {
+  position: relative;
+  display: inline-flex;
+}
+
+.swap > :first-child {
+  animation: fade-out 300ms var(--ease) var(--at-swap) forwards;
+}
+
+.swap > :last-child {
+  position: absolute;
+  right: 0;
+  top: 0;
+  opacity: 0;
+  animation: fade 340ms var(--ease) var(--at-swap) forwards;
+}

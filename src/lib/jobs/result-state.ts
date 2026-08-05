@@ -170,6 +170,17 @@ export function shouldClearStaleJobUrl(
 }
 
 /**
+ * Should the detail sheet's dismiss call `router.back()`? Only when the URL
+ * still names an open job — i.e. the visitor closed the sheet themselves.
+ * When history/reconcile already cleared `job`, Radix still invokes
+ * `onOpenChange(false)` on the controlled sheet; backing again would pop a
+ * prior search entry and re-run the fetch effect.
+ */
+export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | null): boolean {
+    return !open && urlJobId != null;
+}
+
+/**
  * Task 11 — empty state's ghost-reveal line: only worth showing when ghosts
  * are currently hidden (the first-screen default) AND the honest hidden
  * count (Task 7's `ghostHiddenCount` — `null` while unresolved, or when

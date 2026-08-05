@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
+import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
+
+function filmForClient(id: ConnectClientId): HowItWorksFilmId {
+  return id === "openclaw" ? "claw" : "mcp";
+}
 
 /**
  * The MCP endpoint intervu's connectors point at. Verified against the
@@ -75,6 +81,7 @@ const TRY_THESE_PROMPTS = [
 
 export function ConnectClient() {
   const [activeClient, setActiveClient] = useState<ConnectClientId>(CONNECT_CLIENTS[0].id);
+  const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
   const activeClientMeta = CONNECT_CLIENTS.find((c) => c.id === activeClient)!;
 
   return (
@@ -84,7 +91,15 @@ export function ConnectClient() {
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
         Pair intervu with the AI client you already use through MCP, and let it search and
-        track verified job listings for you.
+        track verified job listings for you.{" "}
+        <button
+          type="button"
+          onClick={() => setFilm(filmForClient(activeClient))}
+          className="cursor-pointer border-0 bg-transparent p-0 font-medium text-brand underline-offset-4 hover:underline"
+          data-testid="connect-how-it-works"
+        >
+          How it works
+        </button>
       </p>
 
       <div
@@ -178,6 +193,8 @@ export function ConnectClient() {
         Revocable any time in settings. Your AI&apos;s subscription does the thinking —
         intervu provides the data.
       </p>
+
+      <HowItWorksFilm film={film} onOpenChange={(open) => !open && setFilm(null)} />
     </div>
   );
 }

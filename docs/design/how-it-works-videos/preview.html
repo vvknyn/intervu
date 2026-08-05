@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How it works — film preview</title>
+    <style>
+      /* Same rules the films render under: dark tokens, radius 0, 1px borders,
+         no elevation. Values mirror src/app/globals.css `.dark`. */
+      :root {
+        color-scheme: dark;
+        --background: #12151a;
+        --foreground: #eceeec;
+        --muted: #8b939e;
+        --border: #2a2f36;
+        --brand: #5eb496;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: "DM Sans", system-ui, sans-serif;
+        padding: 56px 40px 96px;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1360px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        color: var(--muted);
+        margin-top: 10px;
+        max-width: 74ch;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+        margin: 56px 0 28px;
+      }
+      .grid {
+        display: grid;
+        gap: 32px;
+      }
+      @media (min-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 12px;
+      }
+      figcaption span {
+        display: block;
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      video {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--border);
+        background: #000;
+      }
+      /* The size the film is actually watched at in the how-it-works modal.
+         Every caption has to survive this column, not the big one. */
+      .modal-check {
+        display: flex;
+        gap: 28px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .modal-check video {
+        width: 400px;
+        max-width: 100%;
+      }
+      .beats {
+        list-style: none;
+        padding: 0;
+        margin: 14px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .beats li {
+        padding: 3px 0;
+      }
+      .beats b {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      code {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 0.92em;
+        color: var(--brand);
+      }
+      .old video {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>How it works — silent explainer films</h1>
+      <p class="lead">
+        Rendered from HTML against the app's own <code>.dark</code> tokens, then
+        scrubbed frame-by-frame and encoded — not screen-recorded, and not AI
+        stills. 21.3s, 1920×1080, 30fps, muted seamless loop. Rebuild both with
+        <code>./studio/build.sh</code>.
+      </p>
+
+      <h2>Films</h2>
+      <div class="grid">
+        <figure>
+          <figcaption>
+            A · Claude MCP
+            <span>title → add connector → approve → ask → real roles → you stay in control</span>
+          </figcaption>
+          <video
+            src="video-a-mcp.mp4"
+            poster="poster-a-mcp.png"
+            autoplay
+            loop
+            muted
+            playsinline
+            controls
+          ></video>
+          <ul class="beats">
+            <li><b>01</b> the URL types into the connector field, ring goes brand, Save pressed</li>
+            <li><b>02</b> three scopes stagger in, pointer travels and presses Allow</li>
+            <li><b>03</b> prompt types in chat, then the <code>intervu · search_jobs</code> call fires</li>
+            <li><b>04</b> three roles stagger in, first chip flips to <b>✓ Saved</b></li>
+          </ul>
+        </figure>
+
+        <figure>
+          <figcaption>
+            B · OpenClaw
+            <span>title → one command → approve → overnight → drafts → you always click submit</span>
+          </figcaption>
+          <video
+            src="video-b-openclaw.mp4"
+            poster="poster-b-openclaw.png"
+            autoplay
+            loop
+            muted
+            playsinline
+            controls
+          ></video>
+          <ul class="beats">
+            <li><b>01</b> the curl one-liner types, install lines stream in</li>
+            <li><b>02</b> browser OAuth at <code>intervu.cc/authorize</code>, Allow pressed</li>
+            <li><b>03</b> log timestamps run 11:42 PM → 02:14 AM while you sleep</li>
+            <li><b>04</b> the WhatsApp digest arrives message by message, draft PDF attached</li>
+          </ul>
+        </figure>
+      </div>
+
+      <h2>Legibility check — 400px, the modal width</h2>
+      <div class="modal-check">
+        <video src="video-a-mcp.mp4" autoplay loop muted playsinline></video>
+        <video src="video-b-openclaw.mp4" autoplay loop muted playsinline></video>
+      </div>
+
+      <h2>Previous pass — AI keyframe slideshow, superseded</h2>
+      <div class="grid old">
+        <figure>
+          <figcaption>
+            A · superseded
+            <span>1536×1024 stills padded to 16:9 (pillarboxed), 0.9s crossfades, no motion</span>
+          </figcaption>
+          <video src="video-a-mcp-loop.mp4" loop muted playsinline controls></video>
+        </figure>
+        <figure>
+          <figcaption>
+            B · superseded
+            <span>logo plate occludes artwork; 12px radii and shadows predate the design language</span>
+          </figcaption>
+          <video src="video-b-openclaw-loop.mp4" loop muted playsinline controls></video>
+        </figure>
+      </div>
+    </div>
+  </body>
+</html>

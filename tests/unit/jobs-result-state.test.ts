@@ -8,6 +8,7 @@ import {
     resolveEmptySearchState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
+    shouldBackOnDetailSheetClose,
     degradedResultsNote,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
@@ -304,6 +305,20 @@ describe('shouldClearStaleJobUrl', () => {
 
     it('subsumes the dead-link-used-its-pass case: reassigned away, URL still names the dead id', () => {
         assert.equal(shouldClearStaleJobUrl('dead-id', 'dead-id', false), true);
+    });
+});
+
+describe('shouldBackOnDetailSheetClose', () => {
+    it('user dismiss while job is still in the URL → back once', () => {
+        assert.equal(shouldBackOnDetailSheetClose(false, 'job-1'), true);
+    });
+
+    it('reconcile already cleared job → do not pop search history again', () => {
+        assert.equal(shouldBackOnDetailSheetClose(false, null), false);
+    });
+
+    it('sheet opening → never back', () => {
+        assert.equal(shouldBackOnDetailSheetClose(true, 'job-1'), false);
     });
 });
 

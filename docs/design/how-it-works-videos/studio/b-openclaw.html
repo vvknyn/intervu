@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>Film B — OpenClaw</title>
+    <link rel="stylesheet" href="./stage.css" />
+    <!--
+      Film B — Overnight prep on your machine. Same 21300ms clock and same six
+      cuts as film A, so the two read as a pair:
+        0     title
+        3900  01 · one command install
+        7500  02 · approve in browser
+        11100 03 · it works overnight
+        14700 04 · wake up to drafts
+        18300 payoff
+    -->
+  </head>
+  <body>
+    <!-- ── beat 1 · title ────────────────────────────────────────────────── -->
+    <section class="beat" style="--start: 0ms">
+      <div class="center">
+        <h1 class="display rise" style="--at: 620ms">
+          Overnight prep on your own machine
+        </h1>
+      </div>
+    </section>
+
+    <!-- ── beat 2 · 01 one command install ───────────────────────────────── -->
+    <section class="beat" style="--start: 3900ms">
+      <div class="rule grow" style="--at: 4060ms"></div>
+      <div class="rail">
+        <div class="step fade" style="--at: 4180ms">01</div>
+        <div class="caption rise" style="--at: 4260ms">One command</div>
+      </div>
+      <div class="stage">
+        <div class="term rise" style="--at: 4120ms; min-height: 468px">
+          <div class="fade" style="--at: 4560ms">
+            <span class="muted">$&nbsp;</span
+            ><span
+              class="type"
+              style="--n: 44; --type-dur: 1240ms; --type-at: 4780ms"
+              >curl -fsSL https://intervu.cc/install | bash</span
+            ><span class="caret" style="--caret-from: 4680ms"></span>
+          </div>
+          <div class="muted fade" style="--at: 6180ms">Installing openclaw…</div>
+          <div class="fade" style="--at: 6480ms">
+            <span class="ok">✓</span> skill installed
+          </div>
+          <div class="fade" style="--at: 6740ms">
+            <span class="ok">✓</span> browser paired
+          </div>
+          <div class="fade" style="--at: 7020ms">
+            <span class="ok">✓</span> ready — approve in your browser
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── beat 3 · 02 approve in browser ────────────────────────────────── -->
+    <section class="beat" style="--start: 7500ms">
+      <div class="rule grow" style="--at: 7620ms"></div>
+      <div class="rail">
+        <div class="step fade" style="--at: 7760ms">02</div>
+        <div class="caption rise" style="--at: 7840ms">Approve in your browser</div>
+      </div>
+      <div class="stage">
+        <div class="win rise" style="--at: 7700ms">
+          <!-- browser chrome rather than a plain window, so this beat reads as
+               a different surface from film A's in-app connector dialog -->
+          <div class="win-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span
+              class="win-title"
+              style="
+                font-family: 'IBM Plex Mono', monospace;
+                border: 1px solid rgb(var(--border));
+                padding: 6px 0;
+                margin: 0 0 0 24px;
+                max-width: 520px;
+              "
+              >intervu.cc/authorize</span
+            >
+          </div>
+          <div class="win-body">
+            <div class="label fade" style="--at: 8080ms">openclaw on your mac wants to</div>
+            <div style="margin-top: 12px">
+              <div class="row rise" style="--at: 8360ms">
+                <span class="live-dot"></span>
+                <div class="row-main">
+                  <div class="row-title">Run job searches locally</div>
+                </div>
+              </div>
+              <div class="row rise" style="--at: 8560ms">
+                <span class="live-dot"></span>
+                <div class="row-main">
+                  <div class="row-title">Draft tailored resumes</div>
+                </div>
+              </div>
+              <div class="row rise" style="--at: 8760ms">
+                <span class="live-dot"></span>
+                <div class="row-main">
+                  <div class="row-title">Never apply without you</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 34px; display: flex; gap: 16px; align-items: center">
+              <button
+                class="btn btn-in target"
+                style="--at: 9200ms; --at-press: 10480ms"
+              >
+                Allow
+                <svg class="pointer" viewBox="0 0 24 24" style="--at: 9640ms">
+                  <path
+                    d="M5 2.5 19 12.4l-6.1.6 3.2 6.6-2.6 1.3-3.2-6.6-4.3 4.3z"
+                    fill="rgb(var(--foreground))"
+                    stroke="rgb(var(--background))"
+                    stroke-width="1.4"
+                  />
+                </svg>
+              </button>
+              <button class="btn ghost rise" style="--at: 9340ms">Deny</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── beat 4 · 03 it works overnight ────────────────────────────────── -->
+    <section class="beat" style="--start: 11100ms">
+      <div class="rule grow" style="--at: 11220ms"></div>
+      <div class="rail">
+        <div class="step fade" style="--at: 11360ms">03</div>
+        <div class="caption rise" style="--at: 11440ms">It works while you sleep</div>
+      </div>
+      <div class="stage">
+        <div class="term rise" style="--at: 11300ms; min-height: 468px">
+          <div class="fade" style="--at: 11640ms; margin-bottom: 10px">
+            <span class="live-dot" style="display: inline-block"></span>
+            <span class="muted">&nbsp;openclaw · running on your mac</span>
+          </div>
+          <!-- the timestamps are the whole point of the beat: it is the clock
+               moving, not the log lines, that says "you were asleep" -->
+          <div class="fade" style="--at: 12000ms">
+            <span class="muted">11:42 PM&nbsp;&nbsp;</span>scanning your saved searches…
+          </div>
+          <div class="fade" style="--at: 12420ms">
+            <span class="muted">11:58 PM&nbsp;&nbsp;</span>12 new roles matched
+          </div>
+          <div class="fade" style="--at: 12840ms">
+            <span class="muted">01:20 AM&nbsp;&nbsp;</span>tailoring resume · Stripe
+          </div>
+          <div class="fade" style="--at: 13260ms">
+            <span class="muted">01:51 AM&nbsp;&nbsp;</span>tailoring resume · Ramp
+          </div>
+          <div class="fade" style="--at: 13700ms">
+            <span class="muted">02:14 AM&nbsp;&nbsp;</span><span class="ok">3 drafts ready</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── beat 5 · 04 wake up to drafts ─────────────────────────────────── -->
+    <section class="beat" style="--start: 14700ms">
+      <div class="rule grow" style="--at: 14820ms"></div>
+      <div class="rail">
+        <div class="step fade" style="--at: 14960ms">04</div>
+        <div class="caption rise" style="--at: 15040ms">Wake up to drafts</div>
+      </div>
+      <div class="stage">
+        <div class="phone rise" style="--at: 14900ms">
+          <div class="wa-bar">
+            <span class="wa-avatar">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path
+                  d="M12 40c7-14 14-20 20-20s13 6 20 20"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+                <circle cx="38.5" cy="34" r="3" fill="currentColor" />
+              </svg>
+            </span>
+            <span>
+              <span class="wa-name">intervu</span>
+              <span class="wa-sub" style="display: block">business account</span>
+            </span>
+          </div>
+          <div class="wa-thread">
+            <div class="wa-msg rise" style="--at: 15420ms">
+              <b>3 roles fit you today.</b>
+              <div class="wa-role" style="margin-top: 8px">
+                Senior PM <span>Stripe</span>
+              </div>
+              <div class="wa-role">Group PM <span>Ramp</span></div>
+              <div class="wa-role">Product Lead <span>Brex</span></div>
+              <div class="wa-time">7:02 AM <span class="wa-tick">✓✓</span></div>
+            </div>
+            <div class="wa-msg rise" style="--at: 16060ms">
+              Drafts are ready — I did not send anything.
+              <div class="wa-doc">
+                <span class="ok" style="color: #8aab9a">▤</span>
+                Senior-PM-Stripe-resume.pdf
+              </div>
+              <div class="wa-time">7:02 AM <span class="wa-tick">✓✓</span></div>
+            </div>
+            <div class="wa-msg rise" style="--at: 16720ms">
+              Reply <b>1</b>, <b>2</b> or <b>3</b> to review one.
+              <div class="wa-time">7:02 AM <span class="wa-tick">✓✓</span></div>
+            </div>
+          </div>
+          <div class="wa-composer">Message</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── beat 6 · payoff ───────────────────────────────────────────────── -->
+    <section class="beat" style="--start: 18300ms">
+      <div class="center">
+        <div class="fade-out" style="--at: 20680ms">
+          <h2 class="display rise" style="--at: 18820ms">You always click submit</h2>
+          <p class="sub fade" style="--at: 19340ms">
+            openclaw drafts. Sending stays yours.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── the spine ─────────────────────────────────────────────────────── -->
+    <div class="wordmark">
+      <svg viewBox="0 0 64 64" fill="none">
+        <path
+          d="M12 40c7-14 14-20 20-20s13 6 20 20"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+        />
+        <path
+          d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+          stroke="currentColor"
+          stroke-width="1.55"
+          stroke-linecap="round"
+        />
+        <circle cx="38.5" cy="34" r="2.8" fill="rgb(var(--brand))" />
+      </svg>
+      <span>intervu</span>
+    </div>
+  </body>
+</html>
