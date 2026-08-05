@@ -32,3 +32,24 @@ test("null/undefined pass through as empty string", () => {
     assert.equal(cleanCompany(null), "");
     assert.equal(cleanCompany(undefined), "");
 });
+
+test("strips ATS portal hostnames", () => {
+    assert.equal(cleanCompany("limble.applicantpro.com"), "");
+    assert.equal(cleanCompany("jobs.greenhouse.io"), "");
+});
+
+test("strips bare domain placeholders", () => {
+    assert.equal(cleanCompany("acme.example.com"), "");
+});
+
+test("keeps real company names that are not bare domains", () => {
+    assert.equal(cleanCompany("Acme Inc."), "Acme Inc.");
+});
+
+test("strips leading hyphenated req codes", () => {
+    assert.equal(cleanCompany("NDIN-North Dakota Information Network"), "North Dakota Information Network");
+});
+
+test("strips leading C-prefix codes", () => {
+    assert.equal(cleanCompany("C0001 Widget Corp"), "Widget Corp");
+});

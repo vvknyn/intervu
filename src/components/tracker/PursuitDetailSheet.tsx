@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ interface PursuitDetailSheetProps {
     onOpenChange: (open: boolean) => void;
     onStatusChange: (status: PursuitStage) => Promise<void>;
     onNoteSave: (note: string) => Promise<void>;
+    onInterviewDateSave: (interviewDate: string) => Promise<void>;
     onRemove: () => Promise<void>;
     saving?: boolean;
 }
@@ -35,6 +37,7 @@ export function PursuitDetailSheet({
     onOpenChange,
     onStatusChange,
     onNoteSave,
+    onInterviewDateSave,
     onRemove,
     saving,
 }: PursuitDetailSheetProps) {
@@ -51,10 +54,11 @@ export function PursuitDetailSheet({
                 )}
             >
                 <PursuitDetailBody
-                    key={`${pursuit.id}:${pursuit.note ?? ""}`}
+                    key={`${pursuit.id}:${pursuit.note ?? ""}:${pursuit.interview_date ?? ""}`}
                     pursuit={pursuit}
                     onStatusChange={onStatusChange}
                     onNoteSave={onNoteSave}
+                    onInterviewDateSave={onInterviewDateSave}
                     onRemove={onRemove}
                     saving={saving}
                 />
@@ -67,16 +71,21 @@ function PursuitDetailBody({
     pursuit,
     onStatusChange,
     onNoteSave,
+    onInterviewDateSave,
     onRemove,
     saving,
 }: {
     pursuit: Pursuit;
     onStatusChange: (status: PursuitStage) => Promise<void>;
     onNoteSave: (note: string) => Promise<void>;
+    onInterviewDateSave: (interviewDate: string) => Promise<void>;
     onRemove: () => Promise<void>;
     saving?: boolean;
 }) {
     const [note, setNote] = useState(pursuit.note ?? "");
+    const [interviewDate, setInterviewDate] = useState(() =>
+        pursuit.interview_date ? pursuit.interview_date.slice(0, 10) : "",
+    );
     const latestResume = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? [])[0];
     const resumeLabel = latestResume?.label ?? pursuit.resume_version?.version_name;
     const days = daysInTracker(pursuit);
@@ -129,6 +138,28 @@ function PursuitDetailBody({
                 <div>
                     <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
                     <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={fieldClass} />
+                </div>
+
+                <div>
+                    <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">
+                        Interview date
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                            type="date"
+                            value={interviewDate}
+                            onChange={(e) => setInterviewDate(e.target.value)}
+                            className={cn("w-auto", fieldClass)}
+                            aria-label="Interview date"
+                        />
+                        <Button
+                            variant="outline"
+                            disabled={saving || !interviewDate}
+                            onClick={() => void onInterviewDateSave(interviewDate)}
+                        >
+                            Set interview date
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">

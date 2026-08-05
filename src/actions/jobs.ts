@@ -45,11 +45,9 @@ type ShieldSearchServeMeta = SearchServeMeta & {
  * Search the jobs corpus (dispatches to whichever backend is configured).
  *
  * Shield chokepoint (P27): every call passes through a per-IP rate limit
- * and, for unauthenticated callers, a pagination depth cap, before ever
- * reaching the backend — "search engines get the marketing surface, nobody
- * gets the corpus in bulk." Both checks fail toward NOT hitting the
- * backend at all, so a blocked/gated request can never itself cost a real
- * search.
+ * and refuses unauthenticated search before reaching the backend — signed-in
+ * users get the full corpus; anonymous callers see a sign-in gate instead
+ * of partial result windows.
  *
  * Also emits one anonymous telemetry event per human search. The entry is
  * built on the request (pure, cheap, and stamped with the search's own clock)

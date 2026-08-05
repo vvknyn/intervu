@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { ConnectClient } from "./connect-client";
 
 export const metadata: Metadata = {
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function ConnectPage() {
   return (
     <main data-testid="connect-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <ConnectClient />
+      <Suspense fallback={null}>
+        <ConnectClient />
+      </Suspense>
     </main>
   );
 }

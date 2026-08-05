@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { InstrumentDeck } from "@/components/marketing/InstrumentDeck";
 import { OPENCLAW_SUBLINE } from "@/components/marketing/openclaw-content";
@@ -26,5 +27,9 @@ export const metadata: Metadata = {
 export default async function HomePage() {
     const stats = await getMarketingStatsAction();
     const jobCount = stats ? formatCorpusCount(stats.liveJobs) : null;
-    return <InstrumentDeck jobCount={jobCount} />;
+    return (
+        <Suspense fallback={null}>
+            <InstrumentDeck jobCount={jobCount} />
+        </Suspense>
+    );
 }

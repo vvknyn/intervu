@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { McpHandoffActions } from "@/components/mcp/McpHandoffActions";
+import { type JobHandoffInput } from "@/lib/mcp/job-handoff";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,17 +29,36 @@ const VARIANT_COPY = {
 
 export function McpHandoffNote({
     variant = "intelligence",
+    job,
     className,
 }: {
     variant?: keyof typeof VARIANT_COPY;
+    job?: JobHandoffInput;
     className?: string;
 }) {
+    if (!job) {
+        return (
+            <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground", className)}>
+                {VARIANT_COPY[variant]}{" "}
+                <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
+                    Connect it once →
+                </Link>
+            </div>
+        );
+    }
+
     return (
-        <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground", className)}>
-            {VARIANT_COPY[variant]}{" "}
-            <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
-                Connect it once →
-            </Link>
+        <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground", className)}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p>{VARIANT_COPY[variant]}</p>
+                <McpHandoffActions job={job} />
+            </div>
+            <p className="mt-2 text-xs">
+                Not paired yet?{" "}
+                <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
+                    Connect once →
+                </Link>
+            </p>
         </div>
     );
 }

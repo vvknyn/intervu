@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isAuthGatedProductPath } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
 
@@ -19,14 +20,14 @@ export async function middleware(request: NextRequest) {
     }
 
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const { pathname } = request.nextUrl;
 
-    // Protect /account routes — redirect to landing page if not authenticated
-    if (
-        !sessionCookie &&
-        request.nextUrl.pathname.startsWith("/account")
-    ) {
+    if (!sessionCookie && isAuthGatedProductPath(pathname)) {
         const url = request.nextUrl.clone();
         url.pathname = "/";
+        url.search = "";
+        url.searchParams.set("signin", "1");
+        url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
         return NextResponse.redirect(url);
     }
 
@@ -35,7 +36,7 @@ export async function middleware(request: NextRequest) {
     // Returning-searcher memory (see lib/jobs-visitor-cookie.ts) — client-
     // readable, not httpOnly, since it's only ever a "have you been here
     // before" flag for `/`'s bar, never an auth artifact.
-    if (request.nextUrl.pathname.startsWith("/jobs")) {
+    if (pathname.startsWith("/jobs")) {
         response.cookies.set(JOBS_VISITOR_COOKIE, "1", {
             maxAge: JOBS_VISITOR_COOKIE_MAX_AGE,
             secure: process.env.NODE_ENV === "production",

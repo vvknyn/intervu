@@ -55,6 +55,16 @@ export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install |
  */
 export const INSTRUMENT_META = "Find the job postings that are hiring";
 
+/**
+ * Supporting line under meta — browse-free / detail+AI gate. Shared by live
+ * landing and `/mock/auth-gate`.
+ */
+export const INSTRUMENT_SUPPORT =
+    "Browse the board free — sign in when you open a role or connect your AI.";
+
+/** Quiet tip above unsigned `/jobs` results (session-dismissible in UI). */
+export const GUEST_SERP_TIP = "Open a role to continue — details need sign-in.";
+
 /** Landing instrument — Claude / ChatGPT lane (same URL as /connect). */
 export const MCP_CONNECTOR_URL = "https://intervu.cc/api/mcp";
 export const MCP_CONNECTOR_HINT = "Paste as a custom connector in Claude or ChatGPT. Approve once.";

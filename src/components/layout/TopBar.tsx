@@ -75,8 +75,8 @@ export function TopBar() {
                     className="flex shrink-0 items-center gap-2.5 text-[#ececec]"
                     data-testid="topbar-logo"
                 >
-                    <BrandMark className="h-10 w-10" />
-                    <span className="text-[22px] font-semibold tracking-[-0.03em]">
+                    <BrandMark className="h-12 w-12" />
+                    <span className="text-[24px] font-semibold tracking-[-0.03em]">
                         intervu
                     </span>
                 </Link>
@@ -141,7 +141,7 @@ export function TopBar() {
                             onClick={() => setAuthPopoverOpen(true)}
                             className={cn("ml-1 text-[13px]", siteChrome.mutedHover)}
                         >
-                            Log in
+                            Sign in
                         </button>
                     )}
                 </nav>

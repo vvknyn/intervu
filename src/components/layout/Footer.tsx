@@ -27,7 +27,8 @@ export function FooterContent() {
         >
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 py-6 sm:px-7">
                 <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>
-                    Every listing is {CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated.
+                    Every listing is {CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated. Same market your agent
+                    sees via MCP.
                 </p>
                 <nav
                     aria-label="Company"

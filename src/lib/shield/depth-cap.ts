@@ -1,21 +1,16 @@
 /**
  * Anonymous search depth cap (P27 shield): unauthenticated searches can page
  * through at most `ANON_MAX_PAGES` pages of results before hitting a gate.
- * Signed-in users are uncapped.
+ * Signed-in users are uncapped. Browse SERP is public; deep pagination signs in.
  *
  * `ANON_PAGE_SIZE` mirrors the UI's own page size (`PAGE` in
- * src/app/page.tsx, currently 30) — not imported from there (page.tsx is a
- * page component with no exports, out of this module's ownership) but must
- * be kept in sync if that constant ever changes.
+ * src/app/jobs/page.tsx, currently 30).
  */
 export const ANON_PAGE_SIZE = 30;
 export const ANON_MAX_PAGES = 3;
 /** First offset an anonymous request is no longer allowed to reach. */
 export const ANON_MAX_OFFSET = ANON_PAGE_SIZE * ANON_MAX_PAGES;
 
-/** Copy for the gated response's `note` — same "create a free account"
- *  moment the rest of the app's auth gates use, just reached from search
- *  depth instead of a credit/action gate. */
 export const ANONYMOUS_DEPTH_GATE_MESSAGE = "Create a free account to see every result.";
 
 export interface DepthCapInput {
@@ -25,24 +20,15 @@ export interface DepthCapInput {
 }
 
 export interface DepthCapDecision {
-  /** True when this request must be refused outright — its offset alone is
-   *  already past the anonymous window, so nothing should be served. */
+  /** True when this request must be refused — offset already past the anon window. */
   gated: boolean;
-  /** The limit to actually send to the backend: unchanged (including
-   *  `undefined`, letting the backend apply its own default) when authed,
-   *  clamped so `offset + effectiveLimit` never crosses `ANON_MAX_OFFSET`
-   *  otherwise, `0` when gated. */
+  /** Limit sent to the backend; `0` when gated. */
   effectiveLimit: number | undefined;
 }
 
 /**
- * Pure decision — the single source of truth for "signed-in users: uncapped."
- * Authed requests pass `limit` through completely unchanged, exactly as if
- * this cap didn't exist. Anonymous requests are windowed to the first
- * `ANON_MAX_PAGES` pages of results regardless of how the caller chunks
- * offset/limit — a single request with a huge `limit` is clamped exactly
- * like a deep `offset` is gated, so the cap can't be skipped by asking for
- * one big page instead of many small ones.
+ * Pure decision — signed-in users pass through unchanged; anonymous requests
+ * are windowed to the first `ANON_MAX_PAGES` pages.
  */
 export function resolveDepthCap(input: DepthCapInput): DepthCapDecision {
   if (input.isAuthed) return { gated: false, effectiveLimit: input.limit };

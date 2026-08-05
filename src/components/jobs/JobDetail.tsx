@@ -173,9 +173,12 @@ export function JobDetailSkeleton() {
 export function JobDetailActionBar({
     job,
     onOpenPosting,
+    signedIn = true,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
+    /** When false, the apply CTA reads "Sign in to apply" (handler still gates). */
+    signedIn?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -227,7 +230,7 @@ export function JobDetailActionBar({
                 {job.apply_url && (
                     <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:h-9" onClick={onOpenPosting}>
                         <ArrowSquareOut size={16} />
-                        Apply
+                        {signedIn ? "Apply" : "Sign in to apply"}
                     </Button>
                 )}
             </div>
@@ -248,12 +251,18 @@ export function JobDetail({
     variants = [],
     onClose,
     className,
+    signedIn = true,
+    onRequestSignIn,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
     onOpenPosting: () => void;
     onMarkApplied: () => void;
+    /** When false, detail body is blurred and gated behind sign-in. */
+    signedIn?: boolean;
+    /** Opens auth when the signed-out blur overlay CTA is pressed. */
+    onRequestSignIn?: () => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -305,7 +314,11 @@ export function JobDetail({
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
-        <div className={cn("overflow-hidden border border-border bg-card", className)}>
+        <div className={cn("relative overflow-hidden border border-border bg-card", className)}>
+            <div
+                className={cn(!signedIn && "pointer-events-none select-none blur-[6px]")}
+                aria-hidden={!signedIn}
+            >
             <div className="border-b border-border px-5 pb-3.5 pt-1">
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
@@ -386,7 +399,7 @@ export function JobDetail({
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
                             <ArrowSquareOut size={16} />
-                            Apply
+                            {signedIn ? "Apply" : "Sign in to apply"}
                         </Button>
                     )}
                     {/* The one verb (spec §2/§3): "Save" is the primary save
@@ -404,13 +417,22 @@ export function JobDetail({
                     ) : (
                         <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2">
                             <Check size={16} />
-                            {goingAfter ? "Saving…" : "Save"}
+                            {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
                         </Button>
                     )}
                 </div>
                 {/* Prep runs in the user's AI (2026-08-02) — this nudge is the
                     pairing funnel's in-context entry point. */}
-                <McpHandoffNote variant="prep" className="mt-2.5 px-5" />
+                <McpHandoffNote
+                    variant="prep"
+                    className="mt-2.5 px-5"
+                    job={{
+                        id: job.id,
+                        title: decodeText(job.title),
+                        company: cleanedCompany || job.company || "Unknown company",
+                        location: locationText(job) || null,
+                    }}
+                />
                 {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
                     line now lives once, in the "How you match" rail below,
                     not repeated here. */}
@@ -487,8 +509,11 @@ export function JobDetail({
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
-                                    Use <span className="font-medium text-foreground">Apply</span> to read the full
-                                    details on the employer&apos;s site.
+                                    Use{" "}
+                                    <span className="font-medium text-foreground">
+                                        {signedIn ? "Apply" : "Sign in to apply"}
+                                    </span>{" "}
+                                    to read the full details on the employer&apos;s site.
                                 </>
                             ) : (
                                 "Try the original posting for full details."
@@ -518,7 +543,15 @@ export function JobDetail({
                     MCP; this is the ONE line for the whole job-detail pane
                     that says so (the header action row above deliberately
                     doesn't repeat it — see its own comment). */}
-                <McpHandoffNote className="mb-5" />
+                <McpHandoffNote
+                    className="mb-5"
+                    job={{
+                        id: job.id,
+                        title: decodeText(job.title),
+                        company: cleanedCompany || job.company || "Unknown company",
+                        location: locationText(job) || null,
+                    }}
+                />
 
                 {/* Company hiring-truth mini-KPI rail (docs-mockup.html Comp
                     B2) — reads the SAME denormalized company_* fields
@@ -561,6 +594,39 @@ export function JobDetail({
                     </div>
                 )}
             </div>
+            </div>
+
+            {!signedIn && (
+                <div
+                    data-testid="job-detail-signin-gate"
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/55 px-6 text-center backdrop-blur-[2px]"
+                >
+                    {onClose && (
+                        <button
+                            type="button"
+                            aria-label="Close"
+                            onClick={onClose}
+                            className="absolute right-4 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                        >
+                            ×
+                        </button>
+                    )}
+                    <p className="max-w-[22ch] text-[15px] font-semibold tracking-tight text-foreground">
+                        Sign in to view this role
+                    </p>
+                    <p className="max-w-[28ch] text-[13px] text-muted-foreground">
+                        Browse the board freely — details, apply, and save need an account.
+                    </p>
+                    <Button
+                        type="button"
+                        data-testid="job-detail-signin-cta"
+                        onClick={() => onRequestSignIn?.()}
+                        className="mt-1"
+                    >
+                        Sign in
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }
