@@ -59,9 +59,9 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
             }}
         >
             <div className="mb-9 flex flex-col items-center">
-                <div className="flex items-center gap-3">
-                    <BrandMark className="h-10 w-10 text-[#ececec]" />
-                    <span className="text-[28px] font-semibold leading-none tracking-[-0.04em] text-[#ececec]">
+                <div className="flex items-center gap-3.5">
+                    <BrandMark className="h-14 w-14 text-[#ececec]" />
+                    <span className="text-[40px] font-semibold leading-none tracking-[-0.045em] text-[#ececec]">
                         intervu
                     </span>
                 </div>
