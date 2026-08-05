@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How it works — video preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #12151a;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --border: #2a2f36;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem 1.5rem;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+    }
+    p.lead {
+      margin: 0 0 2rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .grid {
+      display: grid;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    figure {
+      margin: 0;
+    }
+    figcaption {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.01em;
+    }
+    figcaption span {
+      display: block;
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+    video {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #000;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>How it works — loop preview</h1>
+  <p class="lead">Muted H.264 loops (~16s). Ken Burns + crossfade from locked keyframes.</p>
+
+  <div class="grid">
+    <figure>
+      <figcaption>
+        Claude / ChatGPT (MCP)
+        <span>Paste connector → OAuth approve → ask for jobs</span>
+      </figcaption>
+      <video
+        src="video-a-mcp-loop.mp4"
+        poster="poster-a-mcp.png"
+        autoplay
+        loop
+        muted
+        playsinline
+        controls
+      ></video>
+    </figure>
+
+    <figure>
+      <figcaption>
+        OpenClaw
+        <span>curl install → browser auth → WhatsApp digest</span>
+      </figcaption>
+      <video
+        src="video-b-openclaw-loop.mp4"
+        poster="poster-b-openclaw.png"
+        autoplay
+        loop
+        muted
+        playsinline
+        controls
+      ></video>
+    </figure>
+  </div>
+</body>
+</html>
