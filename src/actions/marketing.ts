@@ -11,6 +11,11 @@ import type { MarketingCorpusStats } from "@/lib/marketing-stats";
  * in `@/actions/jobs` (e.g. `getJobsFreshnessAction`).
  */
 export async function getMarketingStatsAction(): Promise<MarketingCorpusStats | null> {
-    const data = await fetchMarketTrends();
-    return data ? { liveJobs: data.liveJobs } : null;
+    try {
+        const data = await fetchMarketTrends();
+        return data ? { liveJobs: data.liveJobs } : null;
+    } catch {
+        // Meili/index unavailable — landing omits the count rather than crashing.
+        return null;
+    }
 }

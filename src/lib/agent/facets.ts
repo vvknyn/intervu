@@ -19,6 +19,10 @@
 export const EXPERIENCE_LEVELS = ["entry", "mid", "senior"] as const;
 export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
 
+/** Canonical `work_type` facet values — same vocabulary as query-understanding.ts. */
+export const WORK_TYPES = ["remote", "hybrid", "onsite"] as const;
+export type WorkType = (typeof WORK_TYPES)[number];
+
 /**
  * Real, user-selectable `employment_type` facet values (Task 12) —
  * types.ts:28's doc comment; "unknown" excluded for the same reason as

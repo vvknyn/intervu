@@ -9,7 +9,6 @@ import {
     Compass,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
@@ -61,9 +60,6 @@ import {
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { countryToFlag } from "@/lib/jobs/country-flag";
-import { CompanyIntelStrip } from "@/components/jobs/CompanyIntelStrip";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
@@ -193,20 +189,6 @@ const VERDICT_TONE_CLASS: Record<FlagTone, string> = {
     faint: "text-faint",
 };
 
-const DESKTOP_MQ = "(min-width: 1024px)";
-function subscribeDesktopMq(onStoreChange: () => void) {
-    if (typeof window === "undefined") return () => {};
-    const mq = window.matchMedia(DESKTOP_MQ);
-    mq.addEventListener("change", onStoreChange);
-    return () => mq.removeEventListener("change", onStoreChange);
-}
-function getDesktopMqSnapshot() {
-    return typeof window !== "undefined" && window.matchMedia(DESKTOP_MQ).matches;
-}
-function getDesktopMqServerSnapshot() {
-    return false;
-}
-
 /** "relisted" (a stated fact from `classifyPostingFreshness`) wins over a
  *  plain staleness count — both are real signals, but a relist is the more
  *  specific/explanatory one when both happen to be present. `null` when
@@ -298,9 +280,7 @@ function JobCard({
     opened,
     onClick,
     onCompany,
-    onOpenPosting,
     now,
-    elite = false,
     variantCount = 0,
     expanded = false,
     onToggleExpand,
@@ -310,17 +290,12 @@ function JobCard({
     opened: boolean;
     onClick: () => void;
     onCompany?: (job: PublicJob) => void;
+    /** Accepted-but-unused: kept so call sites don't need editing. */
     onOpenPosting?: (job: PublicJob) => void;
-    /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
-    /** Elite board intel strip styling (board=elite). */
+    /** Accepted-but-unused: elite board styling removed from row chrome. */
     elite?: boolean;
-    /** Deliverable 3 — how many duplicate postings (same normalized title +
-     *  company, `lib/jobs/cluster.ts`) are folded into this card. 0 for the
-     *  ordinary, non-clustered case — no affordance renders. */
     variantCount?: number;
-    /** Whether the caller is currently rendering this cluster's variants as
-     *  their own rows right below this one. */
     expanded?: boolean;
     onToggleExpand?: () => void;
 }) {
@@ -330,11 +305,11 @@ function JobCard({
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     const level = prettyEnum(job.experience_level);
-    const clearGhost = !flagged && (job.ghost_badge === "clear" || !job.ghost_badge);
-    // Himalayas-style flag chip (visual-identity pass) — null for any
-    // location_country classifyCountryValue can't place, so the chip below
-    // just renders the location text with no emoji, never a broken glyph.
-    const countryFlag = countryToFlag(job.location_country);
+    const employment = prettyEnum(job.employment_type);
+    const loc = locationText(job);
+    const modeLabel = job.work_type === "remote" ? "Remote" : job.work_type ? prettyEnum(job.work_type) : null;
+    const locationLine =
+        job.work_type === "remote" ? "Remote" : modeLabel ? `${loc} · ${modeLabel}` : loc;
 
     return (
         <div
@@ -352,30 +327,25 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid cursor-pointer grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4 text-left shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-[var(--shadow-md)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                // Selected card = 2px ink border (docs-mockup.html THE RULES
-                // #2/#5): green is verified/live ONLY, never a selection
-                // decoration, so this no longer tints the background — just
-                // the structural ink border the mock's `.jcard.sel` uses.
-                active && "border-2 border-foreground",
+                "group mb-2 grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                active && "border-foreground shadow-[0_0_0_1px_hsl(var(--foreground))]",
             )}
         >
-            <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             <div className="min-w-0">
                 <div
                     data-testid="job-title"
                     className={cn(
                         "text-[15px] leading-snug tracking-tight",
-                        opened ? "font-medium text-muted-foreground" : "font-semibold",
+                        opened ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
                     )}
                 >
                     {decodeText(job.title)}
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
+                <div className="mt-1 text-[13px] text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
-                            className="font-medium text-brand hover:underline"
+                            className="hover:text-foreground hover:underline"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCompany(job);
@@ -384,76 +354,55 @@ function JobCard({
                             {cleanCompany(job.company) || "Unknown company"}
                         </button>
                     ) : (
-                        <span className="font-medium text-brand">{cleanCompany(job.company) || "Unknown company"}</span>
+                        cleanCompany(job.company) || "Unknown company"
                     )}
-                    <span>
-                        {countryFlag && (
-                            <span aria-hidden className="mr-1">
-                                {countryFlag}
-                            </span>
-                        )}
-                        {locationText(job)}
-                    </span>
-                    {salary && <span className="font-mono text-[12px]">{salary}</span>}
-                    {level && <span className="font-mono text-[12px]">{level}</span>}
-                    {variantCount > 0 && (
-                        <button
-                            type="button"
-                            data-testid="cluster-toggle"
-                            // Squared mono chip (docs-mockup.html Comp B) — was a
-                            // bare underlined text link; the mock renders this as
-                            // its own bordered box, matching the other data chips
-                            // on the row instead of reading as a hyperlink.
-                            className="mono-data border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleExpand?.();
-                            }}
-                        >
-                            {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
-                        </button>
-                    )}
-                </div>
-                {clearGhost && (
-                    // Squared verdict line (docs-mockup.html Comp B): a square
-                    // dot (pills retired — THE RULES #1), mono throughout, with
-                    // ONLY "no ghost signals" carrying the verification
-                    // underline — that's the specific claim being underwritten,
-                    // not the bare "live" word next to it.
-                    <div className="mono-data mt-2 flex items-center gap-1.5 text-[12px] font-medium text-brand">
-                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse bg-brand" aria-hidden />
-                        live · <span className="verified-underline">no ghost signals</span>
-                    </div>
-                )}
-                {flagged && (
-                    <div className={cn("mt-2 font-mono text-[12px]", VERDICT_TONE_CLASS[verdict.tone])}>
-                        {verdict.code.toLowerCase()}
-                    </div>
-                )}
-                {/* "Am I a fit?" removed 2026-08-02 (AI intelligence moved to
-                    MCP) — a list row is too tight for a handoff line, so
-                    this degrades by omission; the one line for the whole
-                    screen lives in JobDetail's "How you match" rail. */}
-                <div className="mt-2.5 border-t border-border pt-2.5">
-                    <CompanyIntelStrip job={job} elite={elite} />
                 </div>
             </div>
-            <div className="flex flex-col items-center justify-start gap-2">
-                {job.apply_url && onOpenPosting && (
+            <span
+                className={cn(
+                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
+                    flagged
+                        ? "border-border bg-card text-muted-foreground"
+                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                )}
+            >
+                {flagged ? "review" : "verified"}
+            </span>
+            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-faint">
+                <span>{locationLine}</span>
+                {age && (
+                    <>
+                        <span aria-hidden>·</span>
+                        <span>{age}</span>
+                    </>
+                )}
+                <span aria-hidden>·</span>
+                <span>{salary ? `from ${salary}` : "pay n/a"}</span>
+                {level && (
+                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                        {level}
+                    </span>
+                )}
+                {employment &&
+                    employment.toLowerCase() !== "full-time" &&
+                    employment.toLowerCase() !== "full time" && (
+                        <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                            {employment}
+                        </span>
+                    )}
+                {variantCount > 0 && (
                     <button
                         type="button"
-                        // min-h-11 + flex centering, same tap-target fix as
-                        // JobDetail's Apply button.
-                        className="flex min-h-11 w-full items-center justify-center rounded-lg border border-foreground/20 px-2 text-[12px] font-semibold text-foreground transition-colors group-hover:border-foreground group-hover:bg-foreground group-hover:text-background"
+                        data-testid="cluster-toggle"
+                        className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                         onClick={(e) => {
                             e.stopPropagation();
-                            onOpenPosting(job);
+                            onToggleExpand?.();
                         }}
                     >
-                        Apply
+                        {expanded ? "hide" : `+${variantCount} location${variantCount === 1 ? "" : "s"}`}
                     </button>
                 )}
-                {age && <div className="font-mono text-[11.5px] text-muted-foreground">{age}</div>}
             </div>
         </div>
     );
@@ -559,18 +508,17 @@ function JobCardSkeleton() {
     return (
         <div
             aria-hidden="true"
-            className="mb-2.5 grid grid-cols-[48px_minmax(0,1fr)_72px] gap-3 border border-border bg-card p-4"
+            className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 rounded-[14px] border border-border bg-card p-4"
         >
-            <div className="skeleton-bar h-12 w-12" />
-            <div className="min-w-0 space-y-2.5 py-0.5">
+            <div className="min-w-0 space-y-2">
                 <div className="skeleton-bar h-4 w-3/4" />
-                <div className="skeleton-bar h-3 w-1/2" />
-                <div className="flex gap-2 pt-1">
-                    <div className="skeleton-bar h-5 w-16" />
-                    <div className="skeleton-bar h-5 w-20" />
-                </div>
+                <div className="skeleton-bar h-3 w-1/3" />
             </div>
-            <div className="skeleton-bar h-7 w-full self-start" />
+            <div className="skeleton-bar h-5 w-14 self-start" />
+            <div className="col-span-full flex gap-2">
+                <div className="skeleton-bar h-3 w-24" />
+                <div className="skeleton-bar h-3 w-16" />
+            </div>
         </div>
     );
 }
@@ -642,6 +590,67 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
 /** Review fix: one source for the `activeFilterEntries` element shape, instead of spelling it out twice below. */
 type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
 
+function ActiveFilterActions({
+    entries,
+    onClearEntry,
+    onClearFilters,
+    query,
+    onClearQuery,
+    className,
+    clearFiltersTestId = "empty-state-clear-filters",
+    clearQueryTestId = "empty-state-clear-query",
+    chipTestId = "empty-state-clear-chip",
+}: {
+    entries: FilterEntry[];
+    onClearEntry: (entry: FilterEntry) => void;
+    onClearFilters?: () => void;
+    query?: string;
+    onClearQuery?: () => void;
+    className?: string;
+    clearFiltersTestId?: string;
+    clearQueryTestId?: string;
+    chipTestId?: string;
+}) {
+    const hasQuery = (query ?? "").trim().length > 0;
+    const hasFilters = entries.length > 0;
+    if (!hasQuery && !hasFilters) return null;
+    return (
+        <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground", className)}>
+            {hasFilters && onClearFilters && (
+                <button
+                    type="button"
+                    data-testid={clearFiltersTestId}
+                    onClick={onClearFilters}
+                    className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
+                >
+                    Clear filters
+                </button>
+            )}
+            {hasQuery && onClearQuery && (
+                <button
+                    type="button"
+                    data-testid={clearQueryTestId}
+                    onClick={onClearQuery}
+                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                >
+                    ✕ clear search
+                </button>
+            )}
+            {entries.map((entry) => (
+                <button
+                    key={entry.key}
+                    type="button"
+                    data-testid={chipTestId}
+                    onClick={() => onClearEntry(entry)}
+                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                >
+                    ✕ clear {entry.label}
+                </button>
+            ))}
+        </p>
+    );
+}
+
 function EmptyResults({
     entries,
     onClearEntry,
@@ -671,39 +680,14 @@ function EmptyResults({
                 {hasFilters ? "Nothing matches these filters." : "No roles match."}
             </p>
             {(hasQuery || hasFilters) && (
-                <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
-                    {hasFilters && (
-                        <button
-                            type="button"
-                            data-testid="empty-state-clear-filters"
-                            onClick={onClearFilters}
-                            className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground/70"
-                        >
-                            Clear filters
-                        </button>
-                    )}
-                    {hasQuery && (
-                        <button
-                            type="button"
-                            data-testid="empty-state-clear-query"
-                            onClick={onClearQuery}
-                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                        >
-                            ✕ clear search
-                        </button>
-                    )}
-                    {entries.map((entry) => (
-                        <button
-                            key={entry.key}
-                            type="button"
-                            data-testid="empty-state-clear-chip"
-                            onClick={() => onClearEntry(entry)}
-                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                        >
-                            ✕ clear {entry.label}
-                        </button>
-                    ))}
-                </p>
+                <ActiveFilterActions
+                    className="mt-2"
+                    entries={entries}
+                    onClearEntry={onClearEntry}
+                    onClearFilters={onClearFilters}
+                    query={query}
+                    onClearQuery={onClearQuery}
+                />
             )}
             {ghostRevealCount != null && (
                 <button
@@ -728,8 +712,8 @@ function EmptyResults({
  * default; one click expands the two-field form in place. Submitting creates
  * an "interviewing"-stage pursuit with no job_id (typed company/role only, no
  * live listing behind it — same shape `buildManualPursuitSnapshot` gives
- * every other manual pursuit) and the caller routes straight into /prep for
- * it — see `handleSeedSubmit` below.
+ * every other manual pursuit) and the caller routes to the tracker — see
+ * `handleSeedSubmit` below.
  */
 function SearchSeedLine({
     onSubmit,
@@ -862,7 +846,6 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
-    const isDesktop = useSyncExternalStore(subscribeDesktopMq, getDesktopMqSnapshot, getDesktopMqServerSnapshot);
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1592,10 +1575,11 @@ function JobsContent() {
         // subset check above) — a job-only URL change must still update
         // selection even when nothing else in the subset changed.
         //
-        // Portal redesign: mobile uses bottom sheet; lg+ uses sticky inline pane.
+        // Bottom sheet on all viewports when `job` appears/disappears (close
+        // calls `router.back()`, see the Sheet below).
         const jobId = parsed.jobId;
         setSelectedId(jobId);
-        setDetailSheetOpen(Boolean(jobId) && !getDesktopMqSnapshot());
+        setDetailSheetOpen(Boolean(jobId));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
@@ -1943,14 +1927,6 @@ function JobsContent() {
     // TailorAnalysisSheet mounts they drove are gone; `handleApplyGate`
     // stays (Apply, Go after this job, and Open posting still gate through
     // it — see its own comment).
-    const handlePrep = (job: PublicJob) => {
-        const p = new URLSearchParams();
-        p.set("company", job.company ?? "");
-        p.set("position", job.title);
-        p.set("round", "Technical");
-        p.set("searched", "true");
-        router.push(`/prep?${p.toString()}`);
-    };
     const handleCompany = (job: PublicJob) => {
         if (!job.company_domain) return;
         router.push(`/co/${domainToSlug(job.company_domain)}`);
@@ -2072,23 +2048,15 @@ function JobsContent() {
     // The search seed line (spec §3 "outside interviews") — same signed-out
     // vs. signed-in split as `handleGoAfter` above, but there's no job_id to
     // find-or-create by (`createManualPursuit`/`addManualGuestPursuit` always
-    // create), and unlike go-after this always routes on to /prep once the
-    // pursuit exists — `round` defaults to "Technical" for the same reason
-    // `handlePrep` above does: DashboardContainer's URL-restore only loads a
-    // session when company/position/round/searched are ALL present.
+    // create), then routes to the pursuit on /yours once it exists.
     const handleSeedSubmit = (company: string, position: string) => {
-        const goToPrep = (pursuitId: string) => {
-            const p = new URLSearchParams();
-            p.set("company", company);
-            p.set("position", position);
-            p.set("round", "Technical");
-            p.set("searched", "true");
-            p.set("pursuitId", pursuitId);
-            router.push(`/prep?${p.toString()}`);
+        const goToTracker = (pursuitId: string) => {
+            toast.success("Added to your tracker");
+            router.push(`/yours/${pursuitId}`);
         };
 
         if (!user) {
-            goToPrep(addManualGuestPursuit(company, position).id);
+            goToTracker(addManualGuestPursuit(company, position).id);
             return;
         }
 
@@ -2105,7 +2073,7 @@ function JobsContent() {
                     return;
                 }
                 invalidatePursuitsCache();
-                goToPrep(res.data.id);
+                goToTracker(res.data.id);
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
@@ -2442,6 +2410,24 @@ function JobsContent() {
         />
     );
 
+    const handleClearSearch = () => {
+        setQuery("");
+        setLocationDraft("");
+        applyUrlState(buildUrlState({ q: "" }), "replace");
+        const nextFacets = { ...filterState.facets };
+        delete nextFacets.location_country;
+        if (Object.keys(nextFacets).length !== Object.keys(filterState.facets).length) {
+            applyFilterState({ ...filterState, facets: nextFacets });
+        }
+    };
+
+    const resultsCountLabel =
+        loading && hits.length > 0
+            ? "updating…"
+            : !loading && !result?.widened && totalCount.value > 0
+              ? `${totalCount.value.toLocaleString()} role${totalCount.value === 1 ? "" : "s"}`
+              : resultCountLine;
+
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
@@ -2450,27 +2436,27 @@ function JobsContent() {
      * (`src/app/page.tsx`), not on this route.
      */
     return (
-        <div className="flex min-h-screen flex-col bg-background lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden">
-            <div className="w-full shrink-0 border-b border-border bg-card">
-                <div className="mx-auto max-w-[1280px] px-4 pb-4 pt-5 lg:px-8 lg:pt-6">
-                    <div
-                        data-search-line
-                        className="flex flex-col gap-3 lg:grid lg:grid-cols-[1.35fr_0.65fr_auto] lg:items-center lg:gap-3"
-                    >
+        <div className="min-h-screen bg-background">
+            <main className="mx-auto w-full max-w-[920px] px-4 pb-20 pt-7 sm:px-5">
+                <a
+                    href="#jobs-results-list"
+                    className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+                >
+                    Skip to results
+                </a>
+
+                <section className="rounded-none border-0 bg-card p-3">
+                    <div data-search-line className="flex flex-wrap gap-2">
                         <SearchAutocomplete
                             value={query}
                             onChange={(v) => {
                                 setQuery(v);
-                                // Continuous input is filter-like — `replace`, not `push` (a
-                                // "push" per keystroke would make the back button undo one
-                                // character at a time). Discrete submit (Enter, or picking a
-                                // suggestion) uses `push` instead — see `onSearch` below.
                                 applyUrlState(buildUrlState({ q: v }), "replace");
                             }}
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-11 rounded-xl border border-border bg-muted/40 px-3 text-[15px] shadow-none focus-visible:border-foreground focus-visible:ring-0"
+                            className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-muted px-3.5 text-sm shadow-none focus-visible:border-0 focus-visible:bg-muted focus-visible:ring-0"
                             containerClassName="min-w-0 flex-1"
                         />
                         <Input
@@ -2486,92 +2472,55 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-11 rounded-xl border border-border bg-muted/40 px-3 shadow-none focus-visible:border-foreground focus-visible:ring-0"
+                            className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-muted px-3.5 text-sm shadow-none focus-visible:border-0 focus-visible:bg-muted focus-visible:ring-0"
                         />
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-11 rounded-xl bg-foreground px-5 font-bold text-background hover:bg-foreground/90"
+                            className="h-[46px] rounded-none bg-foreground px-[18px] text-[13px] font-semibold text-background hover:opacity-90"
                         >
                             Search
                         </Button>
                     </div>
 
-                    {/* Quiet cross-link (not a banner) — the automation-first
-                        front door lives at `/`; this is the manual escape
-                        hatch for people who'd rather type than connect an
-                        agent. */}
-                    <p className="mt-2 text-xs text-muted-foreground">
-                        <Link href="/" className="underline underline-offset-2 hover:text-foreground">
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
+                        <Link
+                            href="/"
+                            className="text-[13px] text-foreground underline underline-offset-[3px] hover:text-foreground/80"
+                        >
                             There&apos;s a version of this that works while you sleep →
                         </Link>
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            data-testid="filters-toggle"
+                            aria-expanded={filtersOpen}
+                            onClick={() => setFiltersOpen((v) => !v)}
+                            className={cn(
+                                "rounded-none border-0 bg-muted px-3 py-1.5 text-xs font-medium text-foreground",
+                                filtersOpen && "bg-foreground text-background",
+                                activeCount > 0 && "has-active",
+                            )}
+                        >
+                            Filters
+                            {activeCount > 0 && (
+                                <span className="ml-1 font-mono text-[10px] opacity-75">· {activeCount}</span>
+                            )}
+                        </button>
+                        {fitActive && (
                             <button
                                 type="button"
-                                data-testid="filters-toggle"
-                                aria-expanded={filtersOpen}
-                                onClick={() => setFiltersOpen((v) => !v)}
-                                className={cn(chipVariants({ active: false }), "h-7", filtersOpen && "border-foreground bg-foreground text-background")}
+                                onClick={clearFit}
+                                className="text-xs text-foreground underline underline-offset-2"
                             >
-                                Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+                                ranked by your résumé ✕
                             </button>
-                            {activeEntries.map((entry) => (
-                                <span key={entry.key} className={cn(chipVariants({ active: true }), "h-7")}>
-                                    {entry.label}
-                                    <ChipDismiss
-                                        label={`Remove ${entry.label}`}
-                                        onClick={() => applyFilterState(entry.clear(filterState))}
-                                    />
-                                </span>
-                            ))}
-                            {activeCount > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={panelClearAll}
-                                    className="text-xs font-medium text-muted-foreground hover:text-foreground"
-                                >
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
-                            <span data-testid="result-line" className="tabular-nums">
-                                {loading && hits.length > 0 ? "updating…" : resultCountLine}
-                            </span>
-                            {/* "explore roles like mine" (résumé-driven AI-suggested
-                                adjacent roles) removed 2026-08-02 — moved to MCP.
-                                A toolbar chip is too tight for a handoff line, so
-                                this degrades by omission: nothing renders here
-                                unless "ranked by your résumé" (Rank by fit,
-                                deterministic, not AI) is active. */}
-                            {fitActive && (
-                                <button
-                                    type="button"
-                                    onClick={clearFit}
-                                    className="text-foreground underline underline-offset-2"
-                                >
-                                    ranked by your résumé ✕
-                                </button>
-                            )}
-                        </div>
+                        )}
                     </div>
 
-                    {/* The collapsible filter band (Vivek, 2026-07-26). Lives in
-                        the pinned band so it never scrolls away from the line it
-                        modifies; capped height with its own scroll so a long facet
-                        list can't push the results off screen. Editorial affordance
-                        band (SerpFilters), wired to the same single
-                        `applyFilterState` funnel the old FilterPanel card used. */}
                     {filtersOpen && (
-                        // Motion tokens (Job 1e) — `.panel-enter` (globals.css)
-                        // plays once on mount, i.e. on expand; the band has no
-                        // separate collapse animation since it unmounts on close.
                         <div
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[45dvh] overflow-y-auto overscroll-contain border border-border bg-muted/30 p-5 custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border-0 bg-muted p-4 custom-scrollbar"
                         >
                             <SerpFilters
                                 distribution={result?.facetDistribution}
@@ -2591,19 +2540,9 @@ function JobsContent() {
                             />
                         </div>
                     )}
-                </div>
-            </div>
+                </section>
 
-            <main className="mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-1 gap-5 px-4 pb-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-hidden lg:px-8">
-                <div className="flex min-h-0 min-w-0 flex-col">
-                <a
-                    href="#jobs-results-list"
-                    className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
-                >
-                    Skip to results
-                </a>
-                <div className="flex min-h-0 max-w-[880px] flex-1 flex-col pt-4 lg:max-w-none">
-                    <div className="flex min-h-0 flex-col">
+                <div className="mt-9">
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
                             to word-dropping (`shouldRelaxSearch`, lib/jobs/meilisearch.ts).
@@ -2677,16 +2616,16 @@ function JobsContent() {
                                    the URL write and recent-searches recording can't
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
-                                <div className="py-8 text-left" data-testid="serp-ask">
-                                    <p className="text-[14px] text-muted-foreground">which role? your filters stay on</p>
-                                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+                                <div className="text-left" data-testid="serp-ask">
+                                    <p className="text-[13px] text-muted-foreground">which role? your filters stay on</p>
+                                    <div className="mt-3.5 flex flex-wrap gap-x-[18px] gap-y-2.5">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
                                                 type="button"
                                                 data-testid="serp-ask-seed"
                                                 onClick={() => submitSearch(seed)}
-                                                className="font-mono text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                                                className="text-sm font-medium text-foreground transition-colors duration-100 hover:underline hover:underline-offset-[3px]"
                                             >
                                                 {seed}
                                             </button>
@@ -2731,14 +2670,63 @@ function JobsContent() {
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
                                     onClearFilters={panelClearAll}
                                     query={query}
-                                    onClearQuery={() => {
-                                        setQuery("");
-                                        applyUrlState(buildUrlState({ q: "" }), "replace");
-                                    }}
+                                    onClearQuery={handleClearSearch}
                                     ghostRevealCount={ghostRevealCount}
                                     onRevealGhosts={() => onHideGhosts(false)}
                                 />
                             ) : (
+                                <>
+                                    {!isSerpAsk && (
+                                        <>
+                                            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+                                                <span
+                                                    data-testid="result-line"
+                                                    className="text-[13px] text-muted-foreground tabular-nums"
+                                                >
+                                                    {resultsCountLabel}
+                                                </span>
+                                                {(query.trim() || activeCount > 0) && (
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                        {activeCount > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                data-testid="results-clear-filters"
+                                                                onClick={panelClearAll}
+                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
+                                                            >
+                                                                Clear filters
+                                                                {activeCount > 1 ? (
+                                                                    <span className="ml-1 font-mono text-[11px] opacity-75">
+                                                                        · {activeCount}
+                                                                    </span>
+                                                                ) : null}
+                                                            </button>
+                                                        )}
+                                                        {query.trim() && (
+                                                            <button
+                                                                type="button"
+                                                                data-testid="results-clear-query"
+                                                                onClick={handleClearSearch}
+                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
+                                                            >
+                                                                ✕ clear search
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {activeCount > 0 && (
+                                                <ActiveFilterActions
+                                                    className="mb-3"
+                                                    entries={activeEntries}
+                                                    onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
+                                                    clearFiltersTestId="results-clear-filters-chip-row"
+                                                    clearQueryTestId="results-clear-query-chip-row"
+                                                    chipTestId="results-clear-chip"
+                                                />
+                                            )}
+                                        </>
+                                    )}
                                 <div
                                     id="jobs-results-list"
                                     tabIndex={0}
@@ -2746,7 +2734,7 @@ function JobsContent() {
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
                                     className={cn(
-                                        "min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar [scrollbar-gutter:stable] pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2",
+                                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-offset-2",
                                         board === "elite" && "elite-signal",
                                     )}
                                 >
@@ -2878,82 +2866,16 @@ function JobsContent() {
                                     )}
                                     <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                                 </div>
+                                </>
                             )}
                         </div>
-                    </div>
-                </div>
-                </div>
 
-                {isDesktop && selectedId && (
-                    // Motion tokens (Job 1e) — `.panel-enter` (globals.css,
-                    // driven by --transition-panel) plays once per mount, i.e.
-                    // on open (this whole `<aside>` unmounts on close, there's
-                    // no separate close transition to add motion to).
-                    <aside className="panel-enter hidden min-h-0 pt-4 lg:block">
-                        <div className="sticky top-4 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border border-border bg-card pb-5 shadow-sm custom-scrollbar">
-                            <div className="relative">
-                                <button
-                                    type="button"
-                                    aria-label="Close job details"
-                                    onClick={() => router.back()}
-                                    className="absolute right-3 top-3 z-10 border border-border bg-card/90 px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
-                                >
-                                    ×
-                                </button>
-                                {detailJob ? (
-                                    <>
-                                        <JobDetail
-                                            key={detailJob.id}
-                                            job={detailJob}
-                                            now={nowMs}
-                                            applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                                            applying={applyingId === detailJob.id}
-                                            onOpenPosting={() => handleOpenPosting(detailJob)}
-                                            onMarkApplied={() => handleMarkApplied(detailJob)}
-                                            onPrep={() => handlePrep(detailJob)}
-                                            onGoAfter={() => handleGoAfter(detailJob)}
-                                            variants={detailVariants}
-                                            pursuit={detailPursuit}
-                                            goingAfter={goingAfterId === detailJob.id}
-                                        />
-                                        <JobDetailActionBar
-                                            job={detailJob}
-                                            onOpenPosting={() => handleOpenPosting(detailJob)}
-                                            onPrep={() => handlePrep(detailJob)}
-                                        />
-                                    </>
-                                ) : isDeadJobConfirmed ? (
-                                    <div className="p-4">
-                                        <DeadJobTombstone
-                                            onSimilarRoles={handleTombstoneSimilarRoles}
-                                        />
-                                    </div>
-                                ) : showUnresolvedDetail ? (
-                                    <div className="p-4">
-                                        <DeadJobUnresolved
-                                            onSimilarRoles={handleTombstoneSimilarRoles}
-                                            checking={isDeadJobChecking}
-                                        />
-                                    </div>
-                                ) : loading ? (
-                                    // Job 1b — the one real gap: a deep-linked
-                                    // `?job=` id whose first search page hasn't
-                                    // resolved yet, so `detailJob` is null but
-                                    // this isn't "confirmed gone" or "checking
-                                    // a dead-link candidate" either (both
-                                    // handled above) — this branch used to
-                                    // fall through to `null` and render
-                                    // nothing at all while the first page was
-                                    // still in flight.
-                                    <div className="p-4">
-                                        <JobDetailSkeleton />
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                    </aside>
-                )}
-                </main>
+                <p className="mt-10 max-w-[52ch] text-xs leading-relaxed text-faint">
+                    Every listing is scraped from companies&apos; own career pages, screened for ghost-job risk — never
+                    resold, never curated. Same market your agent sees via MCP.
+                </p>
+                </div>
+            </main>
 
             <AuthPopover
                 open={authOpen}
@@ -2984,26 +2906,24 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
             />
             <Sheet
-                open={detailSheetOpen && !isDesktop}
+                open={detailSheetOpen}
                 onOpenChange={(open) => {
-                    // Opening is driven entirely by the URL-derived-selection
-                    // effect above. A close (X button, overlay click, swipe,
-                    // Esc) must go back through the URL — `job` was pushed
-                    // when this job opened, so `router.back()` is the close.
                     if (!open) router.back();
                 }}
             >
                 <SheetContent
                     side="bottom"
-                    // Motion tokens (Job 1e) — same retarget as FitDrawer's
-                    // SheetContent, see its own comment for why `duration-`
-                    // (not a plain `transition-*` class) is the right utility
-                    // to override here.
-                    className="max-h-[92dvh] overflow-y-auto custom-scrollbar p-0 pb-5 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    hideCloseButton
+                    overlayClassName="bg-[rgba(18,21,26,0.42)]"
+                    className="left-1/2 flex max-h-[min(88vh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[0_-18px_50px_rgba(18,21,26,0.18)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
+                    <div className="flex shrink-0 justify-center py-2.5 pt-2.5" aria-hidden>
+                        <span className="h-1 w-9 rounded-full bg-[#d0d6de]" />
+                    </div>
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
+                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
                     {detailJob ? (
                         <>
                             <JobDetail
@@ -3014,32 +2934,21 @@ function JobsContent() {
                                 applying={applyingId === detailJob.id}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
-                                onPrep={() => handlePrep(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
                                 variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}
+                                onClose={() => router.back()}
+                                className="border-0 bg-transparent shadow-none"
                             />
-                            {/* Sticky mobile action bar (P27 mobile pass) — reuses
-                                the SAME onOpenPosting/onPrep handlers passed to
-                                JobDetail just above (no new handlers). Its
-                                "Am I a fit?" button moved to MCP 2026-08-02 —
-                                see JobDetailActionBar's own doc comment.
-                                JobDetail's own CTAs live at the top and scroll
-                                out of view on a long description; this keeps
-                                Apply reachable — see JobDetailActionBar's doc
-                                comment for the fixed-vs-sticky/stacking design. */}
                             <JobDetailActionBar
                                 job={detailJob}
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
-                                onPrep={() => handlePrep(detailJob)}
                             />
                         </>
                     ) : isDeadJobConfirmed ? (
                         <div className="p-4">
-                            <DeadJobTombstone
-                                onSimilarRoles={handleTombstoneSimilarRoles}
-                            />
+                            <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} />
                         </div>
                     ) : showUnresolvedDetail ? (
                         <div className="p-4">
@@ -3049,11 +2958,11 @@ function JobsContent() {
                             />
                         </div>
                     ) : loading ? (
-                        // Job 1b — same gap as the desktop aside above.
                         <div className="p-4">
                             <JobDetailSkeleton />
                         </div>
                     ) : null}
+                    </div>
                 </SheetContent>
             </Sheet>
         </div>

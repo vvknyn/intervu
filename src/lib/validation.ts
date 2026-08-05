@@ -101,6 +101,7 @@ export const updateApplicationSchema = z
     resume_version_id: optionalString(200),
     cover_letter: optionalString(50000),
     interview_date: optionalString(64),
+    note: optionalString(2000),
   })
   .strict();
 
@@ -133,6 +134,8 @@ export const createManualPursuitSchema = z.object({
   company: nonEmptyString(200),
   position: nonEmptyString(300),
   status: applicationStatus.optional(),
+  job_url: optionalHttpUrl,
+  note: optionalString(2000),
 });
 
 /** A single provider API key save (profile.ts saveProviderApiKey). */

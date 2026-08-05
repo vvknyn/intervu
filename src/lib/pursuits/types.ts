@@ -126,6 +126,8 @@ export interface Pursuit {
      *  resume is on file, which the tracker shows as an explicit empty
      *  state rather than fabricating one. */
     resume_versions?: ResumeVersionSnapshot[];
+    /** Free-form tracker note (manual add / detail sheet). */
+    note?: string;
 }
 
 /** `rejected` | `withdrawn` render as a dimmed "Ended" — data keeps its

@@ -246,6 +246,8 @@ export function JobDetail({
     pursuit,
     goingAfter,
     variants = [],
+    onClose,
+    className,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -254,8 +256,7 @@ export function JobDetail({
     onMarkApplied: () => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
-     *  change's scope — still typecheck without editing their call sites.
-     *  JobDetail itself now renders a static line instead of calling this. */
+     *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
     onGoAfter: () => void;
     applied: boolean;
@@ -267,6 +268,8 @@ export function JobDetail({
      *  different location — `lib/jobs/cluster.ts`) — feeds the header's
      *  "also in" chip. Empty for the ordinary non-clustered case. */
     variants?: PublicJob[];
+    onClose?: () => void;
+    className?: string;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
@@ -302,12 +305,12 @@ export function JobDetail({
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
-        <div className="overflow-hidden border border-border bg-card">
-            <div className="border-b border-border p-6">
-                <div className="flex items-start gap-4">
+        <div className={cn("overflow-hidden border border-border bg-card", className)}>
+            <div className="border-b border-border px-5 pb-3.5 pt-1">
+                <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-xl font-bold leading-tight tracking-tight">{decodeText(job.title)}</h2>
+                        <h2 className="text-lg font-semibold leading-tight tracking-tight">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanedCompany ? (
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="hover:text-foreground hover:underline">
@@ -359,6 +362,16 @@ export function JobDetail({
                             </div>
                         )}
                     </div>
+                    {onClose && (
+                        <button
+                            type="button"
+                            aria-label="Close"
+                            onClick={onClose}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                        >
+                            ×
+                        </button>
+                    )}
                 </div>
 
                 {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
@@ -369,7 +382,7 @@ export function JobDetail({
                     omission rather than repeating that line up here). Prep
                     removed 2026-08-02 — see the static note below this row
                     instead of a button. */}
-                <div className="mt-5 flex flex-wrap items-center gap-2">
+                <div className="mt-5 flex flex-wrap items-center gap-2 px-5">
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
                             <ArrowSquareOut size={16} />
@@ -397,11 +410,11 @@ export function JobDetail({
                 </div>
                 {/* Prep runs in the user's AI (2026-08-02) — this nudge is the
                     pairing funnel's in-context entry point. */}
-                <McpHandoffNote variant="prep" className="mt-2.5" />
+                <McpHandoffNote variant="prep" className="mt-2.5 px-5" />
                 {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
                     line now lives once, in the "How you match" rail below,
                     not repeated here. */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5">
                     <button
                         onClick={onMarkApplied}
                         disabled={applied || applying}
@@ -413,7 +426,7 @@ export function JobDetail({
                 </div>
             </div>
 
-            <div className="p-6">
+            <div className="px-5 pb-6 pt-4">
                 {/* EXPANDED ghost module (docs-mockup.html Comp B2): the
                     verdict headline (unchanged) plus the honest, derived
                     per-signal grid — see deriveGhostSignals's doc comment

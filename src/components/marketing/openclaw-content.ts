@@ -49,6 +49,17 @@ export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · self-hosted · free";
  */
 export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install | bash";
 
+/**
+ * Landing instrument meta — sits above the Claude / OpenClaw / Job board
+ * lanes. Problem / purpose only — never lane-specific product mechanics.
+ */
+export const INSTRUMENT_META = "Find the job postings that are hiring";
+
+/** Landing instrument — Claude / ChatGPT lane (same URL as /connect). */
+export const MCP_CONNECTOR_URL = "https://intervu.cc/api/mcp";
+export const MCP_CONNECTOR_HINT = "Paste as a custom connector in Claude or ChatGPT. Approve once.";
+export const OPENCLAW_INSTALL_HINT = "Runs on your machine. Stops before submit. Free to self-host.";
+
 export type ThreadRole = "agent" | "user";
 
 export interface ThreadMessage {

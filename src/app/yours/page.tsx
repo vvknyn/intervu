@@ -1,190 +1,103 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { createApplication } from "@/actions/application";
-import { saveTailoredVersion } from "@/actions/tailor-resume";
-import { saveResumeVersionForPursuitAction } from "@/actions/applications";
-import { applyRecommendations } from "@/lib/resume/apply-recommendations";
-import { resumeDataToMarkdown } from "@/lib/resume/to-markdown";
-import { ApplicationWizard, type ApplicationDraft } from "@/components/applications/ApplicationWizard";
+import { createApplication, deleteApplication, updateApplication } from "@/actions/application";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { LOGIN_REQUIRED, pickRandom } from "@/lib/copy";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
+import { addManualGuestPursuit, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
+import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import {
-    boardColumn,
-    boardTimestampLabel,
-    boardTruthLine,
-    isEnded,
-    nextAction,
-    stageLabel,
-    type BoardColumn,
-    type Pursuit,
-} from "@/lib/pursuits/types";
+    TRACKER_CHIP_FILTERS,
+    countByTrackerFilter,
+    matchesTrackerFilter,
+    matchesTrackerSearch,
+    type TrackerFilter,
+} from "@/lib/pursuits/tracker-display";
+import { PursuitListRow } from "@/components/tracker/PursuitListRow";
+import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
+import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 
-/** The page's one display moment, rendered identically for every page state
- *  (loading / guest gate / populated board) via the shared `PageHeader` in
- *  its "display" size — so "Tracker" never competes with a second heading
- *  below it, and the masthead matches Stories/Prep/Resume's rhythm exactly. */
-function TrackerHeader({ subtitle, actions }: { subtitle: React.ReactNode; actions?: React.ReactNode }) {
-    return <PageHeader size="display" fullWidth sticky={false} title="Tracker" description={subtitle} actions={actions} />;
-}
+const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
 
-const SUMMARY_COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string }[] = [
-    { key: "saved", label: "saved" },
-    { key: "applied", label: "applied" },
-    { key: "interviewing", label: "interviewing" },
-    { key: "offer", label: "offers" },
-];
-
-/** Header subtitle: "0 saved · 0 applied · 0 interviewing · 0 offers" with
- *  each count linked down to its board column (spec: "mono summary sentence
- *  with linked counts"). Reads the same `groups` the board renders from, so
- *  the two can never disagree. */
-function TrackerSummary({ groups }: { groups: Record<BoardColumn, Pursuit[]> }) {
+function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
-        <>
-            {SUMMARY_COLUMNS.map((col, i) => (
-                <span key={col.key}>
-                    {i > 0 && " · "}
-                    <a href={`#col-${col.key}`} className="text-foreground underline-offset-2 hover:underline">
-                        <span className="tabular-nums">{groups[col.key].length}</span> {col.label}
-                    </a>
-                </span>
-            ))}
-        </>
+        <PageHeader size="display" fullWidth sticky={false} title="Tracker" description={TRACKER_SUBCOPY} actions={actions} />
     );
 }
 
 function YoursLoading() {
     return (
-        <PageLayout fullWidth header={<TrackerHeader subtitle="Loading…" />}>
-            <div className="mx-auto w-full max-w-[1440px] px-6 py-8 sm:px-10 lg:px-14">
+        <PageLayout fullWidth header={<TrackerHeader />}>
+            <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:px-7">
                 <p className="font-mono text-[13px] text-muted-foreground">Loading your tracker…</p>
             </div>
         </PageLayout>
     );
 }
 
-/** Column head (docs-mockup.html Comp C): mono uppercase label, 2px ink
- *  underline, count right-aligned in ink. `id` is the summary sentence's
- *  jump target. */
-function ColumnHead({ id, label, count }: { id: string; label: string; count: number }) {
+function StatusChips({
+    filter,
+    counts,
+    total,
+    onChange,
+}: {
+    filter: TrackerFilter;
+    counts: ReturnType<typeof countByTrackerFilter>;
+    total: number;
+    onChange: (f: TrackerFilter) => void;
+}) {
     return (
-        <div
-            id={id}
-            className="scroll-mt-4 flex items-center justify-between border-b-2 border-foreground px-3 pb-2 pt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground"
-        >
-            <span>{label}</span>
-            <span className="tabular-nums text-foreground">{count}</span>
+        <div className="mb-3.5 flex flex-wrap gap-2">
+            {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
+                const n = key === "all" ? total : counts[key];
+                return (
+                    <button
+                        key={key}
+                        type="button"
+                        aria-pressed={filter === key}
+                        onClick={() => onChange(key)}
+                        className={cn(
+                            "rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors",
+                            filter === key && "border-foreground bg-foreground text-background",
+                        )}
+                    >
+                        {label} <span className="opacity-70">{n}</span>
+                    </button>
+                );
+            })}
         </div>
     );
 }
-
-/** Empty column = dashed empty block (docs-mockup.html Comp C), not a bare
- *  sentence — the squared system's one "nothing here" shape, shared with the
- *  Resume/Prep dashed empties. */
-function EmptyColumn({ text, link }: { text: string; link?: { href: string; label: string } }) {
-    return (
-        <div className="m-3 border border-dashed border-border bg-card px-4 py-6 text-center">
-            <p className="font-mono text-[12px] leading-relaxed text-muted-foreground">
-                {text}
-                {link && (
-                    <>
-                        {" "}
-                        <Link href={link.href} className="text-foreground underline underline-offset-2 hover:opacity-70">
-                            {link.label}
-                        </Link>
-                    </>
-                )}
-            </p>
-        </div>
-    );
-}
-
-/** One board card (docs-mockup.html Comp C `.tcard`): squared border, title +
- *  company, then a mono truth-line built ONLY from real per-row data
- *  (`boardTruthLine` — linked resume version / prep recency, degrading by
- *  omission), then the existing timestamp + next-action line unchanged. The
- *  action's own `kind` (not the raw stage name) decides whether it reads as
- *  outstanding (ink, underlined) or resting (closed). Ended pursuits dim. */
-function BoardRow({ pursuit, onClick }: { pursuit: Pursuit; onClick: () => void }) {
-    const action = nextAction(pursuit);
-    const actionable = action.kind !== "closed";
-    const truthLine = boardTruthLine(pursuit);
-    return (
-        <div
-            role="button"
-            tabIndex={0}
-            data-testid="pursuit-row"
-            onClick={onClick}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") onClick();
-            }}
-            className={cn(
-                "mt-3 cursor-pointer border border-border bg-card px-3.5 py-3 text-left transition-colors duration-100 hover:bg-muted/40",
-                isEnded(pursuit) && "opacity-60",
-            )}
-        >
-            <div className="flex flex-wrap items-baseline gap-x-1.5">
-                <span className="truncate text-[13.5px] font-semibold leading-snug">{pursuit.position}</span>
-                <span className="truncate text-[12px] text-text-2">{pursuit.company_name}</span>
-            </div>
-            {truthLine && <div className="mt-2 truncate font-mono text-[11px] text-muted-foreground">{truthLine}</div>}
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-[11px]">
-                <span className="text-muted-foreground">{boardTimestampLabel(pursuit)}</span>
-                <span className={actionable ? "text-foreground underline underline-offset-2" : "text-muted-foreground"}>
-                    {action.label}
-                </span>
-            </div>
-        </div>
-    );
-}
-
-/** Groups + sorts (most-recently-updated first within each column) in one
- *  pass — the single source both the summary sentence and the board read, so
- *  their counts can never drift apart. */
-function groupByColumn(pursuits: Pursuit[]): Record<BoardColumn, Pursuit[]> {
-    const groups: Record<BoardColumn, Pursuit[]> = { saved: [], applied: [], interviewing: [], offer: [], closed: [] };
-    for (const p of pursuits) groups[boardColumn(p)].push(p);
-    for (const list of Object.values(groups)) {
-        list.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
-    }
-    return groups;
-}
-
-const COLUMNS: { key: Exclude<BoardColumn, "closed">; label: string; empty: { text: string; link?: { href: string; label: string } } }[] = [
-    {
-        key: "saved",
-        label: "Saved",
-        empty: { text: "Nothing saved.", link: { href: "/", label: "Save a role from the ledger →" } },
-    },
-    { key: "applied", label: "Applied", empty: { text: "Nothing applied yet." } },
-    {
-        key: "interviewing",
-        label: "Interviewing",
-        empty: { text: "No interviews yet." },
-    },
-    { key: "offer", label: "Offer", empty: { text: "Offers will show up here." } },
-];
 
 function YoursContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-    const [showWizard, setShowWizard] = useState(searchParams.get("view") === "new");
+    const [addOpen, setAddOpen] = useState(searchParams.get("view") === "new");
+    const [filter, setFilter] = useState<TrackerFilter>("all");
+    const [search, setSearch] = useState("");
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [saving, setSaving] = useState(false);
     const { pursuits, loading } = usePursuits();
     const guestSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
+
+    // URL is source of truth for the add sheet — Soft Nav / Suspense remounts
+    // can re-init local state from a stale `?view=new` if we only setState.
+    useEffect(() => {
+        setAddOpen(searchParams.get("view") === "new");
+    }, [searchParams]);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -193,8 +106,6 @@ function YoursContent() {
         return () => unsub();
     }, []);
 
-    // Merge-at-sign-in (pursuits + follows) — at most once per load; only mark
-    // done after both merges succeed so a failed sign-in sync retries.
     useEffect(() => {
         if (user && !guestSyncRef.current && !guestSyncInFlightRef.current) {
             guestSyncInFlightRef.current = true;
@@ -204,9 +115,7 @@ function YoursContent() {
                         syncGuestPursuitsToServer(),
                         syncGuestFollowsToServer(),
                     ]);
-                    if (pursuitsOk && followsOk) {
-                        guestSyncRef.current = true;
-                    }
+                    if (pursuitsOk && followsOk) guestSyncRef.current = true;
                 } finally {
                     guestSyncInFlightRef.current = false;
                 }
@@ -214,177 +123,207 @@ function YoursContent() {
         }
     }, [user]);
 
-    const openWizard = () => {
-        setShowWizard(true);
+    const openAdd = () => {
+        setAddOpen(true);
         router.replace("/yours?view=new", { scroll: false });
     };
-    const closeWizard = () => {
-        setShowWizard(false);
+    const closeAdd = () => {
+        setAddOpen(false);
         router.replace("/yours", { scroll: false });
     };
 
-    const handleWizardComplete = async (draft: ApplicationDraft) => {
+    const filtered = useMemo(() => {
+        return orderPursuits(pursuits).filter(
+            (p) => matchesTrackerFilter(p, filter) && matchesTrackerSearch(p, search),
+        );
+    }, [pursuits, filter, search]);
+
+    const selected = pursuits.find((p) => p.id === selectedId) ?? null;
+    const counts = useMemo(() => countByTrackerFilter(pursuits), [pursuits]);
+
+    const mutate = async (id: string, patch: Partial<Pursuit>) => {
+        setSaving(true);
         try {
-            let resumeVersionId: string | undefined;
-
-            if (draft.selectedRecommendations && draft.selectedRecommendations.length > 0 && draft.baseResume) {
-                const { tailoredSummary, tailoredExperience, tailoredCompetencies } = applyRecommendations(
-                    draft.baseResume,
-                    draft.selectedRecommendations,
-                );
-                const versionResult = await saveTailoredVersion({
-                    versionName: draft.versionName || `${draft.jobAnalysis?.companyName} - ${draft.jobAnalysis?.positionTitle}`,
-                    jobAnalysisId: draft.jobAnalysis?.id,
-                    originalSummary: draft.baseResume.generatedSummary,
-                    originalExperience: draft.baseResume.experience,
-                    originalCompetencies: draft.baseResume.competencies,
-                    originalProfile: draft.baseResume.profile,
-                    originalEducation: draft.baseResume.education,
-                    tailoredSummary,
-                    tailoredExperience,
-                    tailoredCompetencies,
-                    recommendations: draft.selectedRecommendations,
-                    companyName: draft.jobAnalysis?.companyName || "",
-                    positionTitle: draft.jobAnalysis?.positionTitle || "",
-                    appliedAt: draft.applicationDate,
-                });
-                if (versionResult.data?.id) resumeVersionId = versionResult.data.id;
-            }
-
-            const result = await createApplication({
-                company_name: draft.jobAnalysis?.companyName || "Unknown Company",
-                position: draft.jobAnalysis?.positionTitle || "Unknown Position",
-                job_url: draft.jobUrl,
-                applied_at: draft.applicationDate,
-                status: draft.status || "applied",
-                resume_version_id: resumeVersionId,
-                cover_letter: draft.coverLetter,
-            });
-            if (result.error) throw new Error(result.error);
-
-            // Pin the exact resume content used for this application as an
-            // immutable snapshot (lib/pursuits/resume-version.ts) — whatever
-            // the wizard attached (upload or import), not just the tailored
-            // path above. A quick "mark applied" outside the wizard skips
-            // this entirely; the tracker shows that as an explicit empty
-            // state rather than fabricating a version.
-            if (draft.baseResume && result.data?.id) {
-                const snapshotResult = await saveResumeVersionForPursuitAction(result.data.id, {
-                    content: resumeDataToMarkdown(draft.baseResume),
-                    label: draft.versionName || "Resume",
-                });
-                if (snapshotResult.error) {
-                    console.error("Failed to save resume version snapshot:", snapshotResult.error);
+            if (getCurrentUser()) {
+                const res = await updateApplication(id, patch);
+                if (res.error) {
+                    toast.error(`Could not save: ${res.error}`);
+                    return false;
+                }
+                invalidatePursuitsCache();
+            } else {
+                const updated = updateGuestPursuit(id, patch);
+                if (!updated) {
+                    toast.error("Could not find this pursuit.");
+                    return false;
                 }
             }
-
-            invalidatePursuitsCache();
-            closeWizard();
-        } catch (e) {
-            console.error("Failed to save application:", e);
-            toast.error(`Failed to save: ${e instanceof Error ? e.message : String(e)}`);
+            return true;
+        } finally {
+            setSaving(false);
         }
     };
 
-    if (showWizard) {
-        return <ApplicationWizard onComplete={handleWizardComplete} onCancel={closeWizard} />;
-    }
+    const handleTrackRole = async (draft: TrackRoleDraft) => {
+        setSaving(true);
+        try {
+            if (getCurrentUser()) {
+                const result = await createApplication({
+                    company_name: draft.company,
+                    position: draft.position,
+                    job_url: draft.job_url || undefined,
+                    status: draft.status,
+                    note: draft.note || undefined,
+                    applied_at: draft.status === "applied" ? new Date().toISOString() : undefined,
+                });
+                if (result.error) throw new Error(result.error);
+                invalidatePursuitsCache();
+            } else {
+                addManualGuestPursuit(draft.company, draft.position, {
+                    status: draft.status,
+                    job_url: draft.job_url || undefined,
+                    note: draft.note || undefined,
+                });
+            }
+            closeAdd();
+            toast.success("Tracked");
+        } catch (e) {
+            toast.error(`Failed to save: ${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+            setSaving(false);
+        }
+    };
 
-    // Guest, nothing local yet — quiet login state (no wall for go-after
-    // itself, but there's nothing to show without an account or a guest
-    // pursuit).
-    if (!loading && !user && pursuits.length === 0) {
-        return (
-            <PageLayout
-                fullWidth
-                header={<TrackerHeader subtitle="0 saved · 0 applied · 0 interviewing · 0 offers" />}
-            >
-                <div
-                    data-testid="yours-guest-empty"
-                    className="mx-auto w-full max-w-[1440px] px-6 py-10 text-left sm:px-10 lg:px-14"
-                >
-                    <p className="text-[14px] text-foreground">{pickRandom(LOGIN_REQUIRED.applications.headings)}</p>
-                    <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
-                        {pickRandom(LOGIN_REQUIRED.applications.subtexts)}
-                    </p>
-                    <div className="mt-4">
-                        <Button size="sm" onClick={() => setAuthPopoverOpen(true)}>Log in</Button>
-                    </div>
-                    <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
-                </div>
-            </PageLayout>
-        );
-    }
+    const handleRemove = async (id: string) => {
+        setSaving(true);
+        try {
+            if (getCurrentUser()) {
+                const res = await deleteApplication(id);
+                if (res.error) {
+                    toast.error(res.error);
+                    return;
+                }
+                invalidatePursuitsCache();
+            } else {
+                removeGuestPursuit(id);
+            }
+            setDetailOpen(false);
+            setSelectedId(null);
+            toast.success("Removed");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openDetail = (id: string) => {
+        setSelectedId(id);
+        setDetailOpen(true);
+    };
 
     if (loading) return <YoursLoading />;
-
-    const groups = groupByColumn(pursuits);
-    const total = pursuits.length;
 
     return (
         <PageLayout
             fullWidth
             header={
                 <TrackerHeader
-                    subtitle={<TrackerSummary groups={groups} />}
-                    actions={<Button size="sm" onClick={openWizard}>Add manually</Button>}
+                    actions={
+                        <Button size="sm" onClick={openAdd}>
+                            Track a role
+                        </Button>
+                    }
                 />
             }
         >
-            <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-6 sm:px-10 lg:px-14">
-                <div
-                    data-testid={total === 0 ? "yours-empty" : undefined}
-                    className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
-                >
-                    {COLUMNS.map((col) => {
-                        const cards = groups[col.key];
-                        return (
-                            <div key={col.key} className="min-w-0">
-                                <ColumnHead id={`col-${col.key}`} label={col.label} count={cards.length} />
-                                {cards.length === 0 ? (
-                                    <EmptyColumn text={col.empty.text} link={col.empty.link} />
-                                ) : (
-                                    cards.map((p) => (
-                                        <BoardRow key={p.id} pursuit={p} onClick={() => router.push(`/yours/${p.id}`)} />
-                                    ))
-                                )}
-                            </div>
-                        );
-                    })}
+            <div className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-6 sm:px-7">
+                <StatusChips filter={filter} counts={counts} total={pursuits.length} onChange={setFilter} />
+
+                <div className="mb-3.5">
+                    <Input
+                        type="search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search company or role"
+                        className="rounded-[10px] border-border bg-card"
+                    />
                 </div>
 
-                {groups.closed.length > 0 && (
-                    <details className="group mt-8 border-t border-border pt-3">
-                        <summary className="flex cursor-pointer list-none items-center justify-between font-mono text-[13px] font-medium text-foreground">
-                            <span>Closed (<span className="tabular-nums">{groups.closed.length}</span>)</span>
-                            <span className="text-muted-foreground transition-transform duration-100 group-open:rotate-180">▾</span>
-                        </summary>
-                        <div className="mt-2 divide-y divide-border border-t border-border">
-                            {groups.closed.map((p) => (
-                                <div
-                                    key={p.id}
-                                    role="button"
-                                    tabIndex={0}
-                                    data-testid="pursuit-row"
-                                    onClick={() => router.push(`/yours/${p.id}`)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === " ") router.push(`/yours/${p.id}`);
-                                    }}
-                                    className="cursor-pointer px-1 py-3 text-left opacity-60 transition-colors duration-100 hover:bg-muted/40"
-                                >
-                                    <div className="truncate text-[13.5px] font-medium">
-                                        {p.position}
-                                        <span className="font-normal text-text-2"> — {p.company_name}</span>
-                                    </div>
-                                    <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                                        {stageLabel(p)} · {boardTimestampLabel(p)}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </details>
+                {filtered.length === 0 ? (
+                    <div
+                        data-testid={
+                            !user && pursuits.length === 0
+                                ? "yours-guest-empty"
+                                : pursuits.length === 0
+                                  ? "yours-empty"
+                                  : undefined
+                        }
+                        className="px-2 py-9 text-sm text-muted-foreground"
+                    >
+                        Nothing in this lane.{" "}
+                        <Button variant="outline" size="sm" className="ml-1.5 h-8" onClick={openAdd}>
+                            Track a role
+                        </Button>
+                        {!user && pursuits.length === 0 && (
+                            <>
+                                {" "}
+                                <span className="mt-3 block text-[13px]">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAuthPopoverOpen(true)}
+                                        className="underline underline-offset-2 hover:text-foreground"
+                                    >
+                                        Log in
+                                    </button>{" "}
+                                    to sync across devices.
+                                </span>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        {filtered.map((p) => (
+                            <PursuitListRow
+                                key={p.id}
+                                pursuit={p}
+                                active={selectedId === p.id && detailOpen}
+                                onClick={() => openDetail(p.id)}
+                            />
+                        ))}
+                    </div>
                 )}
             </div>
+
+            <TrackRoleSheet open={addOpen} onOpenChange={(open) => (open ? openAdd() : closeAdd())} onSave={handleTrackRole} saving={saving} />
+
+            <PursuitDetailSheet
+                pursuit={selected}
+                open={detailOpen && !!selected}
+                onOpenChange={(open) => {
+                    setDetailOpen(open);
+                    if (!open) setSelectedId(null);
+                }}
+                saving={saving}
+                onStatusChange={async (status: PursuitStage) => {
+                    if (!selected) return;
+                    const patch: Partial<Pursuit> = { status };
+                    if (status === "applied" && !selected.applied_at) {
+                        patch.applied_at = new Date().toISOString();
+                    }
+                    const ok = await mutate(selected.id, patch);
+                    if (ok) toast.success(`Marked ${status === "interested" ? "saved" : status}`);
+                }}
+                onNoteSave={async (note) => {
+                    if (!selected) return;
+                    const ok = await mutate(selected.id, { note });
+                    if (ok) toast.success("Note saved");
+                }}
+                onRemove={async () => {
+                    if (!selected) return;
+                    await handleRemove(selected.id);
+                }}
+            />
+
+            <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
         </PageLayout>
     );
 }

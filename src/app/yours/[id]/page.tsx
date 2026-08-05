@@ -25,23 +25,8 @@ import {
     orderResumeVersionsLatestFirst,
     stageLabel,
     type Pursuit,
-    type ResumeVersionSnapshot,
 } from "@/lib/pursuits/types";
-
-/** Downloads a resume-version snapshot as a `.md` file, client-side, from
- *  its stored text — no PDF, no new deps, same Blob-download shape as
- *  `lib/export-utils.ts`'s `exportStoriesToText`. */
-function downloadResumeVersion(version: ResumeVersionSnapshot): void {
-    const blob = new Blob([version.content], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${version.label.replace(/[^\w.-]+/g, "-")}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
+import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 
 /** Resume used row (spec: "label, saved date (mono), Download button") —
  *  degrades by omission to a plain sentence when no resume was ever filed

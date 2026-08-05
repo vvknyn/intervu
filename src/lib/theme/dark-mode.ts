@@ -27,7 +27,9 @@ export function getDarkSnapshot(): boolean {
 }
 
 export function getDarkServerSnapshot(): boolean {
-    return false;
+    // Default dark to match the landing instrument; SSR must agree with the
+    // layout no-flash script (dark unless localStorage explicitly `'0'`).
+    return true;
 }
 
 export function toggleDark() {
