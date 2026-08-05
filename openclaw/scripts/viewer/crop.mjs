@@ -10,8 +10,9 @@
  * is also the right thing to look at: when you are reviewing a form being
  * filled, the field being filled is the subject.
  *
- * Shared by the LAN page (served as a module) and unit-tested in Node, so the
- * arithmetic has one home rather than one per client.
+ * Shared by all three clients — the LAN page (served as a module), the
+ * /watch page on intervu.cc (bundled by Next), and the Node unit tests — so
+ * the arithmetic has one home rather than one per client.
  */
 
 /** Below this the crop is too tight to give any surrounding context. */
@@ -24,7 +25,10 @@ const ASPECT = 1.2;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 /**
- * @param rect focused element box in CSS px (`getBoundingClientRect`), or null
+ * @param {{x:number,y:number,width:number,height:number}|null} rect
+ *        Focused element box in CSS px (`getBoundingClientRect`), or null.
+ * @param {{imageWidth:number, imageHeight:number, deviceWidth:number,
+ *          minCropCss?:number, padCss?:number, aspect?:number}} dims
  * @returns {{sx:number,sy:number,sw:number,sh:number}|null} source rect in
  *          IMAGE px, or null meaning "draw the whole frame"
  */

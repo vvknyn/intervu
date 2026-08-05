@@ -369,6 +369,21 @@ filename) it read back from the DOM.
    plus the shared filename is how the pair stays identifiable.)
 2. Check for an account/login wall — see ACCOUNT-WALL HANDOFF; if hit, stop
    and follow that section instead.
+
+**WATCH FROM YOUR PHONE.** Before filling anything, start the viewer so the
+user can follow along from wherever they are:
+
+    browser focus <FORM tab>      # it mirrors the ACTIVE tab, so focus first
+    node scripts/viewer.mjs &
+
+It prints `WATCH: <url>` (works anywhere) and/or `WATCH-LAN: <url>` (same
+WiFi only). Send the `WATCH:` line if it printed, otherwise `WATCH-LAN:`, in
+one short message — e.g. `"Filling the Braze form now — watch here: <url>"`.
+Send ONE link, never both.
+
+If it prints neither, say so in one line and carry on filling the form.
+Watching is a convenience and must never block an application.
+
 3. **PRE-FLIGHT AUDIT.** AUDIT the freshly opened form. Diff
    `summary.requiredAndEmpty` against the resume and the server's `answers`
    (`get_preferences`, from §0/§1 or a fresh call). Two kinds of gap go into
@@ -469,7 +484,10 @@ filename) it read back from the DOM.
    One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
     now, nudged: false }`.
-11. STOP. Do not click submit. Do not call `mark_applied` (only after the
+11. Stop the viewer (`kill %1`) — the form is now full of the user's
+    personal details and nothing should still be streaming it. The watch
+    link dies with it.
+12. STOP. Do not click submit. Do not call `mark_applied` (only after the
     user says they submitted).
 
 ### 4. Account-wall handoff
