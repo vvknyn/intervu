@@ -1,139 +1,201 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>How it works — video preview</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #12151a;
-    --text: #ececec;
-    --muted: #8b919a;
-      --border: #2a2f36;
-      --iris: #7cb87a;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 2rem 1.5rem;
-    }
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0 0 0.25rem;
-    }
-    p.lead {
-      margin: 0 0 2rem;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-    p.lead strong {
-      color: var(--iris);
-      font-weight: 600;
-    }
-    .grid {
-      display: grid;
-      gap: 2rem;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr; }
-    }
-    figure {
-      margin: 0;
-    }
-    figcaption {
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      letter-spacing: 0.01em;
-    }
-    figcaption span {
-      display: block;
-      font-weight: 400;
-      color: var(--muted);
-      font-size: 0.8rem;
-      margin-top: 0.25rem;
-    }
-    .beats {
-      list-style: none;
-      padding: 0;
-      margin: 0 0 0.75rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    .beats li::before {
-      content: "→ ";
-      color: var(--iris);
-    }
-    video {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: #000;
-      display: block;
-    }
-  </style>
-</head>
-<body>
-  <h1>How it works — loop preview</h1>
-  <p class="lead"><strong>Silent explainer · no audio needed.</strong> UI-forward beats with step badges + captions burned in. ~21s each, static frames + 0.9s crossfade, ≥2.5s settled per beat, muted loop. ~65% of runtime is post-setup usage.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How it works — film preview</title>
+    <style>
+      /* Same rules the films render under: dark tokens, radius 0, 1px borders,
+         no elevation. Values mirror src/app/globals.css `.dark`. */
+      :root {
+        color-scheme: dark;
+        --background: #12151a;
+        --foreground: #eceeec;
+        --muted: #8b939e;
+        --border: #2a2f36;
+        --brand: #5eb496;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: "DM Sans", system-ui, sans-serif;
+        padding: 56px 40px 96px;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1360px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        color: var(--muted);
+        margin-top: 10px;
+        max-width: 74ch;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+        margin: 56px 0 28px;
+      }
+      .grid {
+        display: grid;
+        gap: 32px;
+      }
+      @media (min-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 12px;
+      }
+      figcaption span {
+        display: block;
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      video {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--border);
+        background: #000;
+      }
+      /* The size the film is actually watched at in the how-it-works modal.
+         Every caption has to survive this column, not the big one. */
+      .modal-check {
+        display: flex;
+        gap: 28px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .modal-check video {
+        width: 400px;
+        max-width: 100%;
+      }
+      .beats {
+        list-style: none;
+        padding: 0;
+        margin: 14px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .beats li {
+        padding: 3px 0;
+      }
+      .beats b {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      code {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 0.92em;
+        color: var(--brand);
+      }
+      .old video {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>How it works — silent explainer films</h1>
+      <p class="lead">
+        Rendered from HTML against the app's own <code>.dark</code> tokens, then
+        scrubbed frame-by-frame and encoded — not screen-recorded, and not AI
+        stills. 21.3s, 1920×1080, 30fps, muted seamless loop. Rebuild both with
+        <code>./studio/build.sh</code>.
+      </p>
 
-  <div class="grid">
-    <figure>
-      <figcaption>
-        Claude MCP
-        <span>Title → connect → approve → ask → verified roles → you stay in control</span>
-      </figcaption>
-      <ul class="beats">
-        <li>0.0–3.9s · Title — Connect Claude to the job market</li>
-        <li>3.9–7.5s · Setup — Add connector (paste MCP URL)</li>
-        <li>7.5–11.1s · Setup — Approve once</li>
-        <li>11.1–14.7s · Use — Ask in chat</li>
-        <li>14.7–18.3s · Use — Real jobs · save to tracker</li>
-        <li>18.3–21.3s · Payoff — You stay in control</li>
-      </ul>
-      <video
-        src="video-a-mcp-loop.mp4"
-        poster="poster-a-mcp.png"
-        autoplay
-        loop
-        muted
-        playsinline
-        controls
-      ></video>
-    </figure>
+      <h2>Films</h2>
+      <div class="grid">
+        <figure>
+          <figcaption>
+            A · Claude MCP
+            <span>title → add connector → approve → ask → real roles → you stay in control</span>
+          </figcaption>
+          <video
+            src="video-a-mcp.mp4"
+            poster="poster-a-mcp.png"
+            autoplay
+            loop
+            muted
+            playsinline
+            controls
+          ></video>
+          <ul class="beats">
+            <li><b>01</b> the URL types into the connector field, ring goes brand, Save pressed</li>
+            <li><b>02</b> three scopes stagger in, pointer travels and presses Allow</li>
+            <li><b>03</b> prompt types in chat, then the <code>intervu · search_jobs</code> call fires</li>
+            <li><b>04</b> three roles stagger in, first chip flips to <b>✓ Saved</b></li>
+          </ul>
+        </figure>
 
-    <figure>
-      <figcaption>
-        OpenClaw
-        <span>Title → install → approve → overnight agent → WhatsApp digest → you click submit</span>
-      </figcaption>
-      <ul class="beats">
-        <li>0.0–3.9s · Title — Overnight prep on your machine</li>
-        <li>3.9–7.5s · Setup — One command install</li>
-        <li>7.5–11.1s · Setup — Approve in browser</li>
-        <li>11.1–14.7s · Use — Agent works overnight</li>
-        <li>14.7–18.3s · Use — Wake up to drafts</li>
-        <li>18.3–21.3s · Payoff — You always click submit</li>
-      </ul>
-      <video
-        src="video-b-openclaw-loop.mp4"
-        poster="poster-b-openclaw.png"
-        autoplay
-        loop
-        muted
-        playsinline
-        controls
-      ></video>
-    </figure>
-  </div>
-</body>
+        <figure>
+          <figcaption>
+            B · OpenClaw
+            <span>title → one command → approve → overnight → drafts → you always click submit</span>
+          </figcaption>
+          <video
+            src="video-b-openclaw.mp4"
+            poster="poster-b-openclaw.png"
+            autoplay
+            loop
+            muted
+            playsinline
+            controls
+          ></video>
+          <ul class="beats">
+            <li><b>01</b> the curl one-liner types, install lines stream in</li>
+            <li><b>02</b> browser OAuth at <code>intervu.cc/authorize</code>, Allow pressed</li>
+            <li><b>03</b> log timestamps run 11:42 PM → 02:14 AM while you sleep</li>
+            <li><b>04</b> the WhatsApp digest arrives message by message, draft PDF attached</li>
+          </ul>
+        </figure>
+      </div>
+
+      <h2>Legibility check — 400px, the modal width</h2>
+      <div class="modal-check">
+        <video src="video-a-mcp.mp4" autoplay loop muted playsinline></video>
+        <video src="video-b-openclaw.mp4" autoplay loop muted playsinline></video>
+      </div>
+
+      <h2>Previous pass — AI keyframe slideshow, superseded</h2>
+      <div class="grid old">
+        <figure>
+          <figcaption>
+            A · superseded
+            <span>1536×1024 stills padded to 16:9 (pillarboxed), 0.9s crossfades, no motion</span>
+          </figcaption>
+          <video src="video-a-mcp-loop.mp4" loop muted playsinline controls></video>
+        </figure>
+        <figure>
+          <figcaption>
+            B · superseded
+            <span>logo plate occludes artwork; 12px radii and shadows predate the design language</span>
+          </figcaption>
+          <video src="video-b-openclaw-loop.mp4" loop muted playsinline controls></video>
+        </figure>
+      </div>
+    </div>
+  </body>
 </html>

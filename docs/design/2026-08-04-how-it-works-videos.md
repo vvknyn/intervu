@@ -27,7 +27,7 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 |---|---|---|
 | 1 | **MCP hero client** | **Claude-first.** One continuous shot through Claude Desktop only. ChatGPT mentioned in modal caption/subtitle only — no in-video tab switch, no split-screen, no modal tabs inside the clip. |
 | 2 | **Resume beat** | **Omit from both v1 clips.** No resume upload coda after pairing. OpenClaw WhatsApp digest may show a *draft* resume chip (agent output) — that is not a “upload your resume” beat. |
-| 3 | **Production path** | **UI keyframe comps + ffmpeg loop builder** (`build-loops.sh`). AI keyframes with burned captions; drawtext overlay for legibility. |
+| 3 | **Production path** | ~~AI keyframe comps + ffmpeg loop builder~~ — **superseded 2026-08-05.** Films are rendered from HTML against the app's own `.dark` tokens (`studio/`), scrubbed frame-by-frame with Playwright and encoded with ffmpeg. Reason: raster keyframes bake every string and radius, so they could not be corrected, could not carry motion, and could not follow `DESIGN-LANGUAGE.md`. Also `ffmpeg` here has no `libfreetype`, so the `drawtext` caption leg was never runnable. |
 | 4 | **Account-first product rule** | **Pair-first / resume-via-agent** for v1 video and onboarding messaging. Do not force account + resume upload before OAuth in the video story or primary install copy. Resume comes later via agent `set_resume` or Settings — as coded today. |
 | 5 | **Never auto-submit** | Both clips end on human-in-the-loop payoff — tracker control (A) or “you click submit” (B). |
 
@@ -41,9 +41,9 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 | Mood | Clean digital illustration, dark void, iris accents |
 | Hierarchy | Number badge → short caption → UI frame |
 | Audio | **Silent explainer · no audio needed** — mute + loop |
-| Length | **~21s** each (6 beats, variable hold, 0.9s crossfade), seamless loop |
+| Length | **21.3s** each (6 beats, hard cuts on a 21300ms clock), seamless loop — frame 0 and the last frame are asserted pixel-identical at build time |
 | Format | 1920×1080 H.264 `.mp4`, poster PNG from title keyframe |
-| Brand | Dark intervu UI on-screen (`#12151a` void, iris `#7cb87a`); no purple neon |
+| Brand | Governed by `DESIGN-LANGUAGE.md`, dark variant: radius 0, elevation none, `--brand` (`#5EB496` in dark) only on live dots, a valid field ring and the saved mark — never on a headline. The `#7cb87a` in earlier passes is the **light**-mode brand value and was wrong for a dark composition. |
 
 **Keyframe comps:** `docs/design/how-it-works-keyframes/`
 
@@ -125,17 +125,33 @@ These are **not** Ken Burns desk montages. Each beat must read as a **silent pro
 
 ## Production workflow
 
-1. **Keyframe comps** — 6 PNGs per video in `how-it-works-keyframes/` with burned step + caption.
-2. **Loop builder** — `./build-loops.sh` in `how-it-works-videos/`:
-   - Variable hold per beat (3.9–4.5s; ≥2.5s settled visibility)
-   - 0.9s crossfade between beats
-   - ffmpeg `drawtext` step badge + caption overlay when libfreetype build available; keyframes carry captions regardless
-   - Subtle zoom (max 1.02) — not Ken Burns desk pan
-3. **Review pass** — mute playback at 400px modal width; every beat self-explanatory; iris on CTAs; no purple drift.
-4. **Deliverables** — `video-a-mcp-loop.mp4`, `video-b-openclaw-loop.mp4`, poster PNGs from title keyframe.
-5. **Preview** — open `preview.html` locally.
+The films are code. `studio/` holds the whole pipeline:
 
----
+| File | Job |
+|---|---|
+| `extract-tokens.mjs` | lifts `:root` + `.dark` out of `src/app/globals.css` into `tokens.generated.css`, so the films cannot drift from the app |
+| `stage.css` | the shared stage — geometry, type scale, device primitives, motion vocabulary |
+| `a-mcp.html`, `b-openclaw.html` | one 21300ms CSS timeline each; every delay is absolute film time |
+| `render.mjs` | pauses every animation and sets `currentTime` per frame, screenshotting 639 exact frames |
+| `build.sh` | tokens → render → encode → poster, plus the loop-seam assertion |
+
+```
+./studio/build.sh              # both films
+./studio/build.sh a-mcp        # one
+node studio/render.mjs a-mcp --probe=7200,10600   # eyeball single moments
+```
+
+Deterministic by construction: the same commit produces the same bytes, because
+nothing is screen-recorded and no wall-clock time reaches the page.
+
+**Deliverables** — `video-a-mcp.mp4`, `video-b-openclaw.mp4`, `poster-*.png`.
+**Preview** — open `preview.html` (includes a 400px modal-width legibility row).
+
+**Motion exception:** `DESIGN-LANGUAGE.md:72` limits the app to 150ms colour
+transitions and requires a written reason for anything more. These pages are
+frames of a film, not an interactive surface — the reason is recorded at the top
+of `stage.css`, and the restraint is kept in the vocabulary (fades, 8-20px
+translates, typing, stagger; no bounce, no parallax, the app's own easing).
 
 ## UI hook (for later — not building in this PR)
 
