@@ -49,14 +49,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { denied } = await admit(request, id);
     if (denied) return denied;
 
-    const body = (await request.json()) as { role?: string; sdp?: string; ice?: string[] };
+    const body = (await request.json()) as { role?: string; sdp?: string };
     if (body.role !== "host" && body.role !== "guest") {
         return NextResponse.json({ error: "role must be host or guest" }, { status: 400 });
     }
-    if (typeof body.sdp !== "string" || !Array.isArray(body.ice)) {
-        return NextResponse.json({ error: "sdp (string) and ice (array) are required" }, { status: 400 });
+    if (typeof body.sdp !== "string" || !body.sdp) {
+        return NextResponse.json({ error: "sdp (string) is required" }, { status: 400 });
     }
-    await putSignal(id, body.role, { sdp: body.sdp, ice: body.ice } satisfies SignalBlob);
+    await putSignal(id, body.role, { sdp: body.sdp } satisfies SignalBlob);
     return NextResponse.json({ ok: true });
 }
 

@@ -13,7 +13,15 @@ import { randomBytes } from "node:crypto";
 
 export const VIEWER_SESSION_TTL_MS = 15 * 60 * 1000;
 
-export type SignalBlob = { sdp: string; ice: string[] };
+/**
+ * One side's connection details. Just the SDP: both peers finish ICE
+ * gathering before they signal, so the candidates are already inside it.
+ * Verified on werift 0.24.3 — `await setLocalDescription()` leaves
+ * `iceGatheringState` at "complete" with a `typ srflx` candidate in the SDP —
+ * and the browser side waits for `icegatheringstatechange` to reach the same
+ * point. There is no separate candidate relay because nothing needs one.
+ */
+export type SignalBlob = { sdp: string };
 
 export type ViewerSession = {
     id: string;

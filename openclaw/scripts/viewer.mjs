@@ -17,8 +17,12 @@ import { randomBytes } from "node:crypto";
 import { listPageTargets, pickActiveTarget, DEFAULT_CDP_BASE } from "./viewer/cdp-targets.mjs";
 import { createFramePump } from "./viewer/frame-pump.mjs";
 import { createLanTransport } from "./viewer/transport-lan.mjs";
+import { createWebRtcTransport } from "./viewer/transport-webrtc.mjs";
+import { readAccessToken } from "./viewer/mcporter-token.mjs";
 
 const CDP_BASE = process.env.OPENCLAW_CDP_URL || DEFAULT_CDP_BASE;
+const API_BASE = process.env.INTERVU_API_BASE || "https://intervu.cc";
+const MCP_SERVER_KEY = "intervu-cc-mcp";
 
 async function main() {
     const target = pickActiveTarget(await listPageTargets(CDP_BASE));
@@ -33,6 +37,26 @@ async function main() {
     transports.push(lan);
     if (url) console.log(`WATCH-LAN: ${url}`);
     else console.error("No local network address found — this machine appears to be offline.");
+
+    // Remote viewing is best-effort by design: it depends on a credential
+    // that can expire and on a peer connection the network may refuse. When
+    // it is unavailable the same-WiFi link above still works, so this must
+    // never take the apply loop down — but it says exactly why, because a
+    // feature that vanishes without explanation is worse than one that fails.
+    const bearer = readAccessToken(MCP_SERVER_KEY);
+    if (!bearer) {
+        console.error(`Remote viewing unavailable: no intervu credential found for ${MCP_SERVER_KEY}. Run 'mcporter auth ${MCP_SERVER_KEY}'.`);
+    } else {
+        try {
+            const rtc = createWebRtcTransport({ apiBase: API_BASE, bearer });
+            const { url: watchUrl, connected } = await rtc.start();
+            transports.push(rtc);
+            console.log(`WATCH: ${watchUrl}`);
+            connected.catch((error) => console.error(`Remote viewing never connected (${error.message}). The same-WiFi link still works.`));
+        } catch (error) {
+            console.error(`Remote viewing unavailable (${error.message}). The same-WiFi link still works.`);
+        }
+    }
 
     // What the phone draws is one frame plus the box to crop it to. Kept
     // here so a focus change can re-send the last frame: on a page that is

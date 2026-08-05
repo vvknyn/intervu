@@ -132,6 +132,21 @@ mkdir -p "$(dirname "$INSTALL_DIR")"
 mv "$TMP_DIR/skill" "$INSTALL_DIR"
 echo "    Installed to $INSTALL_DIR."
 
+# Phone viewing needs a pure-JS WebRTC stack. Installed here rather than
+# vendored into the tarball so the download stays small and the build is not
+# platform-specific, and necessarily AFTER extraction because skill install
+# is rm-then-mv and would wipe it.
+#
+# Degrades instead of failing: viewing from a phone is a convenience, and a
+# missing dependency must never block the thing the user actually installed
+# this for. Same-WiFi viewing needs nothing beyond Node and still works.
+echo "==> Installing skill dependencies..."
+if npm install --prefix "$INSTALL_DIR" --omit=dev --silent >/dev/null 2>&1; then
+  echo "    Done."
+else
+  echo "    Could not install them — phone viewing will fall back to same-WiFi only."
+fi
+
 # --- 6. Restart the gateway so the newly installed skill is picked up -------
 echo "==> Restarting the OpenClaw gateway..."
 GATEWAY_LABEL="ai.openclaw.gateway"
