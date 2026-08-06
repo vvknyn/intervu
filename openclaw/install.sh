@@ -32,6 +32,40 @@ MCP_SERVER_KEY="intervu-cc-mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
 SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
 
+# Reports when npm gave us an older release than the current one.
+#
+# npm does that silently whenever Node is too old for the current release, and
+# the consequence surfaces much later and in the wrong place: OpenClaw's
+# onboarding fails with "plugin requires plugin API >= X, but this runtime
+# exposes Y", which blames the plugin and never mentions Node. Found on a
+# from-scratch install (2026-08-05): Node 22.20.0 quietly yielded openclaw
+# 2026.6.34 instead of 2026.7.1-2, and WhatsApp could not be connected at all.
+#
+# Both the current version and its Node requirement are read from npm rather
+# than restated here, so this cannot drift when either package bumps and it
+# works for any package we install rather than one named one. The caller
+# decides how serious it is, because that differs per package.
+#
+# Returns 1 when outdated, 0 when current OR when it cannot tell (offline, or
+# the package isn't where npm says it should be) — an unreachable registry
+# must never be the thing that stops someone installing.
+warn_if_outdated() {
+  local pkg="$1" want got engines root
+  want="$(npm view "$pkg" version 2>/dev/null)" || return 0
+  [ -n "$want" ] || return 0
+  root="$(npm root -g 2>/dev/null)" || return 0
+  got="$(node -e "try{console.log(require('$root/$pkg/package.json').version)}catch(e){}" 2>/dev/null)"
+  [ -n "$got" ] || return 0
+  [ "$want" != "$got" ] || return 0
+
+  engines="$(npm view "$pkg@$want" engines.node 2>/dev/null || true)"
+  echo
+  echo "    $pkg $got was installed, but $want is the current release."
+  echo "    Node $(node -v) cannot run $want${engines:+ (it needs Node $engines)},"
+  echo "    so npm quietly installed the older one instead."
+  return 1
+}
+
 # --- 1. OpenClaw must be installed and onboarded ----------------------------
 echo "==> Checking OpenClaw is installed..."
 if command -v openclaw >/dev/null 2>&1; then
@@ -40,7 +74,24 @@ else
   echo "OpenClaw not found — installing it now (npm i -g openclaw)."
   npm i -g openclaw
   echo "    OpenClaw installed."
+  NEEDS_ONBOARD=1
+fi
 
+# Deliberately BEFORE onboarding, and outside the branch above so it also
+# catches an OpenClaw that was already installed and has since gone stale.
+# Onboarding is exactly where a too-old runtime fails, so checking afterwards
+# would let someone sit through the wizard, pair nothing, and read an error
+# about plugin API versions that never mentions the actual cause.
+if ! warn_if_outdated openclaw; then
+  echo "    Without the current OpenClaw, the WhatsApp plugin will not install"
+  echo "    and your agent will have no way to reach you."
+  echo
+  echo "    Upgrade Node, then re-run:  curl -fsSL https://intervu.cc/install | bash"
+  echo "    (nodejs.org, or 'brew upgrade node', or 'nvm install --lts')"
+  exit 1
+fi
+
+if [ "${NEEDS_ONBOARD:-}" = "1" ]; then
   echo "==> Handing off to OpenClaw's own onboarding wizard..."
   echo "    Model provider, API keys, and channel/WhatsApp linking are its call —"
   echo "    this installer does not automate any of that, just launches it."
@@ -71,6 +122,10 @@ fi
 echo "==> Checking mcporter is installed..."
 command -v mcporter >/dev/null 2>&1 || npm i -g mcporter
 echo "    mcporter ready."
+
+# Advisory, not fatal: an older mcporter still authenticates and still serves
+# the MCP tools, so this is worth knowing about but not worth blocking on.
+warn_if_outdated mcporter || echo "    Not fatal — the intervu tools work on this version."
 
 # --- 3. Register the intervu MCP server (idempotent) ------------------------
 echo "==> Registering the intervu MCP server ($MCP_SERVER_KEY)..."
