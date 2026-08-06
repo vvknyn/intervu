@@ -23,6 +23,21 @@ export type ConsentValidation =
     | { ok: true; params: ConsentParams; client: OAuthClient }
     | { ok: false; error: string };
 
+/**
+ * Serializes already-validated consent params back into a query string —
+ * used to build the `/oauth/authorize?...` return URL a logged-out user is
+ * bounced to `/login` and back from, so approval resumes with the original
+ * request intact. Generic over `ConsentParams`'s fields (no per-field list
+ * to keep in sync as the shape grows).
+ */
+export function consentParamsToQuery(params: ConsentParams): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) query.set(key, value);
+    }
+    return query.toString();
+}
+
 /** Pure shape/value checks — no store access, so no mocks needed to test it. */
 export function validateConsentShape(
     raw: ConsentParamsInput

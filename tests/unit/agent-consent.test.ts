@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { memoryStore } from '../../src/lib/agent/store';
 import { registerClient } from '../../src/lib/agent/oauth';
-import { validateConsentShape, validateConsentRequest } from '../../src/lib/agent/consent';
+import { validateConsentShape, validateConsentRequest, consentParamsToQuery } from '../../src/lib/agent/consent';
 
 const validShape = {
   client_id: 'c1',
@@ -46,6 +46,28 @@ describe('validateConsentShape (pure)', () => {
     const result = validateConsentShape({ ...validShape, state: 'xyz' });
     if (!result.ok) throw new Error('expected ok');
     assert.equal(result.params.state, 'xyz');
+  });
+});
+
+describe('consentParamsToQuery (pure)', () => {
+  it('round-trips a full param set through URLSearchParams', () => {
+    const result = validateConsentShape(validShape);
+    if (!result.ok) throw new Error('expected ok');
+    const query = consentParamsToQuery(result.params);
+    const parsed = new URLSearchParams(query);
+    assert.equal(parsed.get('client_id'), validShape.client_id);
+    assert.equal(parsed.get('redirect_uri'), validShape.redirect_uri);
+    assert.equal(parsed.get('code_challenge'), validShape.code_challenge);
+    assert.equal(parsed.get('code_challenge_method'), validShape.code_challenge_method);
+    assert.equal(parsed.get('response_type'), validShape.response_type);
+    assert.equal(parsed.has('state'), false);
+  });
+
+  it('carries state through when present', () => {
+    const result = validateConsentShape({ ...validShape, state: 'xyz' });
+    if (!result.ok) throw new Error('expected ok');
+    const parsed = new URLSearchParams(consentParamsToQuery(result.params));
+    assert.equal(parsed.get('state'), 'xyz');
   });
 });
 

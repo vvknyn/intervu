@@ -9,9 +9,12 @@ export const AUTH_GATED_PRODUCT_PREFIXES = [
     "/account",
 ] as const;
 
-/** Paths allowed as post-auth `next=` (includes browse `/jobs`). */
+/** Paths allowed as post-auth `next=` (includes browse `/jobs` and the OAuth
+ *  consent screen — a logged-out user bounced to /login from there needs to
+ *  land back on it, with its query params, to resume the approval). */
 export const SAFE_POST_AUTH_PREFIXES = [
     "/jobs",
+    "/oauth/authorize",
     ...AUTH_GATED_PRODUCT_PREFIXES,
 ] as const;
 

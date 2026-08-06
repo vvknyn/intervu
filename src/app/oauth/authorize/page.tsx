@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { firestoreStore } from "@/lib/agent/store";
-import { validateConsentRequest, type ConsentParams, type ConsentParamsInput } from "@/lib/agent/consent";
+import { validateConsentRequest, consentParamsToQuery, type ConsentParams, type ConsentParamsInput } from "@/lib/agent/consent";
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -25,18 +25,25 @@ function ErrorCard({ message }: { message: string }) {
     );
 }
 
-function LoggedOutCard() {
+/**
+ * `returnTo` is this exact `/oauth/authorize` request (validated params,
+ * re-serialized) — `/login` round-trips it back via its `next` param
+ * (`validateNextParam`, product-routes.ts) once sign-in completes, so a
+ * fresh user mid-install resumes the approval instead of losing it.
+ */
+function LoggedOutCard({ returnTo }: { returnTo: string }) {
+    const loginUrl = `/login?${new URLSearchParams({ next: returnTo }).toString()}`;
     return (
         <CenteredCard>
             <CardHeader>
-                <CardTitle>Log in first</CardTitle>
+                <CardTitle>Sign in to continue</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-                <p>Log in on intervu first, then reconnect from your agent.</p>
+                <p>Sign in to approve connecting your agent.</p>
             </CardContent>
             <CardFooter>
                 <Button asChild className="w-full">
-                    <Link href="/">Go to intervu</Link>
+                    <Link href={loginUrl}>Sign in</Link>
                 </Button>
             </CardFooter>
         </CenteredCard>
@@ -124,7 +131,8 @@ export default async function AuthorizePage({
 
     const user = await getServerUser();
     if (!user) {
-        return <LoggedOutCard />;
+        const returnTo = `/oauth/authorize?${consentParamsToQuery(validation.params)}`;
+        return <LoggedOutCard returnTo={returnTo} />;
     }
 
     return <ConsentCard clientName={validation.client.name} params={validation.params} />;

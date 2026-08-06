@@ -17,10 +17,19 @@ test("validateNextParam accepts safe in-app paths", () => {
   assert.equal(validateNextParam("/"), "/");
 });
 
+test("validateNextParam accepts the OAuth authorize return path with its query intact", () => {
+  const authorizeReturn = "/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fclient.example%2Fcb&code_challenge=xyz&code_challenge_method=S256&response_type=code";
+  assert.equal(validateNextParam(authorizeReturn), authorizeReturn);
+});
+
 test("validateNextParam rejects protocol-relative and off-product paths", () => {
   assert.equal(validateNextParam("//evil.test/jobs"), null);
   assert.equal(validateNextParam("https://evil.test/jobs"), null);
   assert.equal(validateNextParam("/mock/completeness"), null);
   assert.equal(validateNextParam(""), null);
   assert.equal(validateNextParam(null), null);
+});
+
+test("validateNextParam rejects a protocol-relative path masquerading as the authorize return", () => {
+  assert.equal(validateNextParam("//evil.test/oauth/authorize?client_id=abc"), null);
 });
