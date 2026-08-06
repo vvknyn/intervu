@@ -365,7 +365,7 @@ export function JobDetail({
                             className="inline-flex h-9 items-center gap-1.5 border border-border bg-background px-4 text-sm font-medium text-brand hover:bg-muted/40"
                         >
                             <Check size={16} weight="bold" />
-                            Saved ✓
+                            Saved
                         </Link>
                     ) : (
                         <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2">
