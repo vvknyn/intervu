@@ -21,6 +21,7 @@ import {
 } from "@/lib/jobs/search-log";
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 import { getClientIp } from "@/lib/shield/client-ip";
+import { createMmdbCountryLookup } from "@/lib/geo/ip-country";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/depth-cap";
 import { getServerUser } from "@/lib/firebase/auth-session";
@@ -42,6 +43,15 @@ type ShieldSearchServeMeta = SearchServeMeta & {
 };
 
 /**
+ * Built here, not inside `searchJobs` (search.ts) — this file is a Server
+ * Action, always Node runtime, so it's safe to hold the mmdb reader (see
+ * `createMmdbCountryLookup`'s own doc comment). `search.ts` also backs
+ * `/co/[slug]`'s edge-runtime OG image route, which has no filesystem at
+ * all, so it can only ever take this as an optional injected dependency.
+ */
+const countryLookup = createMmdbCountryLookup();
+
+/**
  * Search the jobs corpus (dispatches to whichever backend is configured).
  *
  * Shield chokepoint (P27): every call passes through a per-IP rate limit
@@ -56,7 +66,7 @@ type ShieldSearchServeMeta = SearchServeMeta & {
  */
 export async function searchJobsAction(
   params: JobSearchParams,
-): Promise<JobSearchResult & { searchId: string; meta?: ShieldSearchServeMeta }> {
+): Promise<JobSearchResult & { searchId: string; meta?: ShieldSearchServeMeta; defaultedLocation?: string }> {
   const searchId = randomUUID();
   const backendStatus = getJobsBackendStatus();
 
@@ -100,7 +110,7 @@ export async function searchJobsAction(
     };
   }
 
-  const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit });
+  const result = await runSearch({ ...params, limit: depthDecision.effectiveLimit }, { clientIp: ip, countryLookup });
 
   if (shouldLogSearch(params)) {
     const entry = buildSearchLogEntry(params, result, { searchId, now: Date.now() });

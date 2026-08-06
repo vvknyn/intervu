@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# IP geolocation database — deploy-time download (scripts/download-mmdb.mjs),
+# not committed; see lib/geo/ip-country.ts.
+/data/geo/*.mmdb
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -7,7 +7,10 @@ import {
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
-import { buildLocationVocabulary, type LocationVocabulary } from '../../src/lib/jobs/query-understanding';
+import type { LocationVocabulary } from '../../src/lib/jobs/query-understanding';
+import { buildGazetteerIndex, type GazetteerData } from '../../src/lib/geo/gazetteer';
+import type { CorpusValueChecker } from '../../src/lib/geo/corpus-values';
+import type { PlaceFilter } from '../../src/lib/jobs/types';
 import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
 import type { Pursuit, PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
 import type { ApplicationSummary } from '../../src/lib/pursuits/list';
@@ -15,13 +18,38 @@ import type { BaseResume } from '../../src/lib/resume/base-resume';
 import type { SetBaseResumeResult } from '../../src/lib/resume/set-resume';
 import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agent/preferences';
 
-/** Built via the REAL `buildLocationVocabulary` (not hand-rolled) so the test
- *  fixture matches production shape exactly — "Toronto"/"Canada" both clear
- *  the real `PLACE_MIN_COUNT`/`PLACE_MIN_LENGTH` guards. */
-const TEST_VOCAB: LocationVocabulary = buildLocationVocabulary({
-  location_city: { Toronto: 500 },
-  location_country: { Canada: 2000 },
-});
+/** Built via the REAL `buildGazetteerIndex` (not hand-rolled) so the test
+ *  fixture matches production shape exactly — "Toronto"/"Canada" both real
+ *  gazetteer entries, and the fake corpus checker below only ever confirms
+ *  the exact values a real Meilisearch facet-search would. */
+const TEST_GAZETTEER = buildGazetteerIndex({
+  countries: [["CA", "CAN", "Canada"]],
+  admin1: [],
+  cities: [["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356]],
+} satisfies GazetteerData);
+
+const TEST_CORPUS_VALUES: PlaceFilter[] = [
+  { field: 'location_city', value: 'Toronto' },
+  { field: 'location_country', value: 'Canada' },
+];
+
+const testCorpusChecker: CorpusValueChecker = async (groups) =>
+  groups.map((candidates) => {
+    const seen = new Set<string>();
+    const out: PlaceFilter[] = [];
+    for (const c of candidates) {
+      const hit = TEST_CORPUS_VALUES.find((v) => v.field === c.field && v.value.toLowerCase() === c.value.toLowerCase());
+      if (!hit) continue;
+      const key = `${hit.field} ${hit.value}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(hit);
+      }
+    }
+    return out;
+  });
+
+const TEST_VOCAB: LocationVocabulary = { gazetteer: TEST_GAZETTEER, corpusChecker: testCorpusChecker };
 
 const LONG_DESCRIPTION =
   'We are hiring a senior engineer. '.repeat(40) +
@@ -474,14 +502,19 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
   it('maps location "Toronto" to a places param via the SAME parsing path free-text queries use (review fix — NOT the location_country facet)', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Toronto' });
-    assert.deepEqual(searchCalls[0].places, [{ field: 'location_city', value: 'Toronto' }]);
+    assert.deepEqual(searchCalls[0].places, [
+      {
+        any: [{ field: 'location_city', value: 'Toronto' }],
+        scopedToCountry: [{ field: 'location_country', value: 'Canada' }],
+      },
+    ]);
     assert.equal(searchCalls[0].facets, undefined);
   });
 
   it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].places, [{ field: 'location_country', value: 'Canada' }]);
+    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }] }]);
   });
 
   it('drops an unrecognized location instead of inventing a places filter', async () => {
@@ -548,7 +581,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
-      places: [{ field: 'location_country', value: 'Canada' }],
+      places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
     });
   });
 });

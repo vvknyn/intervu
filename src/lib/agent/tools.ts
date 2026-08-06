@@ -8,7 +8,7 @@
  * off tool input — so a call can only ever act as the authenticated
  * credential's own subject.
  */
-import type { JobSearchParams, JobSearchResult, PlaceFilter, PostedBucket, PublicJob } from "../jobs/types";
+import type { JobSearchParams, JobSearchResult, PlaceClause, PostedBucket, PublicJob } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
 import {
@@ -243,18 +243,19 @@ function buildFacets(
 
 /**
  * `location` → `places` (Task 12 review fix), reusing query-understanding.ts's
- * OWN `parsePlaceTokens` — the exact function `applyQueryUnderstanding`
- * (search.ts:91) already runs over every free-text query — rather than
- * duplicating its longest-phrase-first, corpus-vocabulary matching. No
- * match (typo, or a real place too rare to pass `PLACE_MIN_COUNT`) means the
- * filter is dropped, not invented — the same honest no-op every unmatched
- * place word in a typed query already falls back to.
+ * OWN `parsePlaceTokens` — the exact gazetteer-backed resolver
+ * `applyQueryUnderstanding` (search.ts) already runs over every free-text
+ * query — rather than duplicating its longest-phrase-first gazetteer
+ * matching + corpus validation. No match (not a real place, or a real place
+ * this corpus has no postings tagged with) means the filter is dropped, not
+ * invented — the same honest no-op every unmatched place word in a typed
+ * query already falls back to.
  */
-async function resolvePlaces(deps: ToolDeps, location: string | undefined): Promise<PlaceFilter[]> {
+async function resolvePlaces(deps: ToolDeps, location: string | undefined): Promise<PlaceClause[]> {
   const text = location?.trim();
   if (!text) return [];
   const vocab = await deps.locationVocabulary();
-  return parsePlaceTokens(text, vocab).places;
+  return (await parsePlaceTokens(text, vocab)).places;
 }
 
 /** How many more results the depth cap still allows past `offset` — 0 once

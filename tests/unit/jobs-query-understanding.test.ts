@@ -31,24 +31,24 @@ test("case-insensitive, whitespace collapsed", () => {
     });
 });
 
-test("no tokens → params unchanged (same object)", () => {
+test("no tokens → params unchanged (same object)", async () => {
     const p = { q: "staff engineer" };
-    assert.equal(applyQueryUnderstanding(p), p);
+    assert.equal(await applyQueryUnderstanding(p), p);
 });
 
-test("applies parsed work_type as a facet and strips the token", () => {
-    assert.deepEqual(applyQueryUnderstanding({ q: "backend engineer remote" }), {
+test("applies parsed work_type as a facet and strips the token", async () => {
+    assert.deepEqual(await applyQueryUnderstanding({ q: "backend engineer remote" }), {
         q: "backend engineer",
         facets: { work_type: ["remote"] },
     });
 });
 
-test("explicit UI facet always wins — parse never overrides", () => {
+test("explicit UI facet always wins — parse never overrides", async () => {
     const p = { q: "backend engineer remote", facets: { work_type: ["hybrid"] } };
-    assert.equal(applyQueryUnderstanding(p), p);
+    assert.equal(await applyQueryUnderstanding(p), p);
 });
 
-test("empty query passes through", () => {
+test("empty query passes through", async () => {
     const p = { q: "" };
-    assert.equal(applyQueryUnderstanding(p), p);
+    assert.equal(await applyQueryUnderstanding(p), p);
 });

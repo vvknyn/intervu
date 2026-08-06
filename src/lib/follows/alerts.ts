@@ -1,7 +1,16 @@
+/**
+ * Pure, client-safe follow-alert helpers — deliberately free of anything
+ * that pulls in `@/lib/jobs/search` (server-only: Meilisearch client, the
+ * IP-geolocation reader, etc). `FollowAlertsCard.tsx` is a client component
+ * that imports `jobPostedMs` from here; if this file dragged `search.ts`'s
+ * import graph along, Next would have to bundle server-only Node built-ins
+ * (`fs`/`net`, via the mmdb reader — see lib/geo/ip-country.ts) for the
+ * browser and fail the build. `listNewRolesForFollows`, which actually
+ * calls `searchJobs`, lives in `list-new-roles.ts` instead — server actions
+ * import from there, never from here.
+ */
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { isUnavailableJobsResult } from "@/lib/jobs/result-state";
-import { searchJobs } from "@/lib/jobs/search";
-import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
+import type { PublicJob } from "@/lib/jobs/types";
 import type { FollowedCompany } from "./types";
 
 export const MAX_FOLLOW_ALERT_DOMAINS = 20;
@@ -12,8 +21,6 @@ export type FollowAlertGroup = {
   displayName: string;
   jobs: PublicJob[];
 };
-
-type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
 
 export function jobPostedMs(job: PublicJob): number | null {
   if (typeof job.posted_ts === "number") return job.posted_ts;
@@ -61,32 +68,4 @@ export function groupFollowAlertsByDomain(
     const bMax = jobPostedMs(b.jobs[0]!) ?? 0;
     return bMax - aMax;
   });
-}
-
-export async function listNewRolesForFollows(
-  sinceIso: string,
-  follows: FollowedCompany[],
-  search: SearchFn = searchJobs,
-): Promise<FollowAlertGroup[]> {
-  if (follows.length === 0) return [];
-
-  const capped = follows.slice(0, MAX_FOLLOW_ALERT_DOMAINS);
-  const results = await Promise.all(
-    capped.map((f) =>
-      search({
-        companyDomain: f.domain,
-        limit: JOBS_FETCHED_PER_FOLLOW_DOMAIN,
-        offset: 0,
-        hideGhosts: true,
-        sort: "newest",
-      }),
-    ),
-  );
-
-  const hits: PublicJob[] = [];
-  for (const result of results) {
-    if (!isUnavailableJobsResult(result)) hits.push(...result.hits);
-  }
-
-  return groupFollowAlertsByDomain(hits, capped, sinceIso).filter((g) => g.jobs.length > 0);
 }
