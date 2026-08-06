@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
-import { signalUrl, pollUntilGuest, nextPollDelay } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
+import { signalUrl, pollUntilGuest, nextPollDelay, chunkPayload, CHUNK_BYTES } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
 import { pickAccessToken } from '../../openclaw/scripts/viewer/mcporter-token.mjs';
 
 describe('signalUrl', () => {
@@ -93,6 +93,41 @@ describe('pollUntilGuest', () => {
       : { ok: true, json: async () => ({ guest: { sdp: 'v=0' } }) });
     const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: soon(), delayMs: 0 });
     assert.equal(guest.sdp, 'v=0');
+  });
+});
+
+describe('chunkPayload', () => {
+  // A real frame (142,255 bytes, seen live) exceeds the channel's negotiated
+  // 65,536-byte message ceiling — a limit the REMOTE advertises, so it
+  // cannot be configured away. Every piece must clear it with room.
+
+  const reassemble = (pieces: string[]) => {
+    // What the phone does: concatenate C-bodies until the F-body arrives.
+    let whole = '';
+    for (const piece of pieces) whole += piece.slice(1);
+    return whole;
+  };
+
+  it('splits a frame-sized payload into pieces that each fit a message', () => {
+    const payload = 'x'.repeat(142_255);
+    const pieces = [...chunkPayload(payload)];
+    for (const piece of pieces) assert.ok(piece.length <= CHUNK_BYTES + 1, `piece of ${piece.length} bytes`);
+    assert.ok(pieces.length > 1);
+    assert.equal(pieces.at(-1)![0], 'F');
+    for (const piece of pieces.slice(0, -1)) assert.equal(piece[0], 'C');
+    assert.equal(reassemble(pieces), payload);
+  });
+
+  it('sends a small payload as a single final piece', () => {
+    assert.deepEqual([...chunkPayload('{"f":"AAAA"}')], ['F{"f":"AAAA"}']);
+  });
+
+  it('marks the last piece final even on an exact chunk boundary', () => {
+    const payload = 'y'.repeat(CHUNK_BYTES * 2);
+    const pieces = [...chunkPayload(payload)];
+    assert.equal(pieces.length, 2);
+    assert.equal(pieces[1][0], 'F');
+    assert.equal(reassemble(pieces), payload);
   });
 });
 

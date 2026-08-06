@@ -16,6 +16,27 @@ import { RTCPeerConnection } from "werift";
 
 const STUN = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
+/**
+ * A frame does not fit in one data-channel message. Seen live 2026-08-05:
+ * the first real frame (142,255 bytes) hit the channel's negotiated
+ * max-message-size of 65,536 — a ceiling the REMOTE side advertises, so no
+ * local configuration can lift it — and the throw from inside onopen took
+ * the whole viewer down. 15,000 bytes stays under the 16 KiB size browsers
+ * reliably interoperate at.
+ *
+ * Framing: ordered channel, so each piece is "C" + body (continue) or
+ * "F" + body (final); the receiver concatenates until "F". Pure and
+ * exported so the exact splitting is testable without a peer.
+ */
+export const CHUNK_BYTES = 15000;
+
+export function* chunkPayload(payload, chunkBytes = CHUNK_BYTES) {
+    for (let i = 0; i < payload.length; i += chunkBytes) {
+        const last = i + chunkBytes >= payload.length;
+        yield (last ? "F" : "C") + payload.slice(i, i + chunkBytes);
+    }
+}
+
 export function signalUrl(apiBase, id) {
     return `${apiBase.replace(/\/$/, "")}/api/viewer/session/${id}/signal`;
 }
@@ -88,6 +109,23 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
     let pc = null;
     let channel = null;
     let sessionId = null;
+    // Chrome emits a frame only when pixels change, and the phone usually
+    // connects AFTER the last change — a form sitting still. Without replay
+    // the channel opens onto nothing and the viewer looks broken. Same rule
+    // as the LAN transport's late-joiner replay; each transport owes a new
+    // subscriber the current screen.
+    let lastPayload = null;
+
+    // A failed send must never take the viewer down — the LAN link would die
+    // with it for nothing. Skipping one frame is invisible; the next change
+    // (or the replay) repaints.
+    const deliver = (payload) => {
+        try {
+            for (const piece of chunkPayload(payload)) channel.send(piece);
+        } catch (error) {
+            console.error(`Dropped a frame to the phone (${error.message}).`);
+        }
+    };
 
     return {
         /**
@@ -115,6 +153,9 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
 
             pc = new RTCPeerConnection(STUN);
             channel = pc.createDataChannel("frames");
+            channel.onopen = () => {
+                if (lastPayload) deliver(lastPayload);
+            };
             await pc.setLocalDescription(await pc.createOffer());
 
             const url = signalUrl(base, sessionId);
@@ -131,7 +172,8 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
         },
 
         sendFrame(payload) {
-            if (channel?.readyState === "open") channel.send(payload);
+            lastPayload = payload;
+            if (channel?.readyState === "open") deliver(payload);
         },
 
         async close() {

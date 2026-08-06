@@ -106,7 +106,24 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
 
                 pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
                 pc.ondatachannel = (event) => {
-                    event.channel.onmessage = (message) => draw(message.data as string);
+                    // Frames arrive chunked: a whole frame (~140 KB) exceeds
+                    // the channel's negotiated max-message-size (64 KiB on
+                    // Safari), so the laptop sends "C"+body pieces ending in
+                    // "F"+body over this ordered channel. Mirrors
+                    // chunkPayload in the skill's transport-webrtc.mjs.
+                    let assembling = "";
+                    event.channel.onmessage = (message) => {
+                        const piece = message.data as string;
+                        if (piece[0] === "C") {
+                            assembling += piece.slice(1);
+                            return;
+                        }
+                        if (piece[0] === "F") {
+                            const whole = assembling + piece.slice(1);
+                            assembling = "";
+                            draw(whole);
+                        }
+                    };
                 };
                 await pc.setRemoteDescription({ type: "offer", sdp: host.sdp });
                 await pc.setLocalDescription(await pc.createAnswer());

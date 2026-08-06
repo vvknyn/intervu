@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import { LoginClient } from "./login-client";
+import { redirect } from "next/navigation";
 
 export default function LoginPage() {
-    return (
-        <Suspense fallback={<div className="min-h-dvh" style={{ background: "#12151a" }} />}>
-            <LoginClient />
-        </Suspense>
-    );
+    redirect("/");
 }

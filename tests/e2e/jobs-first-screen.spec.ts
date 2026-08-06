@@ -105,14 +105,14 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
         // The search line is the one input, and it holds focus — the ask
         // deliberately ships no box of its own.
-        await expect(page.getByPlaceholder(/What kind of work/i)).toBeFocused();
+        await expect(page.getByPlaceholder(/live-checked roles/i)).toBeFocused();
     });
 
     test('typing a role leaves the ask and reveals the ledger', async ({ page }) => {
         await page.goto('/jobs');
         await expect(page.getByTestId('jobs-ask')).toBeVisible({ timeout: 10_000 });
 
-        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
+        await page.getByPlaceholder(/live-checked roles/i).fill('engineer');
 
         // Rows, or one of the honest empty/error surfaces if Meilisearch isn't
         // configured in this environment — but never the ask, which has been
@@ -177,12 +177,16 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     /**
      * TASK 6 — Trust toolbar: corpus-count placeholder, freshness stamp, fit sort.
      */
-    test("placeholder asks what kind of work the user wants", async ({ page }) => {
+    test("placeholder carries the live corpus count", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(page.getByRole("textbox").first()).toHaveAttribute(
-            "placeholder",
-            /What kind of work/i,
-        );
+        // Captured off the first real search response (250ms debounce + a live
+        // Meilisearch round-trip, never a dedicated count request — see
+        // controller resolution #2), so a synchronous `getAttribute()` right
+        // after `goto()` races it. Poll instead, matching this file's own
+        // 10s allowance for other real-backend assertions above.
+        await expect
+            .poll(() => page.getByRole("textbox").first().getAttribute("placeholder"), { timeout: 10_000 })
+            .toMatch(/Search [\d,]+ live-checked roles/);
     });
 
     test("freshness stamp renders relative age", async ({ page }) => {
@@ -235,13 +239,13 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         // overwrite its subject. A query reaches the ledger without touching it.
         await page.goto('/jobs?q=engineer');
         await expect(page).not.toHaveURL(/posted=/);
-        await expect(page.getByTestId("filters-toggle")).toBeVisible();
+        await expect(page.getByRole("button", { name: "filters +", exact: true })).toBeVisible();
 
-        await page.getByTestId("filters-toggle").click();
-        const filters = page.getByTestId("filters-panel");
+        await page.getByRole("button", { name: /filters \+/ }).click();
+        const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
 
-        const last30 = filters.getByRole("radio", { name: "Past month" });
+        const last30 = filters.getByRole("button", { name: "Last 30 days" });
         if ((await last30.count()) === 0) {
             test.skip(true, "Corpus carries no posted_ts — age buckets hidden (isPostedDateFilterSupported)");
             return;
@@ -263,12 +267,12 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await page.setViewportSize({ width: 1100, height: 800 });
         await page.goto('/jobs?posted=any');
 
-        await expect(page.getByTestId("filters-panel")).toHaveCount(0);
-        const trigger = page.getByTestId("filters-toggle");
+        await expect(page.getByRole("region", { name: "Job filters" })).toHaveCount(0);
+        const trigger = page.getByRole("button", { name: /filters \+/ });
         await expect(trigger).toBeVisible();
         await trigger.click();
 
-        const filters = page.getByTestId("filters-panel");
+        const filters = page.getByRole("region", { name: "Job filters" });
         await expect(filters).toBeVisible();
         await expect(filters.getByRole("checkbox", { name: /Hide likely-ghost/i })).toBeVisible();
     });
@@ -487,7 +491,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("no glyph painted over the search field overlaps where its text starts", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        const box = page.getByPlaceholder(/What kind of work/i);
+        const box = page.getByPlaceholder(/live-checked roles/i);
         await expect(box).toBeVisible();
 
         const collisions = await box.evaluate((el) => {
@@ -521,38 +525,58 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 test.describe("mobile", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test("filters toggle is visible and opens the panel", async ({ page }) => {
+    test("All filters pill is visible and opens the sheet with a live count", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        const toggle = page.getByTestId("filters-toggle");
-        await expect(toggle).toBeVisible();
-        await expect(page.getByTestId("jobs-toolbar")).toBeVisible();
-        await toggle.click();
-        await expect(page.getByTestId("filters-panel")).toBeVisible();
+        const trigger = page.getByRole("button", { name: /filters \+/ });
+        await expect(trigger).toBeVisible();
+        await trigger.click();
+        await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toBeVisible();
     });
 
-    test("filters panel applies a salary filter immediately", async ({ page }) => {
+    // Review fix (2026-07-19): the original version read `applyBtn.textContent()`
+    // immediately after opening — inside the 250ms debounce window — so it
+    // compared the value `openFilterSheet` SEEDED (from `result?.total`,
+    // before any edit) to itself. It could not fail. This rewrite actually
+    // edits a pending filter inside the sheet, waits for the button's number
+    // to change (proof the debounced re-count fired), THEN applies and checks
+    // the applied page shows that same (post-edit) number.
+    test("sheet count reflects a debounced pending-filter change and matches the applied result", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await page.getByTestId("filters-toggle").click();
+        await page.getByRole("button", { name: /filters \+/ }).click();
 
-        const panel = page.getByTestId("filters-panel");
-        await expect(panel).toBeVisible();
+        const applyBtn = page.getByRole("button", { name: /Show [\d,]+ roles/ });
+        await expect(applyBtn).toBeVisible();
+        const seeded = (await applyBtn.textContent())!.replace(/\D/g, "");
 
-        await panel.getByText("$200k+").click();
-        await expect(page).toHaveURL(/salary=/, { timeout: 10_000 });
-    });
+        // Toggle a PENDING filter inside the sheet — resolution #3: this must
+        // only move the debounced count, never the applied page behind it.
+        // The filter has to narrow BELOW Meilisearch's `maxTotalHits` cap or the
+        // count saturates and can't be observed changing. Measured live against
+        // the corpus: unfiltered, "$100k+", "$150k+" and "remote" all report the
+        // capped 100,000; "$200k+" reports ~64k. Posted buckets aren't an option
+        // either — hidden whenever the corpus lacks `posted_ts`.
+        await page
+            .getByRole("region", { name: "Job filters" })
+            .getByRole("button", { name: "$200k+" })
+            .click();
 
-    test("search query and location inputs do not overlap on mobile", async ({ page }) => {
-        await page.goto('/jobs?posted=any');
-        const queryBox = page.getByPlaceholder(/What kind of work/i);
-        const locationBox = page.getByTestId("location-input");
-        await expect(queryBox).toBeVisible();
-        await expect(locationBox).toBeVisible();
+        // Poll until the button's number actually changes from the open-time
+        // seed — the debounce is 250ms plus a real round trip.
+        await expect
+            .poll(async () => (await applyBtn.textContent())?.replace(/\D/g, ""), { timeout: 10_000 })
+            .not.toBe(seeded);
+        const settled = (await applyBtn.textContent())!.replace(/\D/g, "");
 
-        const queryRect = await queryBox.boundingBox();
-        const locationRect = await locationBox.boundingBox();
-        expect(queryRect).toBeTruthy();
-        expect(locationRect).toBeTruthy();
-        expect(locationRect!.y).toBeGreaterThanOrEqual(queryRect!.y + queryRect!.height - 2);
+        await applyBtn.click();
+        // Wait for the sheet to fully leave the DOM before reading the
+        // applied page's count — Radix's exit animation keeps the closing
+        // sheet (and the just-read `settled` text inside it) mounted for a
+        // beat, and a same-text page-wide search could otherwise match that
+        // stale, departing element instead of the real applied-page count.
+        await expect(page.getByRole("button", { name: /Show [\d,]+ roles/ })).toHaveCount(0);
+        await expect(
+            page.getByText(new RegExp(`${Number(settled).toLocaleString()}|${settled}`)).first(),
+        ).toBeVisible();
     });
 
     // Resolution #5: exact scroll restoration is flaky under the list's

@@ -24,8 +24,9 @@ export async function middleware(request: NextRequest) {
 
     if (!sessionCookie && isAuthGatedProductPath(pathname)) {
         const url = request.nextUrl.clone();
-        url.pathname = "/login";
+        url.pathname = "/";
         url.search = "";
+        url.searchParams.set("signin", "1");
         url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
         return NextResponse.redirect(url);
     }
