@@ -27,7 +27,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             onClick={onClick}
             className={cn(
                 "grid w-full cursor-pointer grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)]",
-                active && "border-foreground shadow-[0_0_0_1px_hsl(var(--foreground))]",
+                active && "border-foreground shadow-[0_0_0_1px_rgb(var(--foreground))]",
             )}
         >
             <div className="min-w-0">
