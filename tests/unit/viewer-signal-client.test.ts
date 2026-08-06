@@ -84,6 +84,23 @@ describe('pollUntilGuest', () => {
     assert.equal(guest.sdp, 'v=0');
   });
 
+  it('skips a stale answer via ignoreSdp, then accepts a changed one', async () => {
+    // Reconnect (D11) re-posts a fresh offer under the same session id; the
+    // guest's PREVIOUS answer can still be sitting there for a moment, and
+    // accepting it again would pair the host with a peer connection that no
+    // longer exists.
+    let n = 0;
+    const fake = async () => {
+      n++;
+      return { ok: true, json: async () => ({ guest: { sdp: n < 3 ? 'stale-answer' : 'fresh-answer' } }) };
+    };
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+      deadline: soon(), delayMs: 0, ignoreSdp: 'stale-answer',
+    });
+    assert.equal(guest.sdp, 'fresh-answer');
+    assert.ok(n >= 3, 'must keep polling past the stale answer rather than accepting it');
+  });
+
   it('keeps waiting through a transient server error instead of aborting the session', async () => {
     // The phone may take a minute to be picked up. One 503 from a redeploy
     // must not end a watch session that would otherwise have worked.

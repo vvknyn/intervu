@@ -1,10 +1,10 @@
 /**
- * Same-WiFi transport: Server-Sent Events over plain node:http.
- *
- * No WebSocket library and no dependency at all, which is only possible
- * because v1 is watch-only and therefore one-way. When input forwarding
- * lands this has to become a duplex channel and will need a real socket —
- * that is a v2 change, not a hook to leave lying around now.
+ * Same-WiFi (and, once Tailscale is up, same-tailnet) transport: Server-Sent
+ * Events downstream for frames, plain POST upstream for input. Two separate
+ * primitives rather than one WebSocket because SSE-plus-POST needs no
+ * dependency at all and no handshake beyond the token in the URL — the
+ * asymmetry (many small POSTs vs. one long-lived stream) matches how the
+ * two directions are actually shaped.
  *
  * The token is the whole access control here. It is generated per run and
  * carried in the URL, so the link the user receives is the credential and
@@ -16,31 +16,40 @@ import { networkInterfaces } from "node:os";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isTailnetAddress } from "./tailnet.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(join(HERE, "watch-page.html"), "utf8");
-// Served rather than inlined so the crop arithmetic has exactly one home and
-// stays unit-testable in Node.
+// Served rather than inlined so the crop/input arithmetic each has exactly
+// one home and stays unit-testable in Node.
 const CROP_MODULE = readFileSync(join(HERE, "crop.mjs"), "utf8");
+const INPUT_CAPTURE_MODULE = readFileSync(join(HERE, "input-capture.mjs"), "utf8");
 
 /**
  * Only three fields of an interface record matter here, so that is all the
  * parameter promises — which keeps a test free to hand over a plain literal
  * instead of a full os.NetworkInterfaceInfo.
  *
+ * A Tailscale interface is labeled separately from a plain LAN one: it is
+ * the one link that keeps working off WiFi, so the skill needs to tell it
+ * apart from an address that only reaches the same room.
+ *
  * @param {number} port
  * @param {string} token
  * @param {Record<string, Array<{ family: string, internal: boolean, address: string }> | undefined>} [ifaces]
- * @returns {string[]}
+ * @returns {Array<{ kind: "tailnet" | "lan", url: string }>}
  */
 export function lanUrls(port, token, ifaces = networkInterfaces()) {
     return Object.values(ifaces)
         .flat()
         .filter((i) => i && i.family === "IPv4" && !i.internal)
-        .map((i) => `http://${i.address}:${port}/?t=${token}`);
+        .map((i) => ({
+            kind: isTailnetAddress(i.address) ? "tailnet" : "lan",
+            url: `http://${i.address}:${port}/?t=${token}`,
+        }));
 }
 
-export function createLanTransport({ port = 18801, token }) {
+export function createLanTransport({ port = 18801, token, onInput }) {
     const clients = new Set();
     let server = null;
     // SSE has no replay and Chrome only emits on change, so a phone that
@@ -61,6 +70,10 @@ export function createLanTransport({ port = 18801, token }) {
         if (url.pathname === "/crop.mjs") {
             res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
             return res.end(CROP_MODULE);
+        }
+        if (url.pathname === "/input-capture.mjs") {
+            res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+            return res.end(INPUT_CAPTURE_MODULE);
         }
         // Browsers request this on their own; 403-ing it puts a red error in
         // the console that has nothing to do with any real problem.
@@ -98,6 +111,19 @@ Ask your agent for a fresh link, and open it by tapping rather than retyping.</p
             req.on("close", () => clients.delete(res));
             return;
         }
+        if (url.pathname === "/input" && req.method === "POST") {
+            // Never parsed here — the sink is the only place the wire
+            // contract is validated, so every transport hands over the same
+            // raw text regardless of what shape (or non-JSON garbage) it is.
+            let body = "";
+            req.on("data", (chunk) => { body += chunk; });
+            req.on("end", () => {
+                onInput?.(body);
+                res.writeHead(204);
+                res.end();
+            });
+            return;
+        }
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(PAGE);
     };
@@ -123,7 +149,7 @@ Ask your agent for a fresh link, and open it by tapping rather than retyping.</p
                 server.listen(port, () => resolve(true));
             });
             if (!bound) throw new Error("the viewer's local server failed to start");
-            return { url: lanUrls(server.address().port, token)[0] ?? null };
+            return { urls: lanUrls(server.address().port, token) };
         },
 
         port() {

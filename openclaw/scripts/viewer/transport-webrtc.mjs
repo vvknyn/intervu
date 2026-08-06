@@ -66,11 +66,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {typeof fetch} fetchImpl
  * @param {string} url
  * @param {{deadline: number, delayMs?: number, maxDelayMs?: number,
- *          headers?: Record<string,string>, sleepImpl?: (ms:number)=>Promise<void>}} options
- *        `deadline` is the session's own expiresAt, in epoch ms.
+ *          headers?: Record<string,string>, sleepImpl?: (ms:number)=>Promise<void>,
+ *          ignoreSdp?: string|null}} options
+ *        `deadline` is the session's own expiresAt, in epoch ms. `ignoreSdp`
+ *        (D11 reconnect) treats a guest answer matching it as "not yet" —
+ *        it is the answer from BEFORE this renegotiation, which can still
+ *        be sitting on the doorbell for a moment after a fresh offer is
+ *        posted under the same session id.
  * @returns {Promise<{sdp: string}>}
  */
-export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000, maxDelayMs = 15000, headers = {}, sleepImpl = sleep } = {}) {
+export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000, maxDelayMs = 15000, headers = {}, sleepImpl = sleep, ignoreSdp = null } = {}) {
     // Without this a missing deadline makes the comparison below false and
     // the function gives up instantly, which reads exactly like a phone that
     // never connected.
@@ -89,7 +94,7 @@ export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000,
         }
         if (res?.ok) {
             const body = await res.json();
-            if (body.guest) return body.guest;
+            if (body.guest && body.guest.sdp !== ignoreSdp) return body.guest;
         }
         await sleepImpl(delay);
         delay = nextPollDelay(delay, maxDelayMs);
@@ -103,12 +108,22 @@ export function nextPollDelay(delayMs, maxDelayMs) {
     return Math.min(delayMs * 2, maxDelayMs);
 }
 
-export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
+/** Connection states that mean this peer connection is done for and, while
+ *  the session is still live, worth replacing rather than leaving stranded. */
+const DEAD_STATES = new Set(["failed", "closed", "disconnected"]);
+
+export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onInput }) {
     const base = apiBase.replace(/\/$/, "");
     const auth = { authorization: `Bearer ${bearer}`, "content-type": "application/json" };
     let pc = null;
     let channel = null;
     let sessionId = null;
+    let expiresAt = null;
+    // The answer this pc last accepted — passed back into pollUntilGuest as
+    // ignoreSdp on reconnect so a beat where the doorbell still holds the
+    // OLD answer cannot be mistaken for the guest having already re-answered.
+    let lastAnswerSdp = null;
+    let reconnecting = false;
     // Chrome emits a frame only when pixels change, and the phone usually
     // connects AFTER the last change — a form sitting still. Without replay
     // the channel opens onto nothing and the viewer looks broken. Same rule
@@ -119,13 +134,80 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
     // A failed send must never take the viewer down — the LAN link would die
     // with it for nothing. Skipping one frame is invisible; the next change
     // (or the replay) repaints.
-    const deliver = (payload) => {
+    const deliver = (targetChannel, payload) => {
         try {
-            for (const piece of chunkPayload(payload)) channel.send(piece);
+            for (const piece of chunkPayload(payload)) targetChannel.send(piece);
         } catch (error) {
             console.error(`Dropped a frame to the phone (${error.message}).`);
         }
     };
+
+    // Frames only ever flow laptop→phone, so in principle this channel
+    // never receives one — but parsing by prefix rather than direction means
+    // a stray chunk is silently ignored instead of corrupting onInput.
+    const handleChannelMessage = (data) => {
+        if (data[0] === "C" || data[0] === "F") return;
+        onInput?.(data);
+    };
+
+    /**
+     * The offer/POST/poll/answer sequence, reusable for both the initial
+     * connection and every reconnect (D11). Resolves once the new pc is
+     * live; `onOffered` — invoked right after the offer is posted — is how
+     * `start()` still returns as soon as there is a link worth sending
+     * without waiting for a phone that may take a minute to be picked up.
+     */
+    async function negotiate(previousAnswerSdp, { onOffered } = {}) {
+        const newPc = new RTCPeerConnection(STUN);
+        const newChannel = newPc.createDataChannel("frames");
+        newChannel.onopen = () => {
+            if (lastPayload) deliver(newChannel, lastPayload);
+        };
+        newChannel.onmessage = (event) => handleChannelMessage(String(event.data));
+        await newPc.setLocalDescription(await newPc.createOffer());
+
+        const url = signalUrl(base, sessionId);
+        await fetchImpl(url, {
+            method: "POST",
+            headers: auth,
+            body: JSON.stringify({ role: "host", sdp: newPc.localDescription.sdp }),
+        });
+        onOffered?.();
+
+        const guest = await pollUntilGuest(fetchImpl, url, { headers: auth, deadline: expiresAt, ignoreSdp: previousAnswerSdp });
+        await newPc.setRemoteDescription({ type: "answer", sdp: guest.sdp });
+
+        pc = newPc;
+        channel = newChannel;
+        lastAnswerSdp = guest.sdp;
+        wireLifecycle(newPc, newChannel);
+    }
+
+    /** Detects the two ways a peer connection dies and, while the session
+     *  hasn't expired, replaces it instead of leaving the phone stranded. */
+    function wireLifecycle(livePc, liveChannel) {
+        liveChannel.onclose = () => reconnect();
+        livePc.onconnectionstatechange = () => {
+            if (DEAD_STATES.has(livePc.connectionState)) reconnect();
+        };
+    }
+
+    async function reconnect() {
+        if (reconnecting || !sessionId || Date.now() >= expiresAt) return;
+        reconnecting = true;
+        const dead = pc;
+        try {
+            if (dead) {
+                dead.onconnectionstatechange = null; // closing it below must not re-trigger this
+                dead.close();
+            }
+            await negotiate(lastAnswerSdp);
+        } catch (error) {
+            console.error(`Reconnect failed (${error.message}). The phone can reopen the watch link to try again.`);
+        } finally {
+            reconnecting = false;
+        }
+    }
 
     return {
         /**
@@ -144,49 +226,45 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {
             if (!created.ok) {
                 throw new Error(`could not open a viewer session (HTTP ${created.status}) — the agent's intervu login may have expired; 'mcporter auth intervu-cc-mcp' renews it`);
             }
-            const { sessionId: id, expiresAt } = await created.json();
+            const { sessionId: id, expiresAt: expiry } = await created.json();
             sessionId = id;
+            expiresAt = expiry;
             // Composed here rather than returned by the server: this side
             // chose the origin, so this side is the only one that can be
             // sure the phone can reach it.
             const watchUrl = `${base}/watch/${sessionId}`;
 
-            pc = new RTCPeerConnection(STUN);
-            channel = pc.createDataChannel("frames");
-            channel.onopen = () => {
-                if (lastPayload) deliver(lastPayload);
-            };
-            await pc.setLocalDescription(await pc.createOffer());
-
-            const url = signalUrl(base, sessionId);
-            await fetchImpl(url, {
-                method: "POST",
-                headers: auth,
-                body: JSON.stringify({ role: "host", sdp: pc.localDescription.sdp }),
-            });
-
-            const connected = pollUntilGuest(fetchImpl, url, { headers: auth, deadline: expiresAt })
-                .then((guest) => pc.setRemoteDescription({ type: "answer", sdp: guest.sdp }));
+            let resolveOffered;
+            const offered = new Promise((resolve) => { resolveOffered = resolve; });
+            const connected = negotiate(null, { onOffered: resolveOffered });
+            await offered;
 
             return { url: watchUrl, connected };
         },
 
         sendFrame(payload) {
             lastPayload = payload;
-            if (channel?.readyState === "open") deliver(payload);
+            if (channel?.readyState === "open") deliver(channel, payload);
         },
 
         async close() {
+            // An intentional close must not be read as the disconnect
+            // reconnect() exists to recover from — detach before closing,
+            // same as reconnect() does to the pc it is replacing.
+            if (pc) pc.onconnectionstatechange = null;
+            if (channel) channel.onclose = null;
+            const closingSessionId = sessionId;
+            sessionId = null;
             try {
                 channel?.close();
                 pc?.close();
             } catch {
                 // Already torn down; the session delete below still matters.
             }
-            if (sessionId) {
+            if (closingSessionId) {
                 // The spec requires the session to die at handoff rather than
                 // linger to its TTL, so this is the boundary closing.
-                await fetchImpl(signalUrl(base, sessionId), { method: "DELETE", headers: auth }).catch(() => {});
+                await fetchImpl(signalUrl(base, closingSessionId), { method: "DELETE", headers: auth }).catch(() => {});
             }
         },
     };

@@ -114,4 +114,74 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     assert.equal(doorbell.state.deleted, true, 'close() must delete the session, not leave it to its TTL');
     phone.close();
   });
+
+  it('reconnects with a fresh offer when the answering peer\'s channel closes, and forwards guest input', async (t) => {
+    let RTCPeerConnection;
+    try {
+      ({ RTCPeerConnection } = await loadWerift());
+    } catch {
+      return t.skip('werift not installed — run: npm i --prefix openclaw');
+    }
+    t.diagnostic('exercises the D11 reconnect path; a second round of ICE is expected');
+
+    const doorbell = fakeDoorbell();
+    const received: string[] = [];
+    const transport = createWebRtcTransport({
+      apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test',
+      onInput: (text: string) => received.push(text),
+    });
+
+    const { connected } = await transport.start();
+    const firstOfferSdp = doorbell.state.host!.sdp;
+
+    // Phone #1 answers the first offer, same as any normal connection.
+    const phone1 = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    let phone1Channel: any;
+    await phone1.setRemoteDescription({ type: 'offer', sdp: firstOfferSdp });
+    await phone1.setLocalDescription(await phone1.createAnswer());
+    doorbell.state.guest = { sdp: phone1.localDescription!.sdp };
+    phone1.ondatachannel = (event: any) => { phone1Channel = event.channel; };
+    await connected;
+    // Give the channel a moment to finish opening before killing it.
+    while (!phone1Channel) await new Promise((r) => setTimeout(r, 20));
+    // Populates lastPayload so replay-on-open has something to hand phone2.
+    transport.sendFrame(JSON.stringify({ f: 'reconnect-test', r: null, dw: 1512 }));
+
+    // Kill the answering peer's channel — the trigger the host must notice
+    // and recover from instead of leaving the phone permanently stranded.
+    phone1Channel.close();
+
+    // The host must post a NEW offer under the same session id.
+    const deadline = Date.now() + 15_000;
+    while (doorbell.state.host!.sdp === firstOfferSdp && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.notEqual(doorbell.state.host!.sdp, firstOfferSdp, 'host must renegotiate with a fresh offer after the channel closes');
+
+    // Phone #2 answers the fresh offer.
+    const phone2 = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const phone2Frame = new Promise<void>((resolve) => {
+      phone2.ondatachannel = (event: any) => {
+        event.channel.onmessage = (m: any) => { if (String(m.data)[0] === 'F') resolve(); };
+        // Proves the reverse direction on the NEW channel too: guest input
+        // reaching the host's onInput.
+        event.channel.onopen = () => event.channel.send(JSON.stringify({ v: 1, type: 'control', on: true }));
+      };
+    });
+    await phone2.setRemoteDescription({ type: 'offer', sdp: doorbell.state.host!.sdp });
+    await phone2.setLocalDescription(await phone2.createAnswer());
+    doorbell.state.guest = { sdp: phone2.localDescription!.sdp };
+
+    // Replay-on-open (already covers new channels) delivers the last frame
+    // with no extra sendFrame() call needed.
+    await phone2Frame;
+
+    const inputDeadline = Date.now() + 10_000;
+    while (received.length === 0 && Date.now() < inputDeadline) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(received[0] && JSON.parse(received[0]), { v: 1, type: 'control', on: true });
+
+    await transport.close();
+    phone1.close();
+    phone2.close();
+  });
 });

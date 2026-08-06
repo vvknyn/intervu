@@ -12,38 +12,96 @@
   #dot.live { background: #3ddc84; }
   #mode { margin-left: auto; opacity: .6; font-size: 12px; }
   canvas { display: block; width: 100%; height: auto; }
+  #control { position: fixed; right: 12px; bottom: 12px; z-index: 2;
+             padding: 10px 16px; border-radius: 9999px; border: 1px solid #333;
+             background: #1c1c1c; color: #eee; font: 13px -apple-system, system-ui, sans-serif; }
+  #control.on { background: #3ddc84; color: #111; border-color: #3ddc84; }
+  /* Kept focusable (not display:none) so tapping the canvas can open the
+     phone's keyboard — a hidden input off-screen still receives focus. */
+  #typer { position: fixed; top: -100px; left: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; }
 </style>
 <header>
   <span id="dot"></span><span id="status">connecting…</span>
   <span id="mode">tap to zoom out</span>
 </header>
 <canvas id="screen"></canvas>
+<button id="control">take control</button>
+<input id="typer" autocomplete="off" autocapitalize="off" autocorrect="off">
 <script type="module">
   import { computeCrop } from './crop.mjs';
+  import { frameTapMessage, textMessage, keyMessage, controlMessage } from './input-capture.mjs';
 
   const canvas = document.getElementById('screen');
   const ctx = canvas.getContext('2d');
   const dot = document.getElementById('dot');
   const statusEl = document.getElementById('status');
   const modeEl = document.getElementById('mode');
+  const controlBtn = document.getElementById('control');
+  const typer = document.getElementById('typer');
   const token = new URLSearchParams(location.search).get('t');
 
   // Following the focused field is the default because a mirrored 1512px
   // desktop viewport renders at ~26% on a phone. Tapping shows the whole
-  // page for orientation.
+  // page for orientation — but only while NOT in control, where a tap
+  // means "click here" instead.
   let follow = true;
+  let controlOn = false;
   let latest = null;
+  let lastCrop = null;
+
+  function postInput(msg) {
+    fetch(`/input?t=${encodeURIComponent(token)}`, { method: 'POST', body: JSON.stringify(msg) }).catch(() => {});
+  }
+
+  controlBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // the body's zoom-toggle listener must not also fire
+    controlOn = !controlOn;
+    controlBtn.classList.toggle('on', controlOn);
+    controlBtn.textContent = controlOn ? 'watching only' : 'take control';
+    modeEl.textContent = controlOn ? 'tap to send input' : (follow ? 'tap to zoom out' : 'tap to follow field');
+    postInput(controlMessage(controlOn));
+  });
 
   document.body.addEventListener('click', () => {
+    if (controlOn) return; // canvas taps become device input instead — see below
     follow = !follow;
     modeEl.textContent = follow ? 'tap to zoom out' : 'tap to follow field';
     if (latest) render(latest);
+  });
+
+  canvas.addEventListener('click', (e) => {
+    if (!controlOn || !latest) return;
+    const rect = canvas.getBoundingClientRect();
+    const msg = frameTapMessage({
+      cssX: e.clientX - rect.left,
+      cssY: e.clientY - rect.top,
+      cssWidth: rect.width,
+      crop: lastCrop,
+      imageWidth: latest.img.width,
+      imageHeight: latest.img.height,
+    });
+    if (msg) postInput(msg);
+    typer.focus();
+  });
+
+  typer.addEventListener('input', () => {
+    // The field is cleared after every send, so whatever is in it on the
+    // NEXT input event is exactly the delta typed since then — no diffing.
+    if (typer.value) postInput(textMessage(typer.value));
+    typer.value = '';
+  });
+
+  typer.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+    e.preventDefault();
+    postInput(keyMessage(e.key));
   });
 
   function render({ img, rect, deviceWidth }) {
     const crop = follow
       ? computeCrop(rect, { imageWidth: img.width, imageHeight: img.height, deviceWidth: deviceWidth || img.width })
       : null;
+    lastCrop = crop;
     const { sx, sy, sw, sh } = crop ?? { sx: 0, sy: 0, sw: img.width, sh: img.height };
     if (canvas.width !== sw || canvas.height !== sh) { canvas.width = sw; canvas.height = sh; }
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);

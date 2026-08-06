@@ -18,7 +18,7 @@
     "test:mobile": "playwright test tests/e2e/mobile.spec.ts",
     "test:privacy": "playwright test tests/e2e/privacy-account.spec.ts",
     "test:unit": "npx tsx tests/unit/encryption.test.ts",
-    "test:viewer": "npx tsx --test tests/unit/viewer-frame-source.test.ts tests/unit/viewer-transport-lan.test.ts tests/unit/viewer-crop.test.ts tests/unit/viewer-sessions.test.ts tests/unit/viewer-session-store.test.ts tests/unit/viewer-signal-client.test.ts tests/unit/viewer-webrtc-loopback.test.ts",
+    "test:viewer": "npx tsx --test tests/unit/viewer-frame-source.test.ts tests/unit/viewer-transport-lan.test.ts tests/unit/viewer-crop.test.ts tests/unit/viewer-sessions.test.ts tests/unit/viewer-session-store.test.ts tests/unit/viewer-signal-client.test.ts tests/unit/viewer-webrtc-loopback.test.ts tests/unit/viewer-watch-canvas.test.ts tests/unit/viewer-input-capture.test.ts tests/unit/viewer-input-sink.test.ts tests/unit/viewer-tailnet.test.ts",
     "test:agent": "npx tsx --test tests/unit/agent-tokens.test.ts tests/unit/agent-oauth.test.ts tests/unit/agent-rate-limit.test.ts tests/unit/agent-record-budget.test.ts tests/unit/agent-tools.test.ts tests/unit/agent-consent.test.ts tests/unit/agent-register-route.test.ts tests/unit/agent-token-route.test.ts tests/unit/agent-mcp-route.test.ts tests/unit/agent-access.test.ts tests/unit/agent-preferences.test.ts tests/unit/resume-set-resume.test.ts tests/unit/agent-http.test.ts",
     "test:agents-page": "playwright test tests/e2e/agents-page.spec.ts",
     "test:banner": "playwright test tests/e2e/motivational-banner.spec.ts",

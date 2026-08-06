@@ -9,11 +9,22 @@ const IFACES = {
 
 describe('lanUrls', () => {
   it('builds a URL per external IPv4 address, carrying the token', () => {
-    assert.deepEqual(lanUrls(18801, 'tok123', IFACES), ['http://192.168.1.42:18801/?t=tok123']);
+    assert.deepEqual(lanUrls(18801, 'tok123', IFACES), [{ kind: 'lan', url: 'http://192.168.1.42:18801/?t=tok123' }]);
   });
 
   it('returns an empty list when there is no external IPv4', () => {
     assert.deepEqual(lanUrls(18801, 'tok', { lo0: IFACES.lo0 }), []);
+  });
+
+  it('labels an address in the tailnet CGNAT range 100.64.0.0/10 as "tailnet", not "lan"', () => {
+    const ifaces = {
+      utun100: [{ family: 'IPv4', internal: false, address: '100.111.232.96' }],
+      en0: [{ family: 'IPv4', internal: false, address: '192.168.1.42' }],
+    };
+    assert.deepEqual(lanUrls(18801, 'tok', ifaces), [
+      { kind: 'tailnet', url: 'http://100.111.232.96:18801/?t=tok' },
+      { kind: 'lan', url: 'http://192.168.1.42:18801/?t=tok' },
+    ]);
   });
 });
 
@@ -120,5 +131,38 @@ describe('createLanTransport', () => {
     const { value } = await reader.read();
     assert.match(new TextDecoder().decode(value), /data: QUJD/);
     await reader.cancel();
+  });
+
+  it('serves input-capture.mjs without a token, same rationale as crop.mjs', async () => {
+    const res = await fetch(`${base}/input-capture.mjs`);
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /frameTapMessage/);
+  });
+});
+
+describe('createLanTransport /input', () => {
+  it('rejects a POST carrying the wrong token without touching onInput', async () => {
+    let called = false;
+    const transport = createLanTransport({ port: 0, token: 'tok', onInput: () => { called = true; } });
+    await transport.start();
+    const base = `http://127.0.0.1:${transport.port()}`;
+    const res = await fetch(`${base}/input?t=wrong`, { method: 'POST', body: '{"v":1,"type":"key","key":"Enter"}' });
+    assert.equal(res.status, 403);
+    await res.text();
+    assert.equal(called, false);
+    await transport.close();
+  });
+
+  it('answers 204 and forwards the raw body to onInput verbatim — parsing is the sink\'s job', async () => {
+    const seen: string[] = [];
+    const transport = createLanTransport({ port: 0, token: 'tok', onInput: (text: string) => seen.push(text) });
+    await transport.start();
+    const base = `http://127.0.0.1:${transport.port()}`;
+    const body = '{"v":1,"type":"key","key":"Enter"}';
+    const res = await fetch(`${base}/input?t=tok`, { method: 'POST', body });
+    assert.equal(res.status, 204);
+    await res.text();
+    assert.deepEqual(seen, [body]);
+    await transport.close();
   });
 });

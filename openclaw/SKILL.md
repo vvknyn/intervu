@@ -376,13 +376,29 @@ user can follow along from wherever they are:
     browser focus <FORM tab>      # it mirrors the ACTIVE tab, so focus first
     node scripts/viewer.mjs &
 
-It prints `WATCH: <url>` (works anywhere) and/or `WATCH-LAN: <url>` (same
-WiFi only). Send the `WATCH:` line if it printed, otherwise `WATCH-LAN:`, in
-one short message — e.g. `"Filling the Braze form now — watch here: <url>"`.
-Send ONE link, never both.
+It prints labeled links, best-first: `WATCH-ANYWHERE: <url>` (Tailscale —
+works off WiFi, printed only once setup is verified), `WATCH: <url>`
+(doorbell — reaches anywhere, best-effort), `WATCH-LAN: <url>` (same WiFi
+only). Send exactly ONE link — whichever is best of the three that printed
+(`WATCH-ANYWHERE:` > `WATCH:` > `WATCH-LAN:`) — in one short message, e.g.
+`"Filling the Braze form now — watch here: <url>"`.
 
-If it prints neither, say so in one line and carry on filling the form.
-Watching is a convenience and must never block an application.
+If it also printed `SETUP-OFFER: tailnet`, AND this is the first watch link
+you've sent this session, append one line to that same message: "Off WiFi?
+A one-time 2-minute setup makes this link work from anywhere — reply
+`setup` when you want it." Offer it once per session, never repeat it
+unasked, and never install anything unless the user actually replies
+`setup`.
+
+On a `setup` reply: run `node scripts/viewer/tailnet.mjs setup`. It prints
+`TAILNET-AUTH-URL: <url>` partway through — forward that line with "Tap
+this and sign in — your laptop is joining your private network." When it
+prints `TAILNET-READY`, send the one remaining step: "Last step: install
+the Tailscale app on this phone and sign in with the same account." From
+then on `WATCH-ANYWHERE:` is what prints, this session and every one after.
+
+If it prints no link at all, say so in one line and carry on filling the
+form. Watching is a convenience and must never block an application.
 
 3. **PRE-FLIGHT AUDIT.** AUDIT the freshly opened form. Diff
    `summary.requiredAndEmpty` against the resume and the server's `answers`
@@ -480,6 +496,7 @@ Watching is a convenience and must never block an application.
      ~/Downloads/<Company>-<Title>-resume-<date>.pdf`, named in the text —
      the same file `check-upload.mjs` just confirmed is attached to the
      form, so the user never has to ask what they applied with.
+   - Tap "take control" on the watch page to fix anything directly.
    - Close with: "Review and hit submit."
    One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
