@@ -35,9 +35,9 @@ function TrackerIcon() {
 function ConnectIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M9 2v4M15 2v4" />
-            <path d="M6 6h12v5a6 6 0 01-12 0z" />
-            <path d="M12 17v5" />
+            <circle cx="7" cy="12" r="3" />
+            <circle cx="17" cy="12" r="3" />
+            <path d="M10 12h4" />
         </svg>
     );
 }
