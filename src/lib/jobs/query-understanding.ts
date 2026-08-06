@@ -12,7 +12,7 @@
  * roles that title-first ranking (see searchMeili's precision pass) already
  * orders correctly.
  */
-import type { JobSearchParams, PlaceFilter } from "./types";
+import type { JobSearchParams, PlaceClause } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases } from "../geo/resolve-place";
@@ -77,8 +77,8 @@ export interface LocationVocabulary {
 export interface ParsedPlaces {
   /** Query text with the matched place phrases removed (may be empty). */
   residualQ: string;
-  /** Filter clauses for the matched places — OR'd by `buildFilter`. */
-  places: PlaceFilter[];
+  /** One clause per matched place — OR'd by `buildFilter`. */
+  places: PlaceClause[];
 }
 
 /**
@@ -89,6 +89,13 @@ export interface ParsedPlaces {
  * search.ts) and the MCP `search_jobs` tool's explicit `location` param
  * (`resolvePlaces` in agent/tools.ts) call this exact function against the
  * same cached `LocationVocabulary` (`locationVocabulary()` in search.ts).
+ *
+ * Each resolution validates as TWO groups in one batched checker call — its
+ * own candidates, and (for a city/metro match only) its resolved country's
+ * candidates — so the result can carry `scopedToCountry` separately from
+ * `any` (see `PlaceClause`, jobs/types.ts) without a second network round
+ * trip: the underlying facet-search hits are still fetched once per unique
+ * (field, value) regardless of which group needed them.
  *
  * A recognized place phrase leaves the RESIDUAL query even when nothing it
  * expanded to survives corpus validation (a real place, but this corpus has
@@ -102,8 +109,17 @@ export interface ParsedPlaces {
 export async function parsePlaceTokens(q: string, vocab: LocationVocabulary): Promise<ParsedPlaces> {
   const { residualQ, resolutions } = scanPlacePhrases(q, vocab.gazetteer);
   if (resolutions.length === 0) return { residualQ, places: [] };
-  const candidates = resolutions.flatMap((r) => r.candidates);
-  const places = await vocab.corpusChecker(candidates);
+
+  const groups = resolutions.flatMap((r) => [r.candidates, r.countryScope]);
+  const results = await vocab.corpusChecker(groups);
+
+  const places: PlaceClause[] = [];
+  resolutions.forEach((r, i) => {
+    const any = results[i * 2];
+    if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
+    const scope = results[i * 2 + 1];
+    places.push(scope.length > 0 ? { any, scopedToCountry: scope } : { any });
+  });
   return { residualQ, places };
 }
 

@@ -33,20 +33,21 @@ const TEST_CORPUS_VALUES: PlaceFilter[] = [
   { field: 'location_country', value: 'Canada' },
 ];
 
-const testCorpusChecker: CorpusValueChecker = async (candidates) => {
-  const seen = new Set<string>();
-  const out: PlaceFilter[] = [];
-  for (const c of candidates) {
-    const hit = TEST_CORPUS_VALUES.find((v) => v.field === c.field && v.value.toLowerCase() === c.value.toLowerCase());
-    if (!hit) continue;
-    const key = `${hit.field} ${hit.value}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(hit);
+const testCorpusChecker: CorpusValueChecker = async (groups) =>
+  groups.map((candidates) => {
+    const seen = new Set<string>();
+    const out: PlaceFilter[] = [];
+    for (const c of candidates) {
+      const hit = TEST_CORPUS_VALUES.find((v) => v.field === c.field && v.value.toLowerCase() === c.value.toLowerCase());
+      if (!hit) continue;
+      const key = `${hit.field} ${hit.value}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(hit);
+      }
     }
-  }
-  return out;
-};
+    return out;
+  });
 
 const TEST_VOCAB: LocationVocabulary = { gazetteer: TEST_GAZETTEER, corpusChecker: testCorpusChecker };
 
@@ -501,14 +502,19 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
   it('maps location "Toronto" to a places param via the SAME parsing path free-text queries use (review fix — NOT the location_country facet)', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Toronto' });
-    assert.deepEqual(searchCalls[0].places, [{ field: 'location_city', value: 'Toronto' }]);
+    assert.deepEqual(searchCalls[0].places, [
+      {
+        any: [{ field: 'location_city', value: 'Toronto' }],
+        scopedToCountry: [{ field: 'location_country', value: 'Canada' }],
+      },
+    ]);
     assert.equal(searchCalls[0].facets, undefined);
   });
 
   it('maps location "Canada" to a places param too — proves the mapping is class-wide, not a Toronto special case', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { location: 'Canada' });
-    assert.deepEqual(searchCalls[0].places, [{ field: 'location_country', value: 'Canada' }]);
+    assert.deepEqual(searchCalls[0].places, [{ any: [{ field: 'location_country', value: 'Canada' }] }]);
   });
 
   it('drops an unrecognized location instead of inventing a places filter', async () => {
@@ -575,7 +581,7 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         experience_level: ['senior'],
         employment_type: ['full_time'],
       },
-      places: [{ field: 'location_country', value: 'Canada' }],
+      places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
     });
   });
 });

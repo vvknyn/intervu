@@ -19,9 +19,10 @@
  * Latency: resolution is O(cached lookups) in steady state. Per unique
  * (field, value) query, one facet-search call the FIRST time any request
  * asks about it; every candidate that shares that (field, value) — across
- * requests, across users — hits the in-memory cache instead. Matches the
- * existing vocabCache pattern in jobs/search.ts (cold-start cost paid once
- * per server instance per TTL window, not per keystroke).
+ * requests, across users, across candidate GROUPS in the same call — hits
+ * the in-memory cache instead. Matches the existing vocabCache pattern in
+ * jobs/search.ts (cold-start cost paid once per server instance per TTL
+ * window, not per keystroke).
  */
 import type { PlaceFilter } from "../jobs/types";
 import type { LocationField, PlaceCandidate } from "./resolve-place";
@@ -40,26 +41,62 @@ export interface FacetHit {
 export type FacetSearchFetcher = (field: LocationField, query: string) => Promise<FacetHit[] | null>;
 
 /**
+ * A facet value must describe at least this many postings to license an
+ * EXACT match. Gazetteer recognition proves a phrase names a real
+ * real-world place, but says nothing about how likely it is to be what a
+ * searcher meant versus a coincidental collision with an ordinary word —
+ * "Engineer" is a real Kenyan town (pop. 5,324) that a corpus can pick up
+ * 1-2 stray postings for (bad location data, not genuine "jobs in
+ * Engineer, Kenya" demand), and "engineer" is one of the single most
+ * common words in a job search. Measured 2026-07-26 against this exact
+ * corpus for the identical purpose (the pre-gazetteer vocabulary's
+ * PLACE_MIN_COUNT): genuine cities run 100s-10,000s; noise like
+ * "Production"(26)/"Management"(46) sits well below. Reused verbatim here
+ * rather than re-tuned, since it's the same signal (facet-search's `count`
+ * is the same per-value posting count the old bulk distribution exposed).
+ *
+ * Does NOT apply to prefix-mode compound matches ("Canada - Remote"): a
+ * compound region tag can only exist because the corpus already carries
+ * that exact literal string, so there's no coincidental-word-collision risk
+ * to guard against, and compounds are legitimately long-tail (Canada -
+ * Toronto: 55).
+ */
+export const PLACE_MIN_COUNT = 100;
+
+/**
  * Pure: given the raw hits a facet-search for `candidate.value` returned,
  * which ones does this candidate actually license? "exact" keeps only the
- * literal case-insensitive match. "prefix" additionally keeps every hit
- * starting with "<value> - " — the compound-region pattern ("Canada -
- * Remote", "Canada - Toronto") — still gated on the hit being a REAL corpus
- * value, never a pattern invented from the candidate alone.
+ * literal case-insensitive match, and only when it clears PLACE_MIN_COUNT.
+ * "prefix" additionally keeps every hit starting with "<value> - " — the
+ * compound-region pattern ("Canada - Remote", "Canada - Toronto") — still
+ * gated on the hit being a REAL corpus value, never a pattern invented from
+ * the candidate alone, but with no count floor (see PLACE_MIN_COUNT's doc).
  */
 export function selectMatchingHits(candidate: PlaceCandidate, hits: readonly FacetHit[]): PlaceFilter[] {
   const needle = candidate.value.trim().toLowerCase();
   const out: PlaceFilter[] = [];
   for (const hit of hits) {
     const hay = hit.value.trim().toLowerCase();
-    if (hay === needle || (candidate.matchMode === "prefix" && hay.startsWith(`${needle} - `))) {
+    if (hay === needle) {
+      if (hit.count < PLACE_MIN_COUNT) continue;
+      out.push({ field: candidate.field, value: hit.value });
+    } else if (candidate.matchMode === "prefix" && hay.startsWith(`${needle} - `)) {
       out.push({ field: candidate.field, value: hit.value });
     }
   }
   return out;
 }
 
-export type CorpusValueChecker = (candidates: PlaceCandidate[]) => Promise<PlaceFilter[]>;
+/**
+ * Validates N independent candidate groups in one batched round of network
+ * calls, returning validated filters per group (same order/length as the
+ * input). Grouped rather than one flat batch so a caller can keep a city
+ * resolution's own candidates separate from its country-scope candidates
+ * (query-understanding.ts) without a second, un-cached round trip — the
+ * underlying facet-search hits are still fetched (and cached) exactly once
+ * per unique (field, value) regardless of which group(s) reference it.
+ */
+export type CorpusValueChecker = (candidateGroups: PlaceCandidate[][]) => Promise<PlaceFilter[][]>;
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 
@@ -88,9 +125,9 @@ export function createCorpusValueChecker(fetch: FacetSearchFetcher, ttlMs = DEFA
     return hits;
   }
 
-  return async (candidates: PlaceCandidate[]): Promise<PlaceFilter[]> => {
+  return async (candidateGroups: PlaceCandidate[][]): Promise<PlaceFilter[][]> => {
     const queries = new Map<string, { field: LocationField; value: string }>();
-    for (const c of candidates) queries.set(cacheKey(c.field, c.value), { field: c.field, value: c.value });
+    for (const c of candidateGroups.flat()) queries.set(cacheKey(c.field, c.value), { field: c.field, value: c.value });
 
     const hitsByKey = new Map<string, FacetHit[]>();
     await Promise.all(
@@ -99,18 +136,20 @@ export function createCorpusValueChecker(fetch: FacetSearchFetcher, ttlMs = DEFA
       }),
     );
 
-    const seen = new Set<string>();
-    const out: PlaceFilter[] = [];
-    for (const candidate of candidates) {
-      const hits = hitsByKey.get(cacheKey(candidate.field, candidate.value)) ?? [];
-      for (const filter of selectMatchingHits(candidate, hits)) {
-        const key = `${filter.field} ${filter.value}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          out.push(filter);
+    return candidateGroups.map((candidates) => {
+      const seen = new Set<string>();
+      const out: PlaceFilter[] = [];
+      for (const candidate of candidates) {
+        const hits = hitsByKey.get(cacheKey(candidate.field, candidate.value)) ?? [];
+        for (const filter of selectMatchingHits(candidate, hits)) {
+          const key = `${filter.field} ${filter.value}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            out.push(filter);
+          }
         }
       }
-    }
-    return out;
+      return out;
+    });
   };
 }

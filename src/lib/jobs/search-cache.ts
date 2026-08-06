@@ -57,8 +57,15 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     const vals = p.facets?.[key];
     if (vals?.length) facets[key] = [...vals].sort();
   }
+  // Each clause's own `any`/`scopedToCountry` sub-lists are order-sensitive
+  // (they came out of validation in a stable order for the SAME candidate
+  // set), so only the top-level clause ordering needs normalizing here.
   const places = (p.places ?? [])
-    .map((pl) => `${pl.field}:${pl.value}`)
+    .map(
+      (c) =>
+        `${c.any.map((pl) => `${pl.field}:${pl.value}`).join(",")}` +
+        (c.scopedToCountry?.length ? `|${c.scopedToCountry.map((pl) => `${pl.field}:${pl.value}`).join(",")}` : ""),
+    )
     .sort();
   return JSON.stringify({
     q: (p.q ?? "").trim().toLowerCase(),

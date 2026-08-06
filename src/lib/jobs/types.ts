@@ -118,14 +118,27 @@ export interface JobSearchParams {
   postedBucket?: PostedBucket;
   /**
    * Place constraints parsed OUT of the query text (query understanding, not
-   * user-picked facets — those live in `facets`). Each entry is a literal
-   * corpus value in one location field; entries are OR'd into one clause:
-   * a job in "Toronto" OR "Canada" satisfies a "toronto canada" query.
-   * OR, not AND, is load-bearing: measured 2026-07-26, requiring
-   * city AND country drops 43–59% of genuine matches because many city rows
-   * carry no country value.
+   * user-picked facets — those live in `facets`). Each entry is one resolved
+   * place mention (see `PlaceClause`); entries OR together: a job in
+   * "Toronto" OR "Canada" satisfies a "toronto canada" query — TWO
+   * independently-typed mentions never AND against each other, still the
+   * measured-2026-07-26 reason (43–59% of genuine matches dropped) that OR
+   * is load-bearing across mentions.
+   *
+   * WITHIN one city/metro mention, `PlaceClause.scopedToCountry` DOES AND the
+   * city OR-set against the resolved country — otherwise a same-named city
+   * in a different country satisfies the match too (2026-08-06: "toronto"
+   * radius-matched a Richmond Hill, ONTARIO row's neighbor clause against a
+   * Richmond Hill, GEORGIA posting, since a bare `location_city` clause
+   * can't tell them apart). This is a deliberate, known trade-off in the
+   * OTHER direction from the OR-across-mentions one above: a city row with
+   * no country value at all will now fail a bare city search that would
+   * have matched it before — accepted because the cross-country false
+   * positive is worse than the false negative, and unlike an
+   * independently-typed country word, this scope comes from the gazetteer's
+   * OWN resolution of the city, not a second thing the searcher had to type.
    */
-  places?: PlaceFilter[];
+  places?: PlaceClause[];
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
@@ -142,6 +155,21 @@ export interface JobSearchParams {
 export interface PlaceFilter {
   field: "location_city" | "location_state" | "location_country";
   value: string;
+}
+
+/**
+ * One resolved place mention. `any` OR's together every corpus value that
+ * satisfies it (a city plus its radius-expanded neighbors, or an admin1/
+ * country's name+code variants). `scopedToCountry`, set only for a city/
+ * metro mention, additionally requires the whole clause to match ONE of the
+ * resolved country's own values (AND) — without it, a same-named city in a
+ * different country satisfies the filter too (a "Richmond Hill" row in
+ * Georgia, US matching a Richmond Hill, ONTARIO radius match). See
+ * `JobSearchParams.places` for how this composes with OTHER place mentions.
+ */
+export interface PlaceClause {
+  any: PlaceFilter[];
+  scopedToCountry?: PlaceFilter[];
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";

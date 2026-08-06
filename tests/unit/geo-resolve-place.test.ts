@@ -25,6 +25,10 @@ const DATA: GazetteerData = {
     ["Mississauga", null, 43.5896, -79.6441, "CA", "ON", 717961],
     ["Brampton", null, 43.7315, -79.7624, "CA", "ON", 656480],
     ["Vaughan", null, 43.8361, -79.4983, "CA", "ON", 323103],
+    // Same name as a real Georgia, US city — the cross-country homonym the
+    // radius expansion must not leak (bug: a bare `location_city = "Richmond
+    // Hill"` clause matches BOTH; the fix scopes it to Ontario/Canada).
+    ["Richmond Hill", null, 43.8828, -79.4403, "CA", "ON", 202022],
     // Far outside the radius — must never show up as a Toronto neighbor.
     ["Ottawa", null, 45.4215, -75.6972, "CA", "ON", 934243],
     // Same NAME as the Canadian province, but a real (smaller) US city —
@@ -52,7 +56,25 @@ test("city resolution: Toronto expands to itself plus same-country neighbors wit
   assert.ok(cities.includes("Mississauga"));
   assert.ok(cities.includes("Brampton"));
   assert.ok(cities.includes("Vaughan"));
+  assert.ok(cities.includes("Richmond Hill"));
   assert.ok(!cities.includes("Ottawa"), "Ottawa is ~350km away — outside the radius");
+});
+
+test("city resolution carries a countryScope — the resolved country's own candidates, for query-understanding.ts to AND against the city OR-set", () => {
+  const r = resolvePlacePhrase("toronto", GAZETTEER);
+  assert.ok(r);
+  const scopeCountries = fieldValues(r!.countryScope, "location_country");
+  assert.deepEqual(scopeCountries.sort(), ["CA", "CAN", "Canada", "Canada"].sort());
+});
+
+test("admin1/country resolutions carry no countryScope — they already ARE the region, nothing left to scope", () => {
+  const admin1 = resolvePlacePhrase("ontario", GAZETTEER); // resolves as admin1 — see the priority test below
+  assert.ok(admin1);
+  assert.equal(admin1!.entity.type, "admin1");
+  assert.deepEqual(admin1!.countryScope, []);
+  const country = resolvePlacePhrase("canada", GAZETTEER);
+  assert.ok(country);
+  assert.deepEqual(country!.countryScope, []);
 });
 
 test("case-insensitive: 'TORONTO' resolves the same as 'toronto'", () => {
@@ -123,6 +145,46 @@ test("ambiguous worldwide city name: the more populous match anchors the radius 
   // union of both — the class-wide behavior under test.
   const cities = fieldValues(r!.candidates, "location_city");
   assert.equal(cities.filter((c) => c === "Springfield").length, 1);
+});
+
+test("cross-country homonym: 'london' anchors on whichever population wins, and countryScope is THAT country only — never both", () => {
+  const ukHeavy = buildGazetteerIndex({
+    countries: [
+      ["CA", "CAN", "Canada"],
+      ["GB", "GBR", "United Kingdom"],
+    ],
+    admin1: [["CA", "ON", "Ontario"]],
+    cities: [
+      ["London", null, 51.5074, -0.1278, "GB", null, 8961989], // real UK London — much bigger
+      ["London", null, 42.9849, -81.2453, "CA", "ON", 404699], // real London, Ontario
+    ],
+  });
+  const r = resolvePlacePhrase("london", ukHeavy);
+  assert.ok(r);
+  assert.equal(r!.entity.countryCode, "GB", "the bigger London (UK) wins the bare-name ambiguity");
+  const scopeCountries = fieldValues(r!.countryScope, "location_country");
+  assert.ok(scopeCountries.includes("United Kingdom"));
+  assert.ok(!scopeCountries.includes("Canada"), "must never ALSO scope to Canada — that's the leak the fix closes");
+});
+
+test("cross-country homonym, mirrored: when Canada's London is the more populous match, countryScope is Canada only — never UK", () => {
+  const caHeavy = buildGazetteerIndex({
+    countries: [
+      ["CA", "CAN", "Canada"],
+      ["GB", "GBR", "United Kingdom"],
+    ],
+    admin1: [["CA", "ON", "Ontario"]],
+    cities: [
+      ["London", null, 51.5074, -0.1278, "GB", null, 100000], // fixture-only weighting to flip the anchor
+      ["London", null, 42.9849, -81.2453, "CA", "ON", 404699],
+    ],
+  });
+  const r = resolvePlacePhrase("london", caHeavy);
+  assert.ok(r);
+  assert.equal(r!.entity.countryCode, "CA");
+  const scopeCountries = fieldValues(r!.countryScope, "location_country");
+  assert.ok(scopeCountries.includes("Canada"));
+  assert.ok(!scopeCountries.includes("United Kingdom"), "must never ALSO scope to the UK — same invariant, mirrored");
 });
 
 test("non-place words never resolve — no denylist needed, they simply aren't in the gazetteer", () => {

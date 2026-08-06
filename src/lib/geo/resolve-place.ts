@@ -69,6 +69,16 @@ export interface PlaceResolution {
   entity: ResolvedPlaceEntity;
   /** Unvalidated expansion set — see corpus-values.ts. */
   candidates: PlaceCandidate[];
+  /**
+   * For a CITY resolution only: the resolved country's own candidate set
+   * (same shape `countryCandidates` produces), which query-understanding.ts
+   * ANDs against `candidates` once both validate. Without this, a same-named
+   * city in a different country satisfies the filter too — a Georgia, US
+   * "Richmond Hill" row matching a Richmond Hill, ONTARIO radius match. Empty
+   * for admin1/country resolutions: they already ARE the country/region,
+   * nothing left to scope by.
+   */
+  countryScope: PlaceCandidate[];
   /** How many whitespace-delimited words of the input this consumed, so the
    *  greedy scanner (scanPlacePhrases) knows how far to advance. */
   wordsConsumed: number;
@@ -96,6 +106,7 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
   return {
     entity: { type: "country", name: country.name, countryCode: country.iso2 },
     candidates: countryCandidates(country),
+    countryScope: [],
     wordsConsumed: normalized.split(" ").length,
   };
 }
@@ -126,6 +137,7 @@ function resolveAdmin1(normalized: string, gazetteer: Gazetteer): PlaceResolutio
   return {
     entity: { type: "admin1", name: matches[0].name, countryCode: matches[0].countryCode },
     candidates,
+    countryScope: [],
     wordsConsumed: normalized.split(" ").length,
   };
 }
@@ -161,9 +173,15 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
   };
   addCity(primary);
   for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
+  const country = gazetteer.countriesByIso2.get(primary.countryCode.toUpperCase());
   return {
     entity: { type: "city", name: primary.name, countryCode: primary.countryCode },
     candidates,
+    // Fails open to [] (unscoped) if the gazetteer has a city whose country
+    // code isn't itself registered — never happens for the committed
+    // artifact (both come from the same GeoNames dump) but keeps a
+    // hand-built fixture from throwing instead of just being less precise.
+    countryScope: country ? countryCandidates(country) : [],
     wordsConsumed: normalized.split(" ").length,
   };
 }
@@ -186,6 +204,7 @@ export function resolvePlacePhrase(phrase: string, gazetteer: Gazetteer): PlaceR
     return {
       entity: (country ?? admin1)!.entity,
       candidates: [...(country?.candidates ?? []), ...(admin1?.candidates ?? [])],
+      countryScope: [],
       wordsConsumed: normalized.split(" ").length,
     };
   }

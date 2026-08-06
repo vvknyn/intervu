@@ -8,7 +8,7 @@
  * off tool input — so a call can only ever act as the authenticated
  * credential's own subject.
  */
-import type { JobSearchParams, JobSearchResult, PlaceFilter, PostedBucket, PublicJob } from "../jobs/types";
+import type { JobSearchParams, JobSearchResult, PlaceClause, PostedBucket, PublicJob } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { parsePlaceTokens, type LocationVocabulary } from "../jobs/query-understanding";
 import {
@@ -251,7 +251,7 @@ function buildFacets(
  * invented — the same honest no-op every unmatched place word in a typed
  * query already falls back to.
  */
-async function resolvePlaces(deps: ToolDeps, location: string | undefined): Promise<PlaceFilter[]> {
+async function resolvePlaces(deps: ToolDeps, location: string | undefined): Promise<PlaceClause[]> {
   const text = location?.trim();
   if (!text) return [];
   const vocab = await deps.locationVocabulary();

@@ -12,7 +12,7 @@ import { getBoardDomains } from "@/lib/boards/allowlists";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS } from "./types";
-import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PublicJob } from "./types";
+import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
 
@@ -266,6 +266,17 @@ export function filterHitsByDomainFilters(
   return hits.filter((j) => jobMatchesDomainFilters(j, p));
 }
 
+/** Pure: one `PlaceClause` -> its Meilisearch boolean sub-expression — the
+ *  `any` OR-group alone, or ANDed against `scopedToCountry` when present
+ *  (see `PlaceClause`'s doc, jobs/types.ts, for why only a city/metro
+ *  mention ever carries that second group). */
+function renderPlaceClause(clause: PlaceClause): string {
+  const any = "(" + clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")";
+  if (!clause.scopedToCountry?.length) return any;
+  const country = "(" + clause.scopedToCountry.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")";
+  return `(${any} AND ${country})`;
+}
+
 /**
  * `legacy=true` drops anything that depends on `posted_ts` — the TRANSITIONAL
  * fallback used when the live index doesn't have the field yet (see
@@ -293,9 +304,10 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     f.push("(" + vals.map((v) => `${key} = ${JSON.stringify(v)}`).join(" OR ") + ")");
   }
   if (p.places?.length) {
-    // One OR group across every parsed place — see `JobSearchParams.places`
-    // for why OR. Values are corpus-cased literals, quoted by JSON.stringify.
-    f.push("(" + p.places.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")");
+    // One OR group across every parsed place mention — see
+    // `JobSearchParams.places` for why OR across mentions, and AND within
+    // one (`renderPlaceClause`'s `scopedToCountry`).
+    f.push("(" + p.places.map(renderPlaceClause).join(" OR ") + ")");
   }
   if (p.salaryMin && p.salaryMin > 0) {
     f.push(`(salary_max >= ${p.salaryMin} OR salary_min >= ${p.salaryMin})`);

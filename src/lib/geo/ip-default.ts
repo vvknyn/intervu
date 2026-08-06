@@ -6,7 +6,7 @@
  * `location_country` facet click — always wins; this only ever fires on
  * their absence (see `hasLocationSignal`).
  */
-import type { JobSearchParams, PlaceFilter } from "../jobs/types";
+import type { JobSearchParams, PlaceClause } from "../jobs/types";
 import type { Gazetteer } from "./gazetteer";
 import { countryPlaceCandidates } from "./resolve-place";
 import type { CorpusValueChecker } from "./corpus-values";
@@ -20,7 +20,7 @@ export function hasLocationSignal(p: Pick<JobSearchParams, "places" | "facets">)
 }
 
 export interface LocationDefault {
-  places: PlaceFilter[];
+  places: PlaceClause[];
   /** ISO2 the default was resolved from — the caller stamps this onto the
    *  response as `defaultedLocation` so the UI can render a clearable chip. */
   countryCode: string;
@@ -44,7 +44,8 @@ export async function resolveLocationDefault(
   if (!iso2) return null;
   const candidates = countryPlaceCandidates(iso2, gazetteer);
   if (!candidates) return null;
-  const places = await corpusChecker(candidates);
-  if (places.length === 0) return null;
-  return { places, countryCode: iso2 };
+  const [any] = await corpusChecker([candidates]);
+  if (any.length === 0) return null;
+  // A country-level default IS the country — nothing left to further scope.
+  return { places: [{ any }], countryCode: iso2 };
 }

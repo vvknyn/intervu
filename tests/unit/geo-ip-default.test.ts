@@ -18,20 +18,22 @@ const DATA: GazetteerData = {
 const GAZETTEER = buildGazetteerIndex(DATA);
 
 /** A checker that only ever validates the exact corpus values listed
- *  (deduping, like the real `createCorpusValueChecker` — resolveCountry's
- *  exact and prefix candidates for the same name both match one value). */
+ *  (deduping per group, like the real `createCorpusValueChecker` —
+ *  resolveCountry's exact and prefix candidates for the same name both
+ *  match one value). */
 function fakeCorpusChecker(realValues: string[]): CorpusValueChecker {
-  return async (candidates) => {
-    const seen = new Set<string>();
-    const out: PlaceFilter[] = [];
-    for (const c of candidates) {
-      const hit = realValues.find((v) => v.toLowerCase() === c.value.toLowerCase());
-      if (!hit || seen.has(hit)) continue;
-      seen.add(hit);
-      out.push({ field: c.field, value: hit });
-    }
-    return out;
-  };
+  return async (groups) =>
+    groups.map((candidates) => {
+      const seen = new Set<string>();
+      const out: PlaceFilter[] = [];
+      for (const c of candidates) {
+        const hit = realValues.find((v) => v.toLowerCase() === c.value.toLowerCase());
+        if (!hit || seen.has(hit)) continue;
+        seen.add(hit);
+        out.push({ field: c.field, value: hit });
+      }
+      return out;
+    });
 }
 
 test("hasLocationSignal: false with no places and no location_country facet", () => {
@@ -41,7 +43,7 @@ test("hasLocationSignal: false with no places and no location_country facet", ()
 });
 
 test("hasLocationSignal: true when a place was already resolved (typed query or the MCP location param)", () => {
-  assert.equal(hasLocationSignal({ places: [{ field: "location_city", value: "Toronto" }] }), true);
+  assert.equal(hasLocationSignal({ places: [{ any: [{ field: "location_city", value: "Toronto" }] }] }), true);
 });
 
 test("hasLocationSignal: true with an explicit location_country facet — the panel click wins over any default", () => {
@@ -54,7 +56,7 @@ test("resolveLocationDefault: IP resolves to a country the corpus has postings f
   const result = await resolveLocationDefault("1.2.3.4", GAZETTEER, checker, lookup);
   assert.ok(result);
   assert.equal(result!.countryCode, "CA");
-  assert.deepEqual(result!.places, [{ field: "location_country", value: "Canada" }]);
+  assert.deepEqual(result!.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
 });
 
 test("resolveLocationDefault: fails open when the IP doesn't resolve to a country", async () => {

@@ -20,16 +20,16 @@ test("normalizeSearchCacheKey: order-independent across facets and places", () =
     q: "  Product Manager  ",
     facets: { work_type: ["remote", "hybrid"], source: ["lever_direct"] },
     places: [
-      { field: "location_city", value: "Toronto" },
-      { field: "location_country", value: "Canada" },
+      { any: [{ field: "location_city", value: "Toronto" }], scopedToCountry: [{ field: "location_country", value: "Canada" }] },
+      { any: [{ field: "location_country", value: "Canada" }] },
     ],
   };
   const b: JobSearchParams = {
     q: "product manager",
     facets: { source: ["lever_direct"], work_type: ["hybrid", "remote"] },
     places: [
-      { field: "location_country", value: "Canada" },
-      { field: "location_city", value: "Toronto" },
+      { any: [{ field: "location_country", value: "Canada" }] },
+      { any: [{ field: "location_city", value: "Toronto" }], scopedToCountry: [{ field: "location_country", value: "Canada" }] },
     ],
   };
   assert.equal(normalizeSearchCacheKey(a), normalizeSearchCacheKey(b));
