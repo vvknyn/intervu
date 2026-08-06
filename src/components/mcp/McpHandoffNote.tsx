@@ -51,14 +51,11 @@ export function McpHandoffNote({
         <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground", className)}>
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p>{VARIANT_COPY[variant]}</p>
+                {/* McpHandoffActions owns the paired/not-paired state (savedClient) —
+                    it renders the ONE pairing line ("Switch AI" once paired, "Not
+                    paired yet?" until then) so the two can't both show at once. */}
                 <McpHandoffActions job={job} />
             </div>
-            <p className="mt-2 text-xs">
-                Not paired yet?{" "}
-                <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
-                    Connect once →
-                </Link>
-            </p>
         </div>
     );
 }
