@@ -256,9 +256,14 @@ export function salaryText(j: PublicJob): string | null {
 }
 
 /** Compact "Jul 23"-style date for JobDetail's relisted disclosure sentence —
- *  the one place S2 names a calendar date rather than a relative age. */
+ *  the one place S2 names a calendar date rather than a relative age.
+ *  `timeZone: "UTC"` pins the read to the SAME calendar day the timestamp's
+ *  midnight-UTC bits encode, regardless of the viewer's local offset — the
+ *  source date is a date-stamp (posted_at, always midnight UTC), not a
+ *  local wall-clock moment, so rendering it in the viewer's zone can roll
+ *  it back a day (2026-07-08T00:00:00Z read "Jul 7" west of UTC). */
 export function shortDate(ms: number): string {
-    return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 /**

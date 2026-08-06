@@ -16,6 +16,7 @@ import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, cleanCompany, locationText, shortDate } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -32,7 +33,11 @@ const FACT_CHIP_KEY: Record<FactChipKind, string> = {
     employment_type: "type",
     experience_level: "level",
     salary: "salary",
-    posted: "posted",
+    // "posted" is the EMPLOYER's claimed date (re-stamped on a relist,
+    // per posting-freshness.ts) — distinct from "first seen by us" below,
+    // which is OUR observation. Labeling both identically read as if they
+    // carried equal weight; the key now states whose claim each one is.
+    posted: "employer posted",
     first_seen: "first seen by us",
 };
 
@@ -305,20 +310,35 @@ export function JobDetail({
                             this posting has duplicates at other locations. */}
                         {(chips.length > 0 || alsoIn) && (
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {chips.map((c) => (
-                                    <span
-                                        key={c.kind}
-                                        className="mono-data inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground"
-                                    >
-                                        <b className="font-medium text-muted-foreground">{FACT_CHIP_KEY[c.kind]}</b>
-                                        {/* "First seen by us…" — the one chip that underwrites a
-                                            verified corpus fact, so it alone carries the signature
-                                            underline (see globals.css's .verified-underline doc). */}
-                                        <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
-                                            {factValue(c.kind, c.label)}
+                                {chips.map((c) => {
+                                    // Posted date is the EMPLOYER's claim (posting-freshness.ts)
+                                    // — once classifyPostingFreshness has caught a relist (posted_at
+                                    // re-stamped well after our own first_seen_at), this chip's claim
+                                    // is exactly the one worth doubting, so it switches to the shared
+                                    // caution status token instead of matching every other chip's
+                                    // neutral styling (which would present it as equally trustworthy
+                                    // as "first seen by us").
+                                    const caution = c.kind === "posted" && freshness.kind === "relisted";
+                                    return (
+                                        <span
+                                            key={c.kind}
+                                            className={cn(
+                                                "mono-data inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px]",
+                                                caution ? STATUS_PILL.intv : "border border-border bg-background text-foreground",
+                                            )}
+                                        >
+                                            <b className={cn("font-medium", !caution && "text-muted-foreground")}>
+                                                {FACT_CHIP_KEY[c.kind]}
+                                            </b>
+                                            {/* "First seen by us…" — the one chip that underwrites a
+                                                verified corpus fact, so it alone carries the signature
+                                                underline (see globals.css's .verified-underline doc). */}
+                                            <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
+                                                {factValue(c.kind, c.label)}
+                                            </span>
                                         </span>
-                                    </span>
-                                ))}
+                                    );
+                                })}
                                 {alsoIn && (
                                     <span className={cn(chipVariants({ active: true }), "mono-data h-auto py-1.5 text-[12px]")}>
                                         <b className="font-medium">also in</b>
