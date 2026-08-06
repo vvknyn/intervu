@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
-import { signalUrl, pollUntilGuest } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
+import { signalUrl, pollUntilGuest, nextPollDelay } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
 import { pickAccessToken } from '../../openclaw/scripts/viewer/mcporter-token.mjs';
 
 describe('signalUrl', () => {
@@ -46,6 +46,29 @@ describe('pollUntilGuest', () => {
       (e: Error) => /expired/i.test(e.message),
     );
     assert.equal(calls, 0);
+  });
+
+  it('backs off between polls instead of asking every two seconds for fifteen minutes', async () => {
+    // ~450 flat-rate requests per session to learn "no" was the measured
+    // cost. The ramp must grow AND stop growing at the cap.
+    const slept: number[] = [];
+    const fake = async () => ({ ok: true, json: async () => ({ guest: null }) });
+    await assert.rejects(
+      () => pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+        deadline: Date.now() + 1000,
+        delayMs: 10, maxDelayMs: 50,
+        sleepImpl: async (ms: number) => { slept.push(ms); if (slept.length >= 5) await new Promise((r) => setTimeout(r, 1100)); },
+      }),
+      (e: Error) => /expired/i.test(e.message),
+    );
+    assert.deepEqual(slept, [10, 20, 40, 50, 50]);
+  });
+
+  it('doubles toward the cap and never past it', () => {
+    assert.equal(nextPollDelay(1000, 15000), 2000);
+    assert.equal(nextPollDelay(8000, 15000), 15000);
+    assert.equal(nextPollDelay(15000, 15000), 15000);
+    assert.equal(nextPollDelay(0, 15000), 0);
   });
 
   it('keeps waiting through a transient server error instead of aborting the session', async () => {

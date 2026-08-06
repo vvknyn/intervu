@@ -133,6 +133,14 @@ deferred to v2.
 - **Depends on:** the same OAuth verification `/api/mcp` already uses.
 - **Constraints:** session id is unguessable, short-TTL, bound to the owning account, and
   invalidated at handoff.
+- **Storage (revised 2026-08-05, after live use):** an in-process Map, not Firestore. The
+  first implementation put sessions in Firestore and the laptop's guest-polling cost ~450
+  document reads per watch session — durable storage guarding blobs that are worthless in
+  fifteen minutes. Sessions now live in the server process's RAM and vanish on restart,
+  which also keeps the product line clean: nothing about an OpenClaw user's connection is
+  stored with us or maintained by us beyond the seconds-long handshake. Single-container
+  deployment verified on the box; a second instance would need Redis or sticky routing,
+  and that is the day to add it, not before.
 
 ### 5. `/watch/[id]` (intervu.cc)
 

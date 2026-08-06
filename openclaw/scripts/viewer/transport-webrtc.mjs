@@ -36,26 +36,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * Passing the deadline throws, because a silent hang is the one outcome with
  * no diagnosis.
  *
+ * Polling backs off. A phone that answers does so in the first seconds
+ * (the user just tapped the link), so early polls are dense; one that has
+ * not answered in a minute is in a pocket, and asking our server every two
+ * seconds for fourteen more minutes is ~450 requests to learn "no". The
+ * ramp keeps the fast case fast and cuts the slow case to ~60 requests.
+ *
  * @param {typeof fetch} fetchImpl
  * @param {string} url
- * @param {{deadline: number, delayMs?: number, headers?: Record<string,string>}} options
+ * @param {{deadline: number, delayMs?: number, maxDelayMs?: number,
+ *          headers?: Record<string,string>, sleepImpl?: (ms:number)=>Promise<void>}} options
  *        `deadline` is the session's own expiresAt, in epoch ms.
  * @returns {Promise<{sdp: string}>}
  */
-export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 2000, headers = {} } = {}) {
+export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000, maxDelayMs = 15000, headers = {}, sleepImpl = sleep } = {}) {
     // Without this a missing deadline makes the comparison below false and
     // the function gives up instantly, which reads exactly like a phone that
     // never connected.
     if (!Number.isFinite(deadline)) throw new Error("pollUntilGuest needs the session's expiresAt as `deadline`");
+    let delay = delayMs;
     while (Date.now() < deadline) {
         const res = await fetchImpl(url, { headers });
         if (res.ok) {
             const body = await res.json();
             if (body.guest) return body.guest;
         }
-        await sleep(delayMs);
+        await sleepImpl(delay);
+        delay = nextPollDelay(delay, maxDelayMs);
     }
     throw new Error("The phone never connected before the watch link expired — it may not have been opened.");
+}
+
+/** Doubles toward the cap. Pure so the ramp is testable without clocks;
+ *  a zero delay stays zero, which is what lets tests run instantly. */
+export function nextPollDelay(delayMs, maxDelayMs) {
+    return Math.min(delayMs * 2, maxDelayMs);
 }
 
 export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch }) {

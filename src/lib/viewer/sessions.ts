@@ -41,6 +41,12 @@ export function newSessionId(): string {
     return randomBytes(24).toString("base64url");
 }
 
+/** The one definition of "expired" — the access rule and the store's sweep
+ *  both read it, so the two can never disagree by a boundary condition. */
+export function isExpired(s: Pick<ViewerSession, "expiresAt">, now: number): boolean {
+    return now >= s.expiresAt;
+}
+
 /**
  * The whole access rule, in one place, so every route applies it identically.
  *
@@ -61,7 +67,7 @@ export function authorizeSession<T extends Pick<ViewerSession, "uid" | "expiresA
     now = Date.now(),
 ): SessionAuthResult<T> {
     if (!uid) return { ok: false, status: 401, error: "unauthorized" };
-    if (!session || now >= session.expiresAt || session.uid !== uid) {
+    if (!session || isExpired(session, now) || session.uid !== uid) {
         return { ok: false, status: 404, error: "not_found" };
     }
     return { ok: true, session };
