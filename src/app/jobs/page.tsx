@@ -2512,8 +2512,8 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                <section className="mb-0 rounded-none border border-white/10 bg-black/30 p-3 backdrop-blur-[18px]">
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <section className="rounded-none border border-white/10 bg-black/30 p-3 backdrop-blur-[18px]">
+                    <div data-search-line className="flex flex-wrap gap-2">
                         <SearchAutocomplete
                             value={query}
                             onChange={(v) => {
@@ -2523,8 +2523,8 @@ function JobsContent() {
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:min-w-[260px] sm:flex-[1_1_260px]"
-                            containerClassName="min-w-0 w-full sm:flex-1"
+                            className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
+                            containerClassName="min-w-0 flex-1"
                         />
                         <Input
                             data-testid="location-input"
@@ -2539,12 +2539,12 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-[46px] w-full rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:max-w-[200px] sm:flex-[0_1_200px]"
+                            className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
                         />
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-[46px] w-full rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90 sm:w-auto"
+                            className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90"
                         >
                             Search
                         </Button>
@@ -2564,7 +2564,7 @@ function JobsContent() {
                             aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-none border-2 border-[#ececec] bg-transparent px-3 text-[13px] font-semibold text-[#ececec] hover:bg-[#ececec]/12 sm:w-auto sm:justify-start",
+                                "inline-flex h-9 items-center gap-1.5 rounded-none border-2 border-[#ececec] bg-transparent px-3 text-[13px] font-semibold text-[#ececec] hover:bg-[#ececec]/12",
                                 filtersOpen && "border-[#ececec] bg-[#ececec] text-[#12151a] hover:bg-[#ececec]",
                                 activeCount > 0 && "has-active",
                             )}
@@ -2598,7 +2598,7 @@ function JobsContent() {
                             <div
                                 role="group"
                                 aria-label="Sort"
-                                className="ml-auto hidden flex-wrap items-center gap-x-3 gap-y-1 lg:flex"
+                                className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1"
                             >
                                 {postedDateSupported && (
                                     <SortSegment

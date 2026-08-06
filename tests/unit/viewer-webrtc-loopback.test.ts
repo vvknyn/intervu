@@ -82,9 +82,15 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     const phone = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const received = new Promise<string>((resolve) => {
       // werift arrives through a dynamic import, so it is untyped here; this
-      // is the shape of the two callbacks actually used.
+      // is the shape of the two callbacks actually used. Reassembly mirrors
+      // the real phone page: concatenate "C" pieces until the "F" piece.
+      let assembling = '';
       phone.ondatachannel = (event: { channel: { onmessage: (m: { data: unknown }) => void } }) => {
-        event.channel.onmessage = (m: { data: unknown }) => resolve(m.data as string);
+        event.channel.onmessage = (m: { data: unknown }) => {
+          const piece = m.data as string;
+          if (piece[0] === 'C') { assembling += piece.slice(1); return; }
+          if (piece[0] === 'F') resolve(assembling + piece.slice(1));
+        };
       };
     });
     await phone.setRemoteDescription({ type: 'offer', sdp: doorbell.state.host!.sdp });
@@ -93,12 +99,16 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
 
     await connected;
 
-    // Keep offering a frame until the channel finishes opening; sendFrame
-    // drops anything sent before then by design.
-    const ticker = setInterval(() => transport.sendFrame(JSON.stringify({ f: 'AAAA', r: null, dw: 1512 })), 100);
+    // Send ONE frame, BEFORE the channel opens, at the size a real screen
+    // produces. This exact combination is what three live failures came
+    // down to: no replay-on-open left the phone blank on a static form, and
+    // a 142,255-byte frame blew the 65,536-byte message ceiling and took
+    // the whole viewer process down. A 4-byte test frame proved nothing.
+    const frame = JSON.stringify({ f: 'j'.repeat(142_000), r: null, dw: 1512 });
+    transport.sendFrame(frame);
     const payload = await received;
-    clearInterval(ticker);
-    assert.deepEqual(JSON.parse(payload), { f: 'AAAA', r: null, dw: 1512 });
+    assert.equal(payload.length, frame.length);
+    assert.deepEqual(JSON.parse(payload).dw, 1512);
 
     await transport.close();
     assert.equal(doorbell.state.deleted, true, 'close() must delete the session, not leave it to its TTL');

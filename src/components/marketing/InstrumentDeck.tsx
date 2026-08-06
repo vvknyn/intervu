@@ -68,10 +68,10 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
     }, []);
 
     useEffect(() => {
-        if (searchParams.get("signin") !== "1" || user) return;
-        const next = searchParams.get("next");
-        router.replace(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
-    }, [searchParams, user, router]);
+        if (searchParams.get("signin") === "1" && !user) {
+            setAuthOpen(true);
+        }
+    }, [searchParams, user]);
 
     const handleAuthed = () => {
         const next =
@@ -212,7 +212,7 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                     <p className="mb-2 text-center text-[13px] text-[#8b919a]">
                         No agent yet? The hosted version is coming — join the waitlist
                     </p>
-                    <OpenclawWaitlistForm className="w-full" />
+                    <OpenclawWaitlistForm className="w-full [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[#ececec] [&_input]:border-0 [&_input]:bg-black/30 [&_input]:text-[#ececec] [&_input]:placeholder:text-[#5c636e]" />
                 </div>
             ) : null}
 

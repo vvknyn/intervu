@@ -139,7 +139,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'Corpus carries no posted_ts — freshest segment hidden');
         }
 
-        const searchInput = page.getByPlaceholder(/What kind of work/i);
+        const searchInput = page.getByPlaceholder(/live-checked roles/i);
         await searchInput.fill('engineer');
         await expect(page).toHaveURL(/q=engineer/);
 
@@ -165,7 +165,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify background refresh feedback');
         }
 
-        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
+        await page.getByPlaceholder(/live-checked roles/i).fill('engineer');
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
         await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
@@ -346,7 +346,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify lg pane geometry');
         }
         await expect(results).toBeVisible();
-        await expect(page.getByTestId('filters-panel')).toHaveCount(0);
+        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
 
         const documentMetrics = await page.evaluate(() => ({
             height: document.documentElement.scrollHeight,
@@ -354,8 +354,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         }));
         expect(documentMetrics.height).toBeLessThanOrEqual(documentMetrics.viewport + 2);
 
-        await page.getByTestId('filters-toggle').click();
-        await expect(page.getByTestId('filters-panel')).toBeVisible();
+        await page.getByRole('button', { name: /filters \+/ }).click();
+        await expect(page.getByRole('region', { name: 'Job filters' })).toBeVisible();
     });
 
     test('TC-JOBS-LAYOUT-002B: below lg, the same "All filters" sheet opens a bounded, independently scrolling filter surface', async ({ page }) => {
@@ -372,10 +372,10 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
             test.skip(true, 'No job rows — cannot verify sub-lg overlay geometry');
         }
         await expect(results).toBeVisible();
-        await expect(page.getByTestId('filters-panel')).toHaveCount(0);
+        await expect(page.getByRole('region', { name: 'Job filters' })).toHaveCount(0);
 
-        await page.getByTestId('filters-toggle').click();
-        const filterOverlay = page.getByTestId('filters-panel');
+        await page.getByRole('button', { name: /filters \+/ }).click();
+        const filterOverlay = page.getByRole('region', { name: 'Job filters' });
         await expect(filterOverlay).toBeVisible();
         const overlayMetrics = await filterOverlay.evaluate((node) => ({
             overflowY: getComputedStyle(node).overflowY,
@@ -418,7 +418,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
         // Schedule a zero-result refresh, then deliberately open a still-visible
         // result during the debounce window.
-        await page.getByPlaceholder(/What kind of work/i).fill('zzqxvbnmnevermatches');
+        await page.getByPlaceholder(/live-checked roles/i).fill('zzqxvbnmnevermatches');
         await options.first().click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible({ timeout: 10000 });
