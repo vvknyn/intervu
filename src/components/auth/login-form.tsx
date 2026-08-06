@@ -18,6 +18,9 @@ interface LoginFormProps {
     onGuestAccess?: () => void;
 }
 
+const authFieldClass =
+    "min-h-11 border-border-strong/30 bg-black/40 focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none";
+
 /** Standard 4-color Google "G" glyph — no icon library ships a brand mark
  *  for it, and pulling in a new dependency for one static SVG isn't worth
  *  it. Inline, no dark-mode variant needed (the mark itself is brand-fixed). */
@@ -160,7 +163,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     disabled={isPending}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none"
+                                    className={authFieldClass}
                                 />
                             </div>
                             <div className="grid gap-1">
@@ -176,7 +179,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     disabled={isPending}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none"
+                                    className={authFieldClass}
                                 />
                             </div>
                             <Button disabled={isPending} className="w-full">
