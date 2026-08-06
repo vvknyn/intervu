@@ -71,6 +71,19 @@ describe('pollUntilGuest', () => {
     assert.equal(nextPollDelay(0, 15000), 0);
   });
 
+  it('keeps waiting through a THROWN fetch, not just a non-200', async () => {
+    // Seen live: one network blip on the laptop ended a 15-minute wait with
+    // "fetch failed" while the session sat valid on the doorbell. A throw
+    // and a 503 must mean the same thing: not yet.
+    let n = 0;
+    const fake = async () => {
+      if (++n === 1) throw new TypeError('fetch failed');
+      return { ok: true, json: async () => ({ guest: { sdp: 'v=0' } }) };
+    };
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: soon(), delayMs: 0 });
+    assert.equal(guest.sdp, 'v=0');
+  });
+
   it('keeps waiting through a transient server error instead of aborting the session', async () => {
     // The phone may take a minute to be picked up. One 503 from a redeploy
     // must not end a watch session that would otherwise have worked.
