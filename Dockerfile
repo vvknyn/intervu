@@ -27,6 +27,9 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Runtime geo data: the mmdb is read from disk via process.cwd() (see
+# src/lib/geo/ip-country.ts), so the standalone trace can't discover it.
+COPY --from=builder --chown=nextjs:nodejs /app/data/geo ./data/geo
 
 USER nextjs
 EXPOSE 3000

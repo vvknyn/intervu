@@ -17,6 +17,8 @@ playwright.config.ts
 !DEPLOY.md
 !data/boards
 !data/boards/**
+!data/geo
+!data/geo/**
 # openclaw/ ships complete inside the image: the prebuild hook packages it
 # into public/ as the skill tarball, so nothing under it may be context-
 # stripped (the **/*.md rule above was silently gutting SKILL.md/RANKING.md
