@@ -117,6 +117,15 @@ export interface JobSearchParams {
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
   /**
+   * User has dismissed the IP-based location default (the /jobs default-
+   * location chip's "×" — a persistent, explicit "don't do that" separate
+   * from ever having typed a place) — see `hasLocationSignal`
+   * (lib/geo/ip-default.ts), the ONE gate `searchJobs` checks before
+   * calling `resolveLocationDefault`. Never set by an explicit place/facet
+   * choice, which already suppresses the default on its own.
+   */
+  suppressLocationDefault?: boolean;
+  /**
    * Place constraints parsed OUT of the query text (query understanding, not
    * user-picked facets — those live in `facets`). Each entry is one resolved
    * place mention (see `PlaceClause`); entries OR together: a job in

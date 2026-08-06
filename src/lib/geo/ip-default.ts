@@ -4,7 +4,10 @@
  * undifferentiated global result set. An explicit user choice — a typed
  * place or the MCP `location` param (both land in `places`), or an explicit
  * `location_country` facet click — always wins; this only ever fires on
- * their absence (see `hasLocationSignal`).
+ * their absence (see `hasLocationSignal`). A searcher can also veto
+ * defaulting outright (the /jobs default-location chip's "×",
+ * `suppressLocationDefault`) without typing anything — same gate, honored
+ * independent of whether a signal happens to be present too.
  */
 import type { JobSearchParams, PlaceClause } from "../jobs/types";
 import type { Gazetteer } from "./gazetteer";
@@ -12,11 +15,23 @@ import { countryPlaceCandidates } from "./resolve-place";
 import type { CorpusValueChecker } from "./corpus-values";
 import type { CountryLookup } from "./ip-country";
 
-/** True once the caller has said ANYTHING about where they want jobs from —
- *  a typed/MCP place (`places`, filled in by query understanding before this
- *  runs) or an explicit `location_country` facet click. */
-export function hasLocationSignal(p: Pick<JobSearchParams, "places" | "facets">): boolean {
-  return Boolean(p.places?.length) || Boolean(p.facets?.location_country?.length);
+/**
+ * True when `resolveLocationDefault` must NOT run — either the searcher
+ * already said WHERE (a typed/MCP place landed in `places`, or an explicit
+ * `location_country` facet click), or they said "don't guess"
+ * (`suppressLocationDefault`, set once and persisted client-side after the
+ * default-location chip is dismissed). The two are independent: an explicit
+ * place always wins on its own, and the override holds even for a query
+ * that carries no place at all.
+ */
+export function hasLocationSignal(
+  p: Pick<JobSearchParams, "places" | "facets" | "suppressLocationDefault">,
+): boolean {
+  return (
+    Boolean(p.suppressLocationDefault) ||
+    Boolean(p.places?.length) ||
+    Boolean(p.facets?.location_country?.length)
+  );
 }
 
 export interface LocationDefault {
@@ -48,4 +63,36 @@ export async function resolveLocationDefault(
   if (any.length === 0) return null;
   // A country-level default IS the country — nothing left to further scope.
   return { places: [{ any }], countryCode: iso2 };
+}
+
+export interface LocationDefaultApplication {
+  /** `params` unchanged (same reference) when nothing about it should
+   *  change — a caller can tell whether this fired from `defaultedLocation`
+   *  alone, never by diffing `params`. */
+  params: JobSearchParams;
+  /** ISO2, present only when the default actually applied. */
+  defaultedLocation?: string;
+}
+
+/**
+ * The full "should the IP default apply, and if so, what does it change"
+ * decision — the ONE chokepoint `searchJobs` (jobs/search.ts) calls right
+ * after query understanding, so this exact gating logic is unit-testable
+ * without a real Meilisearch backend (no network in this function at all;
+ * `loadContext` is the only I/O, and only runs when everything else already
+ * says the default might apply). `ip`/`countryLookup` missing (every caller
+ * except the browser-facing action) is itself a no-op, same as
+ * `hasLocationSignal` returning true.
+ */
+export async function applyLocationDefault(
+  params: JobSearchParams,
+  ip: string | undefined,
+  countryLookup: CountryLookup | undefined,
+  loadContext: () => Promise<{ gazetteer: Gazetteer; corpusChecker: CorpusValueChecker }>,
+): Promise<LocationDefaultApplication> {
+  if (!ip || !countryLookup || params.id || hasLocationSignal(params)) return { params };
+  const { gazetteer, corpusChecker } = await loadContext();
+  const ipDefault = await resolveLocationDefault(ip, gazetteer, corpusChecker, countryLookup);
+  if (!ipDefault) return { params };
+  return { params: { ...params, places: ipDefault.places }, defaultedLocation: ipDefault.countryCode };
 }

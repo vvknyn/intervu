@@ -21,7 +21,7 @@ import { applyQueryUnderstanding, type LocationVocabulary } from "./query-unders
 import { loadGazetteer } from "../geo/gazetteer";
 import { createCorpusValueChecker } from "../geo/corpus-values";
 import type { CountryLookup } from "../geo/ip-country";
-import { hasLocationSignal, resolveLocationDefault } from "../geo/ip-default";
+import { applyLocationDefault } from "../geo/ip-default";
 import { cacheSearchResult, getDegradedServe, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 export type { SearchServeMeta } from "./search-cache";
@@ -87,24 +87,22 @@ export async function searchJobs(
   // Vocabulary is only relevant when there's query text to parse — the
   // dead-link id probe and plain browses skip the lookup entirely.
   const vocab = (raw.q ?? "").trim() && !raw.id ? await locationVocabulary() : undefined;
-  let p = await applyQueryUnderstanding(raw, vocab);
+  const understood = await applyQueryUnderstanding(raw, vocab);
 
   // IP country default — last in the understanding pipeline, and only when
   // NOTHING else already said where to search: not a typed/MCP place, not
-  // an explicit location facet. `opts.clientIp`/`countryLookup` are only
-  // ever passed by the browser-facing action (actions/jobs.ts); every other
-  // caller leaves them out, so an agent's search (MCP) is never silently
-  // narrowed by a box's own egress IP, and this step is a no-op. See
-  // lib/geo/ip-default.ts for the "never invent a filter" guarantee.
-  let defaultedLocation: string | undefined;
-  if (opts?.clientIp && opts.countryLookup && !raw.id && !hasLocationSignal(p)) {
-    const { gazetteer, corpusChecker: checker } = vocab ?? (await locationVocabulary());
-    const ipDefault = await resolveLocationDefault(opts.clientIp, gazetteer, checker, opts.countryLookup);
-    if (ipDefault) {
-      p = { ...p, places: ipDefault.places };
-      defaultedLocation = ipDefault.countryCode;
-    }
-  }
+  // an explicit location facet, not the suppressed-default override.
+  // `opts.clientIp`/`countryLookup` are only ever passed by the
+  // browser-facing action (actions/jobs.ts); every other caller leaves them
+  // out, so an agent's search (MCP) is never silently narrowed by a box's
+  // own egress IP, and this step is a no-op. See lib/geo/ip-default.ts —
+  // `applyLocationDefault` is the whole decision, unit-tested on its own.
+  const { params: p, defaultedLocation } = await applyLocationDefault(
+    understood,
+    opts?.clientIp,
+    opts?.countryLookup,
+    async () => vocab ?? locationVocabulary(),
+  );
 
   const backend = activeBackend();
   try {

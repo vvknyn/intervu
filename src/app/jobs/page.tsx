@@ -63,6 +63,14 @@ import {
     getSavedSearchesServerSnapshot,
     jobsUrlStateFromSavedHref,
 } from "@/lib/jobs/saved-searches";
+import {
+    subscribeSuppressLocationDefault,
+    getSuppressLocationDefaultSnapshot,
+    getSuppressLocationDefaultServerSnapshot,
+    suppressLocationDefault,
+} from "@/lib/jobs/location-default-preference";
+import { countryToFlag } from "@/lib/jobs/country-flag";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import {
     activeFilterEntries,
@@ -94,7 +102,6 @@ import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type JobSearchParams,
-    type JobSearchResult,
     type JobSortMode,
     type PostedBucket,
     type PublicJob,
@@ -145,7 +152,14 @@ import type { ResumeData } from "@/types/resume";
  *  attributable to the latest result set the user is looking at. */
 let lastSearchId = "";
 
-const searchJobsAction = (params: JobSearchParams): Promise<JobSearchResult> =>
+/** Whatever `searchJobsActionRaw` (actions/jobs.ts) actually returns —
+ *  `JobSearchResult` plus its additive fields (`searchId`, `meta`,
+ *  `defaultedLocation`), derived rather than hand-copied so a new field
+ *  there is visible here for free instead of needing a second widened type
+ *  kept in sync by hand. */
+type JobsSearchActionResult = Awaited<ReturnType<typeof searchJobsActionRaw>>;
+
+const searchJobsAction = (params: JobSearchParams): Promise<JobsSearchActionResult> =>
     withSettleGuard(
         searchJobsActionRaw(params).then((r) => {
             lastSearchId = r.searchId;
@@ -181,6 +195,47 @@ function SortSegment({
         >
             {label}
         </button>
+    );
+}
+
+/**
+ * The IP-based location default's own honesty affordance: whenever the
+ * CURRENT result set was silently narrowed to the searcher's own country
+ * (`result.defaultedLocation`, an ISO2 the server only ever sets when it
+ * applied that default — see lib/geo/ip-default.ts), this renders so the
+ * narrowing is never invisible. Never renders otherwise.
+ *
+ * The country NAME is resolved client-side via the built-in
+ * `Intl.DisplayNames` rather than shipping any of the gazetteer's ~70k-row
+ * data to the browser for a lookup this small — `iso2` is the only thing
+ * the server sends. `countryToFlag` (lib/jobs/country-flag.ts) already
+ * accepts a bare ISO2 (JobDetail's flag chip uses the same function on a
+ * corpus country name), so the flag needs no separate lookup either.
+ *
+ * Squared `chipVariants`/`ChipDismiss` (components/ui/chip.tsx) — the SAME
+ * shared chip primitive JobDetail's "also in" chip and FilterChipsRow use —
+ * rather than a one-off style, per the docs-mockup squared-chip system.
+ * `active: false` keeps it quiet (no green tint): this is a passive fact
+ * about the result set, not a selected/verified state.
+ */
+function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
+    const flag = countryToFlag(iso2);
+    const name = useMemo(() => {
+        try {
+            return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
+        } catch {
+            return iso2;
+        }
+    }, [iso2]);
+    return (
+        <span
+            data-testid="default-location-chip"
+            className={cn(chipVariants({ active: false }), "mono-data h-7 gap-1.5 text-[12px]")}
+        >
+            {flag && <span aria-hidden>{flag}</span>}
+            near {name}
+            <ChipDismiss label={`Stop defaulting to ${name}`} onClick={onClear} />
+        </span>
     );
 }
 
@@ -904,6 +959,16 @@ function JobsContent() {
         getSavedSearchesSnapshot,
         getSavedSearchesServerSnapshot,
     );
+    // Persistent "don't default my location" override (default-location
+    // chip's "×") — see location-default-preference.ts. Part of the search
+    // effect's own dependency list below (not folded into `searchKey`,
+    // which is URL state; this is a client-local preference), so clearing
+    // it immediately refetches without the default.
+    const locationDefaultSuppressed = useSyncExternalStore(
+        subscribeSuppressLocationDefault,
+        getSuppressLocationDefaultSnapshot,
+        getSuppressLocationDefaultServerSnapshot,
+    );
     const { follows, hasAny: hasFollows } = useFollows();
 
     // Assembles the full URL-state object from current component state, with
@@ -970,8 +1035,8 @@ function JobsContent() {
         applyUrlState(buildUrlState({ q }), "push");
     };
 
-    const [result, setResult] = useState<JobSearchResult | null>(null);
-    const resultRef = useRef<JobSearchResult | null>(null);
+    const [result, setResult] = useState<JobsSearchActionResult | null>(null);
+    const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -1238,7 +1303,7 @@ function JobsContent() {
         const t = setTimeout(async () => {
             try {
                 const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
+                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
                     withFacets: true,
                     limit: PAGE,
                     offset: 0,
@@ -1404,6 +1469,7 @@ function JobsContent() {
                             backendSort,
                             postedDateSupported,
                             board,
+                            locationDefaultSuppressed,
                         ),
                         withFacets: true,
                         limit: 1,
@@ -1458,7 +1524,7 @@ function JobsContent() {
         // above — so listing it alone (plus searchRetry) satisfies the
         // refetch rule without duplicating every field in this array.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry, skipCorpusFetch]);
+    }, [searchKey, searchRetry, skipCorpusFetch, locationDefaultSuppressed]);
 
     // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
     // starts on Best match rather than silently inheriting whatever sort was
@@ -1810,7 +1876,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -1842,8 +1908,11 @@ function JobsContent() {
         // eligible to ship, independent of whatever `backendSort` happens to
         // be — so this callback must regenerate when it changes, same as
         // every other field `buildJobSearchPayload` reads from this render.
+        // `locationDefaultSuppressed` (default-location chip's "×"), same
+        // reason: page 2+ must never silently reapply a default this
+        // session already cleared.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported, locationDefaultSuppressed]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -2868,12 +2937,20 @@ function JobsContent() {
                                                 </div>
                                             )}
                                             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-                                                <span
-                                                    data-testid="result-line"
-                                                    className="text-[13px] text-muted-foreground tabular-nums"
-                                                >
-                                                    {resultsCountLabel}
-                                                </span>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span
+                                                        data-testid="result-line"
+                                                        className="text-[13px] text-muted-foreground tabular-nums"
+                                                    >
+                                                        {resultsCountLabel}
+                                                    </span>
+                                                    {result?.defaultedLocation && (
+                                                        <DefaultLocationChip
+                                                            iso2={result.defaultedLocation}
+                                                            onClear={suppressLocationDefault}
+                                                        />
+                                                    )}
+                                                </div>
                                                 {(query.trim() || activeCount > 0) && (
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                                         {activeCount > 0 && (

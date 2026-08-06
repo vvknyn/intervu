@@ -45,7 +45,14 @@ export function buildJobSearchPayload(
     sort: JobSortMode | null | undefined,
     postedDateSupported: boolean,
     board: BoardId | null | undefined,
-): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort" | "board"> {
+    /** The searcher dismissed the default-location chip (persisted client-
+     *  side, JobsPage) — carried through so page 2+/probe requests never
+     *  silently re-apply a default the searcher already cleared. */
+    suppressLocationDefault?: boolean,
+): Pick<
+    JobSearchParams,
+    "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort" | "board" | "suppressLocationDefault"
+> {
     return {
         q: query.trim() || undefined,
         facets: state.facets,
@@ -55,5 +62,6 @@ export function buildJobSearchPayload(
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
         board: board ?? undefined,
+        suppressLocationDefault: suppressLocationDefault || undefined,
     };
 }
