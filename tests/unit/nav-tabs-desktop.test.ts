@@ -25,10 +25,12 @@ test("TRENDS_TAB is a footer-only /trends entry", () => {
     assert.equal(TRENDS_TAB.match("/"), false);
 });
 
-test("exactly one NAV_TABS entry is the cta variant, and it's Connect your AI", () => {
-    const ctaTabs = NAV_TABS.filter((t) => t.variant === "cta");
-    assert.equal(ctaTabs.length, 1);
-    assert.equal(ctaTabs[0]?.href, "/connect");
+test("Connect tab is present with its own icon and no cta variant", () => {
+    const connect = NAV_TABS.find((t) => t.href === "/connect");
+    assert.ok(connect);
+    assert.equal(connect?.label, "Connect");
+    assert.ok(connect?.icon);
+    assert.equal(connect?.variant, undefined);
 });
 
 test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () => {

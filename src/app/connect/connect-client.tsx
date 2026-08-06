@@ -3,25 +3,21 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
+import {
+  MCP_CONNECTOR_URL,
+  OPENCLAW_INSTALL_COMMAND,
+  OPENCLAW_INSTALL_HINT,
+} from "@/components/marketing/openclaw-content";
 import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { CONNECT_HEALTH_COPY } from "@/lib/mcp/connect-health-copy";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
+import { cn } from "@/lib/utils";
 
 function filmForClient(id: ConnectClientId): HowItWorksFilmId {
   return id === "openclaw" ? "claw" : "mcp";
 }
-
-/**
- * The MCP endpoint intervu's connectors point at. Verified against the
- * in-flight `feat/2026-08-02/agent-mcp` branch (src/app/api/mcp/route.ts,
- * confirmed via its oauth-protected-resource metadata and
- * AgentAccessSection.tsx) — the route is `/api/mcp`, not bare `/mcp`. Using
- * `/mcp` would 404 forever once that backend ships, so this deliberately
- * deviates from a bare-`/mcp` brief.
- */
-const MCP_URL = "https://intervu.cc/api/mcp";
 
 /** Only step 1 differs per client — steps 2 and 3 are shared verbatim. */
 const STEP1_INTRO: Record<ConnectClientId, string> = {
@@ -32,15 +28,15 @@ const STEP1_INTRO: Record<ConnectClientId, string> = {
     "The Gemini app can't take custom MCP connectors yet. In your Gemini CLI settings.json, add intervu as an mcpServers entry pointing at:",
   cursor: "In Cursor, open Settings → MCP and add a new server pointing at:",
   openclaw:
-    "In your openclaw.json, add intervu under mcpServers pointing at the URL below. Headless setups authenticate with a personal key — issued here when the agent surface ships.",
+    "In your terminal, install and run the intervu skill — it runs on your machine:",
 };
 
-function CopyUrlBar() {
+function CopyUrlBar({ value, className }: { value: string; className?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(MCP_URL);
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -51,9 +47,9 @@ function CopyUrlBar() {
   };
 
   return (
-    <div className="flex items-stretch rounded-none border-2 border-foreground">
+    <div className={cn("flex items-stretch rounded-none border-2 border-foreground", className)}>
       <code className="flex-1 truncate px-3 py-2.5 font-mono text-sm text-foreground">
-        {MCP_URL}
+        {value}
       </code>
       <button
         type="button"
@@ -156,9 +152,20 @@ export function ConnectClient() {
           <StepLabel n={1} label="Connect" />
           <p className="mt-3 text-sm text-foreground">{STEP1_INTRO[activeClient]}</p>
           {activeClientMeta.supportsDirectConnect ? (
-            <div className="mt-3">
-              <CopyUrlBar />
-            </div>
+            activeClient === "openclaw" ? (
+              <div className="mt-3 space-y-4">
+                <CopyUrlBar value={OPENCLAW_INSTALL_COMMAND} />
+                <p className="text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
+                <div>
+                  <p className="mb-2 text-xs text-muted-foreground">MCP endpoint (advanced)</p>
+                  <CopyUrlBar value={MCP_CONNECTOR_URL} />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <CopyUrlBar value={MCP_CONNECTOR_URL} />
+              </div>
+            )
           ) : null}
         </div>
 
