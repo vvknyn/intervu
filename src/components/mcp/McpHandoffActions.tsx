@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
     buildHandoffUrl,
@@ -74,6 +75,20 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                     Open in your AI →
                 </Button>
             </div>
+            {/* Single source for the pairing-state line — exactly one of
+                {"Switch AI", "Not paired yet?"} may render, both keyed off
+                the SAME `savedClient` read above (previously this line lived
+                unconditionally in McpHandoffNote, so it showed even when
+                "Switch AI" was also on screen, claiming paired AND
+                not-paired at once). */}
+            {!savedClient && (
+                <p className="text-xs text-muted-foreground">
+                    Not paired yet?{" "}
+                    <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
+                        Connect once →
+                    </Link>
+                </p>
+            )}
         </div>
     );
 }

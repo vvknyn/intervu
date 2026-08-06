@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, cleanCompany, locationText, shortDate } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -32,7 +33,11 @@ const FACT_CHIP_KEY: Record<FactChipKind, string> = {
     employment_type: "type",
     experience_level: "level",
     salary: "salary",
-    posted: "posted",
+    // "posted" is the EMPLOYER's claimed date (re-stamped on a relist,
+    // per posting-freshness.ts) — distinct from "first seen by us" below,
+    // which is OUR observation. Labeling both identically read as if they
+    // carried equal weight; the key now states whose claim each one is.
+    posted: "employer posted",
     first_seen: "first seen by us",
 };
 
@@ -148,27 +153,19 @@ export function JobDetailSkeleton() {
  * instead, and `/yours/[id]`'s sheet — which had no action bar at all — picks
  * one up for free by rendering it too.
  *
- * Two responsive presentations, one component:
- *  - **Mobile (<lg):** `fixed` to the viewport, escaping whatever scroll
- *    container it's nested in (the job-detail Sheet's own `overflow-y-auto`),
- *    so it stays pinned in the thumb zone while the description scrolls
- *    underneath. Offset by `--mobile-tabbar-h` (globals.css) + the iOS safe
- *    area so it stacks ABOVE `MobileTabBar` rather than fighting it for the
- *    same fixed `bottom-0` — deliberate: both are `lg:hidden` and can render
- *    at the same time (MobileTabBar has no route-based reason to hide while
- *    a job sheet is open), so this can't assume the sheet alone keeps them
- *    apart. Primary is "Apply" (reuses `onOpenPosting` — the exact handler
- *    the SERP card's own "Apply" button calls, `app/page.tsx`'s
- *    `handleOpenPosting`, which already funnels a signed-out tap through the
- *    existing `gate` pending-action instead of a new one); secondary is
- *    Apply only — mobile's "Am I a fit?" button was removed 2026-08-02 (AI
- *    intelligence moved to MCP; a sticky bar is too tight for a handoff
- *    line, so this degrades by omission rather than growing a note).
- *  - **Desktop (lg+):** unchanged from before — `sticky bottom-0` footer of
- *    the scrolling aside panel, Apply only (Prep removed 2026-08-02). The
- *    aside only ever mounts at lg+ (`isDesktop && selectedId` in page.tsx),
- *    so the `lg:` overrides
- *    below are belt-and-suspenders there, not load-bearing.
+ * `sticky bottom-0` at every breakpoint — the bar is always rendered as the
+ * LAST in-flow child of its caller's own scroll container (the job-detail
+ * Sheet's `overflow-y-auto`, app/jobs/page.tsx), so it pins to that
+ * container's bottom edge without needing to escape into `fixed` viewport
+ * coordinates. `fixed` was tried first (2026-08 P27 pass) so the bar could
+ * stack above `MobileTabBar`'s own `fixed bottom-0` nav — but the Sheet
+ * paints OVER the tab bar (both are `z-50`), so on mobile a `fixed`,
+ * viewport-anchored bar floated ~90px above the true visible bottom with
+ * description text showing beneath it (user-reported). `sticky` fixes this
+ * by construction: it can never draw outside its own scroll container, so
+ * there is no separate "how far above the tab bar" offset to compute, no
+ * height to measure, and no invisible flow-spacer needed to reserve its
+ * space — being an ordinary in-flow box already does that.
  */
 export function JobDetailActionBar({
     job,
@@ -184,57 +181,18 @@ export function JobDetailActionBar({
      *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
 }) {
-    // `fixed` (mobile) takes the bar out of the scrolling sheet's normal flow
-    // entirely, unlike the old `sticky` bar it replaced — which reserved its
-    // own space just by being an in-flow box. Without compensating for that,
-    // a fully-scrolled long description's tail ends up drawn UNDER the
-    // opaque bar instead of above it (caught visually during the P27 mobile
-    // pass, verified against a real Meilisearch-shaped fixture: the last
-    // content pixel needs to clear not just the bar's own height but ALSO
-    // the `--mobile-tabbar-h` gap it sits above — scrolled to its natural
-    // max, content's last pixel lands at the true screen bottom, i.e. behind
-    // BOTH). The fix: measure the bar's own rendered height (ResizeObserver,
-    // same pattern as TourOverlay's card-height measure) and render an
-    // invisible flow spacer of `barHeight + that same gap` right before it,
-    // reusing the identical `--mobile-tabbar-h`/safe-area calc the bar's own
-    // `bottom` offset uses so the two can't drift apart. Self-adjusting if
-    // the bar's content ever wraps to a second line. Desktop's `lg:sticky`
-    // bar needs none of this (already in-flow), hence `lg:hidden`.
-    const barRef = useRef<HTMLDivElement>(null);
-    const [barHeight, setBarHeight] = useState(0);
-    useEffect(() => {
-        const el = barRef.current;
-        if (!el) return;
-        const observer = new ResizeObserver((entries) => {
-            for (const entry of entries) setBarHeight(entry.contentRect.height);
-        });
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-
     return (
-        <>
-            <div
-                aria-hidden
-                className="lg:hidden"
-                style={{ height: `calc(${barHeight}px + var(--mobile-tabbar-h, 0px) + env(safe-area-inset-bottom, 0px))` }}
-            />
-            <div
-                ref={barRef}
-                data-testid="job-detail-action-bar"
-                className={cn(
-                    "z-20 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80",
-                    "fixed inset-x-0 bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px))] lg:sticky lg:inset-x-auto lg:bottom-0",
-                )}
-            >
-                {job.apply_url && (
-                    <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:h-9" onClick={onOpenPosting}>
-                        <ArrowSquareOut size={16} />
-                        {signedIn ? "Apply" : "Sign in to apply"}
-                    </Button>
-                )}
-            </div>
-        </>
+        <div
+            data-testid="job-detail-action-bar"
+            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+        >
+            {job.apply_url && (
+                <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:h-9" onClick={onOpenPosting}>
+                    <ArrowSquareOut size={16} />
+                    {signedIn ? "Apply" : "Sign in to apply"}
+                </Button>
+            )}
+        </div>
     );
 }
 
@@ -352,20 +310,35 @@ export function JobDetail({
                             this posting has duplicates at other locations. */}
                         {(chips.length > 0 || alsoIn) && (
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {chips.map((c) => (
-                                    <span
-                                        key={c.kind}
-                                        className="mono-data inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground"
-                                    >
-                                        <b className="font-medium text-muted-foreground">{FACT_CHIP_KEY[c.kind]}</b>
-                                        {/* "First seen by us…" — the one chip that underwrites a
-                                            verified corpus fact, so it alone carries the signature
-                                            underline (see globals.css's .verified-underline doc). */}
-                                        <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
-                                            {factValue(c.kind, c.label)}
+                                {chips.map((c) => {
+                                    // Posted date is the EMPLOYER's claim (posting-freshness.ts)
+                                    // — once classifyPostingFreshness has caught a relist (posted_at
+                                    // re-stamped well after our own first_seen_at), this chip's claim
+                                    // is exactly the one worth doubting, so it switches to the shared
+                                    // caution status token instead of matching every other chip's
+                                    // neutral styling (which would present it as equally trustworthy
+                                    // as "first seen by us").
+                                    const caution = c.kind === "posted" && freshness.kind === "relisted";
+                                    return (
+                                        <span
+                                            key={c.kind}
+                                            className={cn(
+                                                "mono-data inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px]",
+                                                caution ? STATUS_PILL.intv : "border border-border bg-background text-foreground",
+                                            )}
+                                        >
+                                            <b className={cn("font-medium", !caution && "text-muted-foreground")}>
+                                                {FACT_CHIP_KEY[c.kind]}
+                                            </b>
+                                            {/* "First seen by us…" — the one chip that underwrites a
+                                                verified corpus fact, so it alone carries the signature
+                                                underline (see globals.css's .verified-underline doc). */}
+                                            <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
+                                                {factValue(c.kind, c.label)}
+                                            </span>
                                         </span>
-                                    </span>
-                                ))}
+                                    );
+                                })}
                                 {alsoIn && (
                                     <span className={cn(chipVariants({ active: true }), "mono-data h-auto py-1.5 text-[12px]")}>
                                         <b className="font-medium">also in</b>
@@ -412,7 +385,7 @@ export function JobDetail({
                             className="inline-flex h-9 items-center gap-1.5 border border-border bg-background px-4 text-sm font-medium text-brand hover:bg-muted/40"
                         >
                             <Check size={16} weight="bold" />
-                            Saved ✓
+                            Saved
                         </Link>
                     ) : (
                         <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2">
@@ -421,21 +394,11 @@ export function JobDetail({
                         </Button>
                     )}
                 </div>
-                {/* Prep runs in the user's AI (2026-08-02) — this nudge is the
-                    pairing funnel's in-context entry point. */}
-                <McpHandoffNote
-                    variant="prep"
-                    className="mt-2.5 px-5"
-                    job={{
-                        id: job.id,
-                        title: decodeText(job.title),
-                        company: cleanedCompany || job.company || "Unknown company",
-                        location: locationText(job) || null,
-                    }}
-                />
-                {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
-                    line now lives once, in the "How you match" rail below,
-                    not repeated here. */}
+                {/* Prep runs in the user's AI (2026-08-02) — the ONE nudge
+                    for this pane lives in the "How you match" rail below,
+                    not duplicated up here (see that McpHandoffNote's
+                    comment). "Apply with tailored resume" moved to MCP the
+                    same day. */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5">
                     <button
                         onClick={onMarkApplied}

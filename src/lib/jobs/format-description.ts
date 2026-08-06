@@ -185,6 +185,30 @@ export function normalizeMarkdown(input: string): string {
   // Links / images: [label](url) and ![alt](url) → label/alt; <http…> → url.
   text = text.replace(/!?\[([^\]]*)\]\([^)\s]*(?:\s+"[^"]*")?\)/g, "$1");
   text = text.replace(/<(https?:\/\/[^>\s]+)>/g, "$1");
+  // An ATX heading whose text is either bold-delimited (`# **About Zip**`)
+  // or newline-terminated (`# Heading\nBody`) has a KNOWABLE end, unlike a
+  // truly run-together `## Heading body…` line where "heading" stops and
+  // "body" starts is ambiguous. Both knowable-end shapes are rewritten HERE
+  // — before the generic bold-stripping a few lines down would destroy the
+  // `**` boundary this depends on — into an isolated `\n\ntext:\n\n` block.
+  // The appended colon makes considerHeading()'s `endsWith(":")` rule
+  // promote it deterministically without relying on HEADING_KEYWORDS, which
+  // can't enumerate every "About {Company}"-shaped heading a source uses.
+  // Capped at 88 chars (considerHeading's own heading-length gate is ~90)
+  // so a long bold span or long line that merely happens to start with `#`
+  // isn't mistaken for a heading — it falls through to the generic ATX
+  // strip below unchanged, same as a run-together line with no bold/newline.
+  // Any colon already on the heading's own text is stripped first so the
+  // appended one can't double up ("Position Purpose:" → not "Purpose::").
+  const isolateHeading = (heading: string) => `\n\n${heading.trim().replace(/:+$/, "")}:\n\n`;
+  text = text.replace(
+    /(?:^|[ \t]*\n|[ \t]+)#{1,6}[ \t]+\*\*([^*\n]{1,88})\*\*/g,
+    (_match, heading: string) => isolateHeading(heading),
+  );
+  text = text.replace(
+    /(?:^|[ \t]*\n|[ \t]+)#{1,6}[ \t]+([^\n]{1,88})\n/g,
+    (_match, heading: string) => isolateHeading(heading),
+  );
   // Bold/italic (paired, non-greedy, single-line) → inner text.
   text = text.replace(/\*\*([^\n*]+?)\*\*/g, "$1");
   text = text.replace(/__([^\n_]+?)__/g, "$1");
