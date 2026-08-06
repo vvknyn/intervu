@@ -559,29 +559,35 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "location_country"] as const;
 
 /**
- * Read-path: raw value→count distributions for the three location fields —
- * the corpus-derived vocabulary behind place parsing (query-understanding.ts).
- * One `limit: 0` request; Meilisearch returns the top values per facet (300
- * per field observed live 2026-07-26), which covers every place people
- * actually type — a small town missing from the vocabulary simply doesn't
- * parse into a filter and still matches in the document text.
+ * Read-path: does a specific candidate STRING exist as a value in a given
+ * location facet — the corpus validation layer behind gazetteer-backed place
+ * resolution (lib/geo/corpus-values.ts). Meilisearch's facet-search endpoint
+ * is typeahead-shaped (find values matching a query), which is exactly what
+ * "does the corpus have this place" needs — unlike a bulk facet distribution
+ * fetch (which only ever surfaces the top values by count), this reaches a
+ * specific value regardless of how far down the long tail it sits. Measured
+ * live against the box 2026-08-05: ~40ms per call.
  *
- * Returns null on ANY failure — the caller treats that as "no vocabulary" and
- * skips place parsing rather than blocking or degrading the search itself.
+ * Returns null on ANY failure (no backend configured, network error,
+ * non-2xx) — the caller (createCorpusValueChecker) treats that as "couldn't
+ * ask" and fails the candidate open rather than caching a false negative.
  */
-export async function fetchLocationFacetDistributions(): Promise<Record<string, Record<string, number>> | null> {
+export async function fetchFacetSearch(
+  field: (typeof LOCATION_FACET_FIELDS)[number],
+  query: string,
+): Promise<{ value: string; count: number }[] | null> {
   const h = host();
   if (!h) return null;
   try {
-    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/facet-search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ q: "", limit: 0, facets: [...LOCATION_FACET_FIELDS] }),
+      body: JSON.stringify({ facetName: field, facetQuery: query }),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { facetDistribution?: Record<string, Record<string, number>> };
-    return body.facetDistribution ?? null;
+    const body = (await res.json()) as { facetHits?: { value: string; count: number }[] };
+    return body.facetHits ?? [];
   } catch {
     return null;
   }
