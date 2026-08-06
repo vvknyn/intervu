@@ -374,21 +374,11 @@ export function JobDetail({
                         </Button>
                     )}
                 </div>
-                {/* Prep runs in the user's AI (2026-08-02) — this nudge is the
-                    pairing funnel's in-context entry point. */}
-                <McpHandoffNote
-                    variant="prep"
-                    className="mt-2.5 px-5"
-                    job={{
-                        id: job.id,
-                        title: decodeText(job.title),
-                        company: cleanedCompany || job.company || "Unknown company",
-                        location: locationText(job) || null,
-                    }}
-                />
-                {/* "Apply with tailored resume" moved to MCP 2026-08-02 — its
-                    line now lives once, in the "How you match" rail below,
-                    not repeated here. */}
+                {/* Prep runs in the user's AI (2026-08-02) — the ONE nudge
+                    for this pane lives in the "How you match" rail below,
+                    not duplicated up here (see that McpHandoffNote's
+                    comment). "Apply with tailored resume" moved to MCP the
+                    same day. */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5">
                     <button
                         onClick={onMarkApplied}
