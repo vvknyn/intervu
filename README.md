@@ -212,6 +212,32 @@ Targeted Playwright suites are exposed as `npm run test:nav`, `test:auth`,
 
 ---
 
+## Location data
+
+Jobs search resolves typed places (city/state/country) and defaults a
+searcher's country from their IP using two free, open-licensed datasets:
+
+- **[GeoNames.org](https://www.geonames.org/)** (CC BY 4.0) — city, admin1
+  (state/province), and country names, committed as a compact index at
+  `data/geo/gazetteer.json`. Rebuild it from GeoNames' latest dumps with:
+  ```bash
+  node scripts/build-gazetteer.mjs
+  ```
+- **[db-ip.com](https://db-ip.com/db/download/ip-to-country-lite)** free
+  "country lite" database (CC BY 4.0, no account/API key) — IP → country for
+  the search-default. NOT committed (refreshed monthly, deploy-time only):
+  ```bash
+  node scripts/download-mmdb.mjs
+  ```
+  Missing the file locally is fine — `lib/geo/ip-country.ts` fails open, so
+  IP defaulting just does nothing until it's downloaded.
+
+See `src/lib/geo/` for the resolver (gazetteer matching, corpus validation,
+IP default) that both `src/lib/jobs/query-understanding.ts` and the MCP
+`search_jobs` tool call through.
+
+---
+
 ## Project Structure
 
 ```
