@@ -17,10 +17,41 @@
  * bundles each route separately: the doorbell route and the signal route
  * would otherwise each get a private copy of this module, and a session
  * created by one would never be visible to the other.
+ *
+ * D10: a deploy replaces the container mid-session (the Aug 5 deploy-kill
+ * class), which is a process restart, not durability — so when
+ * `VIEWER_SESSION_FILE` is set the same Map is also mirrored to a
+ * bind-mounted JSON file and reloaded from it the first time this process
+ * touches the store. Unset, this is exactly the old in-memory-only Map: the
+ * file path is either configured or the feature is off, never guessed.
  */
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isExpired, newSessionId, VIEWER_SESSION_TTL_MS, type SignalBlob, type ViewerSession } from "./sessions";
 
-const sessions: Map<string, ViewerSession> = ((globalThis as { __viewerSessions?: Map<string, ViewerSession> }).__viewerSessions ??= new Map());
+const SESSION_FILE = process.env.VIEWER_SESSION_FILE;
+
+function loadFromFile(): Map<string, ViewerSession> {
+    if (!SESSION_FILE) return new Map();
+    try {
+        return new Map(JSON.parse(readFileSync(SESSION_FILE, "utf8")) as [string, ViewerSession][]);
+    } catch {
+        // First run (no file yet) or a torn write from a crash mid-rewrite —
+        // the atomic rename in persist() prevents the second case in steady
+        // state, but a corrupt bootstrap must still not crash the viewer.
+        return new Map();
+    }
+}
+
+/** Write-then-rename so a crash mid-write leaves either the old file or the
+ *  new one, never a half-written one the next boot would fail to parse. */
+function persist(): void {
+    if (!SESSION_FILE) return;
+    const tmp = `${SESSION_FILE}.tmp`;
+    writeFileSync(tmp, JSON.stringify([...sessions.entries()]));
+    renameSync(tmp, SESSION_FILE);
+}
+
+const sessions: Map<string, ViewerSession> = ((globalThis as { __viewerSessions?: Map<string, ViewerSession> }).__viewerSessions ??= loadFromFile());
 
 /** Async signatures kept although nothing awaits: the routes were written
  *  against a remote store, and a future Redis swap should be a re-import,
@@ -41,6 +72,7 @@ export async function createSession(uid: string, now = Date.now()): Promise<View
         guest: null,
     };
     sessions.set(session.id, session);
+    persist();
     return session;
 }
 
@@ -53,9 +85,13 @@ export async function putSignal(id: string, role: "host" | "guest", blob: Signal
     // resurrected. (The Firestore merge-write quietly re-created a ghost
     // document in this race.)
     const session = sessions.get(id);
-    if (session) session[role] = blob;
+    if (session) {
+        session[role] = blob;
+        persist();
+    }
 }
 
 export async function deleteSession(id: string): Promise<void> {
     sessions.delete(id);
+    persist();
 }

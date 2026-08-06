@@ -1,4 +1,7 @@
-import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
+import { describe, it, after } from 'node:test'; import assert from 'node:assert/strict';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createSession, getSession, putSignal, deleteSession } from '../../src/lib/viewer/session-store';
 import { VIEWER_SESSION_TTL_MS } from '../../src/lib/viewer/sessions';
 
@@ -49,5 +52,88 @@ describe('viewer session store', () => {
     await createSession('user-b', t0 + VIEWER_SESSION_TTL_MS - 1);
     assert.equal((await getSession(live.id))?.id, live.id);
     await deleteSession(live.id);
+  });
+});
+
+// D10: a deploy replaces the container mid-session — a process restart, not
+// data loss. Each "instance" below is a genuinely separate module
+// evaluation (cache-busting dynamic import) with the globalThis key deleted
+// first, so its top-level `??=` really does re-run and, in file mode, really
+// does reload from disk instead of reusing the still-warm Map — the same
+// gap a real redeploy leaves.
+describe('viewer session store — file-backed (D10)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'viewer-session-store-'));
+  const file = join(dir, 'sessions.json');
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  async function freshStore() {
+    delete (globalThis as { __viewerSessions?: unknown }).__viewerSessions;
+    return import(`../../src/lib/viewer/session-store?instance=${Math.random()}`);
+  }
+
+  it('a session created before a restart is visible after it', async () => {
+    process.env.VIEWER_SESSION_FILE = file;
+    try {
+      const before = await freshStore();
+      const created = await before.createSession('user-a');
+
+      const after = await freshStore();
+      assert.equal((await after.getSession(created.id))?.uid, 'user-a');
+    } finally {
+      delete process.env.VIEWER_SESSION_FILE;
+    }
+  });
+
+  it('a signal written before a restart is readable after it', async () => {
+    process.env.VIEWER_SESSION_FILE = file;
+    try {
+      const before = await freshStore();
+      const created = await before.createSession('user-b');
+      await before.putSignal(created.id, 'host', { sdp: 'v=0 restart' });
+
+      const after = await freshStore();
+      assert.equal((await after.getSession(created.id))?.host?.sdp, 'v=0 restart');
+    } finally {
+      delete process.env.VIEWER_SESSION_FILE;
+    }
+  });
+
+  it('sweeps expired sessions out of the file, not just out of memory', async () => {
+    process.env.VIEWER_SESSION_FILE = file;
+    try {
+      const t0 = 3_000_000;
+      const before = await freshStore();
+      const abandoned = await before.createSession('user-a', t0);
+      await before.createSession('user-b', t0 + VIEWER_SESSION_TTL_MS + 1);
+
+      const after = await freshStore();
+      assert.equal(await after.getSession(abandoned.id), null);
+    } finally {
+      delete process.env.VIEWER_SESSION_FILE;
+    }
+  });
+
+  it('a deleted session stays deleted across a restart', async () => {
+    process.env.VIEWER_SESSION_FILE = file;
+    try {
+      const before = await freshStore();
+      const s = await before.createSession('user-c');
+      await before.deleteSession(s.id);
+
+      const after = await freshStore();
+      assert.equal(await after.getSession(s.id), null);
+    } finally {
+      delete process.env.VIEWER_SESSION_FILE;
+    }
+  });
+
+  it('never touches disk when the env var is unset', async () => {
+    delete process.env.VIEWER_SESSION_FILE;
+    const before = readdirSync(dir);
+    const store = await freshStore();
+    const s = await store.createSession('user-d');
+    await store.putSignal(s.id, 'host', { sdp: 'v=0' });
+    await store.deleteSession(s.id);
+    assert.deepEqual(readdirSync(dir), before, 'no file should appear in an unrelated directory when unconfigured');
   });
 });
