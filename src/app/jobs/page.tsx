@@ -61,6 +61,7 @@ import {
     subscribeSavedSearches,
     getSavedSearchesSnapshot,
     getSavedSearchesServerSnapshot,
+    jobsUrlStateFromSavedHref,
 } from "@/lib/jobs/saved-searches";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import {
@@ -937,13 +938,27 @@ function JobsContent() {
     // against the browser's real current URL (not React state, which can lag
     // a tick behind a just-applied navigation) and skipping the no-op
     // protects every call site — present and future — not just `onSearch`.
+    //
+    // Native `history.pushState`/`replaceState` instead of `router.push`/
+    // `router.replace` (prod bug, verified with a headless repro): /jobs's
+    // server payload never depends on its search params — the reconcile
+    // effect below is what actually reacts to a URL change — so routing
+    // every filter/sort/job-open keystroke through the Next router bought
+    // nothing but cost RSC round-trips on every one. Worse, closing the job
+    // sheet (`router.back()`) landed back on a URL the router considered
+    // stale enough to force a FULL document reload, wiping all component
+    // state and re-running the whole search on every open→close cycle.
+    // `useSearchParams`/`usePathname` read from the History API directly, so
+    // a native history write keeps them in sync with zero server round-trip.
+    // Native history never scrolls on its own, so the old `{ scroll: false
+    // }` is simply the default now, not something to replicate.
     const applyUrlState = (next: JobsUrlState, history: "replace" | "push") => {
         const target = `${pathname}${serializeJobsUrl(next)}`;
         if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
             return;
         }
-        if (history === "push") router.push(target, { scroll: false });
-        else router.replace(target, { scroll: false });
+        if (history === "push") window.history.pushState(null, "", target);
+        else window.history.replaceState(null, "", target);
     };
 
     // Single chokepoint for a SUBMITTED (not per-keystroke) search — the
@@ -2327,7 +2342,13 @@ function JobsContent() {
     };
 
     const applySavedSearch = (href: string) => {
-        router.push(`/jobs${href.startsWith("?") ? href : `?${href}`}`);
+        // A saved search IS a full /jobs URL-state write — same chokepoint
+        // as every other filter/sort/query mutation above, not a real
+        // navigation, so it gets the same shallow (no server round-trip)
+        // history write. The reconcile effect below picks up the resulting
+        // `searchParams` change and re-derives every local field from it,
+        // exactly as it already does for Back/Forward/a typed address bar.
+        applyUrlState(jobsUrlStateFromSavedHref(href), "push");
     };
 
     const canSaveSearch = Boolean(
