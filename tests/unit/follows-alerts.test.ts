@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  groupFollowAlertsByDomain,
-  jobPostedMs,
-  listNewRolesForFollows,
-  MAX_FOLLOW_ALERT_DOMAINS,
-} from "@/lib/follows/alerts";
+import { groupFollowAlertsByDomain, jobPostedMs, MAX_FOLLOW_ALERT_DOMAINS } from "@/lib/follows/alerts";
+import { listNewRolesForFollows } from "@/lib/follows/list-new-roles";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { FollowedCompany } from "@/lib/follows/types";
 

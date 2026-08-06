@@ -2,7 +2,8 @@
 
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { listNewRolesForFollows, type FollowAlertGroup } from "@/lib/follows/alerts";
+import type { FollowAlertGroup } from "@/lib/follows/alerts";
+import { listNewRolesForFollows } from "@/lib/follows/list-new-roles";
 import type { FollowedCompany } from "@/lib/follows/types";
 
 function followedCompaniesCollection(uid: string) {
