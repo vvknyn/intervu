@@ -56,8 +56,17 @@ export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000,
     if (!Number.isFinite(deadline)) throw new Error("pollUntilGuest needs the session's expiresAt as `deadline`");
     let delay = delayMs;
     while (Date.now() < deadline) {
-        const res = await fetchImpl(url, { headers });
-        if (res.ok) {
+        // A thrown fetch is the same "not yet" as a 503 — a WiFi hiccup on
+        // the laptop must not abandon a session the phone may still open.
+        // Seen live 2026-08-05: one blip ended a 15-minute wait with
+        // "fetch failed" while the session sat valid on the doorbell.
+        let res = null;
+        try {
+            res = await fetchImpl(url, { headers });
+        } catch {
+            /* the deadline bounds how long we keep hoping */
+        }
+        if (res?.ok) {
             const body = await res.json();
             if (body.guest) return body.guest;
         }
