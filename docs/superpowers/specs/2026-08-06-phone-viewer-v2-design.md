@@ -75,9 +75,9 @@ Tailscale is on, or use the home-WiFi link," never a hang.
 
 **Wire.** Input rides the channels frames already use. The WebRTC data channel is duplex; the
 LAN/tailnet transport gains one upstream endpoint, `POST /input?t=<token>`, behind the same
-token gate as the stream. Two message shapes, versioned JSON:
-`{v:1, type:"tap", fx, fy}` (frame pixels) and `{v:1, type:"text", insert:"…"}`.
-Enter and Tab are the only special keys, `{v:1, type:"key", key:"Enter"|"Tab"}`.
+token gate as the stream. Three message shapes, versioned JSON:
+`{v:1, type:"tap", fx, fy}` (frame pixels), `{v:1, type:"text", insert:"…"}`, and
+`{v:1, type:"key", key:"Enter"|"Tab"}` — Enter and Tab are the only special keys.
 
 **Coordinates.** The phone already holds everything needed to invert its own rendering
 (frame, crop rect `r`, device width `dw`): canvas point → crop offset → frame pixels. The
@@ -103,9 +103,10 @@ v2 builds no agent-pausing machinery.
 
 ## Section C — Resilience
 
-**Reconnect.** Guest re-POSTs a fresh answer any time within TTL (the signal route's
-`putSignal` semantics allow overwrite; the host change is to keep polling and treat a
-*changed* answer as "negotiate again," building a new peer connection under the same id).
+**Reconnect.** Guest re-POSTs a fresh answer any time within TTL — the server already
+permits this (`session-store.ts:56` is a plain overwrite; verified). The host change is to
+keep polling and treat a *changed* answer as "negotiate again," building a new peer
+connection under the same id.
 Phone mirror: on connection drop, the watch page re-fetches the offer and re-answers.
 
 **Honest dead links.** `/watch/[id]` for an unknown/expired session renders: *"This session
