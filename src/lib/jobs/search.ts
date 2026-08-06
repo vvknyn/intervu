@@ -8,20 +8,20 @@
  * `@/actions/jobs` server actions from client components.
  */
 import {
+  fetchFacetSearch,
   fetchJobSuggestions,
   fetchJobsLastUpdated,
-  fetchLocationFacetDistributions,
   fetchPostedDateFilterSupported,
   hasMeilisearch,
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
-import {
-  applyQueryUnderstanding,
-  buildLocationVocabulary,
-  type LocationVocabulary,
-} from "./query-understanding";
+import { applyQueryUnderstanding, type LocationVocabulary } from "./query-understanding";
+import { loadGazetteer } from "../geo/gazetteer";
+import { createCorpusValueChecker } from "../geo/corpus-values";
+import type { CountryLookup } from "../geo/ip-country";
+import { hasLocationSignal, resolveLocationDefault } from "../geo/ip-default";
 import { cacheSearchResult, getDegradedServe, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 export type { SearchServeMeta } from "./search-cache";
@@ -54,46 +54,58 @@ export function getJobsBackendStatus(): {
 }
 
 /**
- * Corpus-derived place vocabulary for query understanding, cached per server
- * instance. Stale-while-revalidate: once any vocabulary exists, searches use
- * it immediately and a refresh runs behind them — the ONLY search that ever
- * waits on the vocabulary fetch is a cold instance's very first one, and a
- * failed fetch yields an empty vocabulary (place parsing just doesn't happen)
- * that retries on a short leash rather than caching the failure for an hour.
+ * Place-resolution context for query understanding: the gazetteer (static,
+ * bundled, indexed once per server instance — see lib/geo/gazetteer.ts) plus
+ * a corpus-value checker that caches its own live Meilisearch lookups per
+ * (field, value) (lib/geo/corpus-values.ts) — no bulk fetch to warm here,
+ * unlike the old corpus-only vocabulary this replaced.
  *
  * Exported (Task 12 review fix) so `toolSearchJobs` (agent/tools.ts) can
- * resolve its own `location` filter through the SAME cached vocabulary
- * `searchJobs` below already builds for free-text queries, via `ToolDeps`,
- * rather than a second vocabulary-fetching path.
+ * resolve its own `location` filter through the SAME resolver `searchJobs`
+ * below already uses for free-text queries, via `ToolDeps`, rather than a
+ * second place-resolution path.
  */
-const VOCAB_TTL_MS = 60 * 60 * 1000;
-const VOCAB_RETRY_MS = 60 * 1000;
-let vocabCache: { vocab: LocationVocabulary; at: number } | null = null;
-let vocabInFlight: Promise<LocationVocabulary> | null = null;
+const corpusChecker = createCorpusValueChecker(fetchFacetSearch);
 
 export async function locationVocabulary(): Promise<LocationVocabulary> {
-  const ttl = vocabCache && vocabCache.vocab.byText.size > 0 ? VOCAB_TTL_MS : VOCAB_RETRY_MS;
-  if (vocabCache && Date.now() - vocabCache.at < ttl) return vocabCache.vocab;
-  if (!vocabInFlight) {
-    vocabInFlight = fetchLocationFacetDistributions()
-      .then((d) => {
-        vocabCache = { vocab: buildLocationVocabulary(d), at: Date.now() };
-        return vocabCache.vocab;
-      })
-      .finally(() => {
-        vocabInFlight = null;
-      });
-  }
-  return vocabCache ? vocabCache.vocab : vocabInFlight;
+  return { gazetteer: loadGazetteer(), corpusChecker };
 }
 
 export async function searchJobs(
   raw: JobSearchParams,
-): Promise<JobSearchResult & { meta?: SearchServeMeta }> {
+  // `countryLookup` is injected rather than built in here (unlike
+  // `corpusChecker` above) because its real implementation
+  // (createMmdbCountryLookup, lib/geo/ip-country.ts) statically pulls in
+  // `maxmind` + `node:path` — Node built-ins this module can't afford a
+  // hard dependency on: `searchJobs` also runs under `/co/[slug]`'s
+  // `opengraph-image` route, which declares `runtime = "edge"` and has no
+  // filesystem at all. Only `actions/jobs.ts` (always Node, never edge)
+  // constructs and passes one; every other caller (MCP, the OG route)
+  // simply omits it and the IP-default step below no-ops.
+  opts?: { clientIp?: string; countryLookup?: CountryLookup },
+): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string }> {
   // Vocabulary is only relevant when there's query text to parse — the
   // dead-link id probe and plain browses skip the lookup entirely.
   const vocab = (raw.q ?? "").trim() && !raw.id ? await locationVocabulary() : undefined;
-  const p = applyQueryUnderstanding(raw, vocab);
+  let p = await applyQueryUnderstanding(raw, vocab);
+
+  // IP country default — last in the understanding pipeline, and only when
+  // NOTHING else already said where to search: not a typed/MCP place, not
+  // an explicit location facet. `opts.clientIp`/`countryLookup` are only
+  // ever passed by the browser-facing action (actions/jobs.ts); every other
+  // caller leaves them out, so an agent's search (MCP) is never silently
+  // narrowed by a box's own egress IP, and this step is a no-op. See
+  // lib/geo/ip-default.ts for the "never invent a filter" guarantee.
+  let defaultedLocation: string | undefined;
+  if (opts?.clientIp && opts.countryLookup && !raw.id && !hasLocationSignal(p)) {
+    const { gazetteer, corpusChecker: checker } = vocab ?? (await locationVocabulary());
+    const ipDefault = await resolveLocationDefault(opts.clientIp, gazetteer, checker, opts.countryLookup);
+    if (ipDefault) {
+      p = { ...p, places: ipDefault.places };
+      defaultedLocation = ipDefault.countryCode;
+    }
+  }
+
   const backend = activeBackend();
   try {
     // `effectiveQ` is spread on here rather than returned by the backends
@@ -108,9 +120,11 @@ export async function searchJobs(
       // shape (and, if it's the default browse, as the outage fallback too)
       // — see search-cache.ts. Only the success path ever teaches the cache.
       cacheSearchResult(p, result);
-      return { ...result, meta: { degraded: false, servedFrom: "live" } };
+      return { ...result, meta: { degraded: false, servedFrom: "live" }, ...(defaultedLocation && { defaultedLocation }) };
     }
-    if (backend === "snapshot-preview") return { ...(await searchSnapshotPreview(p)), effectiveQ: p.q ?? "" };
+    if (backend === "snapshot-preview") {
+      return { ...(await searchSnapshotPreview(p)), effectiveQ: p.q ?? "", ...(defaultedLocation && { defaultedLocation }) };
+    }
   } catch (e) {
     // The raw error goes to server logs only — messages like Next's RSC
     // digest text are internals, not copy a job seeker should ever read.
