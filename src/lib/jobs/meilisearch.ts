@@ -143,6 +143,39 @@ async function meiliFetchOnce(url: string, init: RequestInit): Promise<Response>
 }
 
 /**
+ * A non-retryable (4xx) response IS the request being wrong — bad filter/
+ * facet/sort syntax, an attribute missing from `filterableAttributes`, an
+ * unfilterable id, etc (see `isRetryableMeiliFailure` above). That's a
+ * deploy-time misconfiguration (index settings drifted from what this repo
+ * expects), not a per-request fluke, and unlike a 5xx it never gets a retry
+ * to paper over it — so it belongs in prod logs at error level, not just in
+ * whatever message a caller happens to build from the body text. Logged here,
+ * the one chokepoint every read-path call funnels through, rather than at
+ * each of this file's several `throw`/fallback sites, so the log fires
+ * identically regardless of which caller hit it or whether that caller goes
+ * on to recover (e.g. the company_domain post-filter fallback) or throw.
+ * `res.clone()` because the caller still needs to read the original body.
+ */
+async function logMeiliConfigError(url: string, res: Response): Promise<void> {
+  const text = await res
+    .clone()
+    .text()
+    .catch(() => "");
+  let code: string | undefined;
+  let message: string | undefined;
+  try {
+    ({ code, message } = JSON.parse(text) as { code?: string; message?: string });
+  } catch {
+    // Non-JSON body — code/message stay undefined, raw text still logged below.
+  }
+  console.error(
+    `[meilisearch] request rejected: ${res.status} ${url} code=${code ?? "unknown"} message=${
+      message ?? text.slice(0, 300)
+    }`,
+  );
+}
+
+/**
  * Chokepoint: every outbound Meilisearch READ-PATH call (search, suggestions,
  * freshness stamp, date-filter-support probe) funnels through here — never
  * call `fetch` directly for one of these, and never add a bespoke timeout/
@@ -158,7 +191,11 @@ async function meiliFetchOnce(url: string, init: RequestInit): Promise<Response>
 async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
   try {
     const res = await meiliFetchOnce(url, init);
-    if (res.ok || !isRetryableMeiliFailure(res.status)) return res;
+    if (res.ok) return res;
+    if (!isRetryableMeiliFailure(res.status)) {
+      await logMeiliConfigError(url, res);
+      return res;
+    }
     await new Promise((r) => setTimeout(r, MEILI_RETRY_BACKOFF_MS));
     return meiliFetchOnce(url, init);
   } catch {
