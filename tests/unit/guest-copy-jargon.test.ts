@@ -10,7 +10,7 @@ import {
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
-import { marketingClaim } from "../../src/lib/marketing-stats";
+import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
 
 /**
  * Class guard for the guest-surface rule
@@ -38,6 +38,7 @@ const GUEST_STRINGS: Record<string, string> = {
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
   BOARD_PANE_LINE,
+  FOOTER_PROVENANCE_LINE,
   MARKETING_CLAIM_NO_STATS: marketingClaim(null),
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({
     liveJobs: { kind: "exact", value: 12345 },

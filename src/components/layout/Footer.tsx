@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
 import { siteChrome } from "@/components/layout/site-chrome";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
+import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 import { cn } from "@/lib/utils";
 
 /** Quiet footer links — Research/Pricing live here (not primary nav). */
@@ -26,10 +26,7 @@ export function FooterContent() {
             className={cn("hidden shrink-0 border-t lg:block", siteChrome.bar, siteChrome.border)}
         >
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 py-6 sm:px-7">
-                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>
-                    Every listing is {CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated. Same market your agent
-                    sees via MCP.
-                </p>
+                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>{FOOTER_PROVENANCE_LINE}</p>
                 <nav
                     aria-label="Company"
                     className={cn("flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]", siteChrome.faint)}
