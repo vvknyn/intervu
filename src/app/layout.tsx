@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
-import { SITE_NAME, SITE_URL } from "@/lib/seo/constants";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo/constants";
 import { buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
@@ -54,7 +54,6 @@ const SITE_TITLE = SITE_NAME;
 // (a "use client" page, which can't export metadata of its own) is the
 // main consumer today. `/` (the automation-first front door) overrides
 // this with its own metadata in src/app/page.tsx.
-const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk before you spend time on them.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

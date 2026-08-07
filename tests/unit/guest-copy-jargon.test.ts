@@ -1,0 +1,40 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  LANDING_DESCRIPTION,
+  LANDING_TITLE,
+  SITE_DESCRIPTION,
+} from "../../src/lib/seo/constants";
+
+/**
+ * Class guard for the guest-surface rule
+ * (docs/specs/2026-08-07-job-seeker-front-door-design.md): copy a logged-out,
+ * non-technical visitor sees must promise outcomes in plain words. Machinery
+ * vocabulary lives only behind the explicit opt-in doors — the landing AI
+ * tabs, /connect, /openclaw. Every new guest-surface string export gets an
+ * entry in GUEST_STRINGS; the ban list is the spec's, verbatim.
+ */
+const BANNED: readonly RegExp[] = [
+  /openclaw/i,
+  /\bmcp\b/i,
+  /\bagents?\b/i,
+  /\bskills?\b/i,
+  /whatsapp/i,
+  /\bconnectors?\b/i,
+  /self-host/i,
+  /\bai\b/i,
+];
+
+const GUEST_STRINGS: Record<string, string> = {
+  LANDING_TITLE,
+  LANDING_DESCRIPTION,
+  SITE_DESCRIPTION,
+};
+
+test("guest-surface strings carry no machinery jargon", () => {
+  for (const [name, value] of Object.entries(GUEST_STRINGS)) {
+    for (const pattern of BANNED) {
+      assert.doesNotMatch(value, pattern, `${name} must not match ${pattern}`);
+    }
+  }
+});
