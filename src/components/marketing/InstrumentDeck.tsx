@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/brand/BrandMark";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import {
+    BOARD_PANE_LINE,
     INSTRUMENT_META,
     INSTRUMENT_SUPPORT,
     MCP_CONNECTOR_HINT,
@@ -25,6 +26,8 @@ import {
 } from "@/lib/auth/landing-intent";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { marketingClaim, type MarketingCorpusStats } from "@/lib/marketing-stats";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 
 const LANE_CONTENT: Record<
@@ -35,16 +38,14 @@ const LANE_CONTENT: Record<
     claw: { cmd: OPENCLAW_INSTALL_COMMAND, hint: OPENCLAW_INSTALL_HINT },
 };
 
-const BOARD_HINT =
-    "Browse verified roles on the job board — sign in to search, save, and apply.";
-
 const tabIdle = { color: "#8b919a" } as const;
 const tabActive = {
     background: "rgba(255,255,255,0.07)",
     color: "#ececec",
 } as const;
 
-export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
+export function InstrumentDeck({ stats }: { stats: MarketingCorpusStats | null }) {
+    const jobCount = stats ? formatCorpusCount(stats.liveJobs) : null;
     const router = useRouter();
     const searchParams = useSearchParams();
     const [lane, setLane] = useState<LandingLane>(DEFAULT_LANDING_LANE);
@@ -183,13 +184,13 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                     </div>
                 ) : (
                     <div className="rounded-none border-0 bg-black/30 px-3.5 py-3.5 font-mono text-[12.5px] text-[#7cb87a]">
-                        /jobs — verified board
+                        {BOARD_PANE_LINE}
                     </div>
                 )}
             </div>
 
             <p className="mt-[18px] max-w-[36ch] text-center text-[13px] leading-[1.45] text-[#5c636e]">
-                {active?.hint ?? BOARD_HINT}
+                {active?.hint ?? marketingClaim(stats)}
             </p>
 
             {agentLane ? (

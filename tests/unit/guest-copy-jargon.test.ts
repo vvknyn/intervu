@@ -5,6 +5,12 @@ import {
   LANDING_TITLE,
   SITE_DESCRIPTION,
 } from "../../src/lib/seo/constants";
+import {
+  BOARD_PANE_LINE,
+  INSTRUMENT_META,
+  INSTRUMENT_SUPPORT,
+} from "../../src/components/marketing/openclaw-content";
+import { marketingClaim } from "../../src/lib/marketing-stats";
 
 /**
  * Class guard for the guest-surface rule
@@ -29,6 +35,13 @@ const GUEST_STRINGS: Record<string, string> = {
   LANDING_TITLE,
   LANDING_DESCRIPTION,
   SITE_DESCRIPTION,
+  INSTRUMENT_META,
+  INSTRUMENT_SUPPORT,
+  BOARD_PANE_LINE,
+  MARKETING_CLAIM_NO_STATS: marketingClaim(null),
+  MARKETING_CLAIM_WITH_COUNT: marketingClaim({
+    liveJobs: { kind: "exact", value: 12345 },
+  }),
 };
 
 test("guest-surface strings carry no machinery jargon", () => {

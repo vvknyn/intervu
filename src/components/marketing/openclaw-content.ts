@@ -44,11 +44,15 @@ export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install |
 export const INSTRUMENT_META = "Find the job postings that are hiring";
 
 /**
- * Supporting line under meta — browse-free / detail+AI gate. Shared by live
- * landing and `/mock/auth-gate`.
+ * Supporting line under meta — browse-free, sign-in-on-open. Shared by live
+ * landing and `/mock/auth-gate`; its copy updates with ours by design.
  */
 export const INSTRUMENT_SUPPORT =
-    "Browse the board free — sign in when you open a role or connect your AI.";
+    "Browse free — sign in only when you open a role.";
+
+/** Board-lane pane — the mono panel when the Job board tab is active.
+ *  Replaces "/jobs — verified board" ("verified board" was insider-speak). */
+export const BOARD_PANE_LINE = "/jobs — screened for ghost-job risk";
 
 /** Quiet tip above unsigned `/jobs` results (session-dismissible in UI). */
 export const GUEST_SERP_TIP = "Open a role to continue — details need sign-in.";
