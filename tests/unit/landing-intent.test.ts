@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_LANDING_LANE,
+  LANDING_LANES,
   nextPathForLandingLane,
   parseConnectClientParam,
   signInCtaLabel,
@@ -26,4 +28,13 @@ test("parseConnectClientParam accepts known clients only", () => {
   assert.equal(parseConnectClientParam("OpenClaw"), "openclaw");
   assert.equal(parseConnectClientParam("nope"), null);
   assert.equal(parseConnectClientParam(null), null);
+});
+
+test("landing boots on the job board, with all three lanes present once", () => {
+  assert.equal(DEFAULT_LANDING_LANE, "board");
+  assert.equal(LANDING_LANES[0].id, "board");
+  assert.deepEqual(
+    [...LANDING_LANES].map((l) => l.id).sort(),
+    ["board", "claw", "mcp"],
+  );
 });

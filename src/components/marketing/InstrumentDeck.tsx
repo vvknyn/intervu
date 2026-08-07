@@ -16,6 +16,8 @@ import {
     OPENCLAW_INSTALL_HINT,
 } from "@/components/marketing/openclaw-content";
 import {
+    DEFAULT_LANDING_LANE,
+    LANDING_LANES,
     nextPathForLandingLane,
     signInCtaLabel,
     signedInCtaLabel,
@@ -24,12 +26,6 @@ import {
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
-
-const LANES: { id: LandingLane; label: string }[] = [
-    { id: "mcp", label: "Claude / ChatGPT" },
-    { id: "claw", label: "OpenClaw" },
-    { id: "board", label: "Job board" },
-];
 
 const LANE_CONTENT: Record<
     Exclude<LandingLane, "board">,
@@ -51,7 +47,7 @@ const tabActive = {
 export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [lane, setLane] = useState<LandingLane>("mcp");
+    const [lane, setLane] = useState<LandingLane>(DEFAULT_LANDING_LANE);
     const [copied, setCopied] = useState(false);
     const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
     const [user, setUser] = useState<User | null>(null);
@@ -155,7 +151,7 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                     role="tablist"
                     aria-label="How to use intervu"
                 >
-                    {LANES.map(({ id, label }) => (
+                    {LANDING_LANES.map(({ id, label }) => (
                         <button
                             key={id}
                             type="button"
