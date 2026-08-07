@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { joinConnectWaitlist } from "@/actions/connect-waitlist";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import {
   MCP_CONNECTOR_URL,
   OPENCLAW_INSTALL_COMMAND,
   OPENCLAW_INSTALL_HINT,
 } from "@/components/marketing/openclaw-content";
+import { resolveWaitlistOutcome } from "@/components/marketing/waitlist-outcome";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { parseConnectClientParam } from "@/lib/auth/landing-intent";
 import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
+import { detectPlatform, type DetectedPlatform } from "@/lib/detect-platform";
 import { CONNECT_HEALTH_COPY } from "@/lib/mcp/connect-health-copy";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
@@ -73,6 +79,74 @@ function StepLabel({ n, label }: { n: number; label: string }) {
   );
 }
 
+/**
+ * OpenClaw tab body for a visitor `detectPlatform` reads as non-Mac — the
+ * local agent has no self-bootstrapping installer there yet (see the spec's
+ * persona matrix), so this replaces the curl command with plain-language
+ * routing to the zero-install Claude path plus a "notify me" capture,
+ * instead of showing a command that cannot run. Reuses the same
+ * `joinConnectWaitlist` action + `resolveWaitlistOutcome` decision helper as
+ * `OpenclawWaitlistForm` (landing/`/openclaw`) rather than forking a second
+ * waitlist flow — only the markup differs, to match /connect's squared,
+ * token-based styling instead of that component's dark-landing one.
+ */
+function OpenclawNonMacBand({ onSwitchToClaude }: { onSwitchToClaude: () => void }) {
+  const [email, setEmail] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
+  const outcome = result ? resolveWaitlistOutcome(result) : null;
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    startTransition(async () => {
+      setResult(await joinConnectWaitlist({ email, client: "openclaw" }));
+    });
+  };
+
+  return (
+    <div className="space-y-4 rounded-none border border-border p-4">
+      <p className="text-sm text-foreground">
+        The local agent runs on a Mac today. Somewhere else? Claude already works right
+        now, no install —{" "}
+        <button
+          type="button"
+          onClick={onSwitchToClaude}
+          className="cursor-pointer border-0 bg-transparent p-0 font-medium text-brand underline-offset-4 hover:underline"
+        >
+          switch to the Claude tab
+        </button>
+        .
+      </p>
+      {outcome?.kind === "success" ? (
+        <p className="text-sm font-medium text-brand" data-testid="openclaw-band-waitlist-success">
+          You&apos;re on the list — we&apos;ll email you the moment it&apos;s ready for Windows.
+        </p>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@email.com"
+            disabled={pending}
+            aria-label="Email address"
+            className="rounded-none sm:min-w-0 sm:flex-1"
+          />
+          <Button type="submit" disabled={pending} variant="outline" className="shrink-0 rounded-none">
+            {pending ? "Sending…" : "Tell me when it's ready for Windows"}
+          </Button>
+        </form>
+      )}
+      {outcome?.kind === "error" ? (
+        <p className="text-sm text-foreground" data-testid="openclaw-band-waitlist-error">
+          {outcome.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const TRY_THESE_PROMPTS = [
   "Find senior product manager roles in Berlin posted this week",
   "Is this posting real, or is it a ghost job?",
@@ -84,6 +158,15 @@ export function ConnectClient() {
   const [activeClient, setActiveClient] = useState<ConnectClientId>(CONNECT_CLIENTS[0].id);
   const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
   const activeClientMeta = CONNECT_CLIENTS.find((c) => c.id === activeClient)!;
+  // Client-only OS read for the OpenClaw tab (Mac command vs. non-Mac band).
+  // Starts null so server and first client render match (no hydration
+  // mismatch) and so a non-Mac visitor never sees a flash of a command that
+  // can't run — the one-frame empty state while this resolves is fine.
+  const [platform, setPlatform] = useState<DetectedPlatform | null>(null);
+
+  useEffect(() => {
+    setPlatform(detectPlatform(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     const fromQuery = parseConnectClientParam(searchParams.get("client"));
@@ -112,6 +195,11 @@ export function ConnectClient() {
         >
           How it works
         </button>
+      </p>
+
+      <p className="mt-6 max-w-xl text-sm text-muted-foreground">
+        Already using Claude? Its tab below is the zero-install path — or try OpenClaw for
+        an agent that applies while you sleep (Mac, for now).
       </p>
 
       <div
@@ -147,20 +235,45 @@ export function ConnectClient() {
         ))}
       </div>
 
+      <p className="mt-3 text-xs text-muted-foreground">
+        Stuck?{" "}
+        <Link href="/connect/help" className="underline underline-offset-4 hover:text-foreground">
+          Setup help
+        </Link>
+      </p>
+
       <div className="mt-6 space-y-6">
         <div className="rounded-none border border-border p-6">
           <StepLabel n={1} label="Connect" />
-          <p className="mt-3 text-sm text-foreground">{STEP1_INTRO[activeClient]}</p>
+          {activeClient === "openclaw" && platform !== "mac" ? null : (
+            <p className="mt-3 text-sm text-foreground">{STEP1_INTRO[activeClient]}</p>
+          )}
           {activeClientMeta.supportsDirectConnect ? (
             activeClient === "openclaw" ? (
-              <div className="mt-3 space-y-4">
-                <CopyUrlBar value={OPENCLAW_INSTALL_COMMAND} />
-                <p className="text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
-                <div>
-                  <p className="mb-2 text-xs text-muted-foreground">MCP endpoint (advanced)</p>
-                  <CopyUrlBar value={MCP_CONNECTOR_URL} />
+              platform === "mac" ? (
+                <div className="mt-3 space-y-4">
+                  <CopyUrlBar value={OPENCLAW_INSTALL_COMMAND} />
+                  <p className="text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
+                  <p className="text-xs text-muted-foreground">
+                    This sets up everything it needs on your Mac — nothing else to install
+                    first.{" "}
+                    <Link
+                      href="/connect/help#install-node"
+                      className="underline underline-offset-4 hover:text-foreground"
+                    >
+                      What exactly does this install?
+                    </Link>
+                  </p>
+                  <div>
+                    <p className="mb-2 text-xs text-muted-foreground">MCP endpoint (advanced)</p>
+                    <CopyUrlBar value={MCP_CONNECTOR_URL} />
+                  </div>
                 </div>
-              </div>
+              ) : platform === null ? null : (
+                <div className="mt-3">
+                  <OpenclawNonMacBand onSwitchToClaude={() => setActiveClient("claude")} />
+                </div>
+              )
             ) : (
               <div className="mt-3">
                 <CopyUrlBar value={MCP_CONNECTOR_URL} />

@@ -10,6 +10,17 @@ test("isAuthGatedProductPath matches product prefixes", () => {
   assert.equal(isAuthGatedProductPath("/mock/auth-gate"), false);
 });
 
+test("isAuthGatedProductPath carves out the public /connect/help exception, without opening the rest of /connect", () => {
+  // Note: pathname never includes a #fragment (fragments are client-only,
+  // never sent to the server) — the anchors in the spec's contract
+  // (#install-node etc.) live on this same public path, not as separate
+  // paths to carve out.
+  assert.equal(isAuthGatedProductPath("/connect/help"), false);
+  assert.equal(isAuthGatedProductPath("/connect/help/anything"), false);
+  assert.equal(isAuthGatedProductPath("/connect"), true);
+  assert.equal(isAuthGatedProductPath("/connect/other"), true);
+});
+
 test("validateNextParam accepts safe in-app paths", () => {
   assert.equal(validateNextParam("/jobs"), "/jobs");
   assert.equal(validateNextParam("/jobs?q=design"), "/jobs?q=design");

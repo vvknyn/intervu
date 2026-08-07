@@ -7,14 +7,13 @@
  * of forking a second, drifting copy of the list.
  *
  * Stealth: no founder names or personal identity anywhere in this copy.
- * Product status (2026-08-02): the resume MCP tools (get_resume /
- * save_resume_variant / get_resume_variant) are live — this copy is not
- * waiting on those. The one still-unavailable piece is the OpenClaw skill
- * itself: merged into a private repo with no public home yet, and the
- * mcporter pairing path is untested. Every surface reading this module
- * should frame its ask around that one specific gap (never a vague "beta"
- * label — a generic badge on one unshipped piece reads like the whole
- * product is unshipped) and never "install now."
+ * Product status (2026-08-07): `/install` is live — `OPENCLAW_INSTALL_COMMAND`
+ * below hits a real, public, self-bootstrapping installer (public/install,
+ * built from openclaw/install.sh by scripts/prebuild-openclaw.mjs), so
+ * "install now" is an accurate call to action, not an overclaim. Every
+ * surface reading this module should still avoid a vague "beta" label — the
+ * onboarding wizard's own model-provider/API-key step is the one remaining
+ * honest caveat, not the install itself.
  */
 
 export const OPENCLAW_HEADLINE =
