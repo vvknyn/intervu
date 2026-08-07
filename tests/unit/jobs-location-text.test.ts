@@ -73,3 +73,37 @@ test("ordinary prose locations pass through untouched", () => {
     assert.equal(humanizeRawLocation("Toronto, Ontario"), "Toronto, Ontario");
     assert.equal(locationText(job({ location: "Remote - EMEA" })), "Remote - EMEA");
 });
+
+test("a plain string location_country renders byte-identical to today", () => {
+    assert.equal(locationText(job({ location_country: "Canada" })), "Canada");
+    assert.equal(
+        locationText(job({ location_city: "Toronto", location_country: "Canada" })),
+        "Toronto, Canada",
+    );
+});
+
+test("an array location_country joins its distinct values into one readable string", () => {
+    assert.equal(
+        locationText(job({ location_country: ["United States", "Canada"] })),
+        "United States, Canada",
+    );
+    assert.equal(
+        locationText(job({ location_country: ["Canada", "Canada"] })),
+        "Canada",
+    );
+});
+
+test("an empty array and a null location_country both fall through the same as today's empty case", () => {
+    assert.equal(
+        locationText(job({ location_country: [] })),
+        "Location not listed",
+    );
+    assert.equal(
+        locationText(job({ location_country: null })),
+        "Location not listed",
+    );
+    assert.equal(
+        locationText(job({ location_country: [], work_type: "remote" })),
+        "Remote",
+    );
+});

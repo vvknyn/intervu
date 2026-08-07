@@ -2,6 +2,7 @@ import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import { toValueArray } from "@/lib/jobs/types";
 
 /**
  * Pure presentation helpers for a job posting — the vocabulary the ledger row
@@ -188,8 +189,13 @@ export function locationText(j: PublicJob): string {
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
     // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
-    // One junk class, one guard — every field goes through it.
-    const parts = [j.location_city, j.location_state, j.location_country]
+    // One junk class, one guard — every field goes through it. A multi-
+    // country posting (`location_country` as an array) joins its distinct
+    // values into one string BEFORE hitting that same pipeline, so a
+    // 2-country posting reads "United States, Canada" like any other joined
+    // part rather than needing its own junk-filter pass.
+    const country = Array.from(new Set(toValueArray(j.location_country))).join(", ");
+    const parts = [j.location_city, j.location_state, country]
         .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
         .filter((v): v is string => Boolean(v));
     if (parts.length) return parts.join(", ");

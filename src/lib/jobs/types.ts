@@ -20,7 +20,8 @@ export interface PublicJob {
   location: string | null;
   location_city: string | null;
   location_state: string | null;
-  location_country: string | null;
+  /** Usually a single country; a multi-country posting arrives as an array (Subspace feed, 2026-08). */
+  location_country: string | string[] | null;
   /** e.g. "remote" | "hybrid" | "onsite" | "unknown" */
   work_type: string;
   description: string | null;
@@ -56,6 +57,19 @@ export interface PublicJob {
   company_closed_90d?: number | null;
   company_open_count?: number | null;
   company_stage?: string | null;
+}
+
+/**
+ * Normalize a field that may arrive as a scalar, an array, or null/undefined
+ * into an array — the one seam a multi-value field (currently just
+ * `location_country`, for multi-country postings) funnels through before a
+ * display helper decides how to combine multiple values (joined text vs.
+ * concatenated flags — see presentation.ts's `locationText` and
+ * country-flag.ts's `countryToFlag`).
+ */
+export function toValueArray(v: string | string[] | null | undefined): string[] {
+  if (v == null) return [];
+  return Array.isArray(v) ? v : [v];
 }
 
 export interface JobsApiMeta {

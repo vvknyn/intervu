@@ -54,4 +54,22 @@ describe("countryToFlag", () => {
     assert.equal(countryToFlag("A"), null);
     assert.equal(countryToFlag("USAA"), null);
   });
+
+  // Multi-country postings (Subspace feed, 2026-08): location_country can
+  // now arrive as an array. A plain string must still behave exactly as
+  // above — these only cover the new array shape.
+  it("an array of 2 distinct countries concatenates their flags, order preserved, no separator", () => {
+    assert.equal(countryToFlag(["Germany", "Canada"]), "🇩🇪🇨🇦");
+    assert.equal(countryToFlag(["Canada", "Germany"]), "🇨🇦🇩🇪");
+  });
+
+  it("an array skips unrecognized elements but keeps the recognized ones' flags", () => {
+    assert.equal(countryToFlag(["Germany", "Not A Real Place"]), "🇩🇪");
+  });
+
+  it("an empty array and null both return null, matching today's empty/unrecognized behavior", () => {
+    assert.equal(countryToFlag([]), null);
+    assert.equal(countryToFlag(null), null);
+    assert.equal(countryToFlag(["Not A Real Place"]), null);
+  });
 });
