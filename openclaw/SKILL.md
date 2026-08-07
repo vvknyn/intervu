@@ -351,7 +351,10 @@ does NOT expose checked/pressed state at all, so it cannot tell you whether
 a box is checked; only AUDIT can. Never report a field filled, a box
 checked, or a file attached from memory of what you just did — only from an
 AUDIT run after the fact, quoting the value (and, for uploads, the
-filename) it read back from the DOM.
+filename) it read back from the DOM. One exception: the PRE-FLIGHT AUDIT
+(step 3 below) comes printed as a side effect of starting the viewer, not
+from running this command directly — every other AUDIT in this skill
+(mid-fill re-audits, POST-FILL AUDIT) still runs exactly this.
 
 1. `browser open <apply_url>` (from `get_job`) in a NEW tab — the FORM tab.
    Immediately after, open the RESUME tab on the exact PDF exported to
@@ -370,35 +373,55 @@ filename) it read back from the DOM.
 2. Check for an account/login wall — see ACCOUNT-WALL HANDOFF; if hit, stop
    and follow that section instead.
 
-**WATCH FROM YOUR PHONE.** Before filling anything, start the viewer so the
-user can follow along from wherever they are:
+3. **START THE VIEWER + PRE-FLIGHT AUDIT.** Getting the audit and getting a
+   watch link up are the SAME step, on purpose — folded into "get the thing
+   you need to fill anything," it cannot be silently skipped the way a
+   separate "start the viewer" instruction could (and, live, once was).
+   Focus the FORM tab first — `browser focus <FORM tab>`, since the viewer
+   mirrors the ACTIVE tab — then start the viewer in audit mode, in the
+   background, capturing its PID: `node scripts/viewer.mjs --audit &
+   VIEWER_PID=$!`. That PID — not a job number — is what stops it later, in
+   §5 Record, once control has genuinely ended.
 
-    browser focus <FORM tab>      # it mirrors the ACTIVE tab, so focus first
-    node scripts/viewer.mjs &
+   Read its `AUDIT: <json>` line — this IS the PRE-FLIGHT AUDIT, the ONLY
+   source of truth for what the freshly opened form holds and requires (see
+   the AUDIT definition above). Diff `summary.requiredAndEmpty` against the
+   resume and the server's `answers` (`get_preferences`, from §0/§1 or a
+   fresh call). Two kinds of gap go into ONE consolidated ask before
+   filling a single field: (a) anything not in the resume or preferences at
+   all (street address, postal code, work-auth specifics), and (b) every
+   COMMITMENT question — days on-site/hybrid, relocation, notice period,
+   start date, salary, travel percentage — which is HUMAN-ONLY regardless
+   of what the resume seems to imply: answerable only from a stored
+   `answers.custom` entry or the reply to this ask, never inferred from
+   `search.location`/`remoteOnly`/the resume, never copied from a different
+   application's answer (seen live: the same commitment answered Yes on one
+   job, left blank on another, traceable to neither). Work authorization is
+   not a commitment question — it's a stored fact
+   (`answers.workAuthorization`), answered from it directly. Never discover
+   a gap mid-form and stop there to ask.
 
-It prints `WATCH: <url>` (works anywhere) and/or `WATCH-LAN: <url>` (same
-WiFi only). Send the `WATCH:` line if it printed, otherwise `WATCH-LAN:`, in
-one short message — e.g. `"Filling the Braze form now — watch here: <url>"`.
-Send ONE link, never both.
+   Forward the `SEND-TO-USER: ...` line VERBATIM, in one short message — it
+   already names the form and quotes whichever watch link wins the ladder
+   (`WATCH-ANYWHERE:` > `WATCH:` > `WATCH-LAN:`), so sending it is a copy,
+   not a decision. One link only. If no `SEND-TO-USER:` line printed, say
+   so in one line and carry on filling the form — watching is a
+   convenience and must never block an application.
 
-If it prints neither, say so in one line and carry on filling the form.
-Watching is a convenience and must never block an application.
+   If it also printed `SETUP-OFFER: tailnet`, AND this is the first watch
+   link you've sent this session, append one line to that same message:
+   "Off WiFi? A one-time 2-minute setup makes this link work from anywhere
+   — reply `setup` when you want it." Offer it once per session, never
+   repeat it unasked, and never install anything unless the user actually
+   replies `setup`.
 
-3. **PRE-FLIGHT AUDIT.** AUDIT the freshly opened form. Diff
-   `summary.requiredAndEmpty` against the resume and the server's `answers`
-   (`get_preferences`, from §0/§1 or a fresh call). Two kinds of gap go into
-   ONE consolidated ask before filling a single field: (a) anything not in
-   the resume or preferences at all (street address, postal code, work-auth
-   specifics), and (b) every COMMITMENT question — days on-site/hybrid,
-   relocation, notice period, start date, salary, travel percentage —
-   which is HUMAN-ONLY regardless of what the resume seems to imply:
-   answerable only from a stored `answers.custom` entry or the reply to
-   this ask, never inferred from `search.location`/`remoteOnly`/the resume,
-   never copied from a different application's answer (seen live: the same
-   commitment answered Yes on one job, left blank on another, traceable to
-   neither). Work authorization is not a commitment question — it's a
-   stored fact (`answers.workAuthorization`), answered from it directly.
-   Never discover a gap mid-form and stop there to ask.
+   On a `setup` reply: run `node scripts/viewer/tailnet.mjs setup`. It
+   prints `TAILNET-AUTH-URL: <url>` partway through — forward that line
+   with "Tap this and sign in — your laptop is joining your private
+   network." When it prints `TAILNET-READY`, send the one remaining step:
+   "Last step: install the Tailscale app on this phone and sign in with the
+   same account." From then on `WATCH-ANYWHERE:` is what prints, this
+   session and every one after.
 4. **BATCH FILL.** Answer every field from, in order: (1) the resume
    (employment history, education, skills) — EXCEPT commitment questions,
    which skip straight to (2)/(4), never (1); (2) the server's `answers`
@@ -480,15 +503,18 @@ Watching is a convenience and must never block an application.
      ~/Downloads/<Company>-<Title>-resume-<date>.pdf`, named in the text —
      the same file `check-upload.mjs` just confirmed is attached to the
      form, so the user never has to ask what they applied with.
+   - Tap "take control" on the watch page to fix anything directly — the
+     viewer is still live; it doesn't stop until §5 Record, after your
+     response reaches this chat (WhatsApp flushes progress lines together at
+     turn end, so the viewer staying up is what actually lets you act on
+     this line, not a promise made and then immediately cut).
    - Close with: "Review and hit submit."
    One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
     now, nudged: false }`.
-11. Stop the viewer (`kill %1`) — the form is now full of the user's
-    personal details and nothing should still be streaming it. The watch
-    link dies with it.
-12. STOP. Do not click submit. Do not call `mark_applied` (only after the
-    user says they submitted).
+11. STOP. Do not click submit. Do not call `mark_applied` (only after the
+    user says they submitted). The viewer keeps streaming through this wait
+    — see §5 Record for where it actually stops.
 
 ### 4. Account-wall handoff
 
@@ -520,6 +546,15 @@ detecting a signup/login wall during FORM FILL:
    If the wall is still up, say so and stop again — don't guess it worked.
 
 ### 5. Record
+
+The user's response — submitted, or "drop it" — is where control genuinely
+ends: the FIRST thing this step does, before anything else, is stop the
+viewer: `kill $VIEWER_PID` (the PID captured at launch in §3 step 3, not a
+job number — job numbers are position-dependent across whatever else this
+session has backgrounded, and killing the wrong one leaves the real viewer
+streaming a form now full of the user's personal details). The watch link
+dies with it. Do this on EITHER outcome below, not only the submitted path —
+"drop it" ends control just as much as a submit does.
 
 Only after the user explicitly says they submitted (in this session, in
 their own words — not inferred from silence or a screenshot):

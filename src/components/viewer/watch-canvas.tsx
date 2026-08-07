@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { computeCrop } from "../../../openclaw/scripts/viewer/crop.mjs";
+import { controlMessage, frameTapMessage, keyMessage, textMessage } from "../../../openclaw/scripts/viewer/input-capture.mjs";
+import { fingerprintSdp } from "../../../openclaw/scripts/viewer/sdp-fingerprint.mjs";
+import { ENDED_COPY, isNewOffer, tapAction, trySend, type TapMessage } from "@/lib/viewer/watch-input";
 
 /**
  * Answers the laptop's offer, then paints whatever arrives on the data
@@ -11,7 +14,16 @@ import { computeCrop } from "../../../openclaw/scripts/viewer/crop.mjs";
  * 1512px viewport renders at ~26% on a phone, which no quality setting
  * rescues — the image has to be cropped, not scaled. `computeCrop` is
  * imported from the skill rather than reimplemented so this page and the
- * same-WiFi page cannot drift apart.
+ * same-WiFi page cannot drift apart. `input-capture.mjs` is shared the same
+ * way for tap-to-frame-point inversion (D8).
+ *
+ * Control (D8) is off by default: a tap on the canvas zooms, same as
+ * before. Once "take control" is on, the canvas sends taps instead and zoom
+ * moves to the header status chip — the tap-to-zoom label would otherwise
+ * lie about what a tap does. The decisions of what a tap means and whether
+ * a reconnect offer is new live in src/lib/viewer/watch-input.ts, kept pure
+ * and DOM-free so they're unit-testable (this repo has no component-render
+ * harness — no @testing-library/jsdom/vitest).
  */
 
 type Payload = { f: string; r: { x: number; y: number; width: number; height: number } | null; dw: number | null };
@@ -40,9 +52,12 @@ function iceGathered(pc: RTCPeerConnection): Promise<void> {
 export function WatchCanvas({ sessionId }: { sessionId: string }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const latestRef = useRef<Latest | null>(null);
+    const channelRef = useRef<RTCDataChannel | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const [status, setStatus] = useState("connecting…");
     const [live, setLive] = useState(false);
     const [follow, setFollow] = useState(true);
+    const [controlOn, setControlOn] = useState(false);
 
     const render = useCallback(
         (frame: Latest) => {
@@ -74,6 +89,10 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     useEffect(() => {
         let pc: RTCPeerConnection | null = null;
         let cancelled = false;
+        // Guards onconnectionstatechange re-entrancy: "disconnected" then
+        // "closed" can both fire for one drop, which must start one
+        // reconnect join(), not two racing ones.
+        let reconnecting = false;
         const url = `/api/viewer/session/${sessionId}/signal`;
 
         const draw = (text: string) => {
@@ -91,21 +110,48 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
             img.src = `data:image/jpeg;base64,${payload.f}`;
         };
 
-        (async () => {
+        // Shared by mount and by D11 reconnect: `previousOfferSdp` is null on
+        // first join (any offer counts as new — see isNewOffer) and is the
+        // SDP this pc already answered on reconnect, so a stale offer still
+        // sitting in the signal store while the laptop is mid-renegotiation
+        // is skipped rather than re-answered.
+        const join = async (previousOfferSdp: string | null) => {
             for (let attempt = 0; attempt < HOST_WAIT_ATTEMPTS && !cancelled; attempt++) {
                 const res = await fetch(url);
                 if (res.status === 401) return setStatus("log in to intervu on this phone, then reopen this link");
-                if (!res.ok) return setStatus("this session has ended");
+                if (!res.ok) return setStatus(ENDED_COPY);
 
                 const { host } = (await res.json()) as { host: { sdp: string } | null };
-                if (!host) {
-                    setStatus("waiting for your laptop…");
+                if (!isNewOffer(host?.sdp, previousOfferSdp)) {
+                    setStatus(previousOfferSdp ? "reconnecting…" : "waiting for your laptop…");
                     await sleep(1000);
                     continue;
                 }
+                const offerSdp = host!.sdp;
 
-                pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-                pc.ondatachannel = (event) => {
+                // A live pc from a previous offer must be CLOSED, not just
+                // replaced — otherwise every reconnect leaks the peer
+                // connection it's superseding. `thisPc` (a local const) is
+                // what every handler below reads and compares against, not
+                // the shared `pc` ref: a handler on a superseded instance
+                // must become a no-op the moment a newer one takes over,
+                // rather than reacting to whatever `pc` happens to point at
+                // by the time its event actually fires.
+                pc?.close();
+                const thisPc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+                pc = thisPc;
+                thisPc.onconnectionstatechange = () => {
+                    if (cancelled || reconnecting || pc !== thisPc) return;
+                    if (thisPc.connectionState === "failed" || thisPc.connectionState === "disconnected" || thisPc.connectionState === "closed") {
+                        reconnecting = true;
+                        setStatus("reconnecting…");
+                        join(offerSdp).finally(() => {
+                            reconnecting = false;
+                        });
+                    }
+                };
+                thisPc.ondatachannel = (event) => {
+                    channelRef.current = event.channel;
                     // Frames arrive chunked: a whole frame (~140 KB) exceeds
                     // the channel's negotiated max-message-size (64 KiB on
                     // Safari), so the laptop sends "C"+body pieces ending in
@@ -125,21 +171,30 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                         }
                     };
                 };
-                await pc.setRemoteDescription({ type: "offer", sdp: host.sdp });
-                await pc.setLocalDescription(await pc.createAnswer());
-                await iceGathered(pc);
+                await thisPc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+                await thisPc.setLocalDescription(await thisPc.createAnswer());
+                await iceGathered(thisPc);
                 if (cancelled) return;
 
                 await fetch(url, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ role: "guest", sdp: pc.localDescription?.sdp }),
+                    // D11.1: stamps a fingerprint of the offer this pc
+                    // actually answered. A reload that re-answers a STALE
+                    // offer produces a byte-different answer SDP every time
+                    // (fresh ICE credentials per createAnswer()), so the
+                    // host cannot tell a fresh answer from a stale re-answer
+                    // by comparing answer bytes alone — see
+                    // transport-webrtc.mjs's isFreshAnswer.
+                    body: JSON.stringify({ role: "guest", sdp: thisPc.localDescription?.sdp, answeredOffer: fingerprintSdp(offerSdp) }),
                 });
                 setStatus("connecting to your laptop…");
                 return;
             }
             if (!cancelled) setStatus("your laptop never answered — it may have finished");
-        })().catch((error: Error) => setStatus(`could not connect: ${error.message}`));
+        };
+
+        join(null).catch((error: Error) => setStatus(`could not connect: ${error.message}`));
 
         return () => {
             cancelled = true;
@@ -151,16 +206,104 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId]);
 
+    // The one send site every control-channel message actually goes through
+    // — see trySend's doc in watch-input.ts for why a plain
+    // `channelRef.current?.send(...)` isn't enough: send() on a
+    // not-yet-open or superseded channel throws synchronously, and that
+    // must never escape into React. A failure here means the connection is
+    // already being recovered elsewhere (onconnectionstatechange), so the
+    // honest thing to say is "reconnecting", not to throw.
+    const sendSafe = (message: unknown) => {
+        if (!trySend(channelRef.current, message)) setStatus("reconnecting…");
+    };
+
+    // D8: off by default. Toggling tells the laptop's input-sink to open or
+    // re-arm its gate (openclaw/scripts/viewer/input-sink.mjs) — without
+    // this send, "take control" would flip the label but the laptop would
+    // keep dropping every message.
+    const toggleControl = () => {
+        setControlOn((prev) => {
+            const next = !prev;
+            sendSafe(controlMessage(next));
+            return next;
+        });
+    };
+
+    // While control is off the canvas is still the zoom toggle it always
+    // was (tapAction(false, …) is always {kind:"zoom"}). While control is
+    // on, a tap becomes a frame-point send; a tap outside the frame is
+    // silently ignored rather than falling back to a zoom, since flipping
+    // zoom in control mode would fight the header chip that now owns it.
+    const onCanvasTap = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        const latest = latestRef.current;
+        const rect = canvas?.getBoundingClientRect();
+        // input-capture.mjs is plain JS with no type annotations, so its
+        // return crosses into TS as a loose shape; the wire contract (v:1,
+        // type:"tap") is fixed at the boundary here rather than widened.
+        const message =
+            controlOn && canvas && rect && latest
+                ? (frameTapMessage({
+                      cssX: event.clientX - rect.left,
+                      cssY: event.clientY - rect.top,
+                      cssWidth: rect.width,
+                      crop: follow ? computeCrop(latest.rect, { imageWidth: latest.img.width, imageHeight: latest.img.height, deviceWidth: latest.deviceWidth }) : null,
+                      imageWidth: latest.img.width,
+                      imageHeight: latest.img.height,
+                  }) as TapMessage | null)
+                : null;
+        const action = tapAction(controlOn, message);
+        if (!action) return;
+        if (action.kind === "zoom") {
+            setFollow((f) => !f);
+            return;
+        }
+        sendSafe(action.message);
+        inputRef.current?.focus();
+    };
+
     return (
-        <main className="min-h-dvh bg-black text-white" onClick={() => setFollow((f) => !f)}>
+        <main className="min-h-dvh bg-black text-white">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-black px-4 py-3 text-sm">
                 <span className={`h-2 w-2 flex-none rounded-full ${live ? "bg-emerald-400" : "bg-white/30"}`} />
                 <span data-testid="watch-status">{status}</span>
-                <span className="ml-auto text-xs text-white/50">
+                <button
+                    type="button"
+                    data-testid="watch-control-toggle"
+                    onClick={toggleControl}
+                    className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                >
+                    {controlOn ? "watching only" : "take control"}
+                </button>
+                <span
+                    data-testid="watch-zoom-chip"
+                    className="ml-auto text-xs text-white/50"
+                    onClick={controlOn ? () => setFollow((f) => !f) : undefined}
+                >
                     {follow ? "tap to zoom out" : "tap to follow field"}
                 </span>
             </header>
-            <canvas ref={canvasRef} className="block h-auto w-full" />
+            <canvas ref={canvasRef} data-testid="watch-canvas" className="block h-auto w-full" onClick={onCanvasTap} />
+            {/* Focused after a tap in control mode so the phone's keyboard
+                opens; visually hidden rather than unmounted so it keeps
+                focus and keystrokes across re-renders. */}
+            <input
+                ref={inputRef}
+                data-testid="watch-control-input"
+                className="sr-only"
+                aria-hidden={!controlOn}
+                onChange={(event) => {
+                    const text = event.target.value;
+                    if (!text) return;
+                    sendSafe(textMessage(text));
+                    event.target.value = "";
+                }}
+                onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== "Tab") return;
+                    event.preventDefault();
+                    sendSafe(keyMessage(event.key));
+                }}
+            />
         </main>
     );
 }

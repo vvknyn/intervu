@@ -64,7 +64,7 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     t.diagnostic('opens a real peer connection; a few seconds of ICE is expected');
 
     const doorbell = fakeDoorbell();
-    const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test' });
+    const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test', onInput: () => {} });
 
     const { url, connected } = await transport.start();
 
@@ -113,5 +113,117 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     await transport.close();
     assert.equal(doorbell.state.deleted, true, 'close() must delete the session, not leave it to its TTL');
     phone.close();
+  });
+
+  it('reconnects with a fresh offer when the answering peer\'s channel closes, and forwards guest input', async (t) => {
+    let RTCPeerConnection;
+    try {
+      ({ RTCPeerConnection } = await loadWerift());
+    } catch {
+      return t.skip('werift not installed — run: npm i --prefix openclaw');
+    }
+    t.diagnostic('exercises the D11 reconnect path; a second round of ICE is expected');
+
+    const doorbell = fakeDoorbell();
+    const received: string[] = [];
+    let disconnects = 0;
+    const transport = createWebRtcTransport({
+      apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test',
+      onInput: (text: string) => received.push(text),
+      onDisconnect: () => { disconnects++; },
+    });
+
+    const { connected } = await transport.start();
+    const firstOfferSdp = doorbell.state.host!.sdp;
+
+    // Phone #1 answers the first offer, same as any normal connection.
+    const phone1 = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    let phone1Channel: any;
+    await phone1.setRemoteDescription({ type: 'offer', sdp: firstOfferSdp });
+    await phone1.setLocalDescription(await phone1.createAnswer());
+    doorbell.state.guest = { sdp: phone1.localDescription!.sdp };
+    phone1.ondatachannel = (event: any) => { phone1Channel = event.channel; };
+    await connected;
+    // Give the channel a moment to finish opening before killing it.
+    while (!phone1Channel) await new Promise((r) => setTimeout(r, 20));
+    // Populates lastPayload so replay-on-open has something to hand phone2.
+    transport.sendFrame(JSON.stringify({ f: 'reconnect-test', r: null, dw: 1512 }));
+
+    // Kill the answering peer's channel — the trigger the host must notice
+    // and recover from instead of leaving the phone permanently stranded.
+    phone1Channel.close();
+
+    // The host must post a NEW offer under the same session id.
+    const deadline = Date.now() + 15_000;
+    while (doorbell.state.host!.sdp === firstOfferSdp && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.notEqual(doorbell.state.host!.sdp, firstOfferSdp, 'host must renegotiate with a fresh offer after the channel closes');
+    assert.equal(disconnects, 1, 'the dead channel closing must re-arm the input-sink control gate (onDisconnect), same as a LAN client dropping');
+
+    // Phone #2 answers the fresh offer.
+    const phone2 = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const phone2Frame = new Promise<void>((resolve) => {
+      phone2.ondatachannel = (event: any) => {
+        event.channel.onmessage = (m: any) => { if (String(m.data)[0] === 'F') resolve(); };
+        // Proves the reverse direction on the NEW channel too: guest input
+        // reaching the host's onInput.
+        event.channel.onopen = () => event.channel.send(JSON.stringify({ v: 1, type: 'control', on: true }));
+      };
+    });
+    await phone2.setRemoteDescription({ type: 'offer', sdp: doorbell.state.host!.sdp });
+    await phone2.setLocalDescription(await phone2.createAnswer());
+    doorbell.state.guest = { sdp: phone2.localDescription!.sdp };
+
+    // Replay-on-open (already covers new channels) delivers the last frame
+    // with no extra sendFrame() call needed.
+    await phone2Frame;
+
+    const inputDeadline = Date.now() + 10_000;
+    while (received.length === 0 && Date.now() < inputDeadline) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(received[0] && JSON.parse(received[0]), { v: 1, type: 'control', on: true });
+
+    await transport.close();
+    phone1.close();
+    phone2.close();
+    assert.equal(disconnects, 1, 'closing the transport at handoff must not itself count as another disconnect');
+  });
+
+  it('closes the peer connection it created when the poll never gets an answer — no leaked pc per failed attempt', async (t) => {
+    let RTCPeerConnection;
+    try {
+      ({ RTCPeerConnection } = await loadWerift());
+    } catch {
+      return t.skip('werift not installed — run: npm i --prefix openclaw');
+    }
+
+    const doorbell = fakeDoorbell();
+    // A near-immediate expiry means pollUntilGuest gives up almost at once —
+    // the doorbell never gets a guest answer, so negotiate()'s poll rejects.
+    const fastExpiringFetch = (async (url: string, init?: { method?: string; body?: string }) => {
+      if (url.endsWith('/api/viewer/session') && init?.method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({ sessionId: 'sess-timeout', expiresAt: Date.now() + 20 }) };
+      }
+      return doorbell.fetchImpl(url, init);
+    }) as unknown as typeof fetch;
+
+    // Both transport-webrtc.mjs and this test resolve RTCPeerConnection from
+    // the SAME installed werift copy (see loadWerift's own doc), so spying
+    // on the prototype here observes the pc negotiate() actually creates.
+    const closes: number[] = [];
+    const realClose = RTCPeerConnection.prototype.close;
+    RTCPeerConnection.prototype.close = function (this: unknown, ...args: unknown[]) {
+      closes.push(1);
+      return realClose.apply(this, args);
+    };
+
+    try {
+      const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: fastExpiringFetch, bearer: 'iva_test', onInput: () => {} });
+      const { connected } = await transport.start();
+      await assert.rejects(() => connected, /never connected/);
+      assert.ok(closes.length >= 1, 'the pc negotiate() created for this failed attempt must be closed, not abandoned');
+    } finally {
+      RTCPeerConnection.prototype.close = realClose;
+    }
   });
 });

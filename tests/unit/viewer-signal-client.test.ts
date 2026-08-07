@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
-import { signalUrl, pollUntilGuest, nextPollDelay, chunkPayload, CHUNK_BYTES } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
+import { signalUrl, pollUntilGuest, nextPollDelay, chunkPayload, CHUNK_BYTES, isFreshAnswer } from '../../openclaw/scripts/viewer/transport-webrtc.mjs';
+import { fingerprintSdp } from '../../openclaw/scripts/viewer/sdp-fingerprint.mjs';
 import { pickAccessToken } from '../../openclaw/scripts/viewer/mcporter-token.mjs';
 
 describe('signalUrl', () => {
@@ -84,6 +85,23 @@ describe('pollUntilGuest', () => {
     assert.equal(guest.sdp, 'v=0');
   });
 
+  it('skips a stale answer via ignoreSdp, then accepts a changed one', async () => {
+    // Reconnect (D11) re-posts a fresh offer under the same session id; the
+    // guest's PREVIOUS answer can still be sitting there for a moment, and
+    // accepting it again would pair the host with a peer connection that no
+    // longer exists.
+    let n = 0;
+    const fake = async () => {
+      n++;
+      return { ok: true, json: async () => ({ guest: { sdp: n < 3 ? 'stale-answer' : 'fresh-answer' } }) };
+    };
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+      deadline: soon(), delayMs: 0, ignoreSdp: 'stale-answer',
+    });
+    assert.equal(guest.sdp, 'fresh-answer');
+    assert.ok(n >= 3, 'must keep polling past the stale answer rather than accepting it');
+  });
+
   it('keeps waiting through a transient server error instead of aborting the session', async () => {
     // The phone may take a minute to be picked up. One 503 from a redeploy
     // must not end a watch session that would otherwise have worked.
@@ -93,6 +111,82 @@ describe('pollUntilGuest', () => {
       : { ok: true, json: async () => ({ guest: { sdp: 'v=0' } }) });
     const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', { deadline: soon(), delayMs: 0 });
     assert.equal(guest.sdp, 'v=0');
+  });
+
+  it('D11.1: rejects a reload re-answering the SAME stale offer even though its answer SDP is byte-different from ignoreSdp', async () => {
+    // The real bug this guards: createAnswer() mints fresh ICE credentials
+    // every call, so re-answering the exact same stale offer after a reload
+    // produces an answer that differs from the previous one byte-for-byte —
+    // ignoreSdp alone waves it through. offerFingerprint catches it because
+    // it compares against the OFFER the guest claims to have answered, not
+    // against the previous answer.
+    let n = 0;
+    const fake = async () => {
+      n++;
+      // Every poll "answers" with a fresh-looking SDP string, but all of
+      // them claim to have answered the STALE offer.
+      return { ok: true, json: async () => ({ guest: { sdp: `stale-answer-v${n}`, answeredOffer: 'fingerprint-of-stale-offer' } }) };
+    };
+    await assert.rejects(
+      () => pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+        deadline: Date.now() + 200, delayMs: 0,
+        ignoreSdp: 'irrelevant-previous-answer',
+        offerFingerprint: 'fingerprint-of-CURRENT-offer',
+      }),
+      (e: Error) => /expired/i.test(e.message),
+    );
+    assert.ok(n > 1, 'must keep polling rather than accepting the stale re-answer');
+  });
+
+  it('D11.1: accepts an answer once it fingerprints the current offer', async () => {
+    let n = 0;
+    const fake = async () => {
+      n++;
+      const answeredOffer = n < 3 ? 'fingerprint-of-stale-offer' : 'fingerprint-of-CURRENT-offer';
+      return { ok: true, json: async () => ({ guest: { sdp: `answer-v${n}`, answeredOffer } }) };
+    };
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+      deadline: soon(), delayMs: 0,
+      ignoreSdp: null, offerFingerprint: 'fingerprint-of-CURRENT-offer',
+    });
+    assert.equal(guest.sdp, 'answer-v3');
+  });
+
+  it('D11.1: falls back to the ignoreSdp byte comparison when the guest blob has no answeredOffer (older page, no offerFingerprint given)', async () => {
+    let n = 0;
+    const fake = async () => {
+      n++;
+      return { ok: true, json: async () => ({ guest: { sdp: n < 3 ? 'stale-answer' : 'fresh-answer' } }) };
+    };
+    const guest = await pollUntilGuest(fake as unknown as typeof fetch, 'u', {
+      deadline: soon(), delayMs: 0, ignoreSdp: 'stale-answer',
+    });
+    assert.equal(guest.sdp, 'fresh-answer');
+  });
+});
+
+describe('isFreshAnswer', () => {
+  it('trusts the fingerprint over ignoreSdp when both are available', () => {
+    assert.equal(isFreshAnswer({ sdp: 'anything', answeredOffer: 'fp-A' }, { ignoreSdp: 'anything', offerFingerprint: 'fp-A' }), true);
+    assert.equal(isFreshAnswer({ sdp: 'never-seen-before', answeredOffer: 'fp-OLD' }, { ignoreSdp: 'irrelevant', offerFingerprint: 'fp-NEW' }), false);
+  });
+
+  it('falls back to the ignoreSdp byte comparison with no fingerprint on either side', () => {
+    assert.equal(isFreshAnswer({ sdp: 'x' }, { ignoreSdp: 'x' }), false);
+    assert.equal(isFreshAnswer({ sdp: 'y' }, { ignoreSdp: 'x' }), true);
+  });
+});
+
+describe('fingerprintSdp', () => {
+  it('is deterministic for the same input', () => {
+    const sdp = 'v=0\r\no=- 123 456 IN IP4 127.0.0.1\r\n';
+    assert.equal(fingerprintSdp(sdp), fingerprintSdp(sdp));
+  });
+
+  it('differs for different input (no accidental collision on realistic SDP shapes)', () => {
+    const a = 'v=0\r\no=- 111 1 IN IP4 127.0.0.1\r\n';
+    const b = 'v=0\r\no=- 222 1 IN IP4 127.0.0.1\r\n';
+    assert.notEqual(fingerprintSdp(a), fingerprintSdp(b));
   });
 });
 
