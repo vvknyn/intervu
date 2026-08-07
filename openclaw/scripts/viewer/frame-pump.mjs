@@ -27,12 +27,12 @@ const FOCUS_EXPRESSION = `JSON.stringify((() => {
   const el = document.activeElement;
   const usable = el && el.getBoundingClientRect && !["BODY", "HTML"].includes(el.tagName);
   const r = usable ? el.getBoundingClientRect() : null;
-  return { dw: window.innerWidth, r: r && r.width ? { x: r.x, y: r.y, width: r.width, height: r.height } : null };
+  return { dw: window.innerWidth, dh: window.innerHeight, r: r && r.width ? { x: r.x, y: r.y, width: r.width, height: r.height } : null };
 })())`;
 
 /**
  * @typedef {{ x: number, y: number, width: number, height: number }} FocusRect
- * @typedef {{ dw: number, r: FocusRect | null }} FocusReport
+ * @typedef {{ dw: number, dh: number, r: FocusRect | null }} FocusReport
  *
  * @typedef {{ id: number, method: string, params: Record<string, unknown> }} CdpCommand
  *

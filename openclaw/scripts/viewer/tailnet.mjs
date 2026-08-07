@@ -58,13 +58,21 @@ export const TAILNET_TIMEOUT_MS = 10 * 60 * 1000;
 
 const AUTH_URL_RE = /https:\/\/login\.tailscale\.com\/a\/\S+/;
 
-function isMobilePeerOnline(statusJson) {
-    let status;
+/** Parses `tailscale status --json`'s stdout, or null if it isn't valid
+ *  JSON. Used both to decide whether the daemon is reachable at all — any
+ *  parseable status (Running, NeedsLogin, Stopped, ...) is proof enough,
+ *  independent of exit code, which Tailscale doesn't use consistently
+ *  across those states — and to read the fields the callers below need. */
+function parseTailnetStatus(statusJson) {
     try {
-        status = JSON.parse(statusJson);
+        return JSON.parse(statusJson);
     } catch {
-        return false;
+        return null;
     }
+}
+
+function isMobilePeerOnline(statusJson) {
+    const status = parseTailnetStatus(statusJson);
     return Object.values(status?.Peer ?? {}).some((p) => (p?.OS === "iOS" || p?.OS === "android") && p?.Online === true);
 }
 
@@ -92,9 +100,15 @@ async function realRun(cmd, args, { onStdout } = {}) {
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Installs Tailscale if it is missing, runs `tailscale up`, and waits for a
- * phone to join before declaring the link ready. Every shell-out goes
- * through the injected `run` so no test ever spawns a real process.
+ * Brings the tailnet link up and waits for a phone to join before declaring
+ * it ready. The first thing this does is ask Tailscale for its own status —
+ * that succeeds identically whether the daemon was started by brew, the
+ * macOS App Store app, the standalone pkg installer, or a Linux package
+ * manager, so it is the one true test of "is this usable," never an inferred
+ * fact about which install method put it there. Install and daemon-start
+ * only run when that probe says the tailnet genuinely isn't reachable yet.
+ * Every shell-out goes through the injected `run` so no test ever spawns a
+ * real process.
  *
  * @param {object} deps
  * @param {(cmd: string, args: string[], opts?: {onStdout?: (chunk: string) => void}) => Promise<{code: number, stdout: string, stderr: string}>} deps.run
@@ -108,54 +122,73 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // test, and must not have its outcome decided by a shared process.exitCode.
 // Failure paths log the label the skill/human needs and then throw.
 export async function setup({ run, markerPath = MARKER_PATH, platform = process.platform, deadlineMs = TAILNET_TIMEOUT_MS, sleepImpl = defaultSleep }) {
-    const installed = await run("which", ["tailscale"]);
-    if (installed.code !== 0) {
-        const { cmd, args } = platform === "darwin"
-            ? { cmd: "brew", args: ["install", "tailscale"] }
-            : { cmd: "sh", args: ["-c", "curl -fsSL https://tailscale.com/install.sh | sh"] };
-        const install = await run(cmd, args);
-        if (install.code !== 0) {
-            console.error(`Could not install Tailscale (exit ${install.code}). ${install.stderr}`.trim());
-            throw new Error("tailscale install failed");
+    // This probe IS the fix: the previous round made `brew services start`
+    // unconditional on darwin, which hard-fails setup on the App Store app
+    // and the standalone pkg — both fully working installs brew has never
+    // heard of. Parseable JSON back from `tailscale status --json` is proof
+    // the daemon is reachable, independent of exit code and independent of
+    // which of brew, the App Store app, the standalone pkg, or a Linux
+    // package manager put it there. Only unparseable output — nothing
+    // installed, no socket, nothing to talk to — means install/daemon-start
+    // actually need to run.
+    const probe = await run("tailscale", ["status", "--json"]);
+    let status = parseTailnetStatus(probe.stdout);
+
+    if (!status) {
+        const installed = await run("which", ["tailscale"]);
+        if (installed.code !== 0) {
+            const { cmd, args } = platform === "darwin"
+                ? { cmd: "brew", args: ["install", "tailscale"] }
+                : { cmd: "sh", args: ["-c", "curl -fsSL https://tailscale.com/install.sh | sh"] };
+            const install = await run(cmd, args);
+            if (install.code !== 0) {
+                console.error(`Could not install Tailscale (exit ${install.code}). ${install.stderr}`.trim());
+                throw new Error("tailscale install failed");
+            }
         }
+
+        // brew's tailscale formula does not register or start the
+        // tailscaled launchd service the way every other install path does
+        // — only reached now because the probe above already proved
+        // nothing answered, so this can no longer misfire against an App
+        // Store/standalone install whose daemon was reachable all along.
+        if (platform === "darwin") {
+            const daemon = await run("brew", ["services", "start", "tailscale"]);
+            if (daemon.code !== 0) {
+                console.error(`Could not start the Tailscale daemon (exit ${daemon.code}). ${daemon.stderr}`.trim());
+                throw new Error("tailscale daemon start failed");
+            }
+        }
+        // A fresh install/daemon-start has nothing authenticated yet —
+        // `tailscale up` below decides; there's no status left to trust.
+        status = null;
     }
 
-    // brew's tailscale formula does not register or start the tailscaled
-    // launchd service the way the official pkg installer (and Linux's
-    // package managers) do — `tailscale up` then fails immediately with no
-    // daemon to talk to. Unconditional, not just after a fresh install: the
-    // CLI can already be on PATH from an earlier run while the daemon still
-    // isn't running (a reboot, a first setup that never got this far).
-    // `brew services start` on an already-running service is a no-op that
-    // exits 0, so this is safe to run every time.
-    if (platform === "darwin") {
-        const daemon = await run("brew", ["services", "start", "tailscale"]);
-        if (daemon.code !== 0) {
-            console.error(`Could not start the Tailscale daemon (exit ${daemon.code}). ${daemon.stderr}`.trim());
-            throw new Error("tailscale daemon start failed");
+    // Already-Running means already authenticated — `tailscale up` would
+    // just reconfirm it and has no new auth URL to print, so a node in this
+    // state skips straight to waiting for the mobile peer below.
+    if (status?.BackendState !== "Running") {
+        const up = await run("tailscale", ["up"], {
+            onStdout: (chunk) => {
+                const match = chunk.match(AUTH_URL_RE);
+                if (match) console.log(`TAILNET-AUTH-URL: ${match[0]}`);
+            },
+        });
+        // Previously discarded: a failed `up` (no daemon, no network, an
+        // auth error with no matchable URL) fell straight into the
+        // 10-minute "waiting for a mobile peer" poll and only ever reported
+        // TAILNET-TIMEOUT — a failure knowable in this instant, reported ten
+        // minutes late with no cause. Any non-zero step here fails loudly.
+        if (up.code !== 0) {
+            console.error(`'tailscale up' failed (exit ${up.code}). ${up.stderr}`.trim());
+            throw new Error("tailscale up failed");
         }
-    }
-
-    const up = await run("tailscale", ["up"], {
-        onStdout: (chunk) => {
-            const match = chunk.match(AUTH_URL_RE);
-            if (match) console.log(`TAILNET-AUTH-URL: ${match[0]}`);
-        },
-    });
-    // Previously discarded: a failed `up` (no daemon, no network, an auth
-    // error with no matchable URL) fell straight into the 10-minute
-    // "waiting for a mobile peer" poll and only ever reported
-    // TAILNET-TIMEOUT — a failure knowable in this instant, reported ten
-    // minutes late with no cause. Any non-zero step here fails loudly now.
-    if (up.code !== 0) {
-        console.error(`'tailscale up' failed (exit ${up.code}). ${up.stderr}`.trim());
-        throw new Error("tailscale up failed");
     }
 
     const deadline = Date.now() + deadlineMs;
     while (Date.now() < deadline) {
-        const status = await run("tailscale", ["status", "--json"]);
-        if (isMobilePeerOnline(status.stdout)) {
+        const poll = await run("tailscale", ["status", "--json"]);
+        if (isMobilePeerOnline(poll.stdout)) {
             mkdirSync(dirname(markerPath), { recursive: true });
             writeFileSync(markerPath, "");
             console.log("TAILNET-READY");

@@ -119,10 +119,11 @@ async function main() {
     // Declared before the transports so the input sink — which every
     // transport feeds via onInput — can close over the CDP socket and the
     // live device width without waiting for the pump setup further down.
-    let focus = { dw: null, r: null };
+    let focus = { dw: null, dh: null, r: null };
     const sink = createInputSink({
         send: (message) => socket.send(JSON.stringify(message)),
         deviceWidth: () => focus.dw,
+        deviceHeight: () => focus.dh,
         nextId,
     });
     const onInput = (text, source) => sink.handle(text, source);
@@ -202,7 +203,7 @@ async function main() {
         nextId,
         onFrame: (frame) => { lastFrameData = frame.data; publish(); },
         onFocus: (next) => {
-            const incoming = next ?? { dw: focus.dw, r: null };
+            const incoming = next ?? { dw: focus.dw, dh: focus.dh, r: null };
             if (JSON.stringify(incoming) === JSON.stringify(focus)) return;
             focus = incoming;
             publish();

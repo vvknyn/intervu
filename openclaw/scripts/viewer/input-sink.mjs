@@ -32,12 +32,24 @@ import { createIdAllocator } from "./cdp-id.mjs";
 const KEYS = {
     Enter: { windowsVirtualKeyCode: 13, type: "keyDown", text: "\r" },
     Tab: { windowsVirtualKeyCode: 9, type: "rawKeyDown" },
+    Backspace: { windowsVirtualKeyCode: 8, type: "rawKeyDown" },
 };
 const MAX_INSERT_CHARS = 2000;
 
 const isFinite = (n) => typeof n === "number" && Number.isFinite(n);
 
-export function createInputSink({ send, deviceWidth, nextId = createIdAllocator(), log = console.log }) {
+/**
+ * @param {object} deps
+ * @param {(message: {id:number, method:string, params:object}) => void} deps.send
+ * @param {() => number | null} deps.deviceWidth
+ * @param {() => number | null} [deps.deviceHeight]  Live viewport height, for
+ *  centering a scroll's mouseWheel dispatch. Defaults to a source that never
+ *  has one, so a caller that never wires it (e.g. a test with no scroll
+ *  coverage) simply never sends a scroll rather than fabricating a center.
+ * @param {() => number} [deps.nextId]
+ * @param {(line: string) => void} [deps.log]
+ */
+export function createInputSink({ send, deviceWidth, deviceHeight = () => null, nextId = createIdAllocator(), log = console.log }) {
     let controlOn = false;
 
     const command = (method, params) => {
@@ -62,6 +74,25 @@ export function createInputSink({ send, deviceWidth, nextId = createIdAllocator(
         const base = { x, y, button: "left", clickCount: 1 };
         command("Input.dispatchMouseEvent", { type: "mousePressed", ...base });
         command("Input.dispatchMouseEvent", { type: "mouseReleased", ...base });
+    };
+
+    const dispatchScroll = (msg) => {
+        if (!isFinite(msg.fdy) || !isFinite(msg.fw)) return;
+        const dw = deviceWidth();
+        const dh = deviceHeight();
+        // No live device size means no scale or center exists yet — guessing
+        // would scroll the wrong point, so drop rather than fabricate one.
+        if (!isFinite(dw) || !isFinite(dh)) return;
+        // Same scaling rule as a tap's fx * dw / fw (frameScrollMessage in
+        // input-capture.mjs produced fdy the same way a tap produces fx).
+        const deltaY = Math.round((msg.fdy * dw) / msg.fw);
+        command("Input.dispatchMouseEvent", {
+            type: "mouseWheel",
+            x: Math.round(dw / 2),
+            y: Math.round(dh / 2),
+            deltaX: 0,
+            deltaY,
+        });
     };
 
     const dispatchText = (msg) => {
@@ -98,6 +129,7 @@ export function createInputSink({ send, deviceWidth, nextId = createIdAllocator(
             }
             if (!controlOn) return;
             if (msg.type === "tap") return dispatchTap(msg);
+            if (msg.type === "scroll") return dispatchScroll(msg);
             if (msg.type === "text") return dispatchText(msg);
             if (msg.type === "key") return dispatchKey(msg);
             // Unknown type: dropped, not thrown — a future producer bug must

@@ -29,7 +29,10 @@
 <input id="typer" autocomplete="off" autocapitalize="off" autocorrect="off">
 <script type="module">
   import { computeCrop } from './crop.mjs';
-  import { frameTapMessage, textMessage, keyMessage, controlMessage } from './input-capture.mjs';
+  import {
+    frameTapMessage, frameScrollMessage, keyMessage, controlMessage,
+    classifyTyperInput, TYPER_SENTINEL, isSwipe, SCROLL_THROTTLE_MS,
+  } from './input-capture.mjs';
 
   const canvas = document.getElementById('screen');
   const ctx = canvas.getContext('2d');
@@ -39,6 +42,9 @@
   const controlBtn = document.getElementById('control');
   const typer = document.getElementById('typer');
   const token = new URLSearchParams(location.search).get('t');
+  // Kept non-empty at rest — see TYPER_SENTINEL's doc for why an empty
+  // field silently eats iOS's backspace event.
+  typer.value = TYPER_SENTINEL;
 
   // Stamped in by transport-lan.mjs at serve time from the SAME predicate
   // that gates POST /input server-side (isTailnetConnection) — a same-WiFi
@@ -54,6 +60,9 @@
   let controlOn = false;
   let latest = null;
   let lastCrop = null;
+  // Tracks one in-progress touch on the canvas, control mode only — see the
+  // touchstart/touchmove/touchend listeners below.
+  let touch = null;
 
   function postInput(msg) {
     fetch(`/input?t=${encodeURIComponent(token)}`, { method: 'POST', body: JSON.stringify(msg) }).catch(() => {});
@@ -90,11 +99,41 @@
     typer.focus();
   });
 
-  typer.addEventListener('input', () => {
-    // The field is cleared after every send, so whatever is in it on the
-    // NEXT input event is exactly the delta typed since then — no diffing.
-    if (typer.value) postInput(textMessage(typer.value));
-    typer.value = '';
+  // Swiping vertically in control mode scrolls the laptop's page instead of
+  // tapping it. touchstart/touchmove track one gesture and classify it via
+  // isSwipe (shared with watch-canvas.tsx) so a real tap still lands as a
+  // tap; only once a gesture commits to being a swipe do we preventDefault
+  // (stopping the phone's own page from scrolling too) and start sending
+  // throttled scroll deltas. No momentum — raw per-move deltas only.
+  canvas.addEventListener('touchstart', (e) => {
+    if (!controlOn || e.touches.length !== 1) { touch = null; return; }
+    const t = e.touches[0];
+    touch = { startX: t.clientX, startY: t.clientY, lastY: t.clientY, accDy: 0, swiped: false, lastSentAt: 0 };
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!controlOn || !touch || !latest) return;
+    const t = e.touches[0];
+    const dy = t.clientY - touch.lastY;
+    touch.lastY = t.clientY;
+    if (!touch.swiped) touch.swiped = isSwipe(t.clientX - touch.startX, t.clientY - touch.startY);
+    if (!touch.swiped) return; // still inside the tap threshold
+    e.preventDefault();
+    touch.accDy += dy;
+    const now = Date.now();
+    if (now - touch.lastSentAt < SCROLL_THROTTLE_MS) return;
+    const rect = canvas.getBoundingClientRect();
+    postInput(frameScrollMessage({ cssDy: touch.accDy, cssWidth: rect.width, crop: lastCrop, imageWidth: latest.img.width, imageHeight: latest.img.height }));
+    touch.accDy = 0;
+    touch.lastSentAt = now;
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => { touch = null; });
+
+  typer.addEventListener('input', (e) => {
+    const { messages, reset } = classifyTyperInput(e.inputType, typer.value);
+    messages.forEach(postInput);
+    typer.value = reset;
   });
 
   typer.addEventListener('keydown', (e) => {
