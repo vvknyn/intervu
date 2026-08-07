@@ -6,7 +6,7 @@ import { LANDING_DESCRIPTION, LANDING_TITLE, SITE_URL } from "@/lib/seo/constant
  * is a client component, so the front-door metadata lives in this layout.
  */
 export const metadata: Metadata = {
-    title: LANDING_TITLE,
+    title: { absolute: LANDING_TITLE },
     description: LANDING_DESCRIPTION,
     alternates: {
         canonical: "/jobs",
