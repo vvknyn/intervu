@@ -19,6 +19,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
+import { marketingClaim } from "@/lib/marketing-stats";
+import { getMarketingStatsAction } from "@/actions/marketing";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
@@ -1139,6 +1141,24 @@ function JobsContent() {
     const [user, setUser] = useState<User | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
+    // Honest-market claim shown alongside the guest SERP tip (front-door
+    // spec, Task 2). Fetched once on mount, same cancelled-flag idiom as
+    // `lastUpdated`/`postedDateSupported` above; `marketingClaim` degrades to
+    // a claim without a live count on `null` rather than fabricating one.
+    const [marketClaim, setMarketClaim] = useState<string | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        getMarketingStatsAction()
+            .then((stats) => {
+                if (!cancelled) setMarketClaim(marketingClaim(stats));
+            })
+            .catch(() => {
+                if (!cancelled) setMarketClaim(marketingClaim(null));
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId, pursuits: trackedPursuits } = usePursuits();
@@ -2715,7 +2735,7 @@ function JobsContent() {
 
                     {!isSerpAsk && (
                         <Link
-                            href="/"
+                            href="/connect"
                             className="mt-2 inline-block text-[12px] text-[#8b919a] underline underline-offset-[3px] hover:text-[#c4c9d1]"
                         >
                             There&apos;s a version of this that works while you sleep →
@@ -2921,6 +2941,11 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
+                                            {!user && !guestTipDismissed && marketClaim ? (
+                                                <p data-testid="jobs-market-claim" className="mb-1.5 font-mono text-[11px] text-faint">
+                                                    {marketClaim}
+                                                </p>
+                                            ) : null}
                                             {!user && !guestTipDismissed && (
                                                 <div
                                                     data-testid="guest-serp-tip"

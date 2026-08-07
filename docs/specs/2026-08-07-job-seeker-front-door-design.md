@@ -75,6 +75,38 @@ opted-in-technical), not per-string. Any copy a logged-out, non-technical visito
 can reach must promise an outcome in plain words; copy behind an explicit
 AI-lane/Connect choice may use technical terms.
 
+## Phase 1b — The board IS the front page (Vivek, Aug 7 14:41: "why don't we directly show the job board")
+
+Phase 1 shipped (PR #144) and immediately raised the right question: the deck is
+still one interstitial between "I need a job" and jobs. Decision: retire it.
+
+1. **`/` server-redirects to `/jobs`.** The `?signin=1` contract (no in-repo
+   producers — external/legacy entry) is preserved server-side before the
+   redirect: `signin=1` → `/login` (with `validateNextParam`-checked `next`),
+   else → `/jobs`. `InstrumentDeck` and `LandingSigninRedirect` are deleted;
+   orphaned lane data (`LANDING_LANES`, `DEFAULT_LANDING_LANE`,
+   `signedInCtaLabel`, `BOARD_PANE_LINE`) dies with them. Survivors verified by
+   consumer grep: `HowItWorksFilm`, `OpenclawWaitlistForm` (used by
+   /connect + /openclaw), `INSTRUMENT_META`/`INSTRUMENT_SUPPORT`,
+   `signInCtaLabel`, `nextPathForLandingLane` (used by AuthGateMock).
+2. **`/jobs` takes the front-door metadata** (`LANDING_TITLE`/
+   `LANDING_DESCRIPTION` via a new `jobs/layout.tsx` — the page is a client
+   component and cannot export metadata itself).
+3. **The board gets the promise band**: `marketingClaim(stats)` (which would
+   otherwise be orphaned by the deck's death) renders as a slim guest-only line
+   on `/jobs`, fetched via the existing `getMarketingStatsAction` client-action
+   pattern, near the existing guest-only `GUEST_SERP_TIP`.
+4. Sitemap's priority-1 entry moves from `/` to `/jobs` to match the new
+   canonical URL, now that `/` just redirects there.
+
+**Known accepted trade:** `/jobs` body content is client-rendered (it always
+was — pre-existing); the crawler/preview story rides the server-side metadata,
+which this phase moves to `/jobs`. Server-rendering the board itself is a
+separate, larger item — not this phase.
+
+**AI-path visibility after the deck:** /connect (nav), /openclaw, and footer
+remain the opt-in doors. No AI copy returns to the front door.
+
 ## Phase 2 — The invisible assistant (ordered backlog; each item is its own plan)
 
 Deliver "automation" without asking anyone to understand it. All items obey the

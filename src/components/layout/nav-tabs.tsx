@@ -73,8 +73,7 @@ export const NAV_TABS: NavTab[] = [
         shortLabel: "Connect",
         href: "/connect",
         testId: "topbar-connect",
-        // Landing is the agent instrument door (frozen mock).
-        match: (p) => p === "/" || p.startsWith("/connect") || p.startsWith("/openclaw"),
+        match: (p) => p.startsWith("/connect") || p.startsWith("/openclaw"),
         icon: ConnectIcon,
     },
 ];

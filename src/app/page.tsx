@@ -1,27 +1,23 @@
-import type { Metadata } from "next";
-import { getMarketingStatsAction } from "@/actions/marketing";
-import { InstrumentDeck } from "@/components/marketing/InstrumentDeck";
-import { LANDING_DESCRIPTION, LANDING_TITLE, SITE_URL } from "@/lib/seo/constants";
+import { redirect } from "next/navigation";
+import { validateNextParam } from "@/lib/auth/product-routes";
 
-export const metadata: Metadata = {
-    title: LANDING_TITLE,
-    description: LANDING_DESCRIPTION,
-    alternates: {
-        canonical: "/",
-    },
-    openGraph: {
-        title: LANDING_TITLE,
-        description: LANDING_DESCRIPTION,
-        url: SITE_URL,
-    },
-    twitter: {
-        title: LANDING_TITLE,
-        description: LANDING_DESCRIPTION,
-    },
-};
-
-/** Full-bleed landing instrument — TopBar/Footer/MobileTabBar hidden via shouldHideSiteChrome. */
-export default async function HomePage() {
-    const stats = await getMarketingStatsAction();
-    return <InstrumentDeck stats={stats} />;
+/**
+ * The front door IS the job board (spec Phase 1b): `/` redirects to `/jobs`.
+ * Handles the `?signin=1` contract (no in-repo producers currently — this
+ * exists for external/legacy links). Redirects to `/login` with `next`
+ * validated via `validateNextParam`. Already-authenticated users are
+ * forwarded onward by `/login` itself, not by this route.
+ */
+export default async function HomePage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+    const params = await searchParams;
+    if (params.signin === "1") {
+        const raw = typeof params.next === "string" ? params.next : null;
+        const next = validateNextParam(raw);
+        redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+    }
+    redirect("/jobs");
 }

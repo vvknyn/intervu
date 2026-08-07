@@ -146,7 +146,7 @@ test.describe('AUTH - Authentication Tests', () => {
   test('TC-AUTH-006: Guest mode allows access to all features', async ({ page }) => {
     // Can access the front door without auth
     await page.goto('/');
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/jobs');
 
     // Can access the jobs SERP (search chrome lives here now) without auth
     await page.goto('/jobs');
