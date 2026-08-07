@@ -146,6 +146,17 @@ export function cleanCompany(s: string | null | undefined): string {
 }
 
 /**
+ * Display-safe company name: falls back to the domain when `cleanCompany`
+ * blanks a domain-shaped name (e.g. "Super.Com" -> ""), so the label never
+ * reads "Unknown company" next to a `CompanyLogo` that's rendering that same
+ * domain's favicon. Callers keep their own final "Unknown company" fallback
+ * for the case where there's no domain either.
+ */
+export function displayCompany(name: string | null | undefined, domain: string | null | undefined): string {
+    return cleanCompany(name) || (domain ?? "").trim();
+}
+
+/**
  * The corpus's raw `location` strings sometimes hold serialization accidents
  * rather than prose — seen live on production rows 2026-07-26:
  *

@@ -14,7 +14,7 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, cleanCompany, locationText, shortDate } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -257,7 +257,7 @@ export function JobDetail({
     // this chip row into ONE scannable row; see buildFactChips for the
     // per-field include/omit decision (kept pure + unit-tested there).
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
-    const cleanedCompany = cleanCompany(job.company);
+    const cleanedCompany = displayCompany(job.company, job.company_domain);
     // Himalayas-style flag chip (visual-identity pass) — see JobCard's
     // matching comment in app/page.tsx for the null-safety rationale.
     const countryFlag = countryToFlag(job.location_country);
