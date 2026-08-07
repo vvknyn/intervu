@@ -394,6 +394,29 @@ const mcpHandler = createMcpHandler(
 );
 
 /**
+ * Best-effort JSON-RPC method/tool label for the rate limiter's accepted-
+ * call log line (`checkRateLimit`'s `label` param) — reads a CLONED request
+ * so the original body stream stays intact for `mcpHandler` to parse for
+ * real below. A GET (the Streamable HTTP SSE stream) or DELETE (session
+ * terminate) carries no JSON-RPC envelope, so those just log their HTTP
+ * method; a malformed/unparseable POST body falls back to "unknown" rather
+ * than throwing — this is diagnostic labeling, never a validation gate.
+ */
+async function mcpCallLabel(request: Request): Promise<string> {
+    if (request.method !== "POST") return request.method;
+    try {
+        const body = await request.clone().json();
+        if (body?.method === "tools/call" && typeof body?.params?.name === "string") {
+            return `tools/call:${body.params.name}`;
+        }
+        if (typeof body?.method === "string") return body.method;
+    } catch {
+        // Not JSON, or an unparseable body — fall through to "unknown".
+    }
+    return "unknown";
+}
+
+/**
  * Authenticates the bearer secret (manual/access credential kinds only — a
  * refresh credential must never authorize a resource call), rate-limits by
  * credential id, then hands off to the stateless MCP handler with
@@ -408,7 +431,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
         return unauthorizedResponse();
     }
 
-    const rate = checkRateLimit(credential.id);
+    const rate = checkRateLimit(credential.id, undefined, undefined, await mcpCallLabel(request));
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
     request.auth = {

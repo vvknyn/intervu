@@ -21,12 +21,20 @@ describe('agent rate limit', () => {
     const later = checkRateLimit('cred-b', now + AGENT.RATE_WINDOW_MS + 1);
     assert.equal(later.ok, true);
   });
-  it('does not share budget across different credentialIds', () => {
+  it('does not share budget across different credentialIds (isolation — no shared/global key)', () => {
     const now = 3_000_000;
     for (let i = 0; i < AGENT.RATE_LIMIT; i++) checkRateLimit('cred-c', now);
     assert.equal(checkRateLimit('cred-c', now).ok, false);
     const other = checkRateLimit('cred-d', now);
     assert.equal(other.ok, true);
+  });
+  it('two credentials calling in lockstep never bleed into each other\'s count — a brand-new credential\'s first-ever call is always ok even while another credential is exhausted', () => {
+    const now = 3_500_000;
+    for (let i = 0; i < AGENT.RATE_LIMIT; i++) checkRateLimit('cred-exhausted', now);
+    assert.equal(checkRateLimit('cred-exhausted', now).ok, false, 'sanity: this credential is exhausted');
+    const fresh = checkRateLimit('cred-never-seen-before', now);
+    assert.equal(fresh.ok, true, "a truly fresh credential id must never inherit another credential's hits");
+    assert.equal(fresh.remaining, AGENT.RATE_LIMIT - 1);
   });
   it('accepts an omitted now (optional param defaults to Date.now())', () => {
     _resetRateLimits();
@@ -35,14 +43,36 @@ describe('agent rate limit', () => {
     assert.equal(r.ok, true);
   });
 
-  it('IMPORTANT 4 — an explicit limit override replaces AGENT.RATE_LIMIT entirely, independent of the 60 default', () => {
+  it('prunes only entries older than RATE_WINDOW_MS — the window actually slides, it does not just accumulate forever', () => {
+    const start = 5_000_000;
+    const limit = 60; // explicit, independent of AGENT.RATE_LIMIT's actual value
+    // Batch 1: 30 calls right at the window's start.
+    for (let i = 0; i < 30; i++) checkRateLimit('cred-slide', start, limit);
+    // Batch 2: 30 more calls just inside the window (window hasn't rolled yet).
+    for (let i = 0; i < 30; i++) checkRateLimit('cred-slide', start + AGENT.RATE_WINDOW_MS - 1, limit);
+    // All 60 are still within the window: the 61st call right now is denied.
+    assert.equal(
+      checkRateLimit('cred-slide', start + AGENT.RATE_WINDOW_MS - 1, limit).ok,
+      false,
+      'sanity: 60 hits in-window should exhaust a 60 limit',
+    );
+    // Once batch 1's timestamps age out (now > start + RATE_WINDOW_MS) but
+    // batch 2's have not, only the aged-out half is pruned — proving prune
+    // is timestamp-by-timestamp, not all-or-nothing.
+    const afterBatch1Expires = start + AGENT.RATE_WINDOW_MS + 1;
+    const r = checkRateLimit('cred-slide', afterBatch1Expires, 31);
+    assert.equal(r.ok, true, "batch 1 (30, aged out) must no longer count, leaving room under a 31 limit for batch 2's 30 survivors");
+    assert.equal(r.remaining, 0, "batch 2's 30 survivors + this new call = 31, exactly at the 31 limit");
+  });
+
+  it('IMPORTANT 4 — an explicit limit override replaces AGENT.RATE_LIMIT entirely, independent of the 300 default', () => {
     const now = 4_000_000;
     const publicLimit = AGENT.PUBLIC_RATE_LIMIT;
     assert.ok(publicLimit > AGENT.RATE_LIMIT, 'test assumes the public limit is wider than the default');
-    // The 61st call is past the DEFAULT budget but must still be ok under the wider override.
+    // A call past the DEFAULT budget must still be ok under the wider override.
     for (let i = 0; i < AGENT.RATE_LIMIT + 1; i++) {
       const r = checkRateLimit('cred-public', now, publicLimit);
-      assert.equal(r.ok, true, `call ${i + 1} (past the 60 default) should still be ok under the ${publicLimit} override`);
+      assert.equal(r.ok, true, `call ${i + 1} (past the 300 default) should still be ok under the ${publicLimit} override`);
     }
     // Drain the rest of the override budget, then the next call is denied.
     for (let i = AGENT.RATE_LIMIT + 1; i < publicLimit; i++) checkRateLimit('cred-public', now, publicLimit);
@@ -82,10 +112,27 @@ describe('clientIpFromRequest — keying for the two public unauthenticated OAut
 });
 
 describe('rateLimitedResponse — the one 429 shape shared by /api/mcp, /api/oauth/register, /api/oauth/token', () => {
-  it('carries Retry-After in seconds and the rate_limited body', async () => {
+  it('carries Retry-After in seconds and the rate_limited body, plus retryAfterSeconds/limiter for JSON-only clients', async () => {
     const res = rateLimitedResponse(42);
     assert.equal(res.status, 429);
     assert.equal(res.headers.get('Retry-After'), '42');
-    assert.deepEqual(await res.json(), { error: 'rate_limited' });
+    assert.deepEqual(await res.json(), { error: 'rate_limited', retryAfterSeconds: 42, limiter: 'hourly_calls' });
+  });
+  it('an existing client that only reads the error field keeps working — the field is still present with the same value', async () => {
+    const body = await rateLimitedResponse(7).json();
+    assert.equal(body.error, 'rate_limited');
+  });
+  it('retryAfterSeconds on a real reject matches checkRateLimit\'s own retryAfterSec, end to end', async () => {
+    _resetRateLimits();
+    const now = 6_000_000;
+    const limit = 5;
+    for (let i = 0; i < limit; i++) checkRateLimit('cred-e2e', now, limit);
+    const denied = checkRateLimit('cred-e2e', now, limit);
+    assert.equal(denied.ok, false);
+    const res = rateLimitedResponse(denied.retryAfterSec);
+    const body = await res.json();
+    assert.equal(body.retryAfterSeconds, denied.retryAfterSec);
+    assert.equal(res.headers.get('Retry-After'), String(denied.retryAfterSec));
+    assert.ok(denied.retryAfterSec > 0, 'a real reject always carries a positive retry-after');
   });
 });

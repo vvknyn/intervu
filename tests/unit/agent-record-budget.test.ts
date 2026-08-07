@@ -43,9 +43,9 @@ describe('decideRecordBudget — pure decision', () => {
 });
 
 describe('recordBudgetExceededMessage', () => {
-  it('names the cap and the exact ISO reset time — actionable for an agent, not a bare 429', () => {
-    const msg = recordBudgetExceededMessage(1_700_000_000_000, 1000);
-    assert.match(msg, /1000 job records/);
+  it('names the amount already spent, the cap, and the exact ISO reset time — actionable for an agent, not a bare 429', () => {
+    const msg = recordBudgetExceededMessage(1024, 1_700_000_000_000, 1000);
+    assert.match(msg, /1024 of 1000 job records/);
     assert.match(msg, new RegExp(new Date(1_700_000_000_000).toISOString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   });
 });

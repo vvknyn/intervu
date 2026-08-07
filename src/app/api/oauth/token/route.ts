@@ -43,7 +43,7 @@ function tokenJson(body: object, status = 200): Response {
  * egress IP to reach, so the default per-credential budget would starve them.
  */
 export async function POST(request: Request) {
-    const rate = checkRateLimit(`token:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT);
+    const rate = checkRateLimit(`token:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_token");
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
     let body: Record<string, string>;

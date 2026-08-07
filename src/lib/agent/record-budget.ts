@@ -4,7 +4,7 @@
  * the ACTUAL number of records a call is about to hand back, never the
  * requested page size. This is the harvesting guardrail `rate-limit.ts`
  * can't provide on its own: that limiter bounds CALLS per hour, and
- * 60 calls/hr x RESULT_CAP(20)/call is ~28,800 records/day, sustained
+ * 300 calls/hr x RESULT_CAP(20)/call is ~144,000 records/day, sustained
  * indefinitely — a viable slow-exfiltration path against a multi-million-
  * row corpus. See `AGENT.DAILY_RECORD_BUDGET`'s doc comment for the number.
  *
@@ -19,6 +19,7 @@
  */
 import type { AgentStore } from "./store";
 import { AGENT } from "./config";
+import { logAgentLimit, truncateCredential } from "./log";
 
 export interface RecordBudgetState {
     used: number;
@@ -57,13 +58,17 @@ export function decideRecordBudget(
 }
 
 /** The one MCP-facing message for an exhausted daily record budget — read
- *  by an agent, not a human, so it names the limit and the exact reset
- *  time rather than reading as a bare 429. */
-export function recordBudgetExceededMessage(resetAt: number, cap: number = AGENT.DAILY_RECORD_BUDGET): string {
+ *  by an agent, not a human, so it names the cap, how much of it is already
+ *  spent, and the exact reset time rather than reading as a bare 429. */
+export function recordBudgetExceededMessage(
+    spent: number,
+    resetAt: number,
+    cap: number = AGENT.DAILY_RECORD_BUDGET,
+): string {
     return (
-        `Daily corpus budget reached: this credential has already returned ${cap} job records in the last ` +
-        `24h, intervu's per-credential daily limit. Resets at ${new Date(resetAt).toISOString()}. This ` +
-        "protects the job corpus from bulk harvesting — a normal search/browse session stays well under it."
+        `Daily corpus budget reached: this credential has already returned ${spent} of ${cap} job records ` +
+        `allowed in a rolling 24h window. Resets at ${new Date(resetAt).toISOString()}. This protects the ` +
+        "job corpus from bulk harvesting — a normal search/browse session stays well under it."
     );
 }
 
@@ -89,7 +94,17 @@ export async function consumeRecordBudget(
     };
     const decision = decideRecordBudget(state, now);
     if (!decision.allowed) {
-        return { ok: false, error: recordBudgetExceededMessage(decision.resetAt), resetAt: decision.resetAt };
+        logAgentLimit("agent-record-budget", "EXHAUSTED", {
+            credential: truncateCredential(credentialId),
+            spent: decision.used,
+            cap: AGENT.DAILY_RECORD_BUDGET,
+            resetAt: new Date(decision.resetAt).toISOString(),
+        });
+        return {
+            ok: false,
+            error: recordBudgetExceededMessage(decision.used, decision.resetAt),
+            resetAt: decision.resetAt,
+        };
     }
 
     const used = decision.used + count;
