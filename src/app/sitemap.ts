@@ -23,8 +23,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     {
-      // Jobs search — the root route since the jobs-first flip (PR 1).
-      url: `${SITE_URL}/`,
+      // Jobs search — the front door; `/` 307s here since Phase 1b.
+      url: `${SITE_URL}/jobs`,
       lastModified,
       changeFrequency: "daily",
       priority: 1,

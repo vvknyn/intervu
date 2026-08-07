@@ -3,8 +3,10 @@ import { validateNextParam } from "@/lib/auth/product-routes";
 
 /**
  * The front door IS the job board (spec Phase 1b): `/` redirects to `/jobs`.
- * The `?signin=1` contract (no in-repo producers — external/legacy links)
- * is honored first, exactly as the retired landing deck honored it.
+ * Handles the `?signin=1` contract (no in-repo producers currently — this
+ * exists for external/legacy links). Redirects to `/login` with `next`
+ * validated via `validateNextParam`. Already-authenticated users are
+ * forwarded onward by `/login` itself, not by this route.
  */
 export default async function HomePage({
     searchParams,

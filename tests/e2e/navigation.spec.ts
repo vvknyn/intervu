@@ -108,11 +108,11 @@ test.describe('NAV - Navigation Tests', () => {
 
     if (await homeLink.isVisible()) {
       await homeLink.click();
-      await expect(page).toHaveURL('/');
+      await expect(page).toHaveURL('/jobs');
     } else {
       // Navigate directly
       await page.goto('/');
-      await expect(page).toHaveURL('/');
+      await expect(page).toHaveURL('/jobs');
     }
   });
 
@@ -163,7 +163,7 @@ test.describe('NAV - Navigation Tests', () => {
     await page.goBack();
 
     // Should be back at the jobs root
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/jobs');
   });
 
   /**

@@ -2735,7 +2735,7 @@ function JobsContent() {
 
                     {!isSerpAsk && (
                         <Link
-                            href="/"
+                            href="/connect"
                             className="mt-2 inline-block text-[12px] text-[#8b919a] underline underline-offset-[3px] hover:text-[#c4c9d1]"
                         >
                             There&apos;s a version of this that works while you sleep →

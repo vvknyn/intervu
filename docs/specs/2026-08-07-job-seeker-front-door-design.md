@@ -96,7 +96,8 @@ still one interstitial between "I need a job" and jobs. Decision: retire it.
    otherwise be orphaned by the deck's death) renders as a slim guest-only line
    on `/jobs`, fetched via the existing `getMarketingStatsAction` client-action
    pattern, near the existing guest-only `GUEST_SERP_TIP`.
-4. Sitemap already lists `/` as "Jobs search — the root route"; unchanged.
+4. Sitemap's priority-1 entry moves from `/` to `/jobs` to match the new
+   canonical URL, now that `/` just redirects there.
 
 **Known accepted trade:** `/jobs` body content is client-rendered (it always
 was — pre-existing); the crawler/preview story rides the server-side metadata,

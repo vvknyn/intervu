@@ -59,6 +59,6 @@ test.describe('SETTINGS - Account Page Tests', () => {
   test('TC-SETTINGS-015: Back navigation works', async ({ page }) => {
     await expect(page).toHaveURL('/settings');
     await page.goto('/');
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/jobs');
   });
 });
