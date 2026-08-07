@@ -25,15 +25,18 @@ describe('POST /api/oauth/token — per-IP rate limit (public, unauthenticated e
     }
     const limited = await POST(reqFrom(ip));
     assert.equal(limited.status, 429);
-    assert.deepEqual(await limited.json(), { error: 'rate_limited' });
+    const body = await limited.json();
+    assert.equal(body.error, 'rate_limited');
+    assert.equal(body.limiter, 'hourly_calls');
+    assert.ok(typeof body.retryAfterSeconds === 'number' && body.retryAfterSeconds > 0);
   });
 
-  it('IMPORTANT 4 — the 61st request is still ok (past the 60 per-credential default, under the wider public budget)', async () => {
+  it('IMPORTANT 4 — a request past the 300 per-credential default is still ok, under the wider public budget', async () => {
     const ip = '198.51.100.31';
     assert.ok(AGENT.PUBLIC_RATE_LIMIT > AGENT.RATE_LIMIT);
     for (let i = 0; i < AGENT.RATE_LIMIT + 1; i++) {
       const res = await POST(reqFrom(ip));
-      assert.equal(res.status, 400, `request ${i + 1} should be under the public budget, not the 60 default`);
+      assert.equal(res.status, 400, `request ${i + 1} should be under the public budget, not the 300 default`);
     }
   });
 

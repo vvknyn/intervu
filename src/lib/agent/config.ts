@@ -18,13 +18,23 @@ export const AGENT = {
         /** One doc per credential — see record-budget.ts. */
         recordBudgets: "agent_record_budgets",
     },
-    RATE_LIMIT: 60,
+    /**
+     * Per-credential hourly call budget — the "pipe" a legitimate agent
+     * session should never feel. Bumped 60 → 300 (2026-08-06) after a real
+     * claude.ai session got rate_limited after only ~8 tool calls, and a
+     * brand-new credential's very first call was also rejected: MCP protocol
+     * overhead (handshake, tools/list, SSE stream reconnects) shares this
+     * same per-credential budget with visible tool calls, invisibly, so 60
+     * was too tight for anything but a trivial session. The real anti-
+     * harvesting boundary is `DAILY_RECORD_BUDGET` below, which does not move.
+     */
+    RATE_LIMIT: 300,
     /**
      * The two public, unauthenticated OAuth endpoints (`/api/oauth/register`,
      * `/api/oauth/token`) key their rate limit by caller IP, not credential —
      * and hosted connectors (claude.ai, ChatGPT custom connectors) proxy
      * every one of THEIR users' calls through a shared pool of provider
-     * egress IPs. Budgeting those two routes at the same 60/hr as a single
+     * egress IPs. Budgeting those two routes at the same 300/hr as a single
      * MCP credential would let one intervu user on a hosted connector burn
      * the whole shared IP's budget and 429 every other intervu user behind
      * the same egress IP. Wider on purpose — these routes only mint/refresh
@@ -45,13 +55,13 @@ export const AGENT = {
      * Per-credential DAILY budget on job RECORDS returned across every
      * corpus-reading tool (search_jobs, get_job — see record-budget.ts) —
      * orthogonal to RATE_LIMIT, which bounds CALLS per hour, not records
-     * per day. RATE_LIMIT alone permits 60 calls/hr x RESULT_CAP(20)/call =
-     * ~28,800 records/day/credential, sustained indefinitely — far beyond
+     * per day. RATE_LIMIT alone permits 300 calls/hr x RESULT_CAP(20)/call =
+     * ~144,000 records/day/credential, sustained indefinitely — far beyond
      * any real job search and a viable slow-exfiltration path against a
      * multi-million-row corpus that is the product's core commercial asset.
      * A genuine digest reads on the order of 20-100 records/day; a heavy
      * manual user maybe a few hundred. 1,000/day is generous for any real
-     * usage pattern and still ~28x below today's effective per-credential
+     * usage pattern and still ~144x below today's effective per-credential
      * ceiling.
      */
     DAILY_RECORD_BUDGET: 1_000,
