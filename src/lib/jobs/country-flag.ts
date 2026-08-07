@@ -1,4 +1,5 @@
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { toValueArray } from "@/lib/jobs/types";
 
 /**
  * `location_country` → regional-indicator flag emoji, for the Himalayas-
@@ -239,13 +240,9 @@ function regionalIndicatorFlag(iso2: string): string | null {
   return String.fromCodePoint(...codePoints);
 }
 
-/**
- * Map a raw `location_country` value to a flag emoji, or `null` when it
- * can't be resolved — callers render the location chip without a flag
- * rather than a broken/placeholder glyph.
- */
-export function countryToFlag(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+/** Resolve ONE raw country value to its flag emoji, or `null` when it can't
+ *  be resolved. */
+function flagForOne(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
@@ -258,4 +255,21 @@ export function countryToFlag(raw: string | null | undefined): string | null {
   // Not a recognized country name/alias — try it as a raw ISO-2 code
   // (e.g. a value the corpus already stores as "DE" rather than "Germany").
   return regionalIndicatorFlag(trimmed);
+}
+
+/**
+ * Map a raw `location_country` value to its flag emoji(s), or `null` when
+ * none resolve — callers render the location chip without a flag rather
+ * than a broken/placeholder glyph. A multi-country posting (an array, for
+ * the Subspace multi-country feed) concatenates the flag of every
+ * recognized element in order, with no separator, and skips ones that
+ * don't resolve — an array with nothing recognized returns `null`, same as
+ * an unrecognized scalar.
+ */
+export function countryToFlag(raw: string | string[] | null | undefined): string | null {
+  const flags = toValueArray(raw)
+    .map(flagForOne)
+    .filter((f): f is string => Boolean(f))
+    .join("");
+  return flags || null;
 }
