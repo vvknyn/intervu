@@ -32,7 +32,7 @@ function initialsOf(user: User): string {
 
 /**
  * Frozen coherent chrome:
- * - Mobile (< lg): centered mark + wordmark only — nav lives in MobileTabBar
+ * - Mobile (< lg): centered mark + wordmark, auth affordance pinned right — nav lives in MobileTabBar
  * - Desktop (lg+): logo left · Jobs · Tracker · Connect · DP rightmost
  */
 export function TopBar() {
@@ -69,7 +69,7 @@ export function TopBar() {
             data-testid="topbar"
             className={cn("shrink-0 border-b", siteChrome.bar, siteChrome.border)}
         >
-            <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
+            <div className="relative mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2.5 text-[#ececec]"
@@ -81,24 +81,26 @@ export function TopBar() {
                     </span>
                 </Link>
 
-                <nav
-                    aria-label="Primary"
-                    className="hidden items-center gap-[18px] text-[13px] lg:flex"
-                >
-                    {NAV_TABS.map((tab) => {
-                        const active = tab.match(pathname);
-                        return (
-                            <Link
-                                key={tab.href + tab.label}
-                                href={tab.href}
-                                data-testid={tab.testId}
-                                aria-current={active ? "page" : undefined}
-                                className={active ? siteChrome.active : siteChrome.mutedHover}
-                            >
-                                {tab.label}
-                            </Link>
-                        );
-                    })}
+                <div className="absolute right-5 flex items-center gap-[18px] sm:right-7 lg:static">
+                    <nav
+                        aria-label="Primary"
+                        className="hidden items-center gap-[18px] text-[13px] lg:flex"
+                    >
+                        {NAV_TABS.map((tab) => {
+                            const active = tab.match(pathname);
+                            return (
+                                <Link
+                                    key={tab.href + tab.label}
+                                    href={tab.href}
+                                    data-testid={tab.testId}
+                                    aria-current={active ? "page" : undefined}
+                                    className={active ? siteChrome.active : siteChrome.mutedHover}
+                                >
+                                    {tab.label}
+                                </Link>
+                            );
+                        })}
+                    </nav>
 
                     {user ? (
                         <DropdownMenu>
@@ -144,7 +146,7 @@ export function TopBar() {
                             Sign in
                         </button>
                     )}
-                </nav>
+                </div>
             </div>
 
             <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
