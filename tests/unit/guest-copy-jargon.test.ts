@@ -6,7 +6,6 @@ import {
   SITE_DESCRIPTION,
 } from "../../src/lib/seo/constants";
 import {
-  BOARD_PANE_LINE,
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
@@ -37,7 +36,6 @@ const GUEST_STRINGS: Record<string, string> = {
   SITE_DESCRIPTION,
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
-  BOARD_PANE_LINE,
   FOOTER_PROVENANCE_LINE,
   MARKETING_CLAIM_NO_STATS: marketingClaim(null),
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({

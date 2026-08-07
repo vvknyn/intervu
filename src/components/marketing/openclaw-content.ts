@@ -50,10 +50,6 @@ export const INSTRUMENT_META = "Find the job postings that are hiring";
 export const INSTRUMENT_SUPPORT =
     "Browse free — sign in only when you open a role.";
 
-/** Board-lane pane — the mono panel when the Job board tab is active.
- *  Replaces "/jobs — verified board" ("verified board" was insider-speak). */
-export const BOARD_PANE_LINE = "/jobs — screened for ghost-job risk";
-
 /** Quiet tip above unsigned `/jobs` results (session-dismissible in UI). */
 export const GUEST_SERP_TIP = "Open a role to continue — details need sign-in.";
 
