@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { InstrumentDeck } from "@/components/marketing/InstrumentDeck";
 import { LANDING_DESCRIPTION, LANDING_TITLE, SITE_URL } from "@/lib/seo/constants";
@@ -24,9 +23,5 @@ export const metadata: Metadata = {
 /** Full-bleed landing instrument — TopBar/Footer/MobileTabBar hidden via shouldHideSiteChrome. */
 export default async function HomePage() {
     const stats = await getMarketingStatsAction();
-    return (
-        <Suspense fallback={null}>
-            <InstrumentDeck stats={stats} />
-        </Suspense>
-    );
+    return <InstrumentDeck stats={stats} />;
 }

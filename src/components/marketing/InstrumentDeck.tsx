@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
+import { LandingSigninRedirect } from "@/components/marketing/LandingSigninRedirect";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import {
     BOARD_PANE_LINE,
@@ -47,7 +48,6 @@ const tabActive = {
 export function InstrumentDeck({ stats }: { stats: MarketingCorpusStats | null }) {
     const jobCount = stats ? formatCorpusCount(stats.liveJobs) : null;
     const router = useRouter();
-    const searchParams = useSearchParams();
     const [lane, setLane] = useState<LandingLane>(DEFAULT_LANDING_LANE);
     const [copied, setCopied] = useState(false);
     const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
@@ -64,15 +64,10 @@ export function InstrumentDeck({ stats }: { stats: MarketingCorpusStats | null }
         return onAuthChange(setUser);
     }, []);
 
-    useEffect(() => {
-        if (searchParams.get("signin") !== "1" || user) return;
-        const next = searchParams.get("next");
-        router.replace(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
-    }, [searchParams, user, router]);
-
     const handleAuthed = () => {
+        const urlNext = new URLSearchParams(window.location.search).get("next");
         const next =
-            validateNextParam(searchParams.get("next")) ??
+            validateNextParam(urlNext) ??
             validateNextParam(pendingNext) ??
             "/jobs";
         setPendingNext(null);
@@ -247,6 +242,9 @@ export function InstrumentDeck({ stats }: { stats: MarketingCorpusStats | null }
 
             <HowItWorksFilm film={film} onOpenChange={(open) => !open && setFilm(null)} />
             <AuthPopover open={authOpen} onOpenChange={setAuthOpen} showTrigger={false} onAuthed={handleAuthed} />
+            <Suspense fallback={null}>
+                <LandingSigninRedirect />
+            </Suspense>
         </main>
     );
 }
