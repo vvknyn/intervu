@@ -121,7 +121,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-[700px] max-h-[90dvh] flex flex-col overflow-hidden">
                 <DialogHeader className="pr-8">
                     <div className="flex items-center justify-between mb-2">
                         <DialogTitle>{story ? 'Edit Story' : 'New STAR Story'}</DialogTitle>

@@ -68,7 +68,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88vh,760px)] max-w-[720px] overflow-y-auto rounded-t-[18px] border-b-0 p-0",
+                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-[18px] border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
