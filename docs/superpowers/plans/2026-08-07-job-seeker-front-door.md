@@ -500,7 +500,7 @@ npm run build
 npx next start -p 4321 &
 sleep 3
 curl -s http://localhost:4321/ | grep -c "Find the job postings that are hiring"   # expect ≥ 1
-curl -s http://localhost:4321/ | grep -c "BAILOUT_TO_CLIENT_SIDE_RENDERING"        # expect 0
+curl -s http://localhost:4321/ | grep -c "BAILOUT_TO_CLIENT_SIDE_RENDERING"        # expect 1 — the LandingSigninRedirect boundary's own inert <template>; the deck's content must be present in the HTML
 kill %1
 ```
 

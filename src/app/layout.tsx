@@ -52,8 +52,8 @@ const splineMono = Spline_Sans_Mono({
 const SITE_TITLE = SITE_NAME;
 // Fallback for any route that doesn't set its own `metadata` — `/jobs`
 // (a "use client" page, which can't export metadata of its own) is the
-// main consumer today. `/` (the automation-first front door) overrides
-// this with its own metadata in src/app/page.tsx.
+// main consumer today.
+/** Site-wide guest meta strings live in @/lib/seo/constants — see SITE_DESCRIPTION and LANDING_*. */
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

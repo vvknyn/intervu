@@ -53,7 +53,9 @@ audience the front door speaks to.
    Job board → Claude/ChatGPT → OpenClaw. Enthusiasts reach their tabs in one
    click; strangers never need to.
 2. **Rewrite title/meta/OG.** Shape: *"Intervu — a job board that screens out
-   ghost postings"*; description built from the outcome and the corpus numbers
+   ghost postings"* (shipped title: "Intervu — live jobs, checked for ghost
+   postings" — "screens out" would overclaim removal; use screening/flagging
+   language only); description built from the outcome and the corpus numbers
    (live roles from companies' own career pages, ghost-flagged before you waste
    an application). No "skill", "agent", "OpenClaw", "MCP", or "WhatsApp"
    anywhere in `/` metadata. `OPENCLAW_SUBLINE` may keep its current text where
