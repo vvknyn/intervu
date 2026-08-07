@@ -2746,7 +2746,7 @@ function JobsContent() {
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-none border border-[#5c636e] bg-[#12151a] p-4 text-[#ececec] custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-[#5c636e] bg-[#12151a] p-4 text-[#ececec] custom-scrollbar"
                         >
                             {result?.configured && (
                                 <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
@@ -3186,7 +3186,7 @@ function JobsContent() {
                     side="bottom"
                     hideCloseButton
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                    className="left-1/2 flex max-h-[min(88vh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[0_-18px_50px_rgba(18,21,26,0.18)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[0_-18px_50px_rgba(18,21,26,0.18)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <div className="flex shrink-0 justify-center py-2.5 pt-2.5" aria-hidden>
                         <span className="h-1 w-9 rounded-full bg-[#d0d6de]" />

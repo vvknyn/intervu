@@ -198,7 +198,7 @@ export function PrepSettings({
                     <div
                         ref={panelRef}
                         className={cn(
-                            "fixed inset-x-3 top-[4.5rem] sm:inset-x-auto sm:w-96 bg-card border border-border rounded-lg shadow-2xl z-[110] overflow-hidden animate-in fade-in duration-200 flex flex-col max-h-[80vh]",
+                            "fixed inset-x-3 top-[4.5rem] sm:inset-x-auto sm:w-96 bg-card border border-border rounded-lg shadow-2xl z-[110] overflow-hidden animate-in fade-in duration-200 flex flex-col max-h-[80dvh]",
                             panelPos?.openAbove ? "slide-in-from-bottom-1" : "slide-in-from-top-1"
                         )}
                         style={panelPos && window.innerWidth >= 640 ? { top: panelPos.top, left: panelPos.left, maxHeight: panelPos.maxHeight } : undefined}

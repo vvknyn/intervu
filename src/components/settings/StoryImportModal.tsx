@@ -517,7 +517,7 @@ Example:
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[640px] bg-white dark:bg-neutral-950 max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogContent className="sm:max-w-[640px] bg-white dark:bg-neutral-950 max-h-[90dvh] overflow-hidden flex flex-col">
                 <DialogHeader className="pr-8">
                     <DialogTitle className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
