@@ -13,6 +13,7 @@
  */
 
 import { RTCPeerConnection } from "werift";
+import { fingerprintSdp } from "./sdp-fingerprint.mjs";
 
 const STUN = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -44,6 +45,33 @@ export function signalUrl(apiBase, id) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Whether a guest answer sitting on the doorbell is worth accepting, versus
+ * a stale entry left over from before this renegotiation (D11).
+ *
+ * The guest stamps a fingerprint of the offer it actually answered
+ * (`answeredOffer`) — comparing THAT against the offer this poll is waiting
+ * on is the only check that survives a reload: a phone that reloads
+ * mid-renegotiation and re-answers the SAME stale offer produces a
+ * BYTE-DIFFERENT answer SDP every time (fresh ICE credentials on every
+ * `createAnswer()` call), so comparing the answer's own bytes against the
+ * previous answer (`ignoreSdp`) cannot catch it — it looks "new" every
+ * time, and `setRemoteDescription` gets poisoned with an answer to an offer
+ * this pc never sent. `ignoreSdp` stays as the fallback for a guest blob
+ * with no `answeredOffer` (an older page, or a doorbell fake with no
+ * fingerprint) so this degrades to the previous behaviour rather than
+ * breaking, but a fingerprint is trusted over it whenever one is present.
+ *
+ * @param {{sdp: string, answeredOffer?: string}} guest
+ * @param {{ignoreSdp?: string|null, offerFingerprint?: string|null}} [options]
+ */
+export function isFreshAnswer(guest, { ignoreSdp = null, offerFingerprint = null } = {}) {
+    if (guest.answeredOffer != null && offerFingerprint != null) {
+        return guest.answeredOffer === offerFingerprint;
+    }
+    return guest.sdp !== ignoreSdp;
+}
+
+/**
  * Waits for the phone to open the link, until the session itself expires.
  *
  * Bounded by the server's own `expiresAt` rather than an attempt count
@@ -67,15 +95,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {string} url
  * @param {{deadline: number, delayMs?: number, maxDelayMs?: number,
  *          headers?: Record<string,string>, sleepImpl?: (ms:number)=>Promise<void>,
- *          ignoreSdp?: string|null}} options
+ *          ignoreSdp?: string|null, offerFingerprint?: string|null}} options
  *        `deadline` is the session's own expiresAt, in epoch ms. `ignoreSdp`
- *        (D11 reconnect) treats a guest answer matching it as "not yet" —
- *        it is the answer from BEFORE this renegotiation, which can still
- *        be sitting on the doorbell for a moment after a fresh offer is
- *        posted under the same session id.
+ *        / `offerFingerprint` (D11) are handed to `isFreshAnswer` — see its
+ *        doc for why the fingerprint is trusted first.
  * @returns {Promise<{sdp: string}>}
  */
-export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000, maxDelayMs = 15000, headers = {}, sleepImpl = sleep, ignoreSdp = null } = {}) {
+export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000, maxDelayMs = 15000, headers = {}, sleepImpl = sleep, ignoreSdp = null, offerFingerprint = null } = {}) {
     // Without this a missing deadline makes the comparison below false and
     // the function gives up instantly, which reads exactly like a phone that
     // never connected.
@@ -94,7 +120,7 @@ export async function pollUntilGuest(fetchImpl, url, { deadline, delayMs = 1000,
         }
         if (res?.ok) {
             const body = await res.json();
-            if (body.guest && body.guest.sdp !== ignoreSdp) return body.guest;
+            if (body.guest && isFreshAnswer(body.guest, { ignoreSdp, offerFingerprint })) return body.guest;
         }
         await sleepImpl(delay);
         delay = nextPollDelay(delay, maxDelayMs);
@@ -112,7 +138,17 @@ export function nextPollDelay(delayMs, maxDelayMs) {
  *  the session is still live, worth replacing rather than leaving stranded. */
 const DEAD_STATES = new Set(["failed", "closed", "disconnected"]);
 
-export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onInput }) {
+/**
+ * @param {object} deps
+ * @param {string} deps.apiBase
+ * @param {string} deps.bearer
+ * @param {typeof fetch} [deps.fetchImpl]
+ * @param {(text: string, source: "webrtc") => void} deps.onInput
+ * @param {() => void} [deps.onDisconnect]  called when the data channel
+ *  closes, so the caller can re-arm its input-sink gate before (or
+ *  independent of) any reconnect this triggers.
+ */
+export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onInput, onDisconnect = undefined }) {
     const base = apiBase.replace(/\/$/, "");
     const auth = { authorization: `Bearer ${bearer}`, "content-type": "application/json" };
     let pc = null;
@@ -147,7 +183,7 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onIn
     // a stray chunk is silently ignored instead of corrupting onInput.
     const handleChannelMessage = (data) => {
         if (data[0] === "C" || data[0] === "F") return;
-        onInput?.(data);
+        onInput?.(data, "webrtc");
     };
 
     /**
@@ -156,6 +192,12 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onIn
      * live; `onOffered` — invoked right after the offer is posted — is how
      * `start()` still returns as soon as there is a link worth sending
      * without waiting for a phone that may take a minute to be picked up.
+     *
+     * Everything from the offer onward runs inside a try/catch that closes
+     * `newPc` on any failure (a rejected POST, a poll that times out, a
+     * bad answer) — otherwise a failed attempt leaks the werift peer
+     * connection (and the OS socket it opened for ICE) with nothing left
+     * holding a reference to close it.
      */
     async function negotiate(previousAnswerSdp, { onOffered } = {}) {
         const newPc = new RTCPeerConnection(STUN);
@@ -164,29 +206,41 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onIn
             if (lastPayload) deliver(newChannel, lastPayload);
         };
         newChannel.onmessage = (event) => handleChannelMessage(String(event.data));
-        await newPc.setLocalDescription(await newPc.createOffer());
+        try {
+            await newPc.setLocalDescription(await newPc.createOffer());
+            const offerFingerprint = fingerprintSdp(newPc.localDescription.sdp);
 
-        const url = signalUrl(base, sessionId);
-        await fetchImpl(url, {
-            method: "POST",
-            headers: auth,
-            body: JSON.stringify({ role: "host", sdp: newPc.localDescription.sdp }),
-        });
-        onOffered?.();
+            const url = signalUrl(base, sessionId);
+            await fetchImpl(url, {
+                method: "POST",
+                headers: auth,
+                body: JSON.stringify({ role: "host", sdp: newPc.localDescription.sdp }),
+            });
+            onOffered?.();
 
-        const guest = await pollUntilGuest(fetchImpl, url, { headers: auth, deadline: expiresAt, ignoreSdp: previousAnswerSdp });
-        await newPc.setRemoteDescription({ type: "answer", sdp: guest.sdp });
+            const guest = await pollUntilGuest(fetchImpl, url, { headers: auth, deadline: expiresAt, ignoreSdp: previousAnswerSdp, offerFingerprint });
+            await newPc.setRemoteDescription({ type: "answer", sdp: guest.sdp });
 
-        pc = newPc;
-        channel = newChannel;
-        lastAnswerSdp = guest.sdp;
-        wireLifecycle(newPc, newChannel);
+            pc = newPc;
+            channel = newChannel;
+            lastAnswerSdp = guest.sdp;
+            wireLifecycle(newPc, newChannel);
+        } catch (error) {
+            newPc.close();
+            throw error;
+        }
     }
 
     /** Detects the two ways a peer connection dies and, while the session
      *  hasn't expired, replaces it instead of leaving the phone stranded. */
     function wireLifecycle(livePc, liveChannel) {
-        liveChannel.onclose = () => reconnect();
+        liveChannel.onclose = () => {
+            // Re-arms the input gate the same way a LAN client disconnect
+            // does: control granted to the peer that just dropped must not
+            // silently carry over to whoever (re)connects next.
+            onDisconnect?.();
+            reconnect();
+        };
         livePc.onconnectionstatechange = () => {
             if (DEAD_STATES.has(livePc.connectionState)) reconnect();
         };
@@ -196,11 +250,18 @@ export function createWebRtcTransport({ apiBase, bearer, fetchImpl = fetch, onIn
         if (reconnecting || !sessionId || Date.now() >= expiresAt) return;
         reconnecting = true;
         const dead = pc;
+        const deadChannel = channel;
         try {
             if (dead) {
                 dead.onconnectionstatechange = null; // closing it below must not re-trigger this
                 dead.close();
             }
+            // Same reasoning as the pc above: without detaching this, the
+            // dead channel's own 'close' event (which can still fire after
+            // dead.close() completes) would call reconnect() a second time
+            // once this attempt has already finished — tearing down the
+            // fresh, healthy connection it just negotiated.
+            if (deadChannel) deadChannel.onclose = null;
             await negotiate(lastAnswerSdp);
         } catch (error) {
             console.error(`Reconnect failed (${error.message}). The phone can reopen the watch link to try again.`);

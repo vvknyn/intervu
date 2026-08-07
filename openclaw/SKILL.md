@@ -379,7 +379,9 @@ from running this command directly — every other AUDIT in this skill
    separate "start the viewer" instruction could (and, live, once was).
    Focus the FORM tab first — `browser focus <FORM tab>`, since the viewer
    mirrors the ACTIVE tab — then start the viewer in audit mode, in the
-   background: `node scripts/viewer.mjs --audit &`.
+   background, capturing its PID: `node scripts/viewer.mjs --audit &
+   VIEWER_PID=$!`. That PID — not a job number — is what stops it later, in
+   §5 Record, once control has genuinely ended.
 
    Read its `AUDIT: <json>` line — this IS the PRE-FLIGHT AUDIT, the ONLY
    source of truth for what the freshly opened form holds and requires (see
@@ -501,16 +503,18 @@ from running this command directly — every other AUDIT in this skill
      ~/Downloads/<Company>-<Title>-resume-<date>.pdf`, named in the text —
      the same file `check-upload.mjs` just confirmed is attached to the
      form, so the user never has to ask what they applied with.
-   - Tap "take control" on the watch page to fix anything directly.
+   - Tap "take control" on the watch page to fix anything directly — the
+     viewer is still live; it doesn't stop until §5 Record, after your
+     response reaches this chat (WhatsApp flushes progress lines together at
+     turn end, so the viewer staying up is what actually lets you act on
+     this line, not a promise made and then immediately cut).
    - Close with: "Review and hit submit."
    One message per application.
 10. Write `preparedAwaitingSubmit[job_id] = { title, company, preparedAt:
     now, nudged: false }`.
-11. Stop the viewer (`kill %1`) — the form is now full of the user's
-    personal details and nothing should still be streaming it. The watch
-    link dies with it.
-12. STOP. Do not click submit. Do not call `mark_applied` (only after the
-    user says they submitted).
+11. STOP. Do not click submit. Do not call `mark_applied` (only after the
+    user says they submitted). The viewer keeps streaming through this wait
+    — see §5 Record for where it actually stops.
 
 ### 4. Account-wall handoff
 
@@ -542,6 +546,15 @@ detecting a signup/login wall during FORM FILL:
    If the wall is still up, say so and stop again — don't guess it worked.
 
 ### 5. Record
+
+The user's response — submitted, or "drop it" — is where control genuinely
+ends: the FIRST thing this step does, before anything else, is stop the
+viewer: `kill $VIEWER_PID` (the PID captured at launch in §3 step 3, not a
+job number — job numbers are position-dependent across whatever else this
+session has backgrounded, and killing the wrong one leaves the real viewer
+streaming a form now full of the user's personal details). The watch link
+dies with it. Do this on EITHER outcome below, not only the submitted path —
+"drop it" ends control just as much as a submit does.
 
 Only after the user explicitly says they submitted (in this session, in
 their own words — not inferred from silence or a screenshot):

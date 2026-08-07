@@ -40,6 +40,12 @@
   const typer = document.getElementById('typer');
   const token = new URLSearchParams(location.search).get('t');
 
+  // Stamped in by transport-lan.mjs at serve time from the SAME predicate
+  // that gates POST /input server-side (isTailnetConnection) — a same-WiFi
+  // connection is watch-only, so the button that promises control must not
+  // even appear rather than appear and silently fail every tap.
+  if (window.__CONTROL_CAPABLE__ !== true) controlBtn.hidden = true;
+
   // Following the focused field is the default because a mirrored 1512px
   // desktop viewport renders at ~26% on a phone. Tapping shows the whole
   // page for orientation — but only while NOT in control, where a tap

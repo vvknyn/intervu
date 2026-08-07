@@ -9,6 +9,15 @@
  * The token is the whole access control here. It is generated per run and
  * carried in the URL, so the link the user receives is the credential and
  * a link from a finished session is worthless.
+ *
+ * The token alone is not enough to authorize CONTROL, though: this product
+ * installs on other people's networks (cafés, offices — anywhere with a
+ * plain shared WiFi), and a link that leaked or was screen-shared on that
+ * network would otherwise let a stranger drive the agent's browser. Input
+ * is only honored when the connection itself arrived over the tailnet
+ * interface (`isControlCapable`, keyed off the request's local address) —
+ * same-WiFi connections stay watch-only, and the page is told so up front
+ * so it never shows a "take control" button it can't honor.
  */
 
 import { createServer } from "node:http";
@@ -16,7 +25,7 @@ import { networkInterfaces } from "node:os";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isTailnetAddress } from "./tailnet.mjs";
+import { isTailnetAddress, isTailnetConnection } from "./tailnet.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(join(HERE, "watch-page.html"), "utf8");
@@ -24,6 +33,18 @@ const PAGE = readFileSync(join(HERE, "watch-page.html"), "utf8");
 // one home and stays unit-testable in Node.
 const CROP_MODULE = readFileSync(join(HERE, "crop.mjs"), "utf8");
 const INPUT_CAPTURE_MODULE = readFileSync(join(HERE, "input-capture.mjs"), "utf8");
+
+/** The page's control button must render only when this same request's
+ *  connection is control-capable — stamped in as a global before the page's
+ *  own module script runs, so the client never has to guess or race a
+ *  separate fetch to find out. */
+const CONTROL_SCRIPT_ANCHOR = '<script type="module">';
+
+/** Larger than any legitimate wire message (tap/text/key control messages
+ *  are at most a couple KB); caps how much of a POST /input body this
+ *  server will buffer before the sink ever sees it, so a client posting an
+ *  oversized body cannot make it spend unbounded memory assembling garbage. */
+export const MAX_INPUT_BYTES = 64 * 1024;
 
 /**
  * Only three fields of an interface record matter here, so that is all the
@@ -49,7 +70,18 @@ export function lanUrls(port, token, ifaces = networkInterfaces()) {
         }));
 }
 
-export function createLanTransport({ port = 18801, token, onInput }) {
+/**
+ * @param {object} deps
+ * @param {number} [deps.port]
+ * @param {string} [deps.host]  bind address; only ever overridden by a test
+ *  (see MAX_INPUT_BYTES's sibling `port` param for the same rationale).
+ * @param {string} deps.token
+ * @param {(text: string, source: "lan") => void} deps.onInput
+ * @param {() => void} [deps.onDisconnect]  called when a client (the /stream
+ *  subscriber) disconnects, so the caller can re-arm its input-sink gate.
+ * @param {(localAddress: string | undefined) => boolean} [deps.isControlCapable]
+ */
+export function createLanTransport({ port = 18801, host = undefined, token, onInput, onDisconnect = undefined, isControlCapable = isTailnetConnection }) {
     const clients = new Set();
     let server = null;
     // SSE has no replay and Chrome only emits on change, so a phone that
@@ -108,24 +140,56 @@ Ask your agent for a fresh link, and open it by tapping rather than retyping.</p
             res.write(": connected\n\n");
             if (lastFrame) res.write(`data: ${lastFrame}\n\n`);
             clients.add(res);
-            req.on("close", () => clients.delete(res));
+            req.on("close", () => {
+                clients.delete(res);
+                // Re-arms the input gate: without this, a phone that reloads
+                // (a fresh page, control shown off) leaves the OLD sink
+                // thinking control is still on, and a stray POST /input
+                // carrying the still-valid LAN token would be honored with
+                // nobody having granted it on the page now showing.
+                onDisconnect?.();
+            });
             return;
         }
         if (url.pathname === "/input" && req.method === "POST") {
+            // Same-WiFi links are watch-only: this product installs on
+            // networks we don't control, so input is only honored when the
+            // connection itself arrived over the tailnet interface — the
+            // token proves the link is genuine, not that this network is
+            // trusted with control.
+            if (!isControlCapable(req.socket.localAddress)) {
+                res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+                return res.end("Control isn't available on this link — it only works over the tailnet (WATCH-ANYWHERE) link.");
+            }
             // Never parsed here — the sink is the only place the wire
             // contract is validated, so every transport hands over the same
             // raw text regardless of what shape (or non-JSON garbage) it is.
             let body = "";
-            req.on("data", (chunk) => { body += chunk; });
+            let bytes = 0;
+            let rejected = false;
+            req.on("data", (chunk) => {
+                if (rejected) return;
+                bytes += chunk.length;
+                if (bytes > MAX_INPUT_BYTES) {
+                    rejected = true;
+                    res.writeHead(413, { "content-type": "text/plain; charset=utf-8" });
+                    res.end("Input message too large.");
+                    req.destroy();
+                    return;
+                }
+                body += chunk;
+            });
             req.on("end", () => {
-                onInput?.(body);
+                if (rejected) return;
+                onInput?.(body, "lan");
                 res.writeHead(204);
                 res.end();
             });
             return;
         }
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(PAGE);
+        const capable = isControlCapable(req.socket.localAddress);
+        res.end(PAGE.replace(CONTROL_SCRIPT_ANCHOR, `<script>window.__CONTROL_CAPABLE__=${capable};</script>\n${CONTROL_SCRIPT_ANCHOR}`));
     };
 
     return {
@@ -140,15 +204,20 @@ Ask your agent for a fresh link, and open it by tapping rather than retyping.</p
          */
         async start() {
             server = createServer(handler);
-            const bound = await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
                 server.once("error", (err) => {
-                    if (err.code !== "EADDRINUSE") throw err;
+                    // A non-EADDRINUSE error (EACCES on a privileged port,
+                    // ENOTFOUND on a bad host, ...) used to `throw` here —
+                    // inside an async event callback, which the enclosing
+                    // Promise cannot catch, so it became an uncaught
+                    // exception that killed the whole process instead of a
+                    // clean, reportable start() rejection.
+                    if (err.code !== "EADDRINUSE") return reject(err);
                     console.error(`Port ${port} is busy (another application is probably still open) — using a free one instead.`);
-                    server.listen(0, () => resolve(true));
+                    server.listen(0, host, () => resolve());
                 });
-                server.listen(port, () => resolve(true));
+                server.listen(port, host, () => resolve());
             });
-            if (!bound) throw new Error("the viewer's local server failed to start");
             return { urls: lanUrls(server.address().port, token) };
         },
 

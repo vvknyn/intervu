@@ -1,7 +1,8 @@
 import { describe, it, after } from 'node:test'; import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { createSession, getSession, putSignal, deleteSession } from '../../src/lib/viewer/session-store';
 import { VIEWER_SESSION_TTL_MS } from '../../src/lib/viewer/sessions';
 
@@ -135,5 +136,49 @@ describe('viewer session store — file-backed (D10)', () => {
     await store.putSignal(s.id, 'host', { sdp: 'v=0' });
     await store.deleteSession(s.id);
     assert.deepEqual(readdirSync(dir), before, 'no file should appear in an unrelated directory when unconfigured');
+  });
+});
+
+/**
+ * persist()'s write-failure handling needs a REAL fresh module evaluation —
+ * SESSION_FILE is a top-level `const` read once from the env — and this
+ * FILE already imports session-store.ts statically above, which freezes
+ * that constant (to `undefined`, the real ambient env) the moment the file
+ * loads, before any test body runs. Verified directly: a dynamic
+ * `import(specifier + '?x=' + Math.random())` of the same module, even run
+ * back-to-back with no static import anywhere in sight, still returns the
+ * SAME module object under this repo's tsx/Node combination — the
+ * query-string cache-busting the D10 suite above relies on for its own
+ * "restart" simulation does not actually re-run top-level module code here.
+ * Spawning a genuinely separate process is the only way to get a first-ever,
+ * uncontaminated module evaluation that observes THIS test's env var.
+ */
+describe('persist() failure handling — real process isolation', () => {
+  it('does not throw when the file write fails — persistence degrades to in-memory only, logged once naming the path', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'viewer-session-store-persist-'));
+    const badFile = join(dir, 'missing-parent-dir', 'sessions.json');
+    const script = join(dir, 'probe.mjs');
+    const storeSpecifier = new URL('../../src/lib/viewer/session-store.ts', import.meta.url).href;
+    writeFileSync(script, `
+      const errors = [];
+      console.error = (...args) => errors.push(args.join(' '));
+      const store = await import(${JSON.stringify(storeSpecifier)});
+      const created = await store.createSession('user-e');
+      const readBack = await store.getSession(created.id);
+      await store.putSignal(created.id, 'host', { sdp: 'v=0' });
+      process.stdout.write(JSON.stringify({ uid: readBack && readBack.uid, errors }));
+    `);
+
+    const out = execFileSync('npx', ['tsx', script], {
+      encoding: 'utf8',
+      env: { ...process.env, VIEWER_SESSION_FILE: badFile },
+    });
+    const result = JSON.parse(out.trim().split('\n').pop()!);
+
+    assert.equal(result.uid, 'user-e', 'in-memory store must still work when the file write fails');
+    assert.ok(result.errors.some((e: string) => e.includes(badFile)), `expected a loud error naming ${badFile}, got: ${JSON.stringify(result.errors)}`);
+    assert.equal(result.errors.length, 1, 'must log the failure once (createSession + putSignal both persist), not once per write');
+
+    rmSync(dir, { recursive: true, force: true });
   });
 });

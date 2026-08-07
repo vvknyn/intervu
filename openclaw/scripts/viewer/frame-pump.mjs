@@ -11,6 +11,7 @@
  *     acking on delivery makes a slow phone link self-throttle instead of
  *     building a backlog.
  */
+import { createIdAllocator } from "./cdp-id.mjs";
 
 const MAX_DIMENSION = 1280;
 const JPEG_QUALITY = 60;
@@ -39,14 +40,17 @@ const FOCUS_EXPRESSION = `JSON.stringify((() => {
  * @param {(message: CdpCommand) => void} deps.send        Writes one CDP command.
  * @param {(frame: { data: string, metadata: object }) => void} deps.onFrame
  * @param {(focus: FocusReport | null) => void} [deps.onFocus]  null when the page could not be asked.
+ * @param {() => number} [deps.nextId]  CDP command id allocator. Defaults to
+ *  a private counter; viewer.mjs injects ONE allocator shared with
+ *  input-sink.mjs (and its own cdpEvaluate) since all three write commands
+ *  onto the same socket — see cdp-id.mjs.
  */
-export function createFramePump({ send, onFrame, onFocus = () => {} }) {
-    let nextId = 1;
+export function createFramePump({ send, onFrame, onFocus = () => {}, nextId = createIdAllocator() }) {
     let initialShotId = null;
     const focusIds = new Set();
 
     const command = (method, params) => {
-        const id = nextId++;
+        const id = nextId();
         send({ id, method, params });
         return id;
     };

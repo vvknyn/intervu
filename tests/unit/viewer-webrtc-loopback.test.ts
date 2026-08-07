@@ -64,7 +64,7 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     t.diagnostic('opens a real peer connection; a few seconds of ICE is expected');
 
     const doorbell = fakeDoorbell();
-    const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test' });
+    const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test', onInput: () => {} });
 
     const { url, connected } = await transport.start();
 
@@ -126,9 +126,11 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
 
     const doorbell = fakeDoorbell();
     const received: string[] = [];
+    let disconnects = 0;
     const transport = createWebRtcTransport({
       apiBase: 'https://intervu.cc', fetchImpl: doorbell.fetchImpl, bearer: 'iva_test',
       onInput: (text: string) => received.push(text),
+      onDisconnect: () => { disconnects++; },
     });
 
     const { connected } = await transport.start();
@@ -157,6 +159,7 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
       await new Promise((r) => setTimeout(r, 50));
     }
     assert.notEqual(doorbell.state.host!.sdp, firstOfferSdp, 'host must renegotiate with a fresh offer after the channel closes');
+    assert.equal(disconnects, 1, 'the dead channel closing must re-arm the input-sink control gate (onDisconnect), same as a LAN client dropping');
 
     // Phone #2 answers the fresh offer.
     const phone2 = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -183,5 +186,44 @@ describe('WebRTC transport, end to end against a stand-in phone', () => {
     await transport.close();
     phone1.close();
     phone2.close();
+    assert.equal(disconnects, 1, 'closing the transport at handoff must not itself count as another disconnect');
+  });
+
+  it('closes the peer connection it created when the poll never gets an answer — no leaked pc per failed attempt', async (t) => {
+    let RTCPeerConnection;
+    try {
+      ({ RTCPeerConnection } = await loadWerift());
+    } catch {
+      return t.skip('werift not installed — run: npm i --prefix openclaw');
+    }
+
+    const doorbell = fakeDoorbell();
+    // A near-immediate expiry means pollUntilGuest gives up almost at once —
+    // the doorbell never gets a guest answer, so negotiate()'s poll rejects.
+    const fastExpiringFetch = (async (url: string, init?: { method?: string; body?: string }) => {
+      if (url.endsWith('/api/viewer/session') && init?.method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({ sessionId: 'sess-timeout', expiresAt: Date.now() + 20 }) };
+      }
+      return doorbell.fetchImpl(url, init);
+    }) as unknown as typeof fetch;
+
+    // Both transport-webrtc.mjs and this test resolve RTCPeerConnection from
+    // the SAME installed werift copy (see loadWerift's own doc), so spying
+    // on the prototype here observes the pc negotiate() actually creates.
+    const closes: number[] = [];
+    const realClose = RTCPeerConnection.prototype.close;
+    RTCPeerConnection.prototype.close = function (this: unknown, ...args: unknown[]) {
+      closes.push(1);
+      return realClose.apply(this, args);
+    };
+
+    try {
+      const transport = createWebRtcTransport({ apiBase: 'https://intervu.cc', fetchImpl: fastExpiringFetch, bearer: 'iva_test', onInput: () => {} });
+      const { connected } = await transport.start();
+      await assert.rejects(() => connected, /never connected/);
+      assert.ok(closes.length >= 1, 'the pc negotiate() created for this failed attempt must be closed, not abandoned');
+    } finally {
+      RTCPeerConnection.prototype.close = realClose;
+    }
   });
 });

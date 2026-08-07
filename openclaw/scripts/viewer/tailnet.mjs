@@ -25,6 +25,28 @@ export function isTailnetAddress(ip) {
     return a === 100 && b >= 64 && b <= 127;
 }
 
+/** Strips the IPv4-mapped-in-IPv6 prefix Node reports on some sockets
+ *  (`::ffff:100.64.0.1`) so the same dotted-quad predicate above still
+ *  recognizes it. */
+export function stripV4MappedPrefix(address) {
+    return address.startsWith("::ffff:") ? address.slice(7) : address;
+}
+
+/**
+ * Whether the LOCAL side of a connection — the interface it arrived on,
+ * e.g. `req.socket.localAddress` — is the tailnet. This is the one fact
+ * that decides whether a LAN-transport connection may send input (control)
+ * rather than only watch: the product installs on other people's networks,
+ * and a plain same-WiFi link (café, office guest network) must stay
+ * watch-only. Built on the same `isTailnetAddress` range check
+ * transport-lan.mjs already uses to label an outbound URL "tailnet" vs
+ * "lan", so there is exactly one definition of "on the tailnet" for both
+ * jobs — no second address list to keep in sync.
+ */
+export function isTailnetConnection(localAddress) {
+    return isTailnetAddress(stripV4MappedPrefix(localAddress ?? ""));
+}
+
 export function tailnetReady() {
     return existsSync(MARKER_PATH);
 }
@@ -98,12 +120,37 @@ export async function setup({ run, markerPath = MARKER_PATH, platform = process.
         }
     }
 
-    await run("tailscale", ["up"], {
+    // brew's tailscale formula does not register or start the tailscaled
+    // launchd service the way the official pkg installer (and Linux's
+    // package managers) do — `tailscale up` then fails immediately with no
+    // daemon to talk to. Unconditional, not just after a fresh install: the
+    // CLI can already be on PATH from an earlier run while the daemon still
+    // isn't running (a reboot, a first setup that never got this far).
+    // `brew services start` on an already-running service is a no-op that
+    // exits 0, so this is safe to run every time.
+    if (platform === "darwin") {
+        const daemon = await run("brew", ["services", "start", "tailscale"]);
+        if (daemon.code !== 0) {
+            console.error(`Could not start the Tailscale daemon (exit ${daemon.code}). ${daemon.stderr}`.trim());
+            throw new Error("tailscale daemon start failed");
+        }
+    }
+
+    const up = await run("tailscale", ["up"], {
         onStdout: (chunk) => {
             const match = chunk.match(AUTH_URL_RE);
             if (match) console.log(`TAILNET-AUTH-URL: ${match[0]}`);
         },
     });
+    // Previously discarded: a failed `up` (no daemon, no network, an auth
+    // error with no matchable URL) fell straight into the 10-minute
+    // "waiting for a mobile peer" poll and only ever reported
+    // TAILNET-TIMEOUT — a failure knowable in this instant, reported ten
+    // minutes late with no cause. Any non-zero step here fails loudly now.
+    if (up.code !== 0) {
+        console.error(`'tailscale up' failed (exit ${up.code}). ${up.stderr}`.trim());
+        throw new Error("tailscale up failed");
+    }
 
     const deadline = Date.now() + deadlineMs;
     while (Date.now() < deadline) {

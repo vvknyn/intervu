@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { computeCrop } from "../../../openclaw/scripts/viewer/crop.mjs";
 import { controlMessage, frameTapMessage, keyMessage, textMessage } from "../../../openclaw/scripts/viewer/input-capture.mjs";
-import { ENDED_COPY, isNewOffer, tapAction, type TapMessage } from "@/lib/viewer/watch-input";
+import { fingerprintSdp } from "../../../openclaw/scripts/viewer/sdp-fingerprint.mjs";
+import { ENDED_COPY, isNewOffer, tapAction, trySend, type TapMessage } from "@/lib/viewer/watch-input";
 
 /**
  * Answers the laptop's offer, then paints whatever arrives on the data
@@ -128,10 +129,20 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                 }
                 const offerSdp = host!.sdp;
 
-                pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-                pc.onconnectionstatechange = () => {
-                    if (cancelled || reconnecting || !pc) return;
-                    if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed") {
+                // A live pc from a previous offer must be CLOSED, not just
+                // replaced — otherwise every reconnect leaks the peer
+                // connection it's superseding. `thisPc` (a local const) is
+                // what every handler below reads and compares against, not
+                // the shared `pc` ref: a handler on a superseded instance
+                // must become a no-op the moment a newer one takes over,
+                // rather than reacting to whatever `pc` happens to point at
+                // by the time its event actually fires.
+                pc?.close();
+                const thisPc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+                pc = thisPc;
+                thisPc.onconnectionstatechange = () => {
+                    if (cancelled || reconnecting || pc !== thisPc) return;
+                    if (thisPc.connectionState === "failed" || thisPc.connectionState === "disconnected" || thisPc.connectionState === "closed") {
                         reconnecting = true;
                         setStatus("reconnecting…");
                         join(offerSdp).finally(() => {
@@ -139,7 +150,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                         });
                     }
                 };
-                pc.ondatachannel = (event) => {
+                thisPc.ondatachannel = (event) => {
                     channelRef.current = event.channel;
                     // Frames arrive chunked: a whole frame (~140 KB) exceeds
                     // the channel's negotiated max-message-size (64 KiB on
@@ -160,15 +171,22 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                         }
                     };
                 };
-                await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
-                await pc.setLocalDescription(await pc.createAnswer());
-                await iceGathered(pc);
+                await thisPc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+                await thisPc.setLocalDescription(await thisPc.createAnswer());
+                await iceGathered(thisPc);
                 if (cancelled) return;
 
                 await fetch(url, {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ role: "guest", sdp: pc.localDescription?.sdp }),
+                    // D11.1: stamps a fingerprint of the offer this pc
+                    // actually answered. A reload that re-answers a STALE
+                    // offer produces a byte-different answer SDP every time
+                    // (fresh ICE credentials per createAnswer()), so the
+                    // host cannot tell a fresh answer from a stale re-answer
+                    // by comparing answer bytes alone — see
+                    // transport-webrtc.mjs's isFreshAnswer.
+                    body: JSON.stringify({ role: "guest", sdp: thisPc.localDescription?.sdp, answeredOffer: fingerprintSdp(offerSdp) }),
                 });
                 setStatus("connecting to your laptop…");
                 return;
@@ -188,6 +206,17 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId]);
 
+    // The one send site every control-channel message actually goes through
+    // — see trySend's doc in watch-input.ts for why a plain
+    // `channelRef.current?.send(...)` isn't enough: send() on a
+    // not-yet-open or superseded channel throws synchronously, and that
+    // must never escape into React. A failure here means the connection is
+    // already being recovered elsewhere (onconnectionstatechange), so the
+    // honest thing to say is "reconnecting", not to throw.
+    const sendSafe = (message: unknown) => {
+        if (!trySend(channelRef.current, message)) setStatus("reconnecting…");
+    };
+
     // D8: off by default. Toggling tells the laptop's input-sink to open or
     // re-arm its gate (openclaw/scripts/viewer/input-sink.mjs) — without
     // this send, "take control" would flip the label but the laptop would
@@ -195,7 +224,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     const toggleControl = () => {
         setControlOn((prev) => {
             const next = !prev;
-            channelRef.current?.send(JSON.stringify(controlMessage(next)));
+            sendSafe(controlMessage(next));
             return next;
         });
     };
@@ -229,7 +258,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
             setFollow((f) => !f);
             return;
         }
-        channelRef.current?.send(JSON.stringify(action.message));
+        sendSafe(action.message);
         inputRef.current?.focus();
     };
 
@@ -266,13 +295,13 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                 onChange={(event) => {
                     const text = event.target.value;
                     if (!text) return;
-                    channelRef.current?.send(JSON.stringify(textMessage(text)));
+                    sendSafe(textMessage(text));
                     event.target.value = "";
                 }}
                 onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== "Tab") return;
                     event.preventDefault();
-                    channelRef.current?.send(JSON.stringify(keyMessage(event.key)));
+                    sendSafe(keyMessage(event.key));
                 }}
             />
         </main>

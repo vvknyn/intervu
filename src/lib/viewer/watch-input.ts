@@ -40,3 +40,24 @@ export function tapAction(controlOn: boolean, message: TapMessage | null): TapAc
 export function isNewOffer(hostSdp: string | null | undefined, previousSdp: string | null): boolean {
     return Boolean(hostSdp) && hostSdp !== previousSdp;
 }
+
+/**
+ * The one place any control-channel message leaves this component.
+ *
+ * `RTCDataChannel.send()` throws synchronously when the channel isn't in
+ * the "open" state — a stale channel from a superseded pc mid-reconnect, or
+ * one that dropped between renders — and every send site in
+ * watch-canvas.tsx (toggleControl, the canvas tap, the typer's input and
+ * keydown handlers) shared that exact failure mode. DOM-free (a
+ * channel-shaped object, not a real RTCDataChannel) so this is testable
+ * without a browser, same reasoning as tapAction/isNewOffer above.
+ */
+export function trySend(channel: { send: (data: string) => void } | null | undefined, payload: unknown): boolean {
+    if (!channel) return false;
+    try {
+        channel.send(JSON.stringify(payload));
+        return true;
+    } catch {
+        return false;
+    }
+}

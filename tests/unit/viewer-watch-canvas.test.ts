@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
-import { ENDED_COPY, isNewOffer, tapAction } from '../../src/lib/viewer/watch-input';
+import { ENDED_COPY, isNewOffer, tapAction, trySend } from '../../src/lib/viewer/watch-input';
 
 /**
  * Covers the pure decisions behind watch-canvas.tsx's tap+type control
@@ -50,5 +50,28 @@ describe('isNewOffer', () => {
   it('treats no offer yet as not new', () => {
     assert.equal(isNewOffer(undefined, 'v=0 offer-1'), false);
     assert.equal(isNewOffer(null, null), false);
+  });
+});
+
+describe('trySend', () => {
+  it('sends the JSON-stringified payload and reports success on an open channel', () => {
+    const sent: string[] = [];
+    const channel = { send: (data: string) => sent.push(data) };
+    const ok = trySend(channel, { v: 1, type: 'control', on: true });
+    assert.equal(ok, true);
+    assert.deepEqual(sent, [JSON.stringify({ v: 1, type: 'control', on: true })]);
+  });
+
+  it('catches a throw from send() (a closed/not-yet-open channel) and reports failure instead of throwing', () => {
+    const channel = { send: () => { throw new DOMException('failed to execute send', 'InvalidStateError'); } };
+    assert.doesNotThrow(() => {
+      const ok = trySend(channel, { v: 1, type: 'text', insert: 'hi' });
+      assert.equal(ok, false);
+    });
+  });
+
+  it('reports failure for a null/undefined channel — the OTHER failure mode besides a throwing send()', () => {
+    assert.equal(trySend(null, { v: 1, type: 'key', key: 'Enter' }), false);
+    assert.equal(trySend(undefined, { v: 1, type: 'key', key: 'Enter' }), false);
   });
 });

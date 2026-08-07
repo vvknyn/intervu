@@ -42,13 +42,34 @@ function loadFromFile(): Map<string, ViewerSession> {
     }
 }
 
+// Logged once, not on every failed write — a session route can call persist()
+// many times a minute, and the fact worth surfacing is "this deploy has no
+// working bind mount," not a running tally of the same cause.
+let persistFailureLogged = false;
+
 /** Write-then-rename so a crash mid-write leaves either the old file or the
- *  new one, never a half-written one the next boot would fail to parse. */
+ *  new one, never a half-written one the next boot would fail to parse.
+ *
+ * A failure here (the D10 bind mount missing entirely, wrong permissions —
+ * a deploy misconfiguration) must not take the whole viewer feature down:
+ * the in-memory Map above is still the real, complete source of truth for
+ * this running process, exactly as it was before D10 existed, so
+ * persistence degrades to that instead of 500ing every session route.
+ * Logged loudly, once, naming the path, so the misconfiguration is
+ * impossible to miss without becoming log spam. */
 function persist(): void {
     if (!SESSION_FILE) return;
-    const tmp = `${SESSION_FILE}.tmp`;
-    writeFileSync(tmp, JSON.stringify([...sessions.entries()]));
-    renameSync(tmp, SESSION_FILE);
+    try {
+        const tmp = `${SESSION_FILE}.tmp`;
+        writeFileSync(tmp, JSON.stringify([...sessions.entries()]));
+        renameSync(tmp, SESSION_FILE);
+    } catch (error) {
+        if (!persistFailureLogged) {
+            persistFailureLogged = true;
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(`Viewer session persistence disabled: cannot write ${SESSION_FILE} (${message}). Continuing in-memory only — sessions will not survive a restart.`);
+        }
+    }
 }
 
 const sessions: Map<string, ViewerSession> = ((globalThis as { __viewerSessions?: Map<string, ViewerSession> }).__viewerSessions ??= loadFromFile());

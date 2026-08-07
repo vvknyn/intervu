@@ -20,8 +20,16 @@ export const VIEWER_SESSION_TTL_MS = 15 * 60 * 1000;
  * `iceGatheringState` at "complete" with a `typ srflx` candidate in the SDP —
  * and the browser side waits for `icegatheringstatechange` to reach the same
  * point. There is no separate candidate relay because nothing needs one.
+ *
+ * `answeredOffer` (D11.1, guest-only) is a fingerprint of the offer SDP the
+ * guest actually answered — additive and optional so a blob without it (an
+ * older page, a test doorbell fake) still type-checks. The host uses it to
+ * tell a genuinely fresh answer apart from a reload re-answering a stale
+ * offer, which produces a byte-different SDP every time and so cannot be
+ * caught by comparing answer bytes alone. See transport-webrtc.mjs's
+ * isFreshAnswer.
  */
-export type SignalBlob = { sdp: string };
+export type SignalBlob = { sdp: string; answeredOffer?: string };
 
 export type ViewerSession = {
     id: string;

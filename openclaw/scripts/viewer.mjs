@@ -24,11 +24,13 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { listPageTargets, pickActiveTarget, DEFAULT_CDP_BASE } from "./viewer/cdp-targets.mjs";
 import { createFramePump } from "./viewer/frame-pump.mjs";
 import { createLanTransport } from "./viewer/transport-lan.mjs";
 import { createWebRtcTransport } from "./viewer/transport-webrtc.mjs";
 import { createInputSink } from "./viewer/input-sink.mjs";
+import { createIdAllocator } from "./viewer/cdp-id.mjs";
 import { tailnetReady } from "./viewer/tailnet.mjs";
 import { readAccessToken } from "./viewer/mcporter-token.mjs";
 import { auditThenWatch, pickBestWatchUrl } from "./viewer/audit.mjs";
@@ -37,28 +39,54 @@ const CDP_BASE = process.env.OPENCLAW_CDP_URL || DEFAULT_CDP_BASE;
 const API_BASE = process.env.INTERVU_API_BASE || "https://intervu.cc";
 const MCP_SERVER_KEY = "intervu-cc-mcp";
 
-// The audit's Runtime.evaluate is the only in-flight command on the socket
-// before the frame pump (whose own ids start at 1) ever starts — see the
-// `await` before `pump.start()` below — so a fixed id can never collide.
-const AUDIT_EVAL_ID = 0;
+/** A few seconds is generous for a same-process WebSocket round-trip and
+ *  short enough that a genuinely dead page fails during PRE-FLIGHT AUDIT
+ *  rather than hanging the whole viewer start. */
+const CDP_EVAL_TIMEOUT_MS = 5000;
 
-/** One CDP Runtime.evaluate round-trip. Thin I/O only — the decision of
+/**
+ * One CDP Runtime.evaluate round-trip. Thin I/O only — the decision of
  * what to evaluate and what to do with the result lives in viewer/audit.mjs,
- * which is what's under test. */
-function cdpEvaluate(socket, expression) {
+ * which is what's under test.
+ *
+ * `nextId` is the SAME allocator shared with the input sink and frame pump
+ * (see cdp-id.mjs) — all three write commands onto this one socket, so one
+ * shared counter is what makes their ids collision-proof.
+ *
+ * Rejects on a CDP protocol-level error (`message.error`, e.g. an unknown
+ * method) as well as a page-side exception (`exceptionDetails`) — previously
+ * only the latter was checked, so a protocol error had no `.result` at all
+ * and `message.result?.result?.value` silently resolved to `undefined`,
+ * printing "AUDIT: undefined" instead of a real failure. Also times out
+ * rather than waiting forever for a response that will never arrive.
+ */
+export function cdpEvaluate(socket, expression, nextId, timeoutMs = CDP_EVAL_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
+        const id = nextId();
+        let settled = false;
+        const finish = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            socket.removeEventListener("message", onMessage);
+            clearTimeout(timer);
+            fn(value);
+        };
+        const timer = setTimeout(() => {
+            finish(reject, new Error(`Runtime.evaluate timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
         const onMessage = (event) => {
             const message = JSON.parse(event.data);
-            if (message.id !== AUDIT_EVAL_ID) return;
-            socket.removeEventListener("message", onMessage);
-            if (message.result?.exceptionDetails) {
-                reject(new Error(message.result.exceptionDetails.text || "Runtime.evaluate threw in the page"));
+            if (message.id !== id) return;
+            if (message.error) {
+                finish(reject, new Error(message.error.message || "Runtime.evaluate protocol error"));
+            } else if (message.result?.exceptionDetails) {
+                finish(reject, new Error(message.result.exceptionDetails.text || "Runtime.evaluate threw in the page"));
             } else {
-                resolve(message.result?.result?.value);
+                finish(resolve, message.result?.result?.value);
             }
         };
         socket.addEventListener("message", onMessage);
-        socket.send(JSON.stringify({ id: AUDIT_EVAL_ID, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
+        socket.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
     });
 }
 
@@ -82,6 +110,12 @@ async function main() {
     });
     await new Promise((resolve) => socket.addEventListener("open", resolve, { once: true }));
 
+    // ONE id allocator for every CDP command this run issues, shared by the
+    // input sink, the frame pump, and cdpEvaluate below — all three write
+    // onto this same socket, so one counter is what keeps their ids from
+    // ever colliding (see cdp-id.mjs).
+    const nextId = createIdAllocator();
+
     // Declared before the transports so the input sink — which every
     // transport feeds via onInput — can close over the CDP socket and the
     // live device width without waiting for the pump setup further down.
@@ -89,15 +123,21 @@ async function main() {
     const sink = createInputSink({
         send: (message) => socket.send(JSON.stringify(message)),
         deviceWidth: () => focus.dw,
+        nextId,
     });
-    const onInput = (text) => sink.handle(text);
+    const onInput = (text, source) => sink.handle(text, source);
+    // Re-arms the control gate on any transport's client disconnect (a
+    // phone reload, a dropped SSE stream, a closed data channel) — see
+    // input-sink.mjs's reset() doc for why this can't be left to an
+    // explicit control:false message alone.
+    const onDisconnect = () => sink.reset();
 
     // Transports + WATCH lines. Wrapped in a function so --audit can defer
     // starting them until after the audit has already printed — a
     // transport failure must never retroactively suppress the audit.
     const startWatch = async () => {
         const transports = [];
-        const lan = createLanTransport({ token: randomBytes(24).toString("base64url"), onInput });
+        const lan = createLanTransport({ token: randomBytes(24).toString("base64url"), onInput, onDisconnect });
         const { urls } = await lan.start();
         transports.push(lan);
         const lanUrl = urls.find((u) => u.kind === "lan");
@@ -123,7 +163,7 @@ async function main() {
             console.error(`Remote viewing unavailable: no intervu credential found for ${MCP_SERVER_KEY}. Run 'mcporter auth ${MCP_SERVER_KEY}'.`);
         } else {
             try {
-                const rtc = createWebRtcTransport({ apiBase: API_BASE, bearer, onInput });
+                const rtc = createWebRtcTransport({ apiBase: API_BASE, bearer, onInput, onDisconnect });
                 const { url, connected } = await rtc.start();
                 watchUrl = url;
                 transports.push(rtc);
@@ -137,7 +177,7 @@ async function main() {
     };
 
     const watchResult = auditMode
-        ? await auditThenWatch((expression) => cdpEvaluate(socket, expression), startWatch)
+        ? await auditThenWatch((expression) => cdpEvaluate(socket, expression, nextId), startWatch)
         : await startWatch();
     if (auditMode) {
         const best = pickBestWatchUrl(watchResult);
@@ -159,6 +199,7 @@ async function main() {
 
     const pump = createFramePump({
         send: (message) => socket.send(JSON.stringify(message)),
+        nextId,
         onFrame: (frame) => { lastFrameData = frame.data; publish(); },
         onFocus: (next) => {
             const incoming = next ?? { dw: focus.dw, r: null };
@@ -185,7 +226,13 @@ async function main() {
     process.on("SIGTERM", shutdown);
 }
 
-main().catch((error) => {
-    console.error(error.message);
-    process.exit(1);
-});
+// CLI entry: `node scripts/viewer.mjs [--audit]`. Guarded so importing this
+// module — cdpEvaluate is exported for direct unit testing — never runs
+// main() as a side effect, which would otherwise try to connect to a real
+// Chrome debug port and process.exit(1) the whole test process.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+    main().catch((error) => {
+        console.error(error.message);
+        process.exit(1);
+    });
+}

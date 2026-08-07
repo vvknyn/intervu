@@ -1,11 +1,14 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { createInputSink } from '../../openclaw/scripts/viewer/input-sink.mjs';
+import { createFramePump } from '../../openclaw/scripts/viewer/frame-pump.mjs';
+import { createIdAllocator } from '../../openclaw/scripts/viewer/cdp-id.mjs';
 
 /** Records every CDP command the sink issues, in order. */
-function recordingSink({ deviceWidth = () => 1512 } = {}) {
+function recordingSink({ deviceWidth = () => 1512 }: { deviceWidth?: () => number | null } = {}) {
   const sent: Array<{ id: number; method: string; params: Record<string, unknown> }> = [];
-  const sink = createInputSink({ send: (m: any) => sent.push(m), deviceWidth });
-  return { sink, sent };
+  const logs: string[] = [];
+  const sink = createInputSink({ send: (m: any) => sent.push(m), deviceWidth, log: (line: string) => logs.push(line) });
+  return { sink, sent, logs };
 }
 
 const on = () => JSON.stringify({ v: 1, type: 'control', on: true });
@@ -48,16 +51,22 @@ describe('createInputSink', () => {
     assert.deepEqual(sent[0].params, { text: 'hello' });
   });
 
-  it('emits rawKeyDown then keyUp for Enter and Tab', () => {
+  it('emits keyDown with text:"\\r" for Enter (native submit/newline needs the text), and plain rawKeyDown for Tab', () => {
     const { sink, sent } = recordingSink();
     sink.handle(on());
     sink.handle(JSON.stringify({ v: 1, type: 'key', key: 'Enter' }));
-    sink.handle(JSON.stringify({ v: 1, type: 'key', key: 'Tab' }));
-    assert.equal(sent.length, 4);
-    assert.deepEqual(sent[0].params, { type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[0].params, { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
     assert.deepEqual(sent[1].params, { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    assert.deepEqual(sent[2].params, { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
-    assert.deepEqual(sent[3].params, { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  });
+
+  it('leaves Tab as textless rawKeyDown — the OTHER key in the table, unaffected by the Enter fix', () => {
+    const { sink, sent } = recordingSink();
+    sink.handle(on());
+    sink.handle(JSON.stringify({ v: 1, type: 'key', key: 'Tab' }));
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[0].params, { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    assert.deepEqual(sent[1].params, { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   });
 
   it('never throws and drops silently on malformed input, wrong version, or unknown type', () => {
@@ -82,9 +91,63 @@ describe('createInputSink', () => {
     const { sink, sent } = recordingSink({ deviceWidth: () => null });
     sink.handle(on());
     sink.handle(tap());
-    assert.deepEqual(sent, [], 'no scale exists, so a tap cannot be mapped');
+    assert.equal(sent.length, 0, 'no scale exists, so a tap cannot be mapped');
     sink.handle(JSON.stringify({ v: 1, type: 'text', insert: 'hi' }));
     assert.equal(sent.length, 1);
     assert.equal(sent[0].method, 'Input.insertText');
+  });
+
+  describe('control transitions are logged', () => {
+    it('logs CONTROL ON/OFF with the source that sent the message', () => {
+      const { sink, logs } = recordingSink();
+      sink.handle(on(), 'lan');
+      sink.handle(off(), 'webrtc');
+      assert.deepEqual(logs, ['CONTROL ON (lan)', 'CONTROL OFF (webrtc)']);
+    });
+
+    it('reset() re-arms the gate and logs CONTROL RESET, distinct from an explicit control:false', () => {
+      const { sink, sent, logs } = recordingSink();
+      sink.handle(on(), 'lan');
+      sink.reset();
+      sink.handle(tap());
+      assert.deepEqual(sent, [], 'control must be off again after reset()');
+      assert.deepEqual(logs, ['CONTROL ON (lan)', 'CONTROL RESET (disconnect)']);
+    });
+
+    it('reset() is a silent no-op when control was already off — no log spam on an ordinary disconnect', () => {
+      const { sink, logs } = recordingSink();
+      sink.reset();
+      sink.reset();
+      assert.deepEqual(logs, []);
+    });
+  });
+
+  describe('CDP id allocator', () => {
+    it('defaults to its own private counter starting at 1', () => {
+      const { sink, sent } = recordingSink();
+      sink.handle(on());
+      sink.handle(tap());
+      assert.deepEqual(sent.map((m) => m.id), [1, 2]);
+    });
+
+    it('shares one injected allocator with another CDP writer, so ids never collide across the two', () => {
+      // The real bug this guards: input-sink.mjs and frame-pump.mjs each ran
+      // their own counter from 1 on the SAME socket, so a sink command and a
+      // pump command could mint the same id — frame-pump.mjs then consumed
+      // the sink's ack as its own focus reply (onFocus(null)).
+      const nextId = createIdAllocator();
+      const sinkSent: Array<{ id: number }> = [];
+      const pumpSent: Array<{ id: number }> = [];
+      const sink = createInputSink({ send: (m: any) => sinkSent.push(m), deviceWidth: () => 1512, nextId });
+      const pump = createFramePump({ send: (m: any) => pumpSent.push(m), onFrame: () => {}, nextId });
+
+      sink.handle(on());
+      pump.start();
+      sink.handle(tap());
+      pump.pollFocus();
+
+      const allIds = [...sinkSent, ...pumpSent].map((m) => m.id);
+      assert.equal(new Set(allIds).size, allIds.length, `ids collided: ${allIds.join(',')}`);
+    });
   });
 });
