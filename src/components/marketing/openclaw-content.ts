@@ -20,17 +20,6 @@ export const OPENCLAW_HEADLINE =
   "While you slept, it found jobs, tailored your resume, and filled out the form. You just hit submit.";
 
 /**
- * The one-line qualifier under the headline — verbatim from /openclaw's own
- * hero paragraph (`src/app/openclaw/page.tsx`), hoisted here so the landing
- * hero (2026-08-03 rebuild) reads the same sentence instead of new marketing
- * copy. /openclaw's own JSX still has its own inline copy of this text (that
- * page is out of scope for the landing rebuild); a follow-up can point it at
- * this export too so there is only one place to edit.
- */
-export const OPENCLAW_SUBLINE =
-  "A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you sleep and messages you on WhatsApp when an application is ready. You read it, you send it.";
-
-/**
  * Honest status qualifier for the headline above — the skill itself isn't
  * installable yet (see module comment). Rendered by `OpenclawStatusBadge`
  * (`./OpenclawStatusBadge`) wherever `OPENCLAW_HEADLINE` appears, so the
@@ -55,11 +44,15 @@ export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install |
 export const INSTRUMENT_META = "Find the job postings that are hiring";
 
 /**
- * Supporting line under meta — browse-free / detail+AI gate. Shared by live
- * landing and `/mock/auth-gate`.
+ * Supporting line under meta — browse-free, sign-in-on-open. Shared by live
+ * landing and `/mock/auth-gate`; its copy updates with ours by design.
  */
 export const INSTRUMENT_SUPPORT =
-    "Browse the board free — sign in when you open a role or connect your AI.";
+    "Browse free — sign in only when you open a role.";
+
+/** Board-lane pane — the mono panel when the Job board tab is active.
+ *  Replaces "/jobs — verified board" ("verified board" was insider-speak). */
+export const BOARD_PANE_LINE = "/jobs — screened for ghost-job risk";
 
 /** Quiet tip above unsigned `/jobs` results (session-dismissible in UI). */
 export const GUEST_SERP_TIP = "Open a role to continue — details need sign-in.";

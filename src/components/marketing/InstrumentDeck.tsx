@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
+import { LandingSigninRedirect } from "@/components/marketing/LandingSigninRedirect";
 import { OpenclawWaitlistForm } from "@/components/marketing/OpenclawWaitlistForm";
 import {
+    BOARD_PANE_LINE,
     INSTRUMENT_META,
     INSTRUMENT_SUPPORT,
     MCP_CONNECTOR_HINT,
@@ -16,6 +18,8 @@ import {
     OPENCLAW_INSTALL_HINT,
 } from "@/components/marketing/openclaw-content";
 import {
+    DEFAULT_LANDING_LANE,
+    LANDING_LANES,
     nextPathForLandingLane,
     signInCtaLabel,
     signedInCtaLabel,
@@ -23,13 +27,9 @@ import {
 } from "@/lib/auth/landing-intent";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { marketingClaim, type MarketingCorpusStats } from "@/lib/marketing-stats";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
-
-const LANES: { id: LandingLane; label: string }[] = [
-    { id: "mcp", label: "Claude / ChatGPT" },
-    { id: "claw", label: "OpenClaw" },
-    { id: "board", label: "Job board" },
-];
 
 const LANE_CONTENT: Record<
     Exclude<LandingLane, "board">,
@@ -39,19 +39,16 @@ const LANE_CONTENT: Record<
     claw: { cmd: OPENCLAW_INSTALL_COMMAND, hint: OPENCLAW_INSTALL_HINT },
 };
 
-const BOARD_HINT =
-    "Browse verified roles on the job board — sign in to search, save, and apply.";
-
 const tabIdle = { color: "#8b919a" } as const;
 const tabActive = {
     background: "rgba(255,255,255,0.07)",
     color: "#ececec",
 } as const;
 
-export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
+export function InstrumentDeck({ stats }: { stats: MarketingCorpusStats | null }) {
+    const jobCount = stats ? formatCorpusCount(stats.liveJobs) : null;
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const [lane, setLane] = useState<LandingLane>("mcp");
+    const [lane, setLane] = useState<LandingLane>(DEFAULT_LANDING_LANE);
     const [copied, setCopied] = useState(false);
     const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
     const [user, setUser] = useState<User | null>(null);
@@ -67,15 +64,10 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
         return onAuthChange(setUser);
     }, []);
 
-    useEffect(() => {
-        if (searchParams.get("signin") !== "1" || user) return;
-        const next = searchParams.get("next");
-        router.replace(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
-    }, [searchParams, user, router]);
-
     const handleAuthed = () => {
+        const urlNext = new URLSearchParams(window.location.search).get("next");
         const next =
-            validateNextParam(searchParams.get("next")) ??
+            validateNextParam(urlNext) ??
             validateNextParam(pendingNext) ??
             "/jobs";
         setPendingNext(null);
@@ -155,7 +147,7 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                     role="tablist"
                     aria-label="How to use intervu"
                 >
-                    {LANES.map(({ id, label }) => (
+                    {LANDING_LANES.map(({ id, label }) => (
                         <button
                             key={id}
                             type="button"
@@ -187,13 +179,13 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
                     </div>
                 ) : (
                     <div className="rounded-none border-0 bg-black/30 px-3.5 py-3.5 font-mono text-[12.5px] text-[#7cb87a]">
-                        /jobs — verified board
+                        {BOARD_PANE_LINE}
                     </div>
                 )}
             </div>
 
             <p className="mt-[18px] max-w-[36ch] text-center text-[13px] leading-[1.45] text-[#5c636e]">
-                {active?.hint ?? BOARD_HINT}
+                {active?.hint ?? marketingClaim(stats)}
             </p>
 
             {agentLane ? (
@@ -250,6 +242,9 @@ export function InstrumentDeck({ jobCount }: { jobCount: string | null }) {
 
             <HowItWorksFilm film={film} onOpenChange={(open) => !open && setFilm(null)} />
             <AuthPopover open={authOpen} onOpenChange={setAuthOpen} showTrigger={false} onAuthed={handleAuthed} />
+            <Suspense fallback={null}>
+                <LandingSigninRedirect />
+            </Suspense>
         </main>
     );
 }

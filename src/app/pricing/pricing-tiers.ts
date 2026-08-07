@@ -48,7 +48,7 @@ export const PRICING_TIERS: PricingTier[] = [
       { text: "Search 1.5M+ live verified jobs" },
       { text: "Ghost-signal truth on every posting" },
       { text: "Application tracker" },
-      { text: "Connect your AI (MCP) — fit, tailoring, prep run in YOUR AI", href: "/connect" },
+      { text: "Connect your AI — fit, tailoring, prep run in YOUR AI", href: "/connect" },
       { text: "Up to 20 applications a day" },
     ],
     cta: { kind: "link", label: "Start free", href: "/", variant: "default" },

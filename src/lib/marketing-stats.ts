@@ -32,3 +32,9 @@ export function marketingClaim(stats: MarketingCorpusStats | null): string {
     const n = formatCorpusCount(stats.liveJobs);
     return `${n} live roles, ${CORPUS_SOURCE_DESCRIPTOR} — before you spend an hour on any of them.`;
 }
+
+/** Site footer's one-line provenance claim — same fact as the landing claim,
+ *  one source. The old footer sentence ended "…Same market your agent sees
+ *  via MCP." — machinery language on every guest page; dropped 2026-08-07
+ *  (docs/specs/2026-08-07-job-seeker-front-door-design.md). */
+export const FOOTER_PROVENANCE_LINE = `Every listing is ${CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated.`;

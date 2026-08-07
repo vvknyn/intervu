@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
-import { SITE_NAME, SITE_URL } from "@/lib/seo/constants";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo/constants";
 import { buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
@@ -52,9 +52,8 @@ const splineMono = Spline_Sans_Mono({
 const SITE_TITLE = SITE_NAME;
 // Fallback for any route that doesn't set its own `metadata` — `/jobs`
 // (a "use client" page, which can't export metadata of its own) is the
-// main consumer today. `/` (the automation-first front door) overrides
-// this with its own metadata in src/app/page.tsx.
-const SITE_DESCRIPTION = "Search live roles — flagged for ghost-job risk before you spend time on them.";
+// main consumer today.
+/** Site-wide guest meta strings live in @/lib/seo/constants — see SITE_DESCRIPTION and LANDING_*. */
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
