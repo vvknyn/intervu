@@ -18,6 +18,12 @@ import { cn } from "@/lib/utils";
  * Visual language matches the existing quiet note this pattern was modeled
  * on (JobDetail.tsx / yours/[id]/page.tsx's prep-removal note, 2026-08-02):
  * plain bordered box, no radius (design-system rule), no icon.
+ *
+ * State model (2026-08-07 declutter): one sentence + one action, always.
+ * The sentence here never changes with pairing state; McpHandoffActions
+ * owns which single action renders (resting button, chooser, or paired
+ * button) and is the only place pairing copy ("Connect once →", "Switch
+ * AI") appears — this component never duplicates it.
  */
 /** Copy lives HERE per variant — call sites choose a purpose, never write
  *  their own line, so surfaces can't drift. Two different variants may share
@@ -48,12 +54,9 @@ export function McpHandoffNote({
     }
 
     return (
-        <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground", className)}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <p>{VARIANT_COPY[variant]}</p>
-                {/* McpHandoffActions owns the paired/not-paired state (savedClient) —
-                    it renders the ONE pairing line ("Switch AI" once paired, "Not
-                    paired yet?" until then) so the two can't both show at once. */}
+        <div className={cn("rounded-none border border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground", className)}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <p className="min-w-[16ch] flex-1">{VARIANT_COPY[variant]}</p>
                 <McpHandoffActions job={job} />
             </div>
         </div>
