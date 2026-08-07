@@ -44,6 +44,7 @@ import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import {
     decodeText,
     cleanCompany,
+    displayCompany,
     locationText,
     salaryText,
     postedAgeShort,
@@ -394,7 +395,7 @@ function JobCard({
     expanded?: boolean;
     onToggleExpand?: () => void;
 }) {
-    const accessibleName = `${decodeText(job.title)} at ${cleanCompany(job.company) || "Unknown company"}`;
+    const accessibleName = `${decodeText(job.title)} at ${displayCompany(job.company, job.company_domain) || "Unknown company"}`;
     const verdict = verdictFor(job, now);
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
     const salary = salaryText(job);
@@ -449,10 +450,10 @@ function JobCard({
                                 onCompany(job);
                             }}
                         >
-                            {cleanCompany(job.company) || "Unknown company"}
+                            {displayCompany(job.company, job.company_domain) || "Unknown company"}
                         </button>
                     ) : (
-                        cleanCompany(job.company) || "Unknown company"
+                        displayCompany(job.company, job.company_domain) || "Unknown company"
                     )}
                 </div>
             </div>

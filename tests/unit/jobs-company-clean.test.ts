@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCompany } from "../../src/lib/jobs/presentation";
+import { cleanCompany, displayCompany } from "../../src/lib/jobs/presentation";
 
 // Real production company strings, retrieved live 2026-07-26.
 
@@ -52,4 +52,28 @@ test("strips leading hyphenated req codes", () => {
 
 test("strips leading C-prefix codes", () => {
     assert.equal(cleanCompany("C0001 Widget Corp"), "Widget Corp");
+});
+
+test("displayCompany falls back to the domain when the name is bare-domain-shaped", () => {
+    assert.equal(displayCompany("Bill.com", "bill.com"), "bill.com");
+});
+
+test("displayCompany falls back to the domain when the name is an ATS portal hostname", () => {
+    assert.equal(displayCompany("acme.applicantpro.com", "acme.com"), "acme.com");
+});
+
+test("displayCompany passes through a real cleaned name unchanged", () => {
+    assert.equal(displayCompany("Novacredit", "novacredit.com"), "Novacredit");
+});
+
+test("displayCompany passes through an already-clean name even when a domain is present", () => {
+    assert.equal(displayCompany("Acme Inc.", "acme.com"), "Acme Inc.");
+});
+
+test("displayCompany returns empty string when both name and domain are absent", () => {
+    assert.equal(displayCompany(null, null), "");
+});
+
+test("displayCompany fixes the reported bug: a domain-shaped brand name no longer contradicts the rendered favicon", () => {
+    assert.equal(displayCompany("Super.Com", "super.com"), "super.com");
 });
