@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+HELP_URL="https://intervu.cc/connect/help"
+# Every fatal exit below calls this so a stuck user always has a next step
+# beyond re-reading a terminal error.
+help_link() {
+  echo "    More help: $HELP_URL#$1"
+}
+
 # The gateway takes a few seconds to accept connections after a restart —
 # any scheduler/cron command fired too early dies with "gateway closed
 # (1006)". Poll until it answers (caught live on the first real user
@@ -11,6 +18,7 @@ wait_for_gateway() {
     sleep 2
   done
   echo "    Gateway did not come back within 30s — run 'openclaw gateway status', then re-run this installer." >&2
+  help_link gateway >&2
   return 1
 }
 
@@ -31,6 +39,101 @@ SKILL_NAME="intervu-apply"
 MCP_SERVER_KEY="intervu-cc-mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
 SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
+
+# resolve_node_lts()'s fallback when nodejs.org is unreachable or its
+# index.json shape changes. This was the current LTS release verified
+# 2026-08-07 — update it if that drifts far from reality, but it only ever
+# matters when the live lookup below already failed.
+NODE_LTS_FALLBACK="v24.19.0"
+
+# Picks the newest LTS release from nodejs.org's release index. The file is
+# a JSON array, newest release first, one object per line, with "lts" either
+# false (a Current, non-LTS build) or a codename string — so among the lines
+# that carry a "version" (skipping the bare "[" array opener, which otherwise
+# satisfies a plain inverse match and yields nothing), the first without
+# "lts":false is the release we want. No jq or node available yet at this
+# point, hence grep/sed instead of a real JSON parser.
+resolve_node_lts() {
+  local json ver
+  json="$(curl -fsSL --max-time 10 https://nodejs.org/dist/index.json 2>/dev/null)" || true
+  if [ -n "$json" ]; then
+    ver="$(printf '%s\n' "$json" | grep '"version":' | grep -v '"lts":false' | head -1 | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+  fi
+  echo "${ver:-$NODE_LTS_FALLBACK}"
+}
+
+# Makes sure `npm` is on PATH before anything below needs it. A real-user
+# failure (2026-08-06): a fresh Mac with no npm died at `npm i -g openclaw`
+# with a bare "command not found", and the only remediation anyone had ever
+# written down was developer-speak (nvm, brew, nodejs.org). This installer
+# now sets Node up itself instead of telling the user to.
+#
+# The runtime lands in a user-owned prefix ($HOME/.openclaw/runtime), never
+# system-wide, so nothing here — or the `npm i -g openclaw` that follows —
+# ever needs sudo.
+ensure_node() {
+  command -v npm >/dev/null 2>&1 && return 0
+
+  local runtime_bin="$HOME/.openclaw/runtime/current/bin"
+  if [ -x "$runtime_bin/npm" ]; then
+    export PATH="$runtime_bin:$PATH"
+    return 0
+  fi
+
+  if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo "This needs Node.js installed first, and this installer can only set that up automatically on a Mac."
+    help_link install-node
+    exit 1
+  fi
+
+  echo "==> Setting up the runtime this needs (about a minute)..."
+
+  local arch
+  case "$(uname -m)" in
+    arm64)  arch="arm64" ;;
+    x86_64) arch="x64" ;;
+    *)
+      echo "This Mac's processor type ($(uname -m)) isn't one this installer knows how to set up automatically."
+      help_link install-node
+      exit 1
+      ;;
+  esac
+
+  local ver dl_dir tarball sums
+  ver="$(resolve_node_lts)"
+  dl_dir="$(mktemp -d)"
+  tarball="node-$ver-darwin-$arch.tar.gz"
+
+  if ! curl -fsSL "https://nodejs.org/dist/$ver/$tarball" -o "$dl_dir/$tarball"; then
+    echo "Could not download the runtime this needs."
+    help_link install-node
+    exit 1
+  fi
+
+  sums="$(curl -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt" 2>/dev/null | grep -F " $tarball")"
+  if [ -z "$sums" ] || ! (cd "$dl_dir" && printf '%s\n' "$sums" | shasum -a 256 -c -) >/dev/null 2>&1; then
+    echo "The downloaded runtime failed verification — not proceeding."
+    help_link install-node
+    exit 1
+  fi
+
+  mkdir -p "$HOME/.openclaw/runtime"
+  tar -xzf "$dl_dir/$tarball" -C "$HOME/.openclaw/runtime"
+  rm -rf "$dl_dir"
+  ln -sfn "$HOME/.openclaw/runtime/node-$ver-darwin-$arch" "$HOME/.openclaw/runtime/current"
+
+  export PATH="$runtime_bin:$PATH"
+
+  local marker="# intervu installer: local Node runtime"
+  if ! grep -qF "$marker" "$HOME/.zprofile" 2>/dev/null; then
+    {
+      echo "$marker"
+      echo "export PATH=\"\$HOME/.openclaw/runtime/current/bin:\$PATH\""
+    } >> "$HOME/.zprofile"
+  fi
+
+  echo "    Runtime ready."
+}
 
 # Reports when npm gave us an older release than the current one.
 #
@@ -66,6 +169,9 @@ warn_if_outdated() {
   return 1
 }
 
+# --- 0. Node/npm must exist before anything below can run -------------------
+ensure_node
+
 # --- 1. OpenClaw must be installed and onboarded ----------------------------
 echo "==> Checking OpenClaw is installed..."
 if command -v openclaw >/dev/null 2>&1; then
@@ -88,6 +194,7 @@ if ! warn_if_outdated openclaw; then
   echo
   echo "    Upgrade Node, then re-run:  curl -fsSL https://intervu.cc/install | bash"
   echo "    (nodejs.org, or 'brew upgrade node', or 'nvm install --lts')"
+  help_link node-version
   exit 1
 fi
 
@@ -106,6 +213,7 @@ if [ "${NEEDS_ONBOARD:-}" = "1" ]; then
   if ( exec 2>/dev/null 3<>/dev/tty ); then
     openclaw onboard < /dev/tty || {
       echo "OpenClaw onboarding did not finish. Once you're ready, run 'openclaw onboard' yourself, then re-run: curl -fsSL https://intervu.cc/install | bash"
+      help_link onboarding
       exit 1
     }
     echo "    Onboarding complete."
@@ -114,6 +222,7 @@ if [ "${NEEDS_ONBOARD:-}" = "1" ]; then
     echo "Run these two commands yourself once you have a real terminal:"
     echo "  openclaw onboard"
     echo "  curl -fsSL https://intervu.cc/install | bash"
+    help_link onboarding
     exit 1
   fi
 fi
@@ -135,15 +244,18 @@ echo "    Registered."
 
 # Keep the MCP connection warm — without this every tool call pays a full
 # cold handshake (~4.4s measured); with the daemon it drops to ~1s. The
-# lifecycle field is what `mcporter daemon` auto-detects; python edits the
-# JSON because `mcporter config add` has no lifecycle flag.
-python3 - "$MCPORTER_CONFIG" "$MCP_SERVER_KEY" <<'PYJSON'
-import json, sys
-p, key = sys.argv[1], sys.argv[2]
-d = json.load(open(p))
-d["mcpServers"][key]["lifecycle"] = "keep-alive"
-json.dump(d, open(p, "w"), indent=2)
-PYJSON
+# lifecycle field is what `mcporter daemon` auto-detects. Node does this
+# edit (not python3) because Node is guaranteed present by this point in
+# the script and python3 is not — on a fresh Mac, invoking python3 pops
+# Apple's "install developer tools?" dialog, which nothing here is waiting
+# on and nobody would know to click through.
+node -e '
+  const fs = require("fs");
+  const [p, key] = process.argv.slice(1);
+  const d = JSON.parse(fs.readFileSync(p, "utf8"));
+  d.mcpServers[key].lifecycle = "keep-alive";
+  fs.writeFileSync(p, JSON.stringify(d, null, 2));
+' "$MCPORTER_CONFIG" "$MCP_SERVER_KEY"
 mcporter daemon restart >/dev/null 2>&1 || true
 echo "    Connection keep-alive daemon started."
 
@@ -151,9 +263,11 @@ echo "    Connection keep-alive daemon started."
 echo "==============================================================="
 echo "  A browser window is about to open for you to approve intervu."
 echo "  YOU HAVE ABOUT 60 SECONDS — be ready to click through it now."
+help_link auth
 echo "==============================================================="
 mcporter auth "$MCP_SERVER_KEY" || {
   echo "Auth failed. Re-run 'mcporter auth $MCP_SERVER_KEY' — make sure you click through the browser prompt within ~60 seconds this time."
+  help_link auth
   exit 1
 }
 echo "    Auth flow complete."
@@ -171,6 +285,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! curl -fsSL "$SKILL_TARBALL_URL" -o "$TMP_DIR/skill.tar.gz"; then
   echo "Failed to download the skill payload from $SKILL_TARBALL_URL — aborting without touching $INSTALL_DIR."
+  help_link skill-download
   exit 1
 fi
 
@@ -179,6 +294,7 @@ tar -xzf "$TMP_DIR/skill.tar.gz" -C "$TMP_DIR/skill"
 
 if [[ ! -f "$TMP_DIR/skill/SKILL.md" ]]; then
   echo "Downloaded skill payload is missing SKILL.md — aborting without touching $INSTALL_DIR."
+  help_link skill-download
   exit 1
 fi
 

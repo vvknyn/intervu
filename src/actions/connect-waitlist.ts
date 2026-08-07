@@ -8,8 +8,9 @@ import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
 import { CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
 
 /**
- * Waitlist capture for /connect (MCP pairing, pre-launch beta — the actual
- * MCP backend hasn't deployed yet). Dedup is an idempotent upsert keyed on
+ * Waitlist capture for /connect (MCP pairing is live; this collects "notify
+ * me" requests for surfaces that aren't yet — e.g. the OpenClaw local agent
+ * on non-Mac platforms). Dedup is an idempotent upsert keyed on
  * the normalized email as the Firestore doc id, so resubmission just
  * re-merges the same doc instead of racing a query-then-write check.
  *

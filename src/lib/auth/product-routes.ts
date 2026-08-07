@@ -9,6 +9,16 @@ export const AUTH_GATED_PRODUCT_PREFIXES = [
     "/account",
 ] as const;
 
+/**
+ * Paths that stay public even though they fall under a gated prefix above —
+ * support content must be reachable logged-out. Checked before the gated-
+ * prefix match in `isAuthGatedProductPath`, so a match here always wins;
+ * new exceptions are added here rather than as scattered per-caller checks.
+ */
+export const PUBLIC_PRODUCT_PATH_EXCEPTIONS = [
+    "/connect/help",
+] as const;
+
 /** Paths allowed as post-auth `next=` (includes browse `/jobs` and the OAuth
  *  consent screen — a logged-out user bounced to /login from there needs to
  *  land back on it, with its query params, to resume the approval). */
@@ -18,16 +28,17 @@ export const SAFE_POST_AUTH_PREFIXES = [
     ...AUTH_GATED_PRODUCT_PREFIXES,
 ] as const;
 
+function pathMatchesAnyPrefix(pathname: string, prefixes: readonly string[]): boolean {
+    return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export function isAuthGatedProductPath(pathname: string): boolean {
-    return AUTH_GATED_PRODUCT_PREFIXES.some(
-        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    );
+    if (pathMatchesAnyPrefix(pathname, PUBLIC_PRODUCT_PATH_EXCEPTIONS)) return false;
+    return pathMatchesAnyPrefix(pathname, AUTH_GATED_PRODUCT_PREFIXES);
 }
 
 function isSafePostAuthPath(pathname: string): boolean {
-    return SAFE_POST_AUTH_PREFIXES.some(
-        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    );
+    return pathMatchesAnyPrefix(pathname, SAFE_POST_AUTH_PREFIXES);
 }
 
 /**
