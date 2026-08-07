@@ -92,27 +92,70 @@ describe('setup()', () => {
     };
   }
 
+  /** Scripts a run stub where the FIRST call to `tailscale status --json`
+   *  (the capability probe) returns unparseable output — nothing installed,
+   *  no socket to talk to — forcing setup() down the install/daemon-start
+   *  path. Every later call, including status polls once `up` has run, is
+   *  served by `responses` exactly like scriptedRun. */
+  function scriptedRunWithFailingProbe(responses: Record<string, { code: number; stdout?: string; stderr?: string }>, calls: string[][] = []) {
+    let statusCalls = 0;
+    const inner = scriptedRun(responses, calls);
+    return async (cmd: string, args: string[], opts?: { onStdout?: (chunk: string) => void }) => {
+      if (cmd === 'tailscale' && args[0] === 'status') {
+        statusCalls++;
+        if (statusCalls === 1) {
+          calls.push([cmd, ...args]);
+          return { code: 1, stdout: '', stderr: 'failed to connect to local tailscaled' };
+        }
+      }
+      return inner(cmd, args, opts);
+    };
+  }
+
   const ONLINE_IOS_STATUS = JSON.stringify({ Peer: { a: { OS: 'iOS', Online: true } } });
   const NO_PEER_STATUS = JSON.stringify({ Peer: {} });
+  const RUNNING_STATUS_IOS_PEER = JSON.stringify({ BackendState: 'Running', Peer: { a: { OS: 'iOS', Online: true } } });
+  const RUNNING_STATUS_NO_PEER = JSON.stringify({ BackendState: 'Running', Peer: {} });
 
-  // Every darwin-flavored scriptedRun below now also has to answer
-  // `brew services start tailscale` — the daemon-start step this fix adds
-  // runs unconditionally on darwin, before `tailscale up`.
+  // Every fixture here returns parseable JSON from the probe, so setup()
+  // never reaches install/daemon-start for any of these — only
+  // `tailscale status --json` and `tailscale up` are in play.
   const DARWIN_BASE = {
-    'which tailscale': { code: 0 },
-    'brew services start tailscale': { code: 0 },
     'tailscale up': { code: 0 },
     'tailscale status --json': { code: 0, stdout: ONLINE_IOS_STATUS },
   };
 
-  it('skips the install step when tailscale is already on PATH', async () => {
+  it('probe succeeds (parseable status, whatever installed it) → neither install nor daemon-start run — the reported bug: an App Store/standalone macOS install has no brew formula', async () => {
     const calls: string[][] = [];
-    const run = scriptedRun(DARWIN_BASE, calls);
+    const run = scriptedRun({
+      'tailscale status --json': { code: 0, stdout: RUNNING_STATUS_IOS_PEER },
+    }, calls);
 
     await setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin' });
 
-    assert.ok(!calls.some((c) => c[0] === 'brew' && c[1] === 'install'),
-      'must not attempt to install what is already there');
+    assert.ok(!calls.some((c) => c[0] === 'which'), 'must not check the install method when the tailnet is already usable');
+    assert.ok(!calls.some((c) => c.join(' ') === 'brew services start tailscale'), 'must not touch brew services when already usable');
+    assert.ok(!calls.some((c) => c.join(' ').startsWith('brew install')), 'must not attempt to install what is already there');
+    assert.equal(existsSync(markerPath), true);
+  });
+
+  it('an already-Running node skips tailscale up (and its auth-URL step) and goes straight to the peer wait', async () => {
+    const calls: string[][] = [];
+    let statusCalls = 0;
+    const run = async (cmd: string, args: string[], opts?: { onStdout?: (chunk: string) => void }) => {
+      calls.push([cmd, ...args]);
+      if (cmd === 'tailscale' && args[0] === 'status') {
+        statusCalls++;
+        return { code: 0, stdout: statusCalls === 1 ? RUNNING_STATUS_NO_PEER : ONLINE_IOS_STATUS, stderr: '' };
+      }
+      return { code: 1, stdout: '', stderr: `unscripted call: ${[cmd, ...args].join(' ')}` };
+    };
+
+    await setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin' });
+
+    assert.ok(!calls.some((c) => c.join(' ') === 'tailscale up'), 'an already-Running node needs no re-auth');
+    assert.ok(!logs.some((l) => l.startsWith('TAILNET-AUTH-URL')), 'no auth URL to print when already authenticated');
+    assert.equal(existsSync(markerPath), true);
   });
 
   it('scrapes the auth URL from tailscale up\'s output and prints it', async () => {
@@ -126,9 +169,14 @@ describe('setup()', () => {
     assert.ok(logs.some((l) => l === 'TAILNET-AUTH-URL: https://login.tailscale.com/a/abc123'), logs.join('\n'));
   });
 
-  it('starts the tailscaled daemon via brew services before calling tailscale up, on darwin', async () => {
+  it('when the probe fails, starts the daemon via brew services before calling tailscale up, on darwin', async () => {
     const calls: string[][] = [];
-    const run = scriptedRun(DARWIN_BASE, calls);
+    const run = scriptedRunWithFailingProbe({
+      'which tailscale': { code: 0 },
+      'brew services start tailscale': { code: 0 },
+      'tailscale up': { code: 0 },
+      'tailscale status --json': { code: 0, stdout: ONLINE_IOS_STATUS },
+    }, calls);
 
     await setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin' });
 
@@ -179,12 +227,14 @@ describe('setup()', () => {
     assert.ok(errors.includes('TAILNET-TIMEOUT'));
   });
 
-  it('installs via brew on darwin when tailscale is missing', async () => {
+  it('installs via brew on darwin when the probe fails and tailscale is missing', async () => {
     const calls: string[][] = [];
-    const run = scriptedRun({
-      ...DARWIN_BASE,
+    const run = scriptedRunWithFailingProbe({
       'which tailscale': { code: 1 },
       'brew install tailscale': { code: 0 },
+      'brew services start tailscale': { code: 0 },
+      'tailscale up': { code: 0 },
+      'tailscale status --json': { code: 0, stdout: ONLINE_IOS_STATUS },
     }, calls);
 
     await setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin' });
@@ -192,9 +242,9 @@ describe('setup()', () => {
     assert.ok(calls.some((c) => c.join(' ') === 'brew install tailscale'));
   });
 
-  it('installs via the curl|sh installer on non-darwin platforms, and never touches brew services', async () => {
+  it('probe fails on a Linux-shaped environment → uses the official install script, not brew', async () => {
     const calls: string[][] = [];
-    const run = scriptedRun({
+    const run = scriptedRunWithFailingProbe({
       'which tailscale': { code: 1 },
       'sh -c curl -fsSL https://tailscale.com/install.sh | sh': { code: 0 },
       'tailscale up': { code: 0 },
@@ -207,47 +257,39 @@ describe('setup()', () => {
     assert.ok(!calls.some((c) => c[0] === 'brew'), 'brew services is a darwin-only step');
   });
 
-  it('fails loudly, without ever polling for a peer, when starting the daemon itself fails', async () => {
-    // A different failing STEP than the motivating bug (which was "up"
-    // silently discarded) — proves the fix is "any non-zero step fails
-    // loudly," not a one-off patch for tailscale up specifically.
-    let statusCalls = 0;
-    const run = scriptedRun({
-      ...DARWIN_BASE,
+  it('fails loudly, without ever polling for a peer, when the probe fails and starting the daemon itself then fails', async () => {
+    // A different failing STEP than the motivating bug — proves the fix is
+    // "any non-zero step fails loudly," not a one-off patch for tailscale up.
+    const calls: string[][] = [];
+    const run = scriptedRunWithFailingProbe({
+      'which tailscale': { code: 0 },
       'brew services start tailscale': { code: 1, stderr: 'Service not found' },
-    });
-    const countingRun = async (cmd: string, args: string[], opts?: { onStdout?: (c: string) => void }) => {
-      if (cmd === 'tailscale' && args[0] === 'status') statusCalls++;
-      return run(cmd, args, opts);
-    };
+    }, calls);
 
-    await assert.rejects(() => setup({ run: countingRun, markerPath, sleepImpl: async () => {}, platform: 'darwin' }));
+    await assert.rejects(() => setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin' }));
 
-    assert.equal(statusCalls, 0, 'must not fall through to polling for a peer');
+    assert.equal(calls.filter((c) => c.join(' ').startsWith('tailscale status')).length, 1,
+      'must not fall through to polling for a peer beyond the initial probe');
     assert.ok(errors.some((e) => e.includes('daemon')), errors.join('\n'));
     assert.ok(!errors.includes('TAILNET-TIMEOUT'), 'a daemon-start failure is knowable immediately, not a timeout');
   });
 
   it('throws immediately, without waiting out the 10-minute timeout, when tailscale up exits non-zero', async () => {
-    // The "OTHER case": the motivating bug was specifically about the
-    // daemon never starting; this proves the fix generalizes to ANY
-    // failure of `tailscale up` itself (e.g. a rejected auth), not just
-    // the daemon-missing one.
-    let statusCalls = 0;
+    // The "OTHER case": proves the fix generalizes to ANY failure of
+    // `tailscale up` itself (e.g. a rejected auth), not just the
+    // daemon-missing one.
+    const calls: string[][] = [];
     const run = scriptedRun({
       ...DARWIN_BASE,
       'tailscale up': { code: 1, stderr: 'logged out' },
-    });
-    const countingRun = async (cmd: string, args: string[], opts?: { onStdout?: (c: string) => void }) => {
-      if (cmd === 'tailscale' && args[0] === 'status') statusCalls++;
-      return run(cmd, args, opts);
-    };
+    }, calls);
 
     const start = Date.now();
-    await assert.rejects(() => setup({ run: countingRun, markerPath, sleepImpl: async () => {}, platform: 'darwin', deadlineMs: TAILNET_TIMEOUT_MS }));
+    await assert.rejects(() => setup({ run, markerPath, sleepImpl: async () => {}, platform: 'darwin', deadlineMs: TAILNET_TIMEOUT_MS }));
 
     assert.ok(Date.now() - start < 1000, 'must fail immediately, not after waiting out the deadline');
-    assert.equal(statusCalls, 0, 'must not fall through to polling for a peer');
+    assert.equal(calls.filter((c) => c.join(' ').startsWith('tailscale status')).length, 1,
+      'must not fall through to polling for a peer beyond the initial probe');
     assert.ok(errors.some((e) => e.includes('tailscale up')), errors.join('\n'));
     assert.ok(!errors.includes('TAILNET-TIMEOUT'), 'a failed `up` is knowable immediately, not a timeout');
   });

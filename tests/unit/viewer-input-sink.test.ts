@@ -4,16 +4,17 @@ import { createFramePump } from '../../openclaw/scripts/viewer/frame-pump.mjs';
 import { createIdAllocator } from '../../openclaw/scripts/viewer/cdp-id.mjs';
 
 /** Records every CDP command the sink issues, in order. */
-function recordingSink({ deviceWidth = () => 1512 }: { deviceWidth?: () => number | null } = {}) {
+function recordingSink({ deviceWidth = () => 1512, deviceHeight = () => 800 }: { deviceWidth?: () => number | null; deviceHeight?: () => number | null } = {}) {
   const sent: Array<{ id: number; method: string; params: Record<string, unknown> }> = [];
   const logs: string[] = [];
-  const sink = createInputSink({ send: (m: any) => sent.push(m), deviceWidth, log: (line: string) => logs.push(line) });
+  const sink = createInputSink({ send: (m: any) => sent.push(m), deviceWidth, deviceHeight, log: (line: string) => logs.push(line) });
   return { sink, sent, logs };
 }
 
 const on = () => JSON.stringify({ v: 1, type: 'control', on: true });
 const off = () => JSON.stringify({ v: 1, type: 'control', on: false });
 const tap = (over = {}) => JSON.stringify({ v: 1, type: 'tap', fx: 200, fy: 80, fw: 1000, fh: 600, ...over });
+const scroll = (over = {}) => JSON.stringify({ v: 1, type: 'scroll', fdy: 40, fw: 1000, ...over });
 
 describe('createInputSink', () => {
   it('drops a tap that arrives before control is taken', () => {
@@ -74,7 +75,7 @@ describe('createInputSink', () => {
     sink.handle(on());
     assert.doesNotThrow(() => sink.handle('{not json'));
     assert.doesNotThrow(() => sink.handle(JSON.stringify({ v: 2, type: 'tap', fx: 1, fy: 1, fw: 10, fh: 10 })));
-    assert.doesNotThrow(() => sink.handle(JSON.stringify({ v: 1, type: 'scroll', dy: 5 })));
+    assert.doesNotThrow(() => sink.handle(JSON.stringify({ v: 1, type: 'wobble', dy: 5 })));
     assert.deepEqual(sent, []);
   });
 
@@ -95,6 +96,49 @@ describe('createInputSink', () => {
     sink.handle(JSON.stringify({ v: 1, type: 'text', insert: 'hi' }));
     assert.equal(sent.length, 1);
     assert.equal(sent[0].method, 'Input.insertText');
+  });
+
+  describe('scroll', () => {
+    it('dispatches mouseWheel at the viewport center with deltaY scaled the same way a tap scales', () => {
+      const { sink, sent } = recordingSink({ deviceWidth: () => 1512, deviceHeight: () => 800 });
+      sink.handle(on());
+      sink.handle(scroll());
+      const deltaY = Math.round((40 * 1512) / 1000);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].method, 'Input.dispatchMouseEvent');
+      assert.deepEqual(sent[0].params, { type: 'mouseWheel', x: 756, y: 400, deltaX: 0, deltaY });
+    });
+
+    it('drops a scroll that arrives before control is taken — same gate as every other input', () => {
+      const { sink, sent } = recordingSink();
+      sink.handle(scroll());
+      assert.deepEqual(sent, []);
+    });
+
+    it('drops a scroll with a malformed shape (missing fdy/fw)', () => {
+      const { sink, sent } = recordingSink();
+      sink.handle(on());
+      sink.handle(JSON.stringify({ v: 1, type: 'scroll', dy: 5 }));
+      assert.deepEqual(sent, []);
+    });
+
+    it('drops a scroll when deviceHeight() is null — no center to dispatch at, so nothing is fabricated', () => {
+      const { sink, sent } = recordingSink({ deviceHeight: () => null });
+      sink.handle(on());
+      sink.handle(scroll());
+      assert.deepEqual(sent, [], 'deviceWidth alone is not enough — the y center is unknown too');
+    });
+  });
+
+  describe('Backspace key', () => {
+    it('emits textless rawKeyDown+keyUp for Backspace — the third row in the same table as Enter/Tab', () => {
+      const { sink, sent } = recordingSink();
+      sink.handle(on());
+      sink.handle(JSON.stringify({ v: 1, type: 'key', key: 'Backspace' }));
+      assert.equal(sent.length, 2);
+      assert.deepEqual(sent[0].params, { type: 'rawKeyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+      assert.deepEqual(sent[1].params, { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+    });
   });
 
   describe('control transitions are logged', () => {

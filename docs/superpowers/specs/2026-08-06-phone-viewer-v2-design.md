@@ -141,7 +141,7 @@ lies on listing pages where crop is a no-op).
 
 ## Non-goals (v2)
 
-Scroll/gesture forwarding (auto-follow owns the viewport) · multi-viewer · TURN in any form ·
+~~Scroll/gesture forwarding (auto-follow owns the viewport)~~ — **reversed Aug 6 on real-device evidence**: reviewing a form means seeing all of it, and the form doesn't fit the laptop's viewport; control-mode swipe now forwards raw wheel deltas (no momentum) through the standard input pipe. Watch-only viewers still cannot scroll. Same session also added Backspace to the key set (insert-only deltas made deletion impossible on a real phone) · multi-viewer · TURN in any form ·
 the 45 KB first-frame optimization (tailnet makes it moot where it mattered) · crop-geometry
 retuning · the fixed-port 18801 two-concurrent-applications collision · agent-pause machinery.
 

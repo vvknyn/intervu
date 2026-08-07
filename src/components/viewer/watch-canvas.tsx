@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { computeCrop } from "../../../openclaw/scripts/viewer/crop.mjs";
-import { controlMessage, frameTapMessage, keyMessage, textMessage } from "../../../openclaw/scripts/viewer/input-capture.mjs";
+import {
+    classifyTyperInput,
+    controlMessage,
+    frameScrollMessage,
+    frameTapMessage,
+    isSwipe,
+    keyMessage,
+    SCROLL_THROTTLE_MS,
+    TYPER_SENTINEL,
+} from "../../../openclaw/scripts/viewer/input-capture.mjs";
 import { fingerprintSdp } from "../../../openclaw/scripts/viewer/sdp-fingerprint.mjs";
 import { ENDED_COPY, isNewOffer, tapAction, trySend, type TapMessage } from "@/lib/viewer/watch-input";
 
@@ -28,6 +37,7 @@ import { ENDED_COPY, isNewOffer, tapAction, trySend, type TapMessage } from "@/l
 
 type Payload = { f: string; r: { x: number; y: number; width: number; height: number } | null; dw: number | null };
 type Latest = { img: HTMLImageElement; rect: Payload["r"]; deviceWidth: number };
+type TouchState = { startX: number; startY: number; lastY: number; accDy: number; swiped: boolean; lastSentAt: number };
 
 /** How long to wait for the laptop to post its offer, in 1s attempts. The
  *  phone can win the race when the link is opened the instant it arrives. */
@@ -54,6 +64,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
     const latestRef = useRef<Latest | null>(null);
     const channelRef = useRef<RTCDataChannel | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const touchRef = useRef<TouchState | null>(null);
     const [status, setStatus] = useState("connecting…");
     const [live, setLive] = useState(false);
     const [follow, setFollow] = useState(true);
@@ -217,6 +228,62 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
         if (!trySend(channelRef.current, message)) setStatus("reconnecting…");
     };
 
+    // Swiping vertically in control mode scrolls the laptop's page instead
+    // of tapping it. Native (non-passive) listeners are required here:
+    // React attaches onTouchMove as passive by default, which silently
+    // no-ops preventDefault — needed once a gesture commits to being a
+    // swipe, to stop the phone's own page from scrolling too. isSwipe and
+    // frameScrollMessage are shared with watch-page.html (input-capture.mjs)
+    // so the two pages can't drift on the threshold or the scaling rule. No
+    // momentum — raw per-move deltas only, throttled, never integrated.
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const onTouchStart = (event: TouchEvent) => {
+            if (!controlOn || event.touches.length !== 1) {
+                touchRef.current = null;
+                return;
+            }
+            const t = event.touches[0];
+            touchRef.current = { startX: t.clientX, startY: t.clientY, lastY: t.clientY, accDy: 0, swiped: false, lastSentAt: 0 };
+        };
+
+        const onTouchMove = (event: TouchEvent) => {
+            const touch = touchRef.current;
+            const latest = latestRef.current;
+            if (!controlOn || !touch || !latest) return;
+            const t = event.touches[0];
+            const dy = t.clientY - touch.lastY;
+            touch.lastY = t.clientY;
+            if (!touch.swiped) touch.swiped = isSwipe(t.clientX - touch.startX, t.clientY - touch.startY);
+            if (!touch.swiped) return; // still inside the tap threshold
+            event.preventDefault();
+            touch.accDy += dy;
+            const now = Date.now();
+            if (now - touch.lastSentAt < SCROLL_THROTTLE_MS) return;
+            const rect = canvas.getBoundingClientRect();
+            const crop = follow ? computeCrop(latest.rect, { imageWidth: latest.img.width, imageHeight: latest.img.height, deviceWidth: latest.deviceWidth }) : null;
+            sendSafe(frameScrollMessage({ cssDy: touch.accDy, cssWidth: rect.width, crop, imageWidth: latest.img.width, imageHeight: latest.img.height }));
+            touch.accDy = 0;
+            touch.lastSentAt = now;
+        };
+
+        const onTouchEnd = () => {
+            touchRef.current = null;
+        };
+
+        canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+        canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+        canvas.addEventListener("touchend", onTouchEnd);
+        return () => {
+            canvas.removeEventListener("touchstart", onTouchStart);
+            canvas.removeEventListener("touchmove", onTouchMove);
+            canvas.removeEventListener("touchend", onTouchEnd);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [controlOn, follow]);
+
     // D8: off by default. Toggling tells the laptop's input-sink to open or
     // re-arm its gate (openclaw/scripts/viewer/input-sink.mjs) — without
     // this send, "take control" would flip the label but the laptop would
@@ -292,11 +359,13 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                 data-testid="watch-control-input"
                 className="sr-only"
                 aria-hidden={!controlOn}
+                // Kept non-empty at rest — see TYPER_SENTINEL's doc for why
+                // an empty field silently eats iOS's backspace event.
+                defaultValue={TYPER_SENTINEL}
                 onChange={(event) => {
-                    const text = event.target.value;
-                    if (!text) return;
-                    sendSafe(textMessage(text));
-                    event.target.value = "";
+                    const { messages, reset } = classifyTyperInput((event.nativeEvent as InputEvent).inputType, event.target.value);
+                    messages.forEach(sendSafe);
+                    event.target.value = reset;
                 }}
                 onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== "Tab") return;
