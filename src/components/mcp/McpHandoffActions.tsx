@@ -50,45 +50,52 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
         setChooserOpen(true);
     };
 
-    return (
-        <div className="flex flex-col items-end gap-2">
-            {chooserOpen && !savedClient ? (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    {(Object.keys(CLIENT_LABEL) as McpHandoffClient[]).map((client) => (
-                        <Button key={client} variant="outline" size="sm" onClick={() => pickClient(client)}>
-                            {CLIENT_LABEL[client]}
-                        </Button>
-                    ))}
-                </div>
-            ) : null}
-            <div className="flex flex-wrap items-center justify-end gap-2">
-                {savedClient ? (
-                    <button
-                        type="button"
-                        onClick={handleSwitch}
-                        className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                    >
-                        Switch AI
-                    </button>
-                ) : null}
-                <Button variant="outline" size="sm" onClick={handlePrimary}>
-                    Open in your AI →
-                </Button>
-            </div>
-            {/* Single source for the pairing-state line — exactly one of
-                {"Switch AI", "Not paired yet?"} may render, both keyed off
-                the SAME `savedClient` read above (previously this line lived
-                unconditionally in McpHandoffNote, so it showed even when
-                "Switch AI" was also on screen, claiming paired AND
-                not-paired at once). */}
-            {!savedClient && (
+    // Exactly one pairing affordance renders at a time, keyed off savedClient
+    // (+ chooserOpen) as mutually exclusive branches on the same state — never
+    // independent flags that could both be true. pickClient always clears
+    // chooserOpen when it sets savedClient, and handleSwitch always clears
+    // savedClient when it opens the chooser, so "chooser open" and "paired"
+    // can't coexist.
+    if (chooserOpen && !savedClient) {
+        return (
+            <div className="flex flex-wrap items-center gap-2">
+                {(Object.keys(CLIENT_LABEL) as McpHandoffClient[]).map((client) => (
+                    <Button key={client} variant="outline" size="sm" onClick={() => pickClient(client)}>
+                        {CLIENT_LABEL[client]}
+                    </Button>
+                ))}
                 <p className="text-xs text-muted-foreground">
-                    Not paired yet?{" "}
+                    First time?{" "}
                     <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
                         Connect once →
                     </Link>
                 </p>
-            )}
+            </div>
+        );
+    }
+
+    if (savedClient) {
+        return (
+            <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handlePrimary}>
+                    Open in {CLIENT_LABEL[savedClient]} →
+                </Button>
+                <button
+                    type="button"
+                    onClick={handleSwitch}
+                    className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                    Switch AI
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handlePrimary}>
+                Open in your AI →
+            </Button>
         </div>
     );
 }
