@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 import { fetchMarketTrends } from "@/lib/jobs/market-trends";
+import {
+  captureDailySnapshotIfAbsent,
+  computeLatestDelta,
+  readRecentSnapshots,
+  sinceLabel,
+  type DailySnapshotDoc,
+} from "@/lib/trends/daily-snapshot";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TrendsHero } from "@/components/trends/TrendsHero";
 import { TopCountriesList } from "@/components/trends/TopCountriesList";
@@ -7,6 +14,36 @@ import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
 import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
 import { MarketPulse } from "@/components/trends/MarketPulse";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+/**
+ * The daily-snapshot delta/tracking-since lines (P2, daily-snapshot.ts) —
+ * kept local to this page rather than folded into MarketPulse.tsx so the P1
+ * "Market pulse" stats section has no dependency on the snapshot module
+ * (independently shippable pieces). Net numbers only — every label says NET/
+ * newly-marked, never "flow" (a snapshot diff can't distinguish "3 posted, 1
+ * closed" from "2 net new"; see daily-snapshot.ts's module doc). Renders
+ * nothing until at least one snapshot exists — no empty promises.
+ */
+function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) {
+  const firstSnapshotDate = snapshots[0]?.date;
+  if (!firstSnapshotDate) return null;
+  const delta = computeLatestDelta(snapshots);
+
+  return (
+    <>
+      {delta && (
+        <p data-testid="trends-pulse-delta" className="mt-1 text-sm text-muted-foreground">
+          Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}:{" "}
+          {delta.netActiveChange >= 0 ? "+" : ""}
+          {delta.netActiveChange.toLocaleString()} net active · {delta.newlyClosed.toLocaleString()} newly closed
+        </p>
+      )}
+      <p data-testid="trends-pulse-tracking-since" className="mt-1 font-mono text-[11px] text-muted-foreground">
+        tracking daily since {firstSnapshotDate}
+      </p>
+    </>
+  );
+}
 
 // A plain `export const metadata` object can't carry the current month, so
 // this is `generateMetadata` instead — computed at request/revalidation
@@ -40,6 +77,15 @@ export default async function TrendsPage() {
     );
   }
 
+  // Lazy daily snapshot (P2): create-if-absent off THIS fetch's numbers (no
+  // extra Meili cost), never throws — see daily-snapshot.ts's module doc.
+  await captureDailySnapshotIfAbsent({
+    totalDocs: data.totalTracked.value,
+    active: data.liveJobs.value,
+    closed: data.closedTotal.value,
+  });
+  const snapshots = await readRecentSnapshots();
+
   return (
     <main data-testid="trends-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       {/* `bare`: this page isn't rendered through `PageLayout`'s `header`
@@ -69,6 +115,7 @@ export default async function TrendsPage() {
         closedTotal={data.closedTotal}
         staleActiveSharePct={data.staleActiveSharePct}
         sourceCoverage={data.sourceCoverage}
+        snapshotSummary={<DailySnapshotSummary snapshots={snapshots} />}
       />
     </main>
   );
