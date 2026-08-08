@@ -553,6 +553,18 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     assert.deepEqual(searchCalls[0].facets, { employment_type: ['contract'] });
   });
 
+  it('maps experience_level=lead (newly-unlocked value) to facets.experience_level', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { experience_level: 'lead' });
+    assert.deepEqual(searchCalls[0].facets, { experience_level: ['lead'] });
+  });
+
+  it('maps employment_type=part_time (newly-unlocked value) to facets.employment_type', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { employment_type: 'part_time' });
+    assert.deepEqual(searchCalls[0].facets, { employment_type: ['part_time'] });
+  });
+
   it('maps salary_min straight through to salaryMin', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { salary_min: 150000 });
