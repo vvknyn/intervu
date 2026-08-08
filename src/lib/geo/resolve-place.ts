@@ -23,16 +23,19 @@
  *
  * Common-word guard (opt-in, see `resolvePlacePhrase`'s `guardCommonWords`
  * param): a SINGLE-token phrase is still real GeoNames data, but an ordinary
- * English word can coincidentally also name an obscure real place ("success"
- * is a Perth, WA suburb; "mobile" is a Brazilian municipality; bare
- * "engineer" is a Kenyan town). The corpus-count floor (`PLACE_MIN_COUNT`,
- * corpus-values.ts) doesn't catch this — a populous suburb like Success, WA
- * clears a real corpus's count floor easily. This guard is a different,
- * earlier check: it rejects recognition itself for single-token candidates
- * on the common-word list (common-words.ts), before any corpus round trip.
- * Multi-word phrases ("san francisco") are never checked — a common-word
- * COLLISION is only possible for a single bare token. Callers opt in
- * per-call because it only makes sense for candidates extracted from
+ * word can coincidentally also name an obscure real place ("success" is a
+ * Perth, WA suburb; "mobile" is a Brazilian municipality; bare "engineer" is
+ * a Kenyan town; "enterprise" is Enterprise, AL). The corpus-count floor
+ * (`PLACE_MIN_COUNT`, corpus-values.ts) doesn't catch this — a populous
+ * suburb like Success, WA clears a real corpus's count floor easily. This
+ * guard is a different, earlier check: it rejects recognition itself for
+ * single-token candidates on the guard word set (`GUARD_WORDS` below — a
+ * union of general-English common words, common-words.ts, and corpus-derived
+ * job-title vocabulary, job-vocab.ts, since "enterprise" is a job-title word
+ * common enough to hijack searches without being common ENGLISH), before any
+ * corpus round trip. Multi-word phrases ("san francisco") are never checked
+ * — a guard-word COLLISION is only possible for a single bare token. Callers
+ * opt in per-call because it only makes sense for candidates extracted from
  * free-text search words — an explicitly-typed location is intentional
  * input, not a coincidental substring (see query-understanding.ts).
  */
@@ -40,6 +43,19 @@ import type { PlaceFilter } from "../jobs/types";
 import type { Gazetteer, GazetteerCity, GazetteerCountry } from "./gazetteer";
 import { haversineKm } from "./distance";
 import { COMMON_WORDS } from "./common-words";
+import { JOB_VOCAB } from "./job-vocab";
+
+/**
+ * The guard's full word set: general-English common words (common-words.ts)
+ * UNIONED with corpus-derived job-title vocabulary (job-vocab.ts). Two
+ * different provenances — hand-curated general English vs. data-derived from
+ * our own live corpus — because neither alone covers the class: "success" /
+ * "mobile" / "engineer" are common-English; "enterprise" is not common
+ * English but IS extremely common as a job-title word ("Enterprise Account
+ * Executive"), so a general-English list alone still lets it hijack a
+ * search. Built once at module load; the chokepoint below stays a single
+ * check against one combined set, not two lookups. */
+const GUARD_WORDS: Set<string> = new Set([...COMMON_WORDS, ...JOB_VOCAB]);
 
 /** No 1-2 letter phrase is ever looked up as a place — "OR"/"IN"/"ME" are
  *  real corpus values (Oregon, Indiana, Maine) but collide with English
@@ -210,9 +226,10 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
  * denylist.
  *
  * `guardCommonWords` (default off): when true, also rejects a single-token
- * phrase that's on the general-English common-word list (common-words.ts),
- * even though it WOULD otherwise resolve — see the module doc's "Common-word
- * guard" section. Off by default because most gazetteer resolution (an
+ * phrase that's on the guard word set (`GUARD_WORDS` above — common English
+ * plus corpus-derived job vocabulary), even though it WOULD otherwise
+ * resolve — see the module doc's "Common-word guard" section. Off by
+ * default because most gazetteer resolution (an
  * explicitly-typed location, the IP-default expansion, these tests) has no
  * reason to second-guess a real place; only the free-text query scanner
  * (query-understanding.ts) opts in.
@@ -225,7 +242,7 @@ export function resolvePlacePhrase(
   const normalized = phrase.trim().toLowerCase();
   if (normalized.length < PLACE_MIN_LENGTH) return null;
   if (/\d/.test(normalized)) return null;
-  if (guardCommonWords && !normalized.includes(" ") && COMMON_WORDS.has(normalized)) return null;
+  if (guardCommonWords && !normalized.includes(" ") && GUARD_WORDS.has(normalized)) return null;
 
   const country = resolveCountry(normalized, gazetteer);
   const admin1 = resolveAdmin1(normalized, gazetteer);
