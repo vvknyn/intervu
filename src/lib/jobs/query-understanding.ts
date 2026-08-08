@@ -170,6 +170,12 @@ export async function parsePlaceTokens(
  * (`?location_country=a,b` deep links, /trends' country links): resolved
  * clauses OR together, but a raw facet left standing beside them would AND
  * against that OR-group and zero the search out.
+ *
+ * Before any place resolution runs, a work-mode pre-pass strips work-mode
+ * phrases ("remote", "hybrid", ...) via the SAME `parseWorkTypeTokens` the
+ * search box's query text uses, routing them into `work_type` instead of an
+ * exact `location_country` value that can never match ("remote" — the
+ * location box's own placeholder says "City, state, or remote").
  */
 export async function resolveLocationFacet(
   p: JobSearchParams,
@@ -178,19 +184,58 @@ export async function resolveLocationFacet(
   const typed = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
   if (typed.length === 0) return p;
 
+  // Work-mode terms typed into the location box ("remote", "hybrid") are not
+  // places — strip them with the SAME parser the search box's query text
+  // uses (parseWorkTypeTokens, applyQueryUnderstanding above) before any
+  // place resolution runs, so "remote" routes to the work_type facet instead
+  // of becoming a location_country filter that can never match ("remote
+  // canada" -> work_type: ["remote"] + a Canada place clause — typing it =
+  // clicking it, same principle as the query box).
+  const stripped = typed.map((phrase) => parseWorkTypeTokens(phrase));
+  const workTypes = new Set(stripped.flatMap((s) => s.workTypes));
+
+  if (workTypes.size === 0) {
+    // Class case: no work-mode term anywhere in the typed value(s) — the
+    // ORIGINAL place-only resolution, untouched, so every existing legacy-
+    // fallback guarantee (all-or-nothing across a multi-value facet, a
+    // gibberish/uncorroborated value keeping its raw exact facet) still
+    // holds byte-for-byte.
+    const resolved: PlaceClause[] = [];
+    for (const phrase of typed) {
+      const { places } = await parsePlaceTokens(phrase, vocab);
+      if (places.length === 0) return p;
+      resolved.push(...places);
+    }
+    const { location_country: _raw, ...facets } = p.facets!;
+    return { ...p, places: [...(p.places ?? []), ...resolved], facets };
+  }
+
+  // At least one phrase carried a work-mode term: resolve whatever place
+  // text is left after stripping it. A residual that fails to resolve is
+  // simply dropped, not legacy-fallen-back-to — the original phrase
+  // ("remote qwerty") contains a work-mode word no location_country value
+  // ever holds, so there is no real exact facet left to preserve, and the
+  // work-mode facet we DID understand should still apply.
   const resolved: PlaceClause[] = [];
-  for (const phrase of typed) {
-    const { places } = await parsePlaceTokens(phrase, vocab);
-    if (places.length === 0) return p;
+  for (const { residualQ } of stripped) {
+    const residual = residualQ.trim();
+    if (!residual) continue;
+    const { places } = await parsePlaceTokens(residual, vocab);
     resolved.push(...places);
   }
 
   const { location_country: _raw, ...facets } = p.facets!;
-  // Appended, not assigned: `applyQueryUnderstanding` below skips free-text
-  // place parsing while this facet is set, so the two can't co-occur today —
-  // appending just means a future change to that gate can never make this
-  // silently drop a place the searcher typed.
-  return { ...p, places: [...(p.places ?? []), ...resolved], facets };
+  const mergedWorkTypes = new Set([...(facets.work_type ?? []), ...workTypes]);
+  const mergedPlaces = [...(p.places ?? []), ...resolved];
+  return {
+    ...p,
+    // Only attach `places` when there's a resolved clause to carry — a
+    // location box that was pure work-mode text ("remote", no residual
+    // place words) has nothing to filter on, so leave `places` exactly as
+    // it arrived rather than pinning an empty array where `undefined` was.
+    ...(mergedPlaces.length > 0 ? { places: mergedPlaces } : {}),
+    facets: { ...facets, work_type: [...mergedWorkTypes] },
+  };
 }
 
 /**

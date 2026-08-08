@@ -362,6 +362,44 @@ test("interaction with the IP country default: a resolved place IS location sign
   assert.equal(applied.defaultedLocation, undefined);
 });
 
+test("F1: 'remote' in the location box routes to work_type, not a location filter", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["remote"] } }, VOCAB);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.places, undefined);
+});
+
+test("F1: case-insensitive — 'Remote' resolves identically", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["Remote"] } }, VOCAB);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+});
+
+test("F1: 'hybrid' in the location box also routes to work_type", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["hybrid"] } }, VOCAB);
+  assert.deepEqual(p.facets?.work_type, ["hybrid"]);
+});
+
+test("F1: mixed 'remote canada' -> work_type AND a Canada place clause", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["remote canada"] } }, VOCAB);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.equal(p.facets?.location_country, undefined);
+});
+
+test("F1 class case: plain 'canada' (no work-mode term) is untouched by the work-mode path", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.equal(p.facets?.work_type, undefined);
+});
+
+test("F1: a work-mode term merges with an already-selected work_type facet rather than overwriting it", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["remote"], work_type: ["onsite"] } },
+    VOCAB,
+  );
+  assert.deepEqual(p.facets?.work_type?.sort(), ["onsite", "remote"]);
+});
+
 test("explicit location intent bypasses the guard entirely: resolving \"success\" through parsePlaceTokens without the free-text flag (exactly how resolvePlaces/agent/tools.ts calls it for the MCP `location` param) still returns the place", async () => {
   const { residualQ, places } = await parsePlaceTokens("success", GUARD_VOCAB); // no 3rd arg — same call shape as resolvePlaces()
   assert.equal(residualQ, "");
