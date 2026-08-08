@@ -217,9 +217,11 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
     });
 
     // Portal redesign rewrite: the old lg+ three-pane layout (filters |
-    // results | detail, all inline) is gone. Detail now opens exclusively
-    // via the bottom Sheet at every breakpoint (jobs-first-screen.spec.ts's
-    // dead-job/opening-a-job tests cover that), and filters moved into that
+    // results | detail, all inline) is gone. Detail opens via the bottom
+    // Sheet below xl, and in the sticky split-view pane at xl+ (2026-08-08
+    // Two-Panel Selector — see resolveDetailMountSite; jobs-split-view
+    // .spec.ts covers the pane, jobs-first-screen.spec.ts's dead-job/
+    // opening-a-job tests cover the sheet), and filters moved into that
     // same Sheet behind "All filters" (TC-JOBS-LAYOUT-002 below). The two
     // panes that remain inline at lg+ are the results list and the sidebar
     // (pipeline + ghost-radar cards, `<aside>` in page.tsx) — this proves
