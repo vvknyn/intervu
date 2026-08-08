@@ -83,6 +83,12 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
   }
   if (p.visaOnly && j.visa_sponsorship !== true) return false;
   if (!passPostedBucket(j, p.postedBucket)) return false;
+  // Mirrors meilisearch.ts's `postedSinceMs` clause — an absolute floor,
+  // independent of the relative `postedBucket` windows above.
+  if (p.postedSinceMs != null) {
+    const ts = derivePostedTs(j);
+    if (ts == null || ts < p.postedSinceMs) return false;
+  }
   if (p.board) {
     const domains = getBoardDomains(p.board as BoardId);
     if (domains.length > 0 && !domains.includes((j.company_domain ?? "").toLowerCase())) return false;

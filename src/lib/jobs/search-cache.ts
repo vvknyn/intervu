@@ -76,6 +76,7 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     hideGhosts: Boolean(p.hideGhosts),
     sort: p.sort ?? "",
     postedBucket: p.postedBucket ?? "",
+    postedSinceMs: p.postedSinceMs ?? 0,
     places,
     limit: p.limit ?? 40,
     offset: p.offset ?? 0,
@@ -97,6 +98,7 @@ export function isDefaultBrowseParams(p: JobSearchParams): boolean {
     !p.salaryMin &&
     !p.visaOnly &&
     !p.postedBucket &&
+    !p.postedSinceMs &&
     !p.places?.length &&
     !p.board &&
     !p.companyDomain

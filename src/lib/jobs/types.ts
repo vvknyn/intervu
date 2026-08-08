@@ -131,6 +131,17 @@ export interface JobSearchParams {
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
   /**
+   * Restrict to jobs posted at or after this exact epoch-ms floor —
+   * `postedBucket`'s sibling for an arbitrary "since a stored cursor" query
+   * (the count-new action, `countNewSinceAction` in actions/jobs.ts) rather
+   * than one of `postedBucket`'s fixed relative-to-now windows. Both fields
+   * funnel through the SAME `posted_ts` translation (`buildFilter`,
+   * meilisearch.ts) — this is the one place a caller may express an
+   * absolute posted_ts floor; nothing downstream ever hand-builds a
+   * `posted_ts` filter clause outside that function.
+   */
+  postedSinceMs?: number;
+  /**
    * User has dismissed the IP-based location default (the /jobs default-
    * location chip's "×" — a persistent, explicit "don't do that" separate
    * from ever having typed a place) — see `hasLocationSignal`

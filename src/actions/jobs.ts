@@ -13,6 +13,8 @@ import {
 } from "@/lib/jobs/search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
+import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
+import type { JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
@@ -279,6 +281,81 @@ export async function getDefaultBrowseAction(
       searchId,
     };
   }
+}
+
+/**
+ * "N new since you last looked" (round 2's board/saved-search banner).
+ * `first_seen_at` is sortable but NOT in the live index's
+ * filterableAttributes — a settings change would mean reindexing a
+ * near-full box — so `posted_ts` is the ONLY posted-date field this (or any
+ * other) count ever filters on. The cursor is expressed as
+ * `JobSearchParams.postedSinceMs`, the exact same `posted_ts` translation
+ * chokepoint (`buildFilter`, meilisearch.ts) `postedBucket` already goes
+ * through — never a hand-built filter string here.
+ *
+ * The cursor is day-bucketed (UTC midnight floor, `bucketCursorToUtcDay`)
+ * before it reaches a query, both so the count can't silently drift within
+ * a cache window and because that floor IS the cache key board scope
+ * revalidates on below. Saved scope isn't cached — per-user params vary too
+ * much for a shared cache to pay for itself — but still shares the rate
+ * limit both scopes open with.
+ */
+const getCachedBoardCountNew = unstable_cache(
+  async (iso2: string | null, bucketedCursorIso: string): Promise<number> => {
+    const places = iso2 ? placesForCountry(iso2) : undefined;
+    const result = await runSearch(
+      { postedSinceMs: Date.parse(bucketedCursorIso), places, limit: 1, withFacets: false },
+      {},
+    );
+    return result.total;
+  },
+  ["jobs-count-new-board"],
+  { revalidate: 900 },
+);
+
+export async function countNewSinceAction(
+  input: { scope: "board" } | { scope: "saved"; params: JobsUrlState },
+  cursorIso: string,
+): Promise<number> {
+  // Same per-IP chokepoint as searchJobsAction/getRelatedJobsAction — a
+  // count is an accelerant for a banner, never a primary result, so denial
+  // is 0 (renders nothing) rather than an error the caller must special-case.
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return 0;
+
+  const bucketedCursor = bucketCursorToUtcDay(cursorIso);
+
+  if (input.scope === "board") {
+    const iso2 = ip ? await countryLookup(ip) : null;
+    try {
+      return await getCachedBoardCountNew(iso2, bucketedCursor);
+    } catch (e) {
+      console.error("[jobs-count-new] board scope transport error:", e);
+      return 0;
+    }
+  }
+
+  // Saved scope: the saved search's own filters, MINUS its own
+  // `postedBucket` (a "posted within Nd of now" window would silently
+  // undercount once the cursor is older than that window — the freshness
+  // question here is "since the cursor," not "since some fixed bucket") —
+  // PLUS the same posted_ts cursor clause board scope uses above.
+  const p = input.params;
+  const result = await runSearch(
+    {
+      q: p.q || undefined,
+      facets: p.facets,
+      salaryMin: p.salaryMin || undefined,
+      visaOnly: p.visaOnly || undefined,
+      hideGhosts: p.hideGhosts,
+      board: p.board ?? undefined,
+      postedSinceMs: Date.parse(bucketedCursor),
+      limit: 1,
+      withFacets: false,
+    },
+    { clientIp: ip, countryLookup },
+  );
+  return result.total;
 }
 
 /**
