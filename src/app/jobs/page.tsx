@@ -24,6 +24,7 @@ import { getMarketingStatsAction } from "@/actions/marketing";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     searchJobsAction as searchJobsActionRaw,
+    getDefaultBrowseAction,
     markJobAppliedAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
@@ -94,6 +95,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     resolveEmptySearchState,
+    resolveJobsRenderMode,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
@@ -170,6 +172,21 @@ const searchJobsAction = (params: JobSearchParams): Promise<JobsSearchActionResu
         }),
     );
 
+/** Same settle-guard + `lastSearchId` bookkeeping as `searchJobsAction`
+ *  above, for the cached default-browse action the zero-query landing fetch
+ *  calls instead (see `emptySearchState` / the fetch effect below).
+ *  `getDefaultBrowseAction`'s return type is structurally a
+ *  `JobsSearchActionResult` (every field present; `meta` just never carries
+ *  the `gated` field a live shield-gated search can), so it type-checks
+ *  through the same result state the rest of this page reads. */
+const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promise<JobsSearchActionResult> =>
+    withSettleGuard(
+        getDefaultBrowseAction(suppressLocationDefault).then((r) => {
+            lastSearchId = r.searchId;
+            return r;
+        }),
+    );
+
 /* ----------------------------- helpers ----------------------------- */
 
 /** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
@@ -239,6 +256,40 @@ function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => v
             near {name}
             <ChipDismiss label={`Stop defaulting to ${name}`} onClick={onClear} />
         </span>
+    );
+}
+
+/**
+ * Compact pivot row rendered ABOVE default-browse results (browse-by-default,
+ * 2026-08-07 front-door reversal) — the seed chips no longer disappear once
+ * the zero-query landing shows real jobs, they just shrink from the full
+ * serp-ask block into a one-line row of shortcuts sitting on top of the
+ * results they used to stand in for. Same seeds (`resolveSearchSeeds`), same
+ * `submitSearch` chokepoint, same `serp-ask-seed` testid as the full block
+ * below — one write path, one thing e2e has to know about, in either
+ * rendering context.
+ */
+function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: string) => void }) {
+    if (seeds.length === 0) return null;
+    return (
+        <div
+            data-testid="browse-seed-row"
+            className="mb-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5 text-left"
+        >
+            <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#aeb4bd]">Or try</span>
+            {seeds.map((seed) => (
+                <button
+                    key={seed}
+                    type="button"
+                    data-testid="serp-ask-seed"
+                    title={`Search for ${seed}`}
+                    onClick={() => onSubmit(seed)}
+                    className="max-w-[min(100%,12rem)] truncate text-[13px] font-medium text-[#ececec] underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                >
+                    {seed}
+                </button>
+            ))}
+        </div>
     );
 }
 
@@ -1278,35 +1329,26 @@ function JobsContent() {
      * incidents. The `limit: 1, withFacets: false` corpus-count probe used
      * for the search line's placeholder is untouched by this.
      */
-    const skipCorpusFetch = !query.trim();
-
     /**
      * The empty-query landing state (`lib/jobs/result-state.ts`,
-     * unit-tested there) — three outcomes: ordinary `"results"`, the
-     * full-screen front-door overlay (owned by `/`, not this route — see
-     * `src/app/page.tsx`), or the chrome-preserving `"serp-ask"` for an
-     * empty query. `/jobs` never renders the overlay; any non-"results"
-     * state falls back to the chrome-preserving SERP-ask so a bare `/jobs`
-     * visit still shows filters + seeds instead of the marketing hero.
+     * unit-tested there) — decides WHICH fetch shape a zero-query state
+     * uses below: `"overlay-ask"` (pristine — no filters, no fit) drives the
+     * cached `getDefaultBrowseAction`; `"serp-ask"` (filters active) drives
+     * the ordinary uncached `searchJobsAction`, same as `"results"`. Browse-
+     * by-default (2026-08-07 front-door reversal) means every state now
+     * fetches something — see `resolveJobsRenderMode` (used below, once
+     * `hits`/`loading` are in scope) for the separate render-fallback
+     * decision.
      */
     const emptySearchState = resolveEmptySearchState({
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
     });
-    const isSerpAsk = emptySearchState !== "results";
 
-    // Debounced search on query / facet / salary / visa changes.
+    // Debounced search on query / facet / salary / visa changes. Zero query
+    // no longer skips this — see `emptySearchState` above.
     useEffect(() => {
-        if (skipCorpusFetch) {
-            // Nothing to search. Drop any previous result so returning to an
-            // empty query lands back on an ask state rather than stale rows.
-            setLoading(false);
-            setSearchError(null);
-            setResult(null);
-            return;
-        }
-
         let cancelled = false;
         let firstPageSucceeded = false;
         // Deliverable 1 — set when this run schedules the one automatic
@@ -1323,12 +1365,23 @@ function JobsContent() {
         setLoading(true);
         const t = setTimeout(async () => {
             try {
-                const r = await searchJobsAction({
-                    ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
-                    withFacets: true,
-                    limit: PAGE,
-                    offset: 0,
-                });
+                // Browse-by-default (2026-08-07): the pristine zero-query
+                // landing (`emptySearchState === "overlay-ask"` — no query,
+                // no filters, no fit) goes through the cached, fixed-shape
+                // default browse instead of the ordinary uncached search —
+                // see `getDefaultBrowseAction`'s own doc comment
+                // (actions/jobs.ts) for the cost-guard rationale. Every
+                // other state (a real query, fit-active, or zero-query WITH
+                // filters) is unchanged.
+                const r =
+                    emptySearchState === "overlay-ask"
+                        ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
+                        : await searchJobsAction({
+                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                              withFacets: true,
+                              limit: PAGE,
+                              offset: 0,
+                          });
                 if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
                 if (isUnavailableJobsResult(r)) {
                     // Deliverable 1 — this exact `searchKey` gets ONE free
@@ -1544,8 +1597,14 @@ function JobsContent() {
         // visaOnly/postedBucket/hideGhosts/sortOverride — see its definition
         // above — so listing it alone (plus searchRetry) satisfies the
         // refetch rule without duplicating every field in this array.
+        // `emptySearchState` is listed explicitly since the callback now
+        // branches on it directly (which fetch shape to use) — it's derived
+        // from `query`/`fitActive`/`activeEntries.length`, all already
+        // covered transitively by `searchKey`, so this never fires an extra
+        // run on its own; it's here so the effect is never accused of
+        // reading a value outside its own dependency list.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchKey, searchRetry, skipCorpusFetch, locationDefaultSuppressed]);
+    }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed]);
 
     // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
     // starts on Best match rather than silently inheriting whatever sort was
@@ -1618,6 +1677,26 @@ function JobsContent() {
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
+
+    /**
+     * Render fallback for a zero-query state (`resolveJobsRenderMode`,
+     * lib/jobs/result-state.ts, unit-tested there) — `"serp-ask"` only once
+     * that state's own fetch (above) has DEFINITIVELY failed with nothing to
+     * show; a real query/fit always renders results regardless. `failed`
+     * mirrors the same unavailable/unconfigured signals `notConnected`/
+     * `blockingError` below already read, so a zero-query fetch failure
+     * lands on the calmer serp-ask fallback (tappable seeds) instead of
+     * either of those harder error walls — never a fake-outage wall for the
+     * landing state.
+     */
+    const zeroQueryFetchFailed =
+        searchError != null || (result != null && (result.unavailable === true || result.configured === false));
+    const isSerpAsk =
+        resolveJobsRenderMode(emptySearchState, {
+            loading,
+            hitCount: hits.length,
+            failed: zeroQueryFetchFailed,
+        }) === "serp-ask";
 
     // The relevance seam (Task A) — where the "titled it" block of results
     // ends and the "mentions it" block begins. Tiers against the SERVER's
@@ -2101,6 +2180,7 @@ function JobsContent() {
                 return;
             }
             invalidatePursuitsCache();
+            toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 setAuthOpen(true);
@@ -2171,6 +2251,7 @@ function JobsContent() {
                     return;
                 }
                 invalidatePursuitsCache();
+                toast.success("Saved — find it in your Tracker");
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
@@ -2860,14 +2941,25 @@ function JobsContent() {
                             keeps holding if a sibling (header, notice) is ever added
                             alongside the pane in this wrapper. */}
                         <div className="flex min-h-0 flex-1 flex-col">
+                            {/* Browse-by-default (2026-08-07): a zero-query state
+                                whose fetch is loading or already has hits renders
+                                the compact pivot row above the SAME results
+                                pipeline below (`isSerpAsk` false) — see
+                                `resolveJobsRenderMode`. The seeds never disappear,
+                                they just stop being the whole screen. */}
+                            {emptySearchState !== "results" && !isSerpAsk && (
+                                <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
+                            )}
                             {isSerpAsk ? (
-                                /* Screen 3's SERP-ask (product spec §2): filters are
-                                   active (see `resolveEmptySearchState`), so the chrome
-                                   above stays up — search line, filter band — but
-                                   there is genuinely nothing to list (rule §1: an
-                                   empty query never fetches the corpus). Seeds =
-                                   recent searches first, then the curated fallback
-                                   list, deduped — `resolveSearchSeeds`
+                                /* Fallback ask (product spec §2, revised 2026-08-07):
+                                   the zero-query browse fetch above (see the debounced
+                                   effect) has DEFINITIVELY failed with nothing to show
+                                   (`resolveJobsRenderMode` → "serp-ask") — never shown
+                                   merely because the query is empty anymore. Chrome
+                                   stays up — search line, filter band — with the full
+                                   seed list standing in for the market that couldn't
+                                   load. Seeds = recent searches first, then the
+                                   curated fallback list, deduped — `resolveSearchSeeds`
                                    (lib/jobs/recent-searches.ts, unit-tested). Tapping
                                    one goes through the exact same `submitSearch`
                                    chokepoint a typed Enter/suggestion-pick uses, so
@@ -3189,9 +3281,19 @@ function JobsContent() {
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
                     className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[0_-18px_50px_rgba(18,21,26,0.18)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
-                    <div className="flex shrink-0 justify-center py-2.5 pt-2.5" aria-hidden>
-                        <span className="h-1 w-9 rounded-full bg-[#d0d6de]" />
-                    </div>
+                    {/* Was a decorative drag-handle bar with zero handlers — a
+                        visual affordance that did nothing. Now a real close
+                        button (≥44px touch height via padding, not a bigger
+                        glyph) that closes the sheet the same way JobDetail's
+                        own × does, below. */}
+                    <button
+                        type="button"
+                        aria-label="Close"
+                        onClick={() => router.back()}
+                        className="flex h-11 w-full shrink-0 items-center justify-center"
+                    >
+                        <span aria-hidden="true" className="h-1 w-9 rounded-full bg-[#d0d6de]" />
+                    </button>
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>

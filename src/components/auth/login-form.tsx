@@ -52,6 +52,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     const [activeTab, setActiveTab] = useState<"login" | "signup">("login")
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [isPending, startTransition] = useTransition()
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
@@ -170,17 +171,31 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                 <Label className="sr-only" htmlFor="password">
                                     Password
                                 </Label>
-                                <Input
-                                    id="password"
-                                    placeholder="Password"
-                                    type="password"
-                                    autoCapitalize="none"
-                                    autoComplete="current-password"
-                                    disabled={isPending}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className={authFieldClass}
-                                />
+                                <div className="relative">
+                                    <Input
+                                        id="password"
+                                        placeholder="Password"
+                                        type={showPassword ? "text" : "password"}
+                                        autoCapitalize="none"
+                                        autoComplete={activeTab === "signup" ? "new-password" : "current-password"}
+                                        disabled={isPending}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className={`${authFieldClass} pr-14`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => setShowPassword((show) => !show)}
+                                        aria-label={showPassword ? "Hide password" : "Show password"}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                        {showPassword ? "Hide" : "Show"}
+                                    </button>
+                                </div>
+                                {activeTab === "signup" && (
+                                    <p className="text-xs text-muted-foreground">6+ characters</p>
+                                )}
                             </div>
                             <Button disabled={isPending} className="w-full">
                                 {isPending && (

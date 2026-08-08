@@ -1,5 +1,6 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
 import { createApplication, upsertPursuitForJob } from "@/actions/application";
 import { generateGenericJSON } from "@/actions/generate-context";
 import {
@@ -11,7 +12,7 @@ import {
   type SearchServeMeta,
 } from "@/lib/jobs/search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "@/lib/jobs/types";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
   buildSearchLogEntry,
@@ -22,6 +23,8 @@ import {
 import { validate, markJobAppliedSchema } from "@/lib/validation";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { createMmdbCountryLookup } from "@/lib/geo/ip-country";
+import { loadGazetteer } from "@/lib/geo/gazetteer";
+import { countryPlaceCandidates } from "@/lib/geo/resolve-place";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/depth-cap";
 import { getServerUser } from "@/lib/firebase/auth-session";
@@ -118,6 +121,104 @@ export async function searchJobsAction(
   }
 
   return { ...result, searchId };
+}
+
+/** Page size for the cached default browse — mirrors `PAGE` in
+ *  jobs/page.tsx (currently 30). Not imported from there: that file is
+ *  "use client" and this one is "use server," so the two stay independent
+ *  constants by construction rather than a cross-runtime import. */
+const DEFAULT_BROWSE_LIMIT = 30;
+
+/**
+ * Resolve a country ISO2 to the same `places` clause shape
+ * `resolveLocationDefault` (lib/geo/ip-default.ts) would produce for it —
+ * built straight from the bundled gazetteer, no corpus-value validation
+ * (that step is a live Meilisearch facet-search call; skipping it is what
+ * keeps this cheap enough to run outside the cache below on every request).
+ * A country genuinely absent from the corpus just yields zero hits, same as
+ * any other search with an obscure filter — not a failure.
+ */
+function placesForCountry(iso2: string): PlaceClause[] | undefined {
+  const candidates = countryPlaceCandidates(iso2, loadGazetteer());
+  return candidates?.length ? [{ any: candidates }] : undefined;
+}
+
+/**
+ * The fixed "default browse" shape (2026-08-07 front-door reversal, product
+ * decision: a zero-query visitor must see real jobs on first paint) — empty
+ * query, the app's standing 30d posted-window default (`DEFAULT_URL_STATE`,
+ * lib/jobs/url-state.ts), freshest-first, ghosts hidden (the first-screen
+ * default), and the resolved country's postings when the corpus has any.
+ *
+ * Distinct from search-cache.ts's OWN "default browse" bookkeeping
+ * (`isDefaultBrowseParams`/`DEFAULT_BROWSE_CACHE_KEY`) — that one caches the
+ * fully unfiltered, no-window shape the pre-rule-§1 cold-visit browse used
+ * to send before it was killed off for being the single most expensive query
+ * the app issued; it survives today only as search.ts's own outage-fallback
+ * key for other callers (e.g. MCP), untouched by this. This shape is bounded
+ * by the 30d window, so it's cheap enough to serve fresh rather than only
+ * as a degraded fallback.
+ *
+ * Cached 600s, keyed ONLY by the resolved `places` clause (i.e. by country —
+ * `undefined` for "no country resolved," a single shared entry) — every real
+ * user-typed search or filtered fetch stays on the uncached `searchJobsAction`
+ * path above; this is the one fixed shape cheap enough to share across every
+ * visitor from the same country instead of hitting the corpus per visitor.
+ */
+const getCachedDefaultBrowse = unstable_cache(
+  async (places: PlaceClause[] | undefined): Promise<JobSearchResult & { meta?: SearchServeMeta }> =>
+    runSearch(
+      {
+        postedBucket: "30d",
+        hideGhosts: true,
+        sort: "newest",
+        limit: DEFAULT_BROWSE_LIMIT,
+        offset: 0,
+        withFacets: true,
+        places,
+      },
+      {},
+    ),
+  ["jobs-default-browse"],
+  { revalidate: 600 },
+);
+
+/**
+ * Thin I/O wrapper `jobs/page.tsx`'s zero-query landing fetch calls instead
+ * of `searchJobsAction` when `resolveEmptySearchState` classifies the
+ * current state `"overlay-ask"` (empty query, no filters, no fit) — see that
+ * function's doc comment. `searchId` and `defaultedLocation` are stamped
+ * fresh on every call, outside the cache boundary, same pattern
+ * `searchJobsAction` above uses for its own per-request `searchId`: a cached
+ * response is shared across visitors, but each visitor's own request/open
+ * telemetry and "near Country" chip still need to be theirs.
+ *
+ * `suppressLocationDefault` mirrors the same-named `JobSearchParams` field:
+ * a visitor who already dismissed the default-location chip must not have
+ * it silently reapplied just because they landed back on an empty query.
+ */
+export async function getDefaultBrowseAction(
+  suppressLocationDefault: boolean,
+): Promise<JobSearchResult & { searchId: string; meta?: SearchServeMeta; defaultedLocation?: string }> {
+  const searchId = randomUUID();
+  const ip = suppressLocationDefault ? null : await getClientIp();
+  const iso2 = ip ? await countryLookup(ip) : null;
+  const places = iso2 ? placesForCountry(iso2) : undefined;
+  try {
+    const result = await getCachedDefaultBrowse(places);
+    return { ...result, searchId, ...(places ? { defaultedLocation: iso2! } : {}) };
+  } catch (e) {
+    console.error("[jobs-default-browse] action transport error:", e);
+    return {
+      hits: [],
+      total: 0,
+      backend: getJobsBackendStatus().backend,
+      configured: true,
+      unavailable: true,
+      note: SEARCH_UNAVAILABLE_MESSAGE,
+      searchId,
+    };
+  }
 }
 
 /**

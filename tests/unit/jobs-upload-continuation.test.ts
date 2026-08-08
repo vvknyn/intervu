@@ -5,7 +5,8 @@ import { join } from "node:path";
 
 /**
  * "Grep-proof" class-fix regression test for the résumé-upload continuation
- * wiring in src/app/page.tsx.
+ * wiring in src/app/jobs/page.tsx (lived in src/app/page.tsx until the
+ * board became the front page and `/` became a redirect).
  *
  * Bug this guards against (user-reported): the résumé-upsell card called
  * `handleUploadClick` directly as its click handler, with no follow-up
@@ -30,7 +31,7 @@ import { join } from "node:path";
  * point routes through the chokepoint, and nothing bypasses it to write the
  * continuation ref or open the modal directly.
  */
-const SOURCE = readFileSync(join(__dirname, "../../src/app/page.tsx"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
 
 function section(startMarker: string, endMarker: string): string {
     const start = SOURCE.indexOf(startMarker);

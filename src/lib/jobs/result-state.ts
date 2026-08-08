@@ -277,16 +277,24 @@ export function classifyExistenceCheck(id: string, result: JobSearchResult): Exi
 
 /**
  * The empty-query landing state (page.tsx's `emptySearchState`, unit-tested
- * here rather than only inline in the component). An empty search must never
- * list the whole corpus — no query, no fit ⇒ nothing was fetched — so this
- * decides what to show INSTEAD, one of:
+ * here rather than only inline in the component). Classifies the
+ * query/filter state alone — before any fetch outcome is known — into one
+ * of:
  *
  *   - `"results"` — there's a query or a fit ranking: render the ordinary
  *     results surface, nothing to do with the empty-search states below.
- *   - `"serp-ask"` — filters are active, so the visitor has already told us
- *     something (keep the SERP chrome up, filters editable).
+ *   - `"serp-ask"` — filters are active with no query: the visitor has
+ *     already told us something, so this now drives an UNCACHED zero-query
+ *     fetch (empty text, their filters applied) — see jobs/page.tsx's fetch
+ *     effect and `resolveJobsRenderMode` below.
  *   - `"overlay-ask"` — the genuine first-screen prompt: nothing typed, no
- *     filters.
+ *     filters. Browse-by-default (2026-08-07 front-door reversal) drives
+ *     THIS state through the cached, fixed-shape `getDefaultBrowseAction`
+ *     instead (`actions/jobs.ts`) — the one shape cheap enough to share
+ *     across every visitor in the same country.
+ *
+ * Both ask states now attempt a fetch (see `resolveJobsRenderMode`) —
+ * neither name means "never fetches" anymore, only "which fetch shape."
  *
  * "Explore" (résumé-driven AI-suggested adjacent roles) moved to MCP
  * 2026-08-02 — this used to have a fourth outcome, `"auto-explore"`, that
@@ -305,4 +313,40 @@ export interface EmptySearchStateInput {
 export function resolveEmptySearchState(input: EmptySearchStateInput): EmptySearchState {
     if (input.hasQuery || input.fitActive) return "results";
     return input.activeFilterCount > 0 ? "serp-ask" : "overlay-ask";
+}
+
+/** The zero-query fetch's outcome, as far as `resolveJobsRenderMode` needs
+ *  to know — deliberately NOT the raw `JobSearchResult`, so the decision
+ *  stays testable without constructing one. */
+export interface JobsFetchOutcome {
+    /** A first-page fetch is currently in flight for this state. */
+    loading: boolean;
+    hitCount: number;
+    /** The fetch concluded as a genuine failure (unavailable/unconfigured
+     *  backend, thrown transport error) — never true merely because
+     *  `hitCount` is zero; a real zero-match browse or search is not a
+     *  failure. */
+    failed: boolean;
+}
+
+/**
+ * Browse-by-default's render decision (2026-08-07 front-door reversal). A
+ * zero query used to mean an instant, un-fetched `"serp-ask"` seed list, full
+ * stop (the removed rule §1). Zero-query states now ALSO attempt a fetch
+ * (`resolveEmptySearchState` above decides which shape), so this only ever
+ * falls back to the ask state once that fetch has DEFINITIVELY failed with
+ * nothing to show — never merely because the query is empty, never while
+ * still loading (that renders the ordinary loading skeleton through the same
+ * results pipeline instead), and never merely because filters are active
+ * (an `"serp-ask"`-classified state whose filtered fetch actually returned
+ * hits still renders as results — filters no longer block the front page
+ * from showing real jobs).
+ */
+export function resolveJobsRenderMode(
+    emptySearchState: EmptySearchState,
+    fetch: JobsFetchOutcome,
+): "results" | "serp-ask" {
+    if (emptySearchState === "results") return "results";
+    if (fetch.loading || fetch.hitCount > 0) return "results";
+    return fetch.failed ? "serp-ask" : "results";
 }

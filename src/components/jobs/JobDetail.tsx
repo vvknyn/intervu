@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Copy, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -196,6 +196,44 @@ export function JobDetailActionBar({
     );
 }
 
+/**
+ * "Copy link" control for the detail header — visible to guests and
+ * signed-in users alike, since job identity is never gated (see the header
+ * restructure in `JobDetail` below). Copies the canonical `/jobs?job=<id>`
+ * URL rather than `window.location`, because this same panel also renders
+ * from `/yours/[id]` (a pursuit-id route, not a job-id one — see this
+ * file's module doc comment above). Same copied-state register as
+ * `CopyUrlBar` (app/connect/connect-client.tsx): a local timed flag, no
+ * toast, no new dependency; a denied/unavailable clipboard degrades to a
+ * silent no-op rather than crashing the panel.
+ */
+function CopyJobLinkButton({ jobId }: { jobId: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        try {
+            const url = `${window.location.origin}/jobs?job=${encodeURIComponent(jobId)}`;
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch {
+            // Clipboard API can be denied (permissions/insecure context) —
+            // the control just stays put rather than breaking the panel.
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? "Link copied" : "Copy link to this role"}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+        >
+            {copied ? <Check size={16} weight="bold" /> : <Copy size={16} />}
+        </button>
+    );
+}
+
 export function JobDetail({
     job,
     now,
@@ -273,10 +311,12 @@ export function JobDetail({
 
     return (
         <div className={cn("relative overflow-hidden border border-border bg-card", className)}>
-            <div
-                className={cn(!signedIn && "pointer-events-none select-none blur-[6px]")}
-                aria-hidden={!signedIn}
-            >
+            {/* Identity header — title/company/location/freshness/fact-chips
+                — rendered OUTSIDE the sign-in gate below (see `!signedIn`
+                near the bottom of this component): a guest could previously
+                never confirm which job they'd opened, since the blur+overlay
+                covered the title along with everything else. Only the
+                action row and body further down stay gated. */}
             <div className="border-b border-border px-5 pb-3.5 pt-1">
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
@@ -348,18 +388,32 @@ export function JobDetail({
                             </div>
                         )}
                     </div>
-                    {onClose && (
-                        <button
-                            type="button"
-                            aria-label="Close"
-                            onClick={onClose}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
-                        >
-                            ×
-                        </button>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        <CopyJobLinkButton jobId={job.id} />
+                        {onClose && (
+                            <button
+                                type="button"
+                                aria-label="Close"
+                                onClick={onClose}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                            >
+                                ×
+                            </button>
+                        )}
+                    </div>
                 </div>
+            </div>
 
+            {/* Gated region: action row + body. `relative` so the sign-in
+                overlay below (`absolute inset-0`) is scoped to just this
+                block instead of the whole card — the identity header above
+                is a plain sibling, never covered by it. */}
+            <div className="relative">
+            <div
+                className={cn(!signedIn && "pointer-events-none select-none blur-[6px]")}
+                aria-hidden={!signedIn}
+            >
+            <div className="border-b border-border px-5 pb-3.5 pt-3.5">
                 {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
                     Save quiet — the two-weight subset of the button family
                     (THE RULES #3) that's left once "Am I a fit?" moved to
@@ -368,7 +422,7 @@ export function JobDetail({
                     omission rather than repeating that line up here). Prep
                     removed 2026-08-02 — see the static note below this row
                     instead of a button. */}
-                <div className="mt-5 flex flex-wrap items-center gap-2 px-5">
+                <div className="flex flex-wrap items-center gap-2 px-5">
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
                             <ArrowSquareOut size={16} />
@@ -559,21 +613,15 @@ export function JobDetail({
             </div>
             </div>
 
+            {/* No close button duplicated here: the identity header above
+                already renders one, and it's outside the gate now — always
+                visible, never blurred/covered by this overlay's stacking
+                context (see the `relative` wrapper's own comment above). */}
             {!signedIn && (
                 <div
                     data-testid="job-detail-signin-gate"
                     className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/55 px-6 text-center backdrop-blur-[2px]"
                 >
-                    {onClose && (
-                        <button
-                            type="button"
-                            aria-label="Close"
-                            onClick={onClose}
-                            className="absolute right-4 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
-                        >
-                            ×
-                        </button>
-                    )}
                     <p className="max-w-[22ch] text-[15px] font-semibold tracking-tight text-foreground">
                         Sign in to view this role
                     </p>
@@ -590,6 +638,7 @@ export function JobDetail({
                     </Button>
                 </div>
             )}
+            </div>
         </div>
     );
 }
