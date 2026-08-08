@@ -135,9 +135,21 @@ test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
     await page.evaluate(() => localStorage.clear());
   });
 
+  // jobs-list-tail class fix: `SearchSeedLine` now lives inside `ListTail`
+  // (rendered only once the results list has genuinely ended) and inside
+  // `EmptyResults` (rendered on zero hits) — never below the load-more
+  // sentinel while browse-by-default's default list can still grow, which
+  // it always can on a bare `/jobs` landing. `zzzzunfindablezzz` is the
+  // same nonsense query jobs-first-screen.spec.ts's "zero results names the
+  // excluders" test already relies on returning 0 hits against the live
+  // corpus — reused here rather than inventing a second unfindable string,
+  // so there's one query this suite trusts to mean "no results," not two.
+  const ZERO_RESULTS_QUERY = 'zzzzunfindablezzz';
+
   test('TC-YOURS-011: submitting the seed line creates a guest pursuit and routes to tracker', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByTestId('prep-seed-line')).toBeVisible({ timeout: 10000 });
+    await page.goto(`/jobs?q=${ZERO_RESULTS_QUERY}`);
+    await expect(page.getByText('No roles match.')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('prep-seed-line')).toBeVisible();
     await page.getByTestId('prep-seed-line').getByRole('button').click();
 
     const form = page.getByTestId('prep-seed-form');
@@ -150,7 +162,8 @@ test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
   });
 
   test('TC-YOURS-012: a seed-line pursuit shows up on /yours as interviewing', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`/jobs?q=${ZERO_RESULTS_QUERY}`);
+    await expect(page.getByTestId('prep-seed-line')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('prep-seed-line').getByRole('button').click();
     const form = page.getByTestId('prep-seed-form');
     await form.getByLabel('Company').fill('Initech');

@@ -84,7 +84,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { resolveCorpusCount, formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -813,6 +813,8 @@ function EmptyResults({
     onRevealGhosts,
     seeds,
     onSubmitSeed,
+    onSubmitSeedLine,
+    seedLineSubmitting,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
@@ -831,6 +833,13 @@ function EmptyResults({
      *  clear-search, and ghost-reveal were the only ways out. */
     seeds: string[];
     onSubmitSeed: (seed: string) => void;
+    /** The class fix (jobs-list-tail) — zero-results is the other genuinely
+     *  reachable dead-end besides `ListTail` (below): the whole screen, no
+     *  list to scroll past. Same `SearchSeedLine` component, same props
+     *  shape `ListTail` passes it, so there is exactly one place that knows
+     *  how to submit it. */
+    onSubmitSeedLine: (company: string, position: string) => void;
+    seedLineSubmitting: boolean;
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0;
@@ -861,6 +870,7 @@ function EmptyResults({
             {/* A3 — same component, same `submitSearch` chokepoint, same
                 testids as every other BrowseSeedRow on this page; not a fork. */}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
+            <SearchSeedLine onSubmit={onSubmitSeedLine} submitting={seedLineSubmitting} />
         </div>
     );
 }
@@ -943,6 +953,67 @@ function SearchSeedLine({
                 Cancel
             </button>
         </form>
+    );
+}
+
+/**
+ * Everything rendered at the FOOT of the results list, below the load-more
+ * sentinel — the class fix (jobs-list-tail): `SearchSeedLine`'s doc comment
+ * above already named the intent ("rendered once, after the load-more
+ * sentinel / end-of-list line"), but nothing enforced it — it was a second,
+ * unconditional call site sitting after the tail ternary, reachable only
+ * once `hasMore` happened to be false, which browse-by-default's broad
+ * default result set never is. Same structural anchor `showResumeMoment`'s
+ * own comment (above, "the foot of what has actually been READ") already
+ * established for the résumé moment, applied to the tail this time instead
+ * of the read-foot: an affordance placed below infinite scroll must be
+ * GATED on the list having genuinely ended, not just positioned there.
+ *
+ * Takes the already-computed `endOfListState` (`resolveEndOfListState`,
+ * lib/jobs/result-state.ts — the single resolver for "why did loading
+ * stop," reused rather than re-derived) and early-returns `null` on
+ * `"more-available"` before rendering anything, so the guard holds
+ * structurally even if a future caller stops re-gating this on `hasMore`
+ * at the call site — there is no way to reach `BrowseSeedRow` or
+ * `SearchSeedLine` here while the list can still grow.
+ */
+function ListTail({
+    endOfListState,
+    totalCount,
+    seeds,
+    onSubmitSeed,
+    onSubmitSeedLine,
+    seedLineSubmitting,
+}: {
+    endOfListState: "genuine-end" | "cap-reached" | "more-available";
+    totalCount: CorpusCount;
+    seeds: string[];
+    onSubmitSeed: (seed: string) => void;
+    onSubmitSeedLine: (company: string, position: string) => void;
+    seedLineSubmitting: boolean;
+}) {
+    if (endOfListState === "more-available") return null;
+    return (
+        <div className="py-5 text-left">
+            {endOfListState === "cap-reached" ? (
+                // A4 — the honest cap-reached line: `hasMore` stopped
+                // because pagination hit MAX_REACHABLE, not because the
+                // corpus ran out. Saying "reached the end" here would
+                // print the real, bigger total right next to a claim
+                // that's false for it — see `resolveEndOfListState`.
+                <p className="font-mono text-xs text-muted-foreground/70">
+                    Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
+                    {formatCorpusCount(totalCount)} — add a search or filter to narrow.
+                </p>
+            ) : (
+                <p className="font-mono text-xs text-muted-foreground/70">
+                    You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
+                    {totalCount.value === 1 ? "role" : "roles"}.
+                </p>
+            )}
+            <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
+            <SearchSeedLine onSubmit={onSubmitSeedLine} submitting={seedLineSubmitting} />
+        </div>
     );
 }
 
@@ -3106,6 +3177,8 @@ function JobsContent() {
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
                                     onSubmitSeed={submitSearch}
+                                    onSubmitSeedLine={handleSeedSubmit}
+                                    seedLineSubmitting={seedSubmitting}
                                 />
                             ) : (
                                 <>
@@ -3290,7 +3363,7 @@ function JobsContent() {
                                         `paginationRef`/`loadingMore` — so a click racing an
                                         in-flight auto-load is a safe no-op) for anyone who'd rather
                                         tap than scroll. */}
-                                    {hasMore ? (
+                                    {hasMore && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {loadingMore ? (
                                                 <span className="font-mono text-xs text-muted-foreground">Loading more roles…</span>
@@ -3304,29 +3377,20 @@ function JobsContent() {
                                                 </button>
                                             )}
                                         </div>
-                                    ) : endOfListState === "cap-reached" ? (
-                                        // A4 — the honest cap-reached line: `hasMore` stopped
-                                        // because pagination hit MAX_REACHABLE, not because the
-                                        // corpus ran out. Saying "reached the end" here would
-                                        // print the real, bigger total right next to a claim
-                                        // that's false for it — see `resolveEndOfListState`.
-                                        <div className="py-5 text-left">
-                                            <p className="font-mono text-xs text-muted-foreground/70">
-                                                Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
-                                                {formatCorpusCount(totalCount)} — add a search or filter to narrow.
-                                            </p>
-                                            <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
-                                        </div>
-                                    ) : (
-                                        <div className="py-5 text-left">
-                                            <p className="font-mono text-xs text-muted-foreground/70">
-                                                You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
-                                                {totalCount.value === 1 ? "role" : "roles"}.
-                                            </p>
-                                            <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
-                                        </div>
                                     )}
-                                    <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
+                                    {/* The class fix (jobs-list-tail) — everything below the
+                                        sentinel lives in `ListTail` now, called unconditionally:
+                                        it self-guards on `endOfListState`, so nothing actionable
+                                        here can ever render while `hasMore` is true (see its own
+                                        doc comment, above). */}
+                                    <ListTail
+                                        endOfListState={endOfListState}
+                                        totalCount={totalCount}
+                                        seeds={searchSeeds}
+                                        onSubmitSeed={submitSearch}
+                                        onSubmitSeedLine={handleSeedSubmit}
+                                        seedLineSubmitting={seedSubmitting}
+                                    />
                                 </div>
                                 </>
                             )}
