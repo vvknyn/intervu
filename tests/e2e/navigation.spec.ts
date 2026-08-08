@@ -120,17 +120,30 @@ test.describe('NAV - Navigation Tests', () => {
    * TC-NAV-007: Direct URL access to all pages
    *
    * Verifies all pages are accessible via direct URL navigation.
+   *
+   * `/` is a plain redirect to `/jobs` now (#145, "the board IS the front
+   * door") — landing on `/jobs` rather than staying on `/` is the expected,
+   * intentional outcome, not an error.
+   *
+   * `/yours` and `/settings` are both in `AUTH_GATED_PRODUCT_PREFIXES`
+   * (lib/auth/product-routes.ts) — middleware redirects a signed-out visitor
+   * to `/login?next=<path>` before either page ever renders (verified: no
+   * session cookie means no path to `/yours`/`/settings` content at all,
+   * guest-mode UI included). No fixture in this suite provides a signed-in
+   * session, so this test only proves the gate lands somewhere real
+   * (`/login`, carrying the right `next=`) rather than a dead end — it
+   * cannot verify the pages' own content without inventing credentials.
    */
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
-      { url: '/', title: 'Intervu' },
-      { url: '/yours', title: 'Yours' },
-      { url: '/settings', title: 'Settings' },
+      { url: '/', landsOn: '/jobs' },
+      { url: '/yours', landsOn: '/login?next=%2Fyours' },
+      { url: '/settings', landsOn: '/login?next=%2Fsettings' },
     ];
 
     for (const p of pages) {
       await page.goto(p.url);
-      await expect(page).toHaveURL(p.url);
+      await expect(page).toHaveURL(p.landsOn);
       // Page should not show error
       await expect(page.locator('text=404')).not.toBeVisible();
     }

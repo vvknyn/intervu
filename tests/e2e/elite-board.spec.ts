@@ -13,12 +13,10 @@ async function enterBrowseMode(page: Page) {
     await page.goto('/?posted=any');
     await page.waitForLoadState('networkidle');
 
-    const ask = page.getByTestId('jobs-ask');
-    if (await ask.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
-        await expect(ask).toHaveCount(0, { timeout: 30_000 });
-    }
-
+    // Browse-by-default (#152): there is no ask screen to wait out anymore —
+    // `JobsAsk` (testid `jobs-ask`) is dead code, nothing renders it — a
+    // zero-query/filtered landing goes straight to the toolbar+results
+    // pipeline below.
     await expect(
         page
             .getByTestId('filters-toggle')

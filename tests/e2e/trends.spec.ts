@@ -40,13 +40,12 @@ test.describe('TRENDS - Market trends page', () => {
     }
   });
 
-  // Note: this checks presence/wiring via attributes rather than clicking
-  // from `/` — the homepage's default empty-search "overlay-ask" screen
-  // deliberately covers the real TopBar with its own fixed z-50 masthead
-  // (see page.tsx's `isOverlayAsk`, "Screen 1 covers the app masthead with
-  // a fixed layer"), so no topbar link is clickable from `/`'s landing
-  // state today — reproduced live with the pre-existing "Interview prep"
-  // tab, not something this change introduced.
+  // Note: this checks presence/wiring via direct navigation rather than
+  // clicking a TopBar link from `/` — `/` is a plain redirect to `/jobs`
+  // (#145) with no query-string forwarding, so a click-through test would
+  // depend on incidental redirect behavior rather than the trends page
+  // itself. Direct navigation is the more direct, less coupled route to the
+  // thing actually under test here.
   test('TC-TRENDS-002: /trends route renders the trends page', async ({ page }) => {
     await page.goto('/trends', { timeout: 90_000 });
     await expect(page.getByTestId('trends-page')).toBeVisible({ timeout: 15_000 });

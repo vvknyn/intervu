@@ -4,12 +4,26 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: JOBS-FIRST-SCREEN - /jobs renders on first paint, no entry gate
  *
  * Task 4 removed the JobsEntryGate ask/choose screens entirely, and they must
- * stay gone. What replaced "rows on first paint" is a single ask screen that
- * carries the real search line (see the first two tests): the first screen now
- * asks for a role instead of listing the corpus, so most tests below state an
- * intent in the URL before they can assert on the ledger. `posted=any` is the
- * intent of choice — it leaves the query empty and the default sort intact,
- * which several tests measure.
+ * stay gone. Browse-by-default (2026-08-07 front-door reversal) went a step
+ * further: the ask-only landing that replaced JobsEntryGate (`JobsAsk`,
+ * testid `jobs-ask`) is now unused dead code — nothing in page.tsx renders it
+ * anymore (grep confirms no `<JobsAsk` call site). A bare `/jobs` visit fires
+ * a cached default browse and renders real rows through the SAME
+ * results-rendering pipeline a real search uses (see the first two tests).
+ * The seed chips that used to BE the whole zero-query screen now persist as a
+ * compact pivot row (`browse-seed-row`) ABOVE those results instead of
+ * replacing them; they only expand back into the full seed block
+ * (`serp-ask`) once that zero-query fetch has DEFINITIVELY failed with
+ * nothing to show. Both `browse-seed-row` and `serp-ask` mark their actual
+ * chip buttons with the same `serp-ask-seed` testid (`BrowseSeedRow`'s own
+ * doc comment — one write path, one testid, in either rendering context), so
+ * a seed-presence check on `serp-ask-seed` holds regardless of which branch
+ * this environment's Meilisearch reachability lands on. Most tests below
+ * still state an intent in the URL (`posted=any` is the usual choice — it
+ * leaves the query empty and the default sort intact) not because a bare
+ * `/jobs` would fail to reach the ledger anymore, but because some of them
+ * measure behavior (default sort, filter defaults) that a stated intent
+ * keeps stable without changing what's under test.
  *
  * Environment-tolerant like jobs-search-polish.spec.ts: this suite runs
  * against a real dev server, and Meilisearch may or may not be configured
@@ -79,44 +93,30 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     });
 
     /**
-     * First paint asks for a role rather than listing the corpus.
+     * Browse-by-default (2026-08-07 front-door reversal): first paint shows
+     * the market, not a prompt.
      *
-     * This inverts what this test asserted before (rows with zero
-     * interaction). The old JobsEntryGate is still gone and still must not
-     * come back — the negative check below is unchanged and is the point:
-     * asking for a role is ONE screen with the real search line on it, not the
-     * deleted two-step ask/choose gate that made people pick a lane before
-     * seeing anything.
+     * This inverts what this test asserted before (an ask screen with zero
+     * rows). Both the JobsEntryGate ask/choose screens (Task 4) AND the
+     * ask-only `JobsAsk` landing that replaced them are gone now — the
+     * negative gate check below still holds either way, and `jobs-ask` is
+     * asserted absent the same structural way, since `JobsAsk` is unused
+     * dead code as of this change (see the file doc comment).
      *
-     * The absence of rows is the load-bearing assertion: an empty query no
-     * longer runs the corpus-wide, facet-computing browse that every cold
-     * visit used to pay for. (A single lightweight corpus probe still runs, for
-     * the placeholder's count — hence no claim here about zero requests.)
+     * Real rows (or an honest empty/error fallback) is the load-bearing
+     * assertion: the zero-query landing now fires the cached default-browse
+     * fetch unconditionally — never a hard block on the corpus.
      */
-    test('anonymous first paint asks for a role — no gate, no ledger', async ({ page }) => {
+    test('anonymous first paint browses the market — no gate, no ask, seeds pivot', async ({ page }) => {
         await page.goto('/jobs');
 
-        // Structural gate check: the ASK screen's "No, I'll search" button
-        // must never render — it existed only in JobsEntryGate, now deleted.
+        // Structural gate checks: neither deleted/dead landing ever renders.
         await expect(page.getByRole('button', { name: /No, I.?ll search/i })).toHaveCount(0);
+        await expect(page.getByTestId('jobs-ask')).toHaveCount(0);
 
-        await expect(page.getByTestId('jobs-ask')).toBeVisible({ timeout: 10_000 });
-        await expect(page.locator('[data-job-row]')).toHaveCount(0);
-
-        // The search line is the one input, and it holds focus — the ask
-        // deliberately ships no box of its own.
-        await expect(page.getByPlaceholder(/What kind of work/i)).toBeFocused();
-    });
-
-    test('typing a role leaves the ask and reveals the ledger', async ({ page }) => {
-        await page.goto('/jobs');
-        await expect(page.getByTestId('jobs-ask')).toBeVisible({ timeout: 10_000 });
-
-        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
-
-        // Rows, or one of the honest empty/error surfaces if Meilisearch isn't
-        // configured in this environment — but never the ask, which has been
-        // answered.
+        // Real rows on first paint, no typing required — or one of the
+        // honest empty/error surfaces if Meilisearch isn't configured/
+        // reachable in this environment (see the file doc comment).
         await expect(
             page
                 .locator('[data-job-row]')
@@ -125,7 +125,48 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
                 .or(page.getByText(/temporarily unavailable/i))
                 .first(),
         ).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByTestId('jobs-ask')).toHaveCount(0);
+
+        // Seed chips persist as a pivot above the results — same testid in
+        // either render branch (compact pivot row or the full serp-ask
+        // fallback), so this holds regardless of this environment's
+        // Meilisearch reachability.
+        await expect(page.getByTestId('serp-ask-seed').first()).toBeVisible({ timeout: 10_000 });
+
+        // No sign-in wall for browsing: nothing modal blocks the list itself
+        // on arrival — the JobDetail sign-in gate only ever appears once a
+        // guest opens a specific job (jobs-search-polish.spec.ts covers that
+        // open path).
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+    });
+
+    /**
+     * Typing narrows the SAME results pipeline rather than revealing it for
+     * the first time — there is no ask screen left to reveal (see the test
+     * above). What's left to prove is that a real query still reaches the
+     * URL and the results pipeline the way it always did.
+     */
+    test('typing a role updates the browsed ledger to search results', async ({ page }) => {
+        await page.goto('/jobs');
+        await expect(
+            page
+                .locator('[data-job-row]')
+                .or(page.getByText(/No roles match/i))
+                .or(page.getByText(/being connected/i))
+                .or(page.getByText(/temporarily unavailable/i))
+                .first(),
+        ).toBeVisible({ timeout: 20_000 });
+
+        await page.getByPlaceholder(/What kind of work/i).fill('engineer');
+
+        await expect(page).toHaveURL(/q=engineer/);
+        await expect(
+            page
+                .locator('[data-job-row]')
+                .or(page.getByText(/No roles match/i))
+                .or(page.getByText(/being connected/i))
+                .or(page.getByText(/temporarily unavailable/i))
+                .first(),
+        ).toBeVisible({ timeout: 20_000 });
     });
 
     test('legacy entry key is cleaned up', async ({ page }) => {
@@ -246,7 +287,12 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
             test.skip(true, "Corpus carries no posted_ts — age buckets hidden (isPostedDateFilterSupported)");
             return;
         }
-        await expect(last30).toHaveAttribute("aria-pressed", "true");
+        // `Affordance` (SerpFilters.tsx) renders a real native
+        // `<input type="radio" checked={...}>`, not a `role="button"`
+        // toggle — its selected state is the `checked` DOM property, not an
+        // `aria-pressed` attribute (native inputs never carry that ARIA
+        // attribute at all, checked or not).
+        await expect(last30).toBeChecked();
     });
 
     /**
@@ -270,49 +316,34 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
         const filters = page.getByTestId("filters-panel");
         await expect(filters).toBeVisible();
-        await expect(filters.getByRole("checkbox", { name: /Hide likely-ghost/i })).toBeVisible();
+        // Ghost risk is a two-option radio group (`Affordance
+        // inputType="radio"`, SerpFilters.tsx), not a single checkbox — and
+        // its "on" label is "Hide likely ghosts" (no hyphen, plural; an
+        // optional "(−N)" suffix once a count resolves).
+        await expect(filters.getByRole("radio", { name: /Hide likely ghosts/i })).toBeVisible();
     });
 
-    /**
-     * TASK 8 — Row badges + résumé upsell card. Anonymous session, no
-     * résumé on hand, so the card is expected on first paint (gate =
-     * NOT dismissed AND NOT resumeIsUsable(local resume state)).
-     */
-    test("upsell card shows once and dismissal survives reload", async ({ page }) => {
-        await page.goto('/jobs?posted=any');
-        // "upload résumé" is the ResumeUpsellCard's own distinctive CTA text
-        // (editorial-pass restyle: "upload résumé →", verified unique on this
-        // page) — not tied to the exact "match against N roles" / "match
-        // roles" wording, which varies depending on whether the honest
-        // corpus count has resolved yet.
-        const card = page.getByText(/upload résumé/i);
-        await expect(card).toBeVisible();
-        await page.getByRole("button", { name: /dismiss|✕/i }).first().click();
-        await expect(card).not.toBeVisible();
-        await page.reload();
-        await expect(page.getByText(/upload résumé/i)).not.toBeVisible();
-    });
+    // `ResumeUpsellCard` (components/jobs/ResumeUpsellCard.tsx) is unused
+    // dead code — nothing in page.tsx imports or renders it (grep confirms
+    // no call site; last wired up in #24, long before this file's "Task 8"
+    // annotation was written). The "upsell card shows once and dismissal
+    // survives reload" test that used to live here asserted a card that
+    // cannot render, so it's removed rather than left red — the résumé nudge
+    // surface on this page today is the later, still-live "résumé moment"
+    // (`resume-moment` testid, shown after the 3rd job open this session).
 
-    // Editorial-pass rewrite: the row badge is now the ledger's compact
-    // VERDICT CELL (page.tsx `verdictFor`/`shortAge`) — "LIVE · 2H" / "CHECKED
-    // · 3D" / "LIVE"/"CHECKED" with no age at all — not the portal pass's
-    // prose "✓ live 2h ago"/"checked 2h ago". `shortAge` mirrors
-    // `formatRelativeAge`'s own bucketing (freshness.ts) in a dense uppercase
-    // form: "NOW", "{n}M" (minutes), "{n}H", "{n}D" — no unit suffix.
-    //
-    // Staleness fix: `verdictFor` only renders "LIVE" when a row's
-    // `updated_at` is within `STALE_THRESHOLD_MS` of now (freshness.ts) —
-    // past that it renders the neutral "CHECKED" instead, so it makes
-    // no liveness claim data this old can't back. Which prefix renders here
-    // depends on how fresh the live jobs index actually is at test time, so
-    // this assertion accepts either prefix — it still proves a `clear` row
-    // renders a real age-bearing verdict, just not which side of the
-    // threshold today's data happens to fall on.
-    test("clear rows carry an age-bearing freshness badge", async ({ page }) => {
+    // `verdictFor` (page.tsx) still computes the full age-bearing code
+    // ("LIVE · 2H" etc.) this test used to assert, but `JobCard`'s row badge
+    // (line ~513) only ever renders the binary `flagged ? "review" :
+    // "verified"` literal off `verdict.tone` — `verdict.code` and
+    // `VERDICT_TONE_CLASS` have no render call site left (grep confirms),
+    // since the "frozen instrument aesthetic" pass (#121). The rich,
+    // age-bearing freshness disclosure lives in JobDetail's ghost module
+    // (`ghostCheckedText`) now, not the SERP row — this asserts the row
+    // badge that's actually there instead.
+    test("clear rows carry a trust verdict badge", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(
-            page.getByText(/(LIVE|CHECKED) · (NOW|\d+M|\d+H|\d+D)/).first(),
-        ).toBeVisible();
+        await expect(page.getByText(/^(verified|review)$/i).first()).toBeVisible();
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted
@@ -407,7 +438,13 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      */
     test("zero results names the excluders and offers ghost reveal", async ({ page }) => {
         await page.goto("/jobs?q=zzzzunfindablezzz&salary=200k");
-        await expect(page.getByText("No roles match.")).toBeVisible();
+        // `EmptyResults` (page.tsx) branches its headline on whether a
+        // FILTER (not just a query) is active — `salary=200k` makes
+        // `hasFilters` true, so this combo renders "Nothing matches these
+        // filters.", not the query-only "No roles match." (that copy is for
+        // a bare unmatched query, asserted by the other empty-state checks
+        // in this file).
+        await expect(page.getByText("Nothing matches these filters.")).toBeVisible();
         await expect(page.getByTestId("empty-state-clear-chip").first()).toBeVisible();
     });
 
