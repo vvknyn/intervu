@@ -102,6 +102,7 @@ import {
     shouldBackOnDetailSheetClose,
     degradedResultsNote,
 } from "@/lib/jobs/result-state";
+import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
 import {
@@ -2139,6 +2140,26 @@ function JobsContent() {
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
+    // A1 — apply-return capture (Zeigarnik Effect). `handleOpenPosting`
+    // below stamps this the moment a signed-in visitor leaves for the
+    // employer's site; the visibilitychange effect further down reads it
+    // back on tab-return. Not React state — the away window has no render
+    // of its own — and deliberately holds the whole `job`, not just the
+    // `{jobId, title, leftAt}` triple: `doMarkApplied` (below) needs
+    // `company`/`apply_url` too, and re-deriving those from an id would just
+    // be a second lookup path for data already on hand here.
+    const awayForApplyRef = useRef<{ job: PublicJob; leftAt: number } | null>(null);
+    // One prompt max per job per session (brief) — ids that have already
+    // shown the "did you apply?" prompt, regardless of outcome.
+    const applyReturnPromptedRef = useRef<Set<string>>(new Set());
+    // Latest `pursuitsByJobId` for the visibilitychange handler below, which
+    // is registered once on mount (see its own comment) and would otherwise
+    // close over a stale map — same mirroring idiom as `resultRef`/
+    // `fitActiveRef` above.
+    const pursuitsByJobIdRef = useRef(pursuitsByJobId);
+    pursuitsByJobIdRef.current = pursuitsByJobId;
+    const [applyReturnPrompt, setApplyReturnPrompt] = useState<PublicJob | null>(null);
+
     // "Apply with tailored resume" / the fit-check drawer moved to MCP
     // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
     // TailorAnalysisSheet mounts they drove are gone; `handleApplyGate`
@@ -2158,7 +2179,13 @@ function JobsContent() {
             handleApplyGate(job);
             return;
         }
-        if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        if (job.apply_url) {
+            // A1 — only a real, signed-in departure to the employer's site
+            // (this branch) arms the return prompt; the gated branch above
+            // returns first, so guests never reach here.
+            awayForApplyRef.current = { job, leftAt: Date.now() };
+            window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        }
     };
 
     const doMarkApplied = async (job: PublicJob) => {
@@ -2199,6 +2226,36 @@ function JobsContent() {
         }
         void doMarkApplied(job);
     };
+
+    // A1 — apply-return capture. Registered once (mount-only): the handler
+    // reads `awayForApplyRef`/`applyReturnPromptedRef`/`pursuitsByJobIdRef`
+    // fresh on every fire rather than closing over this render's values, so
+    // there's no reason to tear down and re-add the listener on every
+    // dependency change — same "stable listener, live refs" shape as the
+    // IntersectionObserver setup below (`observerRef`/`loadMoreRef`).
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") return;
+            const away = awayForApplyRef.current;
+            if (!away) return;
+            awayForApplyRef.current = null;
+            const pursuit = pursuitsByJobIdRef.current.get(away.job.id);
+            const alreadyApplied = !!pursuit && hasReachedStage(pursuit, "applied");
+            const alreadyPrompted = applyReturnPromptedRef.current.has(away.job.id);
+            if (
+                shouldPromptApplyReturn({
+                    awayMs: Date.now() - away.leftAt,
+                    alreadyApplied,
+                    alreadyPrompted,
+                })
+            ) {
+                applyReturnPromptedRef.current.add(away.job.id);
+                setApplyReturnPrompt(away.job);
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibility);
+        return () => document.removeEventListener("visibilitychange", handleVisibility);
+    }, []);
 
     // Job 2 replay: reuses `doMarkApplied` — the EXACT tracker-write
     // "Mark as applied" uses, not a second copy of it — then navigates
@@ -3347,6 +3404,48 @@ function JobsContent() {
                     </div>
                 </SheetContent>
             </Sheet>
+
+            {/* A1 — apply-return capture. House skin (squared, quiet muted
+                box, mono label) rather than the global `Toaster` (lib/toast.tsx,
+                out of this change's ownership + no action-button support) —
+                offset above the real toast stack's own corner so a
+                concurrent "Marked as applied" success toast never stacks
+                directly on top of it. */}
+            {applyReturnPrompt && (
+                <div
+                    data-testid="apply-return-prompt"
+                    role="status"
+                    className="fixed bottom-24 right-4 z-[190] flex w-full max-w-sm items-start gap-3 border border-border bg-card px-4 py-3 shadow-lg"
+                >
+                    <div className="min-w-0 flex-1">
+                        <div className="mono-data text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                            Did you apply?
+                        </div>
+                        <div className="mt-0.5 truncate text-[13px] text-foreground">
+                            {decodeText(applyReturnPrompt.title)}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const job = applyReturnPrompt;
+                            setApplyReturnPrompt(null);
+                            void doMarkApplied(job);
+                        }}
+                        className="shrink-0 border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/40"
+                    >
+                        Mark applied
+                    </button>
+                    <button
+                        type="button"
+                        aria-label="Dismiss"
+                        onClick={() => setApplyReturnPrompt(null)}
+                        className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
