@@ -5,6 +5,7 @@ import {
   getPreferencesInput, setPreferencesInput,
 } from '../../src/app/api/mcp/route';
 import { AGENT } from '../../src/lib/agent/config';
+import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES } from '../../src/lib/agent/facets';
 
 // Bearer extraction moved to src/lib/agent/http.ts — see agent-http.test.ts.
 // The credential-kind gate moved to src/lib/agent/tokens.ts — see agent-tokens.test.ts.
@@ -58,8 +59,8 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
     assert.equal(res.success, true);
   });
 
-  it('accepts every real experience_level value (entry|mid|senior)', () => {
-    for (const v of ['entry', 'mid', 'senior']) {
+  it('accepts every real experience_level value from EXPERIENCE_LEVELS', () => {
+    for (const v of EXPERIENCE_LEVELS) {
       assert.equal(searchJobsInput.safeParse({ experience_level: v }).success, true);
     }
   });
@@ -68,14 +69,14 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
     assert.equal(searchJobsInput.safeParse({ experience_level: 'staff' }).success, false);
   });
 
-  it('accepts every real employment_type value (full_time|contract)', () => {
-    for (const v of ['full_time', 'contract']) {
+  it('accepts every real employment_type value from EMPLOYMENT_TYPES', () => {
+    for (const v of EMPLOYMENT_TYPES) {
       assert.equal(searchJobsInput.safeParse({ employment_type: v }).success, true);
     }
   });
 
   it('rejects an employment_type value outside the real corpus vocabulary', () => {
-    assert.equal(searchJobsInput.safeParse({ employment_type: 'internship' }).success, false);
+    assert.equal(searchJobsInput.safeParse({ employment_type: 'freelance' }).success, false);
   });
 
   it('rejects a negative salary_min', () => {

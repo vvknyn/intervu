@@ -7,6 +7,7 @@
  */
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 
 const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
     ghost_badge: {
@@ -61,21 +62,26 @@ export const STATIC_FACET_LADDERS: Partial<Record<FacetKey, readonly string[]>> 
 /** Non-informative sentinel values — a filter that matches "unknown" is just noise. */
 const SENTINEL_VALUES = new Set(["", "unknown", "null", "undefined", "n/a", "none"]);
 
+/** Per-facet extra validity check beyond the sentinel rule above — e.g.
+ *  location_country's real-country-membership check. Open/closed: a future
+ *  facet earns its own guard by adding a row here, never by growing a chain
+ *  of `if (key === ...)` special cases in `isNoiseFacetValue`. */
+const FACET_VALUE_VALIDATORS: Partial<Record<FacetKey, (value: string) => boolean>> = {
+    location_country: (value) => classifyCountryValue(value).kind === "country",
+};
+
 /**
  * True if a facet value is noise we should hide from the filter list. Drops
- * sentinels everywhere, plus junk that leaked into `location_country` (zip
- * codes, coordinate/JSON fragments, stray tokens). The upstream feed normalizes
- * these now (Subspace `toPublicJob`), but the UI stays defensive so a stale
- * index or future regression can't resurface garbage. Selected values are
- * always kept visible (handled by the caller) so they remain uncheckable.
+ * sentinels everywhere, plus (via `FACET_VALUE_VALIDATORS`) any value that
+ * fails its facet's own membership check. Data itself is untouched — a
+ * dropped value's rows are still findable via search/places; this only
+ * controls what renders as a checkable OPTION. Selected values are always
+ * kept visible (handled by the caller) so they remain uncheckable.
  */
 export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
     if (SENTINEL_VALUES.has(value.trim().toLowerCase())) return true;
-    if (key === "location_country") {
-        if (/[0-9{}[\]"<>:#=]/.test(value)) return true; // zips, coords, JSON fragments
-        if (!/[a-z]/i.test(value)) return true; // no letters → not a country
-        if (value.length > 40) return true;
-    }
+    const validator = FACET_VALUE_VALIDATORS[key];
+    if (validator && !validator(value)) return true;
     return false;
 }
 
@@ -196,5 +202,42 @@ export function activeFilterEntries(
     }
 
     return entries;
+}
+
+/**
+ * Share (0..1) of `total` explicitly tagged with a real value — the
+ * arithmetic behind the sparse-filter honesty captions (work-mode group,
+ * visa control, SerpFilters.tsx). `null` when there's nothing to compute
+ * against (zero total), so the caller renders no caption rather than a
+ * divide-by-zero artifact.
+ */
+export function taggedShare(tagged: number, total: number): number | null {
+    return total > 0 ? tagged / total : null;
+}
+
+/**
+ * `taggedShare` for a facet distribution shaped like `work_type` — every row
+ * carries SOME value, including the sentinel "unknown", so the
+ * distribution's own value sum IS the result-set total. `undefined` (facet
+ * absent from the response) falls back to `null` — no caption, never a lie.
+ */
+export function distributionTaggedShare(dist: Record<string, number> | undefined): number | null {
+    if (!dist) return null;
+    const total = Object.values(dist).reduce((a, b) => a + b, 0);
+    return taggedShare(total - (dist.unknown ?? 0), total);
+}
+
+/**
+ * `taggedShare` for a BOOLEAN facet distribution shaped like
+ * `visa_sponsorship` — Meilisearch omits untagged (null) rows from a boolean
+ * facet's distribution entirely (verified live: `{true, false}`, no third
+ * bucket), so unlike `distributionTaggedShare` the distribution's own sum is
+ * only the TAGGED count; the denominator has to be the result set's overall
+ * total, passed in separately.
+ */
+export function booleanTaggedShare(dist: Record<string, number> | undefined, resultTotal: number): number | null {
+    if (!dist) return null;
+    const tagged = (dist["true"] ?? 0) + (dist["false"] ?? 0);
+    return taggedShare(tagged, resultTotal);
 }
 

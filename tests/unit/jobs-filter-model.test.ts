@@ -7,6 +7,7 @@ import {
     STATIC_FACET_LADDERS,
     type FilterState,
 } from "../../src/components/jobs/FilterPanel";
+import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, WORK_TYPES } from "../../src/lib/agent/facets";
 
 // Review fix (2026-07-19): was a locally-duplicated literal — now the same
 // exported constant page.tsx's `clearAll`/`pendingClearAll` consume, so this
@@ -55,7 +56,12 @@ test("toggleFacetValue leaves other facet keys untouched", () => {
 });
 
 test("STATIC_FACET_LADDERS seeds the canonical work/experience/employment values", () => {
-    assert.deepEqual(STATIC_FACET_LADDERS.work_type, ["remote", "hybrid", "onsite"]);
-    assert.deepEqual(STATIC_FACET_LADDERS.experience_level, ["entry", "mid", "senior"]);
-    assert.deepEqual(STATIC_FACET_LADDERS.employment_type, ["full_time", "contract"]);
+    // experience_level/employment_type widened 2026-08-08 (F3, facet-capabilities
+    // wave) to the full live corpus vocabulary — lead/executive/intern and
+    // part_time/internship were previously unfilterable. Asserted against the
+    // shared EXPERIENCE_LEVELS/EMPLOYMENT_TYPES source rather than re-typing the
+    // list here, so this test can never itself drift from that one source.
+    assert.deepEqual(STATIC_FACET_LADDERS.work_type, WORK_TYPES);
+    assert.deepEqual(STATIC_FACET_LADDERS.experience_level, EXPERIENCE_LEVELS);
+    assert.deepEqual(STATIC_FACET_LADDERS.employment_type, EMPLOYMENT_TYPES);
 });

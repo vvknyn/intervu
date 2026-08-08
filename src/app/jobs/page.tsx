@@ -2946,6 +2946,7 @@ function JobsContent() {
                             )}
                             <SerpFilters
                                 distribution={result?.facetDistribution}
+                                resultTotal={result?.total}
                                 postedDateSupported={postedDateSupported}
                                 state={filterState}
                                 activeCount={activeCount}

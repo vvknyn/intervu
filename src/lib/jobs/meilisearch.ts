@@ -11,7 +11,7 @@
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort } from "./sort";
-import { FACETABLE_KEYS } from "./types";
+import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -387,7 +387,7 @@ export function buildSearchBody(
     // "last" only after strict matching has genuinely found nothing.
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
-    facets: p.withFacets ? [...FACETABLE_KEYS] : undefined,
+    facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
     // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,

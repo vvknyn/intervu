@@ -121,9 +121,8 @@ test("country ISO3 code (3 letters) IS a typeable lookup key", () => {
   assert.equal(r!.entity.name, "Canada");
 });
 
-test("country ISO2 code (2 letters) is never a typed lookup key", () => {
+test("country ISO2 code (2 letters) is never a typed lookup key on its own — 'ca' still isn't; 'us' is now a curated alias (see the alias tests below)", () => {
   assert.equal(resolvePlacePhrase("ca", GAZETTEER), null);
-  assert.equal(resolvePlacePhrase("us", GAZETTEER), null);
 });
 
 test("countryPlaceCandidates: ISO2 -> the same expansion set a typed name would produce (the IP default's entry point)", () => {
@@ -218,4 +217,118 @@ test("scanPlacePhrases: unrecognized words survive as content", () => {
   const { residualQ, resolutions } = scanPlacePhrases("product manager lisbon", GAZETTEER);
   assert.equal(residualQ, "product manager lisbon");
   assert.equal(resolutions.length, 0);
+});
+
+/* ------------------------- curated place aliases ------------------------- *
+ * Small, hand-reviewed nicknames/abbreviations (UK/USA/NYC/SF/LA/DC/Bay Area)
+ * a searcher types that the gazetteer's plain name/ISO lookups never reach —
+ * see PLACE_ALIASES' doc comment (resolve-place.ts) for why. Own fixture:
+ * needs United Kingdom (absent from the shared GAZETTEER above) and a
+ * "Washington" that's BOTH a real city (DC) and a same-named admin1 (the
+ * state) — the exact ambiguity the "dc" alias has to resolve past.
+ */
+const ALIAS_DATA: GazetteerData = {
+  countries: [
+    ["GB", "GBR", "United Kingdom"],
+    ["US", "USA", "United States"],
+  ],
+  admin1: [
+    ["US", "WA", "Washington"], // the STATE — "dc" must resolve to the CITY below, not this
+  ],
+  cities: [
+    ["New York City", null, 40.71427, -74.00597, "US", "NY", 8804190],
+    ["San Francisco", null, 37.77493, -122.41942, "US", "CA", 827526],
+    ["Oakland", null, 37.80437, -122.2708, "US", "CA", 419267], // ~13km from SF — within the 50km radius
+    ["San Jose", null, 37.33939, -121.89496, "US", "CA", 997368], // ~67km from SF — OUTSIDE the radius
+    ["Los Angeles", null, 34.05223, -118.24368, "US", "CA", 3820914],
+    ["Washington", null, 38.89511, -77.03637, "US", "DC", 689545], // the CITY
+  ],
+};
+const ALIAS_GAZETTEER = buildGazetteerIndex(ALIAS_DATA);
+
+test("alias: 'uk' and 'u.k.' resolve to the United Kingdom, name+ISO2+ISO3+prefix candidates, just like typing the full name", () => {
+  for (const phrase of ["uk", "u.k.", "UK"]) {
+    const r = resolvePlacePhrase(phrase, ALIAS_GAZETTEER);
+    assert.ok(r, `"${phrase}" must resolve`);
+    assert.equal(r!.entity.type, "country");
+    assert.equal(r!.entity.name, "United Kingdom");
+    const countries = fieldValues(r!.candidates, "location_country");
+    assert.deepEqual(countries.sort(), ["GB", "GBR", "United Kingdom", "United Kingdom"].sort());
+  }
+});
+
+test("alias: 'usa', 'u.s.', 'u.s.a.' all resolve to the United States", () => {
+  for (const phrase of ["usa", "u.s.", "u.s.a."]) {
+    const r = resolvePlacePhrase(phrase, ALIAS_GAZETTEER);
+    assert.ok(r, `"${phrase}" must resolve`);
+    assert.equal(r!.entity.name, "United States");
+  }
+});
+
+test("the 'us' ambiguity: guarded (free-text) rejects it as a place — it's the pronoun in \"let us know\" — but an explicit, unguarded lookup (the location box's call shape) resolves it to the United States", () => {
+  assert.equal(resolvePlacePhrase("us", ALIAS_GAZETTEER, true), null, "free-text guard must win — 'us' stays a content word");
+  const r = resolvePlacePhrase("us", ALIAS_GAZETTEER, false);
+  assert.ok(r, "an explicit (non-free-text) lookup must still resolve 'us'");
+  assert.equal(r!.entity.name, "United States");
+});
+
+test("alias: 'nyc' resolves to the real New York City gazetteer entry", () => {
+  const r = resolvePlacePhrase("nyc", ALIAS_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.type, "city");
+  assert.equal(r!.entity.name, "New York City");
+});
+
+test("alias: 'sf' resolves to San Francisco and still gets its normal radius-neighbor expansion (Oakland, ~13km, is in range)", () => {
+  const r = resolvePlacePhrase("sf", ALIAS_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "San Francisco");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("San Francisco"));
+  assert.ok(cities.includes("Oakland"), `expected Oakland (within the radius) in ${JSON.stringify(cities)}`);
+  assert.ok(!cities.includes("San Jose"), "San Jose is ~67km out — outside SF's own radius, which is exactly why 'bay area' below anchors it explicitly");
+});
+
+test("alias: 'la' resolves to Los Angeles", () => {
+  const r = resolvePlacePhrase("la", ALIAS_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Los Angeles");
+});
+
+test("alias: 'dc' resolves to the Washington CITY, not the same-named Washington STATE admin1 — the exact ambiguity a plain re-lookup of \"washington\" would get wrong", () => {
+  const r = resolvePlacePhrase("dc", ALIAS_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.type, "city");
+  assert.equal(r!.entity.countryCode, "US");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Washington"));
+  assert.equal(fieldValues(r!.candidates, "location_state").length, 0, "must not carry the STATE's candidates");
+});
+
+test("alias: 'bay area' resolves to a 3-city any-clause (San Francisco, Oakland, San Jose) — reaching San Jose is the whole point (see the 'sf' test above)", () => {
+  const r = resolvePlacePhrase("bay area", ALIAS_GAZETTEER);
+  assert.ok(r);
+  const cities = fieldValues(r!.candidates, "location_city").sort();
+  assert.deepEqual(cities, ["Oakland", "San Francisco", "San Jose"]);
+});
+
+test("scanPlacePhrases: 'bay area' resolves as one 2-word phrase inside a real query, longest-match-first", () => {
+  const { residualQ, resolutions } = scanPlacePhrases("staff engineer bay area", ALIAS_GAZETTEER);
+  assert.equal(residualQ, "staff engineer");
+  assert.equal(resolutions.length, 1);
+  assert.deepEqual(
+    fieldValues(resolutions[0].candidates, "location_city").sort(),
+    ["Oakland", "San Francisco", "San Jose"],
+  );
+});
+
+test("non-aliased control: a plain full country name resolves exactly as it did before the alias table existed", () => {
+  const viaName = resolvePlacePhrase("united states", ALIAS_GAZETTEER);
+  const viaAlias = resolvePlacePhrase("usa", ALIAS_GAZETTEER);
+  assert.ok(viaName && viaAlias);
+  assert.deepEqual(viaName!.candidates, viaAlias!.candidates);
+});
+
+test("non-aliased control: a random unrecognized word is still not a place", () => {
+  assert.equal(resolvePlacePhrase("zzznotaplace", ALIAS_GAZETTEER), null);
 });
