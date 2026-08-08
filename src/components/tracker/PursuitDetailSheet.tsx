@@ -14,7 +14,9 @@ import {
     TRACKER_DETAIL_STAGES,
     TRACKER_SHEET_BOTTOM,
     daysInTracker,
+    daysSinceUpdate,
     hasResumeLinked,
+    isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { NoteAutosave } from "@/lib/pursuits/note-autosave";
@@ -92,6 +94,7 @@ function PursuitDetailBody({
     const latestResume = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? [])[0];
     const resumeLabel = latestResume?.label ?? pursuit.resume_version?.version_name;
     const days = daysInTracker(pursuit);
+    const stale = isStalePursuit(pursuit);
 
     // `onNoteSave` is a fresh closure every render of the parent (yours/page
     // .tsx builds it inline) — capture it in a ref so the autosave engine
@@ -186,6 +189,12 @@ function PursuitDetailBody({
                         <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Resume</dt>
                         <dd className="text-[13px]">{resumeLabel ?? "— none linked"}</dd>
                     </div>
+                    {stale && (
+                        <div className="col-span-2">
+                            <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Update</dt>
+                            <dd className="text-[13px]">no update in {daysSinceUpdate(pursuit)}d</dd>
+                        </div>
+                    )}
                 </dl>
 
                 <div>

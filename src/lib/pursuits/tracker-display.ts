@@ -91,6 +91,39 @@ export function hasResumeLinked(p: Pursuit): boolean {
     );
 }
 
+/** Threshold (days) beyond which an unanswered application is flagged stale
+ *  on the tracker (spec B2, "honest re-engagement — facts only"). */
+export const STALE_APPLICATION_THRESHOLD_DAYS = 14;
+
+/** Days since a pursuit's last update — the same clock `isStalePursuit`
+ *  gates on and the "no update in Nd" line renders, so the two can never
+ *  disagree. Mirrors `daysInTracker`'s shape (created_at instead of
+ *  updated_at). */
+export function daysSinceUpdate(p: Pursuit, nowMs: number = Date.now()): number {
+    const updated = Date.parse(p.updated_at);
+    if (Number.isNaN(updated)) return 0;
+    return Math.max(0, Math.floor((nowMs - updated) / 86_400_000));
+}
+
+/**
+ * True only while a pursuit sits in the one stage that means "waiting on
+ * them" — `applied` — with no update in at least `thresholdDays`. Traced
+ * against `PURSUIT_STAGES`: `interested`/`resume_ready` are still the
+ * applicant's own move to make; `interviewing` is a *different* waiting
+ * state (waiting on an interview outcome, not a first response) and is
+ * deliberately excluded — a pursuit that's advanced past `applied` is
+ * making progress, not going stale; `offer`/`rejected`/`withdrawn` are
+ * already resolved. Facts only — this never renders an imperative, just the
+ * count.
+ */
+export function isStalePursuit(
+    p: Pursuit,
+    nowMs: number = Date.now(),
+    thresholdDays: number = STALE_APPLICATION_THRESHOLD_DAYS,
+): boolean {
+    return p.status === "applied" && daysSinceUpdate(p, nowMs) >= thresholdDays;
+}
+
 export function countByTrackerFilter(pursuits: Pursuit[]): Record<Exclude<TrackerFilter, "all">, number> {
     const counts = { saved: 0, applied: 0, interviewing: 0, offer: 0 };
     for (const p of pursuits) {

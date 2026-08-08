@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 import type { Pursuit } from "@/lib/pursuits/types";
 import {
     daysInTracker,
+    daysSinceUpdate,
     hasResumeLinked,
+    isStalePursuit,
     trackerStatusBadgeClass,
     trackerStatusLabel,
 } from "@/lib/pursuits/tracker-display";
@@ -19,6 +21,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
     const days = daysInTracker(pursuit);
     const resumeLinked = hasResumeLinked(pursuit);
     const note = pursuit.note?.trim();
+    const stale = isStalePursuit(pursuit);
 
     return (
         <button
@@ -46,6 +49,12 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
                 <span>{days}d in tracker</span>
                 <span aria-hidden="true">·</span>
                 <span>{resumeLinked ? "resume linked" : "no resume"}</span>
+                {stale && (
+                    <>
+                        <span aria-hidden="true">·</span>
+                        <span>no update in {daysSinceUpdate(pursuit)}d</span>
+                    </>
+                )}
                 {note && (
                     <>
                         <span aria-hidden="true">·</span>
