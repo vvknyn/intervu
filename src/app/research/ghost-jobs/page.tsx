@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
 const DESCRIPTION =
@@ -13,6 +14,7 @@ const DATE_MODIFIED = "2026-08-01";
 export const metadata: Metadata = {
   title: HEADLINE,
   description: DESCRIPTION,
+  ...canonicalMetadata("/research/ghost-jobs", HEADLINE, DESCRIPTION),
 };
 
 const articleJsonLd = buildArticleJsonLd({

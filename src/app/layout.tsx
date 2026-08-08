@@ -10,7 +10,7 @@ import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo/constants";
-import { buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { buildOrganizationJsonLd, buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
 // Frozen UI typeface pair (see globals.css --font-sans/--font-mono/
@@ -89,9 +89,21 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    // File-convention icons (favicon.ico, icon.png, icon.svg) are picked up
+    // automatically from src/app/ — only the apple-touch icon needs an
+    // explicit entry, since it also has to exist as a literal
+    // /apple-touch-icon.png (public/) for iOS's own HTML-independent
+    // fallback fetch, which the app/apple-icon.* file convention wouldn't
+    // serve at that exact path.
+    apple: "/apple-touch-icon.png",
+  },
 };
 
-const websiteJsonLd = buildWebsiteJsonLd();
+// Rendered as a single script tag (array of graphs) below — "one JSON-LD
+// block" covering both the site-wide WebSite (SearchAction) and Organization
+// (name/url/logo) graphs, rather than a script tag per type.
+const rootJsonLd = [buildWebsiteJsonLd(), buildOrganizationJsonLd()];
 
 export default function RootLayout({
   children,
@@ -104,11 +116,12 @@ export default function RootLayout({
         className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-[#12151a] text-[#ececec]`}
         suppressHydrationWarning
       >
-        {/* Site-wide WebSite graph + SearchAction, so search engines can offer
-            a sitelinks search box pointed at intervu's own jobs search. */}
+        {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
+            pointed at intervu's own jobs search) + Organization graph (name,
+            url, logo). */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
         {/* Instrument product is dark-void only. Force `.dark` before paint and
             migrate any leftover light preference (`intervu-dark=0`) so the

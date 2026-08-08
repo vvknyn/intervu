@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+const TITLE = "Privacy Policy";
+const DESCRIPTION = "How intervu collects, uses, and protects your data.";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How intervu collects, uses, and protects your data.",
+  title: TITLE,
+  description: DESCRIPTION,
+  ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
 const LAST_UPDATED = "August 8, 2026";

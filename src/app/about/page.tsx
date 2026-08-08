@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+const TITLE = "About";
+const DESCRIPTION = "What intervu is, how it works, and where the data comes from.";
 
 export const metadata: Metadata = {
-  title: "About",
-  description: "What intervu is, how it works, and where the data comes from.",
+  title: TITLE,
+  description: DESCRIPTION,
+  ...canonicalMetadata("/about", TITLE, DESCRIPTION),
 };
 
 export default function AboutPage() {

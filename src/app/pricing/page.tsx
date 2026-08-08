@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { PRICING_TIERS } from "@/app/pricing/pricing-tiers";
 import { PricingCard } from "@/app/pricing/PricingCard";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+const TITLE = "Pricing";
+const DESCRIPTION = "Free while intervu is in beta. No card required — up to 20 applications a day.";
 
 export const metadata: Metadata = {
-  title: "Pricing",
-  description: "Free while intervu is in beta. No card required — up to 20 applications a day.",
+  title: TITLE,
+  description: DESCRIPTION,
+  ...canonicalMetadata("/pricing", TITLE, DESCRIPTION),
 };
 
 export default function PricingPage() {
