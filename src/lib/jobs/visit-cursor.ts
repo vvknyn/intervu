@@ -52,6 +52,22 @@ export function writeVisitCursor(scope: VisitCursorScope, iso: string): void {
   }
 }
 
+/**
+ * Whether a cursor has EVER been stored for this scope, distinct from
+ * `readVisitCursor`'s always-a-value return (unset falls back to
+ * `defaultVisitCursor`). Callers that must not act on a fabricated default —
+ * e.g. a "since your last visit" banner, which would otherwise lie to a
+ * first-time visitor — check this first.
+ */
+export function hasVisitCursor(scope: VisitCursorScope): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(storageKey(scope)) !== null;
+  } catch {
+    return false;
+  }
+}
+
 const DAY_MS = 86_400_000;
 
 /**

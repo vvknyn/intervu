@@ -36,6 +36,7 @@ import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from 
 import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
+import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
@@ -2960,6 +2961,8 @@ function JobsContent() {
                 </section>
 
                 <div className="mt-9 flex min-h-0 flex-1 flex-col">
+                        <BoardVisitBanner />
+
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
                             to word-dropping (`shouldRelaxSearch`, lib/jobs/meilisearch.ts).

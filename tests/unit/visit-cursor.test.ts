@@ -28,6 +28,7 @@ const fakeLocalStorage = new FakeLocalStorage();
 import {
     bucketCursorToUtcDay,
     defaultVisitCursor,
+    hasVisitCursor,
     readVisitCursor,
     writeVisitCursor,
 } from "../../src/lib/jobs/visit-cursor";
@@ -48,6 +49,20 @@ test("scope key isolation: writing 'board' never touches 'saved:x'", () => {
     // default lookback), never the value just written for "board".
     assert.notEqual(readVisitCursor("saved:x"), "2026-08-01T00:00:00.000Z");
     assert.equal(readVisitCursor("board"), "2026-08-01T00:00:00.000Z");
+});
+
+test("hasVisitCursor: a written scope reads true", () => {
+    writeVisitCursor("board", "2026-08-01T00:00:00.000Z");
+    assert.equal(hasVisitCursor("board"), true);
+});
+
+test("hasVisitCursor: a different, untouched scope reads false", () => {
+    writeVisitCursor("board", "2026-08-01T00:00:00.000Z");
+    // "saved:x" was never written — `readVisitCursor` would still hand back
+    // a fabricated default lookback for it, but `hasVisitCursor` must say
+    // false: it exists to tell "never visited" apart from "visited a while
+    // ago", which the default-lookback fallback alone cannot.
+    assert.equal(hasVisitCursor("saved:x"), false);
 });
 
 test("follows scope reads/writes the legacy 'intervu.follows.alertCursor' key verbatim", () => {
