@@ -14,6 +14,8 @@ export function ResetPasswordForm() {
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     useEffect(() => {
         if (success) {
@@ -107,27 +109,49 @@ export function ResetPasswordForm() {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-1">
-                        <input
-                            name="password"
-                            type="password"
-                            autoComplete="new-password"
-                            required
-                            placeholder="New password"
-                            minLength={6}
-                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
-                        />
+                        <div className="relative">
+                            <input
+                                name="password"
+                                type={showPassword ? "text" : "password"}
+                                autoComplete="new-password"
+                                required
+                                placeholder="New password"
+                                minLength={6}
+                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                            />
+                            <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => setShowPassword((show) => !show)}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                                className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-foreground dark:text-slate-500"
+                            >
+                                {showPassword ? "Hide" : "Show"}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="space-y-1">
-                        <input
-                            name="confirmPassword"
-                            type="password"
-                            autoComplete="new-password"
-                            required
-                            placeholder="Confirm password"
-                            minLength={6}
-                            className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
-                        />
+                        <div className="relative">
+                            <input
+                                name="confirmPassword"
+                                type={showConfirmPassword ? "text" : "password"}
+                                autoComplete="new-password"
+                                required
+                                placeholder="Confirm password"
+                                minLength={6}
+                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                            />
+                            <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => setShowConfirmPassword((show) => !show)}
+                                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                                className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-foreground dark:text-slate-500"
+                            >
+                                {showConfirmPassword ? "Hide" : "Show"}
+                            </button>
+                        </div>
                     </div>
 
                     {error && (
