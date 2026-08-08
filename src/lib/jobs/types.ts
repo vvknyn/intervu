@@ -91,10 +91,29 @@ export const FACETABLE_KEYS = [
   "experience_level",
   "employment_type",
   "ghost_badge",
+  "visa_sponsorship",
   "location_country",
   "source",
 ] as const;
 export type FacetKey = (typeof FACETABLE_KEYS)[number];
+
+/** The subset of FACETABLE_KEYS the client actually consumes per search —
+ *  either as a generic FacetGroup (work_type/experience_level/employment_type/
+ *  location_country, SerpFilters.tsx) or a bespoke reader of its own facet
+ *  values (ghost_badge → the ghost-hide count; visa_sponsorship → the
+ *  sparse-filter honesty caption). `source` is FACETABLE (filterable via
+ *  ?src=, url-state.ts, and by MCP) but never rendered — requesting its
+ *  distribution on every search computes a count nothing reads. The
+ *  per-search Meilisearch `facets:` request (buildSearchBody, meilisearch.ts)
+ *  asks for exactly this list, not the full FACETABLE_KEYS. */
+export const REQUESTED_FACET_KEYS: readonly FacetKey[] = [
+  "work_type",
+  "experience_level",
+  "employment_type",
+  "ghost_badge",
+  "location_country",
+  "visa_sponsorship",
+] as const;
 
 /** Per-facet value→count, for rendering filter options with live counts. */
 export type FacetDistribution = Partial<Record<FacetKey, Record<string, number>>>;

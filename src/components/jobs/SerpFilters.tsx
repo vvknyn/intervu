@@ -8,6 +8,8 @@ import {
     SALARY_PRESETS,
     STATIC_FACET_LADDERS,
     TOP_N,
+    distributionTaggedShare,
+    booleanTaggedShare,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 
@@ -89,6 +91,7 @@ function FacetGroup({
     state,
     onToggleFacet,
     cap,
+    caption,
 }: {
     label: string;
     facetKey: FacetKey;
@@ -96,6 +99,7 @@ function FacetGroup({
     state: FilterState;
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
+    caption?: string;
 }) {
     const selected = state.facets[facetKey] ?? [];
     const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
@@ -112,12 +116,14 @@ function FacetGroup({
                     {facetValueLabel(facetKey, value)}
                 </Affordance>
             ))}
+            {caption && <p className="mt-1 font-mono text-[10px] text-faint">{caption}</p>}
         </Group>
     );
 }
 
 export function SerpFilters({
     distribution,
+    resultTotal,
     state,
     activeCount,
     onToggleFacet,
@@ -133,6 +139,7 @@ export function SerpFilters({
     onBoardChange,
 }: {
     distribution: FacetDistribution | undefined;
+    resultTotal?: number;
     state: FilterState;
     activeCount: number;
     onToggleFacet: (key: FacetKey, value: string) => void;
@@ -151,6 +158,8 @@ export function SerpFilters({
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
             ? `Hide likely ghosts (−${ghostHiddenCount.toLocaleString()})`
             : "Hide likely ghosts";
+    const workShare = distributionTaggedShare(distribution?.work_type);
+    const visaShare = booleanTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
 
     return (
         <>
@@ -189,6 +198,7 @@ export function SerpFilters({
                     distribution={distribution}
                     state={state}
                     onToggleFacet={onToggleFacet}
+                    caption={workShare != null ? `work mode is tagged on ~${Math.round(workShare * 100)}% of roles` : undefined}
                 />
 
                 <FacetGroup
@@ -249,10 +259,17 @@ export function SerpFilters({
                 )}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-3 border-t border-border pt-3.5">
-                <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
-                    Sponsors visas
-                </Affordance>
+            <div className="mt-4 flex flex-wrap items-start gap-x-5 gap-y-3 border-t border-border pt-3.5">
+                <div className="flex flex-col gap-1">
+                    <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
+                        Sponsors visas
+                    </Affordance>
+                    {visaShare != null && (
+                        <p className="pl-5 font-mono text-[10px] text-faint">
+                            sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
+                        </p>
+                    )}
+                </div>
                 {activeCount > 0 && (
                     <Affordance active onClick={onClearAll}>
                         Reset all ✕

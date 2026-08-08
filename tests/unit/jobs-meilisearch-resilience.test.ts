@@ -1,10 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
     isRetryableMeiliFailure,
     isPostedTsPopulationSufficient,
     POSTED_TS_POPULATION_THRESHOLD,
+    buildSearchBody,
 } from "../../src/lib/jobs/meilisearch";
+import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "../../src/lib/jobs/types";
+
+const SERP_FILTERS_SRC = readFileSync(
+    fileURLToPath(new URL("../../src/components/jobs/SerpFilters.tsx", import.meta.url)),
+    "utf8",
+);
+// REQUESTED_FACET_KEYS covers two consumption shapes (see its doc,
+// lib/jobs/types.ts): a generic FacetGroup rendered in SerpFilters.tsx, OR a
+// bespoke reader of the facet's distribution elsewhere in the render path —
+// e.g. ghost_badge's hide-count, computed in page.tsx from
+// `facetDistribution?.ghost_badge`, never referenced by name in
+// SerpFilters.tsx itself. The guard below has to scan that whole render
+// path, not SerpFilters.tsx alone, or it wrongly flags every bespoke-reader
+// key as unreferenced.
+const RENDER_PATH_SRC =
+    SERP_FILTERS_SRC +
+    readFileSync(fileURLToPath(new URL("../../src/app/jobs/page.tsx", import.meta.url)), "utf8") +
+    readFileSync(fileURLToPath(new URL("../../src/components/jobs/GhostRadarCard.tsx", import.meta.url)), "utf8");
 
 // Phase 1-a #1: retry-policy decision — 5xx (transient) is retryable, 4xx
 // (the request itself is wrong) never is.
@@ -66,4 +87,27 @@ test("fetchPostedDateFilterSupported: probe failure is null (unknown), success m
         json: async () => ({ totalHits: call2++ === 0 ? 1_000_000 : 0 }),
     }));
     assert.equal(await fetchPostedDateFilterSupported(), false, "measured zero population → unsupported");
+});
+
+test("F6: buildSearchBody requests only REQUESTED_FACET_KEYS, not the full FACETABLE_KEYS — 'source' costs a Meili facet computation on every search for a value nothing renders", () => {
+    const body = buildSearchBody({ q: "", withFacets: true }, false);
+    assert.deepEqual(body.facets, [...REQUESTED_FACET_KEYS]);
+    assert.ok(FACETABLE_KEYS.includes("source"), "source stays a legal filter (?src=, MCP) — just not a requested facet");
+    assert.ok(!body.facets!.includes("source"));
+});
+
+test("F6: buildSearchBody requests no facets at all when withFacets is falsy", () => {
+    const body = buildSearchBody({ q: "" }, false);
+    assert.equal(body.facets, undefined);
+});
+
+test("F6 guard: every REQUESTED_FACET_KEYS member is referenced somewhere in the render path (SerpFilters.tsx's generic FacetGroups, or a bespoke reader in page.tsx/GhostRadarCard.tsx)", () => {
+    for (const key of REQUESTED_FACET_KEYS) {
+        assert.ok(RENDER_PATH_SRC.includes(key), `render path never references "${key}" — drop it from REQUESTED_FACET_KEYS if it's truly unrendered (this is exactly the "source" bug this fix closes)`);
+    }
+});
+
+test("F6 guard: 'source' is FACETABLE but deliberately absent from both the requested-keys list and the render path", () => {
+    assert.ok(!REQUESTED_FACET_KEYS.includes("source"));
+    assert.ok(!RENDER_PATH_SRC.includes('"source"'));
 });
