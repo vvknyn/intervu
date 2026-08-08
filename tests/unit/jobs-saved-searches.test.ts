@@ -5,8 +5,10 @@ import {
     hrefFromJobsUrlState,
     jobsUrlStateFromSavedHref,
     loadSavedSearches,
+    mergedSavedSearchRow,
     removeSavedSearch,
     saveSavedSearches,
+    savedSearchId,
     SAVED_SEARCHES_KEY,
     stateForSavedSearch,
     suggestSavedSearchName,
@@ -109,4 +111,59 @@ test("loadSavedSearches degrades on malformed JSON", () => {
         localStorage.setItem(SAVED_SEARCHES_KEY, "{bad");
         assert.deepEqual(loadSavedSearches(), []);
     });
+});
+
+// --- savedSearchId (server doc id — actions/saved-searches.ts) ---
+
+test("savedSearchId: the same href always hashes to the same id", () => {
+    const href = "?q=pm&work=remote";
+    assert.equal(savedSearchId(href), savedSearchId(href));
+});
+
+test("savedSearchId: different params hash to different ids", () => {
+    assert.notEqual(savedSearchId("?q=pm"), savedSearchId("?q=sre"));
+});
+
+test("hrefFromJobsUrlState + jobsUrlStateFromSavedHref: full params round-trip through the stored shape", () => {
+    const state = {
+        ...DEFAULT_URL_STATE,
+        q: "staff engineer",
+        facets: { work_type: ["remote"], location_country: ["Canada"] },
+        salaryMin: 150_000,
+        visaOnly: true,
+        hideGhosts: false,
+        board: null,
+    };
+    const href = hrefFromJobsUrlState(state);
+    // Same stored shape hashes stably, matching what the server action uses
+    // as its Firestore doc id.
+    assert.equal(savedSearchId(href), savedSearchId(href));
+    const parsed = jobsUrlStateFromSavedHref(href);
+    assert.equal(parsed.salaryMin, 150_000);
+    assert.equal(parsed.visaOnly, true);
+    assert.equal(parsed.hideGhosts, false);
+    assert.deepEqual(parsed.facets, state.facets);
+});
+
+// --- mergedSavedSearchRow (pure guest-merge decision — actions/saved-searches.ts) ---
+
+test("mergedSavedSearchRow: no existing server row → keeps the guest's own createdAt", () => {
+    const guest = { name: "SRE remote", href: "?q=sre", createdAt: "2026-07-01T00:00:00.000Z" };
+    const row = mergedSavedSearchRow(guest, undefined);
+    assert.equal(row.createdAt, "2026-07-01T00:00:00.000Z");
+});
+
+test("mergedSavedSearchRow: an earlier server row wins over a later guest createdAt", () => {
+    const guest = { name: "SRE remote", href: "?q=sre", createdAt: "2026-07-10T00:00:00.000Z" };
+    const row = mergedSavedSearchRow(guest, "2026-07-01T00:00:00.000Z");
+    assert.equal(row.createdAt, "2026-07-01T00:00:00.000Z");
+});
+
+test("mergedSavedSearchRow is idempotent: re-running the merge with its own prior output changes nothing", () => {
+    const guest = { name: "SRE remote", href: "?q=sre", createdAt: "2026-07-10T00:00:00.000Z" };
+    const firstLogin = mergedSavedSearchRow(guest, undefined);
+    // Repeat login: guest store hasn't cleared yet, existing server row now
+    // carries firstLogin's own createdAt.
+    const secondLogin = mergedSavedSearchRow(guest, firstLogin.createdAt);
+    assert.deepEqual(secondLogin, firstLogin);
 });

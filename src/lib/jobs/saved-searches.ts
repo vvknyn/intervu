@@ -63,6 +63,47 @@ export function removeSavedSearch(list: SavedSearch[], id: string): SavedSearch[
     return list.filter((s) => s.id !== id);
 }
 
+/**
+ * Deterministic id for a saved search's SERVER row (actions/saved-searches.ts
+ * uses this as the Firestore doc id) — the same `href` always hashes to the
+ * same id, so saving (or guest-merging) an identical search twice upserts
+ * one row instead of creating a duplicate. Plain FNV-1a, not a crypto hash:
+ * this module is shared with the client bundle, so no `node:crypto` import,
+ * and dedup-by-construction only needs stability, not collision-resistance
+ * (a saved-search list is capped at `MAX_SAVED_SEARCHES`).
+ */
+export function savedSearchId(href: string): string {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < href.length; i++) {
+        hash ^= href.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+/**
+ * Pure merge decision for one guest row being pushed to the server at
+ * sign-in (actions/saved-searches.ts's `syncGuestSavedSearchesAction`) —
+ * mirrors `earliestCreatedAt` (actions/follows.ts's own guest merge): when a
+ * server row already exists at the same content-hash id (repeat login, or
+ * the same search was saved from another device), the EARLIEST createdAt
+ * wins so a re-sync never "un-ages" an existing save. Doc id is the hash, so
+ * calling this twice with the same guest row and its own prior output as
+ * `existingCreatedAt` returns the identical row — that idempotence is what
+ * lets the merge trigger run again safely on every login, not just the first.
+ */
+export function mergedSavedSearchRow(
+    guest: Pick<SavedSearch, "name" | "href" | "createdAt">,
+    existingCreatedAt: string | undefined,
+    now = (): string => new Date().toISOString(),
+): Pick<SavedSearch, "name" | "href" | "createdAt"> {
+    const candidates = [existingCreatedAt, guest.createdAt].filter((c): c is string => !!c);
+    const createdAt = candidates.length
+        ? candidates.reduce((earliest, next) => (Date.parse(next) < Date.parse(earliest) ? next : earliest))
+        : now();
+    return { name: guest.name.trim(), href: guest.href.trim(), createdAt };
+}
+
 function hasLocalStorage(): boolean {
     return typeof localStorage !== "undefined";
 }
