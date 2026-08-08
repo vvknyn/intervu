@@ -94,9 +94,10 @@ export function addGuestPursuit(job: PublicJob, status: PursuitStage = "interest
 
 /**
  * Guest counterpart to `createManualPursuit` (actions/application.ts) — the
- * search seed line (spec §3 "outside interviews"). Always adds a new
- * pursuit: unlike `addGuestPursuit` there is no job_id to find-or-create by,
- * so a repeat seed submission is a distinct pursuit by design.
+ * tracker's "Track a role" sheet (/yours), the one manual-pursuit entry
+ * point. Always adds a new pursuit: unlike `addGuestPursuit` there is no
+ * job_id to find-or-create by, so a repeat submission is a distinct pursuit
+ * by design.
  */
 export function addManualGuestPursuit(
     company: string,

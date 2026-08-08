@@ -129,54 +129,54 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
   });
 });
 
-test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
+test.describe('YOURS - Guest manual pursuit (Track a role)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   });
 
-  // jobs-list-tail class fix: `SearchSeedLine` now lives inside `ListTail`
-  // (rendered only once the results list has genuinely ended) and inside
-  // `EmptyResults` (rendered on zero hits) — never below the load-more
-  // sentinel while browse-by-default's default list can still grow, which
-  // it always can on a bare `/jobs` landing. `zzzzunfindablezzz` is the
-  // same nonsense query jobs-first-screen.spec.ts's "zero results names the
-  // excluders" test already relies on returning 0 hits against the live
-  // corpus — reused here rather than inventing a second unfindable string,
-  // so there's one query this suite trusts to mean "no results," not two.
-  const ZERO_RESULTS_QUERY = 'zzzzunfindablezzz';
+  // Retargeted 2026-08-08: these two used to drive the /jobs prep seed line
+  // ("Already interviewing somewhere? Prep for it."), which has been removed
+  // from the board entirely — the tracker's own persistent "Track a role"
+  // button is the manual-pursuit entry point now, so that is what they
+  // exercise. Same end assertions (a pursuit is created from typed
+  // company/role alone and shows on /yours), with the stage the flow
+  // actually sets: `TrackRoleSheet` defaults its status select to "applied"
+  // ("Applied"), not the seed line's old hard-coded "interviewing".
+  async function trackARole(page: import('@playwright/test').Page, company: string, role: string) {
+    await page.getByRole('button', { name: /track a role/i }).first().click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await sheet.getByPlaceholder('Acme').fill(company);
+    await sheet.getByPlaceholder('Staff Software Engineer').fill(role);
+    await sheet.getByRole('button', { name: 'Save to tracker' }).click();
+  }
 
-  test('TC-YOURS-011: submitting the seed line creates a guest pursuit and routes to tracker', async ({ page }) => {
-    await page.goto(`/jobs?q=${ZERO_RESULTS_QUERY}`);
-    await expect(page.getByText('No roles match.')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId('prep-seed-line')).toBeVisible();
-    await page.getByTestId('prep-seed-line').getByRole('button').click();
+  test('TC-YOURS-011: tracking a role by hand creates a guest pursuit and closes the sheet back to the tracker', async ({ page }) => {
+    await page.goto('/yours');
+    await expect(page.getByTestId('yours-guest-empty')).toBeVisible({ timeout: 10000 });
 
-    const form = page.getByTestId('prep-seed-form');
-    await expect(form).toBeVisible();
-    await form.getByLabel('Company').fill('Globex');
-    await form.getByLabel('Role').fill('Product Manager');
-    await form.getByRole('button', { name: 'Prep for it' }).click();
+    await trackARole(page, 'Globex', 'Product Manager');
 
-    await expect(page).toHaveURL(/\/yours\/[^/?#]+/);
+    await expect(page).toHaveURL('/yours');
+    const row = page.getByTestId('pursuit-row').first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await expect(row).toContainText('Globex');
+    await expect(row).toContainText('Product Manager');
   });
 
-  test('TC-YOURS-012: a seed-line pursuit shows up on /yours as interviewing', async ({ page }) => {
-    await page.goto(`/jobs?q=${ZERO_RESULTS_QUERY}`);
-    await expect(page.getByTestId('prep-seed-line')).toBeVisible({ timeout: 10000 });
-    await page.getByTestId('prep-seed-line').getByRole('button').click();
-    const form = page.getByTestId('prep-seed-form');
-    await form.getByLabel('Company').fill('Initech');
-    await form.getByLabel('Role').fill('Backend Engineer');
-    await form.getByRole('button', { name: 'Prep for it' }).click();
-    await expect(page).toHaveURL(/\/yours\/[^/?#]+/);
+  test('TC-YOURS-012: a hand-tracked pursuit shows up on /yours as applied', async ({ page }) => {
+    await page.goto('/yours');
+    await expect(page.getByTestId('yours-guest-empty')).toBeVisible({ timeout: 10000 });
+    await trackARole(page, 'Initech', 'Backend Engineer');
+    await expect(page.getByTestId('pursuit-row').first()).toBeVisible({ timeout: 10000 });
 
     await page.goto('/yours');
     const row = page.getByTestId('pursuit-row').first();
     await expect(row).toBeVisible({ timeout: 10000 });
     await expect(row).toContainText('Initech');
     await expect(row).toContainText('Backend Engineer');
-    await expect(row).toContainText('Interviewing');
+    await expect(row).toContainText('Applied');
   });
 });
 
