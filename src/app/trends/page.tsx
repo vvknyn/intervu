@@ -5,6 +5,7 @@ import { TrendsHero } from "@/components/trends/TrendsHero";
 import { TopCountriesList } from "@/components/trends/TopCountriesList";
 import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
 import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
+import { MarketPulse } from "@/components/trends/MarketPulse";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 // A plain `export const metadata` object can't carry the current month, so
@@ -62,6 +63,13 @@ export default async function TrendsPage() {
       <TopCountriesList countries={data.topCountries} />
       <PostingFreshnessBand freshness={data.freshness} />
       <MarketGhostRadar ghostRadar={data.ghostRadar} />
+      <MarketPulse
+        postedPerDay={data.postedPerDay}
+        liveJobs={data.liveJobs}
+        closedTotal={data.closedTotal}
+        staleActiveSharePct={data.staleActiveSharePct}
+        sourceCoverage={data.sourceCoverage}
+      />
     </main>
   );
 }
