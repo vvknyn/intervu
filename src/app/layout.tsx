@@ -5,6 +5,7 @@ import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
 import { Footer } from "@/components/layout/Footer";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
@@ -131,17 +132,19 @@ export default function RootLayout({
             __html: `try{document.documentElement.classList.add('dark');if(localStorage.getItem('intervu-dark')==='0'){localStorage.setItem('intervu-dark','1')}}catch(e){document.documentElement.classList.add('dark')}`,
           }}
         />
-        <ThemeProvider>
-          <TourProvider>
-            <TopBar />
-            {children}
-            <Footer />
-            <MobileTabBar />
-            <TourOverlay />
-            <TourTrigger />
-            <Toaster />
-          </TourProvider>
-        </ThemeProvider>
+        <PostHogProvider>
+          <ThemeProvider>
+            <TourProvider>
+              <TopBar />
+              {children}
+              <Footer />
+              <MobileTabBar />
+              <TourOverlay />
+              <TourTrigger />
+              <Toaster />
+            </TourProvider>
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

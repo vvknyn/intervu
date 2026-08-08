@@ -85,11 +85,18 @@ export default function PrivacyPage() {
           further access.
         </p>
 
-        <h2>Cookies</h2>
+        <h2>Cookies &amp; analytics</h2>
         <p>
           We use a single cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts), lasts about
-          14 days, and identifies your session — nothing more. We don&apos;t run analytics scripts, ad trackers, or
-          any third-party tracking pixels. No cookie on intervu follows you around the web.
+          14 days, and identifies your session — nothing more.
+        </p>
+        <p>
+          We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
+          working and fix what isn&apos;t. It runs cookieless on intervu: no analytics cookie is set, and session
+          state is kept in memory only, gone the moment you close the tab or reload. Events aren&apos;t tied to
+          your identity unless you&apos;re signed in. PostHog (US cloud) processes this data as our processor under
+          their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and the sign-in
+          cookie above remains the only cookie on intervu.
         </p>
 
         <h2>Retention &amp; deletion</h2>
