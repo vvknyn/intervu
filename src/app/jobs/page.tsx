@@ -3371,6 +3371,7 @@ function JobsContent() {
                                 onOpenPosting={() => handleOpenPosting(detailJob)}
                                 onMarkApplied={() => handleMarkApplied(detailJob)}
                                 onGoAfter={() => handleGoAfter(detailJob)}
+                                onOpenRelated={openJob}
                                 variants={detailVariants}
                                 pursuit={detailPursuit}
                                 goingAfter={goingAfterId === detailJob.id}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, Copy, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,11 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { getRelatedJobsAction } from "@/actions/jobs";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -234,6 +236,41 @@ function CopyJobLinkButton({ jobId }: { jobId: string }) {
     );
 }
 
+/**
+ * A2 — "More like this" row (Curiosity / Serial Positioning Effect). Not a
+ * reuse of the SERP's `JobCard` (jobs/page.tsx): that component is
+ * page-local (never exported), tightly coupled to page.tsx-only state
+ * (cluster-variant expand/collapse, the verdict badge, the company-nav
+ * handler) that a 5-row "more like this" list doesn't need, and importing it
+ * here would be a circular import (page.tsx is JobDetail's own caller). What
+ * IS reused is the single source of truth for each fact's presentation —
+ * `displayCompany`/`locationText`/`salaryText`/`postedAgeShort`
+ * (lib/jobs/presentation.ts) — the exact same helpers `JobCard` itself
+ * calls, so this row can never format a company name, salary, or age
+ * differently than the SERP does.
+ */
+function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
+    const salary = salaryText(job);
+    const age = postedAgeShort(derivePostedTs(job), now);
+    const loc = locationText(job);
+    return (
+        <button
+            type="button"
+            data-testid="related-job-row"
+            onClick={onClick}
+            className="flex w-full flex-col gap-0.5 border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-foreground/40"
+        >
+            <span className="truncate text-[13px] font-medium text-foreground">{decodeText(job.title)}</span>
+            <span className="mono-data truncate text-[11px] text-muted-foreground">
+                {displayCompany(job.company, job.company_domain) || "Unknown company"}
+                {loc ? ` · ${loc}` : ""}
+                {age ? ` · ${age}` : ""}
+                {salary ? ` · from ${salary}` : ""}
+            </span>
+        </button>
+    );
+}
+
 export function JobDetail({
     job,
     now,
@@ -249,6 +286,7 @@ export function JobDetail({
     className,
     signedIn = true,
     onRequestSignIn,
+    onOpenRelated,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -275,6 +313,11 @@ export function JobDetail({
     variants?: PublicJob[];
     onClose?: () => void;
     className?: string;
+    /** A2 — "More like this" row click. Absent (rather than defaulted to a
+     *  no-op) reads as "no related panel" — see the render guard below —
+     *  since a caller that truly can't open a job (none exists here) should
+     *  never render rows that silently do nothing on click. */
+    onOpenRelated?: (jobId: string) => void;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
@@ -308,6 +351,31 @@ export function JobDetail({
     const hasCompanyIntel =
         typeof job.company_open_count === "number" ||
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
+
+    // A2 — "More like this." Self-contained: this panel is the only
+    // consumer of the related list, so it fetches its own data (via the
+    // server action directly, same as any other client component calling
+    // a "use server" export) rather than page.tsx threading it through as
+    // yet another prop on an already-3000-line file. `cancelled` guards
+    // against a fast re-open (new `job.id` before the previous fetch lands)
+    // painting a stale job's related list onto the new one.
+    const [related, setRelated] = useState<PublicJob[]>([]);
+    useEffect(() => {
+        let cancelled = false;
+        setRelated([]);
+        getRelatedJobsAction(job.id, job.company_domain, job.title)
+            .then((hits) => {
+                if (!cancelled) setRelated(hits);
+            })
+            .catch(() => {
+                // "More like this" is an accelerant, never a source of
+                // user-visible error — the render guard below already
+                // renders nothing for an empty list.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [job.id, job.company_domain, job.title]);
 
     return (
         <div className={cn("relative overflow-hidden border border-border bg-card", className)}>
@@ -608,6 +676,27 @@ export function JobDetail({
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)}>Company page →</Link>
                             </Button>
                         )}
+                    </div>
+                )}
+
+                {/* A2 — "More like this" (Curiosity / Serial Positioning
+                    Effect). Zero related → render nothing, no empty shell
+                    (see the fetch effect above's error handling too). */}
+                {related.length > 0 && (
+                    <div className="mt-5">
+                        <div className="mono-data mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            More like this
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            {related.map((r) => (
+                                <RelatedJobRow
+                                    key={r.id}
+                                    job={r}
+                                    now={now}
+                                    onClick={() => onOpenRelated?.(r.id)}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
