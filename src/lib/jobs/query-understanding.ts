@@ -105,9 +105,23 @@ export interface ParsedPlaces {
  * doc above — "Technical Account Manager canada" ranking on descriptions
  * that merely MENTION Canada). A word the gazetteer never recognized as a
  * place in the first place is unaffected and stays in the query normally.
+ *
+ * `guardFreeTextWords` (default off): free-text search words can coincide
+ * with an obscure real place ("customer success manager" hijacked to Perth
+ * because "success" is a real Perth suburb — see resolve-place.ts's
+ * `guardCommonWords`). `applyQueryUnderstanding` below turns this on because
+ * its `q` is exactly that — typed search words, where a bare common word was
+ * never place intent. `resolvePlaces` (agent/tools.ts) leaves it off: the
+ * MCP `location` param is explicit place intent, typed into a location
+ * field, not a coincidental substring of a role search — "success" there
+ * must still resolve.
  */
-export async function parsePlaceTokens(q: string, vocab: LocationVocabulary): Promise<ParsedPlaces> {
-  const { residualQ, resolutions } = scanPlacePhrases(q, vocab.gazetteer);
+export async function parsePlaceTokens(
+  q: string,
+  vocab: LocationVocabulary,
+  guardFreeTextWords = false,
+): Promise<ParsedPlaces> {
+  const { residualQ, resolutions } = scanPlacePhrases(q, vocab.gazetteer, guardFreeTextWords);
   if (resolutions.length === 0) return { residualQ, places: [] };
 
   const groups = resolutions.flatMap((r) => [r.candidates, r.countryScope]);
@@ -147,7 +161,7 @@ export async function applyQueryUnderstanding(
   }
 
   if (vocab && !p.facets?.location_country?.length) {
-    const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab);
+    const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
       // A query that was ONLY places ("toronto") leaves an empty residual —
       // that's a browse of the place, and `resolveEffectiveSort` (sort.ts)
