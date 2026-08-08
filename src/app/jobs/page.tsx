@@ -813,6 +813,8 @@ function EmptyResults({
     onClearQuery,
     ghostRevealCount,
     onRevealGhosts,
+    seeds,
+    onSubmitSeed,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
@@ -825,6 +827,12 @@ function EmptyResults({
     onClearQuery: () => void;
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
+    /** A3 — the SAME seed list `BrowseSeedRow` renders everywhere else on
+     *  this page (`resolveSearchSeeds`, recent-searches.ts). A zero-hit
+     *  query/filter combo previously dead-ended here: clear-filters,
+     *  clear-search, and ghost-reveal were the only ways out. */
+    seeds: string[];
+    onSubmitSeed: (seed: string) => void;
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0;
@@ -852,6 +860,9 @@ function EmptyResults({
                     {ghostRevealCount.toLocaleString()} roles hidden as likely-ghost — show them
                 </button>
             )}
+            {/* A3 — same component, same `submitSearch` chokepoint, same
+                testids as every other BrowseSeedRow on this page; not a fork. */}
+            <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
         </div>
     );
 }
@@ -3086,6 +3097,8 @@ function JobsContent() {
                                     onClearQuery={handleClearSearch}
                                     ghostRevealCount={ghostRevealCount}
                                     onRevealGhosts={() => onHideGhosts(false)}
+                                    seeds={searchSeeds}
+                                    onSubmitSeed={submitSearch}
                                 />
                             ) : (
                                 <>
