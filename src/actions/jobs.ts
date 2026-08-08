@@ -167,6 +167,13 @@ export async function getRelatedJobsAction(
 ): Promise<PublicJob[]> {
   if (!jobId) return [];
 
+  // Same per-IP chokepoint as `searchJobsAction` above — this action runs up
+  // to two corpus queries per call and is just as callable outside the UI.
+  // Denial is an empty list, not an error: "More like this" is an accelerant,
+  // and the panel already renders nothing for an empty result.
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return [];
+
   const companyHits = companyDomain ? await fetchRelatedExcluding(jobId, { companyDomain }) : [];
   const plan = resolveRelatedQuery({ companyHitCount: companyHits.length, title });
 

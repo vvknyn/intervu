@@ -363,6 +363,10 @@ export function JobDetail({
     useEffect(() => {
         let cancelled = false;
         setRelated([]);
+        // Guests see this panel blurred behind the sign-in gate — fetching
+        // for them would spend up to two corpus queries per detail-open on
+        // rows nobody can read.
+        if (!signedIn) return;
         getRelatedJobsAction(job.id, job.company_domain, job.title)
             .then((hits) => {
                 if (!cancelled) setRelated(hits);
@@ -375,7 +379,7 @@ export function JobDetail({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title]);
+    }, [job.id, job.company_domain, job.title, signedIn]);
 
     return (
         <div className={cn("relative overflow-hidden border border-border bg-card", className)}>
