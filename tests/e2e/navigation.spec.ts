@@ -125,19 +125,17 @@ test.describe('NAV - Navigation Tests', () => {
    * door") — landing on `/jobs` rather than staying on `/` is the expected,
    * intentional outcome, not an error.
    *
-   * `/yours` and `/settings` are both in `AUTH_GATED_PRODUCT_PREFIXES`
+   * `/settings` is in `AUTH_GATED_PRODUCT_PREFIXES`
    * (lib/auth/product-routes.ts) — middleware redirects a signed-out visitor
-   * to `/login?next=<path>` before either page ever renders (verified: no
-   * session cookie means no path to `/yours`/`/settings` content at all,
-   * guest-mode UI included). No fixture in this suite provides a signed-in
-   * session, so this test only proves the gate lands somewhere real
-   * (`/login`, carrying the right `next=`) rather than a dead end — it
-   * cannot verify the pages' own content without inventing credentials.
+   * to `/login?next=<path>` before the page renders. `/yours` came OFF that
+   * list in the 2026-08-08 engagement wave: the guest tracker (localStorage
+   * pursuits, sync-on-login) is a deliberate logged-out experience, so a
+   * signed-out visit now renders the page itself.
    */
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
       { url: '/', landsOn: '/jobs' },
-      { url: '/yours', landsOn: '/login?next=%2Fyours' },
+      { url: '/yours', landsOn: '/yours' },
       { url: '/settings', landsOn: '/login?next=%2Fsettings' },
     ];
 

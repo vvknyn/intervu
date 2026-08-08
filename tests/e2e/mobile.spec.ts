@@ -57,7 +57,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // nav was restructured for the split; the same testId renders both in
     // TopBar's desktop-only row (hidden on mobile) and MobileTabBar, so
     // scope to the mobile tab bar to avoid matching TopBar's hidden copy.
-    await expect(page.getByTestId('mobile-tabbar').getByTestId('topbar-jobs')).toBeVisible();
+    await expect(page.getByTestId('mobile-tabbar').getByTestId('mobile-topbar-jobs')).toBeVisible();
   });
 
   /**
@@ -150,11 +150,11 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    *
    * Verifies page navigation works correctly on mobile.
    *
-   * `/settings` and `/yours` are both `AUTH_GATED_PRODUCT_PREFIXES`
-   * (lib/auth/product-routes.ts) — a signed-out visit to either redirects to
-   * `/login?next=...` before the page renders (same gate TC-NAV-007 in
-   * navigation.spec.ts documents). No signed-in fixture exists in this
-   * suite, so "navigation works" here means the gate lands somewhere real.
+   * `/settings` is `AUTH_GATED_PRODUCT_PREFIXES` (lib/auth/product-routes.ts)
+   * — a signed-out visit redirects to `/login?next=...` before the page
+   * renders (same gate TC-NAV-007 in navigation.spec.ts documents). `/yours`
+   * came off that list in the 2026-08-08 engagement wave — the guest tracker
+   * is a deliberate logged-out experience, so it renders directly.
    */
   test('TC-MOBILE-008: Navigation works on mobile', async ({ page }) => {
     await page.goto('/');
@@ -164,7 +164,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await expect(page).toHaveURL('/login?next=%2Fsettings');
 
     await page.goto('/yours');
-    await expect(page).toHaveURL('/login?next=%2Fyours');
+    await expect(page).toHaveURL('/yours');
   });
 
   /**

@@ -4,21 +4,16 @@ import { isAuthGatedProductPath, validateNextParam } from "../../src/lib/auth/pr
 
 test("isAuthGatedProductPath matches product prefixes", () => {
   assert.equal(isAuthGatedProductPath("/jobs"), false);
-  assert.equal(isAuthGatedProductPath("/yours/abc"), true);
-  assert.equal(isAuthGatedProductPath("/connect"), true);
+  // 2026-08-08 engagement wave: /yours and /connect are guest-reachable —
+  // the guest tracker and /connect onboarding/waitlist ship real logged-out
+  // experiences; only server-side account-data surfaces stay gated.
+  assert.equal(isAuthGatedProductPath("/yours/abc"), false);
+  assert.equal(isAuthGatedProductPath("/connect"), false);
+  assert.equal(isAuthGatedProductPath("/connect/help"), false);
+  assert.equal(isAuthGatedProductPath("/settings"), true);
+  assert.equal(isAuthGatedProductPath("/account/anything"), true);
   assert.equal(isAuthGatedProductPath("/"), false);
   assert.equal(isAuthGatedProductPath("/mock/auth-gate"), false);
-});
-
-test("isAuthGatedProductPath carves out the public /connect/help exception, without opening the rest of /connect", () => {
-  // Note: pathname never includes a #fragment (fragments are client-only,
-  // never sent to the server) — the anchors in the spec's contract
-  // (#install-node etc.) live on this same public path, not as separate
-  // paths to carve out.
-  assert.equal(isAuthGatedProductPath("/connect/help"), false);
-  assert.equal(isAuthGatedProductPath("/connect/help/anything"), false);
-  assert.equal(isAuthGatedProductPath("/connect"), true);
-  assert.equal(isAuthGatedProductPath("/connect/other"), true);
 });
 
 test("validateNextParam accepts safe in-app paths", () => {

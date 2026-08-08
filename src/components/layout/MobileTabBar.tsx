@@ -33,7 +33,12 @@ export function MobileTabBar() {
                     <Link
                         key={tab.href + tab.label}
                         href={tab.href}
-                        data-testid={tab.testId}
+                        // Prefixed so a testid is unique page-wide: this bar
+                        // shares NAV_TABS with the desktop TopBar and both are
+                        // in the DOM at once (this one CSS-hidden at lg+) —
+                        // bare tab.testId made every strict testid locator
+                        // resolve to 2 elements.
+                        data-testid={`mobile-${tab.testId}`}
                         aria-current={active ? "page" : undefined}
                         className={cn(
                             "relative flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors duration-100 [&_svg]:h-[22px] [&_svg]:w-[22px]",
