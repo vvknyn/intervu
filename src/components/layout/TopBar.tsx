@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getMarketingStatsAction } from "@/actions/marketing";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
@@ -52,6 +54,26 @@ export function TopBar() {
         return () => unsubscribe();
     }, []);
 
+    // Desktop-only "N live roles" ticker linking to /trends (Vivek: "like the
+    // old subspace product header"). Same fetch-once-on-mount + cancelled-flag
+    // idiom as jobs/page.tsx's `marketClaim`, and the SAME 900s-cached action
+    // that backs it — never an uncached call per TopBar mount. Stays `null`
+    // (ticker absent, not a skeleton or a "0") until a real count resolves, on
+    // both the loading and the failure path — never implies a stale/live count
+    // it doesn't have.
+    const [liveJobsLabel, setLiveJobsLabel] = useState<string | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        getMarketingStatsAction()
+            .then((stats) => {
+                if (!cancelled && stats) setLiveJobsLabel(`${formatCorpusCount(stats.liveJobs)} live roles`);
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
 
@@ -82,6 +104,15 @@ export function TopBar() {
                 </Link>
 
                 <div className="absolute right-5 flex items-center gap-[18px] sm:right-7 lg:static">
+                    {liveJobsLabel && (
+                        <Link
+                            href="/trends"
+                            data-testid="topbar-pulse-ticker"
+                            className="hidden shrink-0 font-mono text-[12px] text-[#8b919a] transition-colors hover:text-[#ececec] lg:inline-flex"
+                        >
+                            {liveJobsLabel}
+                        </Link>
+                    )}
                     <nav
                         aria-label="Primary"
                         className="hidden items-center gap-[18px] text-[13px] lg:flex"

@@ -52,4 +52,33 @@ test.describe('TRENDS - Market trends page', () => {
     await expect(page).toHaveURL(/\/trends/);
     // Trends lives in the avatar dropdown (TopBar NAV_DESTINATIONS), not primary nav.
   });
+
+  // Market pulse (flow stats) — extends fetchMarketTrends' same aggregation,
+  // see lib/jobs/market-trends.ts / components/trends/MarketPulse.tsx.
+  test('TC-TRENDS-003: market pulse section renders the 14-day posted series as day bars', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto('/trends', { timeout: 90_000 });
+    await expect(page.getByTestId('trends-pulse')).toBeVisible({ timeout: 90_000 });
+
+    // 14 day-bar rows, each a real (non-NaN) count.
+    const dayRows = page.locator('[data-testid^="trends-pulse-day-"]');
+    await expect(dayRows.first()).toBeVisible({ timeout: 30_000 });
+    expect(await dayRows.count()).toBe(14);
+    for (let i = 0; i < (await dayRows.count()); i++) {
+      const text = (await dayRows.nth(i).innerText()).trim();
+      expect(text.toLowerCase()).not.toContain('nan');
+    }
+  });
+
+  // Header ticker (P3) — TopBar, desktop-only, links to /trends. Checked from
+  // /jobs (not /trends itself) since the ticker is app-chrome, not page content.
+  test('TC-TRENDS-004: TopBar live-count ticker is visible on /jobs at desktop viewport and links to /trends', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/jobs', { timeout: 60_000 });
+    const ticker = page.getByTestId('topbar-pulse-ticker');
+    await expect(ticker).toBeVisible({ timeout: 30_000 });
+    await expect(ticker).toHaveText(/live roles/);
+    await expect(ticker).toHaveAttribute('href', '/trends');
+  });
 });
