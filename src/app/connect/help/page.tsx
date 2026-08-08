@@ -126,6 +126,21 @@ export default function ConnectHelpPage() {
             approve the connection once; after that, just ask it to search or track jobs.
           </p>
           <p>
+            Out of the box, this gets you search and tracking: ask your AI to find roles,
+            sanity-check a posting, or save something to your tracker, and it can do that right
+            away. Actually opening a listing and filling out the application form needs a
+            different kind of tool — one with browser control, like Claude Code. Either way,
+            nothing here ever submits an application by itself; you&apos;re always the one who
+            hits submit.
+          </p>
+          <p>
+            One more thing worth knowing: the job descriptions your AI reads through this
+            connector are text pulled from the original posting elsewhere on the web, not
+            something intervu wrote. Every response labels that text as data for your AI to read,
+            never as instructions for it to follow — so a strange line buried in a posting
+            can&apos;t quietly make your AI do something you didn&apos;t ask for.
+          </p>
+          <p>
             If Claude&apos;s settings don&apos;t show a connectors option yet, it&apos;s still rolling
             out to accounts — try the OpenClaw local agent instead (Mac only), or check back
             shortly.
