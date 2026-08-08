@@ -206,7 +206,7 @@ export async function parseResumeWithAI(
         const result = await generateGenericJSON(prompt, optimizedConfig);
 
         if (!result) {
-            return { error: "No response from AI. Please check your API key configuration in the model switcher and try again." };
+            return { error: "No response from AI. Please try again in a moment." };
         }
 
         if (result.error && !result.parsed) {

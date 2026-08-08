@@ -4,13 +4,15 @@
  *
  * Per-user credit gate for the SHARED (app-funded) default model.
  *
- * Policy (2026-06):
+ * Policy (2026-06, BYOK entry point removed 2026-08-08):
  *  - vvk / admins: unlimited use of the shared key (no charge).
- *  - BYOK users (own OpenRouter/Groq key) or explicit key overrides: never
- *    charged — they pay their own provider.
+ *  - Legacy BYOK users (own OpenRouter/Groq key stored before 2026-08-08) or
+ *    explicit key overrides: never charged — they pay their own provider.
+ *    There is no more UI to add a new one (see profile.ts's
+ *    getUserLLMConfig doc comment).
  *  - Everyone else on the shared key: 1 credit per generation, with a small
- *    free monthly grant. Out of credits → blocked with a clear "add your own
- *    key or buy credits" message (Stripe purchase is a fast-follow).
+ *    free monthly grant. Out of credits → blocked with a clear "buy credits"
+ *    message (Stripe purchase is a fast-follow).
  *
  * Metering is "per generation" (one user-facing AI action). Callers resolve the
  * provider config ONCE and call `chargeIfSharedKey(config)` once, above any
@@ -35,6 +37,14 @@ export const OUT_OF_CREDITS = "OUT_OF_CREDITS";
  * required so usage is metered to an account (or exempted for admins / BYOK).
  */
 export const AUTH_REQUIRED = "AUTH_REQUIRED";
+
+/** User-facing copy for the two hard blocks, pulled out so it has one source
+ *  of truth and is unit-testable without the Firebase-dependent functions
+ *  that throw it. Neither message points at a self-service API-key UI —
+ *  that entry point was removed 2026-08-08 (see profile.ts). */
+export const AUTH_REQUIRED_MESSAGE = "Sign in to use Intervu's built-in AI.";
+export const OUT_OF_CREDITS_MESSAGE =
+    "You've used your free AI credits for this month. More arrive next month, or buy credits (coming soon).";
 
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {
@@ -96,9 +106,7 @@ export async function chargeIfSharedKey(config: { apiKey?: string | null }): Pro
         user = null;
     }
     if (!user) {
-        throw new Error(
-            `${AUTH_REQUIRED}: Sign in to use Intervu’s built-in AI (or add your own key in Settings).`,
-        );
+        throw new Error(`${AUTH_REQUIRED}: ${AUTH_REQUIRED_MESSAGE}`);
     }
 
     try {
@@ -127,10 +135,7 @@ async function consumeCredit(uid: string): Promise<void> {
                 ? data.credits
                 : MONTHLY_FREE_CREDITS; // new month (or never set) → refill
         if (credits <= 0) {
-            throw new Error(
-                `${OUT_OF_CREDITS}: You've used your free AI credits for this month. ` +
-                    `Add your own API key in Settings to keep going, or buy credits (coming soon).`,
-            );
+            throw new Error(`${OUT_OF_CREDITS}: ${OUT_OF_CREDITS_MESSAGE}`);
         }
         tx.set(
             ref,

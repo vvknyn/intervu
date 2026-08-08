@@ -260,7 +260,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
     await page.reload();
     await page.waitForTimeout(500);
 
-    const notice = page.locator('text=Intervu is a bring-your-own-key tool');
+    const notice = page.locator('text=AI features');
     const isVisible = await notice.isVisible().catch(() => false);
 
     // Soft check since notice depends on dashboard state

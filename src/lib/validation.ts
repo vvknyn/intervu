@@ -138,13 +138,6 @@ export const createManualPursuitSchema = z.object({
   note: optionalString(2000),
 });
 
-/** A single provider API key save (profile.ts saveProviderApiKey). */
-export const saveProviderApiKeySchema = z.object({
-  provider: z.enum(["openrouter", "groq"]),
-  // Empty string is allowed: it's the "clear this provider's key" signal.
-  key: z.string().max(512, "API key is too long"),
-});
-
 /** feedback create (feedback.ts submitFeedback). */
 export const submitFeedbackSchema = z.object({
   type: z.enum(["bug", "feedback", "other"]),

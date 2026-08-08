@@ -31,14 +31,6 @@ export const tourSteps: Record<string, TourStep[]> = {
       placement: "bottom",
     },
     {
-      selector: '[data-tour="model-switcher"]',
-      title: "AI Model Switcher",
-      description:
-        "Switch between Groq, Gemini, and OpenAI models. Each provider has different strengths and speed.",
-      placement: "bottom",
-      optional: true,
-    },
-    {
       selector: '[data-tour="nav-menu"]',
       title: "Navigation Menu",
       description:
