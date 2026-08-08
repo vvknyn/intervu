@@ -14,6 +14,7 @@ const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Pricing", href: "/pricing" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+    { label: "Setup help", href: "/connect/help" },
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
 ];
@@ -23,7 +24,11 @@ export function FooterContent() {
     return (
         <footer
             data-testid="site-footer"
-            className={cn("hidden shrink-0 border-t lg:block", siteChrome.bar, siteChrome.border)}
+            className={cn(
+                "shrink-0 border-t pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0",
+                siteChrome.bar,
+                siteChrome.border,
+            )}
         >
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 py-6 sm:px-7">
                 <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>{FOOTER_PROVENANCE_LINE}</p>
@@ -59,10 +64,10 @@ export function FooterContent() {
 
 /**
  * Quiet product band, mounted once in the root layout (same as `TopBar` and
- * `MobileTabBar`) rather than per-page. Hides on the same routes `TopBar`
- * hides its own chrome on — a login/auth screen shouldn't repeat the product
- * nav. Landing (`/`) is full-bleed instrument — chrome hidden via
- * `shouldHideSiteChrome`.
+ * `MobileTabBar`) rather than per-page, and visible on all viewports. Hides
+ * on the same routes `TopBar` hides its own chrome on — a login/auth screen
+ * shouldn't repeat the product nav. Landing (`/`) is full-bleed instrument —
+ * chrome hidden via `shouldHideSiteChrome`.
  */
 export function Footer() {
     const pathname = usePathname();
