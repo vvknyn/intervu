@@ -20,10 +20,26 @@
  * country and admin1 candidates merge (OR) when a phrase matches both, and
  * city resolution — including its radius neighbors — only runs when NEITHER
  * matched.
+ *
+ * Common-word guard (opt-in, see `resolvePlacePhrase`'s `guardCommonWords`
+ * param): a SINGLE-token phrase is still real GeoNames data, but an ordinary
+ * English word can coincidentally also name an obscure real place ("success"
+ * is a Perth, WA suburb; "mobile" is a Brazilian municipality; bare
+ * "engineer" is a Kenyan town). The corpus-count floor (`PLACE_MIN_COUNT`,
+ * corpus-values.ts) doesn't catch this — a populous suburb like Success, WA
+ * clears a real corpus's count floor easily. This guard is a different,
+ * earlier check: it rejects recognition itself for single-token candidates
+ * on the common-word list (common-words.ts), before any corpus round trip.
+ * Multi-word phrases ("san francisco") are never checked — a common-word
+ * COLLISION is only possible for a single bare token. Callers opt in
+ * per-call because it only makes sense for candidates extracted from
+ * free-text search words — an explicitly-typed location is intentional
+ * input, not a coincidental substring (see query-understanding.ts).
  */
 import type { PlaceFilter } from "../jobs/types";
 import type { Gazetteer, GazetteerCity, GazetteerCountry } from "./gazetteer";
 import { haversineKm } from "./distance";
+import { COMMON_WORDS } from "./common-words";
 
 /** No 1-2 letter phrase is ever looked up as a place — "OR"/"IN"/"ME" are
  *  real corpus values (Oregon, Indiana, Maine) but collide with English
@@ -192,11 +208,24 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
  * isn't a real place — "production", "management", "remote" never match
  * because no such country/admin1/city exists, not because of a hand-written
  * denylist.
+ *
+ * `guardCommonWords` (default off): when true, also rejects a single-token
+ * phrase that's on the general-English common-word list (common-words.ts),
+ * even though it WOULD otherwise resolve — see the module doc's "Common-word
+ * guard" section. Off by default because most gazetteer resolution (an
+ * explicitly-typed location, the IP-default expansion, these tests) has no
+ * reason to second-guess a real place; only the free-text query scanner
+ * (query-understanding.ts) opts in.
  */
-export function resolvePlacePhrase(phrase: string, gazetteer: Gazetteer): PlaceResolution | null {
+export function resolvePlacePhrase(
+  phrase: string,
+  gazetteer: Gazetteer,
+  guardCommonWords = false,
+): PlaceResolution | null {
   const normalized = phrase.trim().toLowerCase();
   if (normalized.length < PLACE_MIN_LENGTH) return null;
   if (/\d/.test(normalized)) return null;
+  if (guardCommonWords && !normalized.includes(" ") && COMMON_WORDS.has(normalized)) return null;
 
   const country = resolveCountry(normalized, gazetteer);
   const admin1 = resolveAdmin1(normalized, gazetteer);
@@ -222,8 +251,11 @@ export interface PlaceScan {
  * same tokenization and consume-longest-match-first shape as the corpus-
  * vocabulary scanner it replaces, so "senior engineer new york" still tries
  * "senior engineer new" before "new york" before "new"/"york" alone.
+ *
+ * `guardCommonWords` passes straight through to `resolvePlacePhrase` on
+ * every candidate phrase this scan tries (see that function's doc).
  */
-export function scanPlacePhrases(q: string, gazetteer: Gazetteer): PlaceScan {
+export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWords = false): PlaceScan {
   const tokens = q.split(/[\s,;/\-–—()]+/).filter(Boolean);
   const resolutions: PlaceResolution[] = [];
   const kept: string[] = [];
@@ -231,7 +263,7 @@ export function scanPlacePhrases(q: string, gazetteer: Gazetteer): PlaceScan {
   while (i < tokens.length) {
     let matched: PlaceResolution | null = null;
     for (let len = Math.min(gazetteer.maxGram, tokens.length - i); len >= 1 && !matched; len--) {
-      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer);
+      matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords);
     }
     if (matched) {
       resolutions.push(matched);
