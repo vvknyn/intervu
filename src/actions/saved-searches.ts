@@ -42,6 +42,15 @@ export async function saveSavedSearchAction(input: {
         const name = input.name.trim();
         const href = input.href.trim();
         if (!name || !href) return { error: "Name and search are required" };
+        // The stored href is replayed later as a navigation target and parsed
+        // back into search params — only an in-app /jobs URL is a valid saved
+        // search, and both fields get honest size ceilings (they land in a
+        // per-user Firestore doc verbatim).
+        if (name.length > 120) return { error: "Name is too long (120 characters max)" };
+        if (href.length > 2048) return { error: "That search is too long to save" };
+        if (href !== "/jobs" && !href.startsWith("/jobs?")) {
+            return { error: "Only job searches can be saved" };
+        }
 
         const id = savedSearchId(href);
         const ref = savedSearchesCollection(user.uid).doc(id);
