@@ -59,8 +59,8 @@ interface AgentAccessSectionProps {
 /**
  * Settings section: lets a user see and manage the AI agents (Claude Code,
  * Claude.ai custom connectors, etc.) connected to their intervu account, mint
- * a manual token by hand, and revoke access. Mirrors ConnectionCard.tsx's
- * card styling and SettingsContainer's section/divider conventions.
+ * a manual token by hand, and revoke access. Mirrors SettingsContainer's
+ * section/divider conventions.
  */
 export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionProps) {
     const [credentials, setCredentials] = useState<AgentCredentialSummary[] | null>(null);

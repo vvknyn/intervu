@@ -95,17 +95,17 @@ const formatError = (e: any) => {
     } else if (lowerMsg.includes("429") || lowerMsg.includes("rate limit") || lowerMsg.includes("too many requests")) {
         errorMessage = "Rate limit exceeded. Please wait a moment and try again, or switch to a different AI provider.";
     } else if (lowerMsg.includes("401") || lowerMsg.includes("unauthorized") || lowerMsg.includes("invalid") && lowerMsg.includes("key")) {
-        errorMessage = "Invalid API key. Please check your API key in the model switcher settings.";
+        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
     } else if (lowerMsg.includes("quota") || lowerMsg.includes("resource_exhausted")) {
-        errorMessage = "API quota exceeded. Please try a different AI provider (use the model switcher) or wait for your quota to reset.";
+        errorMessage = "The AI service hit its usage limit. Please try again shortly.";
     } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required")) {
-        errorMessage = "No API key configured. Please click the model switcher to add your API key.";
+        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
     } else if (lowerMsg.includes("content") && (lowerMsg.includes("blocked") || lowerMsg.includes("safety"))) {
         errorMessage = "Content was blocked by the AI's safety filters. Please try a different query.";
     } else if (lowerMsg.includes("network") || lowerMsg.includes("econnrefused") || lowerMsg.includes("fetch failed")) {
         errorMessage = "Network error. Please check your internet connection and try again.";
     } else if (lowerMsg.includes("not found") || lowerMsg.includes("model_not_found") || lowerMsg.includes("does not exist")) {
-        errorMessage = "The selected model is not available. Please try a different model in the model switcher.";
+        errorMessage = "The selected AI model isn't available right now. Please try again.";
     } else if (msg && msg.length > 0) {
         // Clean up the error message for display
         errorMessage = msg.replace(/^\[?\w+\]?\s*:?\s*/i, ''); // Remove provider prefixes like "[Groq]"

@@ -31,7 +31,7 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     // icon + short label + optional tone, per account kind.
     let Icon = Coins;
     let label = `${s.credits} credit${s.credits === 1 ? "" : "s"}`;
-    let title = `${s.credits} of ${s.monthlyFree} free AI credits left this month. Add your own API key in Settings to go unlimited.`;
+    let title = `${s.credits} of ${s.monthlyFree} free AI credits left this month.`;
     let low = !s.isAdmin && !s.isBYOK && s.credits <= 2;
 
     if (s.isAdmin) {
@@ -40,6 +40,8 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
         title = "Admin — unlimited AI use.";
         low = false;
     } else if (s.isBYOK) {
+        // Legacy state: a key stored before the Settings entry point was
+        // removed (2026-08-08). No UI offers adding a new one anymore.
         Icon = Key;
         label = "Your API key";
         title = "Using your own API key — no credit limit.";

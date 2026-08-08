@@ -39,11 +39,12 @@ export function PrivacyNotice() {
                 <div className="space-y-1.5">
                     <p className="text-sm font-medium">Your data stays yours</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                        Intervu is a bring-your-own-key tool. Your API keys are stored encrypted and used only to make
-                        requests on your behalf. Your resume, stories, and interview data are sent to the AI provider
-                        you choose (OpenRouter or Groq) to generate responses. No data is shared with third
-                        parties beyond the provider you select. You can export or delete all your data at any time
-                        from Settings.
+                        AI features — resume tailoring and interview prep critique — send the relevant text (your
+                        resume, a job description, your prep answers) to an AI provider (OpenRouter or Groq) to
+                        generate a response. That text is sent transiently and isn&apos;t stored by us beyond
+                        producing that response, and we don&apos;t use it to train anything. No data is shared with
+                        third parties beyond the provider handling that request. You can export or delete all your
+                        data at any time from Settings.
                     </p>
                 </div>
             </div>

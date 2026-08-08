@@ -42,7 +42,7 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
     const lowerMessage = message.toLowerCase();
 
     if (error?.status === 402 || lowerMessage.includes('insufficient credit') || lowerMessage.includes('add more using')) {
-        return { code: LLMErrorCode.QUOTA_EXCEEDED, message: `AI credits exhausted on the shared key. Add your own OpenRouter or Groq key in Settings, or top up your OpenRouter balance.`, provider, model, retryable: false, suggestModelSwitch: true };
+        return { code: LLMErrorCode.QUOTA_EXCEEDED, message: `AI is temporarily out of credits on our end. Please try again in a bit.`, provider, model, retryable: false, suggestModelSwitch: true };
     }
 
     if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {

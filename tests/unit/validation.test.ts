@@ -7,7 +7,6 @@ import {
   formatZodError,
   markJobAppliedSchema,
   updateApplicationSchema,
-  saveProviderApiKeySchema,
   submitFeedbackSchema,
 } from "@/lib/validation";
 import { z } from "zod";
@@ -115,26 +114,6 @@ describe("updateApplicationSchema", () => {
     });
     assert.equal(r.error, undefined);
     assert.equal(r.data?.status, "interviewing");
-  });
-});
-
-describe("saveProviderApiKeySchema", () => {
-  it("accepts a known provider with a key", () => {
-    const r = validate(saveProviderApiKeySchema, {
-      provider: "groq",
-      key: "gsk_abc",
-    });
-    assert.equal(r.error, undefined);
-  });
-
-  it("accepts an empty key (clear-key signal)", () => {
-    const r = validate(saveProviderApiKeySchema, { provider: "openrouter", key: "" });
-    assert.equal(r.error, undefined);
-  });
-
-  it("rejects an unknown provider", () => {
-    const r = validate(saveProviderApiKeySchema, { provider: "openai", key: "x" });
-    assert.ok(r.error);
   });
 });
 
