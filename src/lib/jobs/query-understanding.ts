@@ -138,6 +138,62 @@ export async function parsePlaceTokens(
 }
 
 /**
+ * The board's location box (`commitLocation`, app/jobs/page.tsx) writes the
+ * RAW typed text straight into `facets.location_country` — an EXACT-match
+ * country facet (`buildFilter`, meilisearch.ts: `location_country = "..."`).
+ * Countries only ever appeared to work because Meilisearch's string
+ * comparison is case-insensitive; every STATE, CITY or abbreviation silently
+ * returned zero against a 1.8M-row corpus ("florida" — reported live
+ * 2026-08-08 — where the corpus stores `location_state: "Florida"`,
+ * `location_country: "United States"`).
+ *
+ * Resolving it HERE rather than in the input handler is what makes that a
+ * class fix: every caller of `searchJobs` (the first-page search, the
+ * infinite-scroll `loadMore`, the ghost/sheet count probes, a deep link or
+ * saved-search href parsed back out of the URL) arrives with the same
+ * `facets.location_country`, so all of them inherit this by construction and
+ * the URL/state shape stays byte-identical.
+ *
+ * Reuses `parsePlaceTokens` above — the ONE place resolver (gazetteer scan +
+ * live corpus validation, so a typed value can never become a filter the
+ * corpus can't satisfy, and the filter carries the corpus's OWN casing) —
+ * with the common-word guard OFF, the identical call shape `resolvePlaces`
+ * (agent/tools.ts) uses for the MCP `location` param: text typed into a
+ * location field is explicit place intent, not a coincidental substring of a
+ * role search, so "success" must still resolve there (see `parsePlaceTokens`'
+ * `guardFreeTextWords` doc).
+ *
+ * Legacy fallback, deliberately: a value that resolves to NOTHING (gibberish,
+ * or a real place this corpus has no postings for) keeps the raw exact facet
+ * exactly as before — a verbatim corpus value still works, and nothing that
+ * searches today starts failing. All-or-nothing across a multi-value facet
+ * (`?location_country=a,b` deep links, /trends' country links): resolved
+ * clauses OR together, but a raw facet left standing beside them would AND
+ * against that OR-group and zero the search out.
+ */
+export async function resolveLocationFacet(
+  p: JobSearchParams,
+  vocab: LocationVocabulary,
+): Promise<JobSearchParams> {
+  const typed = (p.facets?.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+  if (typed.length === 0) return p;
+
+  const resolved: PlaceClause[] = [];
+  for (const phrase of typed) {
+    const { places } = await parsePlaceTokens(phrase, vocab);
+    if (places.length === 0) return p;
+    resolved.push(...places);
+  }
+
+  const { location_country: _raw, ...facets } = p.facets!;
+  // Appended, not assigned: `applyQueryUnderstanding` below skips free-text
+  // place parsing while this facet is set, so the two can't co-occur today —
+  // appending just means a future change to that gate can never make this
+  // silently drop a place the searcher typed.
+  return { ...p, places: [...(p.places ?? []), ...resolved], facets };
+}
+
+/**
  * Rewrite search params with everything the query text implies:
  * work-type tokens → `work_type` facets (first, so "remote" is consumed as a
  * work mode before the place matcher could see the corpus's junk "Remote"

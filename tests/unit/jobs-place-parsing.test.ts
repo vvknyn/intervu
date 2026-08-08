@@ -1,10 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyQueryUnderstanding, parsePlaceTokens, type LocationVocabulary } from "../../src/lib/jobs/query-understanding";
+import {
+  applyQueryUnderstanding,
+  parsePlaceTokens,
+  resolveLocationFacet,
+  type LocationVocabulary,
+} from "../../src/lib/jobs/query-understanding";
+import { applyLocationDefault, hasLocationSignal } from "../../src/lib/geo/ip-default";
 import { buildFilter } from "../../src/lib/jobs/meilisearch";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
-import type { PlaceFilter } from "../../src/lib/jobs/types";
+import type { JobSearchParams, PlaceFilter } from "../../src/lib/jobs/types";
 
 /** Small fixture gazetteer — Toronto/Ontario/Canada plus a real gazetteer
  *  city ("Lisbon") the fixture CORPUS below never validates, so it proves
@@ -16,7 +22,10 @@ const DATA: GazetteerData = {
     ["CA", "CAN", "Canada"],
     ["US", "USA", "United States"],
   ],
-  admin1: [["CA", "ON", "Ontario"]],
+  admin1: [
+    ["CA", "ON", "Ontario"],
+    ["US", "FL", "Florida"], // the location-facet bug's surfacing instance (below)
+  ],
   cities: [
     ["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356],
     ["Richmond Hill", null, 43.8828, -79.4403, "CA", "ON", 202022], // ~20km from Toronto — a radius neighbor
@@ -58,6 +67,7 @@ const VOCAB = fakeVocab([
   { field: "location_city", value: "Toronto" },
   { field: "location_city", value: "New York" },
   { field: "location_country", value: "Canada" },
+  { field: "location_state", value: "Florida" },
 ]);
 
 test("the screenshot case: 'Technical Account Manager canada' becomes a Canada FILTER, not a content word", async () => {
@@ -238,6 +248,110 @@ test("control: 'new york analyst' still extracts New York — multi-word candida
   assert.equal(p.q, "analyst");
   assert.equal(p.places?.length, 1);
   assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "New York" }]);
+});
+
+/* ------------ the board's location box: `facets.location_country` ------------
+ * Live bug (prod screenshot, 2026-08-08): typing "florida" into /jobs'
+ * location input returned "Nothing matches these filters" against a 1.8M-row
+ * corpus. `commitLocation` (app/jobs/page.tsx) writes the raw typed text into
+ * `facets.location_country`, an EXACT-match country facet — so every STATE,
+ * CITY and abbreviation zeroed out, and only whole country names appeared to
+ * work (Meilisearch string comparison being case-insensitive). Fixed at the
+ * request-understanding chokepoint, `resolveLocationFacet`, so every caller
+ * of `searchJobs` inherits it and the URL/state shape is untouched. */
+
+test("the screenshot case: a typed STATE ('florida') becomes a location_state place clause and the raw country facet is dropped", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["florida"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_state", value: "Florida" }] }]);
+  assert.equal(p.facets?.location_country, undefined, "the raw exact-match facet must not survive alongside the clause");
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some((f) => f.includes('location_state = "Florida"')),
+    `expected a location_state clause: ${JSON.stringify(filter)}`,
+  );
+  assert.ok(
+    !filter.some((f) => f.includes("location_country = \"florida\"")),
+    `the raw exact country filter is what returned zero — it must be gone: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("not just the surfacing instance — a typed CITY ('toronto') resolves the same way, radius+country scope intact", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["toronto"] } }, VOCAB);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Toronto" }]);
+  assert.deepEqual(p.places![0].scopedToCountry, [{ field: "location_country", value: "Canada" }]);
+  assert.equal(p.facets?.location_country, undefined);
+});
+
+test("a typed COUNTRY ('canada') goes through resolution too — the corpus's own casing, not the typed casing", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.equal(p.facets?.location_country, undefined);
+});
+
+test("case-insensitive: 'FLORIDA' resolves identically to 'florida'", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["  FLORIDA  "] } }, VOCAB);
+  assert.deepEqual(p.places, [{ any: [{ field: "location_state", value: "Florida" }] }]);
+});
+
+test("unresolvable text falls back to the legacy exact facet, untouched — nothing that searches today starts failing", async () => {
+  const params: JobSearchParams = { facets: { location_country: ["zzznotaplace"] } };
+  const p = await resolveLocationFacet(params, VOCAB);
+  assert.equal(p, params, "params must come back by reference when nothing resolved");
+  assert.deepEqual(p.facets?.location_country, ["zzznotaplace"]);
+  assert.equal(p.places, undefined);
+});
+
+test("a real place this corpus has no postings for also falls back to legacy (never invents a filter)", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["lisbon"] } }, VOCAB);
+  assert.deepEqual(p.facets?.location_country, ["lisbon"]);
+  assert.equal(p.places, undefined);
+});
+
+test("no location facet at all (or an empty/whitespace one) is a no-op", async () => {
+  const browse = { q: "product manager" };
+  assert.equal(await resolveLocationFacet(browse, VOCAB), browse);
+  const blank = { facets: { location_country: ["   "] } };
+  assert.equal(await resolveLocationFacet(blank, VOCAB), blank);
+});
+
+test("only the location facet is dropped — every other facet the searcher picked survives", async () => {
+  const p = await resolveLocationFacet(
+    { q: "nurse", facets: { location_country: ["florida"], work_type: ["remote"] } },
+    VOCAB,
+  );
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+  assert.equal(p.facets?.location_country, undefined);
+  assert.equal(p.q, "nurse", "the query text is this function's business to leave alone");
+});
+
+test("multi-value facet (a `?location_country=a,b` deep link): all resolve -> one OR-group; any fails -> all-or-nothing legacy", async () => {
+  const both = await resolveLocationFacet({ facets: { location_country: ["florida", "canada"] } }, VOCAB);
+  assert.deepEqual(both.places, [
+    { any: [{ field: "location_state", value: "Florida" }] },
+    { any: [{ field: "location_country", value: "Canada" }] },
+  ]);
+  assert.ok(
+    buildFilter(both).some((f) => f.includes('location_state = "Florida"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
+    "the two values must OR together, exactly like two typed mentions",
+  );
+
+  const mixed = { facets: { location_country: ["florida", "zzznotaplace"] } };
+  assert.equal(
+    await resolveLocationFacet(mixed, VOCAB),
+    mixed,
+    "a raw facet left standing beside a resolved OR-group would AND against it and zero the search out",
+  );
+});
+
+test("interaction with the IP country default: a resolved place IS location signal, so a Florida search never gets a country default stacked on top", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["florida"] } }, VOCAB);
+  assert.equal(hasLocationSignal(p), true);
+  const applied = await applyLocationDefault(p, "8.8.8.8", async () => "CA", async () => {
+    throw new Error("resolveLocationDefault must never be reached for an explicit place");
+  });
+  assert.equal(applied.params, p);
+  assert.equal(applied.defaultedLocation, undefined);
 });
 
 test("explicit location intent bypasses the guard entirely: resolving \"success\" through parsePlaceTokens without the free-text flag (exactly how resolvePlaces/agent/tools.ts calls it for the MCP `location` param) still returns the place", async () => {

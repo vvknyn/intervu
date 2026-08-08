@@ -17,7 +17,7 @@ import {
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
-import { applyQueryUnderstanding, type LocationVocabulary } from "./query-understanding";
+import { applyQueryUnderstanding, resolveLocationFacet, type LocationVocabulary } from "./query-understanding";
 import { loadGazetteer } from "../geo/gazetteer";
 import { createCorpusValueChecker } from "../geo/corpus-values";
 import type { CountryLookup } from "../geo/ip-country";
@@ -84,10 +84,14 @@ export async function searchJobs(
   // simply omits it and the IP-default step below no-ops.
   opts?: { clientIp?: string; countryLookup?: CountryLookup },
 ): Promise<JobSearchResult & { meta?: SearchServeMeta; defaultedLocation?: string }> {
-  // Vocabulary is only relevant when there's query text to parse — the
+  // Vocabulary is only relevant when there's something to resolve — query
+  // text, or the board's typed location facet (`resolveLocationFacet`). The
   // dead-link id probe and plain browses skip the lookup entirely.
-  const vocab = (raw.q ?? "").trim() && !raw.id ? await locationVocabulary() : undefined;
-  const understood = await applyQueryUnderstanding(raw, vocab);
+  const needsVocab = !raw.id && Boolean((raw.q ?? "").trim() || raw.facets?.location_country?.length);
+  const vocab = needsVocab ? await locationVocabulary() : undefined;
+  const understood = vocab
+    ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
+    : await applyQueryUnderstanding(raw, vocab);
 
   // IP country default — last in the understanding pipeline, and only when
   // NOTHING else already said where to search: not a typed/MCP place, not
