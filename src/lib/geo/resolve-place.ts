@@ -218,6 +218,81 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
   };
 }
 
+/** One curated alias entry: a short/nickname phrase a searcher might type,
+ *  and which SPECIFIC gazetteer entity it names. `kind` picks the resolver
+ *  DIRECTLY (never the general country-then-admin1-then-city ambiguity
+ *  ladder above) because at least one entry here (DC) points at a name
+ *  ("washington") that's ALSO a US state and would resolve to the wrong
+ *  entity if it replayed that ladder — the alias already knows which entity
+ *  the searcher meant, so it should never re-guess. */
+type PlaceAlias =
+  | { kind: "country"; canonical: string }
+  | { kind: "city"; canonical: string }
+  /** A curated metro area with no single gazetteer entity — its anchor
+   *  cities are named directly as an OR-group. Each anchor still goes
+   *  through `resolveCity` (a real gazetteer entry, not a hand-built
+   *  filter); only the CHOICE of which cities counts as the metro is
+   *  curated, and each anchor contributes only itself, not its OWN radius
+   *  expansion (the alias already names the metro's cities explicitly). */
+  | { kind: "metro"; anchors: string[] };
+
+/**
+ * Small, hand-reviewed set of abbreviations/nicknames real searchers type
+ * that the gazetteer's own name/ISO lookups never reach — either they're
+ * shorter than `PLACE_MIN_LENGTH` ("UK", "SF", "LA", "DC", "US") or the
+ * gazetteer only indexes countries by full name/ISO3 (a bare 2-letter ISO2
+ * code is deliberately never a typed lookup key — see `PLACE_MIN_LENGTH`'s
+ * doc). Checked at the very top of `resolvePlacePhrase`, AFTER the
+ * common-word guard (so "us" — a real pronoun — still gets rejected in free
+ * text the guard is protecting, while an explicit location-field "us"
+ * resolves) and BEFORE the length gate (so these short keys are never
+ * killed before they're even considered). Keys are lowercase; extend this
+ * table, never a hand-built filter, when a new legitimate abbreviation
+ * turns up.
+ */
+const PLACE_ALIASES: Readonly<Record<string, PlaceAlias>> = {
+  uk: { kind: "country", canonical: "united kingdom" },
+  "u.k.": { kind: "country", canonical: "united kingdom" },
+  usa: { kind: "country", canonical: "united states" },
+  us: { kind: "country", canonical: "united states" },
+  "u.s.": { kind: "country", canonical: "united states" },
+  "u.s.a.": { kind: "country", canonical: "united states" },
+  nyc: { kind: "city", canonical: "new york city" },
+  sf: { kind: "city", canonical: "san francisco" },
+  la: { kind: "city", canonical: "los angeles" },
+  dc: { kind: "city", canonical: "washington" },
+  "bay area": { kind: "metro", anchors: ["san francisco", "oakland", "san jose"] },
+};
+
+/** Resolve one alias entry (see `PLACE_ALIASES`) against the gazetteer.
+ *  `country`/`city` re-dispatch straight into the matching single-entity
+ *  resolver above — never the general ambiguity ladder — so an alias always
+ *  lands on the SPECIFIC entity it was curated for. `metro` merges each
+ *  anchor's own primary-city candidate. Null if the gazetteer this call is
+ *  running against doesn't actually have the aliased entity (e.g. a small
+ *  hand-built test fixture) — same fail-open shape every other resolver
+ *  here has. */
+function resolveAlias(alias: PlaceAlias, wordsConsumed: number, gazetteer: Gazetteer): PlaceResolution | null {
+  if (alias.kind === "metro") {
+    const candidates: PlaceCandidate[] = [];
+    let entity: ResolvedPlaceEntity | undefined;
+    let countryScope: PlaceCandidate[] = [];
+    for (const name of alias.anchors) {
+      const r = resolveCity(name, gazetteer);
+      if (!r) continue;
+      candidates.push({ field: "location_city", value: r.entity.name });
+      if (!entity) {
+        entity = r.entity;
+        countryScope = r.countryScope;
+      }
+    }
+    return entity ? { entity, candidates, countryScope, wordsConsumed } : null;
+  }
+  const resolver = alias.kind === "country" ? resolveCountry : resolveCity;
+  const r = resolver(alias.canonical, gazetteer);
+  return r ? { ...r, wordsConsumed } : null;
+}
+
 /**
  * Resolve one already-extracted phrase (a candidate n-gram from
  * `scanPlacePhrases`) against the gazetteer. Returns null for anything that
@@ -240,9 +315,17 @@ export function resolvePlacePhrase(
   guardCommonWords = false,
 ): PlaceResolution | null {
   const normalized = phrase.trim().toLowerCase();
+  // Runs BEFORE the alias lookup so a genuinely ambiguous alias key ("us",
+  // also the pronoun) still gets rejected in free text — see PLACE_ALIASES'
+  // doc comment. Uses the full GUARD_WORDS tier (#163: common English +
+  // corpus job vocabulary), which subsumes the old COMMON_WORDS-only guard.
+  if (guardCommonWords && !normalized.includes(" ") && GUARD_WORDS.has(normalized)) return null;
+
+  const alias = PLACE_ALIASES[normalized];
+  if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer);
+
   if (normalized.length < PLACE_MIN_LENGTH) return null;
   if (/\d/.test(normalized)) return null;
-  if (guardCommonWords && !normalized.includes(" ") && GUARD_WORDS.has(normalized)) return null;
 
   const country = resolveCountry(normalized, gazetteer);
   const admin1 = resolveAdmin1(normalized, gazetteer);
