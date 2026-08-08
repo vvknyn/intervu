@@ -181,6 +181,27 @@ export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | n
 }
 
 /**
+ * Two-Panel Selector (desktop split view, xl+) — the ONE place that decides
+ * where the shared detail ternary mounts. Both the Sheet's `open` prop and
+ * the xl+ pane's render condition derive from this single function so they
+ * can never independently drift out of mutual exclusion — a CSS-only "hide
+ * the sheet, show the pane" would double-mount `JobDetail` (double
+ * related-jobs fetch, double open-rank telemetry).
+ *
+ * Gates on `detailSheetOpen`, never merely "is there a job to show":
+ * `detailJob` (jobs/page.tsx) falls back to `hits[0]` for ambient keyboard
+ * highlighting even with no explicit selection, so gating on it here would
+ * silently auto-select a job into the pane on load — exactly the
+ * poisoned-open-rank-telemetry outcome v1 has no auto-select to avoid.
+ */
+export type DetailMountSite = "sheet" | "pane" | "none";
+
+export function resolveDetailMountSite(isXlUp: boolean, detailSheetOpen: boolean): DetailMountSite {
+    if (!detailSheetOpen) return "none";
+    return isXlUp ? "pane" : "sheet";
+}
+
+/**
  * Task 11 — empty state's ghost-reveal line: only worth showing when ghosts
  * are currently hidden (the first-screen default) AND the honest hidden
  * count (Task 7's `ghostHiddenCount` — `null` while unresolved, or when

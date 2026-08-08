@@ -83,6 +83,7 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
@@ -97,6 +98,7 @@ import {
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
+    resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
@@ -1080,6 +1082,12 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    // Two-Panel Selector (desktop split view) — 1280 must literally match
+    // Tailwind's default `xl:` breakpoint (this repo's CSS-based Tailwind v4
+    // config, src/app/globals.css `@theme`, has no `--breakpoint-xl`
+    // override, so `xl:` IS the default 1280px). SSR/first-paint default is
+    // `false` (below-xl/sheet) — see use-media-query.ts.
+    const isXlUp = useMediaQuery("(min-width: 1280px)");
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -2825,6 +2833,67 @@ function JobsContent() {
     const resultsCountLabel =
         loading && hits.length > 0 ? "updating…" : resultCountLine;
 
+    // Two-Panel Selector (master-detail) — single source of truth for where
+    // the shared detail ternary mounts (Sheet below xl, pane at xl+); see
+    // `resolveDetailMountSite` (lib/jobs/result-state.ts) for why this gates
+    // on `detailSheetOpen`, never merely `detailJob != null`.
+    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen);
+
+    // The detail ternary (real job / dead-job tombstone / unresolved /
+    // loading skeleton) both mount sites render — extracted so the xl+ pane
+    // can never silently drift from the sheet's own branches (writing-lean-
+    // code rule 2, single source of truth). `onClose` is passed explicitly
+    // by each call site (both currently `() => router.back()`) rather than
+    // hardcoded here, keeping this decoupled from the router.
+    const renderDetailSurface = (onClose: () => void) =>
+        detailJob ? (
+            <>
+                <JobDetail
+                    key={detailJob.id}
+                    job={detailJob}
+                    now={nowMs}
+                    applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
+                    applying={applyingId === detailJob.id}
+                    signedIn={Boolean(user)}
+                    onRequestSignIn={() => {
+                        setAuthGateValueLine(true);
+                        setAuthOpen(true);
+                    }}
+                    onOpenPosting={() => handleOpenPosting(detailJob)}
+                    onMarkApplied={() => handleMarkApplied(detailJob)}
+                    onGoAfter={() => handleGoAfter(detailJob)}
+                    onOpenRelated={openJob}
+                    variants={detailVariants}
+                    pursuit={detailPursuit}
+                    goingAfter={goingAfterId === detailJob.id}
+                    onClose={onClose}
+                    className="border-0 bg-transparent shadow-none"
+                />
+                {user ? (
+                    <JobDetailActionBar
+                        job={detailJob}
+                        signedIn
+                        onOpenPosting={() => handleOpenPosting(detailJob)}
+                    />
+                ) : null}
+            </>
+        ) : isDeadJobConfirmed ? (
+            <div className="p-4">
+                <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} />
+            </div>
+        ) : showUnresolvedDetail ? (
+            <div className="p-4">
+                <DeadJobUnresolved
+                    onSimilarRoles={handleTombstoneSimilarRoles}
+                    checking={isDeadJobChecking}
+                />
+            </div>
+        ) : loading ? (
+            <div className="p-4">
+                <JobDetailSkeleton />
+            </div>
+        ) : null;
+
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
@@ -3427,7 +3496,17 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
             />
             <Sheet
-                open={detailSheetOpen}
+                // Two-Panel Selector: gated through `resolveDetailMountSite`
+                // (same call the xl+ pane's render condition uses) rather
+                // than `detailSheetOpen` directly, so the two mount sites
+                // stay mutually exclusive by construction. Widening past xl
+                // flips this to `false` via a plain prop change — Radix only
+                // calls `onOpenChange` on a user-driven internal event (ESC,
+                // overlay click, its own Close), never merely because a
+                // controlled `open` prop changed — so a resize never fires
+                // `router.back()` or touches history; the pane already shows
+                // the same job. Narrowing back re-opens the sheet.
+                open={detailMountSite === "sheet"}
                 onOpenChange={(open) => {
                     if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) router.back();
                 }}
@@ -3455,53 +3534,7 @@ function JobsContent() {
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
                     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-                    {detailJob ? (
-                        <>
-                            <JobDetail
-                                key={detailJob.id}
-                                job={detailJob}
-                                now={nowMs}
-                                applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                                applying={applyingId === detailJob.id}
-                                signedIn={Boolean(user)}
-                                onRequestSignIn={() => {
-                                    setAuthGateValueLine(true);
-                                    setAuthOpen(true);
-                                }}
-                                onOpenPosting={() => handleOpenPosting(detailJob)}
-                                onMarkApplied={() => handleMarkApplied(detailJob)}
-                                onGoAfter={() => handleGoAfter(detailJob)}
-                                onOpenRelated={openJob}
-                                variants={detailVariants}
-                                pursuit={detailPursuit}
-                                goingAfter={goingAfterId === detailJob.id}
-                                onClose={() => router.back()}
-                                className="border-0 bg-transparent shadow-none"
-                            />
-                            {user ? (
-                            <JobDetailActionBar
-                                job={detailJob}
-                                signedIn
-                                onOpenPosting={() => handleOpenPosting(detailJob)}
-                            />
-                            ) : null}
-                        </>
-                    ) : isDeadJobConfirmed ? (
-                        <div className="p-4">
-                            <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} />
-                        </div>
-                    ) : showUnresolvedDetail ? (
-                        <div className="p-4">
-                            <DeadJobUnresolved
-                                onSimilarRoles={handleTombstoneSimilarRoles}
-                                checking={isDeadJobChecking}
-                            />
-                        </div>
-                    ) : loading ? (
-                        <div className="p-4">
-                            <JobDetailSkeleton />
-                        </div>
-                    ) : null}
+                        {renderDetailSurface(() => router.back())}
                     </div>
                 </SheetContent>
             </Sheet>

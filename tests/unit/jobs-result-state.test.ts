@@ -11,6 +11,7 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
+    resolveDetailMountSite,
     degradedResultsNote,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
@@ -321,6 +322,44 @@ describe('shouldBackOnDetailSheetClose', () => {
 
     it('sheet opening → never back', () => {
         assert.equal(shouldBackOnDetailSheetClose(true, 'job-1'), false);
+    });
+});
+
+// Two-Panel Selector (desktop split view) — the single mount-arbitration
+// function both the Sheet's `open` prop and the xl+ pane's render condition
+// derive from. Truth table below (4 combinations) plus a crossing case that
+// proves mutual exclusion holds across a resize, not just at one width.
+describe('resolveDetailMountSite', () => {
+    it('SSR-initial: no matchMedia yet (isXlUp defaults false), nothing selected → none', () => {
+        assert.equal(resolveDetailMountSite(false, false), 'none');
+    });
+
+    it('SSR-initial with a job selected (deep link before hydration) → sheet, never pane', () => {
+        assert.equal(resolveDetailMountSite(false, true), 'sheet');
+    });
+
+    it('hydrated at xl+, nothing selected → none (no auto-select into the pane)', () => {
+        assert.equal(resolveDetailMountSite(true, false), 'none');
+    });
+
+    it('hydrated at xl+ with a selection → pane, never sheet', () => {
+        assert.equal(resolveDetailMountSite(true, true), 'pane');
+    });
+
+    it('breakpoint crossing: widening past xl with the same live selection never yields sheet+pane both, or neither', () => {
+        const belowXl = resolveDetailMountSite(false, true);
+        const aboveXl = resolveDetailMountSite(true, true);
+        // Exactly one mount site is live at a time, by construction — the
+        // two `assert.equal` calls below already prove neither is "pane"
+        // twice nor "sheet" twice across the crossing.
+        assert.equal(belowXl, 'sheet');
+        assert.equal(aboveXl, 'pane');
+        assert.notEqual(belowXl, aboveXl);
+    });
+
+    it('breakpoint crossing with no selection: resizing alone never creates a mount site', () => {
+        assert.equal(resolveDetailMountSite(false, false), 'none');
+        assert.equal(resolveDetailMountSite(true, false), 'none');
     });
 });
 
