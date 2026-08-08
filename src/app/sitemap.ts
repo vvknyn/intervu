@@ -5,7 +5,12 @@ import { SITE_URL } from "@/lib/seo/constants";
 
 /**
  * /sitemap.xml — the public, indexable entry points. Authed app surfaces
- * (resume builder, applications, settings) are intentionally omitted.
+ * (resume builder, applications, settings) are intentionally omitted, as is
+ * `/login` (a sign-in form, not a content page — indexing it just spends
+ * crawl budget on a page with nothing for a search result to rank on).
+ * `/yours` is public (#153) but an empty shell for a crawler with no
+ * session, so it's left out too; `/connect` stays in since it's a real
+ * product page regardless of auth state.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -28,12 +33,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: "daily",
       priority: 1,
-    },
-    {
-      url: `${SITE_URL}/login`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.5,
     },
     {
       url: `${SITE_URL}/trends`,

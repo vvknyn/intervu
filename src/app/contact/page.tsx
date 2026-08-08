@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { ContactForm } from "@/components/contact/ContactForm";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+const TITLE = "Contact";
+const DESCRIPTION = "Reach the intervu team — questions, feedback, or a listing to correct.";
 
 export const metadata: Metadata = {
-  title: "Contact",
-  description: "Reach the intervu team — questions, feedback, or a listing to correct.",
+  title: TITLE,
+  description: DESCRIPTION,
+  ...canonicalMetadata("/contact", TITLE, DESCRIPTION),
 };
 
 export default function ContactPage() {

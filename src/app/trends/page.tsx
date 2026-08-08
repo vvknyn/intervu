@@ -5,6 +5,7 @@ import { TrendsHero } from "@/components/trends/TrendsHero";
 import { TopCountriesList } from "@/components/trends/TopCountriesList";
 import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
 import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 // A plain `export const metadata` object can't carry the current month, so
 // this is `generateMetadata` instead — computed at request/revalidation
@@ -12,9 +13,12 @@ import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
 // hand-maintained date literal that goes stale.
 export async function generateMetadata(): Promise<Metadata> {
   const asOf = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const title = "Market trends";
+  const description = `Live ghost-job and hiring stats — hiring countries, posting freshness, ghost-job risk. Snapshot as of ${asOf}.`;
   return {
-    title: "Market trends",
-    description: `Live ghost-job and hiring stats — hiring countries, posting freshness, ghost-job risk. Snapshot as of ${asOf}.`,
+    title,
+    description,
+    ...canonicalMetadata("/trends", title, description),
   };
 }
 

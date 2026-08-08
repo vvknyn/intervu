@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+
+const TITLE = "Terms of Service";
+const DESCRIPTION = "The terms for using intervu, including how we frame ghost-job and risk signals.";
 
 export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "The terms for using intervu, including how we frame ghost-job and risk signals.",
+  title: TITLE,
+  description: DESCRIPTION,
+  ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };
 
 const LAST_UPDATED = "August 1, 2026";
