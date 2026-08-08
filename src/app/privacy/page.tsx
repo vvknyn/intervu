@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "How intervu collects, uses, and protects your data.",
 };
 
-const LAST_UPDATED = "August 1, 2026";
+const LAST_UPDATED = "August 8, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -33,6 +33,19 @@ export default function PrivacyPage() {
           our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
+          If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we
+          store the email address you enter and which product you asked about — nothing else — and use it only to
+          send you that one notification. You don&apos;t need an account for this, and you can ask us to remove it
+          at any time via the <Link href="/contact">contact page</Link>.
+        </p>
+        <p>
+          When you search, we read your IP address transiently for two things: to default your job search to your
+          country so first results are nearby, and to rate-limit abusive traffic. Your IP is not stored with your
+          account, your searches, or your tracked applications — the country lookup happens on our own server
+          against a local database, with no third-party geolocation service involved. Like nearly every website,
+          our servers keep ordinary technical logs that can briefly include request IPs.
+        </p>
+        <p>
           The job listings you search are public information we collect from employers&apos; own career pages. We
           don&apos;t collect anything about you from third parties, and we don&apos;t buy data about you from
           anyone.
@@ -53,6 +66,18 @@ export default function PrivacyPage() {
           purpose beyond producing that response, and we don&apos;t use it to train anything. Each provider is
           bound by its own data-handling terms, which govern how they process the request while it&apos;s with
           them.
+        </p>
+
+        <h2>Connected AI clients</h2>
+        <p>
+          If you pair an AI client with intervu from the <Link href="/connect">connect page</Link> (Claude,
+          ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
+          connection — read your saved resume, your tracked applications, and your job preferences, and save
+          changes back when you tell it to. Anything your AI client reads travels to that provider and is handled
+          under <em>their</em> privacy terms, not ours — we can&apos;t control what the provider you chose retains
+          or how it uses what it processes. This only ever happens for a client you connected yourself, and you
+          can disconnect it at any time from <Link href="/settings">account settings</Link>, which cuts off all
+          further access.
         </p>
 
         <h2>Cookies</h2>
