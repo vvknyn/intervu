@@ -65,6 +65,23 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
+    // Desktop split view (2026-08-08): this describe block's own intent —
+    // "prove the gate-free /jobs entry" — implicitly assumed sub-xl (sheet)
+    // behavior throughout, but Playwright's `devices['Desktop Chrome']`
+    // default viewport (playwright.config.ts) is 1280×720, which is the
+    // exact same number as Tailwind's `xl` breakpoint (min-width: 1280px) —
+    // a coincidence, not a below-xl proof. Below that threshold the detail
+    // sheet is universal (today's behavior); at/above it, job selection now
+    // renders in the xl+ split-view pane instead (see
+    // `resolveDetailMountSite`, lib/jobs/result-state.ts), so a bare default
+    // viewport here would silently start asserting pane behavior instead of
+    // sheet behavior. Pinned to 1100×800 — the same width the "desktop
+    // 1100px" test below already deliberately picks, for the identical
+    // reason: it sits cleanly between `lg` (1024) and `xl` (1280), so it
+    // doesn't trade one breakpoint coincidence for another. Strengthens this
+    // block's assumption to match its stated intent; weakens no assertion.
+    test.use({ viewport: { width: 1100, height: 800 } });
+
     /**
      * RETIRED 2026-07-25 — four tests that opened a job and then edited the
      * query or filters. That journey no longer exists: the detail sheet is
