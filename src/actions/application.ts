@@ -224,16 +224,18 @@ export async function goAfterJobAction(job: PublicJob): Promise<{ data?: Applica
 }
 
 /**
- * The search seed line (spec §3 "outside interviews"): "Already interviewing
- * somewhere? Prep for it." creates a pursuit straight from typed company/role
- * — no job card, no job_id. Unlike `upsertPursuitForJob` there is nothing to
- * find-or-create by, so this always creates (same company + role twice is
- * two distinct pursuits, per spec §7).
+ * The tracker's "Track a role" sheet (/yours): creates a pursuit straight
+ * from typed company/role — no job card, no job_id. Unlike
+ * `upsertPursuitForJob` there is nothing to find-or-create by, so this
+ * always creates (same company + role twice is two distinct pursuits, per
+ * spec §7).
  *
- * `status` defaults to "interviewing" (the seed line's own stage). It's
- * overridable so `syncGuestPursuitsToServer` (use-pursuits.ts) can carry a
- * guest's manual pursuit through at whatever stage they'd already advanced
- * it to before signing in, rather than resetting it back to "interviewing".
+ * `status` is passed by that sheet (its select defaults to "applied"), and
+ * `syncGuestPursuitsToServer` (use-pursuits.ts) passes it too, so a guest's
+ * manual pursuit carries through at whatever stage they'd already advanced
+ * it to before signing in. The "interviewing" default below is what a caller
+ * that names no stage at all gets — the stage a hand-entered role most often
+ * means.
  */
 export async function createManualPursuit(
     input: { company: string; position: string; status?: PursuitStage; job_url?: string; note?: string },

@@ -154,3 +154,42 @@ test("resolveSearchSeeds respects a smaller target cap across both sources combi
     const seeds = resolveSearchSeeds(["a", "b"], ["c", "d", "e"], 3);
     assert.deepEqual(seeds, ["a", "b", "c"]);
 });
+
+/* --- near-duplicate seeds (prod screenshot 2026-08-08: "customer success
+ * manager" and "customer success managr" rendered as sibling chips) --- */
+
+test("resolveSearchSeeds drops a one-character typo of a seed already shown, keeping the first (most recent) spelling", () => {
+    const seeds = resolveSearchSeeds(
+        ["customer success manager", "customer success managr"],
+        ["product manager"],
+    );
+    assert.deepEqual(seeds, ["customer success manager", "product manager"]);
+});
+
+test("near-duplicate dedupe covers the class, not just that pair: a dropped char, a doubled char, a substitution and a plural all collapse", () => {
+    assert.deepEqual(resolveSearchSeeds(["backend engineer", "backend enginer"], []), ["backend engineer"]);
+    assert.deepEqual(resolveSearchSeeds(["backend engineer", "backend engineeer"], []), ["backend engineer"]);
+    assert.deepEqual(resolveSearchSeeds(["backend engineer", "backend enginner"], []), ["backend engineer"]);
+    assert.deepEqual(resolveSearchSeeds(["product manager", "product managers"], []), ["product manager"]);
+});
+
+test("two genuinely distinct searches both survive — including short ones a single character apart, where that character IS the distinction", () => {
+    assert.deepEqual(resolveSearchSeeds(["product manager", "product designer"], []), [
+        "product manager",
+        "product designer",
+    ]);
+    assert.deepEqual(resolveSearchSeeds(["ai", "ui"], []), ["ai", "ui"]);
+    assert.deepEqual(resolveSearchSeeds(["java", "lava"], []), ["java", "lava"]);
+});
+
+test("dedupe is case- and whitespace-insensitive, and the emitted seed is normalized (inner whitespace collapsed)", () => {
+    assert.deepEqual(resolveSearchSeeds(["  Data   Scientist ", "data scientist"], []), ["Data Scientist"]);
+});
+
+test("order is preserved: recent searches stay in their given order, near-dupes never reorder the survivors", () => {
+    const seeds = resolveSearchSeeds(
+        ["data scientist", "marketing manager", "marketing managr", "sales engineer"],
+        [],
+    );
+    assert.deepEqual(seeds, ["data scientist", "marketing manager", "sales engineer"]);
+});

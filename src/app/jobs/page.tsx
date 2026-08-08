@@ -31,13 +31,12 @@ import {
     suggestJobsAction,
     recordJobOpenedAction,
 } from "@/actions/jobs";
-import { goAfterJobAction, createManualPursuit } from "@/actions/application";
+import { goAfterJobAction } from "@/actions/application";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { addManualGuestPursuit } from "@/lib/pursuits/guest-store";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -94,6 +93,8 @@ import {
     classifyExistenceCheck,
     resolveEmptySearchState,
     resolveJobsRenderMode,
+    resolveJobsResultsPanel,
+    shouldShowBrowseSeedRow,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
@@ -815,8 +816,6 @@ function EmptyResults({
     onRevealGhosts,
     seeds,
     onSubmitSeed,
-    onSubmitSeedLine,
-    seedLineSubmitting,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
@@ -835,13 +834,6 @@ function EmptyResults({
      *  clear-search, and ghost-reveal were the only ways out. */
     seeds: string[];
     onSubmitSeed: (seed: string) => void;
-    /** The class fix (jobs-list-tail) — zero-results is the other genuinely
-     *  reachable dead-end besides `ListTail` (below): the whole screen, no
-     *  list to scroll past. Same `SearchSeedLine` component, same props
-     *  shape `ListTail` passes it, so there is exactly one place that knows
-     *  how to submit it. */
-    onSubmitSeedLine: (company: string, position: string) => void;
-    seedLineSubmitting: boolean;
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0;
@@ -870,129 +862,45 @@ function EmptyResults({
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
-                testids as every other BrowseSeedRow on this page; not a fork. */}
+                testids as every other BrowseSeedRow on this page; not a fork.
+                This is the ONLY seed affordance in the zero-results state:
+                the standalone pivot row above the results pane is gated off
+                whenever this panel renders (`shouldShowBrowseSeedRow`,
+                lib/jobs/result-state.ts). */}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
-            <SearchSeedLine onSubmit={onSubmitSeedLine} submitting={seedLineSubmitting} />
         </div>
     );
 }
 
 /**
- * The search seed line (spec §3 "outside interviews") — for the visitor
- * who's already mid-interview-loop somewhere, not job hunting on this page at
- * all. Rendered once, after the load-more sentinel / end-of-list line inside
- * the scrolling results container (Ledger redesign) — it's the last thing a
- * reader who scrolls through the whole page reaches, not a permanent fixture
- * competing with the results above it. Collapsed to a single quiet line by
- * default; one click expands the two-field form in place. Submitting creates
- * an "interviewing"-stage pursuit with no job_id (typed company/role only, no
- * live listing behind it — same shape `buildManualPursuitSnapshot` gives
- * every other manual pursuit) and the caller routes to the tracker — see
- * `handleSeedSubmit` below.
- */
-function SearchSeedLine({
-    onSubmit,
-    submitting,
-}: {
-    onSubmit: (company: string, position: string) => void;
-    submitting: boolean;
-}) {
-    const [open, setOpen] = useState(false);
-    const [company, setCompanyInput] = useState("");
-    const [position, setPositionInput] = useState("");
-
-    if (!open) {
-        return (
-            <div data-testid="prep-seed-line" className="shrink-0 border-t border-border py-3 text-left">
-                <button
-                    type="button"
-                    onClick={() => setOpen(true)}
-                    className="text-[13px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
-                >
-                    Already interviewing somewhere? <span className="font-medium text-foreground underline underline-offset-2">Prep for it.</span>
-                </button>
-            </div>
-        );
-    }
-
-    return (
-        <form
-            data-testid="prep-seed-form"
-            onSubmit={(e) => {
-                e.preventDefault();
-                const c = company.trim();
-                const p = position.trim();
-                if (!c || !p) return;
-                onSubmit(c, p);
-            }}
-            className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3"
-        >
-            <span className="text-[13px] text-muted-foreground">Already interviewing somewhere?</span>
-            <Input
-                value={company}
-                onChange={(e) => setCompanyInput(e.target.value)}
-                placeholder="Company"
-                required
-                aria-label="Company"
-                className="h-8 w-36 text-[13px]"
-            />
-            <Input
-                value={position}
-                onChange={(e) => setPositionInput(e.target.value)}
-                placeholder="Role"
-                required
-                aria-label="Role"
-                className="h-8 w-40 text-[13px]"
-            />
-            <Button type="submit" size="sm" disabled={submitting} className="h-8">
-                {submitting ? "Prepping…" : "Prep for it"}
-            </Button>
-            <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-            >
-                Cancel
-            </button>
-        </form>
-    );
-}
-
-/**
  * Everything rendered at the FOOT of the results list, below the load-more
- * sentinel — the class fix (jobs-list-tail): `SearchSeedLine`'s doc comment
- * above already named the intent ("rendered once, after the load-more
- * sentinel / end-of-list line"), but nothing enforced it — it was a second,
- * unconditional call site sitting after the tail ternary, reachable only
- * once `hasMore` happened to be false, which browse-by-default's broad
- * default result set never is. Same structural anchor `showResumeMoment`'s
- * own comment (above, "the foot of what has actually been READ") already
- * established for the résumé moment, applied to the tail this time instead
- * of the read-foot: an affordance placed below infinite scroll must be
- * GATED on the list having genuinely ended, not just positioned there.
+ * sentinel — the class fix (jobs-list-tail): affordances used to sit there
+ * unconditionally, after the tail ternary, reachable only once `hasMore`
+ * happened to be false, which browse-by-default's broad default result set
+ * never is. Same structural anchor `showResumeMoment`'s own comment (above,
+ * "the foot of what has actually been READ") already established for the
+ * résumé moment, applied to the tail this time instead of the read-foot: an
+ * affordance placed below infinite scroll must be GATED on the list having
+ * genuinely ended, not just positioned there.
  *
  * Takes the already-computed `endOfListState` (`resolveEndOfListState`,
  * lib/jobs/result-state.ts — the single resolver for "why did loading
  * stop," reused rather than re-derived) and early-returns `null` on
  * `"more-available"` before rendering anything, so the guard holds
  * structurally even if a future caller stops re-gating this on `hasMore`
- * at the call site — there is no way to reach `BrowseSeedRow` or
- * `SearchSeedLine` here while the list can still grow.
+ * at the call site — there is no way to reach `BrowseSeedRow` here while
+ * the list can still grow.
  */
 function ListTail({
     endOfListState,
     totalCount,
     seeds,
     onSubmitSeed,
-    onSubmitSeedLine,
-    seedLineSubmitting,
 }: {
     endOfListState: "genuine-end" | "cap-reached" | "more-available";
     totalCount: CorpusCount;
     seeds: string[];
     onSubmitSeed: (seed: string) => void;
-    onSubmitSeedLine: (company: string, position: string) => void;
-    seedLineSubmitting: boolean;
 }) {
     if (endOfListState === "more-available") return null;
     return (
@@ -1014,7 +922,6 @@ function ListTail({
                 </p>
             )}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
-            <SearchSeedLine onSubmit={onSubmitSeedLine} submitting={seedLineSubmitting} />
         </div>
     );
 }
@@ -1302,7 +1209,6 @@ function JobsContent() {
     const trackedCount = trackedPursuits.length;
     const [applyingId, setApplyingId] = useState<string | null>(null);
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
-    const [seedSubmitting, setSeedSubmitting] = useState(false);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
 
@@ -2414,47 +2320,6 @@ function JobsContent() {
         })();
     };
 
-    // The search seed line (spec §3 "outside interviews") — same signed-out
-    // vs. signed-in split as `handleGoAfter` above, but there's no job_id to
-    // find-or-create by (`createManualPursuit`/`addManualGuestPursuit` always
-    // create), then routes to the pursuit on /yours once it exists.
-    const handleSeedSubmit = (company: string, position: string) => {
-        const goToTracker = (pursuitId: string) => {
-            toast.success("Added to your tracker");
-            router.push(`/yours/${pursuitId}`);
-        };
-
-        if (!user) {
-            goToTracker(addManualGuestPursuit(company, position).id);
-            return;
-        }
-
-        void (async () => {
-            setSeedSubmitting(true);
-            try {
-                const res = await createManualPursuit({ company, position });
-                if (res.error || !res.data) {
-                    if (classifySentinel(res.error) === "auth") {
-                        setAuthOpen(true);
-                    } else {
-                        toast.error(`Could not save: ${res.error ?? "Failed to create pursuit"}`);
-                    }
-                    return;
-                }
-                invalidatePursuitsCache();
-                goToTracker(res.data.id);
-            } catch (e) {
-                if (classifySentinel(e) === "auth") {
-                    setAuthOpen(true);
-                } else {
-                    toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
-                }
-            } finally {
-                setSeedSubmitting(false);
-            }
-        })();
-    };
-
     // Run whatever the user queued before signing in — exactly once, and ONLY
     // after this page's AuthPopover confirmed a real sign-in (`authedRef`). Any
     // other path to being logged-in (sidebar login, an already-signed-in tab)
@@ -2765,6 +2630,19 @@ function JobsContent() {
     const notConnected = result != null && !result.configured && result.backend === "unconfigured";
     const blockingError = searchError != null && hits.length === 0;
     const backgroundError = searchError != null && hits.length > 0;
+
+    // The ONE decision behind what the results pane renders — and, through
+    // `shouldShowBrowseSeedRow`, whether the standalone pivot seed row shows
+    // above it. Before this, the pane's ternary and that row's gate read the
+    // same state independently and both fired on a zero-results search,
+    // printing "OR TRY …" twice (see `resolveJobsResultsPanel`).
+    const resultsPanel = resolveJobsResultsPanel({
+        isSerpAsk,
+        notConnected,
+        blockingError,
+        loading,
+        hitCount: hits.length,
+    });
 
     // SERP-ask's tappable seeds — recent searches first, then the curated
     // fallback list, deduped to ~8 (lib/jobs/recent-searches.ts,
@@ -3216,10 +3094,10 @@ function JobsContent() {
                                 pipeline below (`isSerpAsk` false) — see
                                 `resolveJobsRenderMode`. The seeds never disappear,
                                 they just stop being the whole screen. */}
-                            {emptySearchState !== "results" && !isSerpAsk && (
+                            {shouldShowBrowseSeedRow(emptySearchState, resultsPanel) && (
                                 <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
                             )}
-                            {isSerpAsk ? (
+                            {resultsPanel === "serp-ask" ? (
                                 /* Fallback ask (product spec §2, revised 2026-08-07):
                                    the zero-query browse fetch above (see the debounced
                                    effect) has DEFINITIVELY failed with nothing to show
@@ -3257,7 +3135,7 @@ function JobsContent() {
                                         ))}
                                     </div>
                                 </div>
-                            ) : notConnected ? (
+                            ) : resultsPanel === "not-connected" ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
@@ -3268,7 +3146,7 @@ function JobsContent() {
                                         <p className="mt-1 max-w-md font-mono text-xs text-muted-foreground/70">{result.note}</p>
                                     )}
                                 </div>
-                            ) : blockingError ? (
+                            ) : resultsPanel === "error" ? (
                                 // Deliverable 1 — the only remaining hard-stop state: a
                                 // search genuinely has no results available at all (a
                                 // served-but-stale response renders normally with
@@ -3287,9 +3165,9 @@ function JobsContent() {
                                         Retry
                                     </button>
                                 </div>
-                            ) : loading && hits.length === 0 ? (
+                            ) : resultsPanel === "loading" ? (
                                 <JobsListSplash />
-                            ) : hits.length === 0 ? (
+                            ) : resultsPanel === "empty" ? (
                                 <EmptyResults
                                     entries={activeEntries}
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
@@ -3300,8 +3178,6 @@ function JobsContent() {
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
                                     onSubmitSeed={submitSearch}
-                                    onSubmitSeedLine={handleSeedSubmit}
-                                    seedLineSubmitting={seedSubmitting}
                                 />
                             ) : (
                                 <>
@@ -3511,8 +3387,6 @@ function JobsContent() {
                                         totalCount={totalCount}
                                         seeds={searchSeeds}
                                         onSubmitSeed={submitSearch}
-                                        onSubmitSeedLine={handleSeedSubmit}
-                                        seedLineSubmitting={seedSubmitting}
                                     />
                                 </div>
                                 </>

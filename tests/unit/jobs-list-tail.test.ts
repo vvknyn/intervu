@@ -7,19 +7,25 @@ import { join } from "node:path";
  * "Grep-proof" class-fix regression test for the results-list tail in
  * src/app/jobs/page.tsx (`ListTail`).
  *
- * Bug this guards against (user-reported): `SearchSeedLine` ("Already
- * interviewing somewhere? Prep for it.") rendered unconditionally at the
- * very bottom of the results container, AFTER the load-more sentinel. While
- * the list can still grow (browse-by-default's default state, always),
- * that position is never reached — an affordance stranded below infinite
- * scroll.
+ * Bug this guards against (user-reported): affordances rendered
+ * unconditionally at the very bottom of the results container, AFTER the
+ * load-more sentinel. While the list can still grow (browse-by-default's
+ * default state, always), that position is never reached — an affordance
+ * stranded below infinite scroll.
  *
- * The fix: `ListTail` now owns everything rendered at the foot of the
- * list — the end-of-list line, the seed shortcuts, and the search seed
- * line — and early-returns `null` on `resolveEndOfListState`'s
- * `"more-available"` value BEFORE any JSX, so the guard is structural
- * (holds even if a future caller stops wrapping the call site in
- * `hasMore ?`), not a comment a future edit can silently invalidate.
+ * The fix: `ListTail` owns everything rendered at the foot of the list —
+ * the end-of-list line and the seed shortcuts — and early-returns `null` on
+ * `resolveEndOfListState`'s `"more-available"` value BEFORE any JSX, so the
+ * guard is structural (holds even if a future caller stops wrapping the
+ * call site in `hasMore ?`), not a comment a future edit can silently
+ * invalidate.
+ *
+ * The prep seed line itself is GONE (2026-08-08, Vivek: "that prep link is
+ * still there... get rid of it") — the tracker's own persistent "Track a
+ * role" button (/yours) is the manual-pursuit entry point now, so the
+ * assertions that pinned its two sanctioned call sites are assertions of
+ * ABSENCE below. The structural below-sentinel invariants stay exactly as
+ * they were: they were never about that one component.
  *
  * This repo has no component-render test harness (no @testing-library /
  * jsdom / vitest dependency), so — same approach as
@@ -54,12 +60,31 @@ test("ListTail early-returns null on \"more-available\" before any JSX — the g
     );
 });
 
-test('<SearchSeedLine appears at exactly 2 sanctioned call sites: ListTail (reachable once the list has ended) and EmptyResults (reachable on zero results)', () => {
-    const callSites = SOURCE.match(/<SearchSeedLine\b/g) ?? [];
-    assert.equal(callSites.length, 2, `expected exactly 2 <SearchSeedLine call sites, found ${callSites.length}`);
+test("the prep seed line is gone from the board entirely — component, call sites, testids and copy", () => {
+    for (const gone of [/SearchSeedLine/, /prep-seed-line/, /prep-seed-form/, /Already interviewing somewhere/, /Prep for it/]) {
+        assert.doesNotMatch(SOURCE, gone, `expected no trace of the prep seed line: ${gone}`);
+    }
+    // Its submit handler and in-flight state go with it — a dead handler
+    // left behind is the "delete what the change obsoletes" miss this
+    // assertion exists to catch.
+    assert.doesNotMatch(SOURCE, /handleSeedSubmit|seedSubmitting/);
 });
 
-test("BrowseSeedRow's tail usage lives inside ListTail's own guard, not rendered separately alongside SearchSeedLine", () => {
+test("the standalone pivot seed row is gated by the shared panel decision, never by a hand-written condition of its own", () => {
+    // The double-"OR TRY …" bug: this row and `EmptyResults`' own seed row
+    // both rendered on a zero-results search because each gate read the
+    // state independently. `shouldShowBrowseSeedRow` (result-state.ts,
+    // unit-tested) is now the ONE thing that answers it.
+    const pivotRow = section("{shouldShowBrowseSeedRow(", "<BrowseSeedRow");
+    assert.match(pivotRow, /emptySearchState, resultsPanel\)/);
+    assert.doesNotMatch(
+        SOURCE,
+        /emptySearchState !== "results" && !isSerpAsk/,
+        "found the old hand-written pivot-row gate — it can drift out of exclusion with the panel below it again",
+    );
+});
+
+test("BrowseSeedRow's tail usage lives inside ListTail's own guard", () => {
     // Not the surfacing instance: this proves the class fix, not just the
     // one component the bug report named — the SAME early return also
     // protects BrowseSeedRow's tail-position call site, which a narrower,

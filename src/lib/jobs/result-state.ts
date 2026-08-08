@@ -373,6 +373,57 @@ export function resolveJobsRenderMode(
 }
 
 /**
+ * WHICH panel the results pane renders — the one decision behind what used
+ * to be an inline five-way ternary in jobs/page.tsx. Same reason
+ * `resolveDetailMountSite` above exists: two things were reading the SAME
+ * state to decide independently what to show, and drifted out of mutual
+ * exclusion.
+ *
+ * The drift (user-reported, prod screenshot 2026-08-08): a zero-results
+ * search rendered "OR TRY …" TWICE — the standalone pivot seed row above the
+ * pane (gated on `emptySearchState !== "results" && !isSerpAsk`) plus
+ * `EmptyResults`' own seed row inside it. Nothing tied the two gates
+ * together, so the overlap state (empty-search classification AND a
+ * zero-hit fetch) satisfied both. `shouldShowBrowseSeedRow` below now
+ * derives the pivot row's visibility FROM this panel, so a panel that owns
+ * seeds can never have a second row stacked above it.
+ *
+ * Order is the ternary's own precedence, unchanged: the ask state, then
+ * hard backend states, then loading, then empty, then the list.
+ */
+export type JobsResultsPanel = "serp-ask" | "not-connected" | "error" | "loading" | "empty" | "list";
+
+export function resolveJobsResultsPanel(input: {
+    isSerpAsk: boolean;
+    notConnected: boolean;
+    blockingError: boolean;
+    loading: boolean;
+    hitCount: number;
+}): JobsResultsPanel {
+    if (input.isSerpAsk) return "serp-ask";
+    if (input.notConnected) return "not-connected";
+    if (input.blockingError) return "error";
+    if (input.loading && input.hitCount === 0) return "loading";
+    return input.hitCount === 0 ? "empty" : "list";
+}
+
+/** Panels that render seed shortcuts themselves — `"serp-ask"` (the whole
+ *  screen IS the seed list) and `"empty"` (`EmptyResults`' own
+ *  `BrowseSeedRow`). Data, not a branch, so a future seed-carrying panel is
+ *  one entry away from being covered. */
+const SEED_OWNING_PANELS: ReadonlySet<JobsResultsPanel> = new Set<JobsResultsPanel>(["serp-ask", "empty"]);
+
+/**
+ * Should the standalone pivot seed row render ABOVE the results pane?
+ * Browse-by-default shows it for any non-`"results"` empty-search state so
+ * the seeds never disappear — but only when the panel below isn't already
+ * showing seeds of its own (see `resolveJobsResultsPanel`).
+ */
+export function shouldShowBrowseSeedRow(emptySearchState: EmptySearchState, panel: JobsResultsPanel): boolean {
+    return emptySearchState !== "results" && !SEED_OWNING_PANELS.has(panel);
+}
+
+/**
  * A4 — the end-of-list line's honesty check. `hits.length` stops growing at
  * TWO different ceilings that page.tsx's own `hasMore` conflates into one
  * "no more to load" signal: the corpus is genuinely exhausted, OR pagination
