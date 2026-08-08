@@ -62,12 +62,8 @@ import {
     recordRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
-import {
-    subscribeSavedSearches,
-    getSavedSearchesSnapshot,
-    getSavedSearchesServerSnapshot,
-    jobsUrlStateFromSavedHref,
-} from "@/lib/jobs/saved-searches";
+import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
+import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
     getSuppressLocationDefaultSnapshot,
@@ -1022,11 +1018,7 @@ function JobsContent() {
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
-    const savedSearches = useSyncExternalStore(
-        subscribeSavedSearches,
-        getSavedSearchesSnapshot,
-        getSavedSearchesServerSnapshot,
-    );
+    const { saved: savedSearches } = useSavedSearches();
     // Persistent "don't default my location" override (default-location
     // chip's "×") — see location-default-preference.ts. Part of the search
     // effect's own dependency list below (not folded into `searchKey`,
@@ -2439,19 +2431,21 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Guest→auth merge (pursuits + follows) — at most once per load; only mark
-    // done after both merges succeed so a failed sign-in sync retries.
+    // Guest→auth merge (pursuits + follows + saved searches) — at most once
+    // per load; only mark done after every merge succeeds so a failed
+    // sign-in sync retries.
     useEffect(() => {
         if (user && !guestPursuitSyncRef.current && !guestSyncInFlightRef.current) {
             guestSyncInFlightRef.current = true;
             const guestPursuitCount = listGuestPursuits().length;
             void (async () => {
                 try {
-                    const [pursuitsOk, followsOk] = await Promise.all([
+                    const [pursuitsOk, followsOk, savedSearchesOk] = await Promise.all([
                         syncGuestPursuitsToServer(),
                         syncGuestFollowsToServer(),
+                        syncGuestSavedSearchesToServer(),
                     ]);
-                    if (pursuitsOk && followsOk) {
+                    if (pursuitsOk && followsOk && savedSearchesOk) {
                         guestPursuitSyncRef.current = true;
                         if (guestPursuitCount > 0) {
                             toast.success(

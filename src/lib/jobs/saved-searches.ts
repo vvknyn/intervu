@@ -149,7 +149,6 @@ export function clearSavedSearches(): void {
     }
 }
 
-const EMPTY: SavedSearch[] = [];
 let cache: SavedSearch[] | null = null;
 const listeners = new Set<() => void>();
 
@@ -157,6 +156,12 @@ function notify(): void {
     listeners.forEach((cb) => cb());
 }
 
+/**
+ * Guest-store change notifications — `use-saved-searches.ts` subscribes to
+ * this the same way `lib/follows/guest-store.ts`'s `subscribeGuestFollows`
+ * feeds `use-follows.ts`, since this module (not a dedicated guest-store
+ * file) is the guest store for saved searches.
+ */
 export function subscribeSavedSearches(onChange: () => void): () => void {
     listeners.add(onChange);
     return () => listeners.delete(onChange);
@@ -165,10 +170,6 @@ export function subscribeSavedSearches(onChange: () => void): () => void {
 export function getSavedSearchesSnapshot(): SavedSearch[] {
     if (cache == null) cache = loadSavedSearches();
     return cache;
-}
-
-export function getSavedSearchesServerSnapshot(): SavedSearch[] {
-    return EMPTY;
 }
 
 export function persistSavedSearch(entry: Pick<SavedSearch, "name" | "href">): SavedSearch[] {

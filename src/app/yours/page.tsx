@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
 import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
+import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { addManualGuestPursuit, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import {
@@ -184,11 +185,12 @@ function YoursContent() {
             const guestPursuitCount = listGuestPursuits().length;
             void (async () => {
                 try {
-                    const [pursuitsOk, followsOk] = await Promise.all([
+                    const [pursuitsOk, followsOk, savedSearchesOk] = await Promise.all([
                         syncGuestPursuitsToServer(),
                         syncGuestFollowsToServer(),
+                        syncGuestSavedSearchesToServer(),
                     ]);
-                    if (pursuitsOk && followsOk) {
+                    if (pursuitsOk && followsOk && savedSearchesOk) {
                         guestSyncRef.current = true;
                         if (guestPursuitCount > 0) {
                             toast.success(
