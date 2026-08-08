@@ -179,6 +179,7 @@ const GUARD_DATA: GazetteerData = {
     ["Success", null, -32.1058, 115.8492, "AU", null, 12000], // real Perth, WA suburb, ~17km out
     ["Mobile", null, 30.6944, -88.0431, "US", null, 187041], // real Mobile, Alabama
     ["Engineer", null, -0.05, 37.6667, "KE", null, 5324], // real Engineer, Kenya (see geo-corpus-validation.test.ts)
+    ["Enterprise", null, 31.315, -85.8552, "US", null, 26899], // real Enterprise, Alabama — the job-vocab class (below)
   ],
 };
 const GUARD_GAZETTEER = buildGazetteerIndex(GUARD_DATA);
@@ -188,6 +189,7 @@ const GUARD_VOCAB = fakeVocab(
     { field: "location_city", value: "Success" },
     { field: "location_city", value: "Mobile" },
     { field: "location_city", value: "Engineer" },
+    { field: "location_city", value: "Enterprise" },
   ],
   GUARD_GAZETTEER,
 );
@@ -207,6 +209,12 @@ test("'mobile developer': 'mobile' (a real Mobile, Alabama) is not extracted as 
 test("bare 'engineer' (a real Engineer, Kenya) is not extracted as a place from free text", async () => {
   const p = await applyQueryUnderstanding({ q: "engineer" }, GUARD_VOCAB);
   assert.equal(p.q, "engineer");
+  assert.equal(p.places, undefined);
+});
+
+test("job-vocab tier: 'enterprise account executive' — \"enterprise\" (a real Enterprise, Alabama; NOT in the common-English list) is caught by the corpus-derived job vocabulary", async () => {
+  const p = await applyQueryUnderstanding({ q: "enterprise account executive" }, GUARD_VOCAB);
+  assert.equal(p.q, "enterprise account executive");
   assert.equal(p.places, undefined);
 });
 
