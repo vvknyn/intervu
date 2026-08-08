@@ -323,6 +323,13 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     }
     // Docs with a null posted_ts (not yet backfilled) simply won't match — acceptable.
   }
+  // `postedSinceMs` — an absolute floor rather than a relative bucket (see
+  // its doc on `JobSearchParams`). Same `!legacy` gate as `postedBucket`
+  // just above: both depend on `posted_ts` being filterable, so both drop
+  // out together on the TRANSITIONAL pre-reindex retry.
+  if (p.postedSinceMs != null && !legacy) {
+    f.push(`posted_ts >= ${p.postedSinceMs}`);
+  }
   if (!opts?.skipDomainFilters) {
     if (p.board) {
       const domains = getBoardDomains(p.board);

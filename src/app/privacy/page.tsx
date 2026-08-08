@@ -29,8 +29,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Once you&apos;re using intervu, we store the things you create: your tracked applications, saved resumes,
-          prep answers, and credit balance. This data lives in Google Cloud Firestore and is only ever accessed by
-          our servers — never exposed directly to the browser or to other users.
+          saved searches, prep answers, and credit balance. This data lives in Google Cloud Firestore and is only
+          ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
           If you join a waitlist (for example, &ldquo;tell me when it&apos;s ready&rdquo; on the connect page), we

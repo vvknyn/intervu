@@ -42,6 +42,7 @@ test("normalizeSearchCacheKey: distinguishes requests that would hit Meilisearch
     { q: "engineer", hideGhosts: true },
     { q: "engineer", salaryMin: 100_000 },
     { q: "engineer", postedBucket: "7d" },
+    { q: "engineer", postedSinceMs: 1_800_000_000_000 },
     { q: "engineer", offset: 40 },
     { q: "engineer", board: "elite" },
     { q: "engineer", companyDomain: "stripe.com" },
@@ -60,6 +61,11 @@ test("isDefaultBrowseParams: true only for the empty-query, no-filter shape", ()
   assert.equal(isDefaultBrowseParams({ visaOnly: true }), false);
   assert.equal(isDefaultBrowseParams({ facets: { work_type: ["remote"] } }), false);
   assert.equal(isDefaultBrowseParams({ companyDomain: "stripe.com" }), false);
+  // countNewSinceAction's board-scope count sets ONLY postedSinceMs (+
+  // optionally `places`, which is already covered above) — regression
+  // guard: without this, that limit:1 count response would silently
+  // overwrite the shared default-browse degraded-serve fallback key.
+  assert.equal(isDefaultBrowseParams({ postedSinceMs: 1_800_000_000_000 }), false);
 });
 
 test("resolveDegradedServe: pure decision — exact hit, then default fallback, then null", () => {
