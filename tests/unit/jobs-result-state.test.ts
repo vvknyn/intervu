@@ -6,6 +6,7 @@ import {
     resolveGhostReveal,
     classifyExistenceCheck,
     resolveEmptySearchState,
+    resolveJobsRenderMode,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
@@ -355,6 +356,49 @@ describe('resolveEmptySearchState', () => {
 
     it('filters-only (no query) — SERP-ask, not the full-screen overlay', () => {
         assert.equal(resolveEmptySearchState(input({ activeFilterCount: 1 })), 'serp-ask');
+    });
+});
+
+// 2026-08-07 front-door reversal — browse-by-default's render decision.
+// Zero query used to mean an un-fetched serp-ask no matter what; now a
+// zero-query fetch's OWN outcome decides, per `resolveJobsRenderMode`'s doc
+// comment. `outcome()` mirrors the `input()`/`result()` helpers above.
+describe('resolveJobsRenderMode', () => {
+    function outcome(overrides: Partial<{ loading: boolean; hitCount: number; failed: boolean }> = {}) {
+        return { loading: false, hitCount: 0, failed: false, ...overrides };
+    }
+
+    it('a real query always renders results, regardless of the fetch outcome', () => {
+        assert.equal(resolveJobsRenderMode('results', outcome({ failed: true })), 'results');
+    });
+
+    it('the exact surfaced scenario: zero query, browse fetch succeeded with hits → results, not serp-ask', () => {
+        assert.equal(resolveJobsRenderMode('overlay-ask', outcome({ hitCount: 12 })), 'results');
+    });
+
+    it('zero query, browse fetch genuinely failed with nothing to show → serp-ask fallback', () => {
+        assert.equal(resolveJobsRenderMode('overlay-ask', outcome({ failed: true })), 'serp-ask');
+    });
+
+    it('zero query, first-page fetch still in flight → results (renders the loading skeleton, never a flash of serp-ask)', () => {
+        assert.equal(resolveJobsRenderMode('overlay-ask', outcome({ loading: true })), 'results');
+    });
+
+    it('zero query, no hits and no failure (a genuine zero-match browse) → results, not serp-ask — an empty result is not a failure', () => {
+        assert.equal(resolveJobsRenderMode('overlay-ask', outcome()), 'results');
+    });
+
+    // Beyond the exact surfaced scenario — zero query WITH active filters
+    // (`resolveEmptySearchState` classifies this "serp-ask", the uncached
+    // filtered-fetch shape). Proves filters no longer block the front page
+    // from showing real jobs once that fetch actually returns hits — the
+    // whole point of the reversal, not just the pristine no-filter case.
+    it('zero query WITH active filters, filtered fetch returned hits → results, not the ask fallback', () => {
+        assert.equal(resolveJobsRenderMode('serp-ask', outcome({ hitCount: 4 })), 'results');
+    });
+
+    it('zero query WITH active filters, filtered fetch failed → serp-ask fallback, same as the no-filter case', () => {
+        assert.equal(resolveJobsRenderMode('serp-ask', outcome({ failed: true })), 'serp-ask');
     });
 });
 
