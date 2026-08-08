@@ -7,6 +7,7 @@ import {
     classifyExistenceCheck,
     resolveEmptySearchState,
     resolveJobsRenderMode,
+    resolveEndOfListState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
@@ -435,6 +436,43 @@ describe('degradedResultsNote', () => {
         assert.equal(
             degradedResultsNote(withMeta({ degraded: true, servedFrom: 'cache' })),
             'Showing recent results — live search is catching up.',
+        );
+    });
+});
+
+// A4 — the end-of-list line's honesty check. `hasMore` (page.tsx) already
+// stops loading at BOTH ceilings (corpus exhausted, or MAX_REACHABLE hit);
+// this is the render decision for what the line says once loading stops,
+// covering the exact bug: a broad browse capped at MAX_REACHABLE=100,000
+// hits.length while the honest resolved total (recovered via the
+// ghost_badge facet-sum, corpus-count.ts) is ~1.7M — "reached the end —
+// 1,704,771 roles" was printed early, lying by ~1.6M.
+describe('resolveEndOfListState', () => {
+    it('genuine end: hits caught up with a small, honest total — the ordinary case', () => {
+        assert.equal(
+            resolveEndOfListState({ hitsLength: 42, total: 42, maxReachable: 100_000 }),
+            'genuine-end',
+        );
+    });
+
+    it('cap reached: the exact surfaced bug — stopped at MAX_REACHABLE while the honest total is far bigger', () => {
+        assert.equal(
+            resolveEndOfListState({ hitsLength: 100_000, total: 1_704_771, maxReachable: 100_000 }),
+            'cap-reached',
+        );
+    });
+
+    it('boundary: total equals maxReachable exactly — resolves genuine-end, never a cap claim with no bigger number to show', () => {
+        assert.equal(
+            resolveEndOfListState({ hitsLength: 100_000, total: 100_000, maxReachable: 100_000 }),
+            'genuine-end',
+        );
+    });
+
+    it('mid-list: still loading, neither ceiling reached — not a caller this function normally sees, but resolves honestly anyway', () => {
+        assert.equal(
+            resolveEndOfListState({ hitsLength: 30, total: 5_000, maxReachable: 100_000 }),
+            'more-available',
         );
     });
 });

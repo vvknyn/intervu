@@ -36,10 +36,15 @@ test.describe('AGENTS - Public connect page', () => {
     await expect(page.getByText('api/mcp', { exact: false }).first()).toBeVisible();
   });
 
-  test('TC-AGENTS-004: the never-submits sentence is present', async ({ page }) => {
+  // Fine-print verbosity cut (#152, /connect cleanup): the old standalone
+  // "intervu never submits applications for you" sentence is gone, folded
+  // into the hero sub-copy ("...and can never apply anywhere without you.")
+  // and restated as a checklist line in the Approve step ("It can never
+  // apply anywhere without you") — same never-applies promise, new copy.
+  test('TC-AGENTS-004: the never-applies-without-you promise is present', async ({ page }) => {
     await page.goto('/connect');
     await expect(
-      page.getByText('intervu never submits applications for you', { exact: false })
+      page.getByText('can never apply anywhere without you', { exact: false }).first()
     ).toBeVisible();
   });
 

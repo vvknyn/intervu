@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,8 +25,16 @@ export function TrendsHero({
   totalTracked: CorpusCount;
   ghostFlaggedLive: CorpusCount;
 }) {
-  const tiles: { label: string; value: CorpusCount; testId: string }[] = [
-    { label: "Live jobs right now", value: liveJobs, testId: "trends-stat-live" },
+  const tiles: { label: string; value: CorpusCount; testId: string; href?: string }[] = [
+    {
+      label: "Live jobs right now",
+      value: liveJobs,
+      testId: "trends-stat-live",
+      // "Right now" is ghost-inclusive, any-age (market-trends.ts's liveJobs
+      // query has no age filter) — override postedBucket to "any" so the
+      // link matches what this stat actually counts.
+      href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
+    },
     { label: "Postings tracked, all-time", value: totalTracked, testId: "trends-stat-total" },
     { label: "Flagged likely-ghost, live", value: ghostFlaggedLive, testId: "trends-stat-ghost" },
   ];
@@ -48,7 +58,13 @@ export function TrendsHero({
               "verified-underline border-b-[3px]",
             )}
           >
-            {formatCorpusCount(tile.value)}
+            {tile.href ? (
+              <Link href={tile.href} className="hover:underline">
+                {formatCorpusCount(tile.value)}
+              </Link>
+            ) : (
+              formatCorpusCount(tile.value)
+            )}
           </p>
         </div>
       ))}

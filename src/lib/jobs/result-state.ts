@@ -350,3 +350,40 @@ export function resolveJobsRenderMode(
     if (fetch.loading || fetch.hitCount > 0) return "results";
     return fetch.failed ? "serp-ask" : "results";
 }
+
+/**
+ * A4 — the end-of-list line's honesty check. `hits.length` stops growing at
+ * TWO different ceilings that page.tsx's own `hasMore` conflates into one
+ * "no more to load" signal: the corpus is genuinely exhausted, OR pagination
+ * hit `MAX_REACHABLE` (Meili's own `pagination.maxTotalHits`, mirrored as
+ * `CORPUS_COUNT_CAP` in corpus-count.ts) while the corpus's honest resolved
+ * total — `resolveCorpusCount`'s `.value`, which recovers the REAL number
+ * from the `ghost_badge` facet sum once `total` itself saturates at the cap
+ * — is far bigger. Before this, "You've reached the end — N roles" printed
+ * that honest N (e.g. 1.7M, via the facet-sum recovery) even when only
+ * `MAX_REACHABLE` (100,000) had actually been shown or could ever be
+ * reached in this session — stating a real number in a sentence that implies
+ * every one of them was just displayed.
+ *
+ * `total` here is the CALLER's already-resolved honest count (`totalCount
+ * .value` from `resolveCorpusCount`, page.tsx), not the raw possibly-capped
+ * `JobSearchResult.total` — this function has no opinion on HOW the count
+ * was recovered, only on whether what's loaded (`hitsLength`) accounts for
+ * all of it.
+ *
+ * Boundary (`hitsLength === total === maxReachable`): resolves to
+ * `"genuine-end"`, not `"cap-reached"`. There is no number this function
+ * could honestly show as "more exist" — the resolved total IS the reachable
+ * cap, exact or floor — so claiming a cap was hit ahead of a bigger total
+ * would itself be the lie this function exists to prevent.
+ */
+export function resolveEndOfListState(input: {
+    hitsLength: number;
+    total: number;
+    maxReachable: number;
+}): "genuine-end" | "cap-reached" | "more-available" {
+    const { hitsLength, total, maxReachable } = input;
+    if (hitsLength >= total) return "genuine-end";
+    if (hitsLength >= maxReachable) return "cap-reached";
+    return "more-available";
+}

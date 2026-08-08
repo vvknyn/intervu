@@ -61,7 +61,7 @@ test.describe('YOURS - Guest, no pursuits', () => {
 
   test('TC-YOURS-003: TopBar Tracker tab is visible with zero pursuits', async ({ page }) => {
     await page.goto('/');
-    const link = page.getByTestId('topbar-yours');
+    const link = page.getByTestId('topbar-tracker');
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('href', '/yours');
   });
@@ -92,7 +92,7 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
 
   test('TC-YOURS-006: TopBar Yours link appears with a pursuit present', async ({ page }) => {
     await page.goto('/');
-    const link = page.getByTestId('topbar-yours');
+    const link = page.getByTestId('topbar-tracker');
     await expect(link).toBeVisible({ timeout: 10000 });
     await expect(link).toHaveAttribute('href', '/yours');
   });
@@ -138,7 +138,7 @@ test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
   test('TC-YOURS-011: submitting the seed line creates a guest pursuit and routes to tracker', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('prep-seed-line')).toBeVisible({ timeout: 10000 });
-    await page.getByTestId('prep-seed-line').click();
+    await page.getByTestId('prep-seed-line').getByRole('button').click();
 
     const form = page.getByTestId('prep-seed-form');
     await expect(form).toBeVisible();
@@ -151,7 +151,7 @@ test.describe('YOURS - Guest seed-line (search page -> prep)', () => {
 
   test('TC-YOURS-012: a seed-line pursuit shows up on /yours as interviewing', async ({ page }) => {
     await page.goto('/');
-    await page.getByTestId('prep-seed-line').click();
+    await page.getByTestId('prep-seed-line').getByRole('button').click();
     const form = page.getByTestId('prep-seed-form');
     await form.getByLabel('Company').fill('Initech');
     await form.getByLabel('Role').fill('Backend Engineer');

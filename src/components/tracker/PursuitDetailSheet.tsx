@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,12 @@ import {
     TRACKER_DETAIL_STAGES,
     TRACKER_SHEET_BOTTOM,
     daysInTracker,
+    daysSinceUpdate,
     hasResumeLinked,
+    isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
+import { NoteAutosave } from "@/lib/pursuits/note-autosave";
 
 interface PursuitDetailSheetProps {
     pursuit: Pursuit | null;
@@ -84,12 +87,48 @@ function PursuitDetailBody({
     saving?: boolean;
 }) {
     const [note, setNote] = useState(pursuit.note ?? "");
+    const [noteIndicator, setNoteIndicator] = useState<"saving" | "saved" | null>(null);
     const [interviewDate, setInterviewDate] = useState(() =>
         pursuit.interview_date ? pursuit.interview_date.slice(0, 10) : "",
     );
     const latestResume = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? [])[0];
     const resumeLabel = latestResume?.label ?? pursuit.resume_version?.version_name;
     const days = daysInTracker(pursuit);
+    const stale = isStalePursuit(pursuit);
+
+    // `onNoteSave` is a fresh closure every render of the parent (yours/page
+    // .tsx builds it inline) — capture it in a ref so the autosave engine
+    // below (constructed once, lazily) always calls the latest version
+    // rather than whatever was current at construction time.
+    const onNoteSaveRef = useRef(onNoteSave);
+    onNoteSaveRef.current = onNoteSave;
+    const noteRef = useRef(note);
+    noteRef.current = note;
+
+    const noteAutosaveRef = useRef<NoteAutosave | null>(null);
+    if (!noteAutosaveRef.current) {
+        noteAutosaveRef.current = new NoteAutosave((value) => {
+            setNoteIndicator("saving");
+            void onNoteSaveRef.current(value.trim()).then(
+                () => setNoteIndicator("saved"),
+                () => setNoteIndicator(null),
+            );
+        });
+    }
+
+    // Flush pending edits when this sheet instance closes (this component
+    // unmounts — the parent's onOpenChange clears the selected pursuit in
+    // the same update, so there's no intermediate "open flips false while
+    // still mounted" render to hook) or the tab is about to unload. Notes
+    // used to be silently lost on close; this is the fix (spec B1).
+    useEffect(() => {
+        const flush = () => noteAutosaveRef.current?.flush(noteRef.current);
+        window.addEventListener("beforeunload", flush);
+        return () => {
+            window.removeEventListener("beforeunload", flush);
+            flush();
+        };
+    }, []);
 
     // Two-step inline confirm — same `confirmToast` pattern as
     // AgentAccessSection's `handleRevoke` (settings/AgentAccessSection.tsx):
@@ -150,11 +189,32 @@ function PursuitDetailBody({
                         <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Resume</dt>
                         <dd className="text-[13px]">{resumeLabel ?? "— none linked"}</dd>
                     </div>
+                    {stale && (
+                        <div className="col-span-2">
+                            <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Update</dt>
+                            <dd className="text-[13px]">no update in {daysSinceUpdate(pursuit)}d</dd>
+                        </div>
+                    )}
                 </dl>
 
                 <div>
-                    <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
-                    <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={fieldClass} />
+                    <div className="mb-1.5 flex items-center justify-between">
+                        <Label className="block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
+                        {noteIndicator && (
+                            <span className="font-mono text-xs text-muted-foreground" aria-live="polite">
+                                {noteIndicator === "saving" ? "saving…" : "saved"}
+                            </span>
+                        )}
+                    </div>
+                    <Textarea
+                        value={note}
+                        onChange={(e) => {
+                            setNote(e.target.value);
+                            noteAutosaveRef.current?.edit(e.target.value);
+                        }}
+                        rows={2}
+                        className={fieldClass}
+                    />
                 </div>
 
                 <div>
@@ -193,9 +253,6 @@ function PursuitDetailBody({
                         onClick={() => latestResume && downloadResumeVersion(latestResume, pursuit)}
                     >
                         Download resume
-                    </Button>
-                    <Button variant="outline" disabled={saving} onClick={() => void onNoteSave(note.trim())}>
-                        Save note
                     </Button>
                     <Button
                         variant="outline"

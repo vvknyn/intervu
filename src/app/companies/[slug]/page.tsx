@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { domainToSlug } from "@/lib/boards/slug";
+import { Button } from "@/components/ui/button";
 import { fetchCompanyProfile } from "@/lib/companies/company-stats";
 import { companyFromSlug } from "@/lib/companies/paths";
 import { CompanyHeader } from "@/components/company/CompanyHeader";
@@ -78,12 +80,17 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (
-        <p
-          className="mt-8 border-t border-foreground pt-6 text-sm text-muted-foreground"
-          data-testid="company-empty-state"
-        >
-          We haven&apos;t verified enough about this company yet.
-        </p>
+        <>
+          <p
+            className="mt-8 border-t border-foreground pt-6 text-sm text-muted-foreground"
+            data-testid="company-empty-state"
+          >
+            We haven&apos;t verified enough about this company yet.
+          </p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link href={jobsSearchUrl}>Search jobs mentioning {profile.name}</Link>
+          </Button>
+        </>
       ) : (
         <>
           <CompanyGhostMixBand ghostMix={profile.ghostMix} />

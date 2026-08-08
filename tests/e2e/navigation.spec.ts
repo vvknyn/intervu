@@ -120,17 +120,28 @@ test.describe('NAV - Navigation Tests', () => {
    * TC-NAV-007: Direct URL access to all pages
    *
    * Verifies all pages are accessible via direct URL navigation.
+   *
+   * `/` is a plain redirect to `/jobs` now (#145, "the board IS the front
+   * door") — landing on `/jobs` rather than staying on `/` is the expected,
+   * intentional outcome, not an error.
+   *
+   * `/settings` is in `AUTH_GATED_PRODUCT_PREFIXES`
+   * (lib/auth/product-routes.ts) — middleware redirects a signed-out visitor
+   * to `/login?next=<path>` before the page renders. `/yours` came OFF that
+   * list in the 2026-08-08 engagement wave: the guest tracker (localStorage
+   * pursuits, sync-on-login) is a deliberate logged-out experience, so a
+   * signed-out visit now renders the page itself.
    */
   test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
-      { url: '/', title: 'Intervu' },
-      { url: '/yours', title: 'Yours' },
-      { url: '/settings', title: 'Settings' },
+      { url: '/', landsOn: '/jobs' },
+      { url: '/yours', landsOn: '/yours' },
+      { url: '/settings', landsOn: '/login?next=%2Fsettings' },
     ];
 
     for (const p of pages) {
       await page.goto(p.url);
-      await expect(page).toHaveURL(p.url);
+      await expect(page).toHaveURL(p.landsOn);
       // Page should not show error
       await expect(page.locator('text=404')).not.toBeVisible();
     }

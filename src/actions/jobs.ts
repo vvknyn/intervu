@@ -12,7 +12,8 @@ import {
   type SearchServeMeta,
 } from "@/lib/jobs/search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause } from "@/lib/jobs/types";
+import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
   buildSearchLogEntry,
@@ -121,6 +122,65 @@ export async function searchJobsAction(
   }
 
   return { ...result, searchId };
+}
+
+/** How many related jobs the detail panel's "More like this" shows. */
+const RELATED_JOBS_LIMIT = 5;
+
+/**
+ * Fetch, filter (excluding the job itself — `JobSearchParams` has no
+ * exclude-id field, so this over-fetches by one and drops it here rather
+ * than inventing one), and cap to `RELATED_JOBS_LIMIT`. Shared by both of
+ * `getRelatedJobsAction`'s passes below (company-scoped, then the
+ * title-keyword fallback) so they can't drift on the shared shape
+ * (`postedBucket`/`hideGhosts`, the exclude-self step, the cap).
+ */
+async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Promise<PublicJob[]> {
+  const result = await runSearch({
+    postedBucket: "30d",
+    hideGhosts: true,
+    limit: RELATED_JOBS_LIMIT + 1,
+    ...params,
+  });
+  return result.hits.filter((h) => h.id !== jobId).slice(0, RELATED_JOBS_LIMIT);
+}
+
+/**
+ * "More like this" (JobDetail, Curiosity / Serial Positioning Effect) — the
+ * one forward path out of a posting used to be a gated company link; this
+ * gives the reader somewhere to go next without leaving the panel.
+ *
+ * Company scope reuses `JobSearchParams.companyDomain` (exact-match filter,
+ * already load-bearing for `/co/[slug]`'s own job list — see
+ * `buildFilter`/`passBase` in meilisearch.ts and snapshot-preview.ts) rather
+ * than a new mechanism. Below `resolveRelatedQuery`'s minimum company-hit
+ * count (too few, or no `companyDomain` at all — `companyHitCount` is then
+ * 0 by construction, since the company-scoped fetch never even runs), it
+ * widens to a title-keyword search instead; if the title itself has no
+ * usable keywords, it returns whatever company hits exist rather than a
+ * fabricated whole-corpus fallback (`resolveRelatedQuery`'s "none" branch).
+ */
+export async function getRelatedJobsAction(
+  jobId: string,
+  companyDomain: string | null | undefined,
+  title: string,
+): Promise<PublicJob[]> {
+  if (!jobId) return [];
+
+  // Same per-IP chokepoint as `searchJobsAction` above — this action runs up
+  // to two corpus queries per call and is just as callable outside the UI.
+  // Denial is an empty list, not an error: "More like this" is an accelerant,
+  // and the panel already renders nothing for an empty result.
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return [];
+
+  const companyHits = companyDomain ? await fetchRelatedExcluding(jobId, { companyDomain }) : [];
+  const plan = resolveRelatedQuery({ companyHitCount: companyHits.length, title });
+
+  if (plan.mode === "title-fallback") {
+    return fetchRelatedExcluding(jobId, { q: plan.fallbackQuery });
+  }
+  return companyHits;
 }
 
 /** Page size for the cached default browse — mirrors `PAGE` in

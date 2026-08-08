@@ -17,6 +17,12 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * TC-MOBILE-001: Home page renders correctly on mobile
    *
    * Verifies the home page is fully functional on mobile viewport.
+   *
+   * The board IS the front door now (#145) — `/` is a plain redirect to
+   * `/jobs`, not a separate OpenClaw marketing deck with its own waitlist
+   * email form (that surface was retired the same PR). Verified live: no
+   * `input[type="email"]` exists on `/` today. The front door's own input
+   * is the jobs search box.
    */
   test('TC-MOBILE-001: Home page renders correctly on mobile', async ({ page }) => {
     await page.goto('/');
@@ -24,9 +30,8 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // Brand should be visible
     await expect(page.locator('text=Intervu').first()).toBeVisible();
 
-    // Front door has no search box (that's /jobs now) — its own form is
-    // the OpenClaw waitlist email input.
-    await expect(page.locator('input[type="email"]').first()).toBeVisible();
+    // The board's own search input, not a waitlist email form.
+    await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
 
     // No horizontal scroll
     const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
@@ -52,7 +57,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // nav was restructured for the split; the same testId renders both in
     // TopBar's desktop-only row (hidden on mobile) and MobileTabBar, so
     // scope to the mobile tab bar to avoid matching TopBar's hidden copy.
-    await expect(page.getByTestId('mobile-tabbar').getByTestId('topbar-jobs')).toBeVisible();
+    await expect(page.getByTestId('mobile-tabbar').getByTestId('mobile-topbar-jobs')).toBeVisible();
   });
 
   /**
@@ -144,13 +149,19 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * TC-MOBILE-008: Navigation works on mobile
    *
    * Verifies page navigation works correctly on mobile.
+   *
+   * `/settings` is `AUTH_GATED_PRODUCT_PREFIXES` (lib/auth/product-routes.ts)
+   * — a signed-out visit redirects to `/login?next=...` before the page
+   * renders (same gate TC-NAV-007 in navigation.spec.ts documents). `/yours`
+   * came off that list in the 2026-08-08 engagement wave — the guest tracker
+   * is a deliberate logged-out experience, so it renders directly.
    */
   test('TC-MOBILE-008: Navigation works on mobile', async ({ page }) => {
     await page.goto('/');
 
     // Navigate using direct URLs on mobile
     await page.goto('/settings');
-    await expect(page).toHaveURL('/settings');
+    await expect(page).toHaveURL('/login?next=%2Fsettings');
 
     await page.goto('/yours');
     await expect(page).toHaveURL('/yours');
@@ -159,11 +170,18 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
   /**
    * TC-MOBILE-009: /connect tabs are visible and don't cause horizontal scroll
    *
-   * Verifies the AI-client tabs (Claude / Gemini CLI / Cursor) render and
-   * stay reachable on a narrow viewport. NOTE: playwright.config.ts only
-   * defines a single `chromium` (Desktop Chrome) project — there is no true
+   * Verifies the AI-client tabs (Claude / Gemini / Cursor) render and stay
+   * reachable on a narrow viewport. NOTE: playwright.config.ts only defines a
+   * single `chromium` (Desktop Chrome) project — there is no true
    * multi-device project in this suite, so this is a manual-viewport check
    * within the desktop project, not a real device-emulation run.
+   *
+   * /connect cleanup (#152): the tab picker now only lists `kind: "mcp"`
+   * clients (OpenClaw moved to its own section below, not a tab — see
+   * lib/connect-clients.ts), and Gemini's badge changed from "via Gemini
+   * CLI" to "us · web app" (the connector now targets the Gemini web app,
+   * not the CLI) — its accessible name no longer contains "CLI", so this
+   * matches on the label alone.
    */
   test("TC-MOBILE-009: /connect tabs are visible on mobile", async ({ page }) => {
     await page.goto('/connect');
@@ -171,7 +189,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     const tabs = page.getByTestId('connect-tabs');
     await expect(tabs).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Claude' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Gemini CLI' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Gemini' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cursor' })).toBeVisible();
 
     // No horizontal scroll (same pattern as TC-MOBILE-001).

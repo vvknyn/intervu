@@ -9,21 +9,19 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 async function enterBrowseMode(page: Page) {
-    // Automation-first front door (2026-08-03) moved the SERP off `/` to
-    // `/jobs` — going straight there is now required, not just a shortcut:
-    // `/` no longer redirects for a bare filter (only a `q=` deep link does,
-    // per next.config.ts's `redirects()`), and bare `/` renders the OpenClaw
-    // marketing front door, not the ledger.
+    // `/` is now a straight redirect to `/jobs` (the board IS the front
+    // door, #145) — going straight to `/jobs` is the direct route, not a
+    // workaround for a marketing front door that no longer exists.
     //
-    // Some intent is still required to reach the ledger at all: `/jobs` with
-    // nothing asked for renders the ask screen instead of browsing the
-    // corpus. The intent used here is a FILTER (`posted=any`, i.e. no date
-    // restriction) rather than a query, because a query would also change
-    // what these suites measure — relevance ranking would displace the
-    // default "freshest" sort, and TC-JOBS-SORT-001/002 assert precisely
-    // that default. A filter leaves the query empty and the sort untouched,
-    // so this stays the old browse-everything landing in every respect the
-    // tests care about.
+    // Browse-by-default (#152) means `/jobs` with NOTHING asked for now
+    // browses the corpus too — no ask screen stands between a bare visit and
+    // real rows anymore. The intent stated here is still a FILTER
+    // (`posted=any`, i.e. no date restriction) rather than a query, because a
+    // query would change what these suites measure — relevance ranking would
+    // displace the default "freshest" sort, and TC-JOBS-SORT-001/002 assert
+    // precisely that default. A filter leaves the query empty and the sort
+    // untouched, so this stays the browse-everything landing in every
+    // respect the tests care about.
     await page.goto('/jobs?posted=any');
     await page.waitForLoadState('networkidle');
     await expect(
