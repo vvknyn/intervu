@@ -1,27 +1,22 @@
+/**
+ * Thin re-export of the "follows" `visit-cursor.ts` scope. Kept as its own
+ * module (rather than inlining callers onto visit-cursor.ts directly) so
+ * `FollowAlertsCard` and any other existing consumer keep compiling against
+ * these exact names, and so the legacy `intervu.follows.alertCursor`
+ * storage key stays exactly where readers already look for it.
+ */
+import { defaultVisitCursor, readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
+
 export const FOLLOW_ALERT_CURSOR_KEY = "intervu.follows.alertCursor";
 
-const DEFAULT_LOOKBACK_MS = 7 * 86_400_000;
-
 export function defaultFollowAlertCursor(nowMs = Date.now()): string {
-  return new Date(nowMs - DEFAULT_LOOKBACK_MS).toISOString();
+  return defaultVisitCursor(nowMs);
 }
 
 export function readFollowAlertCursor(): string {
-  if (typeof window === "undefined") return defaultFollowAlertCursor();
-  try {
-    const raw = localStorage.getItem(FOLLOW_ALERT_CURSOR_KEY);
-    if (raw && !Number.isNaN(Date.parse(raw))) return raw;
-  } catch {
-    /* private mode / SSR */
-  }
-  return defaultFollowAlertCursor();
+  return readVisitCursor("follows");
 }
 
 export function writeFollowAlertCursor(iso: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(FOLLOW_ALERT_CURSOR_KEY, iso);
-  } catch {
-    /* quota exceeded */
-  }
+  writeVisitCursor("follows", iso);
 }
