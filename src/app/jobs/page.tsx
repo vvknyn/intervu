@@ -101,6 +101,7 @@ import {
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
     degradedResultsNote,
+    resolveEndOfListState,
 } from "@/lib/jobs/result-state";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
@@ -1964,6 +1965,15 @@ function JobsContent() {
     // both still hold), so only the DISPLAY sites route through the honest
     // resolver — see corpus-count.ts's header comment.
     const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
+    // A4 — once `hasMore` goes false, WHY it stopped matters: genuinely out
+    // of results, or just out of MAX_REACHABLE reach while `totalCount` (the
+    // honest, facet-sum-recovered total) is far bigger. See
+    // `resolveEndOfListState`'s own doc comment for the bug this replaces.
+    const endOfListState = resolveEndOfListState({
+        hitsLength: hits.length,
+        total: totalCount.value,
+        maxReachable: MAX_REACHABLE,
+    });
 
     // Observer handle stays stable; the generation coordinator owns request guards.
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -3297,11 +3307,27 @@ function JobsContent() {
                                                 </button>
                                             )}
                                         </div>
+                                    ) : endOfListState === "cap-reached" ? (
+                                        // A4 — the honest cap-reached line: `hasMore` stopped
+                                        // because pagination hit MAX_REACHABLE, not because the
+                                        // corpus ran out. Saying "reached the end" here would
+                                        // print the real, bigger total right next to a claim
+                                        // that's false for it — see `resolveEndOfListState`.
+                                        <div className="py-5 text-left">
+                                            <p className="font-mono text-xs text-muted-foreground/70">
+                                                Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
+                                                {formatCorpusCount(totalCount)} — add a search or filter to narrow.
+                                            </p>
+                                            <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
+                                        </div>
                                     ) : (
-                                        <p className="py-5 text-left font-mono text-xs text-muted-foreground/70">
-                                            You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
-                                            {totalCount.value === 1 ? "role" : "roles"}.
-                                        </p>
+                                        <div className="py-5 text-left">
+                                            <p className="font-mono text-xs text-muted-foreground/70">
+                                                You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
+                                                {totalCount.value === 1 ? "role" : "roles"}.
+                                            </p>
+                                            <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
+                                        </div>
                                     )}
                                     <SearchSeedLine onSubmit={handleSeedSubmit} submitting={seedSubmitting} />
                                 </div>
