@@ -83,6 +83,7 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
@@ -97,6 +98,7 @@ import {
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
     shouldBackOnDetailSheetClose,
+    resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
@@ -1080,6 +1082,12 @@ function JobsContent() {
     const fitActiveRef = useRef(fitActive);
     fitActiveRef.current = fitActive;
     const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+    // Two-Panel Selector (desktop split view) — 1280 must literally match
+    // Tailwind's default `xl:` breakpoint (this repo's CSS-based Tailwind v4
+    // config, src/app/globals.css `@theme`, has no `--breakpoint-xl`
+    // override, so `xl:` IS the default 1280px). SSR/first-paint default is
+    // `false` (below-xl/sheet) — see use-media-query.ts.
+    const isXlUp = useMediaQuery("(min-width: 1280px)");
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -2825,6 +2833,67 @@ function JobsContent() {
     const resultsCountLabel =
         loading && hits.length > 0 ? "updating…" : resultCountLine;
 
+    // Two-Panel Selector (master-detail) — single source of truth for where
+    // the shared detail ternary mounts (Sheet below xl, pane at xl+); see
+    // `resolveDetailMountSite` (lib/jobs/result-state.ts) for why this gates
+    // on `detailSheetOpen`, never merely `detailJob != null`.
+    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen);
+
+    // The detail ternary (real job / dead-job tombstone / unresolved /
+    // loading skeleton) both mount sites render — extracted so the xl+ pane
+    // can never silently drift from the sheet's own branches (writing-lean-
+    // code rule 2, single source of truth). `onClose` is passed explicitly
+    // by each call site (both currently `() => router.back()`) rather than
+    // hardcoded here, keeping this decoupled from the router.
+    const renderDetailSurface = (onClose: () => void) =>
+        detailJob ? (
+            <>
+                <JobDetail
+                    key={detailJob.id}
+                    job={detailJob}
+                    now={nowMs}
+                    applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
+                    applying={applyingId === detailJob.id}
+                    signedIn={Boolean(user)}
+                    onRequestSignIn={() => {
+                        setAuthGateValueLine(true);
+                        setAuthOpen(true);
+                    }}
+                    onOpenPosting={() => handleOpenPosting(detailJob)}
+                    onMarkApplied={() => handleMarkApplied(detailJob)}
+                    onGoAfter={() => handleGoAfter(detailJob)}
+                    onOpenRelated={openJob}
+                    variants={detailVariants}
+                    pursuit={detailPursuit}
+                    goingAfter={goingAfterId === detailJob.id}
+                    onClose={onClose}
+                    className="border-0 bg-transparent shadow-none"
+                />
+                {user ? (
+                    <JobDetailActionBar
+                        job={detailJob}
+                        signedIn
+                        onOpenPosting={() => handleOpenPosting(detailJob)}
+                    />
+                ) : null}
+            </>
+        ) : isDeadJobConfirmed ? (
+            <div className="p-4">
+                <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} />
+            </div>
+        ) : showUnresolvedDetail ? (
+            <div className="p-4">
+                <DeadJobUnresolved
+                    onSimilarRoles={handleTombstoneSimilarRoles}
+                    checking={isDeadJobChecking}
+                />
+            </div>
+        ) : loading ? (
+            <div className="p-4">
+                <JobDetailSkeleton />
+            </div>
+        ) : null;
+
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
@@ -2840,7 +2909,7 @@ function JobsContent() {
                     "radial-gradient(900px 500px at 50% 20%, #1a1f27 0%, transparent 55%), #12151a",
             }}
         >
-            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-7 sm:px-5">
+            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-7 sm:px-5 xl:max-w-[1280px]">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -3025,7 +3094,61 @@ function JobsContent() {
                     />
                 </section>
 
-                <div className="mt-9 flex min-h-0 flex-1 flex-col">
+                <div className="mt-9 flex min-h-0 flex-1 flex-col xl:grid xl:grid-cols-[minmax(0,600px)_1fr] xl:gap-6">
+                    {/* Two-Panel Selector (master-detail) detail pane, xl+
+                        only. Placed BEFORE the list column in source order —
+                        the pane's JSX is full of buttons (JobDetail's own ×,
+                        apply, related-role links) and
+                        tests/unit/jobs-list-tail.test.ts's structural guard
+                        asserts no interactive markup appears between the
+                        ListTail element and the closing main tag; putting
+                        the pane here keeps that span clean without touching
+                        a locked test.
+                        `xl:order-2` puts it on the right visually (the list
+                        column below keeps the default order-0, so it sorts
+                        first). `hidden` below xl reproduces today's
+                        sheet-only behavior byte-for-byte — this box simply
+                        isn't in the layout at all under 1280px.
+
+                        No `xl:self-start`/`items-start`: the pane's grid-item
+                        box must stretch to match the list column's full
+                        (arbitrarily tall, infinite-scroll) height so its
+                        `xl:sticky` containing block spans the whole
+                        scrollable range — default `align-items: stretch`
+                        does that for free. Chrome offset for the sticky top:
+                        traced every ancestor (TopBar, `<main>`, this
+                        results wrapper) for `sticky`/`fixed`/`overflow-
+                        hidden` — none exists on this page (the in-file
+                        comment near the inner scroller div below claiming
+                        "main's lg:overflow-hidden" is stale/no longer
+                        present in the actual className), so the page scrolls
+                        as one normal document and `xl:top-0` needs no offset
+                        subtraction. */}
+                    <div
+                        data-testid="detail-pane"
+                        className="hidden xl:order-2 xl:block xl:sticky xl:top-0 xl:max-h-dvh xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card custom-scrollbar"
+                    >
+                        {detailMountSite === "pane" ? (
+                            renderDetailSurface(() => router.back())
+                        ) : (
+                            // No auto-select in v1 (non-negotiable #3): this
+                            // placeholder is the ONLY thing the pane shows
+                            // until a real user click runs `openJob` and sets
+                            // `detailSheetOpen`. `detailJob` itself already
+                            // falls back to `hits[0]` for ambient keyboard
+                            // highlighting even with nothing explicitly
+                            // selected — rendering that here would silently
+                            // auto-select a job into the pane on every load
+                            // and poison open-rank telemetry, which is
+                            // exactly what gating on `detailMountSite` (never
+                            // `detailJob` directly) prevents.
+                            <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
+                                Select a role to read it here.
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
                         <BoardVisitBanner />
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
@@ -3395,6 +3518,7 @@ function JobsContent() {
                                 </>
                             )}
                         </div>
+                    </div>
                 </div>
             </main>
 
@@ -3427,7 +3551,17 @@ function JobsContent() {
                 confirmLabel="Rank my jobs"
             />
             <Sheet
-                open={detailSheetOpen}
+                // Two-Panel Selector: gated through `resolveDetailMountSite`
+                // (same call the xl+ pane's render condition uses) rather
+                // than `detailSheetOpen` directly, so the two mount sites
+                // stay mutually exclusive by construction. Widening past xl
+                // flips this to `false` via a plain prop change — Radix only
+                // calls `onOpenChange` on a user-driven internal event (ESC,
+                // overlay click, its own Close), never merely because a
+                // controlled `open` prop changed — so a resize never fires
+                // `router.back()` or touches history; the pane already shows
+                // the same job. Narrowing back re-opens the sheet.
+                open={detailMountSite === "sheet"}
                 onOpenChange={(open) => {
                     if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) router.back();
                 }}
@@ -3455,53 +3589,7 @@ function JobsContent() {
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
                     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-                    {detailJob ? (
-                        <>
-                            <JobDetail
-                                key={detailJob.id}
-                                job={detailJob}
-                                now={nowMs}
-                                applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                                applying={applyingId === detailJob.id}
-                                signedIn={Boolean(user)}
-                                onRequestSignIn={() => {
-                                    setAuthGateValueLine(true);
-                                    setAuthOpen(true);
-                                }}
-                                onOpenPosting={() => handleOpenPosting(detailJob)}
-                                onMarkApplied={() => handleMarkApplied(detailJob)}
-                                onGoAfter={() => handleGoAfter(detailJob)}
-                                onOpenRelated={openJob}
-                                variants={detailVariants}
-                                pursuit={detailPursuit}
-                                goingAfter={goingAfterId === detailJob.id}
-                                onClose={() => router.back()}
-                                className="border-0 bg-transparent shadow-none"
-                            />
-                            {user ? (
-                            <JobDetailActionBar
-                                job={detailJob}
-                                signedIn
-                                onOpenPosting={() => handleOpenPosting(detailJob)}
-                            />
-                            ) : null}
-                        </>
-                    ) : isDeadJobConfirmed ? (
-                        <div className="p-4">
-                            <DeadJobTombstone onSimilarRoles={handleTombstoneSimilarRoles} />
-                        </div>
-                    ) : showUnresolvedDetail ? (
-                        <div className="p-4">
-                            <DeadJobUnresolved
-                                onSimilarRoles={handleTombstoneSimilarRoles}
-                                checking={isDeadJobChecking}
-                            />
-                        </div>
-                    ) : loading ? (
-                        <div className="p-4">
-                            <JobDetailSkeleton />
-                        </div>
-                    ) : null}
+                        {renderDetailSurface(() => router.back())}
                     </div>
                 </SheetContent>
             </Sheet>
