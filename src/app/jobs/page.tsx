@@ -2180,6 +2180,7 @@ function JobsContent() {
                 return;
             }
             invalidatePursuitsCache();
+            toast.success("Marked as applied");
         } catch (e) {
             if (classifySentinel(e) === "auth") {
                 setAuthOpen(true);
@@ -2250,6 +2251,7 @@ function JobsContent() {
                     return;
                 }
                 invalidatePursuitsCache();
+                toast.success("Saved — find it in your Tracker");
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { confirmToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
@@ -89,6 +90,22 @@ function PursuitDetailBody({
     const latestResume = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? [])[0];
     const resumeLabel = latestResume?.label ?? pursuit.resume_version?.version_name;
     const days = daysInTracker(pursuit);
+
+    // Two-step inline confirm — same `confirmToast` pattern as
+    // AgentAccessSection's `handleRevoke` (settings/AgentAccessSection.tsx):
+    // a single unconfirmed click used to fire this destructive action
+    // immediately. No new modal — this reuses the app-wide confirm dialog
+    // every other destructive action already goes through.
+    const handleRemove = async () => {
+        const ok = await confirmToast({
+            title: `Remove ${pursuit.position} at ${pursuit.company_name}?`,
+            description: "This removes it from your tracker. You can always add it again later.",
+            confirmLabel: "Remove",
+            destructive: true,
+        });
+        if (!ok) return;
+        await onRemove();
+    };
 
     return (
         <>
@@ -184,7 +201,7 @@ function PursuitDetailBody({
                         variant="outline"
                         disabled={saving}
                         className="text-[#8a3a3a] hover:text-[#8a3a3a]"
-                        onClick={() => void onRemove()}
+                        onClick={() => void handleRemove()}
                     >
                         Remove
                     </Button>
