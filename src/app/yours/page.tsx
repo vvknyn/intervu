@@ -18,6 +18,7 @@ import { addManualGuestPursuit, removeGuestPursuit, updateGuestPursuit } from "@
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import {
     TRACKER_CHIP_FILTERS,
+    countAppliedSince,
     countByTrackerFilter,
     matchesTrackerFilter,
     matchesTrackerSearch,
@@ -50,15 +51,17 @@ function StatusChips({
     filter,
     counts,
     total,
+    appliedThisWeek,
     onChange,
 }: {
     filter: TrackerFilter;
     counts: ReturnType<typeof countByTrackerFilter>;
     total: number;
+    appliedThisWeek: number;
     onChange: (f: TrackerFilter) => void;
 }) {
     return (
-        <div className="mb-3.5 flex flex-wrap gap-2">
+        <div className="mb-3.5 flex flex-wrap items-center gap-2">
             {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
                 const n = key === "all" ? total : counts[key];
                 return (
@@ -76,6 +79,14 @@ function StatusChips({
                     </button>
                 );
             })}
+            {/* Self-Monitoring fact chip (spec B3) — honest praise: rendered
+                ONLY when there's something to show, never a "0 applied" guilt
+                line. Not a filter — no aria-pressed/onClick. */}
+            {appliedThisWeek >= 1 && (
+                <span className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground">
+                    {appliedThisWeek} applied this week
+                </span>
+            )}
         </div>
     );
 }
@@ -150,6 +161,7 @@ function YoursContent() {
 
     const selected = pursuits.find((p) => p.id === selectedId) ?? null;
     const counts = useMemo(() => countByTrackerFilter(pursuits), [pursuits]);
+    const appliedThisWeek = useMemo(() => countAppliedSince(pursuits, Date.now() - 7 * 86_400_000), [pursuits]);
 
     const mutate = async (id: string, patch: Partial<Pursuit>) => {
         setSaving(true);
@@ -259,7 +271,13 @@ function YoursContent() {
             }
         >
             <div className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-6 sm:px-7">
-                <StatusChips filter={filter} counts={counts} total={pursuits.length} onChange={setFilter} />
+                <StatusChips
+                    filter={filter}
+                    counts={counts}
+                    total={pursuits.length}
+                    appliedThisWeek={appliedThisWeek}
+                    onChange={setFilter}
+                />
 
                 <div className="mb-3.5">
                     <Input

@@ -124,6 +124,20 @@ export function isStalePursuit(
     return p.status === "applied" && daysSinceUpdate(p, nowMs) >= thresholdDays;
 }
 
+/** Applications marked applied since `sinceMs` (spec B3, pattern
+ *  Self-Monitoring). `applied_at`-based, not stage-based, so re-tracking an
+ *  older applied pursuit doesn't retroactively count it. Missing/unparseable
+ *  `applied_at` is the class case: never counted, never throws. */
+export function countAppliedSince(pursuits: Pursuit[], sinceMs: number): number {
+    let count = 0;
+    for (const p of pursuits) {
+        if (!p.applied_at) continue;
+        const applied = Date.parse(p.applied_at);
+        if (!Number.isNaN(applied) && applied >= sinceMs) count++;
+    }
+    return count;
+}
+
 export function countByTrackerFilter(pursuits: Pursuit[]): Record<Exclude<TrackerFilter, "all">, number> {
     const counts = { saved: 0, applied: 0, interviewing: 0, offer: 0 };
     for (const p of pursuits) {
