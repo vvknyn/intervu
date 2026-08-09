@@ -68,6 +68,7 @@ import {
     getSuppressLocationDefaultSnapshot,
     getSuppressLocationDefaultServerSnapshot,
     suppressLocationDefault,
+    shouldShowLocationDefaultChip,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -221,11 +222,15 @@ function SortSegment({
 }
 
 /**
- * The IP-based location default's own honesty affordance: whenever the
- * CURRENT result set was silently narrowed to the searcher's own country
- * (`result.defaultedLocation`, an ISO2 the server only ever sets when it
- * applied that default — see lib/geo/ip-default.ts), this renders so the
- * narrowing is never invisible. Never renders otherwise.
+ * The IP-based location default's own honesty affordance — lives IN the
+ * location control now (G3, Grok UX wave), not downstream in the results
+ * row: whenever the CURRENT result set was silently narrowed to the
+ * searcher's own country (`result.defaultedLocation`, an ISO2 the server
+ * only ever sets when it applied that default — see lib/geo/ip-default.ts)
+ * AND the location box is still empty (`shouldShowLocationDefaultChip`,
+ * lib/jobs/location-default-preference.ts), this renders right next to the
+ * location input so the narrowing is disclosed where a searcher would
+ * actually look to change it, not just noted after the fact in the results.
  *
  * The country NAME is resolved client-side via the built-in
  * `Intl.DisplayNames` rather than shipping any of the gazetteer's ~70k-row
@@ -238,7 +243,9 @@ function SortSegment({
  * shared chip primitive JobDetail's "also in" chip and FilterChipsRow use —
  * rather than a one-off style, per the docs-mockup squared-chip system.
  * `active: false` keeps it quiet (no green tint): this is a passive fact
- * about the result set, not a selected/verified state.
+ * about the result set, not a selected/verified state. `onClear` is the
+ * SAME `suppressLocationDefault` write path the old results-row chip used —
+ * REUSED, not a second suppression flag.
  */
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
@@ -2809,6 +2816,11 @@ function JobsContent() {
                             }}
                             className="h-[46px] w-full rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:max-w-[200px] sm:flex-[0_1_200px]"
                         />
+                        {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
+                            <div className="flex items-center">
+                                <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                            </div>
+                        )}
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
@@ -3197,12 +3209,9 @@ function JobsContent() {
                                                     >
                                                         {resultsCountLabel}
                                                     </span>
-                                                    {result?.defaultedLocation && (
-                                                        <DefaultLocationChip
-                                                            iso2={result.defaultedLocation}
-                                                            onClear={suppressLocationDefault}
-                                                        />
-                                                    )}
+                                                    {/* Default-location disclosure moved into the location
+                                                        control itself (G3, Grok UX wave) — see
+                                                        DefaultLocationChip's doc comment above. */}
                                                 </div>
                                                 {(query.trim() || activeCount > 0) && (
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
