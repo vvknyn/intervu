@@ -5,12 +5,14 @@ import { CORPUS_SOURCE_DESCRIPTOR } from "@/lib/marketing-stats";
  *
  * Before this file, `SITE_URL` was independently declared in `layout.tsx`,
  * `sitemap.ts`, and `robots.ts` (three copies of the same literal). This
- * consolidates the two we own in this SEO pass (`layout.tsx`, `sitemap.ts`)
- * plus the new JSON-LD builders onto one export rather than adding a fourth
- * copy. `robots.ts` is out of scope for this change (owned by another lane)
- * so its copy is left as-is.
+ * consolidates all of them — including `robots.ts`, which now imports this
+ * export instead of holding its own copy — onto one export.
+ *
+ * Driven by `NEXT_PUBLIC_SITE_URL` (falling back to the intervu.cc default)
+ * so the canonical domain can move to intervuhq.com later via env var alone,
+ * with no code change. Unset today: this is a no-op until that migration.
  */
-export const SITE_URL = "https://intervu.cc";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://intervu.cc";
 
 /** Matches the established brand casing used throughout existing metadata
  *  (OG siteName, app title default) — see `layout.tsx`. */

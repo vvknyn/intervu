@@ -355,4 +355,29 @@ describe('agent oauth', () => {
       await assert.doesNotReject(() => s.claim('some_col', 'doc-1', 'usedAt'));
     });
   });
+
+  describe('AGENT.issuer() — decoupled from the SEO domain (NEXT_PUBLIC_SITE_URL)', () => {
+    it('defaults to https://intervu.cc when AGENT_ISSUER_URL is unset, even if NEXT_PUBLIC_SITE_URL points at the SEO domain', () => {
+      const savedIssuer = process.env.AGENT_ISSUER_URL;
+      const savedSite = process.env.NEXT_PUBLIC_SITE_URL;
+      delete process.env.AGENT_ISSUER_URL;
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://intervuhq.com';
+      try {
+        assert.equal(AGENT.issuer(), 'https://intervu.cc');
+      } finally {
+        if (savedIssuer === undefined) delete process.env.AGENT_ISSUER_URL; else process.env.AGENT_ISSUER_URL = savedIssuer;
+        if (savedSite === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = savedSite;
+      }
+    });
+
+    it('returns AGENT_ISSUER_URL when it is explicitly set', () => {
+      const savedIssuer = process.env.AGENT_ISSUER_URL;
+      process.env.AGENT_ISSUER_URL = 'https://agent-staging.example';
+      try {
+        assert.equal(AGENT.issuer(), 'https://agent-staging.example');
+      } finally {
+        if (savedIssuer === undefined) delete process.env.AGENT_ISSUER_URL; else process.env.AGENT_ISSUER_URL = savedIssuer;
+      }
+    });
+  });
 });
