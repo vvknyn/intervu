@@ -7,6 +7,8 @@
  * a fabricated placeholder. Callers render the result with `serializeJsonLd`
  * inside a `<script type="application/ld+json">` tag.
  */
+import type { PublicJob } from "@/lib/jobs/types";
+import { toValueArray } from "@/lib/jobs/types";
 import { SITE_NAME, SITE_URL } from "./constants";
 
 export interface FaqItem {
@@ -170,5 +172,70 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
     name: SITE_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/icon-512.png`,
+  };
+}
+
+interface JobPostingLocation {
+  "@type": "Place";
+  address: { "@type": "PostalAddress"; addressCountry?: string; addressLocality?: string };
+}
+
+export interface JobPostingJsonLd {
+  "@context": "https://schema.org";
+  "@type": "JobPosting";
+  title: string;
+  url: string;
+  directApply: false;
+  hiringOrganization: { "@type": "Organization"; name: string };
+  description?: string;
+  datePosted?: string;
+  validThrough?: string;
+  employmentType?: string;
+  jobLocation?: JobPostingLocation[];
+}
+
+/** Mirrors `EMPLOYMENT_TYPES` (`@/lib/agent/facets`) — the codebase's one enum of
+ *  real `employment_type` values — onto schema.org's `employmentType` vocabulary. */
+const EMPLOYMENT_TYPE_MAP: Record<string, string> = {
+  full_time: "FULL_TIME",
+  contract: "CONTRACTOR",
+  part_time: "PART_TIME",
+  internship: "INTERN",
+};
+
+/** `location_country` funnels through the shared `toValueArray` seam (see its
+ *  docstring in `@/lib/jobs/types`) so this doesn't re-derive its own
+ *  scalar-vs-array normalization. */
+function toPlaces(job: PublicJob): JobPostingLocation[] | undefined {
+  const countries = toValueArray(job.location_country);
+  if (countries.length === 0) return undefined;
+  return countries.map((country) => ({
+    "@type": "Place" as const,
+    address: {
+      "@type": "PostalAddress" as const,
+      addressCountry: country,
+      ...(job.location_city ? { addressLocality: job.location_city } : {}),
+    },
+  }));
+}
+
+/** Every field is omitted when absent — never null, never a placeholder. `directApply`
+ *  is false because applying always leaves for the employer's own ATS. */
+export function buildJobPostingJsonLd(job: PublicJob, path: string): JobPostingJsonLd {
+  const places = toPlaces(job);
+  const employmentType = EMPLOYMENT_TYPE_MAP[job.employment_type];
+  const closed = job.vacancy_status === "closed";
+  return {
+    "@context": "https://schema.org",
+    "@type": "JobPosting",
+    title: job.title,
+    url: `${SITE_URL}${path}`,
+    directApply: false,
+    hiringOrganization: { "@type": "Organization", name: job.company ?? "Unlisted employer" },
+    ...(job.description ? { description: job.description } : {}),
+    ...(job.posted_at ? { datePosted: job.posted_at } : {}),
+    ...(closed && job.updated_at ? { validThrough: job.updated_at } : {}),
+    ...(employmentType ? { employmentType } : {}),
+    ...(places ? { jobLocation: places } : {}),
   };
 }
