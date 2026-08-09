@@ -8,8 +8,15 @@ import { NextResponse } from "next/server";
  * from — do not duplicate these values elsewhere.
  */
 export const AGENT = {
+    /**
+     * The agent/OAuth/MCP surface is deliberately pinned to intervu.cc —
+     * existing connectors and the OAuth issuer identity must stay stable —
+     * even after the web domain moves to intervuhq.com for SEO. Reads its
+     * own `AGENT_ISSUER_URL`, never `NEXT_PUBLIC_SITE_URL` (the SEO
+     * canonical), so a future domain move can't silently re-couple them.
+     */
     issuer(): string {
-        return process.env.NEXT_PUBLIC_SITE_URL ?? "https://intervu.cc";
+        return process.env.AGENT_ISSUER_URL ?? "https://intervu.cc";
     },
     collections: {
         clients: "agent_clients",
