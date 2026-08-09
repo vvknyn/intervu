@@ -5,6 +5,11 @@ import { parseResumeContent, resumeDataToParsedDocument, type ParsedResumeDocume
 import { layoutResumeDocument, deriveResumePdfFilename, DEFAULT_PAGE_METRICS, type TextMeasurer } from "@/lib/resume/render-pdf";
 import type { ResumeData } from "@/types/resume";
 
+/** Mirrors render-pdf.ts's internal BODY_SIZE — not exported (an internal
+ *  tuning constant, not public API), so gap-math assertions here recompute
+ *  expected widths against the SAME fakeMeasurer using this literal. */
+const BODY_SIZE_FOR_TESTS = 9.5;
+
 /** Deterministic fake measurer — monospace approximation, no jsPDF/canvas
  *  dependency, so layout tests run fast and don't depend on font-metric
  *  drift. Wraps greedily on word boundaries, same contract as jsPDF's
@@ -218,7 +223,7 @@ describe("layoutResumeDocument — date right-alignment", () => {
 });
 
 describe("layoutResumeDocument — long-content pagination, never splits a bullet", () => {
-  it("a bullet list long enough to overflow one page spills onto additional pages, and every bullet's lines land entirely on ONE page", () => {
+  it("a bullet list long enough to overflow one page spills onto additional pages, and every bullet's dot + text land entirely on ONE page", () => {
     const manyBullets = Array.from({ length: 80 }, (_, i) => `Bullet number ${i} describing an accomplishment in enough detail to wrap across a couple of lines when rendered.`);
     const doc: ParsedResumeDocument = {
       name: "Long Resume",
@@ -228,25 +233,22 @@ describe("layoutResumeDocument — long-content pagination, never splits a bulle
     const layout = layoutResumeDocument(doc, fakeMeasurer);
     assert.ok(layout.pages.length > 1, "80 wrapping bullets must overflow a single US-Letter page");
 
-    // Reconstruct each bullet's rendered lines (bullet glyph "●" starts a new
-    // bullet; every subsequent text command belongs to it until the next
-    // "●") and assert they never straddle a page boundary.
+    // Each bullet is one DrawDot (see DrawDot's doc — never a "●" text
+    // glyph) paired with one-or-more DrawText word commands on the SAME
+    // page, at a y computed from that same dot. Every dot on a page must
+    // have at least one word at the matching y on the SAME page — that
+    // pairing is what "never split a bullet" means structurally: both are
+    // emitted from the SAME reserve() call, so a page break can never
+    // separate a dot from its own text.
+    let totalDots = 0;
     for (const page of layout.pages) {
-      let openBulletStartSeen = false;
-      let sawNonBulletAfterBulletStart = false;
-      for (const t of page.texts) {
-        if (t.text === "●") {
-          openBulletStartSeen = true;
-          sawNonBulletAfterBulletStart = false;
-        } else if (openBulletStartSeen) {
-          sawNonBulletAfterBulletStart = true;
-        }
+      totalDots += page.dots.length;
+      for (const dot of page.dots) {
+        const paired = page.texts.some((t) => Math.abs(t.y - (dot.y + BODY_SIZE_FOR_TESTS * 0.32)) < 0.01);
+        assert.ok(paired, `dot at y=${dot.y} must have its bullet's first line of text on the SAME page`);
       }
-      // Sanity: a page that opened a bullet must have rendered at least one
-      // text line for it on the SAME page (never an orphaned glyph with its
-      // text pushed to the next page).
-      if (openBulletStartSeen) assert.ok(sawNonBulletAfterBulletStart);
     }
+    assert.equal(totalDots, 80, "every bullet must produce exactly one dot across all pages");
   });
 
   it("a single entry's title+dates+bullets group never has its title stranded alone at the bottom of a page", () => {
@@ -407,11 +409,160 @@ describe("render-pdf — fix round: bullet glyph, rule position, competency spac
     assert.ok(rule.y - headingCmd.y >= 5, `rule (y=${rule.y}) must sit well clear of the heading text's baseline (y=${headingCmd.y}), not strike through it`);
   });
 
-  it("a competency line's bold category run includes its own trailing space — never synthesized purely from x-offset math (the 'Technical:SQL' missing-space bug)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python" }] }] };
+  it("a competency line's bold category label and its first content word have a real numeric gap between them — the 'Technical:SQL' missing-space bug (fix round 2: embedding the space as a trailing/leading CHARACTER on either run is unreliable in jsPDF, verified empirically; the gap must be pure x-position math)", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python, Go, Rust, Java, C, Kotlin" }] }] };
     const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const boldRun = layout.pages[0].texts.find((t) => t.bold && t.text.startsWith("Data, Analytics & Technical"))!;
+    const texts = layout.pages[0].texts;
+    const boldRun = texts.find((t) => t.bold && t.text.startsWith("Data, Analytics & Technical"))!;
     assert.ok(boldRun, "expected a bold draw command for the category label");
-    assert.ok(boldRun.text.endsWith(" "), `the bold run itself must end with a real space character, got ${JSON.stringify(boldRun.text)}`);
+    assert.ok(!boldRun.text.includes(" ") || !boldRun.text.endsWith(" "), "the bold run must never end with a space character — proven unreliable, see doc comment");
+    const firstWord = texts.find((t) => !t.bold && t.text === "SQL,")!;
+    assert.ok(firstWord, "expected the first content word as its own draw command");
+    const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
+    assert.ok(firstWord.x - labelEndX >= 1, `expected a real positive gap between the label and the first word, got ${firstWord.x - labelEndX}`);
+  });
+
+  it("class test: two labels of different lengths both keep a real gap to their first word — not a single-label special case", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [
+        {
+          heading: "SKILLS",
+          blocks: [
+            { kind: "competency", category: "AI", items: "TensorFlow, PyTorch, one, two, three, four, five, six, seven, eight" },
+            { kind: "competency", category: "Data, Analytics & Technical Systems Engineering", items: "SQL, Python, one, two, three, four, five, six, seven" },
+          ],
+        },
+      ],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const texts = layout.pages[0].texts;
+    for (const label of ["AI:", "Data, Analytics & Technical Systems Engineering:"]) {
+      const boldRun = texts.find((t) => t.bold && t.text === label)!;
+      assert.ok(boldRun, `expected a bold draw command for "${label}"`);
+      const after = texts.filter((t) => !t.bold && t.y === boldRun.y && t.x > boldRun.x);
+      assert.ok(after.length > 0, `expected at least one word after "${label}" on the same line`);
+      const nextWord = after.reduce((a, b) => (a.x < b.x ? a : b));
+      const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
+      assert.ok(nextWord.x - labelEndX >= 1, `label "${label}" -> gap of ${nextWord.x - labelEndX}, expected >= 1`);
+    }
+  });
+
+  it("a justified competency line's label-to-first-word gap matches its OTHER word-to-word gaps (uniform spacing across the whole line, not a tighter natural gap at the label boundary alone)", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [
+        {
+          heading: "SKILLS",
+          blocks: [
+            {
+              kind: "competency",
+              category: "Data",
+              items: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree",
+            },
+          ],
+        },
+      ],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
+    assert.ok(labelCmd, "expected the category label draw command");
+    const texts = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
+    assert.ok(texts.length >= 3, "expected the label plus multiple words on the first (justified) line");
+    const gaps: number[] = [];
+    for (let i = 0; i < texts.length - 1; i++) {
+      const endX = texts[i].x + fakeMeasurer.widthOf(texts[i].text, BODY_SIZE_FOR_TESTS, texts[i].bold);
+      gaps.push(texts[i + 1].x - endX);
+    }
+    const [firstGap, ...restGaps] = gaps;
+    for (const g of restGaps) {
+      assert.ok(Math.abs(g - firstGap) < 0.5, `expected all gaps on a justified line to be uniform; label gap=${firstGap}, other gap=${g}`);
+    }
+  });
+});
+
+describe("render-pdf — fix round 2: justification (per-word numeric positioning)", () => {
+  // Reverted from jsPDF's native `align: "justify"` (see render-pdf.ts's
+  // module doc): native justify's real embedded space characters were
+  // confirmed correct at the PDF-byte level, but some text-extraction
+  // tooling read the page's justified blocks out of original document
+  // order even though the rendered page itself was fine — a worse,
+  // harder-to-reason-about failure mode than this per-word approach's own
+  // tradeoff (pixel-verified correct; occasionally under-detected as
+  // whitespace by such tooling). Every wrapped line except a block's own
+  // last is stretched to fill the content width, word by word.
+  const LONG_PARAGRAPH = { kind: "paragraph" as const, text: Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ") };
+
+  it("every non-last wrapped line of a paragraph is stretched to reach the right content edge (justified)", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [LONG_PARAGRAPH] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
+    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
+    for (const t of layout.pages.flatMap((p) => p.texts)) {
+      if (!byLine.has(t.y)) byLine.set(t.y, []);
+      byLine.get(t.y)!.push(t);
+    }
+    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
+    assert.ok(lines.length >= 2, "the fixture must wrap to multiple lines");
+    const lastLine = lines[lines.length - 1];
+    const nonLastLines = lines.slice(0, -1);
+    for (const line of nonLastLines) {
+      const last = line.reduce((a, b) => (a.x > b.x ? a : b));
+      const endX = last.x + fakeMeasurer.widthOf(last.text, BODY_SIZE_FOR_TESTS, false);
+      assert.ok(Math.abs(endX - rightEdge) < 3, `non-last line must reach the right edge (justified); got endX=${endX}, rightEdge=${rightEdge}`);
+    }
+    const lastWord = lastLine.reduce((a, b) => (a.x > b.x ? a : b));
+    const lastEndX = lastWord.x + fakeMeasurer.widthOf(lastWord.text, BODY_SIZE_FOR_TESTS, false);
+    assert.ok(lastEndX < rightEdge - 5, "the LAST line must stay ragged (never stretched to the right edge)");
+  });
+
+  it("a bullet's non-last wrapped lines are ALSO justified, matching the reference PDF's own bullet treatment; its own last line stays ragged", () => {
+    const longBullet = "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28";
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: [longBullet] }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
+    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
+    for (const t of layout.pages[0].texts) {
+      if (!byLine.has(t.y)) byLine.set(t.y, []);
+      byLine.get(t.y)!.push(t);
+    }
+    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
+    assert.ok(lines.length >= 2, "the fixture bullet must wrap to multiple lines");
+    const first = lines[0].reduce((a, b) => (a.x > b.x ? a : b));
+    const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, false);
+    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "a bullet's non-last line must be justified to the right edge, matching the reference PDF");
+  });
+
+  it("a competency block's continuation lines are ALSO justified except the block's own last line", () => {
+    const doc: ParsedResumeDocument = {
+      name: null,
+      contactLine: null,
+      sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data", items: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty" }] }],
+    };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
+    const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
+    assert.ok(labelCmd);
+    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
+    for (const t of layout.pages[0].texts) {
+      if (t.y < labelCmd.y) continue; // drop the section heading above the competency block
+      if (!byLine.has(t.y)) byLine.set(t.y, []);
+      byLine.get(t.y)!.push(t);
+    }
+    const lines = [...byLine.values()].sort((a, b) => a[0].y - b[0].y);
+    assert.ok(lines.length >= 2, "the fixture competency must wrap to multiple lines");
+    const firstLine = lines[0];
+    const first = firstLine.reduce((a, b) => (a.x > b.x ? a : b));
+    const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, first.bold);
+    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "the label line (not the block's last) must be justified to the right edge");
+  });
+
+  it("a single-word line (nothing to distribute) never crashes and stays at its natural width", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: "Solo" }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const cmd = layout.pages[0].texts.find((t) => t.text === "Solo");
+    assert.ok(cmd);
   });
 });

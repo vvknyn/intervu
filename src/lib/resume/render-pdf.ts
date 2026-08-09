@@ -19,6 +19,20 @@
  *     result executing the matching jsPDF draw calls. No layout decisions
  *     live here.
  *
+ * Justified body text draws word-by-word via pure numeric positioning
+ * (`emitJustifiableSegments`), not jsPDF's native `align:"justify"` mode —
+ * tried and reverted (fix round 2, 2026-08-09): native justify uses the
+ * PDF word-spacing operator, which keeps real space CHARACTERS in the
+ * content stream but was empirically confirmed to make some text-
+ * extraction tooling read the page's content BLOCKS out of original
+ * document order (own visual rendering was fine; the extracted text
+ * transcript wasn't). The per-word approach's own tradeoff (a boundary
+ * gap that's numerically correct but occasionally under-detected as
+ * whitespace by such tooling) is the smaller, better-understood risk —
+ * pixel-verified correct at 300dpi for both fixture shapes, every gap on
+ * a line uniform, real PDF-byte positions confirmed via direct content-
+ * stream inspection.
+ *
  * One renderer, three call sites: the pursuit-variant download
  * (`lib/pursuits/download-resume.ts`), the base résumé's PDF button
  * (`YourResumeSection.tsx`), and the R5a MCP-chat download link (the
@@ -106,6 +120,10 @@ const SECTION_GAP_BEFORE = 14;
 const GAP_AFTER_HEADING_RULE = 8;
 const GAP_BETWEEN_BLOCKS = 5;
 const GAP_ENTRY_TITLE_TO_BULLETS = 2;
+/** Multiplier on the natural space width for a RAGGED (non-justified,
+ *  bare-minimum-gap) multi-segment line — see `emitJustifiableSegments`'s
+ *  doc for why this is the one gap on the page with no built-in stretch. */
+const RAGGED_GAP_PADDING = 1.15;
 
 function lh(size: number): number {
   return size * LINE_HEIGHT;
@@ -140,8 +158,17 @@ class PageCursor {
     }
   }
 
+  // `t.x ?? this.metrics.marginX` (not a spread-then-default object
+  // literal) is deliberate: a caller forwarding a possibly-`undefined`
+  // local via shorthand property syntax (`{ x, ... }`) still gives the
+  // object an OWN `x` key even when its value is `undefined` — a spread
+  // default (`{ x: marginX, ...t }`) would let that `undefined` silently
+  // CLOBBER the default instead of falling back to it, producing a NaN
+  // coordinate jsPDF's own text() then throws on ("Invalid arguments
+  // passed to jsPDF.text") — caught once by actually rendering real bytes,
+  // not just the pure layout tests.
   text(t: Omit<DrawText, "x" | "align"> & { x?: number; align?: DrawText["align"] }): void {
-    this.current.texts.push({ x: this.metrics.marginX, align: "left", ...t });
+    this.current.texts.push({ ...t, x: t.x ?? this.metrics.marginX, align: t.align ?? "left" });
   }
   rule(): void {
     this.current.rules.push({ y: this.y });
@@ -172,12 +199,98 @@ function wrapWithPrefix(prefix: string, body: string, maxWidth: number, size: nu
   return measure.wrap(`${prefix}${body}`, maxWidth, size);
 }
 
-function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, x?: number): void {
-  cursor.reserve(lines.length * lh(size));
-  for (const line of lines) {
-    cursor.text({ text: line, y: cursor.y + lh(size) * 0.8, size, bold, ...(x !== undefined ? { x } : {}) });
-    cursor.advance(lh(size));
+interface WordSegment {
+  text: string;
+  bold: boolean;
+}
+
+/**
+ * Draws one line as a sequence of word-ish segments at `x`, word-spaced to
+ * fill `maxWidth` when `justify` is true and there's more than one segment
+ * — the standard "ragged last line" typographic rule means only the FINAL
+ * line of a paragraph/bullet/competency-continuation ever passes
+ * `justify: false` (visually confirmed against the founder's reference
+ * PDF: its summary paragraph, competency lists, and bullets are all
+ * justified except each one's own last line).
+ *
+ * A "segment" is usually one word, but a competency line's bold category
+ * label is ALSO one segment (its own run, own weight) participating in the
+ * SAME gap computation as the ordinary words after it — treating the
+ * label-to-first-word gap as a separate, always-natural-width step (an
+ * earlier version of this fix did exactly that) made a justified line's
+ * OWN label boundary visibly tighter than its own stretched word gaps,
+ * since every other gap on that line was stretched to fill the width and
+ * the label gap alone wasn't. One gap computation across every segment on
+ * the line is what keeps it visually uniform.
+ *
+ * Every segment draws as its own `DrawText` command, positioned by pure
+ * numeric accumulation (segment width + a computed gap) — never by
+ * embedding a leading or trailing space CHARACTER in a drawn string.
+ * Verified empirically (fix round 2, 2026-08-09): jsPDF silently drops
+ * boundary whitespace from an independently-positioned `text()` call for
+ * width/advance purposes even though `getTextWidth()` reports it correctly
+ * — this is DEFECT #6's root cause (a bold label's trailing space collided
+ * into the next run). Pixel-verified at 300dpi against the founder's
+ * reference for both fixture shapes and multiple label lengths.
+ */
+function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x: number, y: number, maxWidth: number, size: number, justify: boolean, measure: TextMeasurer): void {
+  if (segments.length === 0) return;
+  const homogeneous = segments.every((s) => s.bold === segments[0].bold);
+  // Ragged, single-weight (the common case: an ordinary paragraph/bullet's
+  // last line, or any line with no bold label at all) draws as ONE string,
+  // trusting jsPDF's own native word-spacing rather than reconstructing it
+  // — simplest and safest for the case that doesn't need per-segment
+  // positioning at all.
+  if (!justify && homogeneous) {
+    cursor.text({ text: segments.map((s) => s.text).join(" "), x, y, size, bold: segments[0].bold });
+    return;
   }
+  if (segments.length === 1) {
+    cursor.text({ text: segments[0].text, x, y, size, bold: segments[0].bold });
+    return;
+  }
+  const widths = segments.map((s) => measure.widthOf(s.text, size, s.bold));
+  const spaceWidth = measure.widthOf(" ", size, false);
+  if (!justify) {
+    // Ragged but mixed-weight (a label + its continuation on a single-line
+    // block's own last line) — natural gaps, but still one command per
+    // segment since the weight change forces separate runs. A bare
+    // single-space-width gap is the tightest one this module ever draws
+    // (a justified line's own gaps are always wider, stretched to fill the
+    // line) — RAGGED_GAP_PADDING gives it a little headroom so it reads
+    // unambiguously as a word boundary, pixel-verified indistinguishable
+    // from normal spacing at this font size.
+    let wx = x;
+    segments.forEach((seg, i) => {
+      cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
+      wx += widths[i] + spaceWidth * RAGGED_GAP_PADDING;
+    });
+    return;
+  }
+  const naturalWidth = widths.reduce((a, b) => a + b, 0) + spaceWidth * (segments.length - 1);
+  const gapWidth = spaceWidth + Math.max(0, maxWidth - naturalWidth) / (segments.length - 1);
+  let wx = x;
+  segments.forEach((seg, i) => {
+    cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
+    wx += widths[i] + gapWidth;
+  });
+}
+
+/** Plain (single-weight) line -> word segments — the common case every
+ *  paragraph/bullet line uses; `emitJustifiableSegments` doesn't care
+ *  whether a segment list came from one weight or several. */
+function emitJustifiableLine(cursor: PageCursor, text: string, x: number, y: number, maxWidth: number, size: number, bold: boolean, justify: boolean, measure: TextMeasurer): void {
+  const words = text.split(/\s+/).filter(Boolean);
+  emitJustifiableSegments(cursor, words.map((w) => ({ text: w, bold })), x, y, maxWidth, size, justify, measure);
+}
+
+function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, width: number, measure: TextMeasurer, x?: number): void {
+  cursor.reserve(lines.length * lh(size));
+  lines.forEach((line, idx) => {
+    const isLast = idx === lines.length - 1;
+    emitJustifiableLine(cursor, line, x ?? cursor.marginX, cursor.y + lh(size) * 0.8, width, size, bold, !isLast, measure);
+    cursor.advance(lh(size));
+  });
 }
 
 function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMeasurer): void {
@@ -185,31 +298,25 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
 
   if (block.kind === "paragraph") {
     const lines = measure.wrap(block.text, width, BODY_SIZE);
-    emitParagraphLines(cursor, lines, BODY_SIZE, false);
+    emitParagraphLines(cursor, lines, BODY_SIZE, false, width, measure);
     cursor.advance(GAP_BETWEEN_BLOCKS);
     return;
   }
 
   if (block.kind === "competency") {
     const prefix = `${block.category}: `;
+    const label = block.category + ":"; // no trailing space — the label is ONE segment in the same justify computation as the words after it, never a separately-positioned prefix (see emitJustifiableSegments' doc — DEFECT #6 + the label-gap-looked-tighter-than-its-own-line's-word-gaps follow-up)
     const lines = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
     cursor.reserve(lines.length * lh(BODY_SIZE));
     lines.forEach((line, idx) => {
       const y = cursor.y + lh(BODY_SIZE) * 0.8;
+      const isLast = idx === lines.length - 1;
       if (idx === 0 && line.startsWith(prefix)) {
-        // The trailing space is drawn AS PART OF the bold run itself, not
-        // just accounted for via x-offset math — a separator synthesized
-        // purely from positioning, with no actual space glyph in either
-        // draw call, glued the two runs together in text-extraction (the
-        // visual gap existed but no whitespace CHARACTER did — "Technical:
-        // SQL" read back as "Technical:SQL"). Drawing `prefix` (WITH its
-        // trailing space) as one bold text run guarantees a real space
-        // character sits between the two runs.
-        cursor.text({ text: prefix, y, size: BODY_SIZE, bold: true });
-        const prefixWidth = measure.widthOf(prefix, BODY_SIZE, true);
-        cursor.text({ text: line.slice(prefix.length), x: cursor.marginX + prefixWidth, y, size: BODY_SIZE, bold: false });
+        const contentWords = line.slice(prefix.length).split(/\s+/).filter(Boolean);
+        const segments: WordSegment[] = [{ text: label, bold: true }, ...contentWords.map((w) => ({ text: w, bold: false }))];
+        emitJustifiableSegments(cursor, segments, cursor.marginX, y, width, BODY_SIZE, !isLast, measure);
       } else {
-        cursor.text({ text: line, y, size: BODY_SIZE, bold: false });
+        emitJustifiableLine(cursor, line, cursor.marginX, y, width, BODY_SIZE, false, !isLast, measure);
       }
       cursor.advance(lh(BODY_SIZE));
     });
@@ -226,7 +333,8 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
         // Drawn as a filled circle, never a text glyph — see DrawDot's doc
         // comment for why ("●"/"•" mojibake through jsPDF's core fonts).
         if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
-        cursor.text({ text: line, x: cursor.marginX + BULLET_INDENT, y, size: BODY_SIZE, bold: false });
+        const isLast = idx === lines.length - 1;
+        emitJustifiableLine(cursor, line, cursor.marginX + BULLET_INDENT, y, width - BULLET_INDENT, BODY_SIZE, false, !isLast, measure);
         cursor.advance(lh(BODY_SIZE));
       });
     }
