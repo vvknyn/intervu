@@ -503,11 +503,20 @@ export interface SaveResumeVariantInput {
  * zero resume variants on it. Stage is always "interested": preparing a
  * resume must never consume the free-plan daily apply-cap slot, which only
  * an "applied" transition does (`isNewAppliedTransition`, apply-cap.ts).
+ *
+ * `download_url` (R5a, 2026-08-09 founder report: a tailored variant must
+ * be downloadable IMMEDIATELY from the chat) points at the pursuit page's
+ * own auto-download deep link (`/yours/<pursuitId>?download=pdf&variant=
+ * <saved_at>`, yours/[id]/page.tsx) — session-cookie auth-gated like every
+ * other real-account page here, never a bearer token in the URL. `saved_at`
+ * (not an array index) is the stable key: `resume_versions` is append-only
+ * and `saved_at` is generated fresh per call, so it survives re-filing
+ * without drifting.
  */
 export async function toolSaveResumeVariant(
   deps: ToolDeps,
   input: SaveResumeVariantInput,
-): Promise<{ saved: true } | { error: string }> {
+): Promise<{ saved: true; download_url: string } | { error: string }> {
   const built = buildResumeVersionSnapshot(input.resume_text, input.label);
   if (!built.data) return { error: built.error ?? "Invalid resume version" };
 
@@ -519,7 +528,8 @@ export async function toolSaveResumeVariant(
     label: input.label,
   });
   if (saved.error || !saved.data) return { error: saved.error ?? "failed to save resume version" };
-  return { saved: true };
+  const downloadUrl = `${AGENT.issuer()}/yours/${upserted.pursuit.id}?download=pdf&variant=${encodeURIComponent(saved.data.saved_at)}`;
+  return { saved: true, download_url: downloadUrl };
 }
 
 export interface GetResumeVariantOut {

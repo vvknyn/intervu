@@ -846,7 +846,7 @@ describe('toolSaveResumeVariant', () => {
   it('resolves/creates the pursuit at stage "interested" (never consumes the apply cap) then files the snapshot', async () => {
     const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()], { data: { id: 'app-1' } });
     const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'My tailored resume', label: 'Acme v1' });
-    assert.deepEqual(out, { saved: true });
+    assert.deepEqual(out, { saved: true, download_url: `${AGENT.issuer()}/yours/app-1?download=pdf&variant=2026-08-02T00%3A00%3A00.000Z` });
     assert.equal(upsertCalls.length, 1);
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'interested');
@@ -854,6 +854,15 @@ describe('toolSaveResumeVariant', () => {
     assert.equal(saveResumeVersionCalls[0].uid, 'user-abc');
     assert.equal(saveResumeVersionCalls[0].pursuitId, 'app-1');
     assert.deepEqual(saveResumeVersionCalls[0].input, { content: 'My tailored resume', label: 'Acme v1' });
+  });
+
+  it('R5a: download_url points at the pursuit page with the SAVED variant\'s saved_at as its stable key — not a mutable array index', async () => {
+    const { deps } = stubDeps([makeJob()], { data: { id: 'app-2' } }, {}, TEST_VOCAB, {
+      saveResumeVersionResult: { data: { content: 'text', label: 'v2', saved_at: '2026-08-09T12:34:56.000Z' } },
+    });
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'text', label: 'v2' });
+    assert.ok('download_url' in out);
+    assert.ok(out.download_url === `${AGENT.issuer()}/yours/app-2?download=pdf&variant=2026-08-09T12%3A34%3A56.000Z`);
   });
 
   it('returns an error for an unknown job_id and never calls saveResumeVersion', async () => {

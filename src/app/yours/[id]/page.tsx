@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -53,9 +53,24 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                                     })}
                                 </p>
                             </div>
-                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => downloadResumeVersion(version)}>
-                                Download
-                            </Button>
+                            <div className="flex shrink-0 items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                                >
+                                    Download
+                                </Button>
+                                {/* .md stays available as a secondary, portable format
+                                    (R4/R5) — PDF is the default per the user report. */}
+                                <button
+                                    type="button"
+                                    onClick={() => downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                                    className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                >
+                                    .md
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -101,6 +116,45 @@ export default function PursuitDetailPage() {
     }>({ open: false, job: null, state: "idle" });
 
     const pursuit = pursuits.find((p) => p.id === id);
+
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    /**
+     * R5a (2026-08-09 founder report): a résumé variant saved via the MCP
+     * `save_resume_variant` tool now returns a `download_url` shaped
+     * `/yours/<pursuitId>?download=pdf&variant=<saved_at>` so the agent can
+     * hand the user a working download link right in chat. Auto-triggers
+     * the SAME client-side renderer the in-page Download button uses
+     * (`downloadResumeVersion`) once the pursuit's own resume_versions have
+     * loaded — one renderer, two entry points, never a second server-side
+     * PDF path to drift from this one.
+     *
+     * Auth-gated on the session cookie, same as every other real-account
+     * mutation on this page (`mutate`, above) — `/yours` itself is public
+     * (guest tracker), but a variant only ever exists for a signed-in
+     * user's Firestore-backed pursuit, so a logged-out visitor is bounced
+     * to `/login?next=<this URL>` and lands right back here, query intact
+     * (`/yours/<id>` is in SAFE_POST_AUTH_PREFIXES — lib/auth/product-
+     * routes.ts), where this effect re-fires and completes the download.
+     */
+    useEffect(() => {
+        if (loading || searchParams.get("download") !== "pdf") return;
+        if (!getCurrentUser()) {
+            const here = `/yours/${id}?${searchParams.toString()}`;
+            router.replace(`/login?next=${encodeURIComponent(here)}`);
+            return;
+        }
+        if (!pursuit) return; // still resolving, or genuinely not found — no-op, no false error
+        const variantKey = searchParams.get("variant");
+        const version = pursuit.resume_versions?.find((v) => v.saved_at === variantKey);
+        if (version) {
+            downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position });
+        } else {
+            toast.error("Couldn't find that résumé version — it may have been re-filed since this link was created.");
+        }
+        router.replace(`/yours/${id}`);
+    }, [loading, pursuit, id, searchParams, router]);
 
     /**
      * Open the live posting behind this pursuit. Only reachable when `job_id`

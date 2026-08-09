@@ -322,7 +322,11 @@ const mcpHandler = createMcpHandler(
                     "File a tailored resume against one of YOUR OWN pursuits (identified by job_id) — never " +
                     "another user's. Creates the pursuit at stage \"interested\" if it doesn't exist yet, so " +
                     "preparing a resume never consumes your daily apply-cap slot. Appends an immutable snapshot; " +
-                    `prior variants for the same job stay on file. resume_text is capped at ${AGENT.RESUME_TEXT_MAX_CHARS} characters.`,
+                    `prior variants for the same job stay on file. resume_text is capped at ${AGENT.RESUME_TEXT_MAX_CHARS} characters. ` +
+                    "Returns download_url, a working link to the tailored resume as a formatted PDF — present it " +
+                    "to the user right away in your reply (e.g. \"Download your tailored resume: <download_url>\"), " +
+                    "don't wait to be asked. The link opens in the user's browser and requires them to be signed " +
+                    "in to intervu there; if they aren't, it takes them through login and lands back on the download.",
                 inputSchema: saveResumeVariantInput,
             },
             withDeps(toolSaveResumeVariant)
