@@ -133,6 +133,7 @@ export const searchJobsInput = z.object({
     experience_level: z.enum(EXPERIENCE_LEVELS).optional(),
     employment_type: z.enum(EMPLOYMENT_TYPES).optional(),
     salary_min: z.number().int().min(0).optional(),
+    visa_sponsorship_only: z.boolean().optional(),
     cursor: z.string().max(128).optional(),
 });
 
@@ -250,7 +251,10 @@ const mcpHandler = createMcpHandler(
                     `Search intervu's verified-real job listings. Filters: location (city, region, or country — ` +
                     `matched the same way our search understands places), remote_only, ` +
                     `experience_level (${EXPERIENCE_LEVELS.join("|")}), employment_type (${EMPLOYMENT_TYPES.join("|")}), ` +
-                    `salary_min — all AND together and with query. Ghost jobs (postings unlikely to lead to an ` +
+                    `salary_min, visa_sponsorship_only (filters to roles tagged as visa-sponsoring — sponsorship ` +
+                    `info exists on only a small share of roles, since most postings don't state it either way, ` +
+                    `so this narrows hard; omit it to search everything) — all AND together and with query. ` +
+                    `Ghost jobs (postings unlikely to lead to an ` +
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
                     `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
                     `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

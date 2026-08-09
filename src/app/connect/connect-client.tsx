@@ -232,7 +232,7 @@ export function ConnectClient() {
           data-testid="connect-tabs"
           role="tablist"
           aria-label="AI client"
-          className="mt-4 flex gap-2 overflow-x-auto"
+          className="mt-4 flex flex-wrap gap-2"
         >
           {MCP_CLIENTS.map((client) => (
             <button

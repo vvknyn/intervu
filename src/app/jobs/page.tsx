@@ -53,7 +53,9 @@ import {
     firstMentionIndex,
     seamSummary,
     prettyEnum,
+    ghostMetaFor,
 } from "@/lib/jobs/presentation";
+import { ContextHelp } from "@/components/ui/context-help";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -68,6 +70,7 @@ import {
     getSuppressLocationDefaultSnapshot,
     getSuppressLocationDefaultServerSnapshot,
     suppressLocationDefault,
+    shouldShowLocationDefaultChip,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -221,11 +224,15 @@ function SortSegment({
 }
 
 /**
- * The IP-based location default's own honesty affordance: whenever the
- * CURRENT result set was silently narrowed to the searcher's own country
- * (`result.defaultedLocation`, an ISO2 the server only ever sets when it
- * applied that default — see lib/geo/ip-default.ts), this renders so the
- * narrowing is never invisible. Never renders otherwise.
+ * The IP-based location default's own honesty affordance — lives IN the
+ * location control now (G3, Grok UX wave), not downstream in the results
+ * row: whenever the CURRENT result set was silently narrowed to the
+ * searcher's own country (`result.defaultedLocation`, an ISO2 the server
+ * only ever sets when it applied that default — see lib/geo/ip-default.ts)
+ * AND the location box is still empty (`shouldShowLocationDefaultChip`,
+ * lib/jobs/location-default-preference.ts), this renders right next to the
+ * location input so the narrowing is disclosed where a searcher would
+ * actually look to change it, not just noted after the fact in the results.
  *
  * The country NAME is resolved client-side via the built-in
  * `Intl.DisplayNames` rather than shipping any of the gazetteer's ~70k-row
@@ -238,7 +245,9 @@ function SortSegment({
  * shared chip primitive JobDetail's "also in" chip and FilterChipsRow use —
  * rather than a one-off style, per the docs-mockup squared-chip system.
  * `active: false` keeps it quiet (no green tint): this is a passive fact
- * about the result set, not a selected/verified state.
+ * about the result set, not a selected/verified state. `onClear` is the
+ * SAME `suppressLocationDefault` write path the old results-row chip used —
+ * REUSED, not a second suppression flag.
  */
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
@@ -510,15 +519,31 @@ function JobCard({
                     )}
                 </div>
             </div>
-            <span
-                className={cn(
-                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
-                    flagged
-                        ? "border-border bg-card text-muted-foreground"
-                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+            <span className="flex h-fit items-center self-start">
+                <span
+                    className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
+                        flagged
+                            ? "border-border bg-card text-muted-foreground"
+                            : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                    )}
+                >
+                    {flagged ? "review" : "verified"}
+                </span>
+                {/* G5d (Grok UX wave) — quiet house tooltip (ContextHelp,
+                    already used elsewhere, e.g. PrepSettings.tsx) explains
+                    what this terse code means instead of leaving a mobile
+                    reader to guess. `stopPropagation` keeps a tap on the "?"
+                    from also firing the row's own onClick (same guard the
+                    company-name button above already uses). */}
+                {ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale") && (
+                    <span onClick={(e) => e.stopPropagation()}>
+                        <ContextHelp
+                            content={ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale")!.explain}
+                            side="left"
+                        />
+                    </span>
                 )}
-            >
-                {flagged ? "review" : "verified"}
             </span>
             <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-faint">
                 <span>{locationLine}</span>
@@ -995,6 +1020,11 @@ function JobsContent() {
     // override, so `xl:` IS the default 1280px). SSR/first-paint default is
     // `false` (below-xl/sheet) — see use-media-query.ts.
     const isXlUp = useMediaQuery("(min-width: 1280px)");
+    // G5b (Grok UX wave): the filters panel presents in a bottom sheet below
+    // `lg` (1024px — matches every other mobile/desktop split in this file,
+    // e.g. FilterChipsRow's own `lg:hidden`), inline exactly as before at
+    // `lg` and up.
+    const isLgUp = useMediaQuery("(min-width: 1024px)");
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
@@ -1207,7 +1237,6 @@ function JobsContent() {
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId, pursuits: trackedPursuits } = usePursuits();
     const trackedCount = trackedPursuits.length;
-    const [applyingId, setApplyingId] = useState<string | null>(null);
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
@@ -2188,7 +2217,6 @@ function JobsContent() {
     };
 
     const doMarkApplied = async (job: PublicJob) => {
-        setApplyingId(job.id);
         try {
             const res = await markJobAppliedAction({
                 company: job.company ?? "",
@@ -2213,17 +2241,7 @@ function JobsContent() {
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
             }
-        } finally {
-            setApplyingId(null);
         }
-    };
-    const handleMarkApplied = (job: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "apply", payload: job });
-            openAuth();
-            return;
-        }
-        void doMarkApplied(job);
     };
 
     // A1 — apply-return capture. Registered once (mount-only): the handler
@@ -2730,15 +2748,12 @@ function JobsContent() {
                     key={detailJob.id}
                     job={detailJob}
                     now={nowMs}
-                    applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                    applying={applyingId === detailJob.id}
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
                         setAuthGateValueLine(true);
                         setAuthOpen(true);
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
-                    onMarkApplied={() => handleMarkApplied(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
                     variants={detailVariants}
@@ -2771,6 +2786,52 @@ function JobsContent() {
                 <JobDetailSkeleton />
             </div>
         ) : null;
+
+    // G5b (Grok UX wave): the filters panel's own content, shared verbatim
+    // between the desktop inline expand and the mobile Sheet below — one
+    // SerpFilters render, not two copies that could drift on props.
+    const filtersPanelContent = (
+        <>
+            {result?.configured && (
+                <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
+                    {postedDateSupported && (
+                        <SortSegment
+                            label="freshest"
+                            pressed={!fitActive && effectiveSort === "newest"}
+                            onClick={() => chooseSort("newest")}
+                        />
+                    )}
+                    <SortSegment
+                        label="top pay"
+                        pressed={!fitActive && effectiveSort === "salary_desc"}
+                        onClick={() => chooseSort("salary_desc")}
+                    />
+                    <SortSegment
+                        label="best match"
+                        pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
+                        onClick={chooseBestMatch}
+                    />
+                </div>
+            )}
+            <SerpFilters
+                distribution={result?.facetDistribution}
+                resultTotal={result?.total}
+                postedDateSupported={postedDateSupported}
+                state={filterState}
+                activeCount={activeCount}
+                onToggleFacet={panelToggleFacet}
+                onSalaryMin={panelSalaryMin}
+                onVisaOnly={panelVisaOnly}
+                onPostedBucket={panelPostedBucket}
+                onClearAll={panelClearAll}
+                hideGhosts={hideGhosts}
+                onHideGhosts={onHideGhosts}
+                ghostHiddenCount={ghostHiddenCount}
+                board={board === "elite" ? "elite" : "all"}
+                onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
+            />
+        </>
+    );
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -2806,7 +2867,7 @@ function JobsContent() {
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:min-w-[260px] sm:flex-[1_1_260px]"
+                            className="h-[46px] w-full min-w-0 rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:min-w-[260px] sm:flex-[1_1_260px]"
                             containerClassName="min-w-0 w-full sm:flex-1"
                         />
                         <Input
@@ -2822,8 +2883,13 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-[46px] w-full rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:max-w-[200px] sm:flex-[0_1_200px]"
+                            className="h-[46px] w-full rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:max-w-[200px] sm:flex-[0_1_200px]"
                         />
+                        {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
+                            <div className="flex items-center">
+                                <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                            </div>
+                        )}
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
@@ -2915,54 +2981,35 @@ function JobsContent() {
                         </Link>
                     )}
 
-                    {filtersOpen && (
+                    {filtersOpen && (isLgUp ? (
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
                             className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-[#5c636e] bg-[#12151a] p-4 text-[#ececec] custom-scrollbar"
                         >
-                            {result?.configured && (
-                                <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
-                                    {postedDateSupported && (
-                                        <SortSegment
-                                            label="freshest"
-                                            pressed={!fitActive && effectiveSort === "newest"}
-                                            onClick={() => chooseSort("newest")}
-                                        />
-                                    )}
-                                    <SortSegment
-                                        label="top pay"
-                                        pressed={!fitActive && effectiveSort === "salary_desc"}
-                                        onClick={() => chooseSort("salary_desc")}
-                                    />
-                                    <SortSegment
-                                        label="best match"
-                                        pressed={
-                                            fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                                        }
-                                        onClick={chooseBestMatch}
-                                    />
-                                </div>
-                            )}
-                            <SerpFilters
-                                distribution={result?.facetDistribution}
-                                resultTotal={result?.total}
-                                postedDateSupported={postedDateSupported}
-                                state={filterState}
-                                activeCount={activeCount}
-                                onToggleFacet={panelToggleFacet}
-                                onSalaryMin={panelSalaryMin}
-                                onVisaOnly={panelVisaOnly}
-                                onPostedBucket={panelPostedBucket}
-                                onClearAll={panelClearAll}
-                                hideGhosts={hideGhosts}
-                                onHideGhosts={onHideGhosts}
-                                ghostHiddenCount={ghostHiddenCount}
-                                board={board === "elite" ? "elite" : "all"}
-                                onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
-                            />
+                            {filtersPanelContent}
                         </div>
-                    )}
+                    ) : (
+                        // G5b (Grok UX wave): below `lg`, filters present in the
+                        // SAME Sheet primitive the job detail panel uses (reused,
+                        // not a second bottom-sheet implementation) — desktop's
+                        // inline expand above is unchanged.
+                        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                            <SheetContent
+                                side="bottom"
+                                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden rounded-t-[18px] border-border p-0"
+                            >
+                                <SheetTitle className="sr-only">Filters</SheetTitle>
+                                <div
+                                    id="filters-panel"
+                                    data-testid="filters-panel"
+                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-[#12151a] p-4 pb-[env(safe-area-inset-bottom,16px)] text-[#ececec] custom-scrollbar"
+                                >
+                                    {filtersPanelContent}
+                                </div>
+                            </SheetContent>
+                        </Sheet>
+                    ))}
 
                     <SavedSearchesPanel
                         saved={savedSearches}
@@ -3212,12 +3259,9 @@ function JobsContent() {
                                                     >
                                                         {resultsCountLabel}
                                                     </span>
-                                                    {result?.defaultedLocation && (
-                                                        <DefaultLocationChip
-                                                            iso2={result.defaultedLocation}
-                                                            onClear={suppressLocationDefault}
-                                                        />
-                                                    )}
+                                                    {/* Default-location disclosure moved into the location
+                                                        control itself (G3, Grok UX wave) — see
+                                                        DefaultLocationChip's doc comment above. */}
                                                 </div>
                                                 {(query.trim() || activeCount > 0) && (
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -3451,19 +3495,34 @@ function JobsContent() {
                         visual affordance that did nothing. Now a real close
                         button (≥44px touch height via padding, not a bigger
                         glyph) that closes the sheet the same way JobDetail's
-                        own × does, below. */}
+                        own × does, below. G5a (Grok UX wave): the drag-pill
+                        alone still reads as purely decorative to a sighted
+                        first-time visitor — an explicit "×" glyph sits beside
+                        it (same button, same single tap target) so the close
+                        affordance is obvious without relying on the pill
+                        shape to imply it. */}
                     <button
                         type="button"
                         aria-label="Close"
                         onClick={() => router.back()}
-                        className="flex h-11 w-full shrink-0 items-center justify-center"
+                        className="relative flex h-11 w-full shrink-0 items-center justify-center"
                     >
                         <span aria-hidden="true" className="h-1 w-9 rounded-full bg-[#d0d6de]" />
+                        <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-[#8b919a]">
+                            ×
+                        </span>
                     </button>
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
                     </SheetTitle>
-                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                    {/* G5a: safe-area bottom padding — the sheet already
+                        paints OVER the fixed mobile tab bar when open (see
+                        JobDetailActionBar's doc comment), but nothing
+                        previously accounted for the DEVICE's own bottom
+                        safe area (home-indicator gesture strip), so the
+                        sticky action bar / last content could sit flush
+                        against it. Same env() token MobileTabBar.tsx uses. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
                         {renderDetailSurface(() => router.back())}
                     </div>
                 </SheetContent>

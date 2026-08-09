@@ -4,6 +4,7 @@
  * Research / Pricing / Trends live in the footer.
  */
 import type { ComponentType } from "react";
+import { Kanban } from "@phosphor-icons/react";
 
 export type NavTab = {
     label: string;
@@ -24,12 +25,14 @@ function JobsIcon() {
     );
 }
 
+/** G5f (Grok UX wave) — was three horizontal bars (decreasing width), which
+ *  read as a hamburger/list icon rather than "tracked items". The Tracker
+ *  board IS a status pipeline (interested/applied/interviewing/offer —
+ *  lib/pursuits/types.ts's boardColumn), so Kanban (repo icon set,
+ *  @phosphor-icons/react — already used throughout, e.g. JobDetail.tsx)
+ *  reads correctly as that. */
 function TrackerIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M4 6h16M4 12h10M4 18h13" />
-        </svg>
-    );
+    return <Kanban aria-hidden />;
 }
 
 function ConnectIcon() {

@@ -68,3 +68,18 @@ export function suppressLocationDefault(): void {
     writeSuppressLocationDefault();
     notify();
 }
+
+/**
+ * G3 (Grok UX wave) — the ONE decision for whether the location control
+ * shows the applied-default disclosure chip: the server actually applied a
+ * default (`defaultedLocation` is set) AND the searcher hasn't typed
+ * anything into the location box yet. Once they start typing, their own
+ * text takes over the control and the chip would just be noise sitting on
+ * top of it. Pure so the disclosure logic is testable without a DOM.
+ */
+export function shouldShowLocationDefaultChip(
+    defaultedLocation: string | null | undefined,
+    locationDraft: string,
+): boolean {
+    return !!defaultedLocation && locationDraft.trim().length === 0;
+}

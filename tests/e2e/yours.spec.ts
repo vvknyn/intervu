@@ -97,12 +97,28 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await expect(link).toHaveAttribute('href', '/yours');
   });
 
-  test('TC-YOURS-007: Row click opens the detail sheet', async ({ page }) => {
+  test('TC-YOURS-007: Row click opens the detail sheet below xl', async ({ page }) => {
+    // G5e (Grok UX wave): sub-xl opens the sheet, xl+ navigates to the full
+    // page (TC-YOURS-013 below) — pinned sub-xl here since Playwright's
+    // default 1280x720 viewport IS the xl boundary (see jobs-first-screen
+    // .spec.ts's own note on this trap).
+    await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto('/yours');
     await page.getByTestId('pursuit-row').first().click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('dialog')).toContainText('Staff Engineer');
     await expect(page.getByRole('dialog')).toContainText('Acme Corp');
+  });
+
+  test('TC-YOURS-013: Row click navigates to the full pursuit page at xl+', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/yours');
+    await page.getByTestId('pursuit-row').first().click();
+    await expect(page).toHaveURL(/\/yours\/[^/?]+$/);
+    // Two "Acme Corp" headings render (PageHeader's h1 + the page body's own
+    // identity h1) — .first() is enough to prove the full page loaded.
+    await expect(page.getByRole('heading', { name: 'Acme Corp' }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Staff Engineer').first()).toBeVisible();
   });
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {
