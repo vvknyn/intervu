@@ -252,3 +252,42 @@ export async function setBaseResumeForUser(
 
     return plan.result;
 }
+
+/**
+ * Clears the caller's CURRENT base résumé (`resume_text`/`resume_data`/
+ * `resume_last_updated` on the profile doc) — the account "Resume"
+ * section's Delete action (R1, 2026-08-09 user report). Never touches
+ * `resume_history`: a deletion removes what's current, not what happened —
+ * every prior upload (including the auto-baseline `setBaseResumeForUser`
+ * snapshots) stays on file, same as it does after any ordinary re-upload.
+ */
+export async function clearBaseResumeForUser(uid: string): Promise<void> {
+    const db = getAdminDb();
+    await db.collection("profiles").doc(uid).set(
+        {
+            resume_text: FieldValue.delete(),
+            resume_data: FieldValue.delete(),
+            resume_last_updated: FieldValue.delete(),
+        },
+        { merge: true },
+    );
+}
+
+/** One length cap for the account "Resume" section's web upload path — the
+ *  SAME `RESUME_TEXT_MAX_CHARS` the MCP `set_resume` tool's wire schema
+ *  uses (route.ts's `setResumeInput`), so a web upload can never write
+ *  something the agent surface itself would have rejected. */
+export type ResumeUploadTextValidation = { ok: true; text: string } | { ok: false; error: string };
+
+/**
+ * Pure: validates+normalizes web-submitted résumé upload text before it
+ * reaches `setBaseResumeForUser`. Zero I/O — unit-testable directly.
+ */
+export function validateResumeUploadText(raw: string): ResumeUploadTextValidation {
+    const text = raw.trim();
+    if (!text) return { ok: false, error: "Paste your resume text or choose a file — nothing came through." };
+    if (text.length > AGENT.RESUME_TEXT_MAX_CHARS) {
+        return { ok: false, error: `Resume text is too long (max ${AGENT.RESUME_TEXT_MAX_CHARS.toLocaleString()} characters).` };
+    }
+    return { ok: true, text };
+}

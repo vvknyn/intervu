@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { validateResumeData, planResumeUpload } from "@/lib/resume/set-resume";
+import { validateResumeData, planResumeUpload, validateResumeUploadText } from "@/lib/resume/set-resume";
 import { AGENT } from "@/lib/agent/config";
 import type { BaseResume } from "@/lib/resume/base-resume";
 import type { ResumeData } from "@/types/resume";
@@ -214,5 +214,44 @@ describe("planResumeUpload — invalid resume_data never rejects the whole call"
         const plan = planResumeUpload(NONE_PRIOR, true, { text: "text only, no data field at all" });
         assert.equal(plan.result.normalized, false);
         assert.equal("issues" in plan.result, false);
+    });
+});
+
+/* --------------------------------- validateResumeUploadText --------------------------------- */
+// R1 (2026-08-09 user report): the account "Resume" section's upload/
+// replace action's own validation, reusing AGENT.RESUME_TEXT_MAX_CHARS —
+// the SAME cap the MCP set_resume tool's wire schema (route.ts's
+// setResumeInput) enforces.
+
+describe("validateResumeUploadText", () => {
+    it("rejects empty text", () => {
+        const result = validateResumeUploadText("");
+        assert.equal(result.ok, false);
+    });
+
+    it("rejects whitespace-only text — nothing real came through", () => {
+        const result = validateResumeUploadText("   \n\t  ");
+        assert.equal(result.ok, false);
+    });
+
+    it("rejects text longer than RESUME_TEXT_MAX_CHARS", () => {
+        const result = validateResumeUploadText("x".repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1));
+        assert.equal(result.ok, false);
+    });
+
+    it("accepts text right at RESUME_TEXT_MAX_CHARS", () => {
+        const result = validateResumeUploadText("x".repeat(AGENT.RESUME_TEXT_MAX_CHARS));
+        assert.equal(result.ok, true);
+    });
+
+    it("accepts ordinary resume text and trims surrounding whitespace", () => {
+        const result = validateResumeUploadText("  My resume content here.  ");
+        assert.ok(result.ok);
+        assert.ok(result.ok && result.text === "My resume content here.");
+    });
+
+    it("a too-long error message states the real cap, not a hand-copied number that can drift", () => {
+        const result = validateResumeUploadText("x".repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1));
+        assert.ok(!result.ok && result.error.includes(AGENT.RESUME_TEXT_MAX_CHARS.toLocaleString()));
     });
 });

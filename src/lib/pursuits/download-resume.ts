@@ -41,5 +41,5 @@ export function downloadResumeVersion(
         return;
     }
     const pdfBytes = renderResumePdf(parseResumeContent(version.content));
-    triggerDownload(new Blob([pdfBytes as BlobPart], { type: "application/pdf" }), `${filename}.pdf`);
+    triggerDownload(new Blob([pdfBytes], { type: "application/pdf" }), `${filename}.pdf`);
 }

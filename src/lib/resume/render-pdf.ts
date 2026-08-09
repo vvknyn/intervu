@@ -278,7 +278,7 @@ function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
  *  Node — verified, core "helvetica" font needs no canvas — and in the
  *  browser, so the SAME function backs both a server route and a client
  *  download button). */
-export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetrics = DEFAULT_PAGE_METRICS): Uint8Array {
+export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetrics = DEFAULT_PAGE_METRICS): ArrayBuffer {
   const doc = new jsPDF({ unit: "pt", format: [metrics.pageWidth, metrics.pageHeight] });
   const measure = jsPdfMeasurer(doc);
   const layout = layoutResumeDocument(content, measure, metrics);
@@ -297,7 +297,7 @@ export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetr
     }
   });
 
-  return new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);
+  return doc.output("arraybuffer") as ArrayBuffer;
 }
 
 /** Pure: `<Company>-<Role>-resume-<YYYY-MM-DD>` (no extension — the caller
