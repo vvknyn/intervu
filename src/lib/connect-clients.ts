@@ -14,10 +14,46 @@
  * `supportsDirectConnect: false` marks a client whose app can't take a
  * pasted MCP URL today — still read by the /mock completeness demo
  * (CompletenessMock.tsx); every real client here is currently `true`.
+ *
+ * `openUrl` (mcp clients only — R2, 2026-08-09 user report): where "Open
+ * <client>" points, alongside the copy-the-connector-URL step. Verified
+ * against each vendor's current documentation the day this was added —
+ * their dedicated connector-management page where one exists (a deep link
+ * gets the visitor straight to the paste-a-URL screen the copy step feeds),
+ * else the client's own main app URL, never a guess or an invented path:
+ *   - claude: https://claude.ai/settings/connectors — Anthropic's own
+ *     support docs (support.claude.com/en/articles/11175166) name this
+ *     exact page for adding a custom connector.
+ *   - chatgpt: no stable, documented deep link to the Connectors sub-screen
+ *     found (it's reached by clicking through Settings inside the SPA, no
+ *     URL cited in OpenAI's own help center) — falls back to the main app,
+ *     https://chatgpt.com.
+ *   - gemini: same gap — Google's support doc (support.google.com/gemini/
+ *     answer/17209137) describes a click path ("Settings & help > Connected
+ *     Apps"), not a URL — falls back to the main app, https://gemini.google.com.
+ *   - cursor: MCP setup lives in the desktop app's own Settings panel, not
+ *     a web page at all — falls back to the marketing/download site,
+ *     https://cursor.com.
+ * A vendor may add a real deep link later; when one shows up in their docs,
+ * update the entry here — this table is the only place the URL lives.
  */
 export const CONNECT_CLIENTS = [
-  { id: "claude", label: "Claude", badge: "beta — rolling out", kind: "mcp", supportsDirectConnect: true },
-  { id: "chatgpt", label: "ChatGPT", badge: "paid plans", kind: "mcp", supportsDirectConnect: true },
+  {
+    id: "claude",
+    label: "Claude",
+    badge: "beta — rolling out",
+    kind: "mcp",
+    supportsDirectConnect: true,
+    openUrl: "https://claude.ai/settings/connectors",
+  },
+  {
+    id: "chatgpt",
+    label: "ChatGPT",
+    badge: "paid plans",
+    kind: "mcp",
+    supportsDirectConnect: true,
+    openUrl: "https://chatgpt.com",
+  },
   {
     id: "openclaw",
     label: "OpenClaw",
@@ -25,8 +61,22 @@ export const CONNECT_CLIENTS = [
     kind: "local",
     supportsDirectConnect: true,
   },
-  { id: "gemini", label: "Gemini", badge: "us · web app", kind: "mcp", supportsDirectConnect: true },
-  { id: "cursor", label: "Cursor", badge: undefined, kind: "mcp", supportsDirectConnect: true },
+  {
+    id: "gemini",
+    label: "Gemini",
+    badge: "us · web app",
+    kind: "mcp",
+    supportsDirectConnect: true,
+    openUrl: "https://gemini.google.com",
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    badge: undefined,
+    kind: "mcp",
+    supportsDirectConnect: true,
+    openUrl: "https://cursor.com",
+  },
 ] as const;
 
 export type ConnectClientId = (typeof CONNECT_CLIENTS)[number]["id"];

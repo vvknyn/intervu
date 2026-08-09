@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { ArrowSquareOut } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { joinConnectWaitlist } from "@/actions/connect-waitlist";
@@ -164,6 +165,9 @@ const TRY_THESE_PROMPTS = [
 export function ConnectClient() {
   const searchParams = useSearchParams();
   const [mcpClient, setMcpClient] = useState<McpClientId>(MCP_CLIENTS[0].id);
+  // Derived, not a second lookup table — MCP_CLIENTS (connect-clients.ts) is
+  // the one place a client's label/openUrl live (R2's "Open <client>" action).
+  const activeMcpClient = MCP_CLIENTS.find((c) => c.id === mcpClient)!;
   // Which lane the "How it works" trigger explains — mirrors HowItWorksFilmId
   // directly rather than re-deriving it from a client id, since the OpenClaw
   // section is no longer a picker selection. Only a `?client=openclaw` deep
@@ -271,6 +275,19 @@ export function ConnectClient() {
             <div className="mt-3">
               <CopyUrlBar value={MCP_CONNECTOR_URL} />
             </div>
+            {/* Copy stays the primary, load-bearing instruction — opening the
+             *  app doesn't configure anything by itself — so this comes
+             *  AFTER the copy bar, never before (R2, 2026-08-09). */}
+            <a
+              href={activeMcpClient.openUrl}
+              target="_blank"
+              rel="noopener"
+              data-testid="connect-open-client"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand underline-offset-4 hover:underline"
+            >
+              <ArrowSquareOut size={16} />
+              Open {activeMcpClient.label}
+            </a>
             {STEP1_NOTE[mcpClient] ? (
               <p className="mt-2 text-xs text-muted-foreground">{STEP1_NOTE[mcpClient]}</p>
             ) : null}
