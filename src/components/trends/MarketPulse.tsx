@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { ContextHelp } from "@/components/ui/context-help";
+import { POSTING_AGE_CONTEXT_COPY } from "@/lib/jobs/ghost-context-copy";
 
 /** Display cap for the source/ATS coverage line — same "top N, rest omitted"
  *  posture as TopCountriesList's `MAX_VISIBLE_COUNTRIES`, sized down since
@@ -55,6 +57,10 @@ export function MarketPulse({
       <p className="mt-1 text-sm text-muted-foreground">
         {formatCorpusCount(liveJobs)} active · {formatCorpusCount(closedTotal)} closed to date. Of live roles,{" "}
         {staleActiveSharePct}% have been open 60+ days.
+        {/* R7 (founder, 2026-08-09): this is an age-only aggregate stat with
+            no other signal to weigh against it — the balance note mounts
+            unconditionally here, unlike JobDetail's per-job grid. */}
+        <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
       </p>
 
       {snapshotSummary}
