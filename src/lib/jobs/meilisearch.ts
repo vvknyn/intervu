@@ -109,7 +109,7 @@ export const JOBS_INDEX_SETTINGS = {
   },
 };
 
-function host(): string | null {
+export function host(): string | null {
   const h = process.env.MEILISEARCH_HOST;
   return h ? h.replace(/\/+$/, "") : null;
 }
@@ -118,7 +118,7 @@ export function hasMeilisearch(): boolean {
   return Boolean(host());
 }
 
-function searchKey(): string {
+export function searchKey(): string {
   return process.env.MEILISEARCH_SEARCH_KEY || process.env.MEILISEARCH_API_KEY || "";
 }
 
@@ -203,7 +203,7 @@ async function logMeiliConfigError(url: string, res: Response): Promise<void> {
  * key, bulk PUT/DELETE) run on their own schedule outside any Vercel
  * request and are out of scope for a client-request-time resilience fix.
  */
-async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
+export async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
   try {
     const res = await meiliFetchOnce(url, init);
     if (res.ok) return res;
