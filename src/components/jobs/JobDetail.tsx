@@ -256,7 +256,7 @@ export function JobDetailActionBar({
 /**
  * "Copy link" control for the detail header — visible to guests and
  * signed-in users alike, since job identity is never gated (see the header
- * restructure in `JobDetail` below). Copies the canonical `/jobs?job=<id>`
+ * restructure in `JobDetail` below). Copies the canonical `/jobs/<slug>-<id>`
  * URL rather than `window.location`, because this same panel also renders
  * from `/yours/[id]` (a pursuit-id route, not a job-id one — see this
  * file's module doc comment above). Same copied-state register as
@@ -264,12 +264,12 @@ export function JobDetailActionBar({
  * toast, no new dependency; a denied/unavailable clipboard degrades to a
  * silent no-op rather than crashing the panel.
  */
-function CopyJobLinkButton({ jobId }: { jobId: string }) {
+function CopyJobLinkButton({ job }: { job: Pick<PublicJob, "id" | "title" | "company"> }) {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
         try {
-            const url = jobShareUrl(window.location.origin, jobId);
+            const url = jobShareUrl(window.location.origin, job);
             await navigator.clipboard.writeText(url);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
@@ -524,7 +524,7 @@ export function JobDetail({
                         )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                        <CopyJobLinkButton jobId={job.id} />
+                        <CopyJobLinkButton job={job} />
                         {onClose && (
                             <button
                                 type="button"

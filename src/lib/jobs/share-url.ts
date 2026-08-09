@@ -1,13 +1,19 @@
+import { jobPath } from "./job-slug";
+import type { PublicJob } from "./types";
+
 /**
- * Pure: a job's id -> the URL intervu's own board resolves back to that
- * job's detail sheet (`/jobs?job=<id>`, `app/jobs/page.tsx` reads this exact
- * `job` query param to reopen it). One source for a shape two very
+ * Pure: a job -> the canonical, indexable job-detail URL
+ * (`/jobs/<slug>-<uuid>`, see `jobPath`). One source for a shape two very
  * different callers need byte-identical: `CopyJobLinkButton` (JobDetail.tsx,
  * client — origin from `window.location.origin`) and the MCP `search_jobs`/
  * `get_job` tools (agent/tools.ts, server — origin from `AGENT.issuer()`,
  * R6, 2026-08-09 — recommending a job in chat with no way to open it on
- * intervu was a founder-reported gap).
+ * intervu was a founder-reported gap). Previously built `/jobs?job=<id>`
+ * (the board's reopen-the-sheet query param); that URL still works as a
+ * fallback (`app/jobs/page.tsx` still reads it) but is not indexable, so
+ * every caller now gets the real per-job page instead — one URL per job,
+ * not two competing for link equity.
  */
-export function jobShareUrl(origin: string, jobId: string): string {
-  return `${origin.replace(/\/+$/, "")}/jobs?job=${encodeURIComponent(jobId)}`;
+export function jobShareUrl(origin: string, job: Pick<PublicJob, "id" | "title" | "company">): string {
+  return `${origin.replace(/\/+$/, "")}${jobPath(job)}`;
 }
