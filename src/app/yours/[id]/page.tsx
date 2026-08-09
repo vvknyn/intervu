@@ -20,7 +20,6 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import {
-    hasReachedStage,
     nextAction,
     orderResumeVersionsLatestFirst,
     stageLabel,
@@ -143,13 +142,13 @@ export default function PursuitDetailPage() {
     const backLink = (
         <Link href="/yours" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft size={16} />
-            Yours
+            Tracker
         </Link>
     );
 
     if (loading) {
         return (
-            <PageLayout header={<PageHeader title="Yours" actions={backLink} />}>
+            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
                 <div className="h-40 animate-pulse rounded-xl bg-card" />
             </PageLayout>
         );
@@ -157,7 +156,7 @@ export default function PursuitDetailPage() {
 
     if (!pursuit) {
         return (
-            <PageLayout header={<PageHeader title="Yours" actions={backLink} />}>
+            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
                 <div data-testid="pursuit-not-found" className="py-24 text-center text-sm text-muted-foreground">
                     We couldn&apos;t find that pursuit.
                 </div>
@@ -300,9 +299,6 @@ export default function PursuitDetailPage() {
                                 const href = pursuit.job_url ?? detail.job?.apply_url;
                                 if (href) window.open(href, "_blank", "noopener,noreferrer");
                             }}
-                            onMarkApplied={() => void mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                            applied={hasReachedStage(pursuit, "applied")}
-                            applying={saving}
                         />
                     ) : detail.state === "gone" ? (
                         /* Says what actually happened. The pursuit's own saved

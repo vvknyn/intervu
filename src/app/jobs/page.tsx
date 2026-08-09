@@ -1207,7 +1207,6 @@ function JobsContent() {
     // one shared, cached fetch that also serves TopBar and /yours.
     const { byJobId: pursuitsByJobId, pursuits: trackedPursuits } = usePursuits();
     const trackedCount = trackedPursuits.length;
-    const [applyingId, setApplyingId] = useState<string | null>(null);
     const [goingAfterId, setGoingAfterId] = useState<string | null>(null);
     const guestPursuitSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
@@ -2188,7 +2187,6 @@ function JobsContent() {
     };
 
     const doMarkApplied = async (job: PublicJob) => {
-        setApplyingId(job.id);
         try {
             const res = await markJobAppliedAction({
                 company: job.company ?? "",
@@ -2213,17 +2211,7 @@ function JobsContent() {
             } else {
                 toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
             }
-        } finally {
-            setApplyingId(null);
         }
-    };
-    const handleMarkApplied = (job: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            pendingRef.current = queuePending(pendingRef.current, { kind: "apply", payload: job });
-            openAuth();
-            return;
-        }
-        void doMarkApplied(job);
     };
 
     // A1 — apply-return capture. Registered once (mount-only): the handler
@@ -2730,15 +2718,12 @@ function JobsContent() {
                     key={detailJob.id}
                     job={detailJob}
                     now={nowMs}
-                    applied={!!detailPursuit && hasReachedStage(detailPursuit, "applied")}
-                    applying={applyingId === detailJob.id}
                     signedIn={Boolean(user)}
                     onRequestSignIn={() => {
                         setAuthGateValueLine(true);
                         setAuthOpen(true);
                     }}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
-                    onMarkApplied={() => handleMarkApplied(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
                     variants={detailVariants}

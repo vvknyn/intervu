@@ -11,6 +11,7 @@ import { buildFactChips, deriveGhostSignals, ghostCheckedText, alsoInLabel, type
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
+import { buildGuestPreview } from "@/lib/jobs/guest-preview";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
@@ -98,6 +99,57 @@ function JobDescription({ blocks }: { blocks: DescBlock[] }) {
                     </p>
                 );
             })}
+        </div>
+    );
+}
+
+/**
+ * Guest gate (G4, Grok UX wave) — the ONE place a signed-out visitor's
+ * detail body renders, replacing the old blur-as-paywall overlay. Shows a
+ * real, truncated preview of the description (`buildGuestPreview`,
+ * lib/jobs/guest-preview.ts — the same HTML/Markdown sanitization
+ * `formatDescription` runs for signed-in readers) with a bottom fade and
+ * one sign-in CTA line, rather than an opaque "sign in to view this role"
+ * promise. Apply/Save stay real, clickable buttons elsewhere in this panel
+ * (they already gate at the click handler — see `resolveApplyGateDecision`,
+ * jobs/page.tsx) — this component only arbitrates the DESCRIPTION body, so
+ * there is exactly one preview-vs-full decision for a guest's detail view,
+ * not scattered per-section `!signedIn` checks.
+ */
+function GuestDescriptionPreview({
+    description,
+    onRequestSignIn,
+}: {
+    description: string | null | undefined;
+    onRequestSignIn?: () => void;
+}) {
+    const preview = buildGuestPreview(description);
+    return (
+        <div className="mb-5">
+            <div className="mb-2 text-[13px] font-semibold">About this role</div>
+            {preview.text ? (
+                <div className={cn("relative", preview.truncated && "max-h-[14rem] overflow-hidden")}>
+                    <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-foreground">
+                        {preview.text}
+                        {preview.truncated && "…"}
+                    </p>
+                    {preview.truncated && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
+                    )}
+                </div>
+            ) : (
+                <div className="border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
+                    No description was captured for this role.
+                </div>
+            )}
+            <button
+                type="button"
+                data-testid="job-detail-signin-cta"
+                onClick={() => onRequestSignIn?.()}
+                className="mt-2.5 text-xs font-medium text-brand hover:underline"
+            >
+                Sign in to read the full posting
+            </button>
         </div>
     );
 }
@@ -275,10 +327,7 @@ export function JobDetail({
     job,
     now,
     onOpenPosting,
-    onMarkApplied,
     onGoAfter,
-    applied,
-    applying,
     pursuit,
     goingAfter,
     variants = [],
@@ -292,18 +341,15 @@ export function JobDetail({
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
     onOpenPosting: () => void;
-    onMarkApplied: () => void;
-    /** When false, detail body is blurred and gated behind sign-in. */
+    /** When false, the description preview is truncated and Apply/Save gate at click (G4, Grok UX wave). */
     signedIn?: boolean;
-    /** Opens auth when the signed-out blur overlay CTA is pressed. */
+    /** Opens auth when the guest preview's sign-in CTA is pressed. */
     onRequestSignIn?: () => void;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
     onGoAfter: () => void;
-    applied: boolean;
-    applying: boolean;
     /** The existing pursuit for this job, if the user already went after it. */
     pursuit: Pursuit | undefined;
     goingAfter: boolean;
@@ -476,15 +522,12 @@ export function JobDetail({
                 </div>
             </div>
 
-            {/* Gated region: action row + body. `relative` so the sign-in
-                overlay below (`absolute inset-0`) is scoped to just this
-                block instead of the whole card — the identity header above
-                is a plain sibling, never covered by it. */}
-            <div className="relative">
-            <div
-                className={cn(!signedIn && "pointer-events-none select-none blur-[6px]")}
-                aria-hidden={!signedIn}
-            >
+            {/* Action row + body. Apply/Save render here for guests too
+                (G4, Grok UX wave) — no longer blurred behind a paywall
+                overlay, since clicking either already gates through
+                `resolveApplyGateDecision` (jobs/page.tsx) rather than
+                relying on this panel to physically block the click. */}
+            <div>
             <div className="border-b border-border px-5 pb-3.5 pt-3.5">
                 {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
                     Save quiet — the two-weight subset of the button family
@@ -524,20 +567,20 @@ export function JobDetail({
                     for this pane lives in the "How you match" rail below,
                     not duplicated up here (see that McpHandoffNote's
                     comment). "Apply with tailored resume" moved to MCP the
-                    same day. */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5">
-                    <button
-                        onClick={onMarkApplied}
-                        disabled={applied || applying}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
-                    >
-                        <Check size={14} />
-                        {applied ? "Tracked as applied" : applying ? "Saving…" : "Mark as applied"}
-                    </button>
-                </div>
+                    same day. "Mark as applied" was a third peer action here
+                    (G2, Grok UX wave) — removed as a peer; it's reachable
+                    via the apply-return prompt (jobs/page.tsx,
+                    `shouldPromptApplyReturn`) after a real departure to the
+                    employer's site, and via the Tracker's own status
+                    controls (PursuitDetailSheet.tsx / yours/[id]/page.tsx),
+                    never duplicated here as a third button. */}
             </div>
 
             <div className="px-5 pb-6 pt-4">
+                {!signedIn ? (
+                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
+                ) : (
+                <>
                 {/* EXPANDED ghost module (docs-mockup.html Comp B2): the
                     verdict headline (unchanged) plus the honest, derived
                     per-signal grid — see deriveGhostSignals's doc comment
@@ -703,34 +746,9 @@ export function JobDetail({
                         </div>
                     </div>
                 )}
+                </>
+                )}
             </div>
-            </div>
-
-            {/* No close button duplicated here: the identity header above
-                already renders one, and it's outside the gate now — always
-                visible, never blurred/covered by this overlay's stacking
-                context (see the `relative` wrapper's own comment above). */}
-            {!signedIn && (
-                <div
-                    data-testid="job-detail-signin-gate"
-                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/55 px-6 text-center backdrop-blur-[2px]"
-                >
-                    <p className="max-w-[22ch] text-[15px] font-semibold tracking-tight text-foreground">
-                        Sign in to view this role
-                    </p>
-                    <p className="max-w-[28ch] text-[13px] text-muted-foreground">
-                        Browse the board freely — details, apply, and save need an account.
-                    </p>
-                    <Button
-                        type="button"
-                        data-testid="job-detail-signin-cta"
-                        onClick={() => onRequestSignIn?.()}
-                        className="mt-1"
-                    >
-                        Sign in
-                    </Button>
-                </div>
-            )}
             </div>
         </div>
     );
