@@ -20,6 +20,7 @@ import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, sala
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { jobShareUrl } from "@/lib/jobs/share-url";
 import { getRelatedJobsAction } from "@/actions/jobs";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -267,7 +268,7 @@ function CopyJobLinkButton({ jobId }: { jobId: string }) {
 
     const handleCopy = async () => {
         try {
-            const url = `${window.location.origin}/jobs?job=${encodeURIComponent(jobId)}`;
+            const url = jobShareUrl(window.location.origin, jobId);
             await navigator.clipboard.writeText(url);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);

@@ -264,17 +264,33 @@ describe('toolSearchJobs', () => {
     assert.equal(searchCalls[0].q, 'backend engineer');
   });
 
-  it('maps hits to the real PublicJob field names only (no invented fields)', async () => {
+  it('maps hits to the real PublicJob field names, plus the derived intervu_url (R6) — no other invented fields', async () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.total, 1);
     assert.deepEqual(Object.keys(out.hits[0]).sort(), [
       'apply_url', 'company', 'first_seen_at', 'ghost_badge', 'id',
-      'location', 'posted_at', 'title', 'updated_at', 'vacancy_status',
+      'intervu_url', 'location', 'posted_at', 'title', 'updated_at', 'vacancy_status',
     ]);
     assert.equal(out.hits[0].id, 'job-1');
     assert.equal(out.hits[0].ghost_badge, 'clear');
+  });
+
+  it('R6: every search hit carries a shareable intervu_url built from the job id, and passes through apply_url as-is', async () => {
+    const { deps } = stubDeps([makeJob({ id: 'job-1', apply_url: 'https://acme.com/apply/job-1' })]);
+    const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
+    assert.equal(out.hits[0].apply_url, 'https://acme.com/apply/job-1');
+  });
+
+  it('R6: a job with no known apply_url (blank string, real corpus shape) still serializes intervu_url — never crashes on an absent apply link', async () => {
+    const { deps } = stubDeps([makeJob({ apply_url: '' })]);
+    const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.hits[0].apply_url, '');
+    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
   });
 
   it('reports unavailable (not a silent empty-success) when the backend errors', async () => {

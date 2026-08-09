@@ -21,6 +21,7 @@ import type { BaseResume } from "../resume/base-resume";
 import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
+import { jobShareUrl } from "../jobs/share-url";
 import {
   EXPERIENCE_LEVELS, type ExperienceLevel,
   EMPLOYMENT_TYPES, type EmploymentType,
@@ -140,7 +141,16 @@ type JobDetailFields = Pick<
   | "salary_min" | "salary_max" | "salary_currency" | "salary_period"
   | "tags" | "apply_url" | "posted_at" | "first_seen_at" | "updated_at"
   | "vacancy_status" | "ghost_badge"
->;
+> & {
+  /** The shareable intervu job URL (R6, 2026-08-09 founder report: a job
+   *  recommended in chat came with no way to open it on intervu). Derived,
+   *  never a raw `PublicJob` field — the SAME `jobShareUrl` builder the
+   *  board's own "Copy link" button (CopyJobLinkButton, JobDetail.tsx) uses,
+   *  so an agent-shared link and a web-copied link are byte-identical.
+   *  Always present (pure function of `id` + the app's own base URL) even
+   *  when `apply_url` is blank — see `toSearchHit`'s absent-apply_url test. */
+  intervu_url: string;
+};
 
 function toJobDetailFields(job: PublicJob): JobDetailFields {
   const {
@@ -156,18 +166,19 @@ function toJobDetailFields(job: PublicJob): JobDetailFields {
     salary_min, salary_max, salary_currency, salary_period,
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
+    intervu_url: jobShareUrl(AGENT.issuer(), id),
   };
 }
 
 type SearchHit = Pick<
   JobDetailFields,
   | "id" | "title" | "company" | "location" | "ghost_badge"
-  | "posted_at" | "first_seen_at" | "updated_at" | "vacancy_status" | "apply_url"
+  | "posted_at" | "first_seen_at" | "updated_at" | "vacancy_status" | "apply_url" | "intervu_url"
 >;
 
 function toSearchHit(job: PublicJob): SearchHit {
-  const { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url } = toJobDetailFields(job);
-  return { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url };
+  const { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url } = toJobDetailFields(job);
+  return { id, title, company, location, ghost_badge, posted_at, first_seen_at, updated_at, vacancy_status, apply_url, intervu_url };
 }
 
 export interface SearchOut {
