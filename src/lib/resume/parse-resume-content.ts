@@ -40,28 +40,84 @@ export interface ParsedResumeDocument {
 }
 
 const BULLET_RE = /^[-*•−]\s+(.+)$/;
-const MD_HEADING_RE = /^#{1,6}\s+(.+)$/;
+const MD_HEADING_RE = /^(#{1,6})\s+(.+)$/;
 const BOLD_ENTRY_RE = /^\*\*(.+?)\*\*\s*(.*)$/;
-/** Unbolded "Title | Company    date-ish tail" — two-or-more spaces before a
- *  trailing token containing a year or "present" is the same visual gap a
- *  right-aligned date leaves in flattened plain text. */
-const LOOSE_ENTRY_RE = /^(.{3,}?)\s{2,}([^\s].*(?:\d{4}|present|current).*)$/i;
+/** Unbolded "Title | Company    date-ish tail" — a two-or-more-space gap is
+ *  the same visual break a right-aligned date leaves in flattened plain
+ *  text; whether the tail actually IS a date is DATE_ISH_RE's job, kept
+ *  separate so it's the one place — shared with the markdown entry-heading
+ *  splitter below — that decides "does this look like a date." */
+const LOOSE_ENTRY_GAP_RE = /^(.{3,}?)\s{2,}(\S.*)$/;
+/** The ONE "does this look like a date" test — a bare 4-digit year, an
+ *  apostrophe'd 2-digit year ("'21", the founder's own reference resume's
+ *  convention — "September '21 — Present", "July '19 — February '20"), or
+ *  "present"/"current" (the only two non-numeric date words a résumé's
+ *  date range ever ends in). Reused by both the plain-text loose-entry gap
+ *  check above and `splitEntryTitleAndDate` below, so neither can drift
+ *  from what the other considers date-ish. */
+const DATE_ISH_RE = /\d{4}|'\d{2}\b|present|current/i;
 /** "Category: comma, separated, list" — bold or plain label followed by a
  *  colon and free text; used for the competencies-style block wherever it
  *  appears (not gated on a specific section name — the shape alone is the
  *  signal, so a future section using the same pattern is covered too). */
 const COMPETENCY_RE = /^\*{0,2}([^*:]{2,60}?):\*{0,2}\s+(.+)$/;
 
-function isSectionHeader(line: string): string | null {
+interface HeadingMatch {
+  /** Markdown `#` count (1-6); the plain-text ALL-CAPS heuristic has no
+   *  level marker of its own, so it's always treated as level 2 ("section")
+   *  — the only kind of header that shape can express. */
+  level: number;
+  text: string;
+}
+
+/**
+ * Markdown ATX heading OR the plain-text ALL-CAPS heuristic. Level decides
+ * what a heading MEANS to the caller (see `parseResumeContent`'s heading
+ * dispatch): 1 = name (only meaningful at the very top of the document),
+ * 2 = section, 3+ = an experience entry's title/dates line. A markdown
+ * heading is recognized regardless of case/length — the writer marked it
+ * as a heading explicitly — but the plain-text heuristic stays cautious
+ * (ALL-CAPS, <=60 chars) so an ordinary capitalized sentence is never
+ * misread as one; this is why "# Vivek Narayanan" (mixed case, H1) reaches
+ * the name slot while a bare, undecorated "Vivek Narayanan" line also does
+ * (via the name-slot's own "first non-heading line" rule, not this
+ * function) — the plain-text shape has no heading marker for name at all.
+ */
+function matchHeading(line: string): HeadingMatch | null {
   const md = line.match(MD_HEADING_RE);
-  const body = md ? md[1].trim() : line.trim();
+  if (md) {
+    const text = md[2].trim();
+    return text ? { level: md[1].length, text } : null;
+  }
+  const body = line.trim();
   if (!body) return null;
   const letters = body.replace(/[^A-Za-z]/g, "");
   if (!letters) return null;
   // ALL-CAPS (no lowercase letters) and short enough to be a heading, not a
   // shouted sentence — real résumé section labels never run past ~60 chars.
-  if (!md && (letters !== letters.toUpperCase() || body.length > 60)) return null;
-  return body.toUpperCase();
+  if (letters !== letters.toUpperCase() || body.length > 60) return null;
+  return { level: 2, text: body };
+}
+
+/**
+ * Splits a markdown entry heading's text ("Client-facing Product Manager |
+ * TELUS Health Wellbeing | September '21 — Present") into its title and a
+ * trailing date component, on the LAST "|" or " — " separator — whichever
+ * is present — but only when the trailing piece actually looks date-ish
+ * (DATE_ISH_RE); otherwise the whole heading is the title and there's no
+ * date, same graceful degrade every other entry shape here has. Splitting
+ * on the LAST separator (not the first) is what keeps "Title | Company"
+ * itself intact when a third, later segment is the date.
+ */
+function splitEntryTitleAndDate(text: string): { title: string; dateRight: string | null } {
+  for (const sep of [" | ", " — "]) {
+    const idx = text.lastIndexOf(sep);
+    if (idx === -1) continue;
+    const before = text.slice(0, idx).trim();
+    const after = text.slice(idx + sep.length).trim();
+    if (before && DATE_ISH_RE.test(after)) return { title: before, dateRight: after };
+  }
+  return { title: text.trim(), dateRight: null };
 }
 
 /** Pure: free-text résumé content -> structured sections. See module doc. */
@@ -74,13 +130,20 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
 
   skipBlank();
   let name: string | null = null;
-  if (i < rawLines.length && !isSectionHeader(rawLines[i]) && !BULLET_RE.test(rawLines[i].trim())) {
-    name = rawLines[i].replace(MD_HEADING_RE, "$1").replace(/\*\*/g, "").trim();
-    i++;
+  if (i < rawLines.length && !BULLET_RE.test(rawLines[i].trim())) {
+    const h = matchHeading(rawLines[i]);
+    // Not a heading at all (the plain-text shape's unadorned name line) OR
+    // a markdown H1 (the ONLY level that means "name," and only here, at
+    // the very top) — anything level 2+ is a real section/entry heading
+    // and must NOT be consumed as a name.
+    if (h === null || h.level === 1) {
+      name = (h?.text ?? rawLines[i].trim()).replace(/\*\*/g, "").trim();
+      i++;
+    }
   }
   skipBlank();
   let contactLine: string | null = null;
-  if (i < rawLines.length && !isSectionHeader(rawLines[i]) && !BULLET_RE.test(rawLines[i].trim())) {
+  if (i < rawLines.length && !BULLET_RE.test(rawLines[i].trim()) && matchHeading(rawLines[i]) === null) {
     contactLine = rawLines[i].trim();
     i++;
   }
@@ -111,11 +174,21 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
       continue;
     }
 
-    const heading = isSectionHeader(raw);
+    const heading = matchHeading(raw);
     if (heading !== null) {
-      current = { heading, blocks: [] };
-      sections.push(current);
       closeOpenBlocks();
+      if (heading.level <= 2) {
+        current = { heading: heading.text.toUpperCase(), blocks: [] };
+        sections.push(current);
+      } else {
+        // H3+ — an experience entry's title/dates line, never a section
+        // (the bug this whole fix round exists for: "### Title | Company |
+        // Dates" used to become a ruled, all-caps section header).
+        const { title, dateRight } = splitEntryTitleAndDate(heading.text);
+        const entry: Extract<ParsedResumeBlock, { kind: "entry" }> = { kind: "entry", title, dateRight, bullets: [] };
+        ensureSection().blocks.push(entry);
+        openEntry = entry;
+      }
       continue;
     }
 
@@ -140,7 +213,8 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
     }
 
     const boldEntry = trimmed.match(BOLD_ENTRY_RE);
-    const looseEntry = !boldEntry ? trimmed.match(LOOSE_ENTRY_RE) : null;
+    const looseGap = !boldEntry ? trimmed.match(LOOSE_ENTRY_GAP_RE) : null;
+    const looseEntry = looseGap && DATE_ISH_RE.test(looseGap[2]) ? looseGap : null;
     if (boldEntry || looseEntry) {
       const [, title, rest] = (boldEntry ?? looseEntry)!;
       const entry: Extract<ParsedResumeBlock, { kind: "entry" }> = {

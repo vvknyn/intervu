@@ -47,9 +47,23 @@ export interface DrawText {
 export interface DrawRule {
   y: number;
 }
+/** A bullet marker, drawn as a filled circle — never as a Unicode glyph
+ *  ("●"/"•") through jsPDF's core "helvetica" font. Core fonts use
+ *  WinAnsiEncoding, which has no codepoint for either character; asking
+ *  jsPDF to draw one silently substitutes mojibake ("%Ï") instead of
+ *  throwing, so this was invisible to any test that never rendered real
+ *  bytes and read them back. `y` is the vertical CENTER of the circle
+ *  (matches jsPDF's `circle(x, y, r, style)` contract), not a text
+ *  baseline. */
+export interface DrawDot {
+  x: number;
+  y: number;
+  r: number;
+}
 export interface PageLayout {
   texts: DrawText[];
   rules: DrawRule[];
+  dots: DrawDot[];
 }
 export interface ResumeLayout {
   pages: PageLayout[];
@@ -82,6 +96,12 @@ const HEADING_SIZE = 10;
 const BODY_SIZE = 9.5;
 const LINE_HEIGHT = 1.35;
 const BULLET_INDENT = 12;
+const BULLET_DOT_RADIUS = 1.5;
+/** Gap between a section heading's text baseline (accounting for descenders)
+ *  and the rule drawn beneath it — sized so the rule never crosses the
+ *  glyphs above it (the "struck through" bug: the rule used to be placed
+ *  mid-line-height, cutting through cap-height letters). */
+const RULE_GAP_BELOW_TEXT = 3;
 const SECTION_GAP_BEFORE = 14;
 const GAP_AFTER_HEADING_RULE = 8;
 const GAP_BETWEEN_BLOCKS = 5;
@@ -99,7 +119,7 @@ class PageCursor {
   readonly maxY: number;
 
   constructor(private metrics: PageMetrics) {
-    this.current = { texts: [], rules: [] };
+    this.current = { texts: [], rules: [], dots: [] };
     this.pages.push(this.current);
     this.y = metrics.marginTop;
     this.contentWidth = metrics.pageWidth - metrics.marginX * 2;
@@ -114,7 +134,7 @@ class PageCursor {
    *  that unit's draw commands. */
   reserve(height: number): void {
     if (this.y + height > this.maxY && this.y > this.metrics.marginTop) {
-      this.current = { texts: [], rules: [] };
+      this.current = { texts: [], rules: [], dots: [] };
       this.pages.push(this.current);
       this.y = this.metrics.marginTop;
     }
@@ -125,6 +145,9 @@ class PageCursor {
   }
   rule(): void {
     this.current.rules.push({ y: this.y });
+  }
+  dot(centerY: number, r: number): void {
+    this.current.dots.push({ x: this.metrics.marginX + r, y: centerY, r });
   }
   advance(n: number): void {
     this.y += n;
@@ -143,19 +166,10 @@ class PageCursor {
 /** Wraps `body` to `maxWidth`, with a BOLD `prefix` (e.g. "Category: ")
  *  glued onto the first line and every wrapped line after it starting flush
  *  left — the bold-label-then-prose shape the reference design's
- *  "CORE COMPETENCIES" lines use. Returns one draw-ready line per entry;
- *  `boldPrefixLen` tells the caller how many leading characters of the
- *  FIRST line are the bold prefix (so it can be drawn as two commands). */
-function wrapWithPrefix(
-  prefix: string,
-  body: string,
-  maxWidth: number,
-  size: number,
-  measure: TextMeasurer,
-): { lines: string[]; prefixOnFirstLine: string } {
-  const combined = `${prefix}${body}`;
-  const lines = measure.wrap(combined, maxWidth, size);
-  return { lines, prefixOnFirstLine: prefix };
+ *  "CORE COMPETENCIES" lines use. The caller re-splits line 0 on `prefix`
+ *  itself to draw it as two runs (bold label, normal continuation). */
+function wrapWithPrefix(prefix: string, body: string, maxWidth: number, size: number, measure: TextMeasurer): string[] {
+  return measure.wrap(`${prefix}${body}`, maxWidth, size);
 }
 
 function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, x?: number): void {
@@ -178,13 +192,21 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
 
   if (block.kind === "competency") {
     const prefix = `${block.category}: `;
-    const { lines } = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
+    const lines = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
     cursor.reserve(lines.length * lh(BODY_SIZE));
     lines.forEach((line, idx) => {
       const y = cursor.y + lh(BODY_SIZE) * 0.8;
       if (idx === 0 && line.startsWith(prefix)) {
-        cursor.text({ text: prefix.trim(), y, size: BODY_SIZE, bold: true });
-        const prefixWidth = measure.widthOf(`${prefix.trim()} `, BODY_SIZE, true);
+        // The trailing space is drawn AS PART OF the bold run itself, not
+        // just accounted for via x-offset math — a separator synthesized
+        // purely from positioning, with no actual space glyph in either
+        // draw call, glued the two runs together in text-extraction (the
+        // visual gap existed but no whitespace CHARACTER did — "Technical:
+        // SQL" read back as "Technical:SQL"). Drawing `prefix` (WITH its
+        // trailing space) as one bold text run guarantees a real space
+        // character sits between the two runs.
+        cursor.text({ text: prefix, y, size: BODY_SIZE, bold: true });
+        const prefixWidth = measure.widthOf(prefix, BODY_SIZE, true);
         cursor.text({ text: line.slice(prefix.length), x: cursor.marginX + prefixWidth, y, size: BODY_SIZE, bold: false });
       } else {
         cursor.text({ text: line, y, size: BODY_SIZE, bold: false });
@@ -201,7 +223,9 @@ function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMe
       cursor.reserve(lines.length * lh(BODY_SIZE));
       lines.forEach((line, idx) => {
         const y = cursor.y + lh(BODY_SIZE) * 0.8;
-        if (idx === 0) cursor.text({ text: "●", y, size: BODY_SIZE - 3, bold: false });
+        // Drawn as a filled circle, never a text glyph — see DrawDot's doc
+        // comment for why ("●"/"•" mojibake through jsPDF's core fonts).
+        if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
         cursor.text({ text: line, x: cursor.marginX + BULLET_INDENT, y, size: BODY_SIZE, bold: false });
         cursor.advance(lh(BODY_SIZE));
       });
@@ -245,10 +269,13 @@ export function layoutResumeDocument(
 
   for (const section of doc.sections) {
     if (section.heading) {
-      cursor.reserve(SECTION_GAP_BEFORE + lh(HEADING_SIZE) + GAP_AFTER_HEADING_RULE);
+      cursor.reserve(SECTION_GAP_BEFORE + lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT + GAP_AFTER_HEADING_RULE);
       cursor.advance(SECTION_GAP_BEFORE);
       cursor.text({ text: section.heading, y: cursor.y + lh(HEADING_SIZE) * 0.8, size: HEADING_SIZE, bold: true });
-      cursor.advance(lh(HEADING_SIZE) * 0.55);
+      // Advance past the FULL text line box (not partway through it) before
+      // placing the rule, plus a small explicit gap — the rule must sit
+      // below the text's descent, never through the glyphs.
+      cursor.advance(lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT);
       cursor.rule();
       cursor.advance(GAP_AFTER_HEADING_RULE);
     }
@@ -289,6 +316,10 @@ export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetr
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.75);
       doc.line(metrics.marginX, rule.y, metrics.pageWidth - metrics.marginX, rule.y);
+    }
+    for (const dot of page.dots) {
+      doc.setFillColor(0, 0, 0);
+      doc.circle(dot.x, dot.y, dot.r, "F");
     }
     for (const t of page.texts) {
       doc.setFont("helvetica", t.bold ? "bold" : "normal");

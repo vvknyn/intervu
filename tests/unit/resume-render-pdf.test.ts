@@ -307,3 +307,111 @@ describe("deriveResumePdfFilename", () => {
     assert.ok(/^[\w.-]+$/.test(name), `expected a filename-safe stem, got "${name}"`);
   });
 });
+
+/* --------------------------------- fix round: markdown vs plain-text, class case --------------------------------- *
+ * Visual verification (coordinator, 2026-08-09) caught `isSectionHeader`
+ * treating EVERY markdown heading level the same: `# Name` became a ruled
+ * "NAME" section, and `### Title | Company | Dates` became a ruled
+ * ALL-CAPS section instead of an experience entry. Fixed by making the
+ * parser LEVEL-aware (H1 -> name, H2 -> section, H3+ -> entry). Both input
+ * shapes an LLM-saved variant can arrive in — markdown (the actual cause of
+ * the user's bug report) and the plain-text/ALL-CAPS shape the founder's
+ * own reference PDF's extracted text uses — must produce the SAME
+ * structure; neither is a second, divergent path.
+ */
+
+describe("parseResumeContent — markdown heading levels (class case: name/H1, section/H2, entry/H3+)", () => {
+  it("H1 is captured as the NAME, never a section — the exact bug: '# Vivek Narayanan' used to become a ruled 'VIVEK NARAYANAN' section", () => {
+    const doc = parseResumeContent("# Vivek Narayanan\nRichmond Hill, Ontario | viveknyan@gmail.com\n## SUMMARY\nBody text.");
+    assert.equal(doc.name, "Vivek Narayanan");
+    assert.equal(doc.contactLine, "Richmond Hill, Ontario | viveknyan@gmail.com");
+    assert.deepEqual(doc.sections.map((s) => s.heading), ["SUMMARY"]);
+  });
+
+  it("H2 is a section header, uppercased, same as the ALL-CAPS plain-text convention", () => {
+    const doc = parseResumeContent("Name\ncontact\n## Professional Summary\nBody.");
+    assert.deepEqual(doc.sections.map((s) => s.heading), ["PROFESSIONAL SUMMARY"]);
+  });
+
+  it("H3 is an EXPERIENCE ENTRY, never a section — the exact bug: '### Title | Company | Dates' used to become a ruled ALL-CAPS section", () => {
+    const doc = parseResumeContent(
+      "Name\ncontact\n## PROFESSIONAL EXPERIENCE\n### Client-facing Product Manager | TELUS Health Wellbeing | September '21 — Present\n- Did the thing.",
+    );
+    assert.equal(doc.sections.length, 1, "the H3 line must NOT open a second section");
+    const entry = doc.sections[0].blocks[0];
+    assert.equal(entry.kind, "entry");
+    assert.ok(entry.kind === "entry" && entry.title === "Client-facing Product Manager | TELUS Health Wellbeing", `got title ${entry.kind === "entry" ? entry.title : ""}`);
+    assert.ok(entry.kind === "entry" && entry.dateRight === "September '21 — Present");
+    assert.ok(entry.kind === "entry" && entry.bullets.length === 1);
+  });
+
+  it("H4 is ALSO an entry (not just H3) — the level rule is >= 3, not a single hardcoded level", () => {
+    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n#### Engineer | Acme | 2020 — 2022\n- Shipped things.");
+    const entry = doc.sections[0].blocks[0];
+    assert.equal(entry.kind, "entry");
+    assert.ok(entry.kind === "entry" && entry.dateRight === "2020 — 2022");
+  });
+
+  it("an entry heading with NO date-ish trailing segment keeps the whole text as the title, dateRight null — degrades gracefully, never crashes", () => {
+    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Volunteer Work\n- Helped out.");
+    const entry = doc.sections[0].blocks[0];
+    assert.ok(entry.kind === "entry" && entry.title === "Volunteer Work" && entry.dateRight === null);
+  });
+
+  it("splits on the LAST separator, not the first — 'Title | Company | Dates' keeps 'Title | Company' intact as one title", () => {
+    const doc = parseResumeContent("Name\ncontact\n## EXPERIENCE\n### Senior Engineer | Acme Corp | 2020 — Present\n- Bullet.");
+    const entry = doc.sections[0].blocks[0];
+    assert.ok(entry.kind === "entry" && entry.title === "Senior Engineer | Acme Corp");
+  });
+});
+
+describe("parseResumeContent — plain-text shape produces the SAME structure (class case, both shapes covered)", () => {
+  it("unadorned name line + ALL-CAPS section + a two-space-gap dated entry line all resolve identically to the markdown shape", () => {
+    const doc = parseResumeContent(
+      "Vivek Narayanan\nRichmond Hill, Ontario | viveknyan@gmail.com\nPROFESSIONAL EXPERIENCE\nClient-facing Product Manager | TELUS Health Wellbeing    September '21 — Present\n- Did the thing.",
+    );
+    assert.equal(doc.name, "Vivek Narayanan");
+    assert.deepEqual(doc.sections.map((s) => s.heading), ["PROFESSIONAL EXPERIENCE"]);
+    const entry = doc.sections[0].blocks[0];
+    assert.equal(entry.kind, "entry");
+    assert.ok(entry.kind === "entry" && entry.title === "Client-facing Product Manager | TELUS Health Wellbeing");
+    assert.ok(entry.kind === "entry" && entry.dateRight === "September '21 — Present");
+  });
+
+  it("class case: an apostrophe'd 2-digit year range with no 'Present' ('July '19 — February '20', the founder's own reference resume's convention for a past role) still resolves as a dated entry", () => {
+    const doc = parseResumeContent("Name\ncontact\nEXPERIENCE\nTechnology Lead | Tracxn Technologies    July '19 — February '20\n- Led a team.");
+    const entry = doc.sections[0].blocks[0];
+    assert.equal(entry.kind, "entry");
+    assert.ok(entry.kind === "entry" && entry.dateRight === "July '19 — February '20");
+  });
+});
+
+describe("render-pdf — fix round: bullet glyph, rule position, competency spacing", () => {
+  it("a bullet is drawn as a filled circle (DrawDot), never as bullet TEXT — the mojibake bug ('●'/'•' have no WinAnsi codepoint in jsPDF's core fonts)", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: ["One thing."] }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const allText = layout.pages.flatMap((p) => p.texts).map((t) => t.text);
+    assert.ok(!allText.some((t) => t === "●" || t === "•"), `no draw-text command should be a bullet glyph, got ${JSON.stringify(allText)}`);
+    assert.equal(layout.pages[0].dots.length, 1, "exactly one dot per bullet item");
+  });
+
+  it("a section header's rule sits BELOW the text's full line box, never through it — the struck-through-text bug", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: "Body." }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const headingCmd = layout.pages[0].texts.find((t) => t.text === "SUMMARY")!;
+    const rule = layout.pages[0].rules[0];
+    // headingCmd.y is the text BASELINE; a 10pt heading's full line box
+    // (lh = 10 * 1.35 = 13.5) must fully clear the baseline before the rule
+    // — i.e. the rule sits at least (lineHeight - the 0.8 baseline offset
+    // already spent) below the baseline, never within a few points of it.
+    assert.ok(rule.y - headingCmd.y >= 5, `rule (y=${rule.y}) must sit well clear of the heading text's baseline (y=${headingCmd.y}), not strike through it`);
+  });
+
+  it("a competency line's bold category run includes its own trailing space — never synthesized purely from x-offset math (the 'Technical:SQL' missing-space bug)", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python" }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const boldRun = layout.pages[0].texts.find((t) => t.bold && t.text.startsWith("Data, Analytics & Technical"))!;
+    assert.ok(boldRun, "expected a bold draw command for the category label");
+    assert.ok(boldRun.text.endsWith(" "), `the bold run itself must end with a real space character, got ${JSON.stringify(boldRun.text)}`);
+  });
+});
