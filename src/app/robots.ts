@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { buildRobotsRules } from "@/lib/shield/robots-policy";
-
-const SITE_URL = "https://intervu.cc";
+import { SITE_URL } from "@/lib/seo/constants";
 
 /**
  * /robots.txt — policy (P27 shield, updated 2026-08-02): search engines AND
