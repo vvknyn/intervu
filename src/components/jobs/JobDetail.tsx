@@ -20,6 +20,8 @@ import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, sala
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { jobShareUrl } from "@/lib/jobs/share-url";
+import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction } from "@/actions/jobs";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -267,7 +269,7 @@ function CopyJobLinkButton({ jobId }: { jobId: string }) {
 
     const handleCopy = async () => {
         try {
-            const url = `${window.location.origin}/jobs?job=${encodeURIComponent(jobId)}`;
+            const url = jobShareUrl(window.location.origin, jobId);
             await navigator.clipboard.writeText(url);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
@@ -619,6 +621,15 @@ export function JobDetail({
                                     <span key={s.text}>
                                         {s.positive ? "✓ " : "— "}
                                         {s.text}
+                                        {/* R7 (founder, 2026-08-09): age alone must never
+                                            read as a ghost verdict. Mounted ONLY when this
+                                            line is the sole negative signal — see
+                                            shouldShowAgeBalanceNote's doc for why a
+                                            multi-signal verdict's existing copy stands
+                                            unsoftened instead. */}
+                                        {!s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                            <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
+                                        )}
                                     </span>
                                 ))}
                             </div>

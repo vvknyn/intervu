@@ -264,17 +264,33 @@ describe('toolSearchJobs', () => {
     assert.equal(searchCalls[0].q, 'backend engineer');
   });
 
-  it('maps hits to the real PublicJob field names only (no invented fields)', async () => {
+  it('maps hits to the real PublicJob field names, plus the derived intervu_url (R6) — no other invented fields', async () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.total, 1);
     assert.deepEqual(Object.keys(out.hits[0]).sort(), [
       'apply_url', 'company', 'first_seen_at', 'ghost_badge', 'id',
-      'location', 'posted_at', 'title', 'updated_at', 'vacancy_status',
+      'intervu_url', 'location', 'posted_at', 'title', 'updated_at', 'vacancy_status',
     ]);
     assert.equal(out.hits[0].id, 'job-1');
     assert.equal(out.hits[0].ghost_badge, 'clear');
+  });
+
+  it('R6: every search hit carries a shareable intervu_url built from the job id, and passes through apply_url as-is', async () => {
+    const { deps } = stubDeps([makeJob({ id: 'job-1', apply_url: 'https://acme.com/apply/job-1' })]);
+    const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
+    assert.equal(out.hits[0].apply_url, 'https://acme.com/apply/job-1');
+  });
+
+  it('R6: a job with no known apply_url (blank string, real corpus shape) still serializes intervu_url — never crashes on an absent apply link', async () => {
+    const { deps } = stubDeps([makeJob({ apply_url: '' })]);
+    const out = await toolSearchJobs(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.hits[0].apply_url, '');
+    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
   });
 
   it('reports unavailable (not a silent empty-success) when the backend errors', async () => {
@@ -830,7 +846,7 @@ describe('toolSaveResumeVariant', () => {
   it('resolves/creates the pursuit at stage "interested" (never consumes the apply cap) then files the snapshot', async () => {
     const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()], { data: { id: 'app-1' } });
     const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'My tailored resume', label: 'Acme v1' });
-    assert.deepEqual(out, { saved: true });
+    assert.deepEqual(out, { saved: true, download_url: `${AGENT.issuer()}/yours/app-1?download=pdf&variant=2026-08-02T00%3A00%3A00.000Z` });
     assert.equal(upsertCalls.length, 1);
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'interested');
@@ -838,6 +854,15 @@ describe('toolSaveResumeVariant', () => {
     assert.equal(saveResumeVersionCalls[0].uid, 'user-abc');
     assert.equal(saveResumeVersionCalls[0].pursuitId, 'app-1');
     assert.deepEqual(saveResumeVersionCalls[0].input, { content: 'My tailored resume', label: 'Acme v1' });
+  });
+
+  it('R5a: download_url points at the pursuit page with the SAVED variant\'s saved_at as its stable key — not a mutable array index', async () => {
+    const { deps } = stubDeps([makeJob()], { data: { id: 'app-2' } }, {}, TEST_VOCAB, {
+      saveResumeVersionResult: { data: { content: 'text', label: 'v2', saved_at: '2026-08-09T12:34:56.000Z' } },
+    });
+    const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'text', label: 'v2' });
+    assert.ok('download_url' in out);
+    assert.ok(out.download_url === `${AGENT.issuer()}/yours/app-2?download=pdf&variant=2026-08-09T12%3A34%3A56.000Z`);
   });
 
   it('returns an error for an unknown job_id and never calls saveResumeVersion', async () => {

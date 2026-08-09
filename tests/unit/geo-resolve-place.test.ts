@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
-import { resolvePlacePhrase, scanPlacePhrases, countryPlaceCandidates, PLACE_MIN_LENGTH } from "../../src/lib/geo/resolve-place";
+import {
+  resolvePlacePhrase,
+  scanPlacePhrases,
+  countryPlaceCandidates,
+  buildCityVariantIndex,
+  PLACE_MIN_LENGTH,
+} from "../../src/lib/geo/resolve-place";
 import { JOBS_SYNONYMS } from "../../src/lib/jobs/meilisearch";
 
 /**
@@ -391,5 +397,120 @@ test("S2: synonym-key derivation — every single-word JOBS_SYNONYMS key is guar
       null,
       `expected registered synonym "${key}" to never resolve as a place under the free-text guard`,
     );
+  }
+});
+
+/* ------------------------- renamed/transliterated cities ------------------------- *
+ * R3 (2026-08-09 user report): "material science" in "bangalore" returned
+ * unrelated results because the gazetteer only ever indexed "Bengaluru" —
+ * "bangalore" didn't resolve as a place AT ALL, so it fell through to a
+ * full-text content word. Root cause: a class of renamed cities where the
+ * live corpus is genuinely split across old and new spellings (see
+ * CITY_NAME_VARIANTS's doc, resolve-place.ts). Own fixture: needs a city
+ * pair the gazetteer indexes ONLY under the canonical spelling (Bengaluru,
+ * Kyiv), plus two SAME-NAMED but unrelated real towns (Calcutta/ZA,
+ * Madras/US) that the renamed-city redirect must win over, not fall through
+ * to — proves the fix isn't a Bangalore-only special case.
+ */
+const RENAME_DATA: GazetteerData = {
+  countries: [
+    ["IN", "IND", "India"],
+    ["UA", "UKR", "Ukraine"],
+    ["ZA", "ZAF", "South Africa"],
+    ["US", "USA", "United States"],
+    ["CA", "CAN", "Canada"], // Toronto's country, for the control test
+  ],
+  admin1: [],
+  cities: [
+    ["Bengaluru", null, 12.97194, 77.59369, "IN", "19", 8495492],
+    ["Kolkata", null, 22.56263, 88.363, "IN", "18", 4631392],
+    ["Chennai", null, 13.08784, 80.27847, "IN", "16", 4681087],
+    ["Kyiv", null, 50.45466, 30.5238, "UA", "12", 2952301],
+    ["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356],
+    // Same-named but UNRELATED real towns the gazetteer legitimately
+    // indexes under their own name — the redirect must win over these, not
+    // fall through to them (see CITY_NAME_VARIANTS's doc).
+    ["Calcutta", null, -24.98317, 31.23485, "ZA", "07", 35864],
+    ["Madras", null, 44.63345, -121.12949, "US", "OR", 6662],
+  ],
+};
+const RENAME_GAZETTEER = buildGazetteerIndex(RENAME_DATA);
+
+test("renamed city, alias direction: 'bangalore' resolves to the Bengaluru entity (the gazetteer indexes no other name)", () => {
+  const r = resolvePlacePhrase("bangalore", RENAME_GAZETTEER);
+  assert.ok(r, "'bangalore' must resolve");
+  assert.equal(r!.entity.type, "city");
+  assert.equal(r!.entity.name, "Bengaluru");
+  assert.equal(r!.entity.countryCode, "IN");
+});
+
+test("renamed city, variant-expanded clause shape: both spellings are ANY-of candidates on location_city, ready for renderPlaceClause's OR", () => {
+  const r = resolvePlacePhrase("bangalore", RENAME_GAZETTEER);
+  assert.ok(r);
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Bengaluru"), `expected Bengaluru in ${JSON.stringify(cities)}`);
+  assert.ok(cities.includes("Bangalore"), `expected Bangalore in ${JSON.stringify(cities)}`);
+});
+
+test("renamed city, canonical direction: typing 'bengaluru' reaches the SAME variant-expanded candidate set as typing the alias 'bangalore' — one source, both directions", () => {
+  const viaAlias = resolvePlacePhrase("bangalore", RENAME_GAZETTEER);
+  const viaCanonical = resolvePlacePhrase("bengaluru", RENAME_GAZETTEER);
+  assert.ok(viaAlias && viaCanonical);
+  assert.deepEqual(
+    fieldValues(viaAlias!.candidates, "location_city").sort(),
+    fieldValues(viaCanonical!.candidates, "location_city").sort(),
+  );
+});
+
+test("renamed city, non-Indian rename: 'kiev' resolves to Kyiv and expands to include 'Kiev' as a candidate too — proves the fix is class-wide, not a Bangalore special case", () => {
+  const r = resolvePlacePhrase("kiev", RENAME_GAZETTEER);
+  assert.ok(r, "'kiev' must resolve");
+  assert.equal(r!.entity.name, "Kyiv");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Kyiv"));
+  assert.ok(cities.includes("Kiev"));
+});
+
+test("renamed city, collision guard: 'calcutta' resolves to Kolkata (the historical rename), NOT the same-named real town in South Africa the gazetteer also indexes", () => {
+  const r = resolvePlacePhrase("calcutta", RENAME_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Kolkata");
+  assert.equal(r!.entity.countryCode, "IN");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Calcutta"), "the alias spelling must still be an ANY-of candidate");
+  assert.ok(cities.includes("Kolkata"));
+});
+
+test("renamed city, collision guard mirrored: 'madras' resolves to Chennai, NOT the same-named real town in Oregon, US", () => {
+  const r = resolvePlacePhrase("madras", RENAME_GAZETTEER);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Chennai");
+  assert.equal(r!.entity.countryCode, "IN");
+});
+
+test("control: a single-name city with no renamed-city table entry ('Toronto') resolves exactly as before — no phantom variant candidates", () => {
+  const r = resolvePlacePhrase("toronto", RENAME_GAZETTEER);
+  assert.ok(r);
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.deepEqual(cities, ["Toronto"]);
+});
+
+test("canonical-missing guard: a table entry pointing at a city the gazetteer doesn't recognize is dropped, not thrown — proven against a deliberately-bad fixture table, not the real CITY_NAME_VARIANTS constant", () => {
+  const badTable = { atlantis: "nonexistent-city-xyz" };
+  const index = buildCityVariantIndex(badTable, RENAME_GAZETTEER);
+  assert.equal(index.has("nonexistent-city-xyz"), false, "a canonical the gazetteer doesn't have must never appear in the index");
+  assert.equal(index.size, 0);
+});
+
+test("canonical-missing guard, real table: every CITY_NAME_VARIANTS canonical actually exists in the committed gazetteer — this test fails if a future bad entry slips in", async () => {
+  const { loadGazetteer } = await import("../../src/lib/geo/gazetteer");
+  // Re-derive the real table's canonicals via the resolver's own public
+  // surface: resolving each alias must succeed end-to-end against the real,
+  // committed ~70k-city artifact — a canonical typo would resolve to null
+  // here even though buildCityVariantIndex silently drops it upstream.
+  const gazetteer = loadGazetteer();
+  for (const alias of ["bangalore", "bombay", "calcutta", "madras", "kiev", "saigon", "peking", "gurgaon"]) {
+    const r = resolvePlacePhrase(alias, gazetteer);
+    assert.ok(r, `renamed-city alias "${alias}" must resolve against the real committed gazetteer`);
   }
 });

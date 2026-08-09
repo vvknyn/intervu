@@ -1,6 +1,7 @@
 "use server";
 
 import { getBaseResumeSummaryForUser, type BaseResume } from "@/lib/resume/base-resume";
+import { setBaseResumeForUser, clearBaseResumeForUser, validateResumeUploadText, type SetBaseResumeResult } from "@/lib/resume/set-resume";
 import { getServerUser } from "@/lib/firebase/auth-session";
 
 export type ResumeSummary = BaseResume & { updatedAt: string | null };
@@ -14,4 +15,31 @@ export async function fetchResumeSummaryAction(): Promise<{ data?: ResumeSummary
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
     return { data: await getBaseResumeSummaryForUser(user.uid) };
+}
+
+/**
+ * Upload/Replace for the account "Resume" section (R1, 2026-08-09 user
+ * report). Reuses `setBaseResumeForUser`/`planResumeUpload` (lib/resume/
+ * set-resume.ts) — the SAME write seam the MCP `set_resume` tool uses — so
+ * a web upload and a chat-filed résumé go through one planner, never a
+ * second divergent write path. That module NEVER calls an LLM by
+ * construction (see its own doc comment) — the binding no-AI-on-this-path
+ * rule holds for free by reuse, not by a separate guard here.
+ */
+export async function uploadBaseResumeAction(input: { text: string; label?: string }): Promise<{ data?: SetBaseResumeResult; error?: string }> {
+    const user = await getServerUser();
+    if (!user) return { error: "Unauthorized" };
+    const validation = validateResumeUploadText(input.text);
+    if (!validation.ok) return { error: validation.error };
+    return { data: await setBaseResumeForUser(user.uid, { text: validation.text, label: input.label }) };
+}
+
+/** Delete for the account "Resume" section — clears the CURRENT résumé
+ *  only; `resume_history` (every prior upload) stays on file, same as
+ *  `clearBaseResumeForUser`'s own doc explains. */
+export async function deleteBaseResumeAction(): Promise<{ error?: string }> {
+    const user = await getServerUser();
+    if (!user) return { error: "Unauthorized" };
+    await clearBaseResumeForUser(user.uid);
+    return {};
 }
