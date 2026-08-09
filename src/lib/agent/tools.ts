@@ -223,6 +223,11 @@ export interface SearchJobsInput {
   employment_type?: EmploymentType;
   /** → `salaryMin`, the same field the SERP's salary preset ladder sets. */
   salary_min?: number;
+  /** → `visaOnly` (G7, Grok UX wave) — the SAME top-level `JobSearchParams`
+   *  field the web filter's "Sponsors visas" toggle sets (SerpFilters.tsx →
+   *  meilisearch.ts's `visa_sponsorship = true` clause). Not a facet — see
+   *  `buildFacets` below, which only ever composes `facets.*` fields. */
+  visa_sponsorship_only?: boolean;
   /** Opaque pagination cursor from a previous call's `next_cursor`. */
   cursor?: string;
 }
@@ -365,6 +370,7 @@ export async function toolSearchJobs(
     salaryMin: input.salary_min,
     ...(Object.keys(facets).length ? { facets } : {}),
     ...(places.length ? { places } : {}),
+    ...(input.visa_sponsorship_only ? { visaOnly: true } : {}),
   });
   // A backend failure must never read like a true zero-match — the MCP
   // response is the agent's only channel, so an empty `hits` here has to be

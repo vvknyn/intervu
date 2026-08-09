@@ -91,6 +91,15 @@ describe('mcp route: search_jobs wire schema (Task 12 filters + cursor)', () => 
     assert.equal(searchJobsInput.safeParse({ location: 'x'.repeat(129) }).success, false);
   });
 
+  it('accepts visa_sponsorship_only (G7, Grok UX wave)', () => {
+    assert.equal(searchJobsInput.safeParse({ visa_sponsorship_only: true }).success, true);
+    assert.equal(searchJobsInput.safeParse({ visa_sponsorship_only: false }).success, true);
+  });
+
+  it('rejects a non-boolean visa_sponsorship_only', () => {
+    assert.equal(searchJobsInput.safeParse({ visa_sponsorship_only: 'yes' }).success, false);
+  });
+
   it('rejects an over-length cursor string (>128 chars)', () => {
     assert.equal(searchJobsInput.safeParse({ cursor: 'x'.repeat(129) }).success, false);
   });

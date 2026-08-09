@@ -565,6 +565,22 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
     assert.deepEqual(searchCalls[0].facets, { employment_type: ['part_time'] });
   });
 
+  it('maps visa_sponsorship_only:true to visaOnly (G7, Grok UX wave — same top-level field the web filter sets)', async () => {
+    const { deps, searchCalls } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps, { visa_sponsorship_only: true });
+    assert.equal(searchCalls[0].visaOnly, true);
+  });
+
+  it('never sets visaOnly when visa_sponsorship_only is omitted or false', async () => {
+    const { deps: deps1, searchCalls: calls1 } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps1, {});
+    assert.equal(calls1[0].visaOnly, undefined);
+
+    const { deps: deps2, searchCalls: calls2 } = stubDeps([makeJob()]);
+    await toolSearchJobs(deps2, { visa_sponsorship_only: false });
+    assert.equal(calls2[0].visaOnly, undefined);
+  });
+
   it('maps salary_min straight through to salaryMin', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     await toolSearchJobs(deps, { salary_min: 150000 });
