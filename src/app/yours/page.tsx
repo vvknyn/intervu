@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,13 @@ function YoursContent() {
     const { pursuits, loading } = usePursuits();
     const guestSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
+    // G5e (Grok UX wave) — same xl (1280px) mount-site split the job board's
+    // own detail panel uses (jobs/page.tsx's isXlUp/resolveDetailMountSite):
+    // below xl a row click opens the sheet, at xl+ it navigates to the
+    // pursuit's own full page instead — one mount site per viewport class,
+    // never both mixed for the same click. Deep-linking /yours/[id] directly
+    // always lands on the full page regardless of viewport (unchanged).
+    const isXlUp = useMediaQuery("(min-width: 1280px)");
 
     // URL is source of truth for the add sheet — Soft Nav / Suspense remounts
     // can re-init local state from a stale `?view=new` if we only setState.
@@ -293,6 +301,10 @@ function YoursContent() {
     };
 
     const openDetail = (id: string) => {
+        if (isXlUp) {
+            router.push(`/yours/${id}`);
+            return;
+        }
         setSelectedId(id);
         setDetailOpen(true);
     };
