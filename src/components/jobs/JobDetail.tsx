@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowSquareOut, Check, Copy, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
+import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { buildFactChips, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
@@ -502,6 +503,17 @@ export function JobDetail({
                                         <b className="font-medium">also in</b>
                                         {alsoIn}
                                     </span>
+                                )}
+                                {/* G5d (Grok UX wave) — same quiet house tooltip
+                                    mechanism (ContextHelp) as the row badge's,
+                                    not a second ad-hoc one. Only worth
+                                    explaining when BOTH dates show — a single
+                                    date chip has nothing to disambiguate. */}
+                                {chips.some((c) => c.kind === "posted") && chips.some((c) => c.kind === "first_seen") && (
+                                    <ContextHelp
+                                        content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
+                                        className="self-center"
+                                    />
                                 )}
                             </div>
                         )}
