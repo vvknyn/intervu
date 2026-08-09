@@ -49,7 +49,17 @@ const testCorpusChecker: CorpusValueChecker = async (groups) =>
     return out;
   });
 
-const TEST_VOCAB: LocationVocabulary = { gazetteer: TEST_GAZETTEER, corpusChecker: testCorpusChecker };
+const TEST_VOCAB: LocationVocabulary = {
+  gazetteer: TEST_GAZETTEER,
+  corpusChecker: testCorpusChecker,
+  // resolvePlaces (agent/tools.ts) always calls parsePlaceTokens with
+  // guardFreeTextWords off (explicit MCP `location` param, not free text —
+  // see that function's doc), so the S1 company-corroboration guard never
+  // runs here; this probe existing only satisfies the interface.
+  companyProbe: async () => {
+    throw new Error('companyProbe must never be called for the MCP location param');
+  },
+};
 
 const LONG_DESCRIPTION =
   'We are hiring a senior engineer. '.repeat(40) +

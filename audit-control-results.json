@@ -1,0 +1,278 @@
+[
+  {
+    "q": "stripe",
+    "arm": "control-bare",
+    "total": 29687,
+    "top5": [
+      "Software Engineer, Stripe Tax | Stripe | Dublin,Ireland",
+      "Operations Manager, Stripe Delivery Centre | Stripe | Bengaluru,Bengaluru",
+      "Head of Sales, Stripe Billing - APAC | Stripe | Sydney OR Singapore,Singapore",
+      "Head of Learning & Quality, Stripe Delivery Center | Stripe | Bangalore,Bangalore",
+      "Motion Designer, Stripe Identity | Stripe | Spain,Spain"
+    ]
+  },
+  {
+    "q": "walmart",
+    "arm": "control-bare",
+    "total": 6030,
+    "top5": [
+      "Walmart's $7 Donut Pack Might Be Harder To Tell Apart From Big Chains Than You Think | Tastingtable | Walmart,Walmart",
+      "The 12 Best Walmart Kitchen Tools That Cost Less Than $10 | Thedailymeal | Walmart,Walmart",
+      "Senior Partner, Advertising Sales, Walmart Connect | Walmart | ,United States",
+      "Walmart Sales Director - Pet Nutrition (Canada) | Mars Canada | CAN-Ontario-Toronto,Can-Ontario-Toronto",
+      "Walmart AMP Security Guard | Walton Arts Center | Fayetteville,United States"
+    ]
+  },
+  {
+    "q": "cleveland clinic",
+    "arm": "control-bare",
+    "total": 9723,
+    "top5": [
+      "Cleveland Clinic Florida - Neurology Outpatient | Cleveland Clinic | Vero Beach,United States",
+      "Executive Clinical Director, Pharmacy - Cleveland Clinic Abu Dhabi | Ccf | ,Cleveland Clinic Abu Dhabi",
+      "Patient Care Nursing Assistant - Cleveland Clinic Staffing Resources (CCSR) | Ccf | ,Independence Family Health Center",
+      "Sec/Nurse Aide (CNA) - Atrium Health Cleveland -Clinical Decision Unit - Full-Time Day Shift | Aah | Atrium Health Cleveland - 201 E Grover St,United States",
+      "Registered Nurse (RN) – Atrium Health Cleveland – Clinical Decision Unit - FT Days | Aah | ,United States"
+    ]
+  },
+  {
+    "q": "home depot",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "14 Home Depot Finds For Organizing Your Outdoor Grilling Space | Thedailymeal | Home Depot,Home Depot",
+      "Home Depot In-Store Lead Generator Sales · Fairfax, Sterling Headquarters | alltechservicesinc.com | Home Depot In-Store Lead Generator\n      \n\n      \n        \nSales\n\n  ·\n\n    Fairfax,Sterling Headquarters",
+      "Home Depot (HD) Laps the Stock Market: Here's Why | guardian first funding group | ,",
+      "National Account Manager (Home Depot) | Generac Power Systems Inc | Pewaukee,United States",
+      "National Account Manager The Home Depot | dupont | Wilmington,United States"
+    ]
+  },
+  {
+    "q": "nurse",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Nurse | Amicura | ,",
+      "Nurse | New Haven | Spanish Fork,United States",
+      "Nurse | Restore Hyper Wellness - RHWM017 | Reno,United States",
+      "Nurse | Creekside Health and Rehabilitation | Indianapolis,United States",
+      "Life Adjustment Program Nurse - LPN or RN | LPN or RN | Grand Junction,United States"
+    ]
+  },
+  {
+    "q": "registered nurse",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Registered Nurse | MNGI Digestive Health | Plymouth,United States",
+      "Registered Nurse | Visiting Rehab and Nursing Services | Fall River,United States",
+      "Registered Nurse | Visiting Rehab and Nursing Services | Attleboro,United States",
+      "Registered Nurse | Visiting Rehab and Nursing Services | Bridgewater,United States",
+      "Registered Nurse | Visiting Rehab and Nursing Services | Marion,United States"
+    ]
+  },
+  {
+    "q": "rn",
+    "arm": "control-bare",
+    "total": 71473,
+    "top5": [
+      "Hospice RN Case Manager | The Elizabeth Hospice | ,United States",
+      "Part Time Hospice Triage RN | The Elizabeth Hospice | ,United States",
+      "Hospice RN Case Manager | The Elizabeth Hospice | Escondido,United States",
+      "RN - Clinical Manager | Experienced Home Health Care Leadership Experience Needed | | vnaflorida.applicantpro.com | West Palm Beach,West Palm Beach",
+      "RN Home Health Visits | Leesburg | Multiple Hires | vnaflorida.applicantpro.com | Leesburg,Leesburg"
+    ]
+  },
+  {
+    "q": "software engineer",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Software Engineer | Cfc | London,United Kingdom",
+      "Software Engineer | jane street | LDN,Ldn",
+      "Software Engineer | jane street | ,Hong Kong",
+      "Software Engineer | jane street | LDN,Ldn",
+      "Software Engineer | jane street | LDN,Ldn"
+    ]
+  },
+  {
+    "q": "swe",
+    "arm": "control-bare",
+    "total": 74041,
+    "top5": [
+      "Technology Aftersales Support Tier 2, Sweden | Msd | SWE - Västra Götaland - Lidkoping,Sweden",
+      "SWE Intern | chasi.ai | San Francisco,United States",
+      "SWE Fellow - Human Frontier Collective (Canada) | Scaleai | Canada,Canada",
+      "SWE Fellow - Human Frontier Collective (UK) | Scaleai | United Kingdom,United Kingdom",
+      "SWE Fellow - Human Frontier Collective (US) | Scaleai | United States,United States"
+    ]
+  },
+  {
+    "q": "accountant",
+    "arm": "control-bare",
+    "total": 35875,
+    "top5": [
+      "ACCOUNTANT | ubuntuimpact.zohorecruit.com | Unknown,",
+      "Accountant | ubuntuimpact.zohorecruit.com | Unknown,",
+      "Accountant | 8388-Johnson & Johnson International (Singapore) Pte. Ltd. (ROHQ) (Branch) Legal Entity | Taguig,Philippines",
+      "Accountant | Rosecrance | Sioux City,United States",
+      "Accountant | BPT The Birdanco Practice Trust | Ballarat,Ballarat"
+    ]
+  },
+  {
+    "q": "acountant",
+    "arm": "control-bare",
+    "total": 16734,
+    "top5": [
+      "Senior Acountant (m/w/d) | Ironmaxx Nutrition Gmbh Co Kg | Hürth,",
+      "Station Accountant | Iita | Antananarivo,Madagascar",
+      "Accountant & Admin Executive | careers.botmakerstech.in | Unknown,",
+      "Accountant (m/f/d) | Textron Inc | Czech Republic-Prague-Prague,Czech Republic-Prague-Prague",
+      "Accountant (Get ₱20,000 Signing Bonus) | Payreto | Davao,Philippines"
+    ]
+  },
+  {
+    "q": "remote customer service jobs",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Remote Customer Service Associate | Jobs for Humanity | ,",
+      "Remote Customer Service Associate | Jobs for Humanity | ,",
+      "Customer Service Representative – Remote (AI Vending Machines) | jobs.vendguys.com | ,",
+      "Customer Service Representative (Remote) | Jobs for Humanity | ,",
+      "Customer Service Representative - Luxury Retail – Remote USA | Jobs for Humanity | Englewood,United States"
+    ]
+  },
+  {
+    "q": "part time evening jobs",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "LPN Part Time Evening | Jobs for Humanity | Northbrook,Northbrook",
+      "CT Technologist - Part-time- Evening | UKH University of Kansas Hospital Authority | ,United States",
+      "Temporary Part Time Direct Care Specialist - Evening Shift | State of OK JD McCarty Center | Norman,United States",
+      "Part-Time Casino Dealer – Weekends Only – Students & Second Jobs Welcome – up to $25/hr + Tips | Evolution | Philadelphia,United States",
+      "Part-Time Game Host – Up to $23/hr | 12, 16, or 24 hrs/wk. Students & Second Jobs Welcome! | Evolution | Atlantic City,United States"
+    ]
+  },
+  {
+    "q": "warehouse jobs in dallas",
+    "arm": "control-bare",
+    "total": 50519,
+    "top5": [
+      "Warehouse Forklift Operator | Ryder | DALLAS,United States",
+      "Warehouse Specialist | Ace Hardware Corporation | TX - Wilmer (Dallas),United States",
+      "Warehouse Specialist | Ace Hardware | Wilmer,United States",
+      "MedTech - Healthcare Collections Associate – Flex Support - Dallas, TX | Novasyte LLC (USA7) | ,United States",
+      "Data Warehouse Developer | American Heart Association | Dallas,United States"
+    ]
+  },
+  {
+    "q": "entry level marketing jobs",
+    "arm": "control-bare",
+    "total": 96659,
+    "top5": [
+      "Entry Level Marketing | Jobs for Humanity | Houston,United States",
+      "Marketing Coordinator (Entry-level) | Jobs for Humanity | ,",
+      "Non-Licensed &/or Entry Level Jobs at University of Vermont Health | Uvmhealthcareers | ,",
+      "Entry Level / Assistant jobs | Businessoffashion | ,",
+      "Browse Marketing Jobs in Fashion and Beauty | Businessoffashion | ,"
+    ]
+  },
+  {
+    "q": "jobs near me",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Find jobs near me | Aithomedelivery | ,",
+      "Find jobs near me | Aithomedelivery | ,",
+      "Find jobs near me | Aithomedelivery | ,",
+      "Find jobs near me | Aithomedelivery | ,",
+      "Find jobs near me | Earcu | ,"
+    ]
+  },
+  {
+    "q": "stripe software engineer",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Staff Software Engineer, Stripe Dashboard | Stripe | Seattle,Seattle",
+      "Software Engineer, Stripe Tax | Stripe | Dublin,Ireland",
+      "Staff Software Engineer - CI Services | Stripe | Dublin,Dublin",
+      "Staff Software Engineer, Machine Learning Platform | Stripe | San Francisco,Seattle",
+      "Staff Software Engineer, Machine Learning Platform | Stripe | Toronto,Toronto"
+    ]
+  },
+  {
+    "q": "nurse at cleveland clinic",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Sec/Nurse Aide (CNA) - Atrium Health Cleveland -Clinical Decision Unit - Full-Time Day Shift | Aah | Atrium Health Cleveland - 201 E Grover St,United States",
+      "Registered Nurse (RN) – Atrium Health Cleveland – Clinical Decision Unit - FT Days | Aah | ,United States",
+      "Registered Nurse (RN) - Levine Cancer Ambulatory Oncology Clinic Cleveland | Aah | Atrium Health Cleveland - 201 E Grover St,United States",
+      "Registered Nurse (RN) - Levine Cancer Ambulatory Clinic Cleveland | Aah | ,United States",
+      "Biosurgery Clinical Nurse Educator-Columbus/Cleveland OH | PV8 US Innovex Inc. | 2 Locations,"
+    ]
+  },
+  {
+    "q": "jobs paying $25 an hour",
+    "arm": "control-bare",
+    "total": 100000,
+    "top5": [
+      "Finish Welder 1st shift | Cornerstone Building Brands | ,",
+      "Learn more about truck driver salary | swtdt | ,",
+      "Lead Production Associate | Cornerstone Building Brands | ,",
+      "Extrusion Maintenance Technician II 2nd Shift | Cornerstone Building Brands | ,",
+      "Lead Production Associate | Cornerstone Building Brands | ,"
+    ]
+  },
+  {
+    "q": "stripe",
+    "arm": "control-sort-compare",
+    "relevance": {
+      "total": 29687,
+      "top5": [
+        "Software Engineer, Stripe Tax | Stripe | Dublin,Ireland",
+        "Operations Manager, Stripe Delivery Centre | Stripe | Bengaluru,Bengaluru",
+        "Head of Sales, Stripe Billing - APAC | Stripe | Sydney OR Singapore,Singapore",
+        "Head of Learning & Quality, Stripe Delivery Center | Stripe | Bangalore,Bangalore",
+        "Motion Designer, Stripe Identity | Stripe | Spain,Spain"
+      ]
+    },
+    "newest": {
+      "total": 29687,
+      "top5": [
+        "Staff Product Engineer - Backend (Revenue Engineering, Stripe) | Dash0 | ,",
+        "Software Engineer, Stripe Tax | Stripe | Dublin,Ireland",
+        "Operations Manager, Stripe Delivery Centre | Stripe | Bengaluru,Bengaluru",
+        "Head of Sales, Stripe Billing - APAC | Stripe | Sydney OR Singapore,Singapore",
+        "Head of Learning & Quality, Stripe Delivery Center | Stripe | Bangalore,Bangalore"
+      ]
+    }
+  },
+  {
+    "q": "walmart",
+    "arm": "control-sort-compare",
+    "relevance": {
+      "total": 6030,
+      "top5": [
+        "Walmart's $7 Donut Pack Might Be Harder To Tell Apart From Big Chains Than You Think | Tastingtable | Walmart,Walmart",
+        "The 12 Best Walmart Kitchen Tools That Cost Less Than $10 | Thedailymeal | Walmart,Walmart",
+        "Senior Partner, Advertising Sales, Walmart Connect | Walmart | ,United States",
+        "Walmart Sales Director - Pet Nutrition (Canada) | Mars Canada | CAN-Ontario-Toronto,Can-Ontario-Toronto",
+        "Walmart AMP Security Guard | Walton Arts Center | Fayetteville,United States"
+      ]
+    },
+    "newest": {
+      "total": 6030,
+      "top5": [
+        "Senior Account Manager Lead, Walmart | nvidia | US,United States",
+        "Walmart Sales Director - Pet Nutrition (Canada) | Mars Canada | CAN-Ontario-Toronto,Can-Ontario-Toronto",
+        "Commerce Media Strategist, Amazon + Retail Media Networks(Walmart + Criteo) Search | Tinuiti | ,United States",
+        "Director, Walmart Seasonal | Mars Wrigley Conf. (MCNA) | USA-Arkansas-Bentonville,Usa-Arkansas-Bentonville",
+        "Sales Analyst, Walmart - Front End | Mars Wrigley Conf. (MCNA) | USA-Arkansas-Bentonville,Usa-Arkansas-Bentonville"
+      ]
+    }
+  }
+]

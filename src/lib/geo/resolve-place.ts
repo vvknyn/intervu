@@ -44,18 +44,24 @@ import type { Gazetteer, GazetteerCity, GazetteerCountry } from "./gazetteer";
 import { haversineKm } from "./distance";
 import { COMMON_WORDS } from "./common-words";
 import { JOB_VOCAB } from "./job-vocab";
+import { JOBS_SYNONYMS } from "../jobs/meilisearch";
 
 /**
  * The guard's full word set: general-English common words (common-words.ts)
- * UNIONED with corpus-derived job-title vocabulary (job-vocab.ts). Two
- * different provenances — hand-curated general English vs. data-derived from
- * our own live corpus — because neither alone covers the class: "success" /
- * "mobile" / "engineer" are common-English; "enterprise" is not common
- * English but IS extremely common as a job-title word ("Enterprise Account
- * Executive"), so a general-English list alone still lets it hijack a
- * search. Built once at module load; the chokepoint below stays a single
- * check against one combined set, not two lookups. */
-const GUARD_WORDS: Set<string> = new Set([...COMMON_WORDS, ...JOB_VOCAB]);
+ * UNIONED with corpus-derived job-title vocabulary (job-vocab.ts) UNIONED
+ * with every key this app registers as a Meilisearch query synonym
+ * (JOBS_SYNONYMS, jobs/meilisearch.ts — derived, never hand-copied, so a
+ * future synonym never has to remember to also list itself here). Three
+ * different provenances because none of them alone covers the whole class:
+ * "success" / "mobile" / "engineer" are common-English; "enterprise" is not
+ * common English but IS extremely common as a job-title word ("Enterprise
+ * Account Executive"); "swe" is neither — it's an app-specific abbreviation
+ * that ALSO happens to be Sweden's ISO3 code, so a bare "swe" query resolved
+ * to a Sweden place filter and ate the registered synonym before it ever
+ * reached Meilisearch (search-audit.md class 2, #163's ISO3 branch). Built
+ * once at module load; the chokepoint below stays a single check against one
+ * combined set, not three lookups. */
+const GUARD_WORDS: Set<string> = new Set([...COMMON_WORDS, ...JOB_VOCAB, ...Object.keys(JOBS_SYNONYMS)]);
 
 /** No 1-2 letter phrase is ever looked up as a place — "OR"/"IN"/"ME" are
  *  real corpus values (Oregon, Indiana, Maine) but collide with English
@@ -114,6 +120,14 @@ export interface PlaceResolution {
   /** How many whitespace-delimited words of the input this consumed, so the
    *  greedy scanner (scanPlacePhrases) knows how far to advance. */
   wordsConsumed: number;
+  /** Index into `PlaceScan.tokens` where this match started. Only set by
+   *  `scanPlacePhrases` (undefined for a resolver called directly on an
+   *  already-extracted phrase, e.g. a `resolvePlacePhrase` unit test — the
+   *  token list only exists inside the scan). Lets a caller
+   *  (query-understanding.ts's S1 company-corroboration guard) reconstruct
+   *  which ORIGINAL tokens sit immediately beside a match, without
+   *  re-tokenizing the query itself. */
+  startIndex?: number;
 }
 
 /** name + ISO2 + ISO3 + the "<name> - <region>" compound pattern real
@@ -344,6 +358,11 @@ export interface PlaceScan {
   /** Query text with matched place phrases removed. */
   residualQ: string;
   resolutions: PlaceResolution[];
+  /** The whitespace/punctuation-split token list this scan matched against
+   *  (same split `resolutions[i].startIndex` indexes into) — exposed so a
+   *  caller can reconstruct context around a match without re-tokenizing
+   *  the query itself (see `PlaceResolution.startIndex`'s doc). */
+  tokens: string[];
 }
 
 /**
@@ -366,12 +385,46 @@ export function scanPlacePhrases(q: string, gazetteer: Gazetteer, guardCommonWor
       matched = resolvePlacePhrase(tokens.slice(i, i + len).join(" "), gazetteer, guardCommonWords);
     }
     if (matched) {
-      resolutions.push(matched);
+      resolutions.push({ ...matched, startIndex: i });
       i += matched.wordsConsumed;
     } else {
       kept.push(tokens[i]);
       i += 1;
     }
   }
-  return { residualQ: kept.join(" "), resolutions };
+  return { residualQ: kept.join(" "), resolutions, tokens };
+}
+
+/**
+ * Pure: rebuild `{ residualQ, resolutions }` once an async guard downstream
+ * (query-understanding.ts's S1 company-corroboration check) has decided some
+ * of `scanPlacePhrases`'s resolutions are better explained as something else
+ * — a rejected resolution's original token span goes back into the residual
+ * text exactly where it lived, in the same left-to-right order every other
+ * kept token already follows, rather than just being dropped or appended.
+ * Symmetric with `scanPlacePhrases` itself: same token-walk shape, just
+ * choosing "keep as resolution" vs "keep as text" per `rejected` instead of
+ * "matched vs unmatched".
+ */
+export function rebuildAfterRejection(
+  tokens: string[],
+  resolutions: readonly PlaceResolution[],
+  rejected: (r: PlaceResolution) => boolean,
+): { residualQ: string; resolutions: PlaceResolution[] } {
+  const byStart = new Map(resolutions.map((r) => [r.startIndex ?? 0, r]));
+  const kept: string[] = [];
+  const survivors: PlaceResolution[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const r = byStart.get(i);
+    if (r) {
+      if (rejected(r)) kept.push(...tokens.slice(i, i + r.wordsConsumed));
+      else survivors.push(r);
+      i += r.wordsConsumed;
+    } else {
+      kept.push(tokens[i]);
+      i += 1;
+    }
+  }
+  return { residualQ: kept.join(" "), resolutions: survivors };
 }

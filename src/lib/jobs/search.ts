@@ -13,6 +13,7 @@ import {
   fetchJobsLastUpdated,
   fetchPostedDateFilterSupported,
   hasMeilisearch,
+  probeCompanyMatch,
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
@@ -68,7 +69,7 @@ export function getJobsBackendStatus(): {
 const corpusChecker = createCorpusValueChecker(fetchFacetSearch);
 
 export async function locationVocabulary(): Promise<LocationVocabulary> {
-  return { gazetteer: loadGazetteer(), corpusChecker };
+  return { gazetteer: loadGazetteer(), corpusChecker, companyProbe: probeCompanyMatch };
 }
 
 export async function searchJobs(

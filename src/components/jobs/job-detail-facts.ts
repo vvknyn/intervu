@@ -134,6 +134,36 @@ export function deriveGhostSignals(
     return signals;
 }
 
+export interface ExposureBadge {
+    label: string;
+    /** When THIS specific check last ran — reuses `ghostCheckedText`'s
+     *  formatting/fallback so the whole trust cluster speaks in one voice. */
+    checkedText: string;
+}
+
+/**
+ * S4 — exposure trust badges (dark launch, ships with no visible change
+ * until Subspace's upstream backfill lands): "Seen on Google" / "On
+ * LinkedIn" render ONLY when the job doc carries the boolean flag as exactly
+ * `true` AND its paired timestamp — never on absence, never on `false`
+ * (standing rule: positive-only, no fabricated/negative state — same
+ * principle `deriveGhostSignals` above follows). `is_indexed_google` /
+ * `is_indexed_linkedin` + their `*_indexed_at` pairs (PublicJob, types.ts)
+ * are being added upstream and are absent on every doc today, so this
+ * returns `[]` for the whole corpus until that backfill ships — that IS the
+ * dark launch, no separate feature flag needed.
+ */
+export function deriveExposureBadges(job: PublicJob, nowMs: number): ExposureBadge[] {
+    const badges: ExposureBadge[] = [];
+    if (job.is_indexed_google === true && job.google_indexed_at) {
+        badges.push({ label: "Seen on Google", checkedText: ghostCheckedText(job.google_indexed_at, nowMs) });
+    }
+    if (job.is_indexed_linkedin === true && job.linkedin_indexed_at) {
+        badges.push({ label: "On LinkedIn", checkedText: ghostCheckedText(job.linkedin_indexed_at, nowMs) });
+    }
+    return badges;
+}
+
 /** First comma segment of a job's full location text ("Redmond, WA, US" →
  *  "Redmond") — keeps the "also in" chip compact instead of wrapping full
  *  addresses for every duplicate posting's location. */

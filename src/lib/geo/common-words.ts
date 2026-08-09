@@ -28,7 +28,22 @@
  * word it is, so they can never become a place to hardcode a specific term.
  */
 
-const FUNCTION_WORDS = [
+/**
+ * Grammatical glue words (pronouns, articles, conjunctions, prepositions,
+ * modal/auxiliary verbs, common adverbs) — exported separately from the
+ * broader `COMMON_WORDS` set below because a caller sometimes needs exactly
+ * this narrower "carries no content on its own" signal, not the full
+ * general-English vocabulary. query-understanding.ts's S1 company-
+ * corroboration guard is one: Meilisearch's own configured stop-words list
+ * (verified live: "a","an","and","as","at","by","for","from","in","of","on",
+ * "or","the","to","with") is a strict SUBSET of this list, so a query word
+ * from here silently drops out of a Meilisearch query — building a
+ * corroboration candidate around one alone would ask "does a company match
+ * <the OTHER word>", not "<both words>", and falsely corroborate. Occupation
+ * nouns like "nurse"/"engineer" (present in `COMMON_WORDS`, not here) are
+ * NOT function words — they carry real content and stay usable neighbors.
+ */
+export const FUNCTION_WORDS = [
   "i", "me", "my", "mine", "myself", "you", "your", "yours", "yourself", "yourselves",
   "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself",
   "we", "us", "our", "ours", "ourselves", "they", "them", "their", "theirs", "themselves",
