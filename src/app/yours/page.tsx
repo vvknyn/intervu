@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -93,15 +92,17 @@ function StatusChips({
     );
 }
 
-/** Blank Slate (spec B4) — the guest and signed-in zero-pursuit states used
- *  to be near-identical copy that taught nothing (ground truth: yours/page
- *  .tsx ~274-304 pre-fix). This teaches by example instead: one static,
- *  clearly-fake illustrative row (never a real-looking company name) plus
- *  the one real instruction for how a pursuit actually lands here. Keeps
- *  the `data-testid`s the guest/signed-in e2e specs (tests/e2e/yours.spec
- *  .ts TC-YOURS-002) assert on. "Track a role" stays alongside the new
- *  "Browse jobs" CTA — it's still the only path for logging an outside
- *  interview that never went through the board. */
+/** Blank Slate (G6, Grok UX wave) — one primary CTA ("Track a role", the
+ *  manual-entry flow — the only path for logging an outside interview that
+ *  never went through the board) plus one short caption, not the old
+ *  mechanism essay ("Open a role on the board and hit Mark applied — it
+ *  lands here") — stale prose anyway once G2 removed Mark-as-applied as a
+ *  JobDetail peer button. Keeps the one static, clearly-fake illustrative
+ *  row (never a real-looking company name) and the `data-testid`s the
+ *  guest/signed-in e2e specs (tests/e2e/yours.spec.ts TC-YOURS-002) assert
+ *  on. The caption keeps the records-not-submissions honesty short instead
+ *  of a paragraph — the fuller line already lives in the page header
+ *  (TRACKER_SUBCOPY above), not repeated here. */
 function TrackerEmptyState({
     user,
     onAdd,
@@ -124,17 +125,10 @@ function TrackerEmptyState({
                     example
                 </span>
             </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-                Open a role on the board and hit &quot;Mark applied&quot; — it lands here.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-                <Button asChild size="sm">
-                    <Link href="/jobs">Browse jobs</Link>
-                </Button>
-                <Button variant="outline" size="sm" onClick={onAdd}>
-                    Track a role
-                </Button>
-            </div>
+            <p className="mb-4 text-sm text-muted-foreground">Your records, not submissions.</p>
+            <Button size="sm" onClick={onAdd}>
+                Track a role
+            </Button>
             {!user && (
                 <p className="mt-3 text-[13px] text-muted-foreground">
                     <button
