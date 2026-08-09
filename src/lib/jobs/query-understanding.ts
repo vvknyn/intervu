@@ -15,7 +15,12 @@
 import type { JobSearchParams, PlaceClause } from "./types";
 import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
-import { scanPlacePhrases } from "../geo/resolve-place";
+import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
+import { FUNCTION_WORDS } from "../geo/common-words";
+
+/** Set form of `FUNCTION_WORDS` for O(1) membership checks — built once at
+ *  module load, same pattern resolve-place.ts's own GUARD_WORDS uses. */
+const FUNCTION_WORDS_SET: Set<string> = new Set(FUNCTION_WORDS);
 
 export interface ParsedQuery {
   /** Query text with recognized tokens removed (may be empty). */
@@ -69,9 +74,18 @@ export function parseWorkTypeTokens(q: string): ParsedQuery {
  * checked against the live corpus (lib/geo/corpus-values.ts) before becoming
  * a filter — an alias can never invent a filter the corpus can't satisfy.
  */
+/** Live lookup: does the corpus have a job whose `company` field matches
+ *  every word of `phrase`? Backs the S1 company-corroboration guard below —
+ *  see `parsePlaceTokens`'s doc. Null-free (unlike `CorpusValueChecker`):
+ *  a probe failure degrades to "not corroborated" (`false`), which lets the
+ *  place-strip this guard exists to second-guess proceed exactly as it did
+ *  before S1 — never blocks a search on an unrelated backend hiccup. */
+export type CompanyProbe = (phrase: string) => Promise<boolean>;
+
 export interface LocationVocabulary {
   gazetteer: Gazetteer;
   corpusChecker: CorpusValueChecker;
+  companyProbe: CompanyProbe;
 }
 
 export interface ParsedPlaces {
@@ -115,14 +129,42 @@ export interface ParsedPlaces {
  * MCP `location` param is explicit place intent, typed into a location
  * field, not a coincidental substring of a role search — "success" there
  * must still resolve.
+ *
+ * S1 — company corroboration (same `guardFreeTextWords` opt-in): a gazetteer
+ * CITY name can also BE an employer's name — "cleveland clinic" resolved
+ * "cleveland" to Cleveland the city and left "clinic" prefix-matching any
+ * "Clinical ___" job, so zero of the top results were actually Cleveland
+ * Clinic the employer (search-audit.md class 1). Only relevant on a
+ * MULTI-WORD free-text query (a bare "cleveland" has no adjacent word to
+ * corroborate against, and stays a place exactly as before) — see
+ * `companyCorroborationCandidates` and the guard below.
  */
 export async function parsePlaceTokens(
   q: string,
   vocab: LocationVocabulary,
   guardFreeTextWords = false,
 ): Promise<ParsedPlaces> {
-  const { residualQ, resolutions } = scanPlacePhrases(q, vocab.gazetteer, guardFreeTextWords);
+  const scan = scanPlacePhrases(q, vocab.gazetteer, guardFreeTextWords);
+  let { residualQ, resolutions } = scan;
   if (resolutions.length === 0) return { residualQ, places: [] };
+
+  if (guardFreeTextWords && scan.tokens.length > 1) {
+    const rejected = new Set<PlaceResolution>();
+    await Promise.all(
+      resolutions.map(async (r) => {
+        for (const candidate of companyCorroborationCandidates(r, scan.tokens)) {
+          if (await vocab.companyProbe(candidate)) {
+            rejected.add(r);
+            return;
+          }
+        }
+      }),
+    );
+    if (rejected.size > 0) {
+      ({ residualQ, resolutions } = rebuildAfterRejection(scan.tokens, resolutions, (r) => rejected.has(r)));
+      if (resolutions.length === 0) return { residualQ, places: [] };
+    }
+  }
 
   const groups = resolutions.flatMap((r) => [r.candidates, r.countryScope]);
   const results = await vocab.corpusChecker(groups);
@@ -135,6 +177,40 @@ export async function parsePlaceTokens(
     places.push(scope.length > 0 ? { any, scopedToCountry: scope } : { any });
   });
   return { residualQ, places };
+}
+
+/**
+ * Pure: which "place token + one adjacent token" phrases to check against
+ * the corpus's company field for one place resolution, given the full
+ * ORIGINAL token list `scanPlacePhrases` matched it from. Tries the token
+ * AFTER the match first ("cleveland CLINIC", "boston CONSULTING" — the
+ * common "City Employer-word" shape), then the token BEFORE ("ACME
+ * cleveland" — a company name that happens to end in a place word), so a
+ * caller that stops at the first true probe checks the likelier case first.
+ * Narrow by design — a candidate the corpus's `company` field doesn't
+ * recognize is exactly what should stay a place filter, so this never widens
+ * beyond the resolution's own immediate neighbors.
+ *
+ * Skips a neighbor that's a bare function word ("in", "at", "of", ... —
+ * `FUNCTION_WORDS`, common-words.ts). Measured live against the box: the
+ * jobs index has these configured as Meilisearch STOP WORDS, so a probe for
+ * "in dallas" silently degrades to searching for "dallas" alone — which any
+ * unrelated Dallas-adjacent company name then falsely "corroborates",
+ * defeating the guard for exactly the "warehouse jobs IN dallas" / "jobs IN
+ * boston" shape these gates require to stay place filters. A function word
+ * never carries corroborating signal on its own, so skipping it costs
+ * nothing real — an occupation word like "nurse" (real content, not a
+ * function word) is still a usable neighbor.
+ */
+export function companyCorroborationCandidates(resolution: PlaceResolution, tokens: string[]): string[] {
+  const start = resolution.startIndex ?? 0;
+  const end = start + resolution.wordsConsumed;
+  const span = tokens.slice(start, end).join(" ");
+  const isMeaningful = (t: string) => !FUNCTION_WORDS_SET.has(t.toLowerCase());
+  const candidates: string[] = [];
+  if (end < tokens.length && isMeaningful(tokens[end])) candidates.push(`${span} ${tokens[end]}`);
+  if (start > 0 && isMeaningful(tokens[start - 1])) candidates.push(`${tokens[start - 1]} ${span}`);
+  return candidates;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alsoInLabel, buildFactChips, deriveGhostSignals, ghostCheckedText } from "../../src/components/jobs/job-detail-facts";
+import { alsoInLabel, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText } from "../../src/components/jobs/job-detail-facts";
 import type { PostingFreshness } from "../../src/lib/jobs/posting-freshness";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -133,6 +133,59 @@ test("deriveGhostSignals: no description at all omits the substance signal inste
         NOW,
     );
     assert.ok(!signals.some((s) => /\bsubstance\b|\bthin\b/.test(s.text)));
+});
+
+/* --------------------------- deriveExposureBadges ---------------------------- */
+/* S4 — dark launch: is_indexed_google/is_indexed_linkedin + their
+ * *_indexed_at pairs are being added upstream and are absent on every doc
+ * today. Positive-only, never a fabricated/negative state — see the
+ * function's doc comment. */
+
+test("deriveExposureBadges: absent fields (today's live corpus, the dark-launch case) render no badges", () => {
+    assert.deepEqual(deriveExposureBadges(job({}), NOW), []);
+});
+
+test("deriveExposureBadges: false values never render a badge — positive-only, no negative state", () => {
+    assert.deepEqual(
+        deriveExposureBadges(
+            job({
+                is_indexed_google: false,
+                google_indexed_at: new Date(NOW).toISOString(),
+                is_indexed_linkedin: false,
+                linkedin_indexed_at: new Date(NOW).toISOString(),
+            }),
+            NOW,
+        ),
+        [],
+    );
+});
+
+test("deriveExposureBadges: true but no paired timestamp still renders nothing — a check with no known date isn't a fact to claim", () => {
+    assert.deepEqual(deriveExposureBadges(job({ is_indexed_google: true, is_indexed_linkedin: true }), NOW), []);
+});
+
+test("deriveExposureBadges: both true with timestamps render both badges, each with its own checked time", () => {
+    const badges = deriveExposureBadges(
+        job({
+            is_indexed_google: true,
+            google_indexed_at: new Date(NOW - 3 * 3_600_000).toISOString(),
+            is_indexed_linkedin: true,
+            linkedin_indexed_at: new Date(NOW - 2 * 86_400_000).toISOString(),
+        }),
+        NOW,
+    );
+    assert.deepEqual(badges, [
+        { label: "Seen on Google", checkedText: "Checked 3h ago" },
+        { label: "On LinkedIn", checkedText: "Checked 2d ago" },
+    ]);
+});
+
+test("deriveExposureBadges: Google true, LinkedIn absent — only the corroborated one renders", () => {
+    const badges = deriveExposureBadges(
+        job({ is_indexed_google: true, google_indexed_at: new Date(NOW - 3_600_000).toISOString() }),
+        NOW,
+    );
+    assert.deepEqual(badges, [{ label: "Seen on Google", checkedText: "Checked 1h ago" }]);
 });
 
 /* ------------------------------- alsoInLabel -------------------------------- */

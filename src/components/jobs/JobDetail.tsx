@@ -8,7 +8,7 @@ import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { buildFactChips, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
+import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
@@ -395,6 +395,9 @@ export function JobDetail({
     // reuses an existing single source instead of new inferred logic.
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, now);
     const checkedText = ghostCheckedText(job.updated_at, now);
+    // S4 — exposure trust badges (dark launch): [] for every job until
+    // Subspace's upstream backfill lands (see deriveExposureBadges' doc).
+    const exposureBadges = deriveExposureBadges(job, now);
     const hasCompanyIntel =
         typeof job.company_open_count === "number" ||
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
@@ -626,6 +629,29 @@ export function JobDetail({
                         <div className="verified-underline mono-data mt-2.5 inline-block text-[11px] font-medium opacity-80">
                             every signal automated · {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
                         </div>
+                        {/* S4 exposure trust badges (dark launch) — positive-only,
+                            same quiet mono/squared house style as the fact chips,
+                            same ContextHelp tooltip mechanism as elsewhere in this
+                            panel. Renders nothing until deriveExposureBadges has
+                            something to say (see its doc comment). */}
+                        {exposureBadges.length > 0 && (
+                            <div className="mono-data mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
+                                {exposureBadges.map((b) => (
+                                    <span
+                                        key={b.label}
+                                        className="inline-flex items-center border border-border px-2 py-1 font-medium text-muted-foreground"
+                                    >
+                                        {b.label}
+                                        <ContextHelp
+                                            content={`We check whether this posting appears in ${
+                                                b.label === "Seen on Google" ? "Google's job search results" : "LinkedIn's job listings"
+                                            } — ${b.checkedText.charAt(0).toLowerCase()}${b.checkedText.slice(1)}.`}
+                                            className="self-center"
+                                        />
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

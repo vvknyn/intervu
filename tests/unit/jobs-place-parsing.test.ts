@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyQueryUnderstanding,
+  companyCorroborationCandidates,
   parsePlaceTokens,
   resolveLocationFacet,
+  type CompanyProbe,
   type LocationVocabulary,
 } from "../../src/lib/jobs/query-understanding";
 import { applyLocationDefault, hasLocationSignal } from "../../src/lib/geo/ip-default";
@@ -44,7 +46,17 @@ const GAZETTEER = buildGazetteerIndex(DATA);
  *  aggregate value regardless of how many different countries' postings
  *  contributed to it, which is exactly why the AND-scoping in
  *  query-understanding.ts (not this fake) is what has to keep them apart. */
-function fakeVocab(realValues: PlaceFilter[], gazetteer = GAZETTEER): LocationVocabulary {
+/** Default company probe: never corroborates — matches production's real
+ *  probe answering "no" for a corpus with no matching employer, and keeps
+ *  every test that doesn't care about S1 corroboration behaving exactly as
+ *  it did before that guard existed. */
+const NEVER_CORROBORATES: CompanyProbe = async () => false;
+
+function fakeVocab(
+  realValues: PlaceFilter[],
+  gazetteer = GAZETTEER,
+  companyProbe: CompanyProbe = NEVER_CORROBORATES,
+): LocationVocabulary {
   const checker: CorpusValueChecker = async (groups) =>
     groups.map((candidates) => {
       const seen = new Set<string>();
@@ -60,7 +72,7 @@ function fakeVocab(realValues: PlaceFilter[], gazetteer = GAZETTEER): LocationVo
       }
       return out;
     });
-  return { gazetteer, corpusChecker: checker };
+  return { gazetteer, corpusChecker: checker, companyProbe };
 }
 
 const VOCAB = fakeVocab([
@@ -408,4 +420,126 @@ test("explicit location intent bypasses the guard entirely: resolving \"success\
     places[0].any.some((f) => f.field === "location_city" && f.value === "Success"),
     `expected Success in the resolved place: ${JSON.stringify(places)}`,
   );
+});
+
+/* ------------ S1: company corroboration guard ------------
+ * Live bug (search-audit.md class 1): "cleveland clinic" resolved
+ * "cleveland" to Cleveland the city (a real GeoNames city — not blocked by
+ * the common-word guard, since "cleveland" is neither common English nor
+ * corpus job-title vocabulary) and left "clinic" prefix-matching any
+ * "Clinical ___" job — zero of the top results were the real employer, and
+ * the bare-Meili control (no query understanding at all) got it right. Own
+ * fixture: Cleveland/Boston/Dallas as real gazetteer cities, mirroring the
+ * audit's exact query set so these tests double as the gate evidence.
+ */
+const S1_DATA: GazetteerData = {
+  countries: [["US", "USA", "United States"]],
+  admin1: [],
+  cities: [
+    ["Cleveland", null, 41.4993, -81.6944, "US", null, 372624],
+    ["Boston", null, 42.3601, -71.0589, "US", null, 675647],
+    ["Dallas", null, 32.7767, -96.797, "US", null, 1304379],
+  ],
+};
+const S1_GAZETTEER = buildGazetteerIndex(S1_DATA);
+const S1_REAL_PLACES: PlaceFilter[] = [
+  { field: "location_city", value: "Cleveland" },
+  { field: "location_city", value: "Boston" },
+  { field: "location_city", value: "Dallas" },
+];
+
+/** Fake company probe: corroborates only the exact phrases listed — stands
+ *  in for `probeCompanyMatch`'s live company-field search (meilisearch.ts). */
+function fakeCompanyProbe(matches: string[]): CompanyProbe {
+  const set = new Set(matches.map((m) => m.toLowerCase()));
+  return async (phrase) => set.has(phrase.toLowerCase());
+}
+
+test("S1 headline: 'cleveland clinic' — the employer wins, no place filter, the phrase survives whole as free text", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, fakeCompanyProbe(["cleveland clinic"]));
+  const p = await applyQueryUnderstanding({ q: "cleveland clinic" }, vocab);
+  assert.equal(p.q, "cleveland clinic");
+  assert.equal(p.places, undefined);
+});
+
+test("S1: 'boston consulting' — same class, a different city+company pair", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, fakeCompanyProbe(["boston consulting"]));
+  const p = await applyQueryUnderstanding({ q: "boston consulting" }, vocab);
+  assert.equal(p.q, "boston consulting");
+  assert.equal(p.places, undefined);
+});
+
+test("S1 control: 'warehouse jobs in dallas' — no corroborating company, Dallas STILL filters", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, fakeCompanyProbe([]));
+  const p = await applyQueryUnderstanding({ q: "warehouse jobs in dallas" }, vocab);
+  assert.equal(p.q, "warehouse jobs in");
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Dallas" }]);
+});
+
+test("S1 control: 'jobs in boston' — place still applies", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, fakeCompanyProbe([]));
+  const p = await applyQueryUnderstanding({ q: "jobs in boston" }, vocab);
+  assert.equal(p.q, "jobs in");
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Boston" }]);
+});
+
+test("S1 control: a bare single-word 'cleveland' is unchanged — nothing to corroborate against, the probe is never even asked", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, async () => {
+    throw new Error("companyProbe must never be called for a single-word query");
+  });
+  const p = await applyQueryUnderstanding({ q: "cleveland" }, vocab);
+  assert.equal(p.q, "");
+  assert.equal(p.places?.length, 1);
+});
+
+test("S1: explicit location-field intent (parsePlaceTokens without guardFreeTextWords, exactly how resolvePlaces/agent/tools.ts calls it) bypasses corroboration entirely, even for an ambiguous phrase", async () => {
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, fakeCompanyProbe(["cleveland clinic"]));
+  const { residualQ, places } = await parsePlaceTokens("cleveland clinic", vocab); // no 3rd arg
+  assert.equal(residualQ, "clinic");
+  assert.equal(places.length, 1);
+});
+
+test("companyCorroborationCandidates: the after-match candidate is tried before the before-match one", () => {
+  assert.deepEqual(
+    companyCorroborationCandidates(
+      { entity: { type: "city", name: "Cleveland", countryCode: "US" }, candidates: [], countryScope: [], wordsConsumed: 1, startIndex: 1 },
+      ["nurse", "cleveland", "clinic"],
+    ),
+    ["cleveland clinic", "nurse cleveland"],
+  );
+});
+
+test("companyCorroborationCandidates: no adjacent token on either side yields no candidates", () => {
+  assert.deepEqual(
+    companyCorroborationCandidates(
+      { entity: { type: "city", name: "Cleveland", countryCode: "US" }, candidates: [], countryScope: [], wordsConsumed: 1, startIndex: 0 },
+      ["cleveland"],
+    ),
+    [],
+  );
+});
+
+test("companyCorroborationCandidates: a function-word neighbor ('in') is skipped — no candidate built from it", () => {
+  assert.deepEqual(
+    companyCorroborationCandidates(
+      { entity: { type: "city", name: "Dallas", countryCode: "US" }, candidates: [], countryScope: [], wordsConsumed: 1, startIndex: 3 },
+      ["warehouse", "jobs", "in", "dallas"],
+    ),
+    [],
+  );
+});
+
+test("S1 REGRESSION (live-discovered): Meilisearch's own stop-words list ('in','at','of'...) drops a function word from a company query — so 'in dallas' would falsely corroborate against ANY unrelated Dallas-adjacent company. The guard must skip that candidate, not just happen to get a 'false' answer from a lenient fake probe", async () => {
+  // This probe answers exactly like the live bug: it corroborates on the
+  // PLACE WORD ALONE once a function-word neighbor is (wrongly) reduced to
+  // nothing — proving Dallas survives because the candidate is never even
+  // asked, not because this particular fake happens to say no.
+  const stopWordCollapseProbe: CompanyProbe = async (phrase) => /dallas/i.test(phrase);
+  const vocab = fakeVocab(S1_REAL_PLACES, S1_GAZETTEER, stopWordCollapseProbe);
+  const p = await applyQueryUnderstanding({ q: "warehouse jobs in dallas" }, vocab);
+  assert.equal(p.q, "warehouse jobs in");
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Dallas" }]);
 });

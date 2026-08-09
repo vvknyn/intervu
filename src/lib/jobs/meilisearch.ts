@@ -79,7 +79,22 @@ export const JOBS_INDEX_SETTINGS = {
   // index by scripts/apply-ranking-rules.mjs (narrow PUT, no reindex cost).
   // Meili 1.45's canonical rule names (live GET returns attributeRank /
   // wordPosition — the legacy attribute/position names predate it).
-  rankingRules: ["words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness", "posted_ts:desc"],
+  //
+  // S3 (search-audit.md class 3): `sort` sits AFTER `wordPosition`/
+  // `exactness`, not before. An explicit user sort (e.g. "freshest") only
+  // ever ties among documents Meili already ranked equally on relevance —
+  // it must never outrank the two rules that separate "IS the company" from
+  // "mentions the company in passing". The live index had `sort` fourth
+  // (before wordPosition/exactness): confirmed via UI click, q=stripe +
+  // "freshest" jumped a Dash0 posting that merely MENTIONS Stripe above the
+  // real Stripe listings. Moving `sort` to the end fixes that without
+  // breaking date-ordered browsing (empty `q`, nothing to rank on relevance
+  // — see buildMeiliSort/resolveEffectiveSort, sort.ts) or drowning a
+  // multi-word role query in stale exact-title matches (the two other S3
+  // gates) — `words`/`typo`/`proximity`/`attributeRank` already keep a
+  // recent, well-matching posting ahead of an old literal one before `sort`
+  // ever breaks the remaining ties.
+  rankingRules: ["words", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "sort", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
@@ -836,6 +851,47 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
     return dedupeJobSuggestionHits(body.hits ?? []);
   } catch {
     return EMPTY_SUGGESTIONS;
+  }
+}
+
+/**
+ * Read-path: does at least one corpus document's `company` field match every
+ * word of `phrase`? Backs query-understanding.ts's S1 company-corroboration
+ * guard (a gazetteer place match inside a multi-word free-text query can be
+ * an employer name the corpus knows — "cleveland clinic" hijacked to
+ * Cleveland the city, search-audit.md class 1). Restricted via
+ * `attributesToSearchOn: ["company"]` — deliberately the ONE place this
+ * module scopes a search to a single attribute; the general search body
+ * never does (see jobs-search-body.test.ts) because THIS is a narrow
+ * corroboration probe ("does the corpus know a company by this name"), not a
+ * result page, and it never returns hits to render. `hitsPerPage: 1` because
+ * the guard only needs a yes/no. Never throws — an unreachable index or
+ * malformed response degrades to "not corroborated" (`false`), which lets
+ * the place-strip this guard exists to second-guess proceed exactly as it
+ * did before S1.
+ */
+export async function probeCompanyMatch(phrase: string): Promise<boolean> {
+  const query = phrase.trim();
+  const h = host();
+  if (!h || !query) return false;
+  try {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({
+        q: query,
+        matchingStrategy: "all",
+        attributesToSearchOn: ["company"],
+        filter: buildFilter({ q: query }),
+        hitsPerPage: 1,
+      }),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { hits?: unknown[] };
+    return (body.hits?.length ?? 0) > 0;
+  } catch {
+    return false;
   }
 }
 

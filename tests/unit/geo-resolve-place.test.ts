@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
 import { resolvePlacePhrase, scanPlacePhrases, countryPlaceCandidates, PLACE_MIN_LENGTH } from "../../src/lib/geo/resolve-place";
+import { JOBS_SYNONYMS } from "../../src/lib/jobs/meilisearch";
 
 /**
  * A small, hand-built fixture — not the committed ~70k-city artifact — so
@@ -331,4 +332,64 @@ test("non-aliased control: a plain full country name resolves exactly as it did 
 
 test("non-aliased control: a random unrecognized word is still not a place", () => {
   assert.equal(resolvePlacePhrase("zzznotaplace", ALIAS_GAZETTEER), null);
+});
+
+/* ------------------------- S2: ISO3 vs registered synonyms ------------------------- *
+ * Live bug (search-audit.md class 2): "swe" is BOTH Sweden's ISO3 code AND
+ * this app's registered Meilisearch synonym for "software engineer"
+ * (JOBS_SYNONYMS, jobs/meilisearch.ts). `resolveCountry`'s `byIso3` branch
+ * resolved it to Sweden before the synonym ever reached Meilisearch,
+ * degrading the search to "browse Sweden". Fix: GUARD_WORDS now unions in
+ * every JOBS_SYNONYMS key, derived — not hand-copied — so this protects
+ * every CURRENT and FUTURE synonym, not a "swe" special case. A fictitious
+ * "Sreland" (ISO3 "SRE") proves that: "sre" is also a registered synonym
+ * (site reliability engineer) with no REAL country collision today, so
+ * without a class-wide fix this exact test would have passed by accident.
+ */
+const ISO_DATA: GazetteerData = {
+  countries: [
+    ["SE", "SWE", "Sweden"],
+    ["DE", "DEU", "Germany"],
+    ["XX", "SRE", "Sreland"], // fictitious — see doc comment above
+  ],
+  admin1: [],
+  cities: [],
+};
+const ISO_GAZETTEER = buildGazetteerIndex(ISO_DATA);
+
+test("S2 headline: 'swe' — a registered query synonym that's ALSO Sweden's ISO3 code — never resolves as a place under the free-text guard", () => {
+  assert.equal(resolvePlacePhrase("swe", ISO_GAZETTEER, true), null);
+});
+
+test("S2: 'sweden' (the full country name, not a synonym key) still resolves", () => {
+  const r = resolvePlacePhrase("sweden", ISO_GAZETTEER, true);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Sweden");
+});
+
+test("S2 class case: 'sre' (registered synonym for site reliability engineer) is ALSO guarded — proves the fix isn't a 'swe'-only special case", () => {
+  assert.equal(resolvePlacePhrase("sre", ISO_GAZETTEER, true), null);
+});
+
+test("S2 sanity: without the free-text guard, 'sre' DOES resolve to the fictitious ISO3 collision — proving the guard, not a gazetteer gap, is what blocks it above", () => {
+  const r = resolvePlacePhrase("sre", ISO_GAZETTEER, false);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Sreland");
+});
+
+test("S2: a genuine ISO3 with no synonym collision ('deu', Germany) still resolves standalone, even with the guard on", () => {
+  const r = resolvePlacePhrase("deu", ISO_GAZETTEER, true);
+  assert.ok(r);
+  assert.equal(r!.entity.name, "Germany");
+});
+
+test("S2: synonym-key derivation — every single-word JOBS_SYNONYMS key is guarded, by construction, against the ordinary gazetteer fixture (no hand-copied list to fall out of sync)", () => {
+  for (const key of Object.keys(JOBS_SYNONYMS)) {
+    if (key.includes(" ")) continue; // the guard only ever applies to single tokens (module doc)
+    assert.equal(
+      resolvePlacePhrase(key, GAZETTEER, true),
+      null,
+      `expected registered synonym "${key}" to never resolve as a place under the free-text guard`,
+    );
+  }
 });

@@ -57,6 +57,18 @@ export interface PublicJob {
   company_closed_90d?: number | null;
   company_open_count?: number | null;
   company_stage?: string | null;
+  /**
+   * S4 exposure trust badges — dark launch. Subspace is adding these
+   * upstream; every doc lacks them today, so they're optional and a job with
+   * none renders no badge (see `deriveExposureBadges`,
+   * components/jobs/job-detail-facts.ts — the render decision requires the
+   * boolean to be exactly `true` AND its paired timestamp present, never on
+   * absence or `false`).
+   */
+  is_indexed_google?: boolean | null;
+  google_indexed_at?: string | null;
+  is_indexed_linkedin?: boolean | null;
+  linkedin_indexed_at?: string | null;
 }
 
 /**
