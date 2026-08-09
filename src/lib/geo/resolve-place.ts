@@ -218,6 +218,19 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
     }
   };
   addCity(primary);
+  // Renamed/transliterated cities: add every other known spelling of the
+  // PRIMARY match as its own location_city candidate — see
+  // `CITY_NAME_VARIANTS`'s doc for why the corpus needs this (split ingest
+  // history across old/new names). Radius neighbors keep their own single
+  // gazetteer spelling; a neighbor that's itself a renamed city gets this
+  // same expansion the moment IT resolves as a primary match.
+  for (const variant of cityVariantIndex(gazetteer).get(primary.name.toLowerCase()) ?? []) {
+    const value = titleCase(variant);
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    candidates.push({ field: "location_city", value });
+  }
   for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
   const country = gazetteer.countriesByIso2.get(primary.countryCode.toUpperCase());
   return {
@@ -230,6 +243,92 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
     countryScope: country ? countryCandidates(country) : [],
     wordsConsumed: normalized.split(" ").length,
   };
+}
+
+/**
+ * Renamed/transliterated cities: a curated map of alternate spelling
+ * (lowercase) -> the gazetteer's canonical name (lowercase) for the SAME
+ * real-world city. Distinct from `PLACE_ALIASES` below in both shape and
+ * reason: an alias there is a nickname for an entity the gazetteer indexes
+ * under no other name ("sf" -> San Francisco); a rename here is a full city
+ * name whose corpus postings are genuinely SPLIT across both spellings
+ * ("Bangalore" 6,753 active vs "Bengaluru" 8,514 active — neither one a typo
+ * or a stray value, both real ingest history from before/after the city's
+ * 2014 official rename). A lookup here must therefore expand candidates to
+ * EVERY known spelling, not just resolve to one entity — see
+ * `cityVariantIndex` below, which both this table's redirect AND a direct
+ * canonical lookup ("bengaluru" typed straight) route through, so typing
+ * either the old or the new name reaches every stored spelling alike.
+ *
+ * Checked at the same priority as `PLACE_ALIASES` — BEFORE the general
+ * country/admin1/city ladder — because a rename can collide with an
+ * unrelated same-named place the gazetteer legitimately indexes under its
+ * own name ("Calcutta" is a real town in South Africa, pop. 35,864;
+ * "Madras" a real town in Oregon, pop. 6,662 — both would otherwise win the
+ * bare `citiesByName` lookup and silently resolve to the wrong country).
+ *
+ * Canonical values MUST exist in the gazetteer by name (verified against the
+ * committed artifact when each entry was added); `cityVariantIndex` drops
+ * any entry whose canonical the gazetteer doesn't recognize rather than
+ * throwing (same fail-open shape as `resolveCity`'s `countryScope`), so a
+ * future GeoNames refresh that drops a name — or a hand-built test fixture
+ * that never had it — degrades to "no variants," not a crash. Extend this
+ * table, never a hand-built filter, when a new renamed/transliterated city
+ * turns up.
+ */
+const CITY_NAME_VARIANTS: Readonly<Record<string, string>> = {
+  bangalore: "bengaluru",
+  bombay: "mumbai",
+  calcutta: "kolkata",
+  madras: "chennai",
+  kiev: "kyiv",
+  saigon: "ho chi minh city",
+  peking: "beijing",
+  gurgaon: "gurugram",
+};
+
+/** Title-cases a plain-ASCII multi-word name ("ho chi minh city" -> "Ho Chi
+ *  Minh City") for a curated variant spelling that has no gazetteer-cased
+ *  original to borrow (Meilisearch's `=` filter is case-insensitive per
+ *  `resolveLocationFacet`'s doc, so this is display casing, not a matching
+ *  requirement). */
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Pure: `CITY_NAME_VARIANTS` -> canonical city name (lowercase) -> every
+ * known spelling for it (the canonical plus each alias pointing at it),
+ * gazetteer-validated. Exported so a table-integrity test can run it against
+ * a deliberately-bad fixture table without touching the real
+ * `CITY_NAME_VARIANTS` constant — a canonical the gazetteer doesn't
+ * recognize is dropped, never included in the result.
+ */
+export function buildCityVariantIndex(
+  variants: Readonly<Record<string, string>>,
+  gazetteer: Gazetteer,
+): Map<string, string[]> {
+  const index = new Map<string, string[]>();
+  for (const [alias, canonical] of Object.entries(variants)) {
+    if (!gazetteer.citiesByName.has(canonical)) continue;
+    const group = index.get(canonical) ?? [canonical];
+    if (!group.includes(alias)) group.push(alias);
+    index.set(canonical, group);
+  }
+  return index;
+}
+
+const cityVariantIndexCache = new WeakMap<Gazetteer, Map<string, string[]>>();
+
+/** Memoized per gazetteer instance (production has exactly one, `loadGazetteer`'s
+ *  memoized singleton; tests build small fixture gazetteers). */
+function cityVariantIndex(gazetteer: Gazetteer): Map<string, string[]> {
+  let idx = cityVariantIndexCache.get(gazetteer);
+  if (!idx) {
+    idx = buildCityVariantIndex(CITY_NAME_VARIANTS, gazetteer);
+    cityVariantIndexCache.set(gazetteer, idx);
+  }
+  return idx;
 }
 
 /** One curated alias entry: a short/nickname phrase a searcher might type,
@@ -337,6 +436,23 @@ export function resolvePlacePhrase(
 
   const alias = PLACE_ALIASES[normalized];
   if (alias) return resolveAlias(alias, normalized.split(" ").length, gazetteer);
+
+  // Renamed-city redirect (CITY_NAME_VARIANTS) — same priority tier as
+  // PLACE_ALIASES and for the same reason: must win outright over the
+  // general ladder below, since a rename can collide with an unrelated
+  // same-named place the gazetteer indexes under its own name (see the
+  // table's doc — "Calcutta"/"Madras"). Resolving via `resolveCity` (not the
+  // alias table's `kind: "city"` path) is what makes the variant expansion
+  // above fire: it runs off `primary.name`, which is always the canonical
+  // spelling this redirect looks up. Fails open to null if the gazetteer
+  // this call is running against doesn't have the canonical (a hand-built
+  // test fixture, or a future GeoNames refresh) — same shape every resolver
+  // here has.
+  const renamedCanonical = CITY_NAME_VARIANTS[normalized];
+  if (renamedCanonical) {
+    const r = resolveCity(renamedCanonical, gazetteer);
+    return r ? { ...r, wordsConsumed: normalized.split(" ").length } : null;
+  }
 
   if (normalized.length < PLACE_MIN_LENGTH) return null;
   if (/\d/.test(normalized)) return null;
