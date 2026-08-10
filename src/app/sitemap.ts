@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import { domainToSlug } from "@/lib/boards/slug";
-import { SITE_URL } from "@/lib/seo/constants";
+import { getSiteUrl } from "@/lib/seo/constants";
 
 /**
  * /sitemap.xml — the public, indexable entry points. Authed app surfaces
@@ -13,6 +13,7 @@ import { SITE_URL } from "@/lib/seo/constants";
  * product page regardless of auth state.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
+  const siteUrl = getSiteUrl();
   const lastModified = new Date();
 
   // `/co/[slug]` company pages — one entry per tracked elite-board domain.
@@ -20,7 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // caller uses (get-company.ts, hot-list.ts, jobCompanyHref) rather than a
   // hand-maintained company list, so it grows/shrinks with the tracked file.
   const companyEntries: MetadataRoute.Sitemap = getBoardDomains("elite").map((domain) => ({
-    url: `${SITE_URL}/co/${domainToSlug(domain)}`,
+    url: `${siteUrl}/co/${domainToSlug(domain)}`,
     lastModified,
     changeFrequency: "weekly",
     priority: 0.6,
@@ -29,19 +30,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       // Jobs search — the front door; `/` 307s here since Phase 1b.
-      url: `${SITE_URL}/jobs`,
+      url: `${siteUrl}/jobs`,
       lastModified,
       changeFrequency: "daily",
       priority: 1,
     },
     {
-      url: `${SITE_URL}/trends`,
+      url: `${siteUrl}/trends`,
       lastModified,
       changeFrequency: "daily",
       priority: 0.8,
     },
     {
-      url: `${SITE_URL}/pricing`,
+      url: `${siteUrl}/pricing`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.7,
@@ -52,37 +53,37 @@ export default function sitemap(): MetadataRoute.Sitemap {
       // page consolidation): `/agents` now permanently redirects here rather
       // than carrying its own sitemap entry, so a redirecting URL never
       // competes with its own target for crawl budget.
-      url: `${SITE_URL}/connect`,
+      url: `${siteUrl}/connect`,
       lastModified,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
-      url: `${SITE_URL}/research/ghost-jobs`,
+      url: `${siteUrl}/research/ghost-jobs`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.6,
     },
     {
-      url: `${SITE_URL}/about`,
+      url: `${siteUrl}/about`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
-      url: `${SITE_URL}/contact`,
+      url: `${siteUrl}/contact`,
       lastModified,
       changeFrequency: "monthly",
       priority: 0.4,
     },
     {
-      url: `${SITE_URL}/privacy`,
+      url: `${siteUrl}/privacy`,
       lastModified,
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
-      url: `${SITE_URL}/terms`,
+      url: `${siteUrl}/terms`,
       lastModified,
       changeFrequency: "yearly",
       priority: 0.3,

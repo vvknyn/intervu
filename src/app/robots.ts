@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { buildRobotsRules } from "@/lib/shield/robots-policy";
-import { SITE_URL } from "@/lib/seo/constants";
+import { getSiteUrl } from "@/lib/seo/constants";
 
 /**
  * /robots.txt — policy (P27 shield, updated 2026-08-02): search engines AND
@@ -15,9 +15,10 @@ import { SITE_URL } from "@/lib/seo/constants";
  * history.
  */
 export default function robots(): MetadataRoute.Robots {
+  const siteUrl = getSiteUrl();
   return {
     rules: buildRobotsRules(),
-    sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
+    sitemap: `${siteUrl}/sitemap.xml`,
+    host: siteUrl,
   };
 }

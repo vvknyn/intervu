@@ -166,7 +166,7 @@ function toJobDetailFields(job: PublicJob): JobDetailFields {
     salary_min, salary_max, salary_currency, salary_period,
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
-    intervu_url: jobShareUrl(AGENT.issuer(), id),
+    intervu_url: jobShareUrl(AGENT.issuer(), job),
   };
 }
 

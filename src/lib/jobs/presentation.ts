@@ -67,6 +67,23 @@ export function ghostMetaFor(ghostBadge: GhostBadge, stale: boolean) {
     return ghostBadge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[ghostBadge];
 }
 
+/**
+ * Repairs scraped ALL-CAPS / all-lowercase company/location text for public
+ * display on the indexable `/jobs/[slug]` page (spec §6.1) — live samples
+ * returned `company: "orange"` and `location: "WARSZAWA, POLAND"`, which
+ * read as scraped and depress click-through on a page built to be shared.
+ * Mixed-case input is left untouched, so deliberate casing ("eBay") survives.
+ * Known trade-off: a name that is legitimately ALL-CAPS in its own right
+ * (e.g. "IBM") is indistinguishable from scraped shouting and gets re-cased
+ * too — there is no signal in a bare string to tell them apart. Presentation-
+ * only: callers never write the result back to the stored record.
+ */
+export function titleCaseDisplay(value: string): string {
+    const hasMixedCase = value !== value.toLowerCase() && value !== value.toUpperCase();
+    if (hasMixedCase) return value;
+    return value.replace(/[\p{L}\p{N}']+/gu, (w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase());
+}
+
 export function prettyEnum(s: string | null | undefined): string {
     if (!s || s === "unknown") return "";
     return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

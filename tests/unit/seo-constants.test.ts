@@ -1,66 +1,72 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { SITE_URL } from "@/lib/seo/constants";
+import { describe, it, beforeEach } from "node:test";
+import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 
 /**
- * SITE_URL is a top-level `const` read once from `NEXT_PUBLIC_SITE_URL` at
- * module-evaluation time. Per the documented finding in
- * viewer-session-store.test.ts ("persist() failure handling — real process
- * isolation"), query-string cache-busting a dynamic import does NOT force
- * top-level module code to re-run under this repo's tsx/Node combination —
- * only a genuinely separate process observes a different env var. So the
- * env-override and fallback cases below spawn a real child process, same
- * pattern as that test.
+ * `getSiteUrl()` re-reads `process.env.NEXT_PUBLIC_SITE_URL` on every call —
+ * no module-scope caching, unlike the old `SITE_URL` constant this replaced
+ * (see the docstring in src/lib/seo/constants.ts). That means, unlike the
+ * env-seam tests this file used to need, a same-process mutation of
+ * `process.env` before each call is observed immediately — no subprocess
+ * isolation required. `robots.ts`/`sitemap.ts` export plain functions too
+ * (not invoked at import time), so importing them doesn't require the var
+ * either; only actually calling `getSiteUrl()`/`robots()`/`sitemap()` does.
  */
-function readSiteUrlIn(env: NodeJS.ProcessEnv): string {
-  const dir = mkdtempSync(join(tmpdir(), "seo-constants-probe-"));
-  const script = join(dir, "probe.mjs");
-  const specifier = new URL("../../src/lib/seo/constants.ts", import.meta.url).href;
-  writeFileSync(
-    script,
-    `const mod = await import(${JSON.stringify(specifier)});\nprocess.stdout.write(mod.SITE_URL);`
-  );
-  try {
-    return execFileSync("npx", ["tsx", script], { encoding: "utf8", env });
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+describe("seo/constants — getSiteUrl() env seam", () => {
+  const ORIGINAL_ENV = process.env.NEXT_PUBLIC_SITE_URL;
 
-describe("seo/constants — SITE_URL env seam", () => {
+  beforeEach(() => {
+    if (ORIGINAL_ENV === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = ORIGINAL_ENV;
+  });
+
   it("honors NEXT_PUBLIC_SITE_URL when set", () => {
-    const out = readSiteUrlIn({ ...process.env, NEXT_PUBLIC_SITE_URL: "https://intervuhq.com" });
-    assert.equal(out, "https://intervuhq.com");
+    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+    assert.equal(getSiteUrl(), "https://intervuhq.com");
   });
 
-  it("falls back to https://intervu.cc when unset", () => {
-    const env = { ...process.env };
-    delete env.NEXT_PUBLIC_SITE_URL;
-    const out = readSiteUrlIn(env);
-    assert.equal(out, "https://intervu.cc");
+  it("throws a clear error naming NEXT_PUBLIC_SITE_URL when unset", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    assert.throws(() => getSiteUrl(), /NEXT_PUBLIC_SITE_URL is not set/);
   });
 
-  // robots.ts used to declare its own local `const SITE_URL = "https://intervu.cc"`
-  // — a duplicate that could silently drift from the real one. These assert
-  // against the actually-imported SITE_URL (not a hardcoded literal), so
-  // they'd fail if that duplicate ever came back.
-  it("robots.ts derives host and sitemap from the shared SITE_URL export, not a hardcoded duplicate", () => {
+  // Distinct from "unset" — a blank env var (e.g. left blank by a
+  // misconfigured deploy) must be rejected the same way, not treated as "set".
+  it("throws the same error when set to an empty string", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "";
+    assert.throws(() => getSiteUrl(), /NEXT_PUBLIC_SITE_URL is not set/);
+  });
+
+  // The core reason getSiteUrl() is a function rather than a top-level
+  // `const`: importing this module for an export that has nothing to do
+  // with the site origin must never require NEXT_PUBLIC_SITE_URL to be set.
+  it("does not require NEXT_PUBLIC_SITE_URL just to import an unrelated export", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    assert.equal(SITE_NAME, "Intervu");
+  });
+
+  // robots.ts/sitemap.ts used to declare their own local
+  // `const SITE_URL = "https://intervu.cc"` — a duplicate that could
+  // silently drift from the real one. These assert against the actually
+  // imported `getSiteUrl()` (not a hardcoded literal), so they'd fail if
+  // that duplicate ever came back.
+  it("robots.ts derives host and sitemap from the shared getSiteUrl(), not a hardcoded duplicate", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+    const siteUrl = getSiteUrl();
     const result = robots();
-    assert.equal(result.host, SITE_URL);
-    assert.equal(result.sitemap, `${SITE_URL}/sitemap.xml`);
+    assert.equal(result.host, siteUrl);
+    assert.equal(result.sitemap, `${siteUrl}/sitemap.xml`);
   });
 
-  it("sitemap.ts derives every entry's URL from the shared SITE_URL export", () => {
+  it("sitemap.ts derives every entry's URL from the shared getSiteUrl()", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+    const siteUrl = getSiteUrl();
     const result = sitemap();
     assert.ok(result.length > 0);
     for (const entry of result) {
-      assert.ok(entry.url.startsWith(`${SITE_URL}/`), `expected ${entry.url} to start with ${SITE_URL}/`);
+      assert.ok(entry.url.startsWith(`${siteUrl}/`), `expected ${entry.url} to start with ${siteUrl}/`);
     }
   });
 });

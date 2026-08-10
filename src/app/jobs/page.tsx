@@ -129,6 +129,7 @@ import {
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
+import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery } from "@/lib/jobs/resume-match";
 import {
@@ -493,15 +494,31 @@ function JobCard({
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0">
-                <div
+                <Link
+                    href={jobPath(job)}
                     data-testid="job-title"
                     className={cn(
-                        "text-[15px] leading-snug tracking-tight",
+                        "block text-[15px] leading-snug tracking-tight hover:underline",
                         opened ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
                     )}
+                    onClick={(e) => {
+                        // A real href is what makes the row crawlable and
+                        // middle-click/copy-link-able. But a plain click must
+                        // keep opening the in-page panel (no full navigation)
+                        // — the row's own onClick already does that, so stop
+                        // it from ALSO firing via bubbling (would double the
+                        // telemetry + history push) and drive it from here
+                        // instead. Modified clicks (new tab, etc.) and
+                        // non-primary buttons are left alone to use the
+                        // anchor's native behavior.
+                        e.stopPropagation();
+                        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                        e.preventDefault();
+                        onClick();
+                    }}
                 >
                     {decodeText(job.title)}
-                </div>
+                </Link>
                 <div className="mt-1 text-[13px] text-muted-foreground">
                     {onCompany ? (
                         <button
