@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SITE_URL } from "./constants";
+import { getSiteUrl } from "./constants";
 
 /**
  * Per-page canonical + Open Graph + Twitter URL/title mechanics — the
@@ -19,7 +19,7 @@ export function canonicalMetadata(
 ): Pick<Metadata, "alternates" | "openGraph" | "twitter"> {
   return {
     alternates: { canonical: path },
-    openGraph: { title, description, url: `${SITE_URL}${path}` },
+    openGraph: { title, description, url: `${getSiteUrl()}${path}` },
     twitter: { title, description },
   };
 }

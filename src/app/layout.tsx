@@ -10,7 +10,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo/constants";
+import { getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/constants";
 import { buildOrganizationJsonLd, buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
@@ -57,7 +57,7 @@ const SITE_TITLE = SITE_NAME;
 /** Site-wide guest meta strings live in @/lib/seo/constants — see SITE_DESCRIPTION and LANDING_*. */
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL(getSiteUrl()),
   title: {
     default: "Intervu — Find jobs",
     template: "%s · Intervu",
@@ -79,7 +79,7 @@ export const metadata: Metadata = {
     siteName: SITE_TITLE,
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    url: SITE_URL,
+    url: getSiteUrl(),
   },
   twitter: {
     card: "summary_large_image",

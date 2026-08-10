@@ -781,7 +781,12 @@ its inline condition — one gate, two consumers.
 
 Run: `npx tsx --test tests/unit/job-indexability.test.ts` → Expected: PASS (4 tests).
 
-- [ ] **Step 4: Add a sharded job sitemap**
+- [x] ~~**Step 4: Add a sharded job sitemap**~~ — **CANCELLED 2026-08-09 by Vivek.** Job
+pages are not entering the sitemap. Reason and the blocking data dependency are recorded in
+spec §10; do not implement this step. `isJobIndexable` is still built and used, because the
+page's own robots meta still needs it.
+
+<details><summary>Original step, retained for when the company aggregates land</summary>
 
 Create `src/app/jobs/sitemap.ts` (leave the existing static `src/app/sitemap.ts` alone —
 different responsibility, different change cadence):
@@ -836,6 +841,8 @@ under-reports. Confirm the actual behaviour at a large offset first; if it caps,
 needs its own uncapped enumeration path rather than borrowing the search action — and if
 that is not available in this task's scope, **stop and report** instead of shipping a
 sitemap that lies about coverage.
+
+</details>
 
 - [ ] **Step 5: Commit**
 

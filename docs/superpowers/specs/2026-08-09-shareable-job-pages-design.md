@@ -267,6 +267,27 @@ Requirements:
 
 ## 10. Indexation policy
 
+### ⛔ DECISION 2026-08-09 (Vivek): job pages are NOT added to the sitemap.
+
+Measured the same day: on a sampled job document in the serving index,
+`company_opened_90d`, `company_closed_90d`, `company_open_count` and `company_stage` are
+**absent keys** — not null — as are both exposure fields. Confirmed at render time: the
+`employer-track-record` block appears zero times in the page HTML. So a job page today is a
+title, a one-word badge, and several thousand characters of description scraped verbatim
+from the employer's ATS.
+
+Submitting a corpus of that at scale invites a site-wide thin-aggregator judgement, which
+would damage the pages that *can* rank (company pages, research) — and Google is strict
+about expired postings, which a high-churn job corpus produces continuously. The domain is
+also freshly migrated and carries little authority to spend.
+
+**The blocking dependency for the search half of this bet is getting the company aggregate
+fields into the Meili index**, which lives upstream in the subspace sync, not in this
+branch. Until then the route ships for its sharing half only: the copy-link button and
+every MCP job link now resolve to a real page, which needs no search engine at all.
+
+The policy below stands as the design for when that data lands. It is not implemented.
+
 The ghost score doubles as the indexation filter:
 
 - `likely_ghost` → `noindex`, excluded from sitemap. (Measured at ~0.12% of corpus, so
