@@ -60,13 +60,82 @@ describe("seo/constants — getSiteUrl() env seam", () => {
     assert.equal(result.sitemap, `${siteUrl}/sitemap.xml`);
   });
 
-  it("sitemap.ts derives every entry's URL from the shared getSiteUrl()", () => {
+  it("sitemap.ts derives every entry's URL from the shared getSiteUrl()", async () => {
     process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
     const siteUrl = getSiteUrl();
-    const result = sitemap();
+    const result = await withStubbedMeili(everyDomainHasRoles, sitemap);
     assert.ok(result.length > 0);
     for (const entry of result) {
       assert.ok(entry.url.startsWith(`${siteUrl}/`), `expected ${entry.url} to start with ${siteUrl}/`);
     }
   });
+
+  // The `/co/` section is now MEASURED (lib/companies/indexable.ts) rather
+  // than asserted straight off the board allowlist, so these pin the two
+  // outcomes that decide what Google is told.
+  it("sitemap.ts omits company pages with too little content to rank", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+    const withRoles = await withStubbedMeili(everyDomainHasRoles, sitemap);
+    const withoutRoles = await withStubbedMeili(noDomainHasRoles, sitemap);
+
+    const coCount = (entries: Awaited<ReturnType<typeof sitemap>>) =>
+      entries.filter((e) => e.url.includes("/co/")).length;
+    assert.ok(coCount(withRoles) > 0, "expected company pages when every domain has roles");
+    assert.equal(coCount(withoutRoles), 0, "expected no company pages when none have roles");
+    // The static, always-indexable pages are unaffected either way.
+    assert.equal(withRoles.length - coCount(withRoles), withoutRoles.length);
+  });
+
+  it("sitemap.ts FAILS rather than silently publishing an empty /co/ section", async () => {
+    // A Meilisearch outage must not be reportable to Google as "we removed
+    // those 442 pages". A throw becomes a 5xx, which search engines already
+    // treat as "retry later, keep the last good copy". See sitemap.ts's
+    // failure-posture docblock.
+    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+    await assert.rejects(
+      () => withStubbedMeili(() => new Response("boom", { status: 500 }), sitemap),
+      /multi-search failed/i,
+    );
+  });
 });
+
+/** Meilisearch `/multi-search` reply giving every requested domain enough
+ *  live roles to clear the gate. Echoes the request's own domains back, so it
+ *  exercises the real chunking in `fetchLiveRoleCountsByDomain`. */
+function everyDomainHasRoles(body: string): Response {
+  const { queries } = JSON.parse(body) as { queries: { filter: string[] }[] };
+  const results = queries.map((q) => {
+    const domains = [...(q.filter.join(" ").matchAll(/"([^"]+\.[^"]+)"/g))].map((m) => m[1]);
+    return {
+      facetDistribution: { company_domain: Object.fromEntries(domains.map((d) => [d, 25])) },
+    };
+  });
+  return Response.json({ results });
+}
+
+/** Same, but the index knows of no live roles for any of them. */
+function noDomainHasRoles(body: string): Response {
+  const { queries } = JSON.parse(body) as { queries: unknown[] };
+  return Response.json({ results: queries.map(() => ({ facetDistribution: { company_domain: {} } })) });
+}
+
+/**
+ * Runs `fn` with `fetch` and `MEILISEARCH_HOST` stubbed. `sitemap()` reaches
+ * Meilisearch through the shared `meiliFetch` chokepoint, so stubbing the
+ * transport keeps these hermetic while still running the real query-building,
+ * chunking and facet-parsing code.
+ */
+async function withStubbedMeili<T>(reply: (body: string) => Response, fn: () => Promise<T>): Promise<T> {
+  const realFetch = globalThis.fetch;
+  const realHost = process.env.MEILISEARCH_HOST;
+  process.env.MEILISEARCH_HOST = "http://meili.test";
+  globalThis.fetch = (async (_url: string, init: RequestInit) =>
+    reply(String(init.body))) as unknown as typeof fetch;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realHost === undefined) delete process.env.MEILISEARCH_HOST;
+    else process.env.MEILISEARCH_HOST = realHost;
+  }
+}

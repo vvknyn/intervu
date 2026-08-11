@@ -1,4 +1,5 @@
 import { domainToSlug } from "@/lib/boards/slug";
+import { resolveCompanyName } from "@/lib/companies/company-name";
 import { searchJobs } from "@/lib/jobs/search";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -19,11 +20,6 @@ export type HotCompanyRow = {
   opened90d: number | null;
   openCount: number;
 };
-
-function displayNameFromDomain(domain: string): string {
-  const label = domain.split(".")[0] ?? domain;
-  return label.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 /** Rank by observed openings in 90d; rows without `opened90d` are excluded. */
 export function rankHotCompanies(rows: HotCompanyRow[]): HotCompanyRow[] {
@@ -48,7 +44,11 @@ export function aggregateHotCompaniesFromJobs(jobs: PublicJob[]): HotCompanyRow[
     rows.push({
       domain,
       slug: domainToSlug(domain),
-      name: first.company?.trim() || displayNameFromDomain(domain),
+      // Same name-repair rule as `/co/[slug]` (resolveCompanyName): recover
+      // casing from a sibling row rather than trusting row 0's, which may be
+      // the case-flattened one. This row type has no place to surface the
+      // provenance, so it takes the resolved value only.
+      name: resolveCompanyName(domainJobs, domain).value,
       oneLiner: null,
       opened90d: typeof first.company_opened_90d === "number" ? first.company_opened_90d : null,
       openCount:

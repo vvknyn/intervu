@@ -297,8 +297,17 @@ function renderPlaceClause(clause: PlaceClause): string {
  * fallback used when the live index doesn't have the field yet (see
  * `searchMeili`'s 400-retry). Remove the `legacy` param once the reindex lands.
  */
+/** The baseline "this vacancy is still live" invariant every real search
+ *  applies (below). Exported because a SECOND reader now has to agree with it
+ *  exactly — `lib/companies/indexable.ts` batch-counts live roles per domain
+ *  to decide which `/co/[slug]` pages are worth submitting to Google, and a
+ *  private second copy of this literal there could drift into counting roles
+ *  the page itself never renders. Deliberately `!= "closed"`, not
+ *  `= "active"`: those differ for any future third status. */
+export const LIVE_VACANCY_FILTER = 'vacancy_status != "closed"';
+
 export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilterOpts): string[] {
-  const f: string[] = ['vacancy_status != "closed"'];
+  const f: string[] = [LIVE_VACANCY_FILTER];
   // Task 11 — existence check: requires "id" in `filterableAttributes`
   // (JOBS_INDEX_SETTINGS above). Live on the index since 2026-07-25, so this
   // clause now resolves instead of 400ing.
