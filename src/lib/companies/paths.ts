@@ -35,7 +35,20 @@ export function companyPagePath(company: string): string {
  */
 export function jobCompanyHref(company: string, companyDomain: string | null): string {
   const domain = companyDomain?.trim();
-  return domain ? `/co/${domainToSlug(domain)}` : companyPagePath(company);
+  return domain ? companyBoardPath(domain) : companyPagePath(company);
+}
+
+/**
+ * The one builder for a `/co/[slug]` path, domain in. Added because the page
+ * itself now emits a self-referencing `rel="canonical"` while `sitemap.ts`
+ * emits the absolute form of the same URL: a canonical that disagrees with
+ * the sitemap entry by so much as a prefix is worse than no canonical, so
+ * both derive from this rather than from two hand-written templates. Applies
+ * `domainToSlug` unmodified — the same trim+lowercase every other `/co/`
+ * caller already uses.
+ */
+export function companyBoardPath(domain: string): string {
+  return `/co/${domainToSlug(domain)}`;
 }
 
 /**

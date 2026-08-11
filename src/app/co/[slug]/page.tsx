@@ -5,7 +5,11 @@ import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
-import type { CompanyPageData } from "@/lib/companies/types";
+import {
+  buildCompanyPageMetadata,
+  ghostPctCoversAllRoles,
+  openCountText,
+} from "@/lib/companies/presentation";
 import {
   decodeText,
   ghostMetaFor,
@@ -39,16 +43,6 @@ function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
   return null;
 }
 
-/** Real page data only — degrades to a generic line when there are zero
- *  open roles rather than fabricating a count. */
-function companyMetaDescription(data: CompanyPageData): string {
-  if (data.openCount > 0) {
-    const roles = data.openCount === 1 ? "role" : "roles";
-    return `${data.name} has ${data.openCount} live, verified open ${roles} tracked on intervu, screened for ghost-job risk.`;
-  }
-  return `Track live verified job postings and ghost-job risk signals for ${data.name} on intervu.`;
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -56,11 +50,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
-  if (!data) return { title: "Company not found" };
-  return {
-    title: `Is ${data.name} hiring? Live verified jobs & ghost-job risk`,
-    description: companyMetaDescription(data),
-  };
+  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+  return buildCompanyPageMetadata(data);
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -71,11 +62,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
+  const ghostPctIsCompanyWide = ghostPctCoversAllRoles(data);
   const faqJsonLd = buildFaqPageJsonLd(
     buildCompanyFaqItems({
       companyName: data.name,
       openCount: data.openCount,
-      ghostFlaggedPct: data.ghostFlaggedPct,
+      openCountIsLowerBound: data.openCountIsLowerBound,
+      // The FAQ answer states this share as a fact about "this company's
+      // tracked postings". Where the percentage only covers the fetched
+      // window, that question is dropped rather than answered with a sample
+      // dressed as a census — the same reason `buildCompanyFaqItems` already
+      // skips it on `null` instead of fabricating 0%.
+      ghostFlaggedPct: ghostPctIsCompanyWide ? data.ghostFlaggedPct : null,
     }),
   );
 
@@ -134,12 +132,19 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </header>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi value={formatKpi(data.openCount)} label="Open roles" />
+          <Kpi value={openCountText(data)} label="Open roles" />
           <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
           <Kpi
             value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
-            label="Ghost-flagged"
+            // Names the base the share was actually computed over whenever
+            // that base is smaller than the count beside it, so the tile
+            // stops reading as a company-wide audit it never was.
+            label={
+              ghostPctIsCompanyWide
+                ? "Ghost-flagged"
+                : `Ghost-flagged of ${data.jobs.length} shown`
+            }
           />
         </div>
 
@@ -148,7 +153,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             Open roles
             {data.jobs.length > 0 && (
               <span className="font-mono text-xs font-normal text-[color:var(--elite-muted)]">
-                {preview.length} of {data.openCount} shown
+                {preview.length} of {openCountText(data)} shown
               </span>
             )}
           </h2>
@@ -199,10 +204,19 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           )}
         </section>
 
-        <p className="mt-6 rounded-lg bg-[color:var(--elite-rule)] px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
-          Metrics derived from observed job postings over 90 days — not fundraising data, employee
-          reviews, or third-party valuations.
-        </p>
+        {/* The 90-day provenance note describes the opened/closed track
+            record specifically, and that is the one thing this page cannot
+            show today (`hasTrackRecord` is false for every employer until the
+            `company_*` aggregate sync lands). Printed under three em-dashes
+            it asserts a 90-day observation window behind numbers that were
+            never observed — so it renders only when there is a track record
+            for it to describe. */}
+        {data.hasTrackRecord && (
+          <p className="mt-6 rounded-lg bg-[color:var(--elite-rule)] px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
+            Metrics derived from observed job postings over 90 days — not fundraising data, employee
+            reviews, or third-party valuations.
+          </p>
+        )}
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3.5 sm:px-6">
@@ -211,7 +225,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             asChild
             className="bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-ink)]/90"
           >
-            <Link href={jobsSearchUrl}>View all {data.openCount} jobs</Link>
+            <Link href={jobsSearchUrl}>View all {openCountText(data)} jobs</Link>
           </Button>
         </div>
       </div>

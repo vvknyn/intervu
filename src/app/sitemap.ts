@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getBoardDomains } from "@/lib/boards/allowlists";
-import { domainToSlug } from "@/lib/boards/slug";
+import { fetchLiveRoleCountsByDomain, hasIndexableCompanyContent } from "@/lib/companies/indexable";
+import { companyBoardPath } from "@/lib/companies/paths";
 import { getSiteUrl } from "@/lib/seo/constants";
 
 /**
@@ -11,21 +12,70 @@ import { getSiteUrl } from "@/lib/seo/constants";
  * `/yours` is public (#153) but an empty shell for a crawler with no
  * session, so it's left out too; `/connect` stays in since it's a real
  * product page regardless of auth state.
+ *
+ * FAILURE POSTURE (deliberate — read before "fixing" the throw below).
+ * The `/co/` section is now measured, not asserted, so this route can fail
+ * where it previously could not. The three candidate behaviours on a
+ * Meilisearch outage are not equivalent:
+ *
+ *   - Emit the full allowlist anyway. This is the bug being removed: it
+ *     re-asserts coverage for 166 pages that render nothing.
+ *   - Emit 200 with the `/co/` section omitted. WORST option. A sitemap that
+ *     successfully returns and no longer contains 442 URLs it contained an
+ *     hour ago is a deliberate-looking mass removal — a transient index blip
+ *     would be reported to Google as "we took those pages down."
+ *   - Fail the request. A 5xx sitemap is the ONE outcome search engines
+ *     already treat correctly: fetch failed, retry later, keep the last good
+ *     copy. Nothing is dropped, nothing is claimed. Absence of a measurement
+ *     stays distinct from a measurement of absence.
+ *
+ * So this throws, and `dynamic = "force-dynamic"` is what makes throwing
+ * safe. It reconciles with the repo's standing "never fail the build on a
+ * Meili error" posture (see `app/companies/[slug]/page.tsx`) more strongly
+ * than the `isBuildPhase()` degradation those ISR pages use: this route is
+ * never prerendered at all, so `next build` never touches Meilisearch for it
+ * and cannot fail on it — the error surfaces at request time, as a 500, to a
+ * crawler equipped to handle exactly that.
+ *
+ * Cost: `meiliMultiSearch` carries its own `next: { revalidate }`, and an
+ * explicit fetch revalidate still populates Next's Data Cache under
+ * `force-dynamic` (verified in next@16.3.0 `patch-fetch.js` — the
+ * force-dynamic no-store coupling only applies when the fetch sets no cache
+ * options of its own). Public requests to /sitemap.xml therefore share one
+ * batched Meili round trip per revalidation window, not one per request.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export const dynamic = "force-dynamic";
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const lastModified = new Date();
 
-  // `/co/[slug]` company pages — one entry per tracked elite-board domain.
-  // Derived from the same allowlist + slug encoding every other `/co/[slug]`
-  // caller uses (get-company.ts, hot-list.ts, jobCompanyHref) rather than a
-  // hand-maintained company list, so it grows/shrinks with the tracked file.
-  const companyEntries: MetadataRoute.Sitemap = getBoardDomains("elite").map((domain) => ({
-    url: `${siteUrl}/co/${domainToSlug(domain)}`,
-    lastModified,
-    changeFrequency: "weekly",
-    priority: 0.6,
-  }));
+  // `/co/[slug]` company pages. The allowlist decides which companies are
+  // CANDIDATES (same source every other `/co/[slug]` caller uses —
+  // get-company.ts, hot-list.ts, jobCompanyHref — so it tracks that file);
+  // `hasIndexableCompanyContent` decides which of them have a page worth
+  // submitting. Same predicate the page's own robots meta runs, so the
+  // sitemap can never list a URL the page marks `noindex`.
+  //
+  // `hasTrackRecord` is deliberately not passed: an aggregation query cannot
+  // observe it (the index carries no `company_*` fields), and this shape
+  // takes an omitted value as "unobserved" rather than as a false claim. The
+  // consequence is stated rather than hidden — the sitemap is a SUBSET of
+  // what the page considers indexable, never a superset. Under-listing a
+  // page that a crawler can still reach through `/jobs` is recoverable;
+  // over-listing empty pages is the thing being fixed.
+  const domains = getBoardDomains("elite");
+  const liveRoleCounts = await fetchLiveRoleCountsByDomain(domains);
+  const companyEntries: MetadataRoute.Sitemap = domains
+    .filter((domain) =>
+      hasIndexableCompanyContent({ openRoleCount: liveRoleCounts.get(domain.toLowerCase()) ?? 0 }),
+    )
+    .map((domain) => ({
+      url: `${siteUrl}${companyBoardPath(domain)}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    }));
 
   return [
     {

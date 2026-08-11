@@ -90,6 +90,11 @@ export interface CompanyFaqInput {
   /** Live open-role count for this company. Always a number (possibly 0) —
    *  the "is X hiring?" question can always be answered honestly. */
   openCount: number;
+  /** True when `openCount` is a floor rather than an exact total (see
+   *  `CompanyPageData.openCountIsLowerBound`). This is structured data — a
+   *  machine-readable assertion to a search engine — so a floor has to be
+   *  worded as one instead of being rounded up into a precise claim. */
+  openCountIsLowerBound?: boolean;
   /** Share of tracked postings flagged with a possible-ghost-job signal, or
    *  `null` when the company has no scored postings to derive a share from
    *  — that question is skipped rather than answered with a fabricated 0%. */
@@ -107,7 +112,7 @@ export function buildCompanyFaqItems(input: CompanyFaqInput): FaqItem[] {
       question: `Is ${input.companyName} hiring?`,
       answer:
         input.openCount > 0
-          ? `Yes — intervu currently tracks ${input.openCount} live, verified open role${input.openCount === 1 ? "" : "s"} at ${input.companyName}.`
+          ? `Yes — intervu currently tracks ${input.openCountIsLowerBound ? "at least " : ""}${input.openCount} live, verified open role${input.openCount === 1 ? "" : "s"} at ${input.companyName}.`
           : `intervu isn't tracking any live open roles at ${input.companyName} right now.`,
     },
   ];
