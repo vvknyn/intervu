@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "preflight": "npm run lint && tsc --noEmit && npx tsx --test tests/unit/*.test.ts && npm run build",
+    "preflight": "tsc --noEmit && npm run build",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
@@ -28,7 +28,8 @@
     "test:copy": "playwright test tests/e2e/quirky-messages.spec.ts",
     "test:report": "playwright show-report playwright-report",
     "build:test": "npm run build && npm run test",
-    "promote": "./scripts/promote-to-prod.sh"
+    "promote": "./scripts/promote-to-prod.sh",
+    "preflight:full": "npm run lint && tsc --noEmit && npx tsx --test tests/unit/*.test.ts && npm run build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
