@@ -9,6 +9,12 @@
  * sync worker — never at request time.
  */
 import { getBoardDomains } from "@/lib/boards/allowlists";
+import {
+  COMPANY_INTENT_SAMPLE,
+  isCompanyNameQuery,
+  normalizeCompanyName,
+  type CompanyNameSample,
+} from "./company-intent";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -231,6 +237,17 @@ export interface BuildFilterOpts {
   skipDomainFilters?: boolean;
 }
 
+/**
+ * `buildSearchBody`'s own options. Extends the filter options because the
+ * same object is handed straight to `buildFilter`; `companyScoped` is a
+ * RETRIEVAL concern (which attributes the query text may match), deliberately
+ * kept as its own field rather than overloading a filter flag.
+ */
+export interface BuildSearchBodyOpts extends BuildFilterOpts {
+  /** Query text names an employer — see company-intent.ts. */
+  companyScoped?: boolean;
+}
+
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
 let companyDomainFilterUnsupported = false;
 
@@ -398,10 +415,20 @@ export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
   matchingStrategy: MatchingStrategy = "all",
-  opts?: BuildFilterOpts,
+  opts?: BuildSearchBodyOpts,
 ): MeiliSearchBody {
   return {
     q: p.q ?? "",
+    // Whole-document retrieval is the default and stays that way (see the
+    // note above `searchMeili`). The ONE exception is a query the corpus
+    // says is an employer's NAME: scoping it to `company` is what keeps
+    // real listings at that employer above unrelated postings that merely
+    // mention the word in a title ("FOREMAN - SEAL & STRIPE" for q=stripe).
+    // That precision is currently a side effect of the `exactness` ranking
+    // rule landing on the `company` attribute; doing it explicitly here is
+    // what lets `exactness` be demoted to fix role queries without trading
+    // one regression for another. See company-intent.ts.
+    ...(opts?.companyScoped ? { attributesToSearchOn: ["company"] } : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that
@@ -537,6 +564,14 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
   }
 
+  // One extra round trip, memoized per query across requests
+  // (`resolveCompanyIntent`), and only for free-text queries: an id probe,
+  // a plain browse or a board/domain browse never asks. The domain
+  // post-filter path above is deliberately excluded — those are
+  // `board`/`companyDomain` browses that are ALREADY constrained to one
+  // employer, so company-scoping the query text would add nothing.
+  const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
+
   const runPass = async (
     matchingStrategy: MatchingStrategy = "all",
   ): Promise<JobSearchResult> => {
@@ -545,7 +580,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
         cache: "no-store",
-        body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy)),
+        body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy, { companyScoped })),
       });
 
     let res = await post(false);
@@ -879,10 +914,11 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
  * the place-strip this guard exists to second-guess proceed exactly as it
  * did before S1.
  */
-export async function probeCompanyMatch(phrase: string): Promise<boolean> {
+export async function probeCompanyNames(phrase: string, sampleSize: number): Promise<CompanyNameSample> {
   const query = phrase.trim();
   const h = host();
-  if (!h || !query) return false;
+  const empty: CompanyNameSample = { total: 0, companies: [] };
+  if (!h || !query) return empty;
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
@@ -893,15 +929,68 @@ export async function probeCompanyMatch(phrase: string): Promise<boolean> {
         matchingStrategy: "all",
         attributesToSearchOn: ["company"],
         filter: buildFilter({ q: query }),
-        hitsPerPage: 1,
+        hitsPerPage: sampleSize,
+        page: 1,
+        attributesToRetrieve: ["company"],
       }),
     });
-    if (!res.ok) return false;
-    const body = (await res.json()) as { hits?: unknown[] };
-    return (body.hits?.length ?? 0) > 0;
+    if (!res.ok) return empty;
+    const body = (await res.json()) as {
+      hits?: { company?: string | null }[];
+      totalHits?: number;
+      estimatedTotalHits?: number;
+    };
+    const hits = body.hits ?? [];
+    return {
+      total: body.totalHits ?? body.estimatedTotalHits ?? hits.length,
+      companies: hits.map((hit) => hit.company ?? ""),
+    };
   } catch {
-    return false;
+    return empty;
   }
+}
+
+export async function probeCompanyMatch(phrase: string): Promise<boolean> {
+  return (await probeCompanyNames(phrase, 1)).total > 0;
+}
+
+/**
+ * Memoized company-intent decision for a typed query — see company-intent.ts
+ * for what the gate is and why it is a dominance ratio rather than
+ * `probeCompanyMatch`'s boolean.
+ *
+ * Cached because this costs one extra Meilisearch round trip on the read
+ * path, and the answer is a property of the CORPUS (does an employer carry
+ * this name), not of the request: it is identical for every user typing the
+ * same words, and changes only as slowly as the employer set does. The cache
+ * is process-local and bounded; entries expire so a newly-indexed employer
+ * becomes detectable without a redeploy. Failure degrades to `false`
+ * (`probeCompanyNames` never throws), i.e. the normal whole-document search.
+ */
+const COMPANY_INTENT_TTL_MS = 10 * 60_000;
+const COMPANY_INTENT_CACHE_MAX = 500;
+const companyIntentCache = new Map<string, { value: boolean; atMs: number }>();
+
+export function resetCompanyIntentCacheForTests(): void {
+  companyIntentCache.clear();
+}
+
+export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {
+  const query = (q ?? "").trim();
+  if (!query) return false;
+  const key = normalizeCompanyName(query);
+  const hit = companyIntentCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
+
+  const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
+  const value = isCompanyNameQuery(query, sample);
+  if (companyIntentCache.size >= COMPANY_INTENT_CACHE_MAX) {
+    const oldest = companyIntentCache.keys().next().value;
+    if (oldest !== undefined) companyIntentCache.delete(oldest);
+  }
+  companyIntentCache.set(key, { value, atMs: now });
+  return value;
 }
 
 /* --------- Ingestion / admin (invoked only by the off-Vercel sync worker) --------- */

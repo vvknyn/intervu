@@ -7,25 +7,48 @@ import {
   buildWebsiteJsonLd,
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
+import { getSiteUrl } from "@/lib/seo/constants";
+
+// Absolute URLs are asserted against `getSiteUrl()`, never a literal host.
+// These assertions previously pinned https://intervu.cc — the domain the site
+// MOVED OFF on 2026-08-08 — so they passed only when the run happened to set
+// the retired host, and would have failed against production. Deriving the
+// origin tests the behaviour (origin + path) instead of the deployment.
+const ORIGIN = getSiteUrl();
 
 describe("seo/jsonld", () => {
-  it("buildCompanyFaqItems answers 'is X hiring?' even at zero open roles", () => {
-    const items = buildCompanyFaqItems({ companyName: "Acme", openCount: 0, ghostFlaggedPct: null });
+  it("buildCompanyFaqItems publishes the page's own hiring answer verbatim", () => {
+    // The answer is authored once, by `buildCompanyHiringAnswer`, and rendered
+    // in the page body; this builder must not restate it in words of its own,
+    // or the structured data starts asserting something no reader can see.
+    const items = buildCompanyFaqItems({
+      companyName: "Acme",
+      hiringAnswer: "intervu isn't tracking any live open roles right now.",
+      ghostFlaggedPct: null,
+    });
     assert.equal(items.length, 1);
     assert.equal(items[0]!.question, "Is Acme hiring?");
-    assert.match(items[0]!.answer, /isn't tracking any live open roles/);
+    assert.equal(items[0]!.answer, "intervu isn't tracking any live open roles right now.");
   });
 
-  it("buildCompanyFaqItems singularizes 'role' at exactly 1 and adds the ghost question when a pct exists", () => {
-    const items = buildCompanyFaqItems({ companyName: "Beta", openCount: 1, ghostFlaggedPct: 25 });
+  it("buildCompanyFaqItems adds the ghost question when a pct exists", () => {
+    const items = buildCompanyFaqItems({
+      companyName: "Beta",
+      hiringAnswer: "Yes — 1 open role is live on intervu right now.",
+      ghostFlaggedPct: 25,
+    });
     assert.equal(items.length, 2);
-    assert.match(items[0]!.answer, /1 live, verified open role at Beta/);
+    assert.match(items[0]!.answer, /1 open role is live/);
     assert.equal(items[1]!.question, "Does Beta have ghost-job risk?");
     assert.match(items[1]!.answer, /25% of Beta's tracked postings/);
   });
 
   it("buildCompanyFaqItems skips the ghost question when ghostFlaggedPct is null (no scored postings)", () => {
-    const items = buildCompanyFaqItems({ companyName: "Gamma", openCount: 4, ghostFlaggedPct: null });
+    const items = buildCompanyFaqItems({
+      companyName: "Gamma",
+      hiringAnswer: "Yes — 4 open roles are live on intervu right now.",
+      ghostFlaggedPct: null,
+    });
     assert.equal(items.length, 1);
     assert.ok(!items.some((i) => i.question.includes("ghost-job risk")));
   });
@@ -52,7 +75,7 @@ describe("seo/jsonld", () => {
       path: "/research/ghost-jobs",
     });
     assert.equal(jsonLd.dateModified, "2026-07-01");
-    assert.equal(jsonLd.url, "https://intervu.cc/research/ghost-jobs");
+    assert.equal(jsonLd.url, `${ORIGIN}/research/ghost-jobs`);
     assert.equal(jsonLd.publisher.name, "Intervu");
     assert.equal("description" in jsonLd, false);
   });
@@ -71,7 +94,7 @@ describe("seo/jsonld", () => {
 
   it("buildWebsiteJsonLd points its SearchAction at the jobs search root", () => {
     const jsonLd = buildWebsiteJsonLd();
-    assert.equal(jsonLd.potentialAction.target, "https://intervu.cc/?q={search_term_string}");
+    assert.equal(jsonLd.potentialAction.target, `${ORIGIN}/?q={search_term_string}`);
     assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");
   });
 

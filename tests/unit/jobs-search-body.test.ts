@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildSearchBody, shouldRelaxSearch } from "../../src/lib/jobs/meilisearch";
 
-test("the search body never restricts attributesToSearchOn — the whole posting is one document", () => {
+test("by default the search body does not restrict attributesToSearchOn — the whole posting is one document", () => {
     // The old title/company precision pass treated place words as title words:
     // "product manager canada" found only the 24 roles literally TITLED that,
     // while 23,813 postings matched all three words somewhere (measured live
@@ -10,6 +10,19 @@ test("the search body never restricts attributesToSearchOn — the whole posting
     // order, not via restricting where words may match.
     const body = buildSearchBody({ q: "product manager canada" }, false);
     assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
+    // ...and an explicit non-company query stays unrestricted too.
+    const notScoped = buildSearchBody({ q: "product manager canada" }, false, "all", { companyScoped: false });
+    assert.ok(!("attributesToSearchOn" in notScoped), JSON.stringify(notScoped));
+});
+
+test("a company-name query scopes retrieval to the company attribute", () => {
+    // The ONE exception, and only when company-intent.ts has corroborated the
+    // query against the corpus — this is what preserves company precision
+    // independently of the `exactness` ranking rule.
+    const body = buildSearchBody({ q: "cloudflare" }, false, "all", { companyScoped: true });
+    assert.deepEqual(body.attributesToSearchOn, ["company"]);
+    assert.equal(body.q, "cloudflare");
+    assert.equal(body.matchingStrategy, "all");
 });
 
 test("strict matching is the default — every query word must match", () => {

@@ -6,6 +6,7 @@ import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
+  buildCompanyHiringAnswer,
   buildCompanyPageMetadata,
   ghostPctCoversAllRoles,
   openCountText,
@@ -63,11 +64,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
   const ghostPctIsCompanyWide = ghostPctCoversAllRoles(data);
+  const hiring = buildCompanyHiringAnswer(data);
   const faqJsonLd = buildFaqPageJsonLd(
     buildCompanyFaqItems({
       companyName: data.name,
-      openCount: data.openCount,
-      openCountIsLowerBound: data.openCountIsLowerBound,
+      // The same sentence the body renders below — see `CompanyFaqInput`.
+      hiringAnswer: hiring.headline,
       // The FAQ answer states this share as a fact about "this company's
       // tracked postings". Where the percentage only covers the fetched
       // window, that question is dropped rather than answered with a sample
@@ -130,6 +132,28 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             className="shrink-0 self-start"
           />
         </header>
+
+        {/* The page's title asks "Is X hiring?" — this answers it in the body,
+            in the same words the FAQPage structured data gives a crawler.
+            `trackRecord` is what keeps the block honest while the 90-day
+            aggregates are null: it names the gap the two em-dashes below
+            represent, and turns into the real record with no code change once
+            the `company_*` sync lands. */}
+        <section
+          data-testid="company-hiring-answer"
+          className="mb-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4"
+        >
+          <h2 className="font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
+            Is {data.name} hiring?
+          </h2>
+          <p className="mt-2 flex items-center gap-2 font-display text-[19px] font-semibold leading-snug">
+            {hiring.hasOpenRoles && <span className="elite-live-dot" aria-hidden />}
+            {hiring.headline}
+          </p>
+          <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
+            {hiring.trackRecord}
+          </p>
+        </section>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi value={openCountText(data)} label="Open roles" />
