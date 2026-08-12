@@ -87,14 +87,14 @@ export function buildFaqPageJsonLd(items: FaqItem[]): FaqPageJsonLd | null {
 
 export interface CompanyFaqInput {
   companyName: string;
-  /** Live open-role count for this company. Always a number (possibly 0) —
-   *  the "is X hiring?" question can always be answered honestly. */
-  openCount: number;
-  /** True when `openCount` is a floor rather than an exact total (see
-   *  `CompanyPageData.openCountIsLowerBound`). This is structured data — a
-   *  machine-readable assertion to a search engine — so a floor has to be
-   *  worded as one instead of being rounded up into a precise claim. */
-  openCountIsLowerBound?: boolean;
+  /** The page's OWN visible answer to "Is X hiring?" — `buildCompanyHiringAnswer`
+   *  (lib/companies/presentation.ts) `.headline`, the exact sentence rendered
+   *  in the body. Passed in rather than re-derived from the count here: a
+   *  FAQPage answer is a machine-readable assertion that must match what the
+   *  page shows a human, and two independent wordings of the same count is
+   *  precisely how that match rots. It also keeps the honesty rules about
+   *  floors ("200+") and zero-role employers stated once. */
+  hiringAnswer: string;
   /** Share of tracked postings flagged with a possible-ghost-job signal, or
    *  `null` when the company has no scored postings to derive a share from
    *  — that question is skipped rather than answered with a fabricated 0%. */
@@ -110,10 +110,7 @@ export function buildCompanyFaqItems(input: CompanyFaqInput): FaqItem[] {
   const items: FaqItem[] = [
     {
       question: `Is ${input.companyName} hiring?`,
-      answer:
-        input.openCount > 0
-          ? `Yes — intervu currently tracks ${input.openCountIsLowerBound ? "at least " : ""}${input.openCount} live, verified open role${input.openCount === 1 ? "" : "s"} at ${input.companyName}.`
-          : `intervu isn't tracking any live open roles at ${input.companyName} right now.`,
+      answer: input.hiringAnswer,
     },
   ];
   if (input.ghostFlaggedPct != null) {

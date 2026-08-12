@@ -6,8 +6,10 @@ import type { PublicJob } from "./types";
  * (`/jobs/<slug>-<uuid>`, see `jobPath`). One source for a shape two very
  * different callers need byte-identical: `CopyJobLinkButton` (JobDetail.tsx,
  * client — origin from `window.location.origin`) and the MCP `search_jobs`/
- * `get_job` tools (agent/tools.ts, server — origin from `AGENT.issuer()`,
- * R6, 2026-08-09 — recommending a job in chat with no way to open it on
+ * `get_job` tools (agent/tools.ts, server — origin from `getSiteUrl()`, the
+ * SEO canonical, never `AGENT.issuer()` — that's pinned to the retired
+ * intervu.cc for OAuth/connector identity only, 2026-08-11 fix. R6,
+ * 2026-08-09 — recommending a job in chat with no way to open it on
  * intervu was a founder-reported gap). Previously built `/jobs?job=<id>`
  * (the board's reopen-the-sheet query param); that URL still works as a
  * fallback (`app/jobs/page.tsx` still reads it) but is not indexable, so

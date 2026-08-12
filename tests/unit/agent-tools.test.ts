@@ -6,6 +6,12 @@ import {
   type ToolDeps, type SaveResumeVariantInput,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
+import { getSiteUrl } from '../../src/lib/seo/constants';
+
+// intervu_url/download_url (tools.ts) derive their origin from getSiteUrl(),
+// same as every other public-page-link builder — see seo-constants.test.ts
+// for the "throws when unset" contract this satisfies.
+process.env.NEXT_PUBLIC_SITE_URL = 'https://intervuhq.com';
 import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import type { LocationVocabulary } from '../../src/lib/jobs/query-understanding';
 import { buildGazetteerIndex, type GazetteerData } from '../../src/lib/geo/gazetteer';
@@ -281,7 +287,7 @@ describe('toolSearchJobs', () => {
     const { deps } = stubDeps([makeJob({ id: 'job-1', apply_url: 'https://acme.com/apply/job-1' })]);
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
-    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
+    assert.equal(out.hits[0].intervu_url, `${getSiteUrl()}/jobs/senior-engineer-at-acme-co-job-1`);
     assert.equal(out.hits[0].apply_url, 'https://acme.com/apply/job-1');
   });
 
@@ -290,7 +296,7 @@ describe('toolSearchJobs', () => {
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.hits[0].apply_url, '');
-    assert.equal(out.hits[0].intervu_url, `${AGENT.issuer()}/jobs?job=job-1`);
+    assert.equal(out.hits[0].intervu_url, `${getSiteUrl()}/jobs/senior-engineer-at-acme-co-job-1`);
   });
 
   it('reports unavailable (not a silent empty-success) when the backend errors', async () => {
@@ -846,7 +852,7 @@ describe('toolSaveResumeVariant', () => {
   it('resolves/creates the pursuit at stage "interested" (never consumes the apply cap) then files the snapshot', async () => {
     const { deps, upsertCalls, saveResumeVersionCalls } = stubDeps([makeJob()], { data: { id: 'app-1' } });
     const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'My tailored resume', label: 'Acme v1' });
-    assert.deepEqual(out, { saved: true, download_url: `${AGENT.issuer()}/yours/app-1?download=pdf&variant=2026-08-02T00%3A00%3A00.000Z` });
+    assert.deepEqual(out, { saved: true, download_url: `${getSiteUrl()}/yours/app-1?download=pdf&variant=2026-08-02T00%3A00%3A00.000Z` });
     assert.equal(upsertCalls.length, 1);
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'interested');
@@ -862,7 +868,7 @@ describe('toolSaveResumeVariant', () => {
     });
     const out = await toolSaveResumeVariant(deps, { job_id: 'job-1', resume_text: 'text', label: 'v2' });
     assert.ok('download_url' in out);
-    assert.ok(out.download_url === `${AGENT.issuer()}/yours/app-2?download=pdf&variant=2026-08-09T12%3A34%3A56.000Z`);
+    assert.ok(out.download_url === `${getSiteUrl()}/yours/app-2?download=pdf&variant=2026-08-09T12%3A34%3A56.000Z`);
   });
 
   it('returns an error for an unknown job_id and never calls saveResumeVersion', async () => {

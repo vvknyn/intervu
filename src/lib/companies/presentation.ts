@@ -47,6 +47,60 @@ export function ghostPctCoversAllRoles(
   return data.jobs.length >= data.openCount;
 }
 
+export type CompanyHiringAnswer = {
+  /** At least one live role — the page uses it for the live indicator only;
+   *  the words are already decided below. */
+  hasOpenRoles: boolean;
+  /** The direct answer to "Is X hiring?", as one sentence. Rendered verbatim
+   *  on the page AND handed to the FAQPage structured data, so the machine
+   *  answer and the human answer cannot drift apart. */
+  headline: string;
+  /** The 90-day opened/closed record when it is known, and a plain statement
+   *  that it isn't when it isn't. Never phrased as a finding either way. */
+  trackRecord: string;
+};
+
+/**
+ * Answers the question the page's own `<title>` asks.
+ *
+ * `/co/[slug]` shipped titled "Is X hiring?" — the SERP headline and the whole
+ * query intent — while the rendered body contained the word "hiring" zero
+ * times: a visitor arriving on that promise got a name, a role count and two
+ * em-dashes. This states the answer in the body, from the counts the page
+ * already holds.
+ *
+ * It is built as ONE function over the whole answer, rather than a line the
+ * page assembles, because the honesty constraint is a property of the
+ * combination: the open-role count is known today, the 90-day open/close
+ * record is null for every employer until the `company_*` aggregate sync
+ * lands (see `CompanyPageData.hasTrackRecord`), and a sentence that reads the
+ * same in both states would be claiming the missing half. So the verdict rests
+ * only on the count, and `trackRecord` NAMES the gap instead of dressing two
+ * nulls as a stable history. When the aggregates arrive the same code says
+ * more without being edited — the branch is data-driven, not a TODO.
+ */
+export function buildCompanyHiringAnswer(
+  data: Pick<
+    CompanyPageData,
+    "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord"
+  >,
+): CompanyHiringAnswer {
+  const hasOpenRoles = data.openCount > 0;
+  const roles = data.openCount === 1 ? "open role is" : "open roles are";
+  return {
+    hasOpenRoles,
+    // No "No" on the empty branch: the page knows what intervu tracks, not
+    // whether the employer is hiring somewhere it can't see. It reports the
+    // former and lets the reader draw the latter.
+    headline: hasOpenRoles
+      ? `Yes — ${openCountText(data)} ${roles} live on intervu right now.`
+      : "intervu isn't tracking any live open roles right now.",
+    trackRecord: data.hasTrackRecord
+      ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
+      : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
+  };
+}
+
 /** Real page data only — degrades to a generic line when there are zero open
  *  roles rather than fabricating a count, and says "at least" rather than
  *  stating a floor as a total. */

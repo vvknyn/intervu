@@ -22,6 +22,7 @@ import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
 import { jobShareUrl } from "../jobs/share-url";
+import { getSiteUrl } from "../seo/constants";
 import {
   EXPERIENCE_LEVELS, type ExperienceLevel,
   EMPLOYMENT_TYPES, type EmploymentType,
@@ -147,8 +148,13 @@ type JobDetailFields = Pick<
    *  never a raw `PublicJob` field — the SAME `jobShareUrl` builder the
    *  board's own "Copy link" button (CopyJobLinkButton, JobDetail.tsx) uses,
    *  so an agent-shared link and a web-copied link are byte-identical.
-   *  Always present (pure function of `id` + the app's own base URL) even
-   *  when `apply_url` is blank — see `toSearchHit`'s absent-apply_url test. */
+   *  Origin is `getSiteUrl()` (the SEO canonical), never `AGENT.issuer()` —
+   *  the latter is pinned to the retired intervu.cc for OAuth/connector
+   *  identity stability and would hand every agent-surfaced job link an
+   *  extra 301 hop through a domain that serves no real content (2026-08-11
+   *  fix). Always present (pure function of `id` + the app's own base URL)
+   *  even when `apply_url` is blank — see `toSearchHit`'s absent-apply_url
+   *  test. */
   intervu_url: string;
 };
 
@@ -166,7 +172,7 @@ function toJobDetailFields(job: PublicJob): JobDetailFields {
     salary_min, salary_max, salary_currency, salary_period,
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
-    intervu_url: jobShareUrl(AGENT.issuer(), job),
+    intervu_url: jobShareUrl(getSiteUrl(), job),
   };
 }
 
@@ -511,7 +517,9 @@ export interface SaveResumeVariantInput {
  * other real-account page here, never a bearer token in the URL. `saved_at`
  * (not an array index) is the stable key: `resume_versions` is append-only
  * and `saved_at` is generated fresh per call, so it survives re-filing
- * without drifting.
+ * without drifting. Origin is `getSiteUrl()`, same reasoning as
+ * `intervu_url` above — this is a page link a person opens, not the
+ * OAuth/connector identity `AGENT.issuer()` is pinned for.
  */
 export async function toolSaveResumeVariant(
   deps: ToolDeps,
@@ -528,7 +536,7 @@ export async function toolSaveResumeVariant(
     label: input.label,
   });
   if (saved.error || !saved.data) return { error: saved.error ?? "failed to save resume version" };
-  const downloadUrl = `${AGENT.issuer()}/yours/${upserted.pursuit.id}?download=pdf&variant=${encodeURIComponent(saved.data.saved_at)}`;
+  const downloadUrl = `${getSiteUrl()}/yours/${upserted.pursuit.id}?download=pdf&variant=${encodeURIComponent(saved.data.saved_at)}`;
   return { saved: true, download_url: downloadUrl };
 }
 
