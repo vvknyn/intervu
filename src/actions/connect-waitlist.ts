@@ -5,7 +5,8 @@ import { validate } from "@/lib/validation";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
-import { CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
+import { CONNECT_CLIENTS, CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
+import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
 
 /**
  * Waitlist capture for /connect (MCP pairing is live; this collects "notify
@@ -40,17 +41,28 @@ export async function joinConnectWaitlist(input: {
 
   try {
     const db = getAdminDb();
-    await db
-      .collection("connect_waitlist")
-      .doc(parsed.data.email)
-      .set(
-        {
-          email: parsed.data.email,
-          client: parsed.data.client,
-          created_at: new Date().toISOString(),
-        },
-        { merge: true },
-      );
+    const ref = db.collection("connect_waitlist").doc(parsed.data.email);
+    const existing = await ref.get();
+
+    await ref.set(
+      {
+        email: parsed.data.email,
+        client: parsed.data.client,
+        created_at: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    // Idempotent: only the first submission for this email sends a
+    // confirmation, regardless of how many times the form resubmits.
+    if (!existing.data()?.confirmationSentAt) {
+      const clientLabel = CONNECT_CLIENTS.find((c) => c.id === parsed.data.client)?.label ?? parsed.data.client;
+      const sendResult = await sendWaitlistConfirmation(parsed.data.email, `${clientLabel} on /connect`);
+      if (sendResult.sent) {
+        await ref.set({ confirmationSentAt: new Date().toISOString() }, { merge: true });
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Error joining connect waitlist:", error);

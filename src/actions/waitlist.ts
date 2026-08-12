@@ -4,6 +4,8 @@ import { z } from "zod";
 import { validate } from "@/lib/validation";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { PACKS, type PackId } from "@/lib/pricing";
+import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
+import { normalizeEmail } from "@/lib/email/normalize-email";
 
 // Derived from PACKS, not a hand-retyped "starter" | "hunt" | "deep" union —
 // a fourth pack in pricing.ts is covered here automatically.
@@ -43,11 +45,26 @@ export async function validateWaitlistInput(input: {
   return { kind: "valid", email: parsed.data.email, packId: parsed.data.packId };
 }
 
+/** Real, human name for the confirmation email — never invented copy, just
+ *  what PACKS itself already knows about the pack. */
+function packLabel(packId: string): string {
+  const pack = PACKS.find((p) => p.id === packId);
+  if (!pack) return "the waitlist";
+  const name = pack.id.charAt(0).toUpperCase() + pack.id.slice(1);
+  return `the ${name} pack ($${pack.usd}, ${pack.credits} credits)`;
+}
+
 /**
  * Waitlist form submission. Mirrors submitFeedback's shape (`{success:true}`
  * / `{error}`) — a silent-drop returns the SAME success shape as a genuine
  * submission, without touching Firestore, so a bot can't distinguish
  * "accepted" from "dropped".
+ *
+ * Doc id is `${email}::${packId}` (upsert, same idempotent shape
+ * `connect_waitlist` already uses) rather than an auto-id — a resubmission
+ * of the same email+pack re-merges the SAME doc instead of creating a
+ * second one, which is what makes `confirmationSentAt` a meaningful guard:
+ * with a fresh auto-id per submit there'd be no single doc to check it on.
  */
 export async function submitWaitlistAction(input: {
   email: string;
@@ -61,11 +78,22 @@ export async function submitWaitlistAction(input: {
 
   try {
     const db = getAdminDb();
-    await db.collection("waitlist").add({
-      email: result.email,
-      packId: result.packId,
-      ts: new Date().toISOString(),
-    });
+    const email = normalizeEmail(result.email);
+    const ref = db.collection("waitlist").doc(`${email}::${result.packId}`);
+    const existing = await ref.get();
+
+    await ref.set(
+      { email, packId: result.packId, ts: existing.exists ? existing.data()?.ts : new Date().toISOString() },
+      { merge: true },
+    );
+
+    if (!existing.data()?.confirmationSentAt) {
+      const sendResult = await sendWaitlistConfirmation(email, packLabel(result.packId));
+      if (sendResult.sent) {
+        await ref.set({ confirmationSentAt: new Date().toISOString() }, { merge: true });
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Error submitting waitlist entry:", error);
