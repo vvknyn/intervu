@@ -20,12 +20,12 @@ import {
   type CountryRollupRow,
 } from "./country-classification";
 import { last14UtcDays } from "./day-buckets";
+import { fetchMarketStats, type MarketStats } from "./market-stats";
 import { hasMeilisearch, meiliMultiSearch, type MeiliAggregationResult } from "./meilisearch";
 import { FRESHNESS_BUCKETS, postingAgeFilterClauses, type FreshnessBucket } from "./posting-age-buckets";
 import type { GhostBadge } from "./types";
 
 const ACTIVE_FILTER = 'vacancy_status = "active"';
-const CLOSED_FILTER = 'vacancy_status = "closed"';
 
 /** Display order for the ghost-radar breakdown — severity-ish, "unscored"
  *  (no signal) last. Matches FilterPanel's `VALUE_LABELS.ghost_badge` order. */
@@ -38,9 +38,16 @@ export interface MarketTrendsData {
   topCountries: CountryRollupRow[];
   freshness: { bucket: FreshnessBucket; count: CorpusCount }[];
   ghostRadar: { badge: GhostBadge; count: CorpusCount }[];
-  /** All-time closed-postings total (vacancy_status = "closed") — the flow
-   *  counterpart to `liveJobs`, added for the /trends "Market pulse" section. */
-  closedTotal: CorpusCount;
+  /** Closure flow — the counterpart to `liveJobs`, for "Market pulse".
+   *
+   *  `null` when the published totals are unavailable (publisher hasn't run,
+   *  or its task is still queued). Callers MUST omit the claim rather than
+   *  render a 0: this field replaced a query that could only ever return 0,
+   *  and printing a fallback zero would restore that bug through a new pipe.
+   *
+   *  Carries its own `windowDays` — these are 90-day figures, NOT all-time,
+   *  which is what the previous field name asserted. */
+  closed: MarketStats | null;
   /** Posted-per-day counts, last 14 UTC calendar days (oldest first) — every
    *  status, not just active, so a posting that has since closed still
    *  counts on the day it was actually posted. */
@@ -111,13 +118,17 @@ export async function fetchMarketTrends(): Promise<MarketTrendsData | null> {
         filter: [ACTIVE_FILTER, ...postingAgeFilterClauses(bucket, now)],
         facets: ["ghost_badge"],
       })),
-      // 6: all-time closed total — the flow counterpart to `liveJobs`.
-      // Requests the same `ghost_badge` cap-recovery facet as every other
-      // TOTAL query above; closed is plausibly the largest number on this
-      // page (accumulates over the corpus's whole history), the likeliest
-      // one to actually hit `CORPUS_COUNT_CAP`.
-      { filter: [CLOSED_FILTER], facets: ["ghost_badge"] },
-      // 7-20: one bare count query per day, last 14 UTC days — every
+      // The closed total used to be query 6 here, as
+      // `vacancy_status = "closed"`. It is gone because this index cannot
+      // answer it: no closed document has ever been in it (the snapshot
+      // endpoint filters them out, the reconcile evicts them), so the query
+      // returned 0 on every run and the page printed that 0 as a
+      // measurement. Live facets 2026-08-12: {"active": 1971746,
+      // "unknown": 249574} — no "closed" key at all. The figure now comes
+      // from `fetchMarketStats` (market-stats.ts), sourced from Postgres.
+      // Do not reinstate a closed filter here.
+      //
+      // 6-19: one bare count query per day, last 14 UTC days — every
       // status (not ACTIVE_FILTER-scoped), so a posting that's since closed
       // still counts on the day it was actually posted. No facets: a single
       // day's postings are nowhere near CORPUS_COUNT_CAP, so cap-recovery
@@ -133,8 +144,10 @@ export async function fetchMarketTrends(): Promise<MarketTrendsData | null> {
 
   const [activeResult, allTimeResult, ...rest] = results;
   const freshnessResults = rest.slice(0, FRESHNESS_BUCKETS.length);
-  const closedResult = rest[FRESHNESS_BUCKETS.length];
-  const dailyResults = rest.slice(FRESHNESS_BUCKETS.length + 1);
+  // No `+ 1` — the closed query that used to sit between these two is gone
+  // (see the batch above). This offset is why it was removed here rather
+  // than left in as a harmless no-op query.
+  const dailyResults = rest.slice(FRESHNESS_BUCKETS.length);
   const activeGhostDist = activeResult.facetDistribution?.ghost_badge ?? {};
 
   const liveJobs = toCorpusCount(activeResult);
@@ -158,7 +171,7 @@ export async function fetchMarketTrends(): Promise<MarketTrendsData | null> {
       count: { kind: "exact", value: activeGhostDist[badge] ?? 0 } as CorpusCount,
     })),
     freshness,
-    closedTotal: toCorpusCount(closedResult),
+    closed: await fetchMarketStats(),
     postedPerDay: dayRanges.map((range, i) => ({
       date: range.dateLabel,
       count: toCorpusCount(dailyResults[i]),
