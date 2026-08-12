@@ -79,11 +79,19 @@ export default async function TrendsPage() {
 
   // Lazy daily snapshot (P2): create-if-absent off THIS fetch's numbers (no
   // extra Meili cost), never throws — see daily-snapshot.ts's module doc.
-  await captureDailySnapshotIfAbsent({
-    totalDocs: data.totalTracked.value,
-    active: data.liveJobs.value,
-    closed: data.closedTotal.value,
-  });
+  //
+  // Skipped entirely when the closed figure is unknown. The snapshot series
+  // is differenced (`newlyClosed: latest.closed - prev.closed`), so a
+  // placeholder 0 does not just mis-state one day — it corrupts the deltas
+  // on BOTH sides of it. Losing a day is recoverable; a fabricated row in a
+  // historical series is not.
+  if (data.closed) {
+    await captureDailySnapshotIfAbsent({
+      totalDocs: data.totalTracked.value,
+      active: data.liveJobs.value,
+      closed: data.closed.closed,
+    });
+  }
   const snapshots = await readRecentSnapshots();
 
   return (
@@ -112,7 +120,7 @@ export default async function TrendsPage() {
       <MarketPulse
         postedPerDay={data.postedPerDay}
         liveJobs={data.liveJobs}
-        closedTotal={data.closedTotal}
+        closed={data.closed}
         staleActiveSharePct={data.staleActiveSharePct}
         sourceCoverage={data.sourceCoverage}
         snapshotSummary={<DailySnapshotSummary snapshots={snapshots} />}
