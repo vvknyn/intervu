@@ -86,21 +86,49 @@ export const JOBS_INDEX_SETTINGS = {
   // Meili 1.45's canonical rule names (live GET returns attributeRank /
   // wordPosition — the legacy attribute/position names predate it).
   //
-  // S3 (search-audit.md class 3): `sort` sits AFTER `wordPosition`/
-  // `exactness`, not before. An explicit user sort (e.g. "freshest") only
-  // ever ties among documents Meili already ranked equally on relevance —
-  // it must never outrank the two rules that separate "IS the company" from
-  // "mentions the company in passing". The live index had `sort` fourth
-  // (before wordPosition/exactness): confirmed via UI click, q=stripe +
+  // `sort` sits BEFORE `exactness` — an explicit user sort must WIN.
+  //
+  // History, because this reverses an earlier decision rather than ignoring
+  // it. S3 (search-audit.md class 3) moved `sort` to the end after q=stripe +
   // "freshest" jumped a Dash0 posting that merely MENTIONS Stripe above the
-  // real Stripe listings. Moving `sort` to the end fixes that without
-  // breaking date-ordered browsing (empty `q`, nothing to rank on relevance
-  // — see buildMeiliSort/resolveEffectiveSort, sort.ts) or drowning a
-  // multi-word role query in stale exact-title matches (the two other S3
-  // gates) — `words`/`typo`/`proximity`/`attributeRank` already keep a
-  // recent, well-matching posting ahead of an old literal one before `sort`
-  // ever breaks the remaining ties.
-  rankingRules: ["words", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "sort", "posted_ts:desc"],
+  // real Stripe listings. That was the right call AT THE TIME: `exactness` on
+  // `company` was the only thing separating "IS the company" from "mentions
+  // it", so letting a sort outrank it broke company queries.
+  //
+  // That defence is now structural instead of positional. A company-intent
+  // query is scoped with attributesToSearchOn: ["company"] (company-intent.ts,
+  // whose docblock states the scoping is precisely "what lets `exactness` be
+  // demoted to fix role queries without trading one regression for another").
+  // A posting that only mentions Stripe in its description can no longer match
+  // at all, so ordering can no longer promote it.
+  //
+  // Measured against the live index 2026-08-12, AFTER this order went in:
+  //   SCOPED   q=stripe + posted_ts:desc — top 8 all company="Stripe",
+  //            freshest 4d. The S3 regression does not reproduce.
+  //   UNSCOPED q=stripe + posted_ts:desc — 3 of the top 8 are NOT Stripe
+  //            ("Line Striper-Pavement Marking Technician", "FOREMAN - SEAL
+  //            & STRIPE"); typo/word matches on the title.
+  // The unscoped number is the point, not a caveat: it is what this ordering
+  // costs when scoping does NOT fire, and the reason the company-intent gate
+  // is load-bearing rather than an optimisation. If that gate is ever
+  // weakened or removed, S3 comes straight back — re-measure both shapes
+  // before touching either file.
+  //
+  // What the old order cost, measured 2026-08-12: `sort` after `exactness`
+  // means an explicit sort can only reorder WITHIN an exactness tier, so
+  // "freshest" could not break the tie it exists to break. q="product manager"
+  // + posted_ts:desc filtered to Canada returned 5d, 6d, 6d, 8d, 9d, 19d, 28d,
+  // 32d — every one a bare "Product Manager" — while a 1-day-old "Product
+  // Manager - Activation & Deployment" sat below all of them on exactness
+  // 0.667. A 32-day-old posting above a 1-day-old one, under a control
+  // labelled FRESHEST. The S3 docblock claimed this ordering avoided
+  // "drowning a multi-word role query in stale exact-title matches"; it does
+  // not, and that claim is what this measurement falsifies.
+  //
+  // BEST is deliberately unchanged: with no `sort` parameter the `sort` rule
+  // is inert, so relevance still decides and `posted_ts:desc` stays the final
+  // tiebreak. Only queries that explicitly ask to be sorted are affected.
+  rankingRules: ["words", "typo", "proximity", "attributeRank", "wordPosition", "sort", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
