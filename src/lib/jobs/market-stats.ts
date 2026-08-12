@@ -83,6 +83,25 @@ export function parseMarketStatsDoc(doc: unknown): MarketStats | null {
 }
 
 /**
+ * Unwrap a Meilisearch SEARCH response into stats.
+ *
+ * Separate from `parseMarketStatsDoc` because the two failure modes are
+ * different: this one is about the ENVELOPE (search returns `{hits:[...]}`,
+ * the documents endpoint returns the doc itself), and getting the envelope
+ * wrong is what made the first cut of this module return null in production
+ * while every unit test passed. Pure, so the envelope is covered without a
+ * network round trip.
+ *
+ * Zero hits means "not published yet" — null, never a zeroed object.
+ */
+export function parseMarketStatsSearchBody(body: unknown): MarketStats | null {
+  if (!body || typeof body !== "object") return null;
+  const hits = (body as { hits?: unknown }).hits;
+  if (!Array.isArray(hits) || hits.length === 0) return null;
+  return parseMarketStatsDoc(hits[0]);
+}
+
+/**
  * Fetch the published totals. Returns null when the index/document is absent
  * (the publisher hasn't run, or its task is still queued) or on any error —
  * /trends renders without the claim rather than with a fabricated one.
@@ -91,8 +110,23 @@ export async function fetchMarketStats(): Promise<MarketStats | null> {
   const h = host();
   if (!h) return null;
   try {
-    const res = await fetch(`${h}/indexes/${MARKET_STATS_INDEX}/documents/${MARKET_STATS_DOC_ID}`, {
-      headers: { authorization: `Bearer ${searchKey()}` },
+    // The SEARCH action, not `/documents/<id>` — `MEILISEARCH_SEARCH_KEY` is
+    // scoped to `search` only (least privilege for a public route) and 403s
+    // against the documents endpoint. Verified in production: the app key gets
+    // 403 on GET /indexes/market_stats/documents/global and 200 on
+    // POST /indexes/market_stats/search. The first cut of this module used the
+    // documents endpoint, was tested with the ADMIN key, and shipped a reader
+    // that could only ever return null in production — /trends silently
+    // omitted the figure it had just been given.
+    //
+    // Same reasoning and same shape as `buildJobSearchUrl` in get-job.ts; that
+    // docblock is the canonical statement of this constraint.
+    const res = await fetch(`${h}/indexes/${MARKET_STATS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      // One document in this index, keyed `global`; filtering would need
+      // `id` declared filterable, which a single-doc index does not warrant.
+      body: JSON.stringify({ limit: 1 }),
       // Must not exceed /trends's own `revalidate` (1800, app/trends/page.tsx).
       // A longer fetch cache outlives the page it feeds: the page re-renders
       // on schedule and still reads a stale cached body, so a freshly
@@ -101,7 +135,7 @@ export async function fetchMarketStats(): Promise<MarketStats | null> {
       next: { revalidate: 1800 },
     });
     if (!res.ok) return null;
-    return parseMarketStatsDoc(await res.json());
+    return parseMarketStatsSearchBody(await res.json());
   } catch {
     return null;
   }

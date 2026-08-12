@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseMarketStatsDoc } from "../../src/lib/jobs/market-stats";
+import { parseMarketStatsDoc, parseMarketStatsSearchBody } from "../../src/lib/jobs/market-stats";
 
 const doc = {
   id: "global",
@@ -75,5 +75,53 @@ describe("parseMarketStatsDoc", () => {
 
   it("carries the window so the UI cannot relabel 90 days as all-time", () => {
     assert.equal(parseMarketStatsDoc({ ...doc, window_days: 30 })?.windowDays, 30);
+  });
+});
+
+/**
+ * ENVELOPE cases. The first cut of this module read `/documents/<id>` and was
+ * verified with the ADMIN key; in production the app uses a search-only key,
+ * which 403s that endpoint — so the reader could only ever return null and
+ * /trends silently omitted a figure it had already been given. Every unit test
+ * passed, because they all tested the document, never the envelope.
+ */
+describe("parseMarketStatsSearchBody", () => {
+  const doc2 = {
+    id: "global",
+    window_days: 90,
+    closed_90d: 868315,
+    opened_90d: 1798349,
+    live_postings: 1581518,
+    companies_tracked: 39897,
+    source_computed_at: "2026-08-12T03:43:08.472Z",
+  };
+
+  it("unwraps the first hit of a search response", () => {
+    assert.equal(parseMarketStatsSearchBody({ hits: [doc2], query: "" })?.closed, 868315);
+  });
+
+  it("returns null for zero hits — not published yet is not zero", () => {
+    assert.equal(parseMarketStatsSearchBody({ hits: [], estimatedTotalHits: 0 }), null);
+  });
+
+  it("returns null for a Meilisearch error envelope", () => {
+    // A 403/404 body is a plain object with no `hits` — must not be read as a doc.
+    assert.equal(parseMarketStatsSearchBody({ message: "The provided API key is invalid.", code: "invalid_api_key" }), null);
+  });
+
+  it("returns null when the document endpoint's shape is passed by mistake", () => {
+    // Guards the regression directly: a bare document has no `hits`, so if the
+    // endpoint is ever switched back this fails instead of silently nulling.
+    assert.equal(parseMarketStatsSearchBody(doc2), null);
+  });
+
+  it("rejects a hit that is itself partial", () => {
+    assert.equal(parseMarketStatsSearchBody({ hits: [{ ...doc2, closed_90d: null }] }), null);
+  });
+
+  it("returns null for absent or malformed envelopes", () => {
+    for (const bad of [null, undefined, "", 0, { hits: "nope" }]) {
+      assert.equal(parseMarketStatsSearchBody(bad), null);
+    }
   });
 });
