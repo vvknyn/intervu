@@ -62,6 +62,11 @@ describe("deriveCompanyStats", () => {
     assert.equal(stats.totalOpenRoles, 47);
   });
 
+  it("finds company_open_count on a later hit — the sync stamps it document by document", () => {
+    const stats = deriveCompanyStats([job({}), job({}), job({ company_open_count: 47 })], NOW);
+    assert.equal(stats.totalOpenRoles, 47);
+  });
+
   it("tallies ghost mix across every badge, including badges absent from the hit set", () => {
     const stats = deriveCompanyStats(
       [job({ ghost_badge: "clear" }), job({ ghost_badge: "clear" }), job({ ghost_badge: "likely_ghost" })],

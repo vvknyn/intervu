@@ -279,3 +279,107 @@ describe("getCompanyPageData — hasTrackRecord gates on real data", () => {
         assert.equal(result?.hasTrackRecord, false);
     });
 });
+
+/**
+ * The `company_*` aggregates reach Meilisearch document by document as the sync
+ * re-writes them, so a company's hit window is a mix of carrying and
+ * not-yet-carrying documents. Reading them off `jobs[0]` made the track record
+ * appear only when the FIRST hit happened to be one of the re-synced ones.
+ */
+describe("getCompanyPageData — aggregates come from whichever hit carries them", () => {
+    it("finds the track record on a LATER hit when the leading hits carry nothing", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1" }),
+                job({ id: "2" }),
+                job({ id: "3", company_opened_90d: 224, company_closed_90d: 203 }),
+            ],
+            total: 3,
+        });
+
+        const result = await getCompanyPageData("akamai--com", search);
+        assert.equal(result?.opened90d, 224);
+        assert.equal(result?.closed90d, 203);
+        assert.equal(result?.hasTrackRecord, true);
+    });
+
+    it("finds it for a different employer whose only carrying hit is LAST in the window", async () => {
+        // Same rule, different company and a different position — the fix is
+        // "any hit", not "hit 0 or hit 3".
+        const carrying = job({ id: "last", company_opened_90d: 94, company_closed_90d: 41 });
+        const search = ok({ hits: [...hits(40), carrying], total: 41 });
+
+        const result = await getCompanyPageData("airwallex--com", search);
+        assert.equal(result?.opened90d, 94);
+        assert.equal(result?.closed90d, 41);
+        assert.equal(result?.hasTrackRecord, true);
+    });
+
+    it("stays null — never 0 — when NO hit carries the aggregates", async () => {
+        const search = ok({ hits: hits(25), total: 25 });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.opened90d, null);
+        assert.equal(result?.closed90d, null);
+        assert.equal(result?.stage, null);
+        assert.equal(result?.hasTrackRecord, false);
+    });
+
+    it("takes the pair whole from ONE hit — never opened from one document and closed from another", async () => {
+        // Two documents, each with half, are two different sync vintages. Pairing
+        // them would render a 90-day window that was never simultaneously true.
+        const search = ok({
+            hits: [
+                job({ id: "1", company_opened_90d: 14 }),
+                job({ id: "2", company_closed_90d: 9 }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.hasTrackRecord, false);
+        assert.equal(result?.opened90d, null);
+        assert.equal(result?.closed90d, null);
+    });
+
+    it("takes the first COMPLETE hit when several hits carry differing aggregates, and never blends them", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1" }),
+                job({ id: "2", company_opened_90d: 14, company_closed_90d: 9 }),
+                job({ id: "3", company_opened_90d: 16, company_closed_90d: 11 }),
+            ],
+            total: 3,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        // One document's snapshot, whole: 14/9. Not 14/11, not 16/9 — a mixed
+        // pair is the shape that shows a stale number as a current one.
+        assert.equal(result?.opened90d, 14);
+        assert.equal(result?.closed90d, 9);
+        assert.equal(result?.hasTrackRecord, true);
+    });
+
+    it("applies the same rule to company_stage — a different field, not a special case", async () => {
+        const search = ok({
+            hits: [job({ id: "1" }), job({ id: "2", company_stage: "Series C" })],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.stage, "Series C");
+    });
+
+    it("treats a blank company_stage as not carried and keeps looking", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", company_stage: "   " }),
+                job({ id: "2", company_stage: "Seed" }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.stage, "Seed");
+    });
+});
