@@ -87,6 +87,29 @@ describe("aggregateHotCompaniesFromJobs", () => {
     assert.equal(rad?.slug, "rad-ai--com");
   });
 
+  it("reads the aggregates off whichever of the domain's jobs carries them, not job 0", () => {
+    // The sync stamps `company_*` document by document, so a company's leading
+    // job can carry nothing while a sibling already does. Reading job 0 dropped
+    // the company off this list entirely — `rankHotCompanies` excludes rows
+    // without `opened90d`.
+    const jobs = [
+      { id: "1", company_domain: "akamai.com", company: "Akamai" },
+      { id: "2", company_domain: "akamai.com", company: "Akamai" },
+      {
+        id: "3",
+        company_domain: "akamai.com",
+        company: "Akamai",
+        company_opened_90d: 224,
+        company_open_count: 203,
+      },
+    ] as PublicJob[];
+
+    const rows = aggregateHotCompaniesFromJobs(jobs);
+    assert.equal(rows[0]?.opened90d, 224);
+    assert.equal(rows[0]?.openCount, 203);
+    assert.equal(rankHotCompanies(rows).length, 1);
+  });
+
   it("falls back to job count when open_count is missing", () => {
     const jobs = [
       { id: "1", company_domain: "console.dev", company: "Console" },

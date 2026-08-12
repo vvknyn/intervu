@@ -1,4 +1,5 @@
 import { domainToSlug } from "@/lib/boards/slug";
+import { firstNonNull } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { searchJobs } from "@/lib/jobs/search";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
@@ -40,7 +41,6 @@ export function aggregateHotCompaniesFromJobs(jobs: PublicJob[]): HotCompanyRow[
 
   const rows: HotCompanyRow[] = [];
   for (const [domain, domainJobs] of byDomain) {
-    const first = domainJobs[0]!;
     rows.push({
       domain,
       slug: domainToSlug(domain),
@@ -50,9 +50,12 @@ export function aggregateHotCompaniesFromJobs(jobs: PublicJob[]): HotCompanyRow[
       // provenance, so it takes the resolved value only.
       name: resolveCompanyName(domainJobs, domain).value,
       oneLiner: null,
-      opened90d: typeof first.company_opened_90d === "number" ? first.company_opened_90d : null,
-      openCount:
-        typeof first.company_open_count === "number" ? first.company_open_count : domainJobs.length,
+      // Same reason row 0's name can't be trusted, the aggregates can't either:
+      // the sync fills them in document by document (see aggregates.ts). Row 0
+      // lacking them dropped the whole company off this list, since
+      // `rankHotCompanies` excludes rows without `opened90d`.
+      opened90d: firstNonNull(domainJobs, (j) => j.company_opened_90d),
+      openCount: firstNonNull(domainJobs, (j) => j.company_open_count) ?? domainJobs.length,
     });
   }
   return rows;

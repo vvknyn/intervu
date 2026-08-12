@@ -1,4 +1,5 @@
 import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/lib/boards/slug";
+import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import type { CompanyPageData } from "@/lib/companies/types";
@@ -49,19 +50,18 @@ export async function getCompanyPageData(
 
   if (jobs.length === 0 && boards.length === 0) return null;
 
-  const first = jobs[0];
   const name = resolveCompanyName(jobs, domain);
   const openCount = resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT);
-  // The `company_*` per-employer aggregates are NOT in the live document
-  // schema (verified 2026-08-11: no company_open_count / company_opened_90d /
-  // company_closed_90d / company_stage on any doc), so these read as null on
-  // every row today. Kept as the seam for when the aggregate sync lands —
-  // `hasTrackRecord` is what stops the page drawing a history out of nulls in
-  // the meantime. `company_open_count` is deliberately NOT consulted for the
-  // count any more: it was absent, so the old expression fell through to the
-  // hit-window length on every single request.
-  const opened90d = first?.company_opened_90d ?? null;
-  const closed90d = first?.company_closed_90d ?? null;
+  // The `company_*` aggregates land on documents progressively as the sync
+  // re-writes them, so most of a company's hits still carry nothing while some
+  // already do. Take them from the first hit that HAS them rather than from
+  // `jobs[0]`, which made the track record depend on where the sorted window
+  // happened to land — see aggregates.ts for why the pair is sourced from one
+  // document and what happens when two documents disagree.
+  // `company_open_count` is still deliberately NOT consulted for the count:
+  // `resolveOpenCount` owns that decision because it is the only thing that
+  // knows whether the number is exact or a floor.
+  const trackRecord = resolveTrackRecord(jobs);
 
   return {
     domain,
@@ -70,10 +70,10 @@ export async function getCompanyPageData(
     nameSource: name.source,
     // No product tagline in the index yet — do not misuse company_stage as one.
     oneLiner: null,
-    stage: first?.company_stage?.trim() || null,
-    opened90d,
-    closed90d,
-    hasTrackRecord: opened90d !== null && closed90d !== null,
+    stage: firstNonNull(jobs, (j) => j.company_stage?.trim() || null),
+    opened90d: trackRecord?.opened90d ?? null,
+    closed90d: trackRecord?.closed90d ?? null,
+    hasTrackRecord: trackRecord !== null,
     openCount: openCount.value,
     openCountIsLowerBound: openCount.isLowerBound,
     ghostFlaggedPct: ghostFlaggedPct(jobs),

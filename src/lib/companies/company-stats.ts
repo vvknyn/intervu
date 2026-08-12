@@ -28,6 +28,7 @@ import {
   FRESHNESS_BUCKETS,
   type FreshnessBucket,
 } from "@/lib/jobs/posting-age-buckets";
+import { firstNonNull } from "@/lib/companies/aggregates";
 import { decodeText } from "@/lib/jobs/presentation";
 import { isBuildPhase } from "@/lib/next-phase";
 import { hasMeilisearch, searchMeili } from "@/lib/jobs/meilisearch";
@@ -153,9 +154,11 @@ export function deriveCompanyStats(
   matched: PublicJob[],
   nowMs: number = Date.now(),
 ): Pick<CompanyProfile, "totalOpenRoles" | "ghostMix" | "freshness"> {
-  const first = matched[0];
-  const totalOpenRoles =
-    typeof first?.company_open_count === "number" ? first.company_open_count : matched.length;
+  // From the first hit that CARRIES the aggregate, not from hit 0: the sync
+  // stamps it document by document (see aggregates.ts), so hit 0 lacking it
+  // silently dropped the headline total back to the capped window length even
+  // when the company's own hits knew the real number.
+  const totalOpenRoles = firstNonNull(matched, (j) => j.company_open_count) ?? matched.length;
 
   const ghostTally = new Map<GhostBadge, number>();
   const freshnessTally = new Map<FreshnessBucket, number>();

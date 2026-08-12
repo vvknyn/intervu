@@ -20,10 +20,11 @@ export type CompanyPageData = {
   closed90d: number | null;
   /**
    * True only when BOTH `opened90d` and `closed90d` are known, i.e. there is
-   * a real open/close history to show. The `company_*` aggregates these read
-   * are not in the live Meilisearch document schema yet, so this is `false`
-   * for every employer today — deliberately: the renderer must hide the
-   * track-record section rather than draw it from two nulls.
+   * a real open/close history to show — the renderer must hide the
+   * track-record section rather than draw it from two nulls. The pair is read
+   * whole from a single hit (see `resolveTrackRecord`), so the two numbers
+   * always describe the same 90-day window and this can never be true with a
+   * null on either side.
    */
   hasTrackRecord: boolean;
   openCount: number;
