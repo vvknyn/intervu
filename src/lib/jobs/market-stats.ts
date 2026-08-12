@@ -93,8 +93,12 @@ export async function fetchMarketStats(): Promise<MarketStats | null> {
   try {
     const res = await fetch(`${h}/indexes/${MARKET_STATS_INDEX}/documents/${MARKET_STATS_DOC_ID}`, {
       headers: { authorization: `Bearer ${searchKey()}` },
-      // Matches the page's ISR cadence: revalidated with the page, not per visitor.
-      next: { revalidate: 3600 },
+      // Must not exceed /trends's own `revalidate` (1800, app/trends/page.tsx).
+      // A longer fetch cache outlives the page it feeds: the page re-renders
+      // on schedule and still reads a stale cached body, so a freshly
+      // published document takes up to the DIFFERENCE to appear. Kept equal
+      // so the page's cadence is the only thing controlling freshness.
+      next: { revalidate: 1800 },
     });
     if (!res.ok) return null;
     return parseMarketStatsDoc(await res.json());
