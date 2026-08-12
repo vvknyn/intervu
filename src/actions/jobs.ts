@@ -14,7 +14,7 @@ import {
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
-import type { JobsUrlState } from "@/lib/jobs/url-state";
+import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
@@ -335,21 +335,13 @@ export async function countNewSinceAction(
     }
   }
 
-  // Saved scope: the saved search's own filters, MINUS its own
-  // `postedBucket` (a "posted within Nd of now" window would silently
-  // undercount once the cursor is older than that window — the freshness
-  // question here is "since the cursor," not "since some fixed bucket") —
-  // PLUS the same posted_ts cursor clause board scope uses above.
-  const p = input.params;
+  // Saved scope: the saved search's own filters (via the shared
+  // `jobSearchParamsFromUrlState` mapping — also used by the digest's
+  // per-saved-search fetch, lib/email/digest/collect.ts) plus the same
+  // posted_ts cursor clause board scope uses above.
   const result = await runSearch(
     {
-      q: p.q || undefined,
-      facets: p.facets,
-      salaryMin: p.salaryMin || undefined,
-      visaOnly: p.visaOnly || undefined,
-      hideGhosts: p.hideGhosts,
-      board: p.board ?? undefined,
-      postedSinceMs: Date.parse(bucketedCursor),
+      ...jobSearchParamsFromUrlState(input.params, Date.parse(bucketedCursor)),
       limit: 1,
       withFacets: false,
     },

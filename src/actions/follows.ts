@@ -1,29 +1,15 @@
 "use server";
 
 import { getServerUser } from "@/lib/firebase/auth-session";
-import { getAdminDb } from "@/lib/firebase/admin";
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { listNewRolesForFollows } from "@/lib/follows/list-new-roles";
+import { docToFollowedCompany, followedCompaniesCollection } from "@/lib/follows/store";
 import type { FollowedCompany } from "@/lib/follows/types";
-
-function followedCompaniesCollection(uid: string) {
-    return getAdminDb().collection("users").doc(uid).collection("followedCompanies");
-}
 
 function earliestCreatedAt(...candidates: (string | undefined)[]): string {
     const valid = candidates.filter((c): c is string => !!c);
     if (valid.length === 0) return new Date().toISOString();
     return valid.reduce((earliest, next) => (Date.parse(next) < Date.parse(earliest) ? next : earliest));
-}
-
-function docToFollowedCompany(snap: FirebaseFirestore.DocumentSnapshot): FollowedCompany {
-    const data = snap.data()!;
-    return {
-        domain: data.domain ?? snap.id,
-        slug: data.slug,
-        displayName: data.displayName,
-        createdAt: data.createdAt,
-    };
 }
 
 export async function listFollowsAction(): Promise<{ data?: FollowedCompany[]; error?: string }> {

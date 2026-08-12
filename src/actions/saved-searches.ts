@@ -1,22 +1,8 @@
 "use server";
 
 import { getServerUser } from "@/lib/firebase/auth-session";
-import { getAdminDb } from "@/lib/firebase/admin";
 import { savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
-
-function savedSearchesCollection(uid: string) {
-    return getAdminDb().collection("users").doc(uid).collection("savedSearches");
-}
-
-function docToSavedSearch(snap: FirebaseFirestore.DocumentSnapshot): SavedSearch {
-    const data = snap.data()!;
-    return {
-        id: snap.id,
-        name: data.name,
-        href: data.params,
-        createdAt: data.createdAt,
-    };
-}
+import { docToSavedSearch, savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
 
 export async function listSavedSearchesAction(): Promise<{ data?: SavedSearch[]; error?: string }> {
     try {
