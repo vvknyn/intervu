@@ -30,9 +30,12 @@ See the [README](README.md#getting-started) for full setup instructions.
 3. Add or update tests if your change affects behavior.
 4. Make sure everything passes:
    ```bash
-   npm run lint
+   npm run preflight
    npm test
    ```
+   `npm run preflight` runs the same lint/type-check/build gate CI used to run.
+   GitHub Actions is disabled for this repo (Actions quota/billing wall), so this
+   local gate is now the check that must pass before shipping.
 5. Write a clear commit message describing what and why.
 6. Open a pull request against `main`.
 
@@ -65,7 +68,7 @@ All user-facing personality-driven text lives in a single file: `src/lib/copy.ts
 
 ### Automated stats
 
-A GitHub Actions workflow (`.github/workflows/update-readme-stats.yml`) automatically updates the README with current quote counts whenever `src/lib/copy.ts` is modified on `main` or `staging`. No manual README edits needed for stats.
+A GitHub Actions workflow (`.github/workflows/update-readme-stats.yml`) used to automatically update the README with current quote counts whenever `src/lib/copy.ts` is modified on `main` or `staging`. That workflow is currently disabled (Actions quota/billing wall) — update the quote count in the README manually until it's re-enabled.
 
 ## Test Suites
 

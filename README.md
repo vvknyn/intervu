@@ -302,3 +302,22 @@ intervu/
 ## License
 
 See [LICENSE](LICENSE).
+
+## Pre-ship checks
+
+GitHub Actions is disabled (2026-08-11: GitHub stopped allocating runners for this
+account). Run the gate locally before shipping:
+
+    npm run preflight        # typecheck + production build — must pass
+
+`npm run build` is not redundant with `tsc`: it catches Next-specific breakage the
+typechecker cannot see (route/page path conflicts, non-async exports in `"use server"`
+files).
+
+    npm run preflight:full   # adds lint + unit tests — currently RED
+
+`preflight:full` is the aspirational gate. It fails today on pre-existing debt that
+predates the CI outage: ~179 lint errors, and 9 unit-test failures (3 `viewer-*` specs
+importing an undeclared `werift`; 6 in `seo-jsonld.test.ts`, which only pass when
+`NEXT_PUBLIC_SITE_URL` is exported — `node:test` does not read `.env.local`). Fix those
+and fold `preflight:full` back into `preflight`.

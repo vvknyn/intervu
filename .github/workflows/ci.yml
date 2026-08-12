@@ -1,9 +1,15 @@
 name: CI
 
+# Disabled 2026-08-11 — GitHub is not allocating runners for this account
+# (Actions quota/billing wall: runner_name: "", zero steps executed, ~2s
+# total duration on every run — not a code fault). Checks now run locally
+# via `npm run preflight`; run it before merging. Re-enable by uncommenting
+# the triggers below once Actions capacity is restored.
 on:
-  pull_request:
-  push:
-    branches: [main, staging]
+  workflow_dispatch:
+  # pull_request:
+  # push:
+  #   branches: [main, staging]
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
