@@ -4,7 +4,13 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
-function getEncryptionKey(): Buffer | null {
+/**
+ * Exported (not just used internally) so other server-only secrets derived
+ * from the SAME key material — e.g. the unsubscribe-token HMAC signer,
+ * lib/email/unsubscribe-token.ts — read it from here instead of re-parsing
+ * `process.env.ENCRYPTION_KEY` a second time. One key, one parse site.
+ */
+export function getEncryptionKey(): Buffer | null {
     const keyHex = process.env.ENCRYPTION_KEY;
     if (!keyHex) return null;
     return Buffer.from(keyHex, "hex");

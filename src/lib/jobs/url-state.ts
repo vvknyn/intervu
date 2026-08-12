@@ -1,6 +1,6 @@
 import type { BoardId } from "@/lib/boards/types";
 import { isBoardId } from "@/lib/boards/allowlists";
-import type { FacetKey, JobSortMode, PostedBucket } from "./types";
+import type { FacetKey, JobSearchParams, JobSortMode, PostedBucket } from "./types";
 
 /** Sort values as they appear in the URL. `fit` = résumé rank (resolved page-side). */
 export type UrlSort = "newest" | "relevance" | "salary" | "fit";
@@ -103,6 +103,34 @@ const SORT_VALUES: readonly UrlSort[] = ["newest", "relevance", "salary", "fit"]
 
 export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
     return s === "salary" ? "salary_desc" : s;
+}
+
+/**
+ * A saved search's own filters as `JobSearchParams`, deliberately WITHOUT
+ * `postedBucket` — a "posted within Nd of now" window would silently
+ * undercount/underlist once `sinceMs` is older than that window, since the
+ * question here is "since sinceMs," not "since some fixed relative bucket."
+ * `sinceMs`, when given, becomes the `posted_ts` cursor filter instead.
+ *
+ * Single source of truth for "a saved search's JobsUrlState as search
+ * params": `countNewSinceAction` (actions/jobs.ts, the saved-search count
+ * banner) and the digest's per-saved-search fetch (lib/email/digest/
+ * collect.ts) both call this rather than each re-deriving the same
+ * field-by-field mapping.
+ */
+export function jobSearchParamsFromUrlState(
+    state: JobsUrlState,
+    sinceMs?: number,
+): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "hideGhosts" | "board" | "postedSinceMs"> {
+    return {
+        q: state.q || undefined,
+        facets: state.facets,
+        salaryMin: state.salaryMin || undefined,
+        visaOnly: state.visaOnly || undefined,
+        hideGhosts: state.hideGhosts,
+        board: state.board ?? undefined,
+        ...(sinceMs !== undefined ? { postedSinceMs: sinceMs } : {}),
+    };
 }
 
 export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {

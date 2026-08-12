@@ -15,6 +15,7 @@ import { SecureStorage } from "@/lib/security";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
+import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
 
@@ -221,6 +222,12 @@ export function SettingsContainer() {
                                 </p>
                             )}
                         </SettingsCard>
+
+                        {user && (
+                            <SettingsCard>
+                                <EmailPreferencesSection user={user} />
+                            </SettingsCard>
+                        )}
 
                         <SettingsCard>
                             <AgentAccessSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
