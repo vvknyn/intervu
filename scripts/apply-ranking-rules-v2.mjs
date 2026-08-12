@@ -62,13 +62,37 @@ const PHASE_A = ["words", "typo", "proximity", "attributeRank", "wordPosition", 
  * missing values last, so while the sync backfills, un-backfilled listings
  * sink — apply only once coverage is high, and measure coverage first.
  *
- * ⚠️ UNVALIDATED TIEBREAKER: high `company_opened_90d` means "opens many
- * roles", which is ALSO what staffing agencies and job-spam aggregators do
- * (Mrinetwork, one of the offenders in the original report, is a recruiting
- * agency). Before applying, check whether pairing it with
- * `company_closed_90d` (churn) discriminates better. Do not assume this
- * ordering is an improvement — measure it on the live pool the same way
- * Phase A was measured.
+ * ⛔ FALSIFIED 2026-08-12 — DO NOT APPLY. The tiebreaker was measured on the
+ * live pool with scripts/simulate-ranking-tiebreaker.mjs (pool=400, aggregates
+ * joined from public_company_stats so the result does not depend on index
+ * backfill progress). It makes results WORSE, in 6 of 6 queries:
+ *
+ *     query               distinct employers in top-10 (current -> phase B)
+ *     product manager                 10 -> 7
+ *     software engineer                8 -> 5
+ *     registered nurse                 7 -> 3
+ *     data analyst                    10 -> 9
+ *     accountant                      10 -> 6
+ *     marketing manager                9 -> 6
+ *     MEAN                           9.0 -> 6.0
+ *
+ * The failure mode is not the one feared above. It is not agencies — it is
+ * MEGA-EMPLOYERS. `company_opened_90d` measures hiring VOLUME, which is a
+ * proxy for employer SIZE, not for listing quality. Amazon (11,506 openings)
+ * and JPMorgan Chase (9,549) swallow the first page: an early run of
+ * "product manager" returned a top-10 of 2 distinct employers, 8 of them
+ * JPMorgan. A seeker searching a generic title wants a range of employers,
+ * and this hands them one company's job board.
+ *
+ * Any revival needs an ordering that DAMPENS volume (log, or normalised
+ * against live_postings) — which Meilisearch cannot express as a rankingRule,
+ * since sort rules read a stored attribute verbatim. A precomputed
+ * "employer quality" score stored on the document is the shape that could
+ * work; raw opened_90d is not.
+ *
+ * NOTE also: `company_opened_90d` is NOT in sortableAttributes (verified
+ * 2026-08-12), so PHASE_B needs a second queue-blocking settings write before
+ * it could even run.
  */
 const PHASE_B = [
   "words",
