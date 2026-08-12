@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 8, 2026";
+const LAST_UPDATED = "August 11, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -83,6 +83,21 @@ export default function PrivacyPage() {
           or how it uses what it processes. This only ever happens for a client you connected yourself, and you
           can disconnect it at any time from <Link href="/settings">account settings</Link>, which cuts off all
           further access.
+        </p>
+
+        <h2>Email</h2>
+        <p>
+          We send email through Resend, a transactional email provider, which processes your address and message
+          content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
+          email you&apos;ve been sent (a waitlist confirmation, the weekly digest) and its delivery status (sent,
+          bounced, or marked as spam) — not the content of what we send you.
+        </p>
+        <p>
+          Every email that isn&apos;t a direct response to something you just did — the weekly digest, a waitlist
+          confirmation — includes an unsubscribe link that works without signing in and takes effect immediately.
+          If an email to your address bounces, or you mark one as spam, we stop sending to that address
+          automatically. You can also turn the weekly digest on or off directly from{" "}
+          <Link href="/settings">account settings</Link>.
         </p>
 
         <h2>Cookies &amp; analytics</h2>
