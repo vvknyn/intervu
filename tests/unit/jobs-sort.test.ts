@@ -58,28 +58,27 @@ describe('resolveEffectiveSort', () => {
 });
 
 describe('buildMeiliSort', () => {
-    it('returns posted_ts:desc for newest', () => {
-        assert.deepEqual(buildMeiliSort({ sort: 'newest' }), ['posted_ts:desc']);
+    it('returns first_seen_at:desc for newest — ranks by when WE saw the role, not the employer-claimed date', () => {
+        assert.deepEqual(buildMeiliSort({ sort: 'newest' }), ['first_seen_at:desc']);
     });
 
-    it('returns undefined for relevance with a query', () => {
+    // BEST MATCH: a case OTHER than "newest" — proves the fix didn't special-case
+    // just the mode it was written for; relevance still emits no explicit sort.
+    it('returns undefined for relevance with a query (best match)', () => {
         assert.equal(buildMeiliSort({ sort: 'relevance', q: 'engineer' }), undefined);
     });
 
-    it('returns salary sorts for salary_desc', () => {
+    // TOP PAY regression guard — untouched by the newest→first_seen_at change.
+    it('returns salary sorts for salary_desc (top pay)', () => {
         assert.deepEqual(buildMeiliSort({ sort: 'salary_desc' }), ['salary_max:desc', 'salary_min:desc']);
     });
 
-    it('auto-defaults to posted_ts:desc without query', () => {
-        assert.deepEqual(buildMeiliSort({}), ['posted_ts:desc']);
-    });
-
-    it('uses legacy posted_at field when requested', () => {
-        assert.deepEqual(buildMeiliSort({ sort: 'newest' }, true), ['posted_at:desc']);
+    it('auto-defaults to first_seen_at:desc without query', () => {
+        assert.deepEqual(buildMeiliSort({}), ['first_seen_at:desc']);
     });
 
     it('normalizes relevance-without-query to newest sort', () => {
-        assert.deepEqual(buildMeiliSort({ sort: 'relevance' }), ['posted_ts:desc']);
+        assert.deepEqual(buildMeiliSort({ sort: 'relevance' }), ['first_seen_at:desc']);
     });
 });
 
@@ -130,7 +129,7 @@ describe('coerceSortToSupported', () => {
         const coerced = coerceSortToSupported('newest', false);
         assert.equal(buildMeiliSort({ q: 'engineer', sort: coerced }), undefined);
         assert.deepEqual(buildMeiliSort({ q: 'engineer', sort: coerceSortToSupported('newest', true) }), [
-            'posted_ts:desc',
+            'first_seen_at:desc',
         ]);
     });
 });
