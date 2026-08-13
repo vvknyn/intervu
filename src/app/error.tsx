@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 /**
  * Route-segment error boundary. Catches render/runtime errors in any page and
@@ -22,16 +23,7 @@ export default function Error({
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-        <svg viewBox="0 0 40 40" className="h-7 w-7" aria-hidden="true">
-          <path
-            d="M9 13 L19 28 L31 7"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="4.4"
-            strokeLinecap="square"
-            strokeLinejoin="miter"
-          />
-        </svg>
+        <BrandMark className="h-7 w-7" />
       </div>
       <span className="mt-4 font-display text-[13px] font-extrabold tracking-tight text-muted-foreground">
         intervu

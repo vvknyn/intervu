@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 // Route segment config + image metadata (Next reads these by convention).
 export const runtime = "edge";
@@ -7,8 +8,9 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Branded OpenGraph/Twitter card: indigo gradient field, the Intervu V-mark, and
- * the product name + tagline. Generated at the edge by next/og's ImageResponse.
+ * Branded OpenGraph/Twitter card: indigo gradient field, the Intervu
+ * bracket-gate mark, and the product name + tagline. Generated at the edge by
+ * next/og's ImageResponse.
  */
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -39,15 +41,11 @@ export default function OpengraphImage() {
             background: "rgba(255,255,255,0.14)",
           }}
         >
-          <svg viewBox="0 0 40 40" width="72" height="72">
-            <path
-              d="M9 13 L19 28 L31 7"
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth="4.4"
-              strokeLinecap="square"
-              strokeLinejoin="miter"
-            />
+          <svg viewBox={BRAND_MARK_VIEWBOX} width="72" height="72">
+            {BRAND_MARK_BRACKETS.map((d) => (
+              <path key={d} d={d} fill="#ffffff" />
+            ))}
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill="#7cb87a" />
           </svg>
         </div>
         <div
