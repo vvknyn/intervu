@@ -58,6 +58,10 @@ export interface Gazetteer {
   countriesByIso2: Map<string, GazetteerCountry>;
   countriesByIso3: Map<string, GazetteerCountry>;
   admin1ByName: Map<string, GazetteerAdmin1[]>;
+  /** Same country -> [admin1] grouping as `citiesByCountry` below, for the
+   *  same reason: `country-subdivisions.ts`'s expansion needs every admin1
+   *  a country owns, not just a name-keyed lookup. */
+  admin1ByCountry: Map<string, GazetteerAdmin1[]>;
   citiesByName: Map<string, GazetteerCity[]>;
   citiesByCountry: Map<string, GazetteerCity[]>;
   /** Longest name (in words) actually present, so the query scanner
@@ -75,6 +79,7 @@ export function buildGazetteerIndex(data: GazetteerData): Gazetteer {
   const countriesByIso2 = new Map<string, GazetteerCountry>();
   const countriesByIso3 = new Map<string, GazetteerCountry>();
   const admin1ByName = new Map<string, GazetteerAdmin1[]>();
+  const admin1ByCountry = new Map<string, GazetteerAdmin1[]>();
   const citiesByName = new Map<string, GazetteerCity[]>();
   const citiesByCountry = new Map<string, GazetteerCity[]>();
   let maxGram = 1;
@@ -93,6 +98,9 @@ export function buildGazetteerIndex(data: GazetteerData): Gazetteer {
     const list = admin1ByName.get(key) ?? [];
     list.push(admin1);
     admin1ByName.set(key, list);
+    const byCountry = admin1ByCountry.get(countryCode) ?? [];
+    byCountry.push(admin1);
+    admin1ByCountry.set(countryCode, byCountry);
     maxGram = Math.max(maxGram, wordCount(name));
   }
 
@@ -118,6 +126,7 @@ export function buildGazetteerIndex(data: GazetteerData): Gazetteer {
     countriesByIso2,
     countriesByIso3,
     admin1ByName,
+    admin1ByCountry,
     citiesByName,
     citiesByCountry,
     maxGram: Math.min(maxGram, 8),
