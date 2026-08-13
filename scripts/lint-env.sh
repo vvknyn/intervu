@@ -16,6 +16,7 @@ lint_file() {
   bad=0
   n=0
   tab="$(printf '\t')"
+  cr="$(printf '\r')"
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
     case "$line" in
@@ -24,6 +25,9 @@ lint_file() {
       *) echo "line $n: (none): not a KEY=value line"; bad=1; continue ;;
     esac
     key="${line%%=*}" val="${line#*=}"
+    case "$line" in
+      *"$cr"*) echo "line $n: $key: CRLF line ending -- file must be LF-only"; bad=1; continue ;;
+    esac
     case "$key" in
       [A-Za-z_]*) rest="${key#?}" ;;
       *) rest='x!' ;;
@@ -36,8 +40,15 @@ lint_file() {
         [ "$(printf '%s' "$val" | grep -o "'" | wc -l)" -eq 2 ] && continue
         echo "line $n: $key: unbalanced single quote"; bad=1 ;;
       \"*\" )
-        [ "$(printf '%s' "$val" | grep -o '"' | wc -l)" -eq 2 ] && continue
-        echo "line $n: $key: unbalanced double quote"; bad=1 ;;
+        if [ "$(printf '%s' "$val" | grep -o '"' | wc -l)" -ne 2 ]; then
+          echo "line $n: $key: unbalanced double quote"; bad=1
+        else
+          case "$val" in
+            *'$'* | *'`'*)
+              echo "line $n: $key: \$ or backtick inside double quotes still expands when sourced -- use single quotes"
+              bad=1 ;;
+          esac
+        fi ;;
       *\'* | *\"*)
         echo "line $n: $key: stray/unbalanced quote in unquoted value"; bad=1 ;;
       *" "* | *"$tab"* | *'<'* | *'>'* | *'('* | *')'* | *'`'* | *'$'* | *';'* | *'&'* | *'|'* | *'#'*)
@@ -70,6 +81,10 @@ self_test() {
   check "malformed key" "$d/badkey" 1
   printf 'ODD='"'"'a\n' > "$d/oddquote"
   check "unbalanced quote" "$d/oddquote" 1
+  printf 'BAD=%s\n' '"$(whoami)"' > "$d/dqsub"
+  check "double-quoted command substitution" "$d/dqsub" 1
+  printf 'FOO=bar\r\n' > "$d/crlf"
+  check "CRLF line ending" "$d/crlf" 1
   echo "-- $pass passed, $fail failed --"
   [ "$fail" -eq 0 ]
 }
