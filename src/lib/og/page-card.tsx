@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 /**
  * Shared OpenGraph/Twitter card shape for interior pages (company profiles,
@@ -24,8 +25,9 @@ const FOREGROUND = "#ECEEF2";
 const MUTED = "rgba(236,238,242,0.6)";
 const SIGNAL_GREEN = "#0D6E56";
 
-/** The brand's V-mark — same path used by the root OG image and the
- *  error/not-found pages, so this card reads as the same product. */
+/** The brand's bracket-gate mark — same geometry (BRAND_MARK_*) used by the
+ *  root OG image and the error/not-found pages, so this card reads as the
+ *  same product. */
 function BrandMark() {
   return (
     <div
@@ -39,15 +41,11 @@ function BrandMark() {
         background: "rgba(13,110,86,0.18)",
       }}
     >
-      <svg viewBox="0 0 40 40" width={22} height={22}>
-        <path
-          d="M9 13 L19 28 L31 7"
-          fill="none"
-          stroke={SIGNAL_GREEN}
-          strokeWidth={4.4}
-          strokeLinecap="square"
-          strokeLinejoin="miter"
-        />
+      <svg viewBox={BRAND_MARK_VIEWBOX} width={22} height={22}>
+        {BRAND_MARK_BRACKETS.map((d) => (
+          <path key={d} d={d} fill={FOREGROUND} />
+        ))}
+        <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill="#7cb87a" />
       </svg>
     </div>
   );
