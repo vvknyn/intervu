@@ -470,7 +470,7 @@ export function buildSearchBody(
     // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
     hitsPerPage: p.limit ?? 40,
     page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
-    sort: buildMeiliSort(p, legacy),
+    sort: buildMeiliSort(p),
   };
 }
 
