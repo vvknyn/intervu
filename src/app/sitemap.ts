@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { fetchIndexableCompanyDomains } from "@/lib/companies/indexable";
+import { getBoardDomains } from "@/lib/boards/allowlists";
+import { fetchLiveRoleCountsByDomain, hasIndexableCompanyContent } from "@/lib/companies/indexable";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { getSiteUrl } from "@/lib/seo/constants";
 
@@ -49,29 +50,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const lastModified = new Date();
 
-  // `/co/[slug]` company pages. `fetchIndexableCompanyDomains` discovers the
-  // CANDIDATES straight from the corpus (every `company_domain` with a live
-  // role — NOT the curated "elite" board list, which `get-company.ts` never
-  // treated as a boundary on which domains can render a page; see
-  // indexable.ts's 2026-08-13 docblock update) and applies
-  // `hasIndexableCompanyContent` itself, the same predicate the page's own
-  // robots meta runs — so the sitemap can never list a URL the page marks
-  // `noindex`.
+  // `/co/[slug]` company pages. The allowlist decides which companies are
+  // CANDIDATES (same source every other `/co/[slug]` caller uses —
+  // get-company.ts, hot-list.ts, jobCompanyHref — so it tracks that file);
+  // `hasIndexableCompanyContent` decides which of them have a page worth
+  // submitting. Same predicate the page's own robots meta runs, so the
+  // sitemap can never list a URL the page marks `noindex`.
   //
-  // `hasTrackRecord` is structurally unobservable here (an aggregation query
-  // cannot see it — the index carries no `company_*` fields yet) and stays
-  // omitted, which this gate reads as "unobserved" rather than a false
-  // claim. The consequence is stated rather than hidden — the sitemap is a
-  // SUBSET of what the page considers indexable, never a superset.
-  // Under-listing a page that a crawler can still reach through `/jobs` is
-  // recoverable; over-listing empty pages is the thing #171 fixed.
-  const indexableDomains = await fetchIndexableCompanyDomains();
-  const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain }) => ({
-    url: `${siteUrl}${companyBoardPath(domain)}`,
-    lastModified,
-    changeFrequency: "weekly",
-    priority: 0.6,
-  }));
+  // `hasTrackRecord` is deliberately not passed: an aggregation query cannot
+  // observe it (the index carries no `company_*` fields), and this shape
+  // takes an omitted value as "unobserved" rather than as a false claim. The
+  // consequence is stated rather than hidden — the sitemap is a SUBSET of
+  // what the page considers indexable, never a superset. Under-listing a
+  // page that a crawler can still reach through `/jobs` is recoverable;
+  // over-listing empty pages is the thing being fixed.
+  const domains = getBoardDomains("elite");
+  const liveRoleCounts = await fetchLiveRoleCountsByDomain(domains);
+  const companyEntries: MetadataRoute.Sitemap = domains
+    .filter((domain) =>
+      hasIndexableCompanyContent({ openRoleCount: liveRoleCounts.get(domain.toLowerCase()) ?? 0 }),
+    )
+    .map((domain) => ({
+      url: `${siteUrl}${companyBoardPath(domain)}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    }));
 
   return [
     {
