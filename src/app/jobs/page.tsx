@@ -48,7 +48,7 @@ import {
     displayCompany,
     locationText,
     salaryText,
-    rowAgeChipLabel,
+    postedAgeShort,
     searchResultLine,
     firstMentionIndex,
     seamSummary,
@@ -441,7 +441,6 @@ function JobCard({
     onClick,
     onCompany,
     now,
-    effectiveSort,
     variantCount = 0,
     expanded = false,
     onToggleExpand,
@@ -454,10 +453,6 @@ function JobCard({
     /** Accepted-but-unused: kept so call sites don't need editing. */
     onOpenPosting?: (job: PublicJob) => void;
     now: number;
-    /** Which sort tab is actually in effect (`resolveEffectiveSort`, sort.ts)
-     *  — threaded through so the age chip can switch to discovery-date
-     *  under FRESHEST without re-deriving that rule itself. */
-    effectiveSort: JobSortMode;
     /** Accepted-but-unused: elite board styling removed from row chrome. */
     elite?: boolean;
     variantCount?: number;
@@ -468,7 +463,7 @@ function JobCard({
     const verdict = verdictFor(job, now);
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
     const salary = salaryText(job);
-    const age = rowAgeChipLabel(job, effectiveSort, now);
+    const age = postedAgeShort(derivePostedTs(job), now);
     const level = prettyEnum(job.experience_level);
     const employment = prettyEnum(job.employment_type);
     const loc = locationText(job);
@@ -2791,7 +2786,6 @@ function JobsContent() {
             onCompany={j.company_domain ? handleCompany : undefined}
             onOpenPosting={handleOpenPosting}
             now={nowMs}
-            effectiveSort={effectiveSort}
             elite={board === "elite"}
             variantCount={clusterProps?.variantCount ?? 0}
             expanded={clusterProps?.expanded ?? false}
