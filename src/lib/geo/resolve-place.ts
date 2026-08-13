@@ -45,6 +45,7 @@ import { haversineKm } from "./distance";
 import { COMMON_WORDS } from "./common-words";
 import { JOB_VOCAB } from "./job-vocab";
 import { JOBS_SYNONYMS } from "../jobs/meilisearch";
+import { subdivisionCandidates } from "./country-subdivisions";
 
 /**
  * The guard's full word set: general-English common words (common-words.ts)
@@ -134,13 +135,19 @@ export interface PlaceResolution {
  *  postings use ("Canada - Remote", "Canada - Toronto") — shared by phrase
  *  resolution below and by the IP country default (ip-default.ts), which
  *  starts from an ISO2 code instead of typed text but needs the identical
- *  expansion once it has a `GazetteerCountry`. */
-function countryCandidates(country: GazetteerCountry): PlaceCandidate[] {
+ *  expansion once it has a `GazetteerCountry`. For a country in
+ *  `SUBDIVISION_EXPANSION_COUNTRIES` (country-subdivisions.ts), also
+ *  includes its admin1 regions and top cities as further `location_country`
+ *  candidates — the corpus tags many postings with the unnormalized region
+ *  ("Ontario", "Toronto") instead of the country, and this is the single
+ *  place every resolution path converges to fix that query-side. */
+function countryCandidates(country: GazetteerCountry, gazetteer: Gazetteer): PlaceCandidate[] {
   return [
     { field: "location_country", value: country.name },
     { field: "location_country", value: country.iso2 },
     { field: "location_country", value: country.iso3 },
     { field: "location_country", value: country.name, matchMode: "prefix" },
+    ...subdivisionCandidates(country, gazetteer),
   ];
 }
 
@@ -151,7 +158,7 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
   if (!country) return null;
   return {
     entity: { type: "country", name: country.name, countryCode: country.iso2 },
-    candidates: countryCandidates(country),
+    candidates: countryCandidates(country, gazetteer),
     countryScope: [],
     wordsConsumed: normalized.split(" ").length,
   };
@@ -164,7 +171,7 @@ function resolveCountry(normalized: string, gazetteer: Gazetteer): PlaceResoluti
  *  gazetteer doesn't recognize. */
 export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): PlaceCandidate[] | null {
   const country = gazetteer.countriesByIso2.get(iso2.toUpperCase());
-  return country ? countryCandidates(country) : null;
+  return country ? countryCandidates(country, gazetteer) : null;
 }
 
 function resolveAdmin1(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
@@ -240,7 +247,7 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
     // code isn't itself registered — never happens for the committed
     // artifact (both come from the same GeoNames dump) but keeps a
     // hand-built fixture from throwing instead of just being less precise.
-    countryScope: country ? countryCandidates(country) : [],
+    countryScope: country ? countryCandidates(country, gazetteer) : [],
     wordsConsumed: normalized.split(" ").length,
   };
 }

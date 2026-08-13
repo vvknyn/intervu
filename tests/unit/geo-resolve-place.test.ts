@@ -70,8 +70,13 @@ test("city resolution: Toronto expands to itself plus same-country neighbors wit
 test("city resolution carries a countryScope — the resolved country's own candidates, for query-understanding.ts to AND against the city OR-set", () => {
   const r = resolvePlacePhrase("toronto", GAZETTEER);
   assert.ok(r);
+  // Same note as the country-resolution tests above — the shared fixture's
+  // Ontario/Toronto/etc. rows also contribute CA subdivision candidates to
+  // countryScope now; this only proves the original base four survive.
   const scopeCountries = fieldValues(r!.countryScope, "location_country");
-  assert.deepEqual(scopeCountries.sort(), ["CA", "CAN", "Canada", "Canada"].sort());
+  for (const expected of ["CA", "CAN", "Canada"]) {
+    assert.ok(scopeCountries.includes(expected), `expected ${expected} in ${JSON.stringify(scopeCountries)}`);
+  }
 });
 
 test("admin1/country resolutions carry no countryScope — they already ARE the region, nothing left to scope", () => {
@@ -112,10 +117,14 @@ test("country resolution: full name expands to name + ISO2 + ISO3 + compound-pre
   assert.ok(r);
   assert.equal(r!.entity.type, "country");
   const countries = r!.candidates.filter((c) => c.field === "location_country");
-  assert.deepEqual(
-    countries.map((c) => c.value).sort(),
-    ["CA", "CAN", "Canada", "Canada"].sort(),
-  );
+  // The shared GAZETTEER fixture's Ontario/Toronto/etc. rows also surface
+  // here as CA subdivision candidates (country-subdivisions.ts, exhaustively
+  // covered by tests/unit/jobs-location-country-expansion.test.ts) — this
+  // test only proves the original base four are still present among them.
+  const values = countries.map((c) => c.value);
+  for (const expected of ["CA", "CAN", "Canada"]) {
+    assert.ok(values.includes(expected), `expected ${expected} in ${JSON.stringify(values)}`);
+  }
   const prefix = countries.find((c) => c.matchMode === "prefix");
   assert.ok(prefix, "must carry a prefix-mode candidate for the 'Canada - X' compound pattern");
   assert.equal(prefix!.value, "Canada");
@@ -135,10 +144,13 @@ test("country ISO2 code (2 letters) is never a typed lookup key on its own — '
 test("countryPlaceCandidates: ISO2 -> the same expansion set a typed name would produce (the IP default's entry point)", () => {
   const candidates = countryPlaceCandidates("US", GAZETTEER);
   assert.ok(candidates);
-  assert.deepEqual(
-    candidates!.map((c) => c.value).sort(),
-    ["US", "USA", "United States", "United States"].sort(),
-  );
+  // Same note as the Canada test above — the shared fixture's California/
+  // Ontario(city)/Springfield rows also contribute US subdivision
+  // candidates now; this only proves the original base four survive.
+  const values = candidates!.map((c) => c.value);
+  for (const expected of ["US", "USA", "United States"]) {
+    assert.ok(values.includes(expected), `expected ${expected} in ${JSON.stringify(values)}`);
+  }
   assert.equal(countryPlaceCandidates("ZZ", GAZETTEER), null, "unknown ISO2 resolves to nothing");
 });
 
