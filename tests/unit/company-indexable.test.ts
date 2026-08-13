@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   MIN_INDEXABLE_ROLES,
+  fetchIndexableCompanyDomains,
   hasIndexableCompanyContent,
   isCompanyIndexable,
+  parseCompanyDirectoryHit,
 } from "@/lib/companies/indexable";
 import {
   buildCompanyPageMetadata,
@@ -15,6 +17,10 @@ import type { CompanyPageData } from "@/lib/companies/types";
 import type { PublicJob } from "@/lib/jobs/types";
 
 process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
+// `fetchIndexableCompanyDomains` only checks that a host is configured;
+// every test below injects its own fake `search`, so no real network call is
+// ever made against this value.
+process.env.MEILISEARCH_HOST = "https://meili.test";
 
 /** N placeholder roles. The gate reads only `jobs.length`; nothing here
  *  depends on a role's contents, so they stay deliberately empty. */
@@ -140,5 +146,122 @@ describe("/co/[slug] presentation — numbers the page can actually back", () =>
   it("knows when the ghost-flagged share covers only the fetched window", () => {
     assert.equal(ghostPctCoversAllRoles({ jobs: roles(200), openCount: 940 }), false);
     assert.equal(ghostPctCoversAllRoles({ jobs: roles(12), openCount: 12 }), true);
+  });
+});
+
+describe("parseCompanyDirectoryHit — one company_directory doc", () => {
+  it("shapes a well-formed hit", () => {
+    assert.deepEqual(parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: 40 }), {
+      domain: "acme.com",
+      openRoleCount: 40,
+    });
+  });
+
+  it("rejects a hit missing domain", () => {
+    assert.equal(parseCompanyDirectoryHit({ open_role_count: 40 }), null);
+  });
+
+  it("rejects a hit with a non-numeric open_role_count", () => {
+    assert.equal(parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: "lots" }), null);
+  });
+
+  it("rejects a hit with a missing open_role_count rather than treating it as zero", () => {
+    // `Number(undefined)` is NaN (caught), but `Number(null)` is 0 and IS
+    // finite — the exact false-zero this guard exists to reject.
+    assert.equal(parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: null }), null);
+  });
+
+  it("rejects a non-object hit", () => {
+    assert.equal(parseCompanyDirectoryHit(null), null);
+    assert.equal(parseCompanyDirectoryHit("acme.com"), null);
+  });
+});
+
+describe("fetchIndexableCompanyDomains — the company_directory paging walk", () => {
+  /** Records every request `fetchIndexableCompanyDomains` sent, and replies
+   *  with one fixed page per call (or `{ hits: [] }` past the end of
+   *  `pages`) — so a test can assert on the exact request shape (the filter
+   *  clause, the offset progression) without a network call. */
+  function fakeSearch(pages: Record<string, unknown>[][]) {
+    const calls: { sort: string[]; filter: string; limit: number; offset: number }[] = [];
+    let round = 0;
+    const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
+      calls.push(request);
+      const hits = pages[round] ?? [];
+      round += 1;
+      return { hits };
+    };
+    return { calls, search };
+  }
+
+  it("sends the MIN_INDEXABLE_ROLES filter clause in the actual request, not just conceptually", async () => {
+    const { calls, search } = fakeSearch([[{ domain: "acme.com", open_role_count: 40 }]]);
+    await fetchIndexableCompanyDomains(search);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].filter, `open_role_count >= ${MIN_INDEXABLE_ROLES}`);
+    assert.equal(calls[0].offset, 0);
+  });
+
+  it("walks multiple pages, advancing the offset by the page size each round, until a short page ends it", async () => {
+    const fullPage = Array.from({ length: 1000 }, (_, i) => ({
+      domain: `company-${i}.com`,
+      open_role_count: 10,
+    }));
+    const { calls, search } = fakeSearch([fullPage, [{ domain: "last.com", open_role_count: 5 }]]);
+    const found = await fetchIndexableCompanyDomains(search);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].offset, 0);
+    assert.equal(calls[1].offset, 1000);
+    assert.equal(found.length, 1001);
+    assert.ok(found.some((d) => d.domain === "last.com"));
+  });
+
+  it("stops after the first page once it comes back short of the page size", async () => {
+    const { calls, search } = fakeSearch([
+      [{ domain: "a.com", open_role_count: 40 }, { domain: "b.com", open_role_count: 12 }],
+    ]);
+    const found = await fetchIndexableCompanyDomains(search);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(
+      found.map((d) => d.domain).sort(),
+      ["a.com", "b.com"],
+    );
+  });
+
+  it("throws when the first page comes back with zero hits — directory not published yet", async () => {
+    const { search } = fakeSearch([[]]);
+    await assert.rejects(() => fetchIndexableCompanyDomains(search), /zero hits on the first page/);
+  });
+
+  it("skips a malformed doc within a page without aborting the rest of that page's valid hits", async () => {
+    const { search } = fakeSearch([
+      [
+        { domain: "good.com", open_role_count: 40 },
+        { open_role_count: 40 }, // missing domain
+        { domain: "bad.com", open_role_count: "not-a-number" },
+        { domain: "also-good.com", open_role_count: 12 },
+      ],
+    ]);
+    const found = await fetchIndexableCompanyDomains(search);
+    assert.deepEqual(
+      found.map((d) => d.domain).sort(),
+      ["also-good.com", "good.com"],
+    );
+  });
+
+  it("throws immediately when Meilisearch isn't configured, before making any call", async () => {
+    const original = process.env.MEILISEARCH_HOST;
+    delete process.env.MEILISEARCH_HOST;
+    try {
+      let called = false;
+      const search = async () => {
+        called = true;
+        return { hits: [] };
+      };
+      await assert.rejects(() => fetchIndexableCompanyDomains(search));
+      assert.equal(called, false);
+    } finally {
+      process.env.MEILISEARCH_HOST = original;
+    }
   });
 });
