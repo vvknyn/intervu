@@ -42,6 +42,7 @@ import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
     cleanCompany,
@@ -201,6 +202,14 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
     return mode === "salary_desc" ? "salary" : mode;
 }
 
+/**
+ * Real segmented control on the repo's squared chip primitive
+ * (`chipVariants`, components/ui/chip.tsx) — previously a bare 11px text
+ * button with a ~15px hit target (measured on prod, below the 24px WCAG
+ * floor) and "pressed" conveyed by underline alone. Active/pressed now
+ * reuses the SAME green-tint chip state every other active chip in the app
+ * uses, rather than a one-off text treatment.
+ */
 function SortSegment({
     label,
     pressed,
@@ -215,10 +224,7 @@ function SortSegment({
             type="button"
             aria-pressed={pressed}
             onClick={onClick}
-            className={cn(
-                "font-mono text-[11px] uppercase tracking-[0.04em] transition-colors",
-                pressed ? "text-[#ececec] underline underline-offset-[3px]" : "text-[#aeb4bd] hover:text-[#ececec]",
-            )}
+            className={cn(chipVariants({ active: pressed }), "h-8 px-3 font-mono text-[11px] uppercase tracking-[0.04em]")}
         >
             {label}
         </button>
@@ -414,6 +420,12 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 
 /* ----------------------------- ledger row ----------------------------- */
 
+/** Squared mono `key value` fact-chip base (design-system pass) — the SERP
+ *  row's meta line and the cluster toggle both render from this one class
+ *  string rather than each hand-rolling border/padding/font, so a future
+ *  restyle of "what a fact chip looks like" has one place to change. */
+const FACT_BOX = "inline-flex items-center gap-1.5 border border-border bg-background px-2 py-[3px] font-mono text-[11px]";
+
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
  * (salary, ghost flag, age — top to bottom, whichever apply) on the right.
@@ -464,6 +476,11 @@ function JobCard({
     const flagged = verdict.tone === "warn" || verdict.tone === "danger";
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
+    // Repost caution (Task 3, Vivek request) — same classifier + same
+    // caution token JobDetail's own posted-chip already reads (STATUS_PILL.intv),
+    // so the SERP row and the detail panel can never disagree about which
+    // postings are re-stamped listings.
+    const relisted = classifyPostingFreshness(job, now).kind === "relisted";
     const level = prettyEnum(job.experience_level);
     const employment = prettyEnum(job.employment_type);
     const loc = locationText(job);
@@ -538,16 +555,19 @@ function JobCard({
                 </div>
             </div>
             <span className="flex h-fit items-center self-start">
-                <span
-                    className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
-                        flagged
-                            ? "border-border bg-card text-muted-foreground"
-                            : "border-green-tint-border bg-green-tint-bg text-verdict-live",
-                    )}
-                >
-                    {flagged ? "review" : "verified"}
-                </span>
+                {flagged ? (
+                    <span className="inline-flex items-center gap-1 border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                        review
+                    </span>
+                ) : (
+                    // Quiet, not a pill (squared design-system pass): no tint bg,
+                    // no border — the ✓ glyph alone carries the verdict-channel
+                    // color (text-verdict-live), same token the row badge/ghost
+                    // module verdict pill share.
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+                        <span aria-hidden className="text-verdict-live">✓</span> verified
+                    </span>
+                )}
                 {/* G5d (Grok UX wave) — quiet house tooltip (ContextHelp,
                     already used elsewhere, e.g. PrepSettings.tsx) explains
                     what this terse code means instead of leaving a mobile
@@ -563,33 +583,52 @@ function JobCard({
                     </span>
                 )}
             </span>
-            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-faint">
-                <span>{locationLine}</span>
-                {age && (
-                    <>
-                        <span aria-hidden>·</span>
-                        <span>{age}</span>
-                    </>
+            <div className="col-span-full flex flex-wrap items-center gap-1.5">
+                {salary && (
+                    <span className={FACT_BOX}>
+                        <b className="font-medium text-faint">pay</b>
+                        <span className="font-semibold text-foreground">{salary}</span>
+                    </span>
                 )}
-                <span aria-hidden>·</span>
-                <span>{salary ? `from ${salary}` : "pay n/a"}</span>
+                <span className={FACT_BOX}>
+                    <b className="font-medium text-faint">loc</b>
+                    <span className="text-muted-foreground">{locationLine}</span>
+                </span>
                 {level && (
-                    <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
-                        {level}
+                    <span className={FACT_BOX}>
+                        <b className="font-medium text-faint">level</b>
+                        <span className="text-muted-foreground">{level}</span>
+                    </span>
+                )}
+                {age && (
+                    // Repost caution: a relisted posting's "posted" date is
+                    // the employer's re-stamped claim, not a fresh one — the
+                    // SAME caution token (STATUS_PILL.intv) JobDetail's own
+                    // relisted posted-chip wears, composed over FACT_BOX so
+                    // the amber bg/border/text actually replace the neutral
+                    // ones rather than sitting under them.
+                    <span className={cn(FACT_BOX, relisted && STATUS_PILL.intv)}>
+                        <b className={cn("font-medium", !relisted && "text-faint")}>{relisted ? "reposted" : "posted"}</b>
+                        <span className={!relisted ? "text-muted-foreground" : undefined}>{age}</span>
                     </span>
                 )}
                 {employment &&
                     employment.toLowerCase() !== "full-time" &&
                     employment.toLowerCase() !== "full time" && (
-                        <span className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
-                            {employment}
+                        <span className={FACT_BOX}>
+                            <b className="font-medium text-faint">type</b>
+                            <span className="text-muted-foreground">{employment}</span>
                         </span>
                     )}
+                {/* No salary is itself a fact worth stating, never a fabricated
+                    chip — a quiet trailing note instead of a "pay" chip with
+                    nothing to show. */}
+                {!salary && <span className="font-mono text-[11px] text-faint opacity-70">pay undisclosed</span>}
                 {variantCount > 0 && (
                     <button
                         type="button"
                         data-testid="cluster-toggle"
-                        className="inline-flex items-center rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                        className={cn(FACT_BOX, "text-muted-foreground hover:border-foreground/40 hover:text-foreground")}
                         onClick={(e) => {
                             e.stopPropagation();
                             onToggleExpand?.();
@@ -1017,10 +1056,6 @@ function JobsContent() {
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
     const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
-    // Previous-render snapshot of `query`, read by the sort-reset effect
-    // below (`shouldResetSortOnQueryChange`) to tell "a new query just
-    // arrived" from "everything else about this render changed".
-    const lastQueryRef = useRef(query);
     // "Ranked by your résumé" — mirrors `sort=fit` in the URL. Kept separate
     // from `sortOverride` (a real backend `JobSortMode`) because "fit" isn't
     // one; the backend sort stays whatever `resolveUrlSort` resolves it to
@@ -1689,17 +1724,15 @@ function JobsContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed]);
 
-    // Sort-reset (Phase 1-a #3): a genuinely new, non-empty query always
-    // starts on Best match rather than silently inheriting whatever sort was
-    // active for a different (or absent) prior query — see
-    // `shouldResetSortOnQueryChange`'s doc comment for the two triggers this
-    // unifies (a changed non-empty query, or an emptied query that only
-    // makes "relevance" meaningless). Depends on `query` alone, so a facet/
-    // salary/visa/ghost change never resets an explicit sort.
+    // Sort-reset (approved product change, 2026-08-13): an explicit sort is
+    // sticky across query edits now — the only remaining reset is the
+    // invalid-combination case where the query is cleared out from under a
+    // "relevance" override (meaningless without a query) — see
+    // `shouldResetSortOnQueryChange`'s doc comment. Depends on `query`
+    // alone, so a facet/salary/visa/ghost change never resets an explicit
+    // sort.
     useEffect(() => {
-        const prevQuery = lastQueryRef.current;
-        lastQueryRef.current = query;
-        if (shouldResetSortOnQueryChange(prevQuery, query, sortOverride)) {
+        if (shouldResetSortOnQueryChange(query, sortOverride)) {
             setSortOverride(null);
             applyUrlState(buildUrlState({ sort: null }), "replace");
         }
@@ -2945,7 +2978,7 @@ function JobsContent() {
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:min-w-[260px] sm:flex-[1_1_260px]"
+                            className="h-[46px] w-full min-w-0 rounded-none border border-white/12 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:bg-black/40 focus-visible:ring-1 focus-visible:ring-brand/40 sm:min-w-[260px] sm:flex-[1_1_260px]"
                             containerClassName="min-w-0 w-full sm:flex-1"
                         />
                         <Input
@@ -2961,7 +2994,7 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-[46px] w-full rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0 sm:max-w-[200px] sm:flex-[0_1_200px]"
+                            className="h-[46px] w-full rounded-none border border-white/12 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:bg-black/40 focus-visible:ring-1 focus-visible:ring-brand/40 sm:max-w-[200px] sm:flex-[0_1_200px]"
                         />
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
                             <div className="flex items-center">
@@ -2999,7 +3032,9 @@ function JobsContent() {
                             <FunnelSimple size={14} weight="bold" aria-hidden />
                             Filters
                             {activeCount > 0 && (
-                                <span className="font-mono text-[10px] opacity-80">· {activeCount}</span>
+                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center border border-green-tint-border bg-green-tint-bg px-1 font-mono text-[10px] leading-[16px] text-verdict-live">
+                                    {activeCount}
+                                </span>
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>

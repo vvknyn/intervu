@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, Copy, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Copy } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -387,6 +387,11 @@ export function JobDetail({
     // this chip row into ONE scannable row; see buildFactChips for the
     // per-field include/omit decision (kept pure + unit-tested there).
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
+    // Pay now renders as its own header stat (Task 3, squared design-system
+    // pass) rather than a chip among chips — filtered out here so it never
+    // appears twice.
+    const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
+    const salary = salaryText(job);
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     // Himalayas-style flag chip (visual-identity pass) — see JobCard's
     // matching comment in app/page.tsx for the null-safety rationale.
@@ -396,6 +401,7 @@ export function JobDetail({
     // signal list; see deriveGhostSignals's doc comment for why each line
     // reuses an existing single source instead of new inferred logic.
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, now);
+    const positiveSignalCount = ghostSignals.filter((s) => s.positive).length;
     const checkedText = ghostCheckedText(job.updated_at, now);
     // S4 — exposure trust badges (dark launch): [] for every job until
     // Subspace's upstream backfill lands (see deriveExposureBadges' doc).
@@ -468,13 +474,31 @@ export function JobDetail({
                                 {firstSeenRelative} — often a repost.
                             </div>
                         )}
+                        {/* Pay stat (Task 3) — the one fact chip promoted out
+                            of the row into its own headline figure, since pay
+                            is the number a candidate scans for first. Renders
+                            from the SAME `salaryText` the (now-filtered) chip
+                            row and the SERP card both read, so this can never
+                            disagree with either. */}
+                        {salary && (
+                            <div className="mt-3">
+                                <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                                    pay
+                                </div>
+                                <div className="font-mono text-xl font-semibold tracking-tight text-foreground">
+                                    {salary}
+                                </div>
+                            </div>
+                        )}
                         {/* Full facts row (docs-mockup.html Comp B2) — squared
                             `key value` boxes, mono throughout (THE RULES #4),
                             plus the green "also in" cluster-variant fact when
-                            this posting has duplicates at other locations. */}
-                        {(chips.length > 0 || alsoIn) && (
+                            this posting has duplicates at other locations.
+                            Salary is excluded (`nonSalaryChips`) — it has its
+                            own headline stat above, so it never appears twice. */}
+                        {(nonSalaryChips.length > 0 || alsoIn) && (
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {chips.map((c) => {
+                                {nonSalaryChips.map((c) => {
                                     // Posted date is the EMPLOYER's claim (posting-freshness.ts)
                                     // — once classifyPostingFreshness has caught a relist (posted_at
                                     // re-stamped well after our own first_seen_at), this chip's claim
@@ -514,7 +538,7 @@ export function JobDetail({
                                     not a second ad-hoc one. Only worth
                                     explaining when BOTH dates show — a single
                                     date chip has nothing to disambiguate. */}
-                                {chips.some((c) => c.kind === "posted") && chips.some((c) => c.kind === "first_seen") && (
+                                {nonSalaryChips.some((c) => c.kind === "posted") && nonSalaryChips.some((c) => c.kind === "first_seen") && (
                                     <ContextHelp
                                         content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
                                         className="self-center"
@@ -598,71 +622,108 @@ export function JobDetail({
                     <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
                 ) : (
                 <>
-                {/* EXPANDED ghost module (docs-mockup.html Comp B2): the
-                    verdict headline (unchanged) plus the honest, derived
-                    per-signal grid — see deriveGhostSignals's doc comment
-                    for what each line reads from and why. */}
+                {/* Ghost check module (squared design-system pass): a neutral
+                    check ledger, not a tinted verdict box — color stays
+                    concentrated in the verdict pill (`ghost.cls`, the SAME
+                    token the row badge/JobDetail banner have always shared
+                    via `ghostMetaFor`), never on the module's own ground. */}
                 {ghost && (
-                    <div className={cn("mb-5 border p-3.5", ghost.cls)}>
-                        <div className="flex items-start gap-2.5">
-                            {job.ghost_badge === "clear" && !staleCheck ? (
-                                <ShieldCheck size={18} className="mt-0.5 shrink-0" weight="fill" />
-                            ) : (
-                                <WarningCircle size={18} className="mt-0.5 shrink-0" weight="fill" />
+                    <div className="mb-5 border border-border">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3.5 py-2.5">
+                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                ghost check
+                            </span>
+                            {ghostSignals.length > 0 && (
+                                <>
+                                    {/* Meter — one cell per signal, positive ones filled.
+                                        A count-at-a-glance ahead of the verdict pill, no
+                                        new color: filled cells reuse the SAME green token
+                                        (`bg-st-offer`) the "clear" verdict pill uses. */}
+                                    <span aria-hidden className="flex gap-[3px]">
+                                        {ghostSignals.map((s, i) => (
+                                            <i
+                                                key={i}
+                                                className={cn("h-[7px] w-3.5", s.positive ? "bg-st-offer" : "border border-border")}
+                                            />
+                                        ))}
+                                    </span>
+                                    <span className="font-mono text-[12px] font-semibold">
+                                        {positiveSignalCount}/{ghostSignals.length}
+                                    </span>
+                                </>
                             )}
-                            <div>
-                                <div className="verified-underline text-[13px] font-semibold">{ghost.label}</div>
-                                <div className="mt-0.5 text-xs leading-relaxed opacity-90">{ghost.explain}</div>
-                            </div>
+                            {/* Verdict pill — the ONE colored element in this module,
+                                the EXISTING `ghost.cls` token (no new color logic). */}
+                            <span className={cn("inline-flex items-center px-2 py-0.5 font-mono text-[11px]", ghost.cls)}>
+                                {ghost.label}
+                            </span>
+                            <span className="ml-auto font-mono text-[11px] text-muted-foreground">
+                                {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
+                            </span>
                         </div>
+                        {/* Explain copy only earns its place when the verdict isn't
+                            already the unremarkable "clear and current" case — the
+                            meter + pill above already say enough there. */}
+                        {!(job.ghost_badge === "clear" && !staleCheck) && (
+                            <div className="px-3.5 pt-2.5 text-xs text-muted-foreground">{ghost.explain}</div>
+                        )}
                         {ghostSignals.length > 0 && (
-                            <div className="mono-data mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 text-[12px] sm:grid-cols-2">
+                            <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-1.5 px-3.5 py-2.5 text-[12px] sm:grid-cols-2">
                                 {ghostSignals.map((s) => (
-                                    <span key={s.text}>
-                                        {s.positive ? "✓ " : "— "}
-                                        {s.text}
-                                        {/* R7 (founder, 2026-08-09): age alone must never
-                                            read as a ghost verdict. Mounted ONLY when this
-                                            line is the sole negative signal — see
-                                            shouldShowAgeBalanceNote's doc for why a
-                                            multi-signal verdict's existing copy stands
-                                            unsoftened instead. */}
-                                        {!s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
-                                            <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
-                                        )}
+                                    <span key={s.text} className="flex items-baseline gap-2">
+                                        <span className={s.positive ? "text-verdict-live" : "text-muted-foreground"}>
+                                            {s.positive ? "✓" : "—"}
+                                        </span>
+                                        <b className="font-mono text-[12px] font-medium text-foreground">{s.kind}</b>
+                                        <span className="text-[12px] text-muted-foreground">
+                                            {s.text}
+                                            {/* R7 (founder, 2026-08-09): age alone must never
+                                                read as a ghost verdict. Mounted ONLY when this
+                                                line is the sole negative signal — see
+                                                shouldShowAgeBalanceNote's doc for why a
+                                                multi-signal verdict's existing copy stands
+                                                unsoftened instead. */}
+                                            {!s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                                <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
+                                            )}
+                                        </span>
                                     </span>
                                 ))}
                             </div>
                         )}
-                        {/* WHEN this verdict was last checked — a stated fact from
-                            `updated_at`, not a fabricated checklist of what was
-                            inspected (see ghostCheckedText's doc comment). */}
-                        <div className="verified-underline mono-data mt-2.5 inline-block text-[11px] font-medium opacity-80">
-                            every signal automated · {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
+                        <div className="px-3.5 pb-3.5 pt-2.5">
+                            {/* WHEN this verdict was last checked — a stated fact from
+                                `updated_at`, not a fabricated checklist of what was
+                                inspected (see ghostCheckedText's doc comment). */}
+                            {/* Checked-time lives in the header row above — this
+                                footer states only the provenance claim. */}
+                            <div className="verified-underline mono-data inline-block text-[11px] font-medium text-muted-foreground">
+                                every signal automated · nothing inferred
+                            </div>
+                            {/* S4 exposure trust badges (dark launch) — positive-only,
+                                same quiet mono/squared house style as the fact chips,
+                                same ContextHelp tooltip mechanism as elsewhere in this
+                                panel. Renders nothing until deriveExposureBadges has
+                                something to say (see its doc comment). */}
+                            {exposureBadges.length > 0 && (
+                                <div className="mono-data mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
+                                    {exposureBadges.map((b) => (
+                                        <span
+                                            key={b.label}
+                                            className="inline-flex items-center border border-border px-2 py-1 font-medium text-muted-foreground"
+                                        >
+                                            {b.label}
+                                            <ContextHelp
+                                                content={`We check whether this posting appears in ${
+                                                    b.label === "Seen on Google" ? "Google's job search results" : "LinkedIn's job listings"
+                                                } — ${b.checkedText.charAt(0).toLowerCase()}${b.checkedText.slice(1)}.`}
+                                                className="self-center"
+                                            />
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                        {/* S4 exposure trust badges (dark launch) — positive-only,
-                            same quiet mono/squared house style as the fact chips,
-                            same ContextHelp tooltip mechanism as elsewhere in this
-                            panel. Renders nothing until deriveExposureBadges has
-                            something to say (see its doc comment). */}
-                        {exposureBadges.length > 0 && (
-                            <div className="mono-data mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
-                                {exposureBadges.map((b) => (
-                                    <span
-                                        key={b.label}
-                                        className="inline-flex items-center border border-border px-2 py-1 font-medium text-muted-foreground"
-                                    >
-                                        {b.label}
-                                        <ContextHelp
-                                            content={`We check whether this posting appears in ${
-                                                b.label === "Seen on Google" ? "Google's job search results" : "LinkedIn's job listings"
-                                            } — ${b.checkedText.charAt(0).toLowerCase()}${b.checkedText.slice(1)}.`}
-                                            className="self-center"
-                                        />
-                                    </span>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 )}
 

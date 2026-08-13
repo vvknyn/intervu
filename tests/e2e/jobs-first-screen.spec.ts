@@ -351,16 +351,18 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
     // `verdictFor` (page.tsx) still computes the full age-bearing code
     // ("LIVE · 2H" etc.) this test used to assert, but `JobCard`'s row badge
-    // (line ~513) only ever renders the binary `flagged ? "review" :
-    // "verified"` literal off `verdict.tone` — `verdict.code` and
-    // `VERDICT_TONE_CLASS` have no render call site left (grep confirms),
-    // since the "frozen instrument aesthetic" pass (#121). The rich,
-    // age-bearing freshness disclosure lives in JobDetail's ghost module
-    // (`ghostCheckedText`) now, not the SERP row — this asserts the row
-    // badge that's actually there instead.
+    // only ever renders the binary `flagged ? "review" : "✓ verified"`
+    // literal off `verdict.tone` — `verdict.code` and `VERDICT_TONE_CLASS`
+    // have no render call site left (grep confirms), since the "frozen
+    // instrument aesthetic" pass (#121). The rich, age-bearing freshness
+    // disclosure lives in JobDetail's ghost module (`ghostCheckedText`) now,
+    // not the SERP row — this asserts the row badge that's actually there
+    // instead. The squared design-system pass (Task 4) dropped the tinted
+    // "verified" pill for a quiet "✓ verified" text pair — the regex below
+    // matches that literal text instead of the old bare "verified".
     test("clear rows carry a trust verdict badge", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(page.getByText(/^(verified|review)$/i).first()).toBeVisible();
+        await expect(page.getByText(/^(✓ verified|review)$/i).first()).toBeVisible();
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted
