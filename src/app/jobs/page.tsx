@@ -88,6 +88,7 @@ import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveBeyondWindow } from "@/lib/jobs/beyond-window";
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import {
     isUnavailableJobsResult,
@@ -1166,6 +1167,17 @@ function JobsContent() {
     // way FilterPanel only renders the count suffix when non-null and > 0.
     const [ghostHiddenCount, setGhostHiddenCount] = useState<number | null>(null);
 
+    // Beyond-window probe (2026-08-12): the honest corpus count with the
+    // 30d posted-bucket filter lifted, for the results line's "N more
+    // beyond 30 days — show all" affordance. The 30d default hides real
+    // inventory (measured: 2,294 shown vs 7,199 matching roles, ~68%
+    // hidden) — this surfaces the gap rather than fabricating one; `null`
+    // means "not applicable right now" (bucket isn't 30d, probe unresolved,
+    // or the probe failed) and `resolveBeyondWindow` (lib/jobs/beyond-
+    // window.ts) is the single place that turns this + the visible
+    // `totalCount` into the show/hide + number decision.
+    const [beyondWindowCount, setBeyondWindowCount] = useState<CorpusCount | null>(null);
+
     // Corpus freshness stamp ("updated 3h ago"). Fetched once on mount.
     // `undefined` = not resolved yet (render nothing); `null` = resolved but
     // the backend has no known sync time (render "freshness unknown" — never
@@ -1596,6 +1608,40 @@ function JobsContent() {
                         });
                 } else {
                     setGhostHiddenCount(null);
+                }
+                // Beyond-window probe: same shape as the ghost-hidden-count
+                // probe above (fire-and-forget, same `cancelled`/generation
+                // staleness guard), but only when the 30d default is the
+                // ACTIVE bucket — any other bucket (including "Any") has
+                // nothing further to reveal, so `resolveBeyondWindow` would
+                // hide the affordance anyway and the request would be
+                // wasted. `postedBucket: undefined` lifts the filter to
+                // measure the corpus this same query/facets would match
+                // with no date window; `limit: 0` because only `total` is
+                // needed. Unlike the ghost probe, failure explicitly clears
+                // to `null` — a stale prior-search count masquerading as
+                // this search's "N more" would be exactly the fabricated
+                // number the spec forbids.
+                if (postedBucket === "30d") {
+                    searchJobsAction({
+                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                        postedBucket: undefined,
+                        limit: 0,
+                        offset: 0,
+                    })
+                        .then((br) => {
+                            if (cancelled || !paginationRef.current!.isCurrentGeneration(generation)) return;
+                            if (isUnavailableJobsResult(br)) {
+                                setBeyondWindowCount(null);
+                                return;
+                            }
+                            setBeyondWindowCount(resolveCorpusCount(br, MAX_REACHABLE));
+                        })
+                        .catch(() => {
+                            if (!cancelled) setBeyondWindowCount(null);
+                        });
+                } else {
+                    setBeyondWindowCount(null);
                 }
             } catch (e) {
                 if (!cancelled) {
@@ -2701,6 +2747,21 @@ function JobsContent() {
             ? searchResultLine({ count: totalCount, postedBucket, lastUpdated, nowMs })
             : null;
 
+    // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
+    // `resultCountLine` being present (not `resultsCountLabel`, which also
+    // covers the background-refresh "updating…" state) so the affordance
+    // can never appear before the FIRST real result for the active filters
+    // has landed — `totalCount` defaults to an exact zero before that,
+    // which would otherwise let `resolveBeyondWindow` render a spurious
+    // number the moment `beyondWindowCount` resolves ahead of `totalCount`.
+    const beyondWindow = resultCountLine
+        ? resolveBeyondWindow(postedBucket, totalCount, beyondWindowCount)
+        : { show: false, extra: null };
+    const beyondWindowText =
+        beyondWindow.extra !== null
+            ? `${beyondWindow.extra.toLocaleString()} more beyond 30 days`
+            : "more roles beyond 30 days";
+
     // Deliverable 1 — results render normally on a degraded (served-from-cache)
     // response; this is just the honest caption for it. See
     // `degradedResultsNote` (result-state.ts) for what `meta.degraded` means
@@ -3276,6 +3337,22 @@ function JobsContent() {
                                                     >
                                                         {resultsCountLabel}
                                                     </span>
+                                                    {beyondWindow.show && (
+                                                        <span
+                                                            data-testid="beyond-window-hint"
+                                                            className="text-[13px] text-muted-foreground tabular-nums"
+                                                        >
+                                                            · {beyondWindowText} —{" "}
+                                                            <button
+                                                                type="button"
+                                                                data-testid="beyond-window-show-all"
+                                                                onClick={() => panelPostedBucket(undefined)}
+                                                                className="font-medium text-foreground underline underline-offset-[3px]"
+                                                            >
+                                                                show all
+                                                            </button>
+                                                        </span>
+                                                    )}
                                                     {/* Default-location disclosure moved into the location
                                                         control itself (G3, Grok UX wave) — see
                                                         DefaultLocationChip's doc comment above. */}
