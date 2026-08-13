@@ -13,42 +13,29 @@ export function resolveEffectiveSort(p: Pick<JobSearchParams, "q" | "sort">): Jo
     return (p.q ?? "").trim() ? "relevance" : "newest";
 }
 
+/** Meilisearch sort array for a search request. `legacy` uses posted_at instead of posted_ts. */
 /**
- * "Newest" ranks on `first_seen_at` — when intervu first observed the role,
- * not the employer's claimed `posted_at`/`posted_ts`. A role we discovered
- * TODAY with a stale (but honest) employer-claimed date used to get buried
- * under a "freshest" label (specimen: AtScale "Product Manager, Platform" —
- * first_seen Aug 13, posted_at Jul 30, 14 days deep). `posted_at` is also 18%
- * null and carries future-dated sentinels (2030-01-31) that would sit at the
- * head of a naive `posted_at:desc` sort. `first_seen_at` has neither problem
- * — measured live at 0% null and 0% future (see `derivePostedTs`'s doc in
- * ./meilisearch.ts) — and unlike `posted_ts` it has been sortable on the
- * index since before the posted_ts reindex landed, so there's no legacy
- * fallback to branch on here.
- *
- * When no document carries `first_seen_at` the sort is a silent no-op —
- * Meilisearch falls back to its default order while the UI goes on claiming
- * "newest first", which is how a board ends up listing 1mo, 2mo, 5mo, 1mo
- * under that label.
+ * "Newest" ranks on `posted_ts`. When no document carries that field the sort
+ * is a silent no-op — Meilisearch falls back to its default order while the UI
+ * goes on claiming "newest first", which is how a board ends up listing 1mo,
+ * 2mo, 5mo, 1mo under that label.
  *
  * Callers pass whether the corpus can actually answer a date sort (see
  * `isPostedDateFilterSupported`); an unsupported "newest" degrades to relevance
- * rather than lying about the order.
+ * rather than lying about the order. Sorting on `posted_at` is NOT the fallback:
+ * it is sortable, but the corpus carries future-dated sentinels (2030-01-31),
+ * so descending order would put fabricated postings on top.
  */
 export function coerceSortToSupported(mode: JobSortMode, postedDateSupported: boolean): JobSortMode {
     return mode === "newest" && !postedDateSupported ? "relevance" : mode;
 }
 
-/**
- * Meilisearch sort array for a search request. `posted_ts`/`posted_at` still
- * drive the 30-day default filter and the final ranking tiebreak (unchanged,
- * see JOBS_INDEX_SETTINGS.rankingRules) — this is the explicit user sort only.
- */
-export function buildMeiliSort(p: JobSearchParams): string[] | undefined {
+export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | undefined {
     const mode = resolveEffectiveSort(p);
+    const tsField = legacy ? "posted_at" : "posted_ts";
     switch (mode) {
         case "newest":
-            return ["first_seen_at:desc"];
+            return [`${tsField}:desc`];
         case "salary_desc":
             return ["salary_max:desc", "salary_min:desc"];
         case "relevance":
