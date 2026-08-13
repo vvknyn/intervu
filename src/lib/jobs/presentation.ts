@@ -1,9 +1,7 @@
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
-import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { sanitizeTimestamp } from "@/lib/jobs/posting-freshness";
-import type { GhostBadge, JobSortMode, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 
 /**
@@ -303,21 +301,6 @@ export function shortDate(ms: number): string {
 }
 
 /**
- * Day/month/year bucketing ("today"/"11d ago"/"2mo ago"/"1y ago") shared by
- * every age chip the row renders — `postedAgeShort`'s posted-date chip and
- * `rowAgeChipLabel`'s discovery-date chip below both read off this ONE
- * threshold table, so the two chips can never drift onto different buckets.
- */
-function ageBucketText(days: number): string {
-    if (days <= 0) return "today";
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    const years = Math.floor(months / 12);
-    return `${years}y ago`;
-}
-
-/**
  * The ledger row's data-rail age ("today"/"11d ago"/"2mo ago"/"1y ago") —
  * same day/month/year bucketing the row's old sentence-form age used (the
  * ledger redesign replaced that prose line with a right-aligned rail; a full
@@ -327,38 +310,12 @@ function ageBucketText(days: number): string {
 export function postedAgeShort(ts: number | null, now: number): string | null {
     if (ts == null) return null;
     const days = Math.floor((now - ts) / 86_400_000);
-    return ageBucketText(days);
-}
-
-/**
- * The ledger row's age chip, sort-aware. FRESHEST (`effectiveSort ===
- * "newest"`, which — via `resolveEffectiveSort`, sort.ts — is also the
- * empty-query default) ranks on `first_seen_at:desc` (`buildMeiliSort`,
- * sort.ts): when intervu first observed the posting, not the employer's
- * claimed `posted_at`. Until this helper, the row chip rendered
- * `postedAgeShort(derivePostedTs(job), now)` regardless of sort, so FRESHEST
- * visually read as a broken sort — an "8d ago" chip above a "today" chip —
- * whenever a freshly-scraped board carried an older employer-claimed date.
- * Live probe: top FRESHEST rows had `first_seen_at` = today while
- * `posted_at` = 8 days old; the sort itself was already correct, only the
- * display key disagreed with it.
- *
- * Every other sort tab (relevance, salary_desc, …) keeps the existing
- * posted-date chip unchanged. This gates on the boolean "is the effective
- * sort newest" — never on an enumerated tab name — so a future `JobSortMode`
- * member is covered by construction, not by adding another branch here.
- *
- * A non-"newest" sort, or a null/unsanitizable `first_seen_at`, falls back to
- * the same posted-date chip the row has always shown — never a blank chip,
- * never a fabricated date.
- */
-export function rowAgeChipLabel(job: PublicJob, effectiveSort: JobSortMode, now: number): string | null {
-    const postedChip = postedAgeShort(derivePostedTs(job), now);
-    if (effectiveSort !== "newest") return postedChip;
-    const firstSeenTs = sanitizeTimestamp(job.first_seen_at, now);
-    if (firstSeenTs == null) return postedChip;
-    const days = Math.floor((now - firstSeenTs) / 86_400_000);
-    return `added ${ageBucketText(days)}`;
+    if (days <= 0) return "today";
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
 }
 
 /** How each posted-date window reads out loud. `undefined` is "any time" —
