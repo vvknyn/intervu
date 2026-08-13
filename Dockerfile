@@ -13,6 +13,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN [ -f data/geo/dbip-country-lite.mmdb ] || node scripts/download-mmdb.mjs
 RUN --mount=type=secret,id=env,target=/run/build.env \
+    sh scripts/lint-env.sh /run/build.env
+RUN --mount=type=secret,id=env,target=/run/build.env \
     set -a && . /run/build.env && set +a && npm run build
 
 FROM node:22-bookworm-slim AS runner
