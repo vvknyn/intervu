@@ -591,7 +591,8 @@ function JobCard({
                     </span>
                 )}
                 <span className={FACT_BOX}>
-                    <b className="font-medium text-faint">loc</b>
+                    {/* No key: location values ("Toronto · Hybrid", "Remote")
+                        are self-describing — a mono "loc" label earned nothing. */}
                     <span className="text-muted-foreground">{locationLine}</span>
                 </span>
                 {level && (

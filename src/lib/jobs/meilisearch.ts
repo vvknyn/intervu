@@ -86,7 +86,10 @@ export const JOBS_INDEX_SETTINGS = {
   // Meili 1.45's canonical rule names (live GET returns attributeRank /
   // wordPosition — the legacy attribute/position names predate it).
   //
-  // `sort` sits BEFORE `exactness` — an explicit user sort must WIN.
+  // `sort` sits directly after `words`, ahead of every relevance rule
+  // (typo/proximity/attributeRank/wordPosition/exactness) — an explicit user
+  // sort must win globally, not just within a relevance bucket. (2026-08-13;
+  // see the dated chapter at the end of this comment for why.)
   //
   // History, because this reverses an earlier decision rather than ignoring
   // it. S3 (search-audit.md class 3) moved `sort` to the end after q=stripe +
@@ -128,7 +131,33 @@ export const JOBS_INDEX_SETTINGS = {
   // BEST is deliberately unchanged: with no `sort` parameter the `sort` rule
   // is inert, so relevance still decides and `posted_ts:desc` stays the final
   // tiebreak. Only queries that explicitly ask to be sorted are affected.
-  rankingRules: ["words", "typo", "proximity", "attributeRank", "wordPosition", "sort", "exactness", "posted_ts:desc"],
+  //
+  // 2026-08-13: the #177 order above still wasn't a global sort. `sort` sat
+  // after typo/proximity/attributeRank/wordPosition, so an explicit sort only
+  // reordered WITHIN whichever bucket those four rules already produced —
+  // the same shape of problem #177 fixed one level up, still present one
+  // level down. Measured live 2026-08-13, UNDER the #177 order: q="product
+  // manager" +Canada +30d sorted posted_ts:desc returned 2.48d as its newest
+  // hit, while the index provably contained 14 matching docs posted <24h
+  // (exact page-mode count, complement-sum verified 14+2308=2322); q=
+  // "technical account manager" sorted returned 16d, 16d, 15.2d, 8.9d, 29d,
+  // 10.3d — non-monotonic.
+  //
+  // Why after `words` is safe: the strict path always uses
+  // matchingStrategy:"all", under which every hit matches every query word,
+  // making `words` uniform across the result set — so `sort` acting right
+  // after it is a global sort with no bucketing left to break. The relaxed
+  // fallback (strategy:"last", fires only when the strict pass returns zero
+  // total) still ranks fuller word-matches first, THEN freshest. BEST MATCH
+  // sends no `sort` param, so the `sort` rule stays inert there and relevance
+  // is unchanged.
+  //
+  // Stated cost: a fresh posting that matches the query only in its
+  // description can now surface under an explicit sort — it was already in
+  // the matched set, just hidden behind an earlier bucket. This is inherent
+  // to a true ORDER BY, not a new leak, and is accepted per Vivek's
+  // directive that FRESHEST shows newest by posted date.
+  rankingRules: ["words", "sort", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },

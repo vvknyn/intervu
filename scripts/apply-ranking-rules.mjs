@@ -38,11 +38,10 @@ if (!HOST || !KEY) {
 // a substitute for relevance.
 // Meili 1.45's canonical rule names — a live GET returns attributeRank /
 // wordPosition, not the legacy attribute/position forms.
-// S3 (search-audit.md class 3): `sort` moved AFTER `wordPosition`/
-// `exactness` — an explicit user sort (e.g. "freshest") must only break ties
-// among already-relevant matches, never outrank the company-match precision
-// those two rules provide. See JOBS_INDEX_SETTINGS's doc comment.
-const RANKING_RULES = ["words", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "sort", "posted_ts:desc"];
+// `sort` directly after `words` — see JOBS_INDEX_SETTINGS's doc comment in
+// src/lib/jobs/meilisearch.ts for the measured 2026-08-13 rationale (single
+// source of truth for this ordering's history).
+const RANKING_RULES = ["words", "sort", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"];
 // Meilisearch's built-in default (what --rollback restores).
 const DEFAULT_RANKING_RULES = ["words", "typo", "proximity", "attributeRank", "sort", "wordPosition", "exactness"];
 

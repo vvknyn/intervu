@@ -5,9 +5,12 @@
  * fully partitions the result set before the next one is consulted. Order is
  * therefore behaviour, not style, and a reorder is invisible in review — it
  * changes no logic and breaks no type. These assertions exist because the
- * order has now been changed twice in opposite directions (S3, then the
- * 2026-08-12 measurement that falsified S3's rationale); the next person to
- * touch it should have to delete a named invariant rather than a comment.
+ * order has now been changed three times (S3, the 2026-08-12 measurement
+ * that falsified S3's rationale, then 2026-08-13 moving `sort` ahead of
+ * typo/proximity/attributeRank/wordPosition too, once #177's placement was
+ * itself shown to still bucket instead of sorting globally); the next
+ * person to touch it should have to delete a named invariant rather than a
+ * comment.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -27,6 +30,17 @@ describe("jobs index rankingRules order", () => {
       at("sort") < at("exactness"),
       `sort must precede exactness; got ${JSON.stringify(rules)}`,
     );
+  });
+
+  it("puts `sort` directly after `words`, ahead of typo/proximity/attributeRank/wordPosition too", () => {
+    // 2026-08-12's `sort < exactness` alone wasn't enough: `sort` still sat
+    // after typo/proximity/attributeRank/wordPosition, so it only reordered
+    // WITHIN whichever bucket those four rules already produced — a bare
+    // "Product Manager" 32 days old could still outrank a 1-day-old specific
+    // title under an explicit freshest sort. `sort` must be the very next
+    // rule after `words` for an explicit sort to be a true global order.
+    assert.equal(at("words"), 0, `words must be first; got ${JSON.stringify(rules)}`);
+    assert.equal(at("sort"), 1, `sort must directly follow words; got ${JSON.stringify(rules)}`);
   });
 
   it("keeps `posted_ts:desc` last so recency is a tiebreak, never a substitute", () => {
