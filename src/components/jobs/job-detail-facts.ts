@@ -64,6 +64,10 @@ export interface GhostSignal {
     /** true = ✓ (a fact in the posting's favor); false = a neutral "—" fact,
      *  never a fabricated negative — see the doc comment below. */
     positive: boolean;
+    /** Which fact family this line belongs to — drives the mono `key` label
+     *  in the ghost-check ledger (JobDetail.tsx); one signal, one kind, set
+     *  right where each line is pushed below so the two can never drift. */
+    kind: "freshness" | "reposts" | "description" | "pay";
 }
 
 /** Below this length a description doesn't back an honest "has real
@@ -102,16 +106,17 @@ export function deriveGhostSignals(
     if (freshness.firstSeenMs != null) {
         signals.push(
             freshness.kind === "fresh"
-                ? { text: "freshness — posted within the last 7 days", positive: true }
+                ? { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" }
                 : {
                       text: `first seen by us ${formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), nowMs)}`,
                       positive: false,
+                      kind: "freshness",
                   },
         );
         signals.push(
             freshness.kind === "relisted"
-                ? { text: "relisted from an earlier posting", positive: false }
-                : { text: "no repost history on this role", positive: true },
+                ? { text: "relisted from an earlier posting", positive: false, kind: "reposts" }
+                : { text: "no repost history on this role", positive: true, kind: "reposts" },
         );
     }
 
@@ -119,16 +124,16 @@ export function deriveGhostSignals(
     if (descLength > 0) {
         signals.push(
             descBlockCount > 0 && descLength >= SUBSTANTIAL_DESCRIPTION_MIN_CHARS
-                ? { text: "description has real substance", positive: true }
-                : { text: "description is thin", positive: false },
+                ? { text: "description has real substance", positive: true, kind: "description" }
+                : { text: "description is thin", positive: false, kind: "description" },
         );
     }
 
     const salary = salaryText(job);
     signals.push(
         salary
-            ? { text: `salary disclosed — ${salary}`, positive: true }
-            : { text: "salary not disclosed (common for some regions)", positive: false },
+            ? { text: `salary disclosed — ${salary}`, positive: true, kind: "pay" }
+            : { text: "salary not disclosed (common for some regions)", positive: false, kind: "pay" },
     );
 
     return signals;

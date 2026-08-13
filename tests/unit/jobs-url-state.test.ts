@@ -104,30 +104,27 @@ test("withSortCleared is a no-op when sort is already null", () => {
     assert.deepEqual(withSortCleared(DEFAULT_URL_STATE), DEFAULT_URL_STATE);
 });
 
-// Phase 1-a #3: the class-fix for the observed first-search wrong-order bug
-// — a query changing to a genuinely different, non-empty value always resets
-// an explicit sort back to auto (Best match), regardless of which sort was
-// active or why.
-test("shouldResetSortOnQueryChange resets for a changed non-empty query, any override", () => {
-    assert.equal(shouldResetSortOnQueryChange("", "engineer", "newest"), true);
-    assert.equal(shouldResetSortOnQueryChange("designer", "engineer", "salary_desc"), true);
-    assert.equal(shouldResetSortOnQueryChange("designer", "engineer", "relevance"), true);
+// Approved product change (2026-08-13): an explicitly chosen sort is now
+// STICKY across query text edits — a new, different non-empty query no
+// longer resets it back to auto. This locks the new contract (superseding
+// the old Phase 1-a #3 "any changed query resets" behavior this same suite
+// used to assert).
+test("shouldResetSortOnQueryChange never resets for a changed non-empty query — sort is sticky across edits", () => {
+    assert.equal(shouldResetSortOnQueryChange("engineer", "newest"), false);
+    assert.equal(shouldResetSortOnQueryChange("engineer", "salary_desc"), false);
+    assert.equal(shouldResetSortOnQueryChange("engineer", "relevance"), false);
 });
 
 test("shouldResetSortOnQueryChange is a no-op when there is no override to reset", () => {
-    assert.equal(shouldResetSortOnQueryChange("", "engineer", null), false);
+    assert.equal(shouldResetSortOnQueryChange("engineer", null), false);
+    assert.equal(shouldResetSortOnQueryChange("", null), false);
 });
 
-test("shouldResetSortOnQueryChange never resets for an unchanged query (filter-only changes)", () => {
-    assert.equal(shouldResetSortOnQueryChange("engineer", "engineer", "salary_desc"), false);
-    assert.equal(shouldResetSortOnQueryChange("  engineer  ", "engineer", "salary_desc"), false);
-});
-
-test("shouldResetSortOnQueryChange: emptying the query only resets a 'relevance' override, not others", () => {
-    assert.equal(shouldResetSortOnQueryChange("engineer", "", "relevance"), true);
-    assert.equal(shouldResetSortOnQueryChange("engineer", "  ", "relevance"), true);
-    assert.equal(shouldResetSortOnQueryChange("engineer", "", "salary_desc"), false);
-    assert.equal(shouldResetSortOnQueryChange("engineer", "", "newest"), false);
+test("shouldResetSortOnQueryChange: an empty query only resets a 'relevance' override, not others — relevance is meaningless without a query", () => {
+    assert.equal(shouldResetSortOnQueryChange("", "relevance"), true);
+    assert.equal(shouldResetSortOnQueryChange("  ", "relevance"), true);
+    assert.equal(shouldResetSortOnQueryChange("", "salary_desc"), false);
+    assert.equal(shouldResetSortOnQueryChange("", "newest"), false);
 });
 
 test("board=elite round-trips through serialize + parse", () => {

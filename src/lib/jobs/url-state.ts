@@ -33,33 +33,25 @@ export function withSortCleared(state: JobsUrlState): JobsUrlState {
 }
 
 /**
- * Should an explicit sort override reset when the query transitions from
- * `prevQuery` to `nextQuery` (Phase 1-a #3)? Two independent triggers
- * collapse to the same action — clear back to auto (Best match once a query
- * exists):
- *   - the query becomes a DIFFERENT, non-empty value: a genuinely new search
- *     should always start on Best match rather than silently inheriting
- *     whatever sort was active for a different (or absent) prior query —
- *     the class-fix for the observed first-search wrong-order bug.
- *   - the query becomes EMPTY while the override is specifically
- *     "relevance": relevance is meaningless without a query
- *     (`resolveEffectiveSort` already falls back to "newest" for this case
- *     server-side); any OTHER override (e.g. salary_desc) still makes sense
- *     with no query and is left alone.
+ * Should an explicit sort override reset given the CURRENT query (approved
+ * product change, 2026-08-13)? An explicitly chosen sort is now STICKY
+ * across query text edits — typing a new search no longer silently
+ * discards "top pay" or "freshest" back to Best match, so this no longer
+ * needs the previous query at all (dropped from the signature along with
+ * the caller's now-pointless prev-query tracking). The one remaining reset
+ * is a genuine invalid-combination case: the query is EMPTY while the
+ * override is specifically "relevance", which is meaningless without a
+ * query (`resolveEffectiveSort` already falls back to "newest" for this
+ * case server-side). Any OTHER override (e.g. salary_desc) still makes
+ * sense with no query and is left alone.
  *
- * Depends only on the query, so a facet/salary/visa/ghost change — query
- * unchanged — never resets an explicit sort, matching the product
- * requirement that filter tweaks preserve the user's sort choice.
+ * Depends only on the query, so a facet/salary/visa/ghost change never
+ * resets an explicit sort either, matching the product requirement that
+ * filter tweaks preserve the user's sort choice.
  */
-export function shouldResetSortOnQueryChange(
-    prevQuery: string,
-    nextQuery: string,
-    sortOverride: JobSortMode | null,
-): boolean {
+export function shouldResetSortOnQueryChange(nextQuery: string, sortOverride: JobSortMode | null): boolean {
     if (sortOverride === null) return false;
-    const nextTrimmed = nextQuery.trim();
-    if (!nextTrimmed) return sortOverride === "relevance";
-    return nextTrimmed !== prevQuery.trim();
+    return !nextQuery.trim() && sortOverride === "relevance";
 }
 
 /**

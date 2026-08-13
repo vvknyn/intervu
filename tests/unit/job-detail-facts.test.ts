@@ -96,6 +96,10 @@ test("deriveGhostSignals: a fresh, non-relisted, substantial, salaried posting i
         signals.map((s) => s.positive),
         [true, true, true, true],
     );
+    assert.deepEqual(
+        signals.map((s) => s.kind),
+        ["freshness", "reposts", "description", "pay"],
+    );
     assert.match(signals[0]!.text, /within the last 7 days/);
     assert.match(signals[1]!.text, /no repost history/);
     assert.match(signals[2]!.text, /real substance/);
@@ -122,6 +126,7 @@ test("deriveGhostSignals: no first_seen at all omits BOTH freshness signals — 
     const signals = deriveGhostSignals(job({ description: null }), freshness({}), 0, NOW);
     // No description either, so only the always-present salary signal remains.
     assert.equal(signals.length, 1);
+    assert.equal(signals[0]!.kind, "pay");
     assert.match(signals[0]!.text, /not disclosed/);
 });
 
