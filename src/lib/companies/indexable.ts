@@ -28,17 +28,6 @@
  * "we removed everything" signal this change exists to avoid. Written as an
  * OR, this gate widens on its own the moment that sync lands, no code change.
  *
- * UPDATE 2026-08-13: `sitemap.ts` no longer sources its candidate set from
- * the curated "elite" board (`getBoardDomains("elite")`) — that list is 442
- * domains a human curated for the board UI, and `/co/[slug]` was never
- * actually keyed to it. `get-company.ts` renders a page for ANY domain-shaped
- * slug with at least one live role (`boards.length === 0` does not 404 it),
- * and this gate's own robots decision (`buildCompanyPageMetadata`) already
- * runs per-page for every one of those, elite or not. A sitemap keyed only to
- * the curated list was under-listing every real, indexable page outside it.
- * `fetchIndexableCompanyDomains` below discovers the full candidate set from
- * the corpus itself instead of from that list.
- *
  * NOT in the gate, deliberately, both measured rather than assumed:
  *
  *   - `nameSource === "domain"` (the name was derived from the domain rather
@@ -129,100 +118,63 @@ export function isCompanyIndexable(data: CompanyPageData): boolean {
   });
 }
 
-/** One domain the discovery walk below found indexable, with the live-role
- *  count that earned it — read from the `company_domain` facet distribution,
- *  never from the `company_open_count` aggregate, which (per `isCompanyIndexable`
- *  above) can claim roles the page itself never renders. */
-export interface IndexableCompanyDomain {
-  domain: string;
-  openRoleCount: number;
-}
+/**
+ * Chunk size for the domain facet batch below.
+ *
+ * 100 because that is Meilisearch's DEFAULT `maxValuesPerFacet`. This repo's
+ * `JOBS_INDEX_SETTINGS` raises it to 300, but that setting lives on the index,
+ * not in this repo (a re-provision can drop it — the same caveat
+ * `filterableAttributes` carries in meilisearch.ts). Asking for at most 100
+ * facet values per query means a silently-unraised index cannot truncate the
+ * distribution: a truncated facet response is indistinguishable from
+ * "these domains have zero live roles", which would quietly drop real,
+ * content-carrying pages out of the sitemap. Sized so truncation is
+ * impossible rather than detected after the fact.
+ */
+const DOMAIN_FACET_CHUNK = 100;
 
 /**
- * Every company domain in the live index with enough open roles to earn a
- * `/co/[slug]` page — discovered from the corpus itself rather than sourced
- * from `getBoardDomains("elite")` (see the file docblock's 2026-08-13
- * update). Bounded to a `filter`+`facets` aggregation, same request shape
- * `sitemap.ts` always used, so this needs nothing beyond the search-only key
- * the app already runs with — there is no admin "list all documents"
- * shortcut available here.
+ * Live role count per domain, for every domain passed in — the batched
+ * counterpart to `getCompanyPageData`'s per-company search.
  *
- * `company_domain`'s facet distribution is capped per query at whatever
- * `maxValuesPerFacet` the live index currently has (300 today via
- * `JOBS_INDEX_SETTINGS`, but — as that setting's own comment notes — a
- * re-provision can silently drop it back to Meilisearch's default of 100).
- * One query therefore only ever surfaces the TOP slice of domains by count,
- * never the whole distribution. This walks past that cap: each round asks
- * for the distribution again with every domain collected so far excluded via
- * `company_domain NOT IN [...]`, so the next round can only return domains
- * not yet seen. A round returning nothing means nothing is left to see.
+ * One `/multi-search` round trip (5 aggregation queries for today's 442
+ * domains), not 442 sequential searches. Filters on `LIVE_VACANCY_FILTER`,
+ * the same baseline invariant `buildFilter` applies to every real search, so
+ * "live role" means here exactly what it means on the page.
  *
- * Deliberately does NOT stop early on the first round containing a
- * sub-threshold count. Meilisearch returns facet values sorted by count only
- * because `JOBS_INDEX_SETTINGS.faceting.sortFacetValuesBy` says so — an
- * INDEX setting, not something this request controls — so an early exit that
- * trusted "sorted descending" would go silently wrong the moment that
- * setting reverts to Meilisearch's alphabetical default. Every entry in
- * every round is checked against the gate independently instead.
+ * THROWS when Meilisearch is unavailable OR unconfigured, and deliberately
+ * does not degrade to zeros — see `sitemap.ts` for why a measurement failure
+ * must not be allowed to look like a measurement of zero.
  *
- * THROWS on a Meilisearch failure (via `meiliMultiSearch`, unchanged) or on
- * exceeding `MAX_DOMAIN_DISCOVERY_ROUNDS` without the distribution
- * exhausting — same posture the retired `fetchLiveRoleCountsByDomain` had:
- * a walk that did not finish must never be reported as having seen
- * everything. `multiSearch` is injectable for tests; production callers use
- * the default.
+ * Domains with no live roles are simply absent from the facet distribution;
+ * the caller reads a missing domain as 0, which is what it is — the query
+ * succeeded and found none.
  */
-export const MAX_DOMAIN_DISCOVERY_ROUNDS = 250;
-
-/** Pure: the `filter` clause for one discovery round, given every domain
- *  already collected. Isolated from the round trip so the pagination
- *  boundary (first round vs. every round after) is testable without a
- *  network call. */
-export function buildDomainDiscoveryFilter(excludedDomains: readonly string[]): string[] {
-  const filter = [LIVE_VACANCY_FILTER];
-  if (excludedDomains.length > 0) {
-    filter.push(`company_domain NOT IN [${excludedDomains.map((d) => JSON.stringify(d)).join(", ")}]`);
-  }
-  return filter;
-}
-
-/** Pure: what one round's raw `company_domain` facet distribution means —
- *  which of its domains clear the gate, and whether the distribution is now
- *  exhausted (an empty round). Isolated from `meiliMultiSearch` so the gate
- *  application and the exhaustion signal are both testable without a
- *  network call. */
-export function processDomainDiscoveryRound(
-  facetDistribution: Record<string, number>,
-): { indexable: IndexableCompanyDomain[]; exhausted: boolean } {
-  const entries = Object.entries(facetDistribution);
-  return {
-    indexable: entries
-      .filter(([, count]) => hasIndexableCompanyContent({ openRoleCount: count }))
-      .map(([domain, count]) => ({ domain, openRoleCount: count })),
-    exhausted: entries.length === 0,
-  };
-}
-
-export async function fetchIndexableCompanyDomains(
-  multiSearch: typeof meiliMultiSearch = meiliMultiSearch,
-): Promise<IndexableCompanyDomain[]> {
+export async function fetchLiveRoleCountsByDomain(domains: string[]): Promise<Map<string, number>> {
   if (!hasMeilisearch()) {
-    throw new Error("MEILISEARCH_HOST is not set — cannot discover which company pages have content.");
+    throw new Error("MEILISEARCH_HOST is not set — cannot measure which company pages have content.");
   }
-  const seen = new Set<string>();
-  const indexable: IndexableCompanyDomain[] = [];
-  for (let round = 0; round < MAX_DOMAIN_DISCOVERY_ROUNDS; round++) {
-    const [result] = await multiSearch([
-      { filter: buildDomainDiscoveryFilter([...seen]), facets: ["company_domain"] },
-    ]);
-    const facetDistribution = result.facetDistribution?.company_domain ?? {};
-    const outcome = processDomainDiscoveryRound(facetDistribution);
-    if (outcome.exhausted) return indexable;
-    indexable.push(...outcome.indexable);
-    for (const domain of Object.keys(facetDistribution)) seen.add(domain);
+  const normalized = domains.map((d) => d.trim().toLowerCase()).filter(Boolean);
+  const chunks: string[][] = [];
+  for (let i = 0; i < normalized.length; i += DOMAIN_FACET_CHUNK) {
+    chunks.push(normalized.slice(i, i + DOMAIN_FACET_CHUNK));
   }
-  throw new Error(
-    `Company-domain discovery did not exhaust the corpus within ${MAX_DOMAIN_DISCOVERY_ROUNDS} rounds — ` +
-      "it grew far past what that cap assumed; raise it rather than silently truncating the sitemap.",
+
+  const results = await meiliMultiSearch(
+    chunks.map((chunk) => ({
+      filter: [
+        LIVE_VACANCY_FILTER,
+        `company_domain IN [${chunk.map((d) => JSON.stringify(d)).join(", ")}]`,
+      ],
+      facets: ["company_domain"],
+    })),
   );
+
+  const counts = new Map<string, number>();
+  for (const result of results) {
+    for (const [domain, count] of Object.entries(result.facetDistribution?.company_domain ?? {})) {
+      counts.set(domain, count);
+    }
+  }
+  return counts;
 }
