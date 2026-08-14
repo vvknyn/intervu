@@ -7,6 +7,7 @@
  * a fabricated placeholder. Callers render the result with `serializeJsonLd`
  * inside a `<script type="application/ld+json">` tag.
  */
+import { companyLogoUrl } from "@/lib/companies/logo";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 import { getSiteUrl, SITE_NAME } from "./constants";
@@ -254,6 +255,26 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
       "Career Opportunities",
     ],
     sameAs: ["https://thesubspace.io"],
+  };
+}
+
+/**
+ * Per-employer Organization graph for `/co/[slug]` — distinct from
+ * `buildOrganizationJsonLd` above, which describes Intervu itself. `name`
+ * must already be the cleaned display name the page renders (`data.name`,
+ * `lib/jobs/presentation.ts`'s `displayCompanyName`), not recomputed here, so
+ * the structured data can't drift from the H1. `logo` reuses
+ * `companyLogoUrl` — the same favicon URL `CompanyLogo` puts in the `<img>`
+ * tag — rather than inventing a second logo source; it's always derivable
+ * because `CompanyPageData.domain` is never empty.
+ */
+export function buildCompanyOrganizationJsonLd(input: { name: string; domain: string }): OrganizationJsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: input.name,
+    url: `https://${input.domain}`,
+    logo: companyLogoUrl(input.domain),
   };
 }
 

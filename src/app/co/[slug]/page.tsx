@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
-import { CompanyInitialTile } from "@/components/jobs/CompanyLogo";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
@@ -19,7 +19,7 @@ import {
   salaryText,
 } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
-import { buildCompanyFaqItems, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { cn } from "@/lib/utils";
 
 const ROLES_PREVIEW = 10;
@@ -78,15 +78,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       ghostFlaggedPct: ghostPctIsCompanyWide ? data.ghostFlaggedPct : null,
     }),
   );
+  // Same array-of-graphs convention as the root layout's own JSON-LD
+  // (app/layout.tsx) — one script tag, not one per graph. Organization is
+  // unconditional (domain, hence a logo URL, always exists here); FAQPage
+  // drops out when `buildFaqPageJsonLd` has nothing valid to say.
+  const companyJsonLd = [
+    buildCompanyOrganizationJsonLd({ name: data.name, domain: data.domain }),
+    ...(faqJsonLd ? [faqJsonLd] : []),
+  ];
 
   return (
     <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
-      {faqJsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
-        />
-      )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
+      />
       <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
         <nav className="mx-auto max-w-[900px] font-mono text-xs text-[color:var(--elite-faint)]">
           <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
@@ -99,10 +105,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 
       <main data-testid="company-page" className="mx-auto max-w-[900px] px-4 py-8 pb-28 sm:px-6">
         <header className="mb-7 flex gap-4">
-          <CompanyInitialTile
-            name={data.name}
-            className="h-16 w-16 text-[22px]"
-          />
+          <CompanyLogo domain={data.domain} name={data.name} size="lg" />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
             {data.oneLiner && (
@@ -194,10 +197,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                       href={`/?job=${encodeURIComponent(job.id)}`}
                       className="flex items-center gap-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
                     >
-                      <CompanyInitialTile
-                        name={data.name}
-                        className="h-11 w-11 shrink-0 text-base"
-                      />
+                      <CompanyLogo domain={data.domain} name={data.name} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
                         <div className="mt-1 font-mono text-xs text-[color:var(--elite-muted)]">

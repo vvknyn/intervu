@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCompany, displayCompany } from "../../src/lib/jobs/presentation";
+import { cleanCompany, displayCompany, displayCompanyName } from "../../src/lib/jobs/presentation";
 
 // Real production company strings, retrieved live 2026-07-26.
 
@@ -76,4 +76,50 @@ test("displayCompany returns empty string when both name and domain are absent",
 
 test("displayCompany fixes the reported bug: a domain-shaped brand name no longer contradicts the rendered favicon", () => {
     assert.equal(displayCompany("Super.Com", "super.com"), "super.com");
+});
+
+// displayCompanyName — /co/[slug]'s display-name suffix strip. Runs on top
+// of cleanCompany, so the leading-tenant-code case exercises both in one pass.
+test("displayCompanyName strips a tenant code AND a trailing comma'd legal suffix", () => {
+    assert.equal(displayCompanyName("LE0001 ServiceTitan, Inc."), "ServiceTitan");
+});
+
+test("displayCompanyName strips a bare, no-comma 'Inc.' at the end", () => {
+    assert.equal(displayCompanyName("Apple Inc."), "Apple");
+});
+
+test("displayCompanyName leaves a name with no legal suffix unchanged", () => {
+    assert.equal(displayCompanyName("Stripe"), "Stripe");
+});
+
+test("displayCompanyName does not touch a suffix WORD that isn't a trailing, comma'd/bare suffix", () => {
+    // "Inc" opens the name here rather than closing it — the match is
+    // end-anchored, so a name that merely CONTAINS the word survives.
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+});
+
+test("displayCompanyName never strips down to an empty/whitespace-only remainder", () => {
+    assert.equal(displayCompanyName(", Inc."), ", Inc.");
+});
+
+test("displayCompanyName strips other comma-form suffixes from the list (LLC, Ltd., Corp., GmbH)", () => {
+    assert.equal(displayCompanyName("Acme, LLC"), "Acme");
+    assert.equal(displayCompanyName("Widgets, Ltd."), "Widgets");
+    assert.equal(displayCompanyName("Globex, Corp."), "Globex");
+    assert.equal(displayCompanyName("Muster, GmbH"), "Muster");
+});
+
+test("displayCompanyName strips the bare 'Limited' form but leaves a bare 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
+    assert.equal(displayCompanyName("Acme Limited"), "Acme");
+    assert.equal(displayCompanyName("Acme Ltd"), "Acme Ltd");
+    assert.equal(displayCompanyName("Acme Corp"), "Acme Corp");
+});
+
+test("displayCompanyName matches case-insensitively", () => {
+    assert.equal(displayCompanyName("acme, inc."), "acme");
+});
+
+test("displayCompanyName null/undefined pass through as empty string", () => {
+    assert.equal(displayCompanyName(null), "");
+    assert.equal(displayCompanyName(undefined), "");
 });
