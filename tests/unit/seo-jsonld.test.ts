@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   buildArticleJsonLd,
   buildCompanyFaqItems,
+  buildCompanyOrganizationJsonLd,
   buildFaqPageJsonLd,
   buildJobSearchFaqJsonLd,
   buildWebApplicationJsonLd,
@@ -12,6 +13,7 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
 import { getSiteUrl } from "@/lib/seo/constants";
+import { companyLogoUrl } from "@/lib/companies/logo";
 
 // Absolute URLs are asserted against `getSiteUrl()`, never a literal host.
 // These assertions previously pinned https://intervu.cc — the domain the site
@@ -117,6 +119,24 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd.potentialAction.target, `${ORIGIN}/?q={search_term_string}`);
     assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");
     assert.ok(Array.isArray(jsonLd.alternateName));
+  });
+
+  it("buildCompanyOrganizationJsonLd builds a well-formed per-employer Organization graph", () => {
+    const jsonLd = buildCompanyOrganizationJsonLd({ name: "ServiceTitan", domain: "servicetitan.com" });
+    assert.equal(jsonLd["@context"], "https://schema.org");
+    assert.equal(jsonLd["@type"], "Organization");
+    assert.equal(jsonLd.name, "ServiceTitan");
+    assert.equal(jsonLd.url, "https://servicetitan.com");
+    // Same URL the CompanyLogo <img> tag renders — not a second, independently
+    // invented logo source (see lib/companies/logo.ts).
+    assert.equal(jsonLd.logo, companyLogoUrl("servicetitan.com"));
+  });
+
+  it("buildCompanyOrganizationJsonLd carries the name through verbatim — it does not re-clean it", () => {
+    // Cleaning is `displayCompanyName`'s job (lib/jobs/presentation.ts), done
+    // once by the caller, so the H1 and the structured data can't disagree.
+    const jsonLd = buildCompanyOrganizationJsonLd({ name: "Not Pre-Cleaned, Inc.", domain: "acme.com" });
+    assert.equal(jsonLd.name, "Not Pre-Cleaned, Inc.");
   });
 
   it("serializeJsonLd escapes '<' so a </script> in a value can't break out of the script tag", () => {

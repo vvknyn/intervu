@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { companyLogoUrl } from "@/lib/companies/logo";
 import { cn } from "@/lib/utils";
 // The shared chokepoint (lib/jobs/presentation.ts) — this file used to carry
 // its own private copy with a subset of the rules (URI-decode + req-code
@@ -94,7 +95,7 @@ export function CompanyLogo({
             {showImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                    src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain as string)}&sz=128`}
+                    src={companyLogoUrl(domain as string)}
                     alt={`${name ?? "Company"} logo`}
                     loading="lazy"
                     referrerPolicy="no-referrer"

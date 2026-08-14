@@ -3,6 +3,7 @@ import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import type { CompanyPageData } from "@/lib/companies/types";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -66,7 +67,12 @@ export async function getCompanyPageData(
   return {
     domain,
     slug: domainToSlug(domain),
-    name: name.value,
+    // Legal-entity suffix stripped here — the ONE place `/co/[slug]` reads
+    // its display name from (H1, `<title>`, OG image, JSON-LD all read
+    // `data.name`) — rather than in `resolveCompanyName` itself, whose
+    // `.value` other callers (the corpus tally, existing tests) depend on
+    // keeping the suffix intact.
+    name: displayCompanyName(name.value),
     nameSource: name.source,
     // No product tagline in the index yet — do not misuse company_stage as one.
     oneLiner: null,

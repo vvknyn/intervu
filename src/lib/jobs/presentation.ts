@@ -174,6 +174,56 @@ export function displayCompany(name: string | null | undefined, domain: string |
 }
 
 /**
+ * Trailing legal-entity suffixes stripped for `displayCompanyName` below.
+ * Distinct from `LEGAL_FORM_TOKENS` in `lib/companies/company-name.ts`, which
+ * NEVER renders — it only builds a comparison key so a brand root can be
+ * matched against its qualified subsidiaries ("Lumentum" vs "Lumentum Japan,
+ * Inc."), and every existing consumer of THAT list (and of `resolveCompanyName`'s
+ * `.value`, e.g. "Jabil Inc.") depends on the suffix surviving in what's shown.
+ * This list DOES render, so it stays deliberately narrow:
+ *   - comma-separated forms always strip ("ServiceTitan, Inc." -> "ServiceTitan")
+ *   - the bare, no-comma spelling strips ONLY for the two forms unambiguous
+ *     enough not to eat a real word ("Apple Inc." -> "Apple", "Acme Limited"
+ *     -> "Acme") — never a bare "Ltd"/"Co"/"Corp" that could be the genuine
+ *     tail of an unrelated name, and never a word that merely CONTAINS one of
+ *     these tokens ("Inc Magazine" is untouched — the match is end-anchored).
+ */
+const COMMA_LEGAL_SUFFIXES = [
+    "Inc.", "Inc", "L.L.C.", "LLC", "Ltd.", "Corporation", "Corp.", "Co.",
+    "GmbH", "S.A.", "Pty Ltd", "PLC",
+];
+const BARE_LEGAL_SUFFIXES = ["Inc.", "Limited"];
+
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const LEGAL_SUFFIX_RE = new RegExp(
+    `(?:,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})` +
+        `|\\s+(?:${BARE_LEGAL_SUFFIXES.map(escapeRegExp).join("|")}))$`,
+    "i",
+);
+
+/**
+ * `cleanCompany`'s output, further stripped of a trailing legal-entity
+ * suffix for surfaces that want the brand name alone (`/co/[slug]`'s H1,
+ * `<title>`, OG image and JSON-LD — see that page for why they all read from
+ * this one function rather than recomputing). A companion rather than a
+ * change to `cleanCompany` itself: `cleanCompany("Acme Inc.")` already has
+ * callers (the `/jobs` row + detail panel, `resolveCompanyName`'s corpus
+ * tally) that depend on the suffix surviving, so mutating the shared
+ * chokepoint would silently change what THEY show. Never strips down to
+ * nothing or whitespace — a name that IS just a legal-form word (or empty)
+ * is returned as `cleanCompany` left it.
+ */
+export function displayCompanyName(s: string | null | undefined): string {
+    const cleaned = cleanCompany(s);
+    if (!cleaned) return cleaned;
+    const stripped = cleaned.replace(LEGAL_SUFFIX_RE, "").trim();
+    return stripped || cleaned;
+}
+
+/**
  * The corpus's raw `location` strings sometimes hold serialization accidents
  * rather than prose — seen live on production rows 2026-07-26:
  *

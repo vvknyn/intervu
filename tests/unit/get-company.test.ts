@@ -248,6 +248,26 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
         assert.equal(result?.name, "Adyen");
         assert.equal(result?.nameSource, "corpus-cased");
     });
+
+    it("strips the corpus's trailing legal suffix from the DISPLAYED name (the servicetitan.com incident)", async () => {
+        const search = ok({
+            hits: hits(2, { company: "LE0001 ServiceTitan, Inc.", company_domain: "servicetitan.com" }),
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("servicetitan--com", search);
+        assert.equal(result?.name, "ServiceTitan");
+        // Casing provenance is a separate concern from suffix-stripping —
+        // still reported honestly against the pre-strip corpus string.
+        assert.equal(result?.nameSource, "corpus-cased");
+    });
+
+    it("strips a legal suffix for a DIFFERENT employer too — proves the fix is class-wide, not servicetitan-specific", async () => {
+        const search = ok({ hits: hits(2, { company: "Apple Inc.", company_domain: "apple.com" }), total: 2 });
+
+        const result = await getCompanyPageData("apple--com", search);
+        assert.equal(result?.name, "Apple");
+    });
 });
 
 describe("getCompanyPageData — hasTrackRecord gates on real data", () => {
