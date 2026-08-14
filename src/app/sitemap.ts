@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getBoardDomains } from "@/lib/boards/allowlists";
-import { fetchLiveRoleCountsByDomain, hasIndexableCompanyContent } from "@/lib/companies/indexable";
+import { fetchIndexableCompanyDomains } from "@/lib/companies/indexable";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { getSiteUrl } from "@/lib/seo/constants";
 
@@ -37,12 +36,13 @@ import { getSiteUrl } from "@/lib/seo/constants";
  * and cannot fail on it — the error surfaces at request time, as a 500, to a
  * crawler equipped to handle exactly that.
  *
- * Cost: `meiliMultiSearch` carries its own `next: { revalidate }`, and an
- * explicit fetch revalidate still populates Next's Data Cache under
- * `force-dynamic` (verified in next@16.3.0 `patch-fetch.js` — the
- * force-dynamic no-store coupling only applies when the fetch sets no cache
- * options of its own). Public requests to /sitemap.xml therefore share one
- * batched Meili round trip per revalidation window, not one per request.
+ * Cost: `fetchIndexableCompanyDomains`'s own `company_directory` fetch
+ * carries its own `next: { revalidate }`, and an explicit fetch revalidate
+ * still populates Next's Data Cache under `force-dynamic` (verified in
+ * next@16.3.0 `patch-fetch.js` — the force-dynamic no-store coupling only
+ * applies when the fetch sets no cache options of its own). Public requests
+ * to /sitemap.xml therefore share one Meili round trip per revalidation
+ * window, not one per request.
  */
 export const dynamic = "force-dynamic";
 
@@ -50,32 +50,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const lastModified = new Date();
 
-  // `/co/[slug]` company pages. The allowlist decides which companies are
-  // CANDIDATES (same source every other `/co/[slug]` caller uses —
-  // get-company.ts, hot-list.ts, jobCompanyHref — so it tracks that file);
-  // `hasIndexableCompanyContent` decides which of them have a page worth
-  // submitting. Same predicate the page's own robots meta runs, so the
-  // sitemap can never list a URL the page marks `noindex`.
+  // `/co/[slug]` company pages. `fetchIndexableCompanyDomains` discovers the
+  // CANDIDATES straight from the published `company_directory` index — every
+  // domain with `open_role_count >= MIN_INDEXABLE_ROLES` — not the curated
+  // "elite" board list, which `get-company.ts` never treated as a boundary
+  // on which domains can render a page; see indexable.ts's 2026-08-13
+  // docblock update. The threshold gate is applied server-side by that
+  // function's own Meilisearch filter, so this route never reimplements it.
   //
-  // `hasTrackRecord` is deliberately not passed: an aggregation query cannot
-  // observe it (the index carries no `company_*` fields), and this shape
-  // takes an omitted value as "unobserved" rather than as a false claim. The
-  // consequence is stated rather than hidden — the sitemap is a SUBSET of
-  // what the page considers indexable, never a superset. Under-listing a
-  // page that a crawler can still reach through `/jobs` is recoverable;
-  // over-listing empty pages is the thing being fixed.
-  const domains = getBoardDomains("elite");
-  const liveRoleCounts = await fetchLiveRoleCountsByDomain(domains);
-  const companyEntries: MetadataRoute.Sitemap = domains
-    .filter((domain) =>
-      hasIndexableCompanyContent({ openRoleCount: liveRoleCounts.get(domain.toLowerCase()) ?? 0 }),
-    )
-    .map((domain) => ({
-      url: `${siteUrl}${companyBoardPath(domain)}`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.6,
-    }));
+  // `hasTrackRecord` is structurally unobservable here (the directory doc
+  // carries a role count, not the page's `company_*` KPIs) and stays
+  // omitted, which that gate reads as "unobserved" rather than a false
+  // claim. The consequence is stated rather than hidden — the sitemap is a
+  // SUBSET of what the page considers indexable, never a superset.
+  // Under-listing a page that a crawler can still reach through `/jobs` is
+  // recoverable; over-listing empty pages is the thing #171 fixed.
+  const indexableDomains = await fetchIndexableCompanyDomains();
+  const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain }) => ({
+    url: `${siteUrl}${companyBoardPath(domain)}`,
+    lastModified,
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
 
   return [
     {

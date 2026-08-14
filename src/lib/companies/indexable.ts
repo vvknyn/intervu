@@ -28,6 +28,21 @@
  * "we removed everything" signal this change exists to avoid. Written as an
  * OR, this gate widens on its own the moment that sync lands, no code change.
  *
+ * UPDATE 2026-08-13: `fetchIndexableCompanyDomains` below no longer sources
+ * candidates from `getBoardDomains("elite")` (442 curated domains —
+ * `/co/[slug]` was never actually keyed to that list) nor from the
+ * NOT-IN-paginated `company_domain` facet walk PR #186 shipped (reverted in
+ * #187: it re-issued that walk on every `/sitemap.xml` request and timed out
+ * once the corpus reached tens of thousands of domains). The durable
+ * replacement is a separate publisher, `push-company-directory.mjs`
+ * (subspace repo, off-Vercel, admin key), which pages the jobs index ONCE on
+ * its own schedule and writes one pre-aggregated `{ domain, open_role_count
+ * }` doc per company to a dedicated `company_directory` Meilisearch index.
+ * This module just reads that index with the search key this app already
+ * has — the same shift `market-stats.ts` made for `/trends`'s closed-count
+ * figure, and for the same reason: an app-request-time walk of the live
+ * corpus does not scale, a pre-computed publish does.
+ *
  * NOT in the gate, deliberately, both measured rather than assumed:
  *
  *   - `nameSource === "domain"` (the name was derived from the domain rather
@@ -54,7 +69,7 @@
  * `sitemap.ts` — now has to agree with it exactly. A sitemap that lists URLs
  * the page itself marks `noindex` is a self-contradicting submission.
  */
-import { LIVE_VACANCY_FILTER, hasMeilisearch, meiliMultiSearch } from "@/lib/jobs/meilisearch";
+import { hasMeilisearch, host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
 import type { CompanyPageData } from "./types";
 
 /**
@@ -118,63 +133,155 @@ export function isCompanyIndexable(data: CompanyPageData): boolean {
   });
 }
 
-/**
- * Chunk size for the domain facet batch below.
- *
- * 100 because that is Meilisearch's DEFAULT `maxValuesPerFacet`. This repo's
- * `JOBS_INDEX_SETTINGS` raises it to 300, but that setting lives on the index,
- * not in this repo (a re-provision can drop it — the same caveat
- * `filterableAttributes` carries in meilisearch.ts). Asking for at most 100
- * facet values per query means a silently-unraised index cannot truncate the
- * distribution: a truncated facet response is indistinguishable from
- * "these domains have zero live roles", which would quietly drop real,
- * content-carrying pages out of the sitemap. Sized so truncation is
- * impossible rather than detected after the fact.
- */
-const DOMAIN_FACET_CHUNK = 100;
+/** One company the `company_directory` index carries, with the live-role
+ *  count that earned it inclusion. Read straight off the published doc's
+ *  `open_role_count` field — never recomputed here — so this reader can
+ *  never disagree with what the publisher measured. */
+export interface IndexableCompanyDomain {
+  domain: string;
+  openRoleCount: number;
+}
+
+const COMPANY_DIRECTORY_INDEX = "company_directory";
+
+/** Meilisearch's own per-request cap on `limit`; also this walk's page size,
+ *  so every page short of it is legible as "the last page" without a second
+ *  round trip to confirm. */
+const COMPANY_DIRECTORY_PAGE_SIZE = 1000;
+
+/** A finite number, or null — same guard as `market-stats.ts`'s `num()`:
+ *  `Number(null)` is `0` and IS finite, so a bare `isFinite` check would
+ *  turn a missing `open_role_count` into a false zero-but-valid count. */
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 /**
- * Live role count per domain, for every domain passed in — the batched
- * counterpart to `getCompanyPageData`'s per-company search.
- *
- * One `/multi-search` round trip (5 aggregation queries for today's 442
- * domains), not 442 sequential searches. Filters on `LIVE_VACANCY_FILTER`,
- * the same baseline invariant `buildFilter` applies to every real search, so
- * "live role" means here exactly what it means on the page.
- *
- * THROWS when Meilisearch is unavailable OR unconfigured, and deliberately
- * does not degrade to zeros — see `sitemap.ts` for why a measurement failure
- * must not be allowed to look like a measurement of zero.
- *
- * Domains with no live roles are simply absent from the facet distribution;
- * the caller reads a missing domain as 0, which is what it is — the query
- * succeeded and found none.
+ * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
+ * Isolated from the fetch so a malformed doc's handling is unit-testable
+ * without a network round trip — same split as `market-stats.ts`'s
+ * `parseMarketStatsDoc`.
  */
-export async function fetchLiveRoleCountsByDomain(domains: string[]): Promise<Map<string, number>> {
+export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain | null {
+  if (!hit || typeof hit !== "object") return null;
+  const h = hit as Record<string, unknown>;
+  const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
+  const openRoleCount = num(h.open_role_count);
+  if (domain === null || openRoleCount === null) return null;
+  return { domain, openRoleCount };
+}
+
+/** One `company_directory` `/search` request body — pulled out as its own
+ *  shape (rather than assembled inline) so a test can assert on exactly what
+ *  was sent, e.g. that the `MIN_INDEXABLE_ROLES` filter clause is really in
+ *  the request and not just applied conceptually. */
+interface CompanyDirectorySearchRequest {
+  sort: string[];
+  filter: string;
+  limit: number;
+  offset: number;
+}
+
+/** POST one `company_directory` search request with the search key — never
+ *  the `/documents` endpoint, which the search key 403s on (verified in
+ *  prod; see `market-stats.ts`'s `fetchMarketStats` for the canonical
+ *  statement of this constraint). Routed through `meiliFetch`, the repo's
+ *  one chokepoint for outbound read-path Meilisearch calls (timeout +
+ *  bounded retry + config-error logging) rather than a bespoke `fetch` here. */
+async function searchCompanyDirectoryPage(
+  request: CompanyDirectorySearchRequest,
+): Promise<{ hits: unknown[] }> {
+  const h = host();
+  if (!h) throw new Error("MEILISEARCH_HOST not set");
+  const res = await meiliFetch(`${h}/indexes/${COMPANY_DIRECTORY_INDEX}/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    body: JSON.stringify(request),
+    // Same window `market-stats.ts` uses for /trends: `sitemap.ts` is
+    // `force-dynamic` but an explicit fetch `revalidate` still populates
+    // Next's Data Cache under it, so public requests share one round trip
+    // per window rather than one per request.
+    next: { revalidate: 1800 },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Meilisearch company_directory search failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const body = (await res.json()) as { hits?: unknown[] };
+  return { hits: body.hits ?? [] };
+}
+
+/**
+ * Every company domain worth submitting to `/sitemap.xml`, read from the
+ * `company_directory` index that `push-company-directory.mjs` (subspace
+ * repo, off-Vercel, admin key) publishes on its own schedule — see the file
+ * docblock's 2026-08-13 update for why this replaced both the curated
+ * "elite" list and the reverted #186 facet walk. Filters server-side on
+ * `open_role_count >= MIN_INDEXABLE_ROLES` (this file's single copy of that
+ * threshold — never reimplemented here as a second gate to drift from it)
+ * and pages by `offset` until a page comes back short of
+ * `COMPANY_DIRECTORY_PAGE_SIZE`, i.e. the last page.
+ *
+ * THROW POSTURE — deliberately the opposite of `market-stats.ts`'s
+ * `fetchMarketStats`, which returns `null` on any failure so `/trends` can
+ * render without that one figure. This function cannot offer that: the
+ * `/co/` section of the sitemap either has candidates or it doesn't, there
+ * is no partial page to render around a missing set. So:
+ *
+ *   - zero hits on the FIRST page throws — the publisher hasn't run yet, or
+ *     the index doesn't exist. Read as "not published", never as "zero
+ *     companies qualify" (see `sitemap.ts`'s FAILURE POSTURE docblock: an
+ *     empty `/co/` section reads as "we removed everything").
+ *   - any non-OK HTTP response throws (via `searchCompanyDirectoryPage`).
+ *
+ * A future reader tempted to make this match `fetchMarketStats`'s `null`
+ * pattern should re-read the paragraph above first — the two functions
+ * front different failure domains, not the same one written twice.
+ *
+ * A hit missing `domain` or carrying a non-finite `open_role_count` is
+ * skipped (via `parseCompanyDirectoryHit`) rather than aborting its whole
+ * page or letting `NaN`/`undefined` through; skips are counted and logged
+ * once at the end, not silently dropped.
+ *
+ * `search` is injectable (default-parameter DI, same pattern the reverted
+ * #186 used for `multiSearch`) so tests never hit the network.
+ */
+export async function fetchIndexableCompanyDomains(
+  search: typeof searchCompanyDirectoryPage = searchCompanyDirectoryPage,
+): Promise<IndexableCompanyDomain[]> {
   if (!hasMeilisearch()) {
-    throw new Error("MEILISEARCH_HOST is not set — cannot measure which company pages have content.");
+    throw new Error("MEILISEARCH_HOST is not set — cannot discover which company pages have content.");
   }
-  const normalized = domains.map((d) => d.trim().toLowerCase()).filter(Boolean);
-  const chunks: string[][] = [];
-  for (let i = 0; i < normalized.length; i += DOMAIN_FACET_CHUNK) {
-    chunks.push(normalized.slice(i, i + DOMAIN_FACET_CHUNK));
-  }
-
-  const results = await meiliMultiSearch(
-    chunks.map((chunk) => ({
-      filter: [
-        LIVE_VACANCY_FILTER,
-        `company_domain IN [${chunk.map((d) => JSON.stringify(d)).join(", ")}]`,
-      ],
-      facets: ["company_domain"],
-    })),
-  );
-
-  const counts = new Map<string, number>();
-  for (const result of results) {
-    for (const [domain, count] of Object.entries(result.facetDistribution?.company_domain ?? {})) {
-      counts.set(domain, count);
+  const indexable: IndexableCompanyDomain[] = [];
+  let skipped = 0;
+  for (let offset = 0; ; offset += COMPANY_DIRECTORY_PAGE_SIZE) {
+    const { hits } = await search({
+      sort: ["domain:asc"],
+      filter: `open_role_count >= ${MIN_INDEXABLE_ROLES}`,
+      limit: COMPANY_DIRECTORY_PAGE_SIZE,
+      offset,
+    });
+    if (hits.length === 0) {
+      if (offset === 0) {
+        throw new Error(
+          "company_directory returned zero hits on the first page — either the publisher " +
+            "(push-company-directory.mjs) hasn't run yet, or no company clears MIN_INDEXABLE_ROLES. " +
+            "Not treating this as 'zero indexable companies' — see fetchIndexableCompanyDomains's docblock.",
+        );
+      }
+      break;
     }
+    for (const hit of hits) {
+      const parsed = parseCompanyDirectoryHit(hit);
+      if (parsed) indexable.push(parsed);
+      else skipped += 1;
+    }
+    if (hits.length < COMPANY_DIRECTORY_PAGE_SIZE) break;
   }
-  return counts;
+  if (skipped > 0) {
+    console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
+  }
+  return indexable;
 }
