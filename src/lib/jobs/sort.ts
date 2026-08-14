@@ -94,3 +94,20 @@ export function compareJobsBySort(a: PublicJob, b: PublicJob, mode: JobSortMode)
     }
     return (derivePostedTs(b) ?? 0) - (derivePostedTs(a) ?? 0);
 }
+
+/**
+ * Pairwise check that a page of hits is already in the order `mode` implies.
+ * This is the sort-integrity guard's read on whether Meilisearch actually
+ * finished applying the requested `sort` — `searchCutoffMs` (JOBS_INDEX_SETTINGS,
+ * meilisearch.ts) can interrupt a slow search under embed-batch/indexing load
+ * and return partial results with the sort only PARTIALLY applied (8
+ * order-restarts observed in one 40-hit "newest" page, 2026-08-14 incident).
+ * Ties are allowed — `compareJobsBySort` returning 0 must not flag disorder,
+ * since bulk-ingested documents legitimately share one posted_ts millisecond.
+ */
+export function isPageSorted(hits: PublicJob[], mode: JobSortMode): boolean {
+    for (let i = 1; i < hits.length; i++) {
+        if (compareJobsBySort(hits[i - 1], hits[i], mode) > 0) return false;
+    }
+    return true;
+}
