@@ -10,8 +10,14 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { TourOverlay } from "@/components/tour/TourOverlay";
 import { TourTrigger } from "@/components/tour/TourTrigger";
-import { getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/constants";
-import { buildOrganizationJsonLd, buildWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
+import {
+  buildJobSearchFaqJsonLd,
+  buildOrganizationJsonLd,
+  buildWebApplicationJsonLd,
+  buildWebsiteJsonLd,
+  serializeJsonLd,
+} from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 
 // Frozen UI typeface pair (see globals.css --font-sans/--font-mono/
@@ -59,36 +65,54 @@ const SITE_TITLE = SITE_NAME;
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: {
-    default: "Intervu — Find jobs",
+    default: LANDING_TITLE,
     template: "%s · Intervu",
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_TITLE,
-  keywords: [
-    "resume builder",
-    "job application tracker",
-    "cover letter",
-    "job search",
-  ],
+  keywords: SITE_KEYWORDS,
+  authors: [{ name: "Intervu", url: getSiteUrl() }],
+  creator: "Intervu",
+  publisher: "Intervu",
+  category: "Job Search & Careers",
+  classification: "Job Search, Employment, Careers, Indeed Alternative, LinkedIn Alternative",
+  referrer: "origin-when-cross-origin",
   // No blanket canonical here — a route without its own metadata (like
   // `/jobs`, a "use client" page that can't export one) is better served
   // by no canonical tag than a wrong one pointing at `/`. `/` sets its own
   // in src/app/page.tsx.
   openGraph: {
     type: "website",
+    locale: "en_US",
     siteName: SITE_TITLE,
-    title: SITE_TITLE,
+    title: LANDING_TITLE,
     description: SITE_DESCRIPTION,
     url: getSiteUrl(),
+    images: [
+      {
+        url: `${getSiteUrl()}/icon-512.png`,
+        width: 512,
+        height: 512,
+        alt: "Intervu - Verified Live Job Search",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_TITLE,
+    title: LANDING_TITLE,
     description: SITE_DESCRIPTION,
+    images: [`${getSiteUrl()}/icon-512.png`],
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
   icons: {
     // File-convention icons (favicon.ico, icon.png, icon.svg) are picked up
@@ -101,10 +125,17 @@ export const metadata: Metadata = {
   },
 };
 
-// Rendered as a single script tag (array of graphs) below — "one JSON-LD
-// block" covering both the site-wide WebSite (SearchAction) and Organization
-// (name/url/logo) graphs, rather than a script tag per type.
-const rootJsonLd = [buildWebsiteJsonLd(), buildOrganizationJsonLd()];
+// Rendered as a single script tag (array of graphs) below — covers site-wide
+// WebSite (SearchAction), Organization (name/url/logo), WebApplication,
+// and high-intent FAQ structured data.
+const faqJsonLd = buildJobSearchFaqJsonLd();
+const rootJsonLd = [
+  buildWebsiteJsonLd(),
+  buildOrganizationJsonLd(),
+  buildWebApplicationJsonLd(),
+  ...(faqJsonLd ? [faqJsonLd] : []),
+];
+
 
 export default function RootLayout({
   children,

@@ -1,9 +1,13 @@
+process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://intervuhq.com";
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildArticleJsonLd,
   buildCompanyFaqItems,
   buildFaqPageJsonLd,
+  buildJobSearchFaqJsonLd,
+  buildWebApplicationJsonLd,
   buildWebsiteJsonLd,
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
@@ -68,6 +72,22 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd!.mainEntity[0]!.acceptedAnswer.text, "A1");
   });
 
+  it("buildJobSearchFaqJsonLd includes questions comparing Intervu to Indeed and LinkedIn", () => {
+    const jsonLd = buildJobSearchFaqJsonLd();
+    assert.ok(jsonLd);
+    assert.equal(jsonLd["@type"], "FAQPage");
+    assert.ok(jsonLd.mainEntity.some((q) => q.name.includes("Indeed and LinkedIn")));
+    assert.ok(jsonLd.mainEntity.some((q) => q.name.includes("ghost job")));
+  });
+
+  it("buildWebApplicationJsonLd emits WebApplication graph", () => {
+    const jsonLd = buildWebApplicationJsonLd();
+    assert.equal(jsonLd["@type"], "WebApplication");
+    assert.equal(jsonLd.name, "Intervu Job Search");
+    assert.equal(jsonLd.url, ORIGIN);
+    assert.ok(jsonLd.featureList.length > 0);
+  });
+
   it("buildArticleJsonLd defaults dateModified to datePublished and omits description when absent", () => {
     const jsonLd = buildArticleJsonLd({
       headline: "Ghost jobs aren't the problem",
@@ -96,6 +116,7 @@ describe("seo/jsonld", () => {
     const jsonLd = buildWebsiteJsonLd();
     assert.equal(jsonLd.potentialAction.target, `${ORIGIN}/?q={search_term_string}`);
     assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");
+    assert.ok(Array.isArray(jsonLd.alternateName));
   });
 
   it("serializeJsonLd escapes '<' so a </script> in a value can't break out of the script tag", () => {
@@ -109,3 +130,4 @@ describe("seo/jsonld", () => {
     });
   });
 });
+

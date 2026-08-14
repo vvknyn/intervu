@@ -1,3 +1,5 @@
+process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://intervuhq.com";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildJobPostingJsonLd } from "../../src/lib/seo/jsonld";
@@ -14,6 +16,7 @@ const base = {
   posted_at: "2026-08-09T04:15:36+00:00",
   location: "Warszawa, Poland",
   location_country: "Poland",
+  work_type: "onsite",
   employment_type: "full_time",
   vacancy_status: "active",
 } as unknown as PublicJob;
@@ -25,6 +28,7 @@ test("emits a JobPosting with the required schema.org fields", () => {
   assert.equal(ld.hiringOrganization.name, "Orange");
   assert.equal(ld.datePosted, "2026-08-09T04:15:36+00:00");
   assert.equal(ld.directApply, false);
+  assert.equal(ld.identifier?.value, "f7357d0c-fae4-4f2e-a850-c46d991efba3");
 });
 
 test("omits absent fields rather than emitting null or a placeholder", () => {
@@ -58,3 +62,28 @@ test("maps every known facet employment type to a schema.org enum value", () => 
     assert.equal(ld.employmentType, expected, `${input} should map to ${expected}`);
   }
 });
+
+test("emits TELECOMMUTE jobLocationType for remote postings", () => {
+  const ld = buildJobPostingJsonLd({ ...base, work_type: "remote" }, "/jobs/x");
+  assert.equal(ld.jobLocationType, "TELECOMMUTE");
+  assert.ok(Array.isArray(ld.applicantLocationRequirements));
+});
+
+test("emits structured baseSalary when salary ranges exist", () => {
+  const ld = buildJobPostingJsonLd(
+    {
+      ...base,
+      salary_min: 120000,
+      salary_max: 150000,
+      salary_currency: "USD",
+      salary_period: "year",
+    },
+    "/jobs/x",
+  );
+  assert.ok(ld.baseSalary);
+  assert.equal(ld.baseSalary?.currency, "USD");
+  assert.equal(ld.baseSalary?.value.minValue, 120000);
+  assert.equal(ld.baseSalary?.value.maxValue, 150000);
+  assert.equal(ld.baseSalary?.value.unitText, "YEAR");
+});
+

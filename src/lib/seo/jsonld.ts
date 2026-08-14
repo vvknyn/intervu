@@ -43,6 +43,9 @@ interface WebsiteJsonLd {
   "@type": "WebSite";
   url: string;
   name: string;
+  alternateName?: string[];
+  description?: string;
+  inLanguage?: string;
   potentialAction: {
     "@type": "SearchAction";
     target: string;
@@ -56,6 +59,26 @@ interface OrganizationJsonLd {
   name: string;
   url: string;
   logo: string;
+  description?: string;
+  slogan?: string;
+  knowsAbout?: string[];
+  sameAs?: string[];
+}
+
+export interface WebApplicationJsonLd {
+  "@context": "https://schema.org";
+  "@type": "WebApplication";
+  name: string;
+  url: string;
+  applicationCategory: string;
+  operatingSystem: string;
+  description?: string;
+  offers: {
+    "@type": "Offer";
+    price: string;
+    priceCurrency: string;
+  };
+  featureList: string[];
 }
 
 /**
@@ -83,6 +106,36 @@ export function buildFaqPageJsonLd(items: FaqItem[]): FaqPageJsonLd | null {
       acceptedAnswer: { "@type": "Answer", text: item.answer },
     })),
   };
+}
+
+/**
+ * High-intent FAQ schema graph answering searcher questions about how Intervu
+ * compares to traditional boards (Indeed, LinkedIn), how ghost job screening works,
+ * and listing verification.
+ */
+export function buildJobSearchFaqJsonLd(): FaqPageJsonLd | null {
+  return buildFaqPageJsonLd([
+    {
+      question: "How is Intervu different from Indeed and LinkedIn?",
+      answer:
+        "Unlike Indeed and LinkedIn which allow sponsored reposts, stale third-party feeds, and unmonitored listings, Intervu indexes live jobs directly from employer applicant tracking systems (Greenhouse, Lever, Ashby, Workday, etc.) and actively screens every posting for freshness, salary transparency, and ghost-job risk.",
+    },
+    {
+      question: "What is a ghost job and how does Intervu screen for them?",
+      answer:
+        "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Intervu monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
+    },
+    {
+      question: "Is Intervu free to search for jobs?",
+      answer:
+        "Yes, searching live jobs, filtering by remote or salary, viewing verified employer track records, and exploring market trends on Intervu is completely free for job seekers.",
+    },
+    {
+      question: "How fresh are the job listings on Intervu?",
+      answer:
+        "Intervu updates listings directly from company career sites continuously. When an employer closes a role on their career page, it is marked closed on Intervu within 24 hours.",
+    },
+  ]);
 }
 
 export interface CompanyFaqInput {
@@ -158,6 +211,16 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     "@type": "WebSite",
     url: siteUrl,
     name: SITE_NAME,
+    alternateName: [
+      "Intervu",
+      "Intervu Jobs",
+      "Intervu Job Search",
+      "Intervu - Indeed & LinkedIn Alternative",
+      "Intervu HQ",
+    ],
+    description:
+      "Search live, verified jobs directly from company career pages with ghost-job screening and hiring signals.",
+    inLanguage: "en-US",
     potentialAction: {
       "@type": "SearchAction",
       target: `${siteUrl}/?q={search_term_string}`,
@@ -177,6 +240,48 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
     name: SITE_NAME,
     url: siteUrl,
     logo: `${siteUrl}/icon-512.png`,
+    description:
+      "Intervu is an independent job search platform that verifies listings directly against company career pages and screens for ghost jobs.",
+    slogan:
+      "Live jobs, checked for ghost postings — the transparent alternative to Indeed & LinkedIn",
+    knowsAbout: [
+      "Job Search",
+      "Verified Jobs",
+      "Hiring Market Trends",
+      "Direct ATS Postings",
+      "Ghost Job Detection",
+      "Salary Transparency",
+      "Career Opportunities",
+    ],
+    sameAs: ["https://thesubspace.io"],
+  };
+}
+
+/** Site-wide WebApplication graph for interactive search and application tools. */
+export function buildWebApplicationJsonLd(): WebApplicationJsonLd {
+  const siteUrl = getSiteUrl();
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Intervu Job Search",
+    url: siteUrl,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "All",
+    description:
+      "Live job discovery and tracking application verifying listings against employer ATS systems.",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    featureList: [
+      "Live verified job search",
+      "Direct employer career page sync",
+      "Ghost-job risk screening",
+      "Salary transparency",
+      "Application tracker",
+      "Resume builder",
+    ],
   };
 }
 
@@ -185,18 +290,34 @@ interface JobPostingLocation {
   address: { "@type": "PostalAddress"; addressCountry?: string; addressLocality?: string };
 }
 
+interface MonetaryAmountJsonLd {
+  "@type": "MonetaryAmount";
+  currency: string;
+  value: {
+    "@type": "QuantitativeValue";
+    value?: number;
+    minValue?: number;
+    maxValue?: number;
+    unitText: string;
+  };
+}
+
 export interface JobPostingJsonLd {
   "@context": "https://schema.org";
   "@type": "JobPosting";
   title: string;
   url: string;
   directApply: false;
+  identifier?: { "@type": "PropertyValue"; name: string; value: string };
   hiringOrganization: { "@type": "Organization"; name: string };
   description?: string;
   datePosted?: string;
   validThrough?: string;
   employmentType?: string;
   jobLocation?: JobPostingLocation[];
+  jobLocationType?: "TELECOMMUTE";
+  applicantLocationRequirements?: JobPostingLocation[];
+  baseSalary?: MonetaryAmountJsonLd;
 }
 
 /** Mirrors `EMPLOYMENT_TYPES` (`@/lib/agent/facets`) — the codebase's one enum of
@@ -224,23 +345,61 @@ function toPlaces(job: PublicJob): JobPostingLocation[] | undefined {
   }));
 }
 
+function toBaseSalary(job: PublicJob): MonetaryAmountJsonLd | undefined {
+  if (job.salary_min == null && job.salary_max == null) return undefined;
+  const currency = job.salary_currency || "USD";
+  const period = (job.salary_period || "year").toLowerCase();
+  const unitText = period === "hour" ? "HOUR" : period === "month" ? "MONTH" : "YEAR";
+
+  const quantValue: MonetaryAmountJsonLd["value"] = {
+    "@type": "QuantitativeValue",
+    unitText,
+  };
+  if (job.salary_min != null && job.salary_max != null && job.salary_min === job.salary_max) {
+    quantValue.value = job.salary_min;
+  } else {
+    if (job.salary_min != null) quantValue.minValue = job.salary_min;
+    if (job.salary_max != null) quantValue.maxValue = job.salary_max;
+  }
+
+  return {
+    "@type": "MonetaryAmount",
+    currency,
+    value: quantValue,
+  };
+}
+
 /** Every field is omitted when absent — never null, never a placeholder. `directApply`
  *  is false because applying always leaves for the employer's own ATS. */
 export function buildJobPostingJsonLd(job: PublicJob, path: string): JobPostingJsonLd {
   const places = toPlaces(job);
   const employmentType = EMPLOYMENT_TYPE_MAP[job.employment_type];
   const closed = job.vacancy_status === "closed";
+  const isRemote =
+    job.work_type === "remote" ||
+    (typeof job.location === "string" && job.location.toLowerCase().includes("remote"));
+  const baseSalary = toBaseSalary(job);
+
   return {
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
     url: `${getSiteUrl()}${path}`,
     directApply: false,
+    identifier: {
+      "@type": "PropertyValue",
+      name: job.company ?? "Unlisted employer",
+      value: job.id,
+    },
     hiringOrganization: { "@type": "Organization", name: job.company ?? "Unlisted employer" },
     ...(job.description ? { description: job.description } : {}),
     ...(job.posted_at ? { datePosted: job.posted_at } : {}),
     ...(closed && job.updated_at ? { validThrough: job.updated_at } : {}),
     ...(employmentType ? { employmentType } : {}),
     ...(places ? { jobLocation: places } : {}),
+    ...(isRemote ? { jobLocationType: "TELECOMMUTE" as const } : {}),
+    ...(isRemote && places ? { applicantLocationRequirements: places } : {}),
+    ...(baseSalary ? { baseSalary } : {}),
   };
 }
+

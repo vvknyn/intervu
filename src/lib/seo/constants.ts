@@ -43,11 +43,45 @@ export const SITE_NAME = "Intervu";
  *  shared-link preview shows. Job-seeker language only; the guest-copy
  *  jargon test bans machinery terms here. Agent/OpenClaw copy belongs to
  *  the opted-in surfaces (/connect, /openclaw). */
-export const LANDING_TITLE = "Intervu — live jobs, checked for ghost postings";
-export const LANDING_DESCRIPTION = `Every listing is ${CORPUS_SOURCE_DESCRIPTOR} — so you stop wasting applications on roles that were never real.`;
+export const LANDING_TITLE =
+    "Intervu — Live Job Search & Verified Roles | Indeed & LinkedIn Alternative";
+export const LANDING_DESCRIPTION =
+    "Search thousands of live, verified job listings directly from company career pages. The clean alternative to Indeed and LinkedIn — screened for ghost-job risk, freshness, and real hiring signals.";
 
 /** Site-wide default meta description (root layout). Declared here — not in
  *  layout.tsx — so the jargon test covers every guest meta string in one
  *  place. */
 export const SITE_DESCRIPTION =
-    "Search live roles — flagged for ghost-job risk before you spend time on them.";
+    "Search live, verified jobs directly from company career pages. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
+
+/** High-intent keywords targeting core job discovery, Indeed/LinkedIn alternatives,
+ *  tech/remote roles, verified employer postings, and salary transparency. */
+export const SITE_KEYWORDS = [
+    "jobs",
+    "job search",
+    "find jobs",
+    "indeed alternative",
+    "linkedin alternative",
+    "linkedin jobs alternative",
+    "better than indeed",
+    "job board",
+    "job listings",
+    "tech jobs",
+    "remote jobs",
+    "software engineer jobs",
+    "engineering jobs",
+    "product manager jobs",
+    "designer jobs",
+    "verified jobs",
+    "direct employer jobs",
+    "no ghost jobs",
+    "ghost job detector",
+    "salary transparency",
+    "live hiring signals",
+    "ats job tracker",
+    "resume builder",
+    "job application tracker",
+    "careers",
+    "employment",
+];
+

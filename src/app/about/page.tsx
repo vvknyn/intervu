@@ -45,6 +45,32 @@ export default function AboutPage() {
           listing gives you.
         </p>
 
+        <h2>How Intervu compares to Indeed and LinkedIn</h2>
+        <p>
+          Traditional job boards like Indeed and LinkedIn were built for employer advertising, not candidate clarity.
+          Here is how Intervu is different:
+        </p>
+        <ul>
+          <li>
+            <strong>Direct ATS indexing vs. aggregator clutter:</strong> Instead of flooded feeds filled with third-party
+            reposts and staffing-firm duplicates, Intervu syncs directly with verified company career portals.
+          </li>
+          <li>
+            <strong>Active ghost-job screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
+            when hiring has paused. Intervu monitors employer hiring velocity, ATS update timestamps, and posting age to
+            protect you from dead-end applications.
+          </li>
+          <li>
+            <strong>Real salary transparency:</strong> We surface explicit compensation ranges and compensation benchmarks
+            up front so you don&apos;t spend weeks interviewing blindly.
+          </li>
+          <li>
+            <strong>Zero sponsored spam:</strong> Results are ordered by genuine relevance and freshness — never distorted
+            by pay-to-play employer ad budgets.
+          </li>
+        </ul>
+
+
         <h2>Where the data comes from</h2>
         <p>
           intervu runs on the Subspace jobs corpus — an independent hiring-market data engine that monitors
