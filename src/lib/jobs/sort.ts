@@ -43,6 +43,30 @@ export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | u
     }
 }
 
+/**
+ * Does an explicit-sort search need its text matching scoped to title+company
+ * only, dropping description/location/tags from consideration? See
+ * `JOBS_INDEX_SETTINGS`'s `rankingRules` docblock (meilisearch.ts) — `sort`
+ * now sits right after `words`, acting as a true ORDER BY for any request
+ * that carries one, so a query match buried in a posting's description can
+ * surface a totally unrelated title under an explicit sort (q="product
+ * manager" + FRESHEST returning "Driver - Class 5"). Scoping retrieval to
+ * title+company is what keeps a hit meaning "this posting IS what was
+ * searched for" once ranking can no longer bury a weak match behind
+ * relevance.
+ *
+ * Classified by `mode`, not by enumerating sort names: any resolved sort
+ * OTHER than `"relevance"` is, by definition, an explicit global ordering —
+ * see `resolveEffectiveSort`. Relevance (explicit or auto-defaulted) is
+ * untouched: with no `sort` param sent to Meilisearch the `sort` ranking
+ * rule is inert, so whole-document search only ever gets REORDERED by
+ * relevance, never risks surfacing under an ordering it didn't earn. A bare
+ * browse (`q` empty) is also untouched — there is no query text to scope.
+ */
+export function shouldScopeTextMatchToTitle(mode: JobSortMode, q: string | undefined): boolean {
+    return mode !== "relevance" && Boolean((q ?? "").trim());
+}
+
 export function jobTopSalary(j: PublicJob): number | null {
     return j.salary_max ?? j.salary_min ?? null;
 }

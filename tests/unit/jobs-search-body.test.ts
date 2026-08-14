@@ -40,3 +40,42 @@ test("relax only when a real query strictly matched NOTHING — thin results sta
     assert.equal(shouldRelaxSearch(0, ""), false, "a browse is already wide — nothing to relax");
     assert.equal(shouldRelaxSearch(0, "   "), false);
 });
+
+test("an explicit newest sort with a query scopes retrieval to title+company", () => {
+    // The bug this exists to prevent: q="product manager" + FRESHEST surfaced
+    // "Driver - Class 5" — a fresh posting whose only match was buried in its
+    // description — because an explicit `sort` now acts as a global ORDER BY.
+    const body = buildSearchBody({ q: "product manager", sort: "newest" }, false);
+    assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+});
+
+test("an explicit salary_desc sort with a query scopes retrieval to title+company", () => {
+    const body = buildSearchBody({ q: "product manager", sort: "salary_desc" }, false);
+    assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+});
+
+test("relevance sort (explicit or auto) with a query stays unscoped", () => {
+    const explicit = buildSearchBody({ q: "product manager", sort: "relevance" }, false);
+    assert.ok(!("attributesToSearchOn" in explicit), JSON.stringify(explicit));
+    const auto = buildSearchBody({ q: "product manager" }, false);
+    assert.ok(!("attributesToSearchOn" in auto), JSON.stringify(auto));
+});
+
+test("browse mode (no query) stays unscoped regardless of sort", () => {
+    const newest = buildSearchBody({ sort: "newest" }, false);
+    assert.ok(!("attributesToSearchOn" in newest), JSON.stringify(newest));
+    const salary = buildSearchBody({ sort: "salary_desc" }, false);
+    assert.ok(!("attributesToSearchOn" in salary), JSON.stringify(salary));
+});
+
+test("company-intent scoping is narrower and always wins over sort-scoping", () => {
+    const body = buildSearchBody({ q: "cloudflare", sort: "newest" }, false, "all", { companyScoped: true });
+    assert.deepEqual(body.attributesToSearchOn, ["company"]);
+});
+
+test("the relax pass (matchingStrategy last) drops sort-scoping back to whole-document search", () => {
+    const strict = buildSearchBody({ q: "product manager", sort: "newest" }, false, "all");
+    assert.deepEqual(strict.attributesToSearchOn, ["title", "company"]);
+    const relaxed = buildSearchBody({ q: "product manager", sort: "newest" }, false, "last");
+    assert.ok(!("attributesToSearchOn" in relaxed), JSON.stringify(relaxed));
+});

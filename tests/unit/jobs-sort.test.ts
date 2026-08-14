@@ -5,6 +5,7 @@ import {
     buildMeiliSort,
     compareJobsBySort,
     coerceSortToSupported,
+    shouldScopeTextMatchToTitle,
 } from '../../src/lib/jobs/sort';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -80,6 +81,23 @@ describe('buildMeiliSort', () => {
 
     it('normalizes relevance-without-query to newest sort', () => {
         assert.deepEqual(buildMeiliSort({ sort: 'relevance' }), ['posted_ts:desc']);
+    });
+});
+
+describe('shouldScopeTextMatchToTitle', () => {
+    it('scopes an explicit non-relevance sort with a query', () => {
+        assert.equal(shouldScopeTextMatchToTitle('newest', 'product manager'), true);
+        assert.equal(shouldScopeTextMatchToTitle('salary_desc', 'product manager'), true);
+    });
+
+    it('leaves relevance unscoped regardless of query', () => {
+        assert.equal(shouldScopeTextMatchToTitle('relevance', 'product manager'), false);
+    });
+
+    it('leaves a query-less request unscoped regardless of sort — nothing to scope', () => {
+        assert.equal(shouldScopeTextMatchToTitle('newest', undefined), false);
+        assert.equal(shouldScopeTextMatchToTitle('newest', ''), false);
+        assert.equal(shouldScopeTextMatchToTitle('newest', '   '), false);
     });
 });
 

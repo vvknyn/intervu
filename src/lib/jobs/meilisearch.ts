@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { sanitizeTimestamp } from "./posting-freshness";
-import { buildMeiliSort } from "./sort";
+import { buildMeiliSort, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -474,18 +474,33 @@ export function buildSearchBody(
   matchingStrategy: MatchingStrategy = "all",
   opts?: BuildSearchBodyOpts,
 ): MeiliSearchBody {
+  // `matchingStrategy === "last"` is this file's existing marker for "this is
+  // the relaxed pass" (see `searchMeili`'s `runPass`/`shouldRelaxSearch`) —
+  // fired only after a strict scoped pass came back with zero hits. Reusing
+  // it here means the relax pass drops title/company scoping back to
+  // whole-document search by construction, with no second rebuild path: a
+  // genuinely-empty result still degrades gracefully instead of staying
+  // artificially empty under a scope that just proved it matches nothing.
+  const sortScoped =
+    matchingStrategy !== "last" && shouldScopeTextMatchToTitle(resolveEffectiveSort(p), p.q);
   return {
     q: p.q ?? "",
     // Whole-document retrieval is the default and stays that way (see the
-    // note above `searchMeili`). The ONE exception is a query the corpus
-    // says is an employer's NAME: scoping it to `company` is what keeps
-    // real listings at that employer above unrelated postings that merely
-    // mention the word in a title ("FOREMAN - SEAL & STRIPE" for q=stripe).
-    // That precision is currently a side effect of the `exactness` ranking
-    // rule landing on the `company` attribute; doing it explicitly here is
-    // what lets `exactness` be demoted to fix role queries without trading
-    // one regression for another. See company-intent.ts.
-    ...(opts?.companyScoped ? { attributesToSearchOn: ["company"] } : {}),
+    // note above `searchMeili`). Two scoped exceptions, company-intent always
+    // narrower and therefore always winning when both apply:
+    //  - `companyScoped`: the query text names an employer — see the
+    //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
+    //    `company` alone.
+    //  - `sortScoped`: an explicit non-relevance sort turns `sort` into a
+    //    real ORDER BY (JOBS_INDEX_SETTINGS's rankingRules docblock above) —
+    //    restricts to `title`+`company` so a fresh/high-salary posting that
+    //    only matches in its description can't outrank real title matches
+    //    under that ordering. See `shouldScopeTextMatchToTitle` (sort.ts).
+    ...(opts?.companyScoped
+      ? { attributesToSearchOn: ["company"] }
+      : sortScoped
+        ? { attributesToSearchOn: ["title", "company"] }
+        : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that

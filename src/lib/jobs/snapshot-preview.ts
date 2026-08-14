@@ -74,6 +74,11 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
   // `id` with other predicates instead of sending it alone.
   if (p.id && j.id !== p.id) return false;
   if (p.q) {
+    // No title/company sort-scoping mirror here (meilisearch.ts's
+    // `shouldScopeTextMatchToTitle`): this haystack never included
+    // `description` to begin with, so the buried-in-description match that
+    // scoping guards against can't occur on this backend — and this is a
+    // degraded dev-only preview, not the prod search path.
     const hay = `${j.title} ${j.company ?? ""} ${j.location ?? ""} ${(j.tags ?? []).join(" ")}`.toLowerCase();
     if (!hay.includes(p.q.toLowerCase())) return false;
   }
