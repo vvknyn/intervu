@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { sanitizeTimestamp } from "./posting-freshness";
-import { buildMeiliSort, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "./sort";
+import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -170,6 +170,15 @@ export const JOBS_INDEX_SETTINGS = {
     maxValuesPerFacet: 300,
     sortFacetValuesBy: { "*": "count" },
   },
+  // Default is 1500ms. Under embed-batch/indexing load a search can miss that
+  // window and return PARTIAL results with `sort` incompletely applied — the
+  // engine hands back a page that only started being ordered (2026-08-14
+  // incident: 8 order-restarts in one 40-hit "newest" page). Raising the
+  // budget shrinks how often a search gets cut off mid-sort; it does not
+  // eliminate the class, so the FE sort-integrity guard (searchMeili,
+  // isPageSorted/compareJobsBySort in sort.ts) covers whatever still slips
+  // through.
+  searchCutoffMs: 5000,
 };
 
 export function host(): string | null {
@@ -612,6 +621,39 @@ async function searchWithDomainPostFilter(
  *  bought: no sequential second request to blow the settle guard under load.
  *  Only a strict ZERO relaxes to Meilisearch's word-dropping "last" — flagged
  *  `widened` so the UI can disclose partial matches. */
+/**
+ * Sort-integrity chokepoint for `searchMeili`. `searchCutoffMs`
+ * (`JOBS_INDEX_SETTINGS`) can interrupt a slow search under embed-batch/
+ * indexing load and hand back partial results with the explicit `sort` only
+ * PARTIALLY applied — a "FRESHEST" page that restarts its own order mid-list
+ * (8 restarts observed in one 40-hit page, 2026-08-14 incident). Never render
+ * an order we didn't verify: check the page against the sort it was asked
+ * for, retry the identical search once (the degradation is transient — a
+ * healthy retry takes ~40ms), and if the retry is STILL unsorted, re-sort
+ * locally rather than ship disorder under a sort label. `runSearch` is
+ * whatever produced `result` — strict pass, relaxed "last" pass, or the
+ * `searchWithDomainPostFilter` path all funnel through this one call in
+ * `searchMeili`, so one guard covers all three. Relevance mode is untouched:
+ * there is no engine-decided order to verify.
+ */
+async function applySortIntegrityGuard(
+  result: JobSearchResult,
+  p: JobSearchParams,
+  runSearch: () => Promise<JobSearchResult>,
+): Promise<JobSearchResult> {
+  const mode = resolveEffectiveSort(p);
+  if (mode === "relevance" || isPageSorted(result.hits, mode)) return result;
+
+  const retry = await runSearch();
+  if (isPageSorted(retry.hits, mode)) return retry;
+
+  console.warn("[jobs-search] sort-integrity: engine returned unsorted page, re-sorted locally", {
+    q: p.q,
+    mode,
+  });
+  return { ...retry, hits: [...retry.hits].sort((a, b) => compareJobsBySort(a, b, mode)) };
+}
+
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
@@ -624,85 +666,90 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
-  const needsDomain = needsDomainFilters(p);
+  const runSearch = async (): Promise<JobSearchResult> => {
+    const needsDomain = needsDomainFilters(p);
 
-  const runDomainPostFilter = (matchingStrategy: MatchingStrategy = "all") =>
-    searchWithDomainPostFilter(h, p, matchingStrategy);
+    const runDomainPostFilter = (matchingStrategy: MatchingStrategy = "all") =>
+      searchWithDomainPostFilter(h, p, matchingStrategy);
 
-  if (companyDomainFilterUnsupported && needsDomain) {
-    const strict = await runDomainPostFilter();
-    if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
-    const relaxed = await runDomainPostFilter("last");
-    return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
-  }
+    if (companyDomainFilterUnsupported && needsDomain) {
+      const strict = await runDomainPostFilter();
+      if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+      const relaxed = await runDomainPostFilter("last");
+      return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+    }
 
-  // One extra round trip, memoized per query across requests
-  // (`resolveCompanyIntent`), and only for free-text queries: an id probe,
-  // a plain browse or a board/domain browse never asks. The domain
-  // post-filter path above is deliberately excluded — those are
-  // `board`/`companyDomain` browses that are ALREADY constrained to one
-  // employer, so company-scoping the query text would add nothing.
-  const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
+    // One extra round trip, memoized per query across requests
+    // (`resolveCompanyIntent`), and only for free-text queries: an id probe,
+    // a plain browse or a board/domain browse never asks. The domain
+    // post-filter path above is deliberately excluded — those are
+    // `board`/`companyDomain` browses that are ALREADY constrained to one
+    // employer, so company-scoping the query text would add nothing.
+    const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
 
-  const runPass = async (
-    matchingStrategy: MatchingStrategy = "all",
-  ): Promise<JobSearchResult> => {
-    const post = (legacy: boolean) =>
-      meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-        cache: "no-store",
-        body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy, { companyScoped })),
-      });
+    const runPass = async (
+      matchingStrategy: MatchingStrategy = "all",
+    ): Promise<JobSearchResult> => {
+      const post = (legacy: boolean) =>
+        meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+          cache: "no-store",
+          body: JSON.stringify(buildSearchBody(p, legacy, matchingStrategy, { companyScoped })),
+        });
 
-    let res = await post(false);
-    if (!res.ok && res.status === 400) {
-      const text = await res.text().catch(() => "");
-      // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
-      // (the settings PATCH + reindex run on the sync box, separately from this
-      // deploy). Retry once without it instead of 400ing every search. Safe to
-      // delete this branch once that reindex has landed.
-      if (/posted_ts/i.test(text)) {
-        console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
-        res = await post(true);
-      } else if (/company_domain/i.test(text) && needsDomain) {
-        companyDomainFilterUnsupported = true;
-        console.warn("company_domain not yet filterable — falling back to local post-filter");
-        return runDomainPostFilter(matchingStrategy);
-      } else {
+      let res = await post(false);
+      if (!res.ok && res.status === 400) {
+        const text = await res.text().catch(() => "");
+        // TRANSITIONAL: posted_ts isn't sortable/filterable on the live index yet
+        // (the settings PATCH + reindex run on the sync box, separately from this
+        // deploy). Retry once without it instead of 400ing every search. Safe to
+        // delete this branch once that reindex has landed.
+        if (/posted_ts/i.test(text)) {
+          console.warn("posted_ts not yet indexed — falling back to legacy sort/filter");
+          res = await post(true);
+        } else if (/company_domain/i.test(text) && needsDomain) {
+          companyDomainFilterUnsupported = true;
+          console.warn("company_domain not yet filterable — falling back to local post-filter");
+          return runDomainPostFilter(matchingStrategy);
+        } else {
+          throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
+        }
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
         throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
       }
-    }
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Meilisearch search failed: ${res.status} ${text.slice(0, 300)}`);
-    }
-    const body = (await res.json()) as {
-      hits: PublicJob[];
-      estimatedTotalHits?: number;
-      totalHits?: number;
-      facetDistribution?: Record<string, Record<string, number>>;
+      const body = (await res.json()) as {
+        hits: PublicJob[];
+        estimatedTotalHits?: number;
+        totalHits?: number;
+        facetDistribution?: Record<string, Record<string, number>>;
+      };
+      return {
+        hits: body.hits ?? [],
+        total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution: body.facetDistribution as FacetDistribution | undefined,
+      };
     };
-    return {
-      hits: body.hits ?? [],
-      total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
-      backend: "meilisearch",
-      configured: true,
-      facetDistribution: body.facetDistribution as FacetDistribution | undefined,
-    };
+
+    const strict = await runPass();
+    if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
+
+    // Every word matched nothing anywhere — only now drop back to
+    // Meilisearch's word-dropping default, so a long or unusual query still
+    // returns its best partial matches instead of an empty screen. Reaching
+    // here means strict matching already came back empty, so this can only add
+    // results, never displace better ones. Flagged `widened` because partial
+    // matches are exactly what that flag exists to disclose.
+    const relaxed = await runPass("last");
+    return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
   };
 
-  const strict = await runPass();
-  if (!shouldRelaxSearch(strict.total, p.q ?? "")) return strict;
-
-  // Every word matched nothing anywhere — only now drop back to
-  // Meilisearch's word-dropping default, so a long or unusual query still
-  // returns its best partial matches instead of an empty screen. Reaching
-  // here means strict matching already came back empty, so this can only add
-  // results, never displace better ones. Flagged `widened` because partial
-  // matches are exactly what that flag exists to disclose.
-  const relaxed = await runPass("last");
-  return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
+  const result = await runSearch();
+  return applySortIntegrityGuard(result, p, runSearch);
 }
 
 /** The three location fields a parsed place can constrain. */

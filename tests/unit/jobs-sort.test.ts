@@ -6,6 +6,7 @@ import {
     compareJobsBySort,
     coerceSortToSupported,
     shouldScopeTextMatchToTitle,
+    isPageSorted,
 } from '../../src/lib/jobs/sort';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -119,6 +120,37 @@ describe('compareJobsBySort salary_desc', () => {
         const unpaid = mkJob({ id: 'b', salary_min: null, salary_max: null });
         assert.ok(compareJobsBySort(paid, unpaid, 'salary_desc') < 0);
         assert.ok(compareJobsBySort(unpaid, paid, 'salary_desc') > 0);
+    });
+});
+
+describe('isPageSorted', () => {
+    it('treats equal-ms ties as sorted — bulk-ingested docs legitimately share one posted_ts millisecond', () => {
+        const a = mkJob({ id: 'a', posted_at: '2026-01-05T00:00:00Z' });
+        const b = mkJob({ id: 'b', posted_at: '2026-01-05T00:00:00Z' });
+        const c = mkJob({ id: 'c', posted_at: '2026-01-04T00:00:00Z' });
+        assert.equal(isPageSorted([a, b, c], 'newest'), true);
+    });
+
+    it('flags an out-of-order newest page — the sort-integrity defect this guard exists for', () => {
+        const newer = mkJob({ id: 'a', posted_at: '2026-01-05T00:00:00Z' });
+        const older = mkJob({ id: 'b', posted_at: '2026-01-01T00:00:00Z' });
+        const newerAgain = mkJob({ id: 'c', posted_at: '2026-01-06T00:00:00Z' });
+        // newest-first with an order-restart in the middle — exactly the shape
+        // `searchCutoffMs` produced on a partially-applied sort.
+        assert.equal(isPageSorted([newer, older, newerAgain], 'newest'), false);
+    });
+
+    it('checks salary_desc order too, not just newest', () => {
+        const high = mkJob({ id: 'a', salary_max: 200_000 });
+        const low = mkJob({ id: 'b', salary_max: 100_000 });
+        const higher = mkJob({ id: 'c', salary_max: 250_000 });
+        assert.equal(isPageSorted([high, low], 'salary_desc'), true);
+        assert.equal(isPageSorted([high, low, higher], 'salary_desc'), false);
+    });
+
+    it('an empty or single-hit page is trivially sorted', () => {
+        assert.equal(isPageSorted([], 'newest'), true);
+        assert.equal(isPageSorted([mkJob({ id: 'a' })], 'newest'), true);
     });
 });
 
