@@ -85,6 +85,7 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
+import { FacetBar } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
@@ -297,7 +298,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
             data-testid="browse-seed-row"
             className="mb-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5 text-left"
         >
-            <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#aeb4bd]">Or try</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-faint">Or try</span>
             {seeds.map((seed) => (
                 <button
                     key={seed}
@@ -305,7 +306,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="max-w-[min(100%,12rem)] truncate text-[13px] font-medium text-[#ececec] underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                    className="max-w-[min(100%,12rem)] truncate text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                 >
                     {seed}
                 </button>
@@ -587,9 +588,13 @@ function JobCard({
             </span>
             <div className="col-span-full flex flex-wrap items-center gap-1.5">
                 {salary && (
-                    <span className={FACT_BOX}>
-                        <b className="font-medium text-faint">pay</b>
-                        <span className="font-semibold text-foreground">{salary}</span>
+                    // Disclosed pay is the most decision-relevant fact on a
+                    // card AND one of the ghost ledger's positive signals
+                    // ("salary disclosed"), so it wears the same green-tint
+                    // the truth channel uses — the one color with a meaning.
+                    <span className={cn(FACT_BOX, "border-green-tint-border bg-green-tint-bg")}>
+                        <b className="font-medium text-verdict-live opacity-70">pay</b>
+                        <span className="font-semibold text-verdict-live">{salary}</span>
                     </span>
                 )}
                 <span className={FACT_BOX}>
@@ -2827,6 +2832,17 @@ function JobsContent() {
     // and why an absent `meta` reads as live, never as degraded.
     const degradedNote = result ? degradedResultsNote(result) : null;
 
+    // Two-Panel Selector (master-detail) — single source of truth for where
+    // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
+    // 2026-08-14 auto-preview — the pane again for the ambient first result
+    // when nothing is explicitly open; see resolveDetailMountSite's doc
+    // comment for the render-only/telemetry contract).
+    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, hits.length > 0);
+    // The row the pane is currently showing — explicit selection when one
+    // exists, else the ambient auto-preview. Drives the list's active ring
+    // so the highlighted row and the pane's content can never disagree.
+    const activeRowId = detailMountSite === "pane" ? (detailJob?.id ?? null) : selectedId;
+
     // Deliverable 3 — one `JobCard` call site shared by a cluster's primary
     // row and its (optionally rendered) variant rows below, so the ~10 props
     // every card needs are written once, not copy-pasted per call site.
@@ -2839,7 +2855,7 @@ function JobsContent() {
         <JobCard
             key={j.id}
             job={j}
-            active={selectedId === j.id}
+            active={activeRowId === j.id}
             opened={openedIds.has(j.id)}
             onClick={() => openJob(j.id)}
             onCompany={j.company_domain ? handleCompany : undefined}
@@ -2866,19 +2882,13 @@ function JobsContent() {
     const resultsCountLabel =
         loading && hits.length > 0 ? "updating…" : resultCountLine;
 
-    // Two-Panel Selector (master-detail) — single source of truth for where
-    // the shared detail ternary mounts (Sheet below xl, pane at xl+); see
-    // `resolveDetailMountSite` (lib/jobs/result-state.ts) for why this gates
-    // on `detailSheetOpen`, never merely `detailJob != null`.
-    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen);
-
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
     // can never silently drift from the sheet's own branches (writing-lean-
     // code rule 2, single source of truth). `onClose` is passed explicitly
     // by each call site (both currently `() => router.back()`) rather than
     // hardcoded here, keeping this decoupled from the router.
-    const renderDetailSurface = (onClose: () => void) =>
+    const renderDetailSurface = (onClose: (() => void) | undefined) =>
         detailJob ? (
             <>
                 <JobDetail
@@ -2982,7 +2992,7 @@ function JobsContent() {
             className="min-h-screen text-foreground"
             style={{
                 background:
-                    "radial-gradient(900px 500px at 50% 20%, #1a1f27 0%, transparent 55%), #12151a",
+                    "linear-gradient(180deg, rgb(var(--green-tint-bg)) 0%, rgb(var(--background)) 420px)",
             }}
         >
             <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-7 sm:px-5 xl:max-w-[1280px]">
@@ -2993,7 +3003,24 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                <section className="mb-0 rounded-none border border-white/10 bg-black/30 p-3 backdrop-blur-[18px]">
+                {/* Hero (2026-08-14 investor-polish reskin) — one claim, the
+                    live corpus line under it, then straight into the search
+                    row. `marketClaim` moved here from the guest-only results
+                    tip (single render site — the guest tip below no longer
+                    repeats it), so signed-in visitors see the same honest
+                    corpus line. */}
+                <header className="pb-5 pt-3">
+                    <h1 className="font-display text-[clamp(1.7rem,3.2vw,2.35rem)] font-semibold leading-[1.08] tracking-[-0.02em]">
+                        Job search, minus the ghosts.
+                    </h1>
+                    {marketClaim && (
+                        <p data-testid="jobs-market-claim" className="mt-2 max-w-[680px] text-[14px] leading-relaxed text-muted-foreground">
+                            {marketClaim}
+                        </p>
+                    )}
+                </header>
+
+                <section className="rounded-none border border-border bg-card p-3 shadow-[0_10px_30px_rgba(18,21,26,0.05)]">
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <SearchAutocomplete
                             value={query}
@@ -3004,7 +3031,7 @@ function JobsContent() {
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
                             placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-none border border-white/12 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:bg-black/40 focus-visible:ring-1 focus-visible:ring-brand/40 sm:min-w-[260px] sm:flex-[1_1_260px]"
+                            className="h-[46px] w-full min-w-0 rounded-none border border-border bg-background px-3.5 text-sm text-foreground shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-1 focus-visible:ring-brand/40 sm:min-w-[260px] sm:flex-[1_1_260px]"
                             containerClassName="min-w-0 w-full sm:flex-1"
                         />
                         <Input
@@ -3020,7 +3047,7 @@ function JobsContent() {
                                     commitLocation();
                                 }
                             }}
-                            className="h-[46px] w-full rounded-none border border-white/12 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:bg-black/40 focus-visible:ring-1 focus-visible:ring-brand/40 sm:max-w-[200px] sm:flex-[0_1_200px]"
+                            className="h-[46px] w-full rounded-none border border-border bg-background px-3.5 text-sm text-foreground shadow-none placeholder:text-faint focus-visible:border-brand focus-visible:ring-1 focus-visible:ring-brand/40 sm:max-w-[200px] sm:flex-[0_1_200px]"
                         />
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
                             <div className="flex items-center">
@@ -3030,7 +3057,7 @@ function JobsContent() {
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-[46px] w-full rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90 sm:w-auto"
+                            className="h-[46px] w-full rounded-none bg-foreground px-[18px] text-[13px] font-semibold text-background hover:opacity-90 sm:w-auto"
                         >
                             Search
                         </Button>
@@ -3039,9 +3066,17 @@ function JobsContent() {
 
                 <section
                     data-testid="jobs-toolbar"
-                    className="mt-5 rounded-none border border-[#8b919a] bg-[#2a313c] px-3 py-3"
+                    className="mt-3 rounded-none px-0.5 py-1"
                 >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <FacetBar
+                            distribution={result?.facetDistribution}
+                            state={filterState}
+                            postedDateSupported={postedDateSupported}
+                            onToggleFacet={panelToggleFacet}
+                            onSalaryMin={panelSalaryMin}
+                            onPostedBucket={panelPostedBucket}
+                        />
                         <button
                             type="button"
                             data-testid="filters-toggle"
@@ -3050,13 +3085,15 @@ function JobsContent() {
                             aria-controls="filters-panel"
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
-                                "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-none border-2 border-[#ececec] bg-transparent px-3 text-[13px] font-semibold text-[#ececec] hover:bg-[#ececec]/12 sm:w-auto sm:justify-start",
-                                filtersOpen && "border-[#ececec] bg-[#ececec] text-[#12151a] hover:bg-[#ececec]",
+                                chipVariants({ active: false }),
+                                "w-full justify-center rounded-none font-semibold text-foreground sm:w-auto sm:justify-start",
+                                filtersOpen && "border-foreground bg-foreground text-background hover:border-foreground",
                                 activeCount > 0 && "has-active",
                             )}
                         >
                             <FunnelSimple size={14} weight="bold" aria-hidden />
-                            Filters
+                            <span className="lg:hidden">Filters</span>
+                            <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
                                 <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center border border-green-tint-border bg-green-tint-bg px-1 font-mono text-[10px] leading-[16px] text-verdict-live">
                                     {activeCount}
@@ -3068,7 +3105,7 @@ function JobsContent() {
                             <button
                                 type="button"
                                 onClick={clearFit}
-                                className="text-xs text-[#c4c9d1] underline underline-offset-2 hover:text-[#ececec]"
+                                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                             >
                                 ranked by your résumé ✕
                             </button>
@@ -3077,7 +3114,7 @@ function JobsContent() {
                             <Link
                                 href="/yours"
                                 data-testid="jobs-tracked-count"
-                                className="font-mono text-[12px] font-medium text-[#c4c9d1] underline underline-offset-[3px] hover:text-[#ececec]"
+                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
                             >
                                 {trackedCount} tracked
                             </Link>
@@ -3114,7 +3151,7 @@ function JobsContent() {
                     {!isSerpAsk && (
                         <Link
                             href="/connect"
-                            className="mt-2 inline-block text-[12px] text-[#8b919a] underline underline-offset-[3px] hover:text-[#c4c9d1]"
+                            className="mt-2 inline-block text-[12px] text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
                         >
                             There&apos;s a version of this that works while you sleep →
                         </Link>
@@ -3124,7 +3161,7 @@ function JobsContent() {
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-[#5c636e] bg-[#12151a] p-4 text-[#ececec] custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-none border border-border bg-card p-4 text-foreground custom-scrollbar"
                         >
                             {filtersPanelContent}
                         </div>
@@ -3142,7 +3179,7 @@ function JobsContent() {
                                 <div
                                     id="filters-panel"
                                     data-testid="filters-panel"
-                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-[#12151a] p-4 pb-[env(safe-area-inset-bottom,16px)] text-[#ececec] custom-scrollbar"
+                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {filtersPanelContent}
                                 </div>
@@ -3194,19 +3231,21 @@ function JobsContent() {
                         className="hidden xl:order-2 xl:block xl:sticky xl:top-0 xl:max-h-dvh xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card custom-scrollbar"
                     >
                         {detailMountSite === "pane" ? (
-                            renderDetailSurface(() => router.back())
+                            // Auto-preview (2026-08-14): a render-only mount —
+                            // only a real click/keypress reaches `openJob`
+                            // (telemetry + `?job=` push), so the ambient
+                            // preview gets no close affordance either: with
+                            // nothing pushed, `router.back()` would leave the
+                            // site, and "closing" an always-populated pane has
+                            // no state to return to.
+                            renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                        ) : loading ? (
+                            <div className="p-4">
+                                <JobDetailSkeleton />
+                            </div>
                         ) : (
-                            // No auto-select in v1 (non-negotiable #3): this
-                            // placeholder is the ONLY thing the pane shows
-                            // until a real user click runs `openJob` and sets
-                            // `detailSheetOpen`. `detailJob` itself already
-                            // falls back to `hits[0]` for ambient keyboard
-                            // highlighting even with nothing explicitly
-                            // selected — rendering that here would silently
-                            // auto-select a job into the pane on every load
-                            // and poison open-rank telemetry, which is
-                            // exactly what gating on `detailMountSite` (never
-                            // `detailJob` directly) prevents.
+                            // Only reachable with zero hits (the ambient
+                            // preview covers every non-empty result set).
                             <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
                                 Select a role to read it here.
                             </p>
@@ -3301,7 +3340,7 @@ function JobsContent() {
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
                                 <div className="text-left" data-testid="serp-ask">
-                                    <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#aeb4bd]">
+                                    <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-faint">
                                         Suggested roles
                                     </p>
                                     <p className="mt-1 text-[13px] text-muted-foreground">
@@ -3315,7 +3354,7 @@ function JobsContent() {
                                                 data-testid="serp-ask-seed"
                                                 title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="max-w-[min(100%,14rem)] truncate text-[13px] font-medium text-[#ececec] underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                className="max-w-[min(100%,14rem)] truncate text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                             >
                                                 {seed}
                                             </button>
@@ -3370,11 +3409,8 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {!user && !guestTipDismissed && marketClaim ? (
-                                                <p data-testid="jobs-market-claim" className="mb-1.5 font-mono text-[11px] text-faint">
-                                                    {marketClaim}
-                                                </p>
-                                            ) : null}
+                                            {/* Corpus claim renders once, in the hero header above —
+                                                the guest tip keeps only its own sign-in line. */}
                                             {!user && !guestTipDismissed && (
                                                 <div
                                                     data-testid="guest-serp-tip"
@@ -3664,8 +3700,8 @@ function JobsContent() {
                         onClick={() => router.back()}
                         className="relative flex h-11 w-full shrink-0 items-center justify-center"
                     >
-                        <span aria-hidden="true" className="h-1 w-9 rounded-full bg-[#d0d6de]" />
-                        <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-[#8b919a]">
+                        <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border" />
+                        <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-faint">
                             ×
                         </span>
                     </button>
@@ -3732,12 +3768,9 @@ function JobsContent() {
 
 function JobsLoading() {
     return (
-        <div
-            className="flex min-h-screen items-center justify-center text-[#8b919a]"
-            style={{ background: "#12151a" }}
-        >
+        <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
             <div className="flex flex-col items-center gap-4">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#7cb87a]/20 border-t-[#7cb87a]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
                 <p className="text-sm">Loading jobs…</p>
             </div>
         </div>

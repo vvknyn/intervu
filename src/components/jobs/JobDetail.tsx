@@ -369,7 +369,18 @@ export function JobDetail({
     onOpenRelated?: (jobId: string) => void;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
+    // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
+    // list/company surfaces stay quiet on unscored rows): in THIS panel the
+    // check ledger's facts are worth showing even before a scoring pass has
+    // run — with a verdict pill that says exactly that, never a fabricated
+    // clear (2026-08-14 investor-polish; founding rule: facts, no inference).
+    const ghost = ghostMetaFor(job.ghost_badge, staleCheck) ?? {
+        label: "Not yet scored",
+        cls: STATUS_PILL.saved,
+        dot: "bg-st-saved",
+        explain:
+            "This posting hasn't been through a ghost-risk scoring pass yet — the signals below are the facts we can already state.",
+    };
     // S2 — HONESTY RULE: the row badge states a fact ("Fresh"/"Relisted");
     // this facts line is where the underlying dates it's based on live.
     const freshness = classifyPostingFreshness(job, now);
@@ -451,7 +462,7 @@ export function JobDetail({
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold leading-tight tracking-tight">{decodeText(job.title)}</h2>
+                        <h2 className="text-[22px] font-semibold leading-tight tracking-tight">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanedCompany ? (
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="hover:text-foreground hover:underline">
@@ -618,10 +629,6 @@ export function JobDetail({
             </div>
 
             <div className="px-5 pb-6 pt-4">
-                {!signedIn ? (
-                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
-                ) : (
-                <>
                 {/* Ghost check module (squared design-system pass): a neutral
                     check ledger, not a tinted verdict box — color stays
                     concentrated in the verdict pill (`ghost.cls`, the SAME
@@ -727,6 +734,14 @@ export function JobDetail({
                     </div>
                 )}
 
+                {/* The ghost-check ledger above renders for EVERYONE — it is
+                    public, derived, and the product's differentiator
+                    (2026-08-14 investor-polish); only the description body
+                    and below stay behind the sign-in gate. */}
+                {!signedIn ? (
+                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
+                ) : (
+                <>
                 <div className="mb-5">
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (

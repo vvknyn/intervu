@@ -19,7 +19,7 @@ interface LoginFormProps {
 }
 
 const authFieldClass =
-    "min-h-11 border-border-strong/30 bg-black/40 focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none";
+    "min-h-11 border-border bg-card focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none";
 
 /** Standard 4-color Google "G" glyph — no icon library ships a brand mark
  *  for it, and pulling in a new dependency for one static SVG isn't worth

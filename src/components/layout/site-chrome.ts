@@ -1,13 +1,14 @@
 /**
- * Instrument void chrome — same plane as the landing (#12151a).
- * Hardcoded so a stale `intervu-dark=0` preference can never flash a
- * light TopBar over a dark jobs body again.
+ * Paper chrome — the light reading surface (2026-08-14 investor-polish
+ * reskin; formerly the #12151a "instrument void"). Token classes, not
+ * hex, so the chrome and the page body read from the same `:root`
+ * palette and cannot drift apart.
  */
 export const siteChrome = {
-    bar: "bg-[#12151a] text-[#ececec]",
-    muted: "text-[#8b919a]",
-    mutedHover: "text-[#8b919a] transition-colors hover:text-[#ececec]",
-    active: "font-[550] text-[#ececec]",
-    faint: "text-[#5c636e]",
-    border: "border-[#2a2f36]",
+    bar: "bg-background text-foreground",
+    muted: "text-muted-foreground",
+    mutedHover: "text-muted-foreground transition-colors hover:text-foreground",
+    active: "font-[550] text-foreground",
+    faint: "text-faint",
+    border: "border-border",
 } as const;

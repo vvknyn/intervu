@@ -94,7 +94,7 @@ export function TopBar() {
             <div className="relative mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2.5 text-[#ececec]"
+                    className="flex shrink-0 items-center gap-2.5 text-foreground"
                     data-testid="topbar-logo"
                 >
                     <BrandMark className="h-12 w-12" />
@@ -108,7 +108,7 @@ export function TopBar() {
                         <Link
                             href="/trends"
                             data-testid="topbar-pulse-ticker"
-                            className="hidden shrink-0 font-mono text-[12px] text-[#8b919a] transition-colors hover:text-[#ececec] lg:inline-flex"
+                            className="hidden shrink-0 font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
                         >
                             {liveJobsLabel}
                         </Link>
@@ -141,8 +141,8 @@ export function TopBar() {
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
                                     className={cn(
-                                        "ml-1 grid h-[32px] w-[32px] place-items-center rounded-full bg-[#ececec] text-[12px] font-medium text-[#12151a] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[#ececec]/30",
-                                        accountActive && "ring-2 ring-[#12151a] ring-offset-2 ring-offset-[#ececec]",
+                                        "ml-1 grid h-[32px] w-[32px] place-items-center rounded-full bg-foreground text-[12px] font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground/30",
+                                        accountActive && "ring-2 ring-background ring-offset-2 ring-offset-foreground",
                                     )}
                                 >
                                     {initialsOf(user)}

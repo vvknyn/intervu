@@ -143,9 +143,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-[#12151a] text-[#ececec]`}
+        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
@@ -155,14 +155,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
-        {/* Instrument product is dark-void only. Force `.dark` before paint and
-            migrate any leftover light preference (`intervu-dark=0`) so the
-            TopBar can never render as a light strip over dark pages. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{document.documentElement.classList.add('dark');if(localStorage.getItem('intervu-dark')==='0'){localStorage.setItem('intervu-dark','1')}}catch(e){document.documentElement.classList.add('dark')}`,
-          }}
-        />
+        {/* Paper-light only (2026-08-14 reskin): nothing adds `.dark` at
+            runtime anymore, so no pre-paint theme script is needed — SSR and
+            client both render the light token palette. */}
         <PostHogProvider>
           <ThemeProvider>
             <TourProvider>

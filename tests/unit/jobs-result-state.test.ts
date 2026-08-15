@@ -332,25 +332,30 @@ describe('shouldBackOnDetailSheetClose', () => {
 // derive from. Truth table below (4 combinations) plus a crossing case that
 // proves mutual exclusion holds across a resize, not just at one width.
 describe('resolveDetailMountSite', () => {
-    it('SSR-initial: no matchMedia yet (isXlUp defaults false), nothing selected → none', () => {
-        assert.equal(resolveDetailMountSite(false, false), 'none');
+    it('SSR-initial: no matchMedia yet (isXlUp defaults false), nothing selected → none, results or not', () => {
+        assert.equal(resolveDetailMountSite(false, false, false), 'none');
+        assert.equal(resolveDetailMountSite(false, false, true), 'none');
     });
 
     it('SSR-initial with a job selected (deep link before hydration) → sheet, never pane', () => {
-        assert.equal(resolveDetailMountSite(false, true), 'sheet');
+        assert.equal(resolveDetailMountSite(false, true, true), 'sheet');
     });
 
-    it('hydrated at xl+, nothing selected → none (no auto-select into the pane)', () => {
-        assert.equal(resolveDetailMountSite(true, false), 'none');
+    it('hydrated at xl+ with results but no explicit open → pane (ambient auto-preview)', () => {
+        assert.equal(resolveDetailMountSite(true, false, true), 'pane');
     });
 
-    it('hydrated at xl+ with a selection → pane, never sheet', () => {
-        assert.equal(resolveDetailMountSite(true, true), 'pane');
+    it('hydrated at xl+ with no results and no explicit open → none (nothing to preview)', () => {
+        assert.equal(resolveDetailMountSite(true, false, false), 'none');
+    });
+
+    it('hydrated at xl+ with an explicit open → pane even with zero ambient hits (deep-linked job)', () => {
+        assert.equal(resolveDetailMountSite(true, true, false), 'pane');
     });
 
     it('breakpoint crossing: widening past xl with the same live selection never yields sheet+pane both, or neither', () => {
-        const belowXl = resolveDetailMountSite(false, true);
-        const aboveXl = resolveDetailMountSite(true, true);
+        const belowXl = resolveDetailMountSite(false, true, true);
+        const aboveXl = resolveDetailMountSite(true, true, true);
         // Exactly one mount site is live at a time, by construction — the
         // two `assert.equal` calls below already prove neither is "pane"
         // twice nor "sheet" twice across the crossing.
@@ -359,9 +364,8 @@ describe('resolveDetailMountSite', () => {
         assert.notEqual(belowXl, aboveXl);
     });
 
-    it('breakpoint crossing with no selection: resizing alone never creates a mount site', () => {
-        assert.equal(resolveDetailMountSite(false, false), 'none');
-        assert.equal(resolveDetailMountSite(true, false), 'none');
+    it('below xl the ambient preview never opens the sheet: only an explicit open does', () => {
+        assert.equal(resolveDetailMountSite(false, false, true), 'none');
     });
 });
 

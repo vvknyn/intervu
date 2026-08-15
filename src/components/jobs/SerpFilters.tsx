@@ -13,7 +13,7 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 
-const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
+export const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
     "1d": "Past 24h",
     "3d": "Past 3 days",
     "7d": "Past week",
@@ -21,7 +21,7 @@ const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
     older: "Older than 30 days",
 };
 
-function facetOptions(
+export function facetOptions(
     distribution: FacetDistribution | undefined,
     selected: string[],
     key: FacetKey,
@@ -38,7 +38,7 @@ function facetOptions(
     return cap ? all.slice(0, cap) : all;
 }
 
-function Affordance({
+export function Affordance({
     active,
     onClick,
     count,
