@@ -130,7 +130,17 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     return (
         <div className="space-y-5 pt-1">
             <div className="text-center space-y-1.5">
-                <div className="flex items-center justify-center gap-2">
+                {/* ITEM R (2026-08-15, Vivek screenshot): the wordmark row
+                    sat optically off-center against the two lines below it.
+                    All three lines now share this ONE `text-center`
+                    container as their only centering mechanism — the
+                    wordmark row is `inline-flex` (sized to its own content,
+                    positioned by the ancestor's text-align like its plain-
+                    text siblings) instead of a full-width `flex` box
+                    centered by its own `justify-center`, which was a second,
+                    independent centering calculation that could drift a
+                    pixel from the text-align one beside it. */}
+                <div className="inline-flex items-center gap-2">
                     <BrandMark className="h-6 w-6 text-foreground" />
                     <span className="font-display font-bold text-lg text-foreground">intervu</span>
                 </div>
