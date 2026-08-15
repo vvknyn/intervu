@@ -45,11 +45,9 @@
      since both static references trace back to this one value. */
   --mobile-tabbar-h: 56px;
 
-  /* Frozen UI — light shell (intervu-*-coherent.html / FROZEN mocks).
-     *-foreground tokens below point at --foreground rather than repeating
-     its triplet, so the ink value has exactly one source. */
-  --background: 206 211 218;
-  --foreground: 18 22 28;
+  /* Polished modern UI palette — crisp porcelain/slate shell with high contrast readability. */
+  --background: 248 250 252;
+  --foreground: 15 23 42;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
   --popover: 255 255 255;
@@ -59,114 +57,91 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 58 66 77;
+  --muted-foreground: 100 116 139;
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
-  --destructive: 169 62 40;
+  --destructive: 225 29 72;
   --destructive-foreground: 255 255 255;
-  --border: 164 173 185;
+  --border: 226 232 240;
   --input: var(--border-strong);
   --ring: var(--brand);
 
-  /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
-     (lib/themes.ts, default preset) applies the same values at runtime. */
-  --brand: 40 106 61;
+  /* Brand / links — refined emerald accent */
+  --brand: 16 149 106;
   --brand-foreground: 255 255 255;
-  --brand-muted: 110 160 126;
+  --brand-muted: 52 211 153;
 
-  /* Site chrome — the dark world's void used as a surface in the light
-     world; TopBar/Footer/MobileTabBar paint with this via site-chrome.ts */
-  --chrome: 18 21 26;
-  --chrome-foreground: 236 238 236;
+  /* Site chrome */
+  --chrome: 15 23 42;
+  --chrome-foreground: 248 250 252;
 
   /* Surface + text levels */
   --surface: 255 255 255;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 182 189 198;
-  --border-strong: var(--foreground);
+  --surface-3: 203 213 225;
+  --border-strong: 203 213 225;
   --text-2: var(--muted-foreground);
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 216 221 227;
-  --faint: 82 90 102;
-  --live: 11 117 83;
-  --green-tint-bg: 230 244 239;
-  --green-tint-bg-alt: 223 241 234;
-  --green-tint-border: 140 185 161;
-  --warn: 138 94 10;
-  --warn-dot: 194 148 65;
-  --danger-tint-border: 235 205 196;
+  --chip: 241 245 249;
+  --faint: 148 163 184;
+  --live: 16 149 106;
+  --green-tint-bg: 240 253 244;
+  --green-tint-bg-alt: 236 253 245;
+  --green-tint-border: 187 247 208;
+  --warn: 217 119 6;
+  --warn-dot: 245 158 11;
+  --danger-tint-border: 254 205 211;
 
-  /* Verdict channel — the ONLY place color appears (anti-marker 8). Nav,
-     links, buttons, brand stay ink; only the ledger's verdict cell reads
-     live/caution/risk. -bg variants are optional, subtle full-row tints for
-     caution/risk rows only. */
-  --verdict-live: 38 94 68;
-  --verdict-caution: 138 94 10;
-  --verdict-risk: 169 62 40;
-  --verdict-live-bg: 237 243 239;
-  --verdict-caution-bg: 245 239 225;
-  --verdict-risk-bg: 246 234 230;
+  /* Verdict channel */
+  --verdict-live: 16 149 106;
+  --verdict-caution: 217 119 6;
+  --verdict-risk: 225 29 72;
+  --verdict-live-bg: 240 253 244;
+  --verdict-caution-bg: 254 243 199;
+  --verdict-risk-bg: 255 241 242;
 
-  /* Pipeline / status colors — remapped onto live/warn/danger/muted equivalents */
+  /* Pipeline / status colors */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
-  --st-intv: var(--warn);                 --st-intv-soft: 245 239 225;
+  --st-intv: var(--warn);                 --st-intv-soft: 254 243 199;
   --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 246 234 230;
+  --st-closed: var(--destructive);        --st-closed-soft: 255 241 242;
 
   /* Sidebar width */
   --sb-w: 250px;
 
-  /* Shadow tokens — elevation retired (2026-08-04 one-visual-world pass,
-     docs/design/DESIGN-LANGUAGE.md "Elevation: none"). Frozen instrument
-     pass also zeros hairline borders (see @layer utilities below) — separation
-     is surface fill + whitespace only.
-     NOTE: do not write an arbitrary-value utility (square-bracket syntax)
-     inside a comment in this file. Tailwind v4 scans CSS for class names and
-     does not skip comments, so it will emit a real utility from the comment
-     text — a wildcard in one produced `--tw-shadow: var(--shadow-*)`, which
-     is invalid CSS and took the whole stylesheet (and every route) down. */
+  /* Shadow tokens */
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
 
-  /* Motion tokens (in-flow states pass, 2026-08-01) — the one shared
-     duration scale for panel/dialog motion (detail panel, filter panel
-     expand, FitDrawer slide, the auth-gate value line). Pure durations, not
-     duration+ease bundles: that lets the SAME token drop into both a plain
-     `transition-duration` declaration (custom enter/exit classes below) and
-     Tailwind's `duration-[var(...)]` utility on the Radix Sheet/Dialog
-     primitives, which only accept a bare time value. Every call site pairs
-     these with the same `ease-out` timing function — that repetition (not a
-     third --ease-* token) is what "one consistent ease" means here, since
-     the task asked for exactly these two named tokens. Zeroed under
-     prefers-reduced-motion below. */
+  /* Motion tokens */
   --transition-fast: 120ms;
   --transition-panel: 180ms;
 }
 
 .dark {
-  /* Match landing instrument void (#12151a) — one dark world with / . */
-  --background: 18 21 26;
-  --foreground: 236 238 236;
-  --card: 26 30 36;
-  --card-foreground: 236 238 236;
-  --popover: 26 30 36;
-  --popover-foreground: 236 238 236;
-  --primary: 236 238 236;
-  --primary-foreground: 18 21 26;
+  /* Polished dark theme — sleek obsidian void (#0D1117) with refined contrast */
+  --background: 13 17 23;
+  --foreground: 240 246 252;
+  --card: 22 27 34;
+  --card-foreground: 240 246 252;
+  --popover: 22 27 34;
+  --popover-foreground: 240 246 252;
+  --primary: 240 246 252;
+  --primary-foreground: 13 17 23;
   --secondary: var(--chip);
-  --secondary-foreground: 236 238 242;
+  --secondary-foreground: 240 246 252;
   --muted: var(--chip);
-  --muted-foreground: 139 147 158;
+  --muted-foreground: 139 148 158;
   --accent: var(--chip);
-  --accent-foreground: 236 238 242;
-  --destructive: 200 106 84;
-  --destructive-foreground: 15 18 22;
-  --border: 42 47 54;
+  --accent-foreground: 240 246 252;
+  --destructive: 244 63 94;
+  --destructive-foreground: 13 17 23;
+  --border: 48 54 61;
   --input: var(--border-strong);
   --ring: var(--brand);
   --chart-1: 250 250 250;
@@ -174,61 +149,60 @@
   --chart-3: 153 153 153;
   --chart-4: 102 102 102;
   --chart-5: 51 51 51;
-  --sidebar: 22 25 30;
-  --sidebar-foreground: 236 238 242;
-  --sidebar-primary: 94 180 150;
-  --sidebar-primary-foreground: 15 18 22;
-  --sidebar-accent: 32 36 42;
-  --sidebar-accent-foreground: 236 238 242;
-  --sidebar-border: 42 47 54;
+  --sidebar: 18 22 28;
+  --sidebar-foreground: 240 246 252;
+  --sidebar-primary: 46 196 142;
+  --sidebar-primary-foreground: 13 17 23;
+  --sidebar-accent: 33 38 45;
+  --sidebar-accent-foreground: 240 246 252;
+  --sidebar-border: 48 54 61;
   --sidebar-ring: 112 112 112;
 
-  /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
-     applies lighter green at runtime for dark mode readability. */
-  --brand: 94 180 150;
-  --brand-foreground: 15 18 22;
-  --brand-muted: 58 140 110;
+  /* Brand / links — luminous emerald */
+  --brand: 46 196 142;
+  --brand-foreground: 13 17 23;
+  --brand-muted: 34 140 100;
 
-  /* Site chrome (dark) — see the light-theme comment above. */
-  --chrome: 22 25 30;
-  --chrome-foreground: 236 238 242;
+  /* Site chrome (dark) */
+  --chrome: 18 22 28;
+  --chrome-foreground: 240 246 252;
 
   /* Surface + text levels */
-  --surface: 26 30 36;
+  --surface: 22 27 34;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 42 47 54;
-  --border-strong: 236 238 236;
+  --surface-3: 48 54 61;
+  --border-strong: 84 94 106;
   --text-2: 181 186 194;
-  --text-3: 139 147 158;
+  --text-3: 139 148 158;
 
   /* Soft Signal accents (dark) */
-  --chip: 32 36 42;
-  --faint: 139 147 158;
-  --live: 18 155 110;
-  --green-tint-bg: 22 38 32;
-  --green-tint-bg-alt: 20 34 29;
-  --green-tint-border: 46 90 74;
-  --warn: 194 148 65;
-  --warn-dot: 194 148 65;
-  --danger-tint-border: 92 51 41;
+  --chip: 33 38 45;
+  --faint: 110 118 129;
+  --live: 46 196 142;
+  --green-tint-bg: 13 37 29;
+  --green-tint-bg-alt: 10 30 23;
+  --green-tint-border: 35 84 68;
+  --warn: 245 158 11;
+  --warn-dot: 245 158 11;
+  --danger-tint-border: 120 30 45;
 
-  /* Verdict channel (dark) — see the light-theme comment above. */
-  --verdict-live: 94 156 126;
-  --verdict-caution: 194 148 65;
-  --verdict-risk: 200 106 84;
-  --verdict-live-bg: 27 36 32;
-  --verdict-caution-bg: 38 33 23;
-  --verdict-risk-bg: 39 27 24;
+  /* Verdict channel (dark) */
+  --verdict-live: 52 211 153;
+  --verdict-caution: 251 191 36;
+  --verdict-risk: 251 113 133;
+  --verdict-live-bg: 13 37 29;
+  --verdict-caution-bg: 38 31 16;
+  --verdict-risk-bg: 38 18 22;
 
-  /* Pipeline / status colors (dark) — remapped onto live/warn/danger/muted equivalents */
+  /* Pipeline / status colors (dark) */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
   --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
-  --st-intv: var(--warn);                 --st-intv-soft: 38 33 23;
+  --st-intv: var(--warn);                 --st-intv-soft: 38 31 16;
   --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 39 27 24;
+  --st-closed: var(--destructive);        --st-closed-soft: 38 18 22;
 
-  /* Shadow tokens (dark) — none, same rationale as :root above. */
+  /* Shadow tokens (dark) */
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
@@ -296,27 +270,25 @@
   --color-verdict-live-bg: rgb(var(--verdict-live-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
-  /* Squared design-system pass (2026-08-02, docs-mockup.html "THE RULES" #1
-     — "Radius 0 everywhere — pills retired app-wide, chips/buttons/cards/
-     inputs all share the rectangle"). Every radius-scale key Tailwind
-     registers a `rounded-*` utility from is flattened to 0 HERE — the one
-     chokepoint every `rounded-{sm,md,lg,xl,2xl,3xl,4xl}` and bare `rounded`
-     utility in the app reads through — instead of hand-editing every call
-     site. `rounded-full` and any arbitrary `rounded-[Npx]` are NOT
-     theme-driven (Tailwind emits them as literal values), so those are
-     edited at their call sites instead; a plain `--radius` custom property
-     feeding a calc() chain is no longer needed now that every step of the
-     chain is a flat 0, so it's deleted rather than left dead (see the
-     removed `:root { --radius: 0.75rem }` line above). */
-  --radius: 0px;
-  --radius-xs: 0px;
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-4xl: 0px;
+  --shadow-2xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-xs: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 5px 0 rgba(15, 23, 42, 0.05), 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 14px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 35px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+  --shadow-glow: 0 0 25px -5px rgba(16, 149, 106, 0.25);
+
+  /* Modern radius scale */
+  --radius: 0.5rem;
+  --radius-2xs: 0.125rem;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
   --color-sidebar-primary: rgb(var(--sidebar-primary));
@@ -327,36 +299,6 @@
   --color-sidebar-ring: rgb(var(--sidebar-ring));
 }
 
-/*
- * Frozen instrument: hairline borders are 0px. Keep thicker intentional
- * borders (border-2, border-l-2 error rails, etc.) — those utilities set an
- * explicit width and win over these defaults.
- */
-@layer utilities {
-  .border {
-    border-width: 0;
-  }
-  .border-x {
-    border-left-width: 0;
-    border-right-width: 0;
-  }
-  .border-y {
-    border-top-width: 0;
-    border-bottom-width: 0;
-  }
-  .border-t {
-    border-top-width: 0;
-  }
-  .border-r {
-    border-right-width: 0;
-  }
-  .border-b {
-    border-bottom-width: 0;
-  }
-  .border-l {
-    border-left-width: 0;
-  }
-}
 
 /* Base Styles */
 html {

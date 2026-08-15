@@ -227,7 +227,7 @@ function ResumeSummaryBody({
         return (
             <div className="space-y-3">
                 {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-                <pre className="text-sm whitespace-pre-wrap font-sans bg-muted/30 border border-border rounded-none p-3 max-h-80 overflow-y-auto">
+                <pre className="text-sm whitespace-pre-wrap font-sans bg-muted/30 border border-slate-300 dark:border-slate-700 rounded-xl p-4 max-h-80 overflow-y-auto shadow-2xs">
                     {preview}
                 </pre>
                 <div className="flex flex-wrap gap-2">

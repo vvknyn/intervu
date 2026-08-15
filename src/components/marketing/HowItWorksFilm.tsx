@@ -23,7 +23,7 @@ export function HowItWorksFilm({ film, onOpenChange }: HowItWorksFilmProps) {
     return (
         <Dialog open={film !== null} onOpenChange={onOpenChange}>
             <DialogContent
-                className="max-w-[min(920px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-none border border-[#2a2f36] bg-[#12151a] p-0 text-[#ececec] sm:max-w-[min(920px,calc(100vw-2rem))]"
+                className="max-w-[min(920px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#12151a] p-0 text-[#ececec] shadow-2xl sm:max-w-[min(920px,calc(100vw-2rem))]"
                 showCloseButton
             >
                 {active ? (

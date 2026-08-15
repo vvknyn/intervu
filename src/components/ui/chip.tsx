@@ -19,12 +19,12 @@ import { cn } from "@/lib/utils"
  * contract is the CLASS, not the element.
  */
 export const chipVariants = cva(
-  "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap border px-3 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-[13px] font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "border-brand bg-green-tint-bg text-brand",
-        false: "border-border bg-card text-muted-foreground hover:border-foreground/30",
+        true: "border-emerald-600 bg-emerald-50 text-emerald-950 font-semibold ring-2 ring-emerald-600/30 dark:border-emerald-500 dark:bg-emerald-950/70 dark:text-emerald-200 dark:ring-emerald-500/30 shadow-xs",
+        false: "border-slate-300 bg-card text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:border-slate-600 shadow-2xs",
       },
     },
     defaultVariants: { active: false },

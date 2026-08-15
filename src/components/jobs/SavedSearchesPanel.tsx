@@ -132,7 +132,7 @@ export function SavedSearchesPanel({
                             if (e.key === "Enter") void commitSave();
                             if (e.key === "Escape") setNaming(false);
                         }}
-                        className="h-8 min-w-[10rem] rounded-none border border-foreground/30 bg-background px-2 text-[12px] text-foreground outline-none focus:border-foreground/60"
+                        className="h-8 min-w-[10rem] rounded-lg border border-slate-300 bg-background px-2.5 text-[12px] text-foreground outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 dark:border-slate-700 shadow-2xs"
                         aria-label="Saved search name"
                         autoFocus
                     />

@@ -46,7 +46,7 @@ function FacetChip({
         <Popover>
             <PopoverTrigger
                 data-testid={testId}
-                className={cn(chipVariants({ active: activeValue != null }), "rounded-none")}
+                className={cn(chipVariants({ active: activeValue != null }), "rounded-md")}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
                 <CaretDown size={11} weight="bold" aria-hidden className="opacity-60" />
@@ -54,7 +54,7 @@ function FacetChip({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-60 flex-col gap-1 rounded-none p-3"
+                className="flex w-60 flex-col gap-1 rounded-xl border border-slate-200 p-3 shadow-lg dark:border-slate-700"
             >
                 {children}
             </PopoverContent>

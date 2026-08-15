@@ -74,7 +74,7 @@ export function ResetPasswordForm() {
             <div className="min-h-screen flex items-center justify-center px-4">
                 <div className="w-full max-w-xs text-center">
                     <div className="mb-6 flex justify-center">
-                        <div className="w-12 h-12 rounded-none bg-green-50 dark:bg-green-950/30 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-950/30 flex items-center justify-center shadow-2xs">
                             <CheckCircle size={24} weight="fill" className="text-green-600 dark:text-green-400" />
                         </div>
                     </div>

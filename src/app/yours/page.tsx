@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -49,6 +50,8 @@ function YoursLoading() {
     );
 }
 
+import { BookmarkSimple, MagnifyingGlass, Plus, ArrowSquareOut } from "@phosphor-icons/react";
+
 function StatusChips({
     filter,
     counts,
@@ -63,29 +66,35 @@ function StatusChips({
     onChange: (f: TrackerFilter) => void;
 }) {
     return (
-        <div className="mb-3.5 flex flex-wrap items-center gap-2">
-            {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
-                const n = key === "all" ? total : counts[key];
-                return (
-                    <button
-                        key={key}
-                        type="button"
-                        aria-pressed={filter === key}
-                        onClick={() => onChange(key)}
-                        className={cn(
-                            "rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors",
-                            filter === key && "border-foreground bg-foreground text-background",
-                        )}
-                    >
-                        {label} <span className="opacity-70">{n}</span>
-                    </button>
-                );
-            })}
-            {/* Self-Monitoring fact chip (spec B3) — honest praise: rendered
-                ONLY when there's something to show, never a "0 applied" guilt
-                line. Not a filter — no aria-pressed/onClick. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-xl border border-slate-300/80 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 shadow-2xs">
+                {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
+                    const n = key === "all" ? total : counts[key];
+                    const active = filter === key;
+                    return (
+                        <button
+                            key={key}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => onChange(key)}
+                            className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-all duration-150",
+                                active
+                                    ? "bg-white text-slate-950 shadow-xs dark:bg-slate-900 dark:text-white border border-slate-200/80 dark:border-slate-700"
+                                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
+                            )}
+                        >
+                            <span>{label}</span>
+                            <span className={cn("rounded-md px-1 py-0.2 text-[10px]", active ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100" : "opacity-60")}>
+                                {n}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+
             {appliedThisWeek >= 1 && (
-                <span className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground">
+                <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-mono text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
                     {appliedThisWeek} applied this week
                 </span>
             )}
@@ -93,17 +102,6 @@ function StatusChips({
     );
 }
 
-/** Blank Slate (G6, Grok UX wave) — one primary CTA ("Track a role", the
- *  manual-entry flow — the only path for logging an outside interview that
- *  never went through the board) plus one short caption, not the old
- *  mechanism essay ("Open a role on the board and hit Mark applied — it
- *  lands here") — stale prose anyway once G2 removed Mark-as-applied as a
- *  JobDetail peer button. Keeps the one static, clearly-fake illustrative
- *  row (never a real-looking company name) and the `data-testid`s the
- *  guest/signed-in e2e specs (tests/e2e/yours.spec.ts TC-YOURS-002) assert
- *  on. The caption keeps the records-not-submissions honesty short instead
- *  of a paragraph — the fuller line already lives in the page header
- *  (TRACKER_SUBCOPY above), not repeated here. */
 function TrackerEmptyState({
     user,
     onAdd,
@@ -114,32 +112,56 @@ function TrackerEmptyState({
     onLoginClick: () => void;
 }) {
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="px-2 py-9">
-            <div className="mb-4 grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-none border border-dashed border-border bg-muted/40 p-4 opacity-70">
-                <div className="min-w-0">
-                    <div className="truncate text-[15px] font-semibold tracking-[-0.02em] text-muted-foreground">
-                        Product Designer — Acme Studio
-                    </div>
-                    <div className="truncate font-mono text-[11px] text-[#8b939e]">not your data</div>
-                </div>
-                <span className="inline-flex h-fit items-center rounded-none border border-border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
-                    example
-                </span>
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-2xl border border-slate-300/80 bg-card p-8 shadow-xs dark:border-slate-700 text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+                <BookmarkSimple size={24} weight="duotone" />
             </div>
-            <p className="mb-4 text-sm text-muted-foreground">Your records, not submissions.</p>
-            <Button size="sm" onClick={onAdd}>
-                Track a role
-            </Button>
+
+            <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-lg font-bold text-foreground tracking-tight">Your Tracker is Empty</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    Save verified jobs with 1-click while browsing, or log outside applications manually to keep your pipeline organized.
+                </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button asChild className="rounded-lg font-semibold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 shadow-xs">
+                    <Link href="/jobs">Browse Verified Roles</Link>
+                </Button>
+                <Button variant="outline" onClick={onAdd} className="rounded-lg font-semibold shadow-2xs">
+                    <Plus size={15} /> Track a Role
+                </Button>
+            </div>
+
+            {/* Example preview row */}
+            <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 max-w-lg mx-auto text-left">
+                <div className="mb-2 flex items-center justify-between">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview of a tracked role</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground dark:border-slate-700 dark:bg-slate-800">
+                        EXAMPLE
+                    </span>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 opacity-80 dark:border-slate-800 dark:bg-slate-900/40">
+                    <div>
+                        <div className="text-sm font-bold text-foreground">Staff Product Designer</div>
+                        <div className="font-mono text-xs text-muted-foreground">Acme Studio · San Francisco, CA</div>
+                    </div>
+                    <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
+                        SAVED
+                    </span>
+                </div>
+            </div>
+
             {!user && (
-                <p className="mt-3 text-[13px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground pt-1">
                     <button
                         type="button"
                         onClick={onLoginClick}
-                        className="underline underline-offset-2 hover:text-foreground"
+                        className="font-semibold text-foreground underline underline-offset-4 hover:text-emerald-600"
                     >
-                        Log in
+                        Sign in
                     </button>{" "}
-                    to sync across devices.
+                    to sync your tracked roles across devices.
                 </p>
             )}
         </div>
@@ -346,13 +368,17 @@ function YoursContent() {
                     onChange={setFilter}
                 />
 
-                <div className="mb-3.5">
+                <div className="relative mb-5">
+                    <MagnifyingGlass
+                        size={16}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    />
                     <Input
                         type="search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search company or role"
-                        className="rounded-[10px] border-border bg-card"
+                        placeholder="Search company or role in your tracker..."
+                        className="h-10 pl-9 rounded-xl border-slate-300 bg-card text-xs font-medium shadow-2xs dark:border-slate-700"
                     />
                 </div>
 

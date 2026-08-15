@@ -1,21 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
+import { Briefcase, ClockCounterClockwise, ShieldWarning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-/**
- * Hero stat band for /trends. Three tiles, plain ink numbers (font-mono —
- * see layout.tsx's font-role comment: mono carries every number on this
- * app), no colored panels — matches GhostRadarCard's restrained register
- * rather than a heavier dashboard look.
- *
- * Deliberately only three tiles: a "companies tracked" stat was scoped in
- * the spec but the live `source` facet (probed 2026-07-29) turned out to be
- * ATS-platform identifiers ("workday_direct", "greenhouse_direct", …), not
- * company identity — fabricating a company count off it would misrepresent
- * the corpus, so that tile is dropped rather than faked (spec explicitly
- * wants no invented stat).
- */
 export function TrendsHero({
   liveJobs,
   totalTracked,
@@ -25,39 +15,51 @@ export function TrendsHero({
   totalTracked: CorpusCount;
   ghostFlaggedLive: CorpusCount;
 }) {
-  const tiles: { label: string; value: CorpusCount; testId: string; href?: string }[] = [
+  const tiles = [
     {
       label: "Live jobs right now",
       value: liveJobs,
       testId: "trends-stat-live",
-      // "Right now" is ghost-inclusive, any-age (market-trends.ts's liveJobs
-      // query has no age filter) — override postedBucket to "any" so the
-      // link matches what this stat actually counts.
+      icon: <Briefcase size={18} weight="duotone" className="text-emerald-700 dark:text-emerald-400" />,
+      badgeCls: "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
+      numberCls: "text-emerald-950 dark:text-emerald-200",
       href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
     },
-    { label: "Postings tracked, all-time", value: totalTracked, testId: "trends-stat-total" },
-    { label: "Flagged likely-ghost, live", value: ghostFlaggedLive, testId: "trends-stat-ghost" },
+    {
+      label: "Postings tracked, all-time",
+      value: totalTracked,
+      testId: "trends-stat-total",
+      icon: <ClockCounterClockwise size={18} weight="duotone" className="text-indigo-700 dark:text-indigo-400" />,
+      badgeCls: "bg-indigo-50 text-indigo-950 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800",
+      numberCls: "text-slate-900 dark:text-white",
+    },
+    {
+      label: "Flagged likely-ghost, live",
+      value: ghostFlaggedLive,
+      testId: "trends-stat-ghost",
+      icon: <ShieldWarning size={18} weight="duotone" className="text-rose-700 dark:text-rose-400" />,
+      badgeCls: "bg-rose-50 text-rose-950 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800",
+      numberCls: "text-rose-950 dark:text-rose-200",
+    },
   ];
 
   return (
-    <div data-testid="trends-hero" className="grid grid-cols-1 gap-6 border-t border-foreground pt-6 sm:grid-cols-3">
+    <div data-testid="trends-hero" className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-3">
       {tiles.map((tile) => (
-        <div key={tile.testId} data-testid={tile.testId}>
-          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-            {tile.label}
-          </span>
-          <p
-            className={cn(
-              "mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground",
-              // Comp F underlines every stat tile uniformly (mock's
-              // `.bignum`, 3px) — reuse the shared 2px `.verified-underline`
-              // utility (verified corpus data, doc-commented in globals.css,
-              // shared with other pages) and layer a local 3px override at
-              // this call site only, rather than widening the shared
-              // utility's width for one page.
-              "verified-underline border-b-[3px]",
-            )}
-          >
+        <div
+          key={tile.testId}
+          data-testid={tile.testId}
+          className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-card p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-sm dark:border-slate-800"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              {tile.label}
+            </span>
+            <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg border", tile.badgeCls)}>
+              {tile.icon}
+            </div>
+          </div>
+          <p className={cn("mt-3 font-mono text-3xl font-extrabold tracking-tight", tile.numberCls)}>
             {tile.href ? (
               <Link href={tile.href} className="hover:underline">
                 {formatCorpusCount(tile.value)}
