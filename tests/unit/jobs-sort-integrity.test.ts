@@ -179,3 +179,115 @@ describe("searchMeili sort-integrity guard — salary_desc (a mode the 2026-08-1
         mock.reset();
     });
 });
+
+/**
+ * 2026-08-14: `typo` now sits ahead of `sort` in `rankingRules`
+ * (JOBS_INDEX_SETTINGS, meilisearch.ts), so an explicit-sort + non-empty-q
+ * search is scoped to title+company (`shouldScopeTextMatchToTitle`, sort.ts)
+ * and can legitimately restart its date/salary order at the boundary
+ * between the 0-typo bucket and a looser typo-admit bucket — that restart
+ * is the new rule order working as intended, NOT the searchCutoffMs
+ * partial-sort disorder the guard above exists to catch. These pin the
+ * guard's new invariant: check sortedness on the TITLED subsequence only
+ * (`sortVerifiableHits`, sort.ts) when scoping is active, and keep the
+ * original whole-page check when it isn't (empty q, or relevance).
+ */
+describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary)", () => {
+    it("passes when the titled subsequence is monotonic even though the full page restarts at a typo-bucket boundary", async () => {
+        mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+        await resolveCompanyIntent("engineer");
+        mock.reset();
+
+        // "b" is a typo/fuzzy admit (title doesn't match "engineer" at all —
+        // stands in for the class) whose own date sits BETWEEN "a" and "c",
+        // breaking the full page's newest-first order. The titled
+        // subsequence [a, c] is, on its own, correctly newest-first.
+        const page = [
+            job({ id: "a", title: "Engineer", posted_at: "2026-01-10T00:00:00Z" }),
+            job({ id: "b", title: "Manager", posted_at: "2026-01-15T00:00:00Z" }),
+            job({ id: "c", title: "Senior Engineer", posted_at: "2026-01-05T00:00:00Z" }),
+        ];
+
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return jsonResponse(200, { hits: page, totalHits: page.length });
+        });
+
+        const result = await searchMeili({ q: "engineer", sort: "newest" });
+
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "page returned as-is — no retry, no local re-sort");
+        assert.equal(calls, 1, "titled subsequence [a, c] is monotonic, so the whole page is treated as sorted");
+        mock.reset();
+    });
+
+    it("still retries when the titled subsequence itself is disordered", async () => {
+        mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+        await resolveCompanyIntent("engineer");
+        mock.reset();
+
+        // Titled hits [a, c] are themselves OUT of newest-first order (a is
+        // older than c) — a genuine disorder the scoped check must still catch.
+        const unsorted = [
+            job({ id: "a", title: "Engineer", posted_at: "2026-01-05T00:00:00Z" }),
+            job({ id: "b", title: "Manager", posted_at: "2026-01-08T00:00:00Z" }),
+            job({ id: "c", title: "Senior Engineer", posted_at: "2026-01-10T00:00:00Z" }),
+        ];
+        const sorted = [unsorted[2], unsorted[1], unsorted[0]];
+
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return calls === 1
+                ? jsonResponse(200, { hits: unsorted, totalHits: unsorted.length })
+                : jsonResponse(200, { hits: sorted, totalHits: sorted.length });
+        });
+
+        const result = await searchMeili({ q: "engineer", sort: "newest" });
+
+        assert.deepEqual(result.hits.map((h) => h.id), ["c", "b", "a"], "returns the retry's hits once the titled subsequence is sorted");
+        assert.equal(calls, 2, "retried once — titled subsequence [a, c] was genuinely disordered");
+        mock.reset();
+    });
+
+    it("keeps whole-page semantics when q is empty, even under an explicit sort — scoping never fires without query text", async () => {
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return jsonResponse(200, { hits: NEWEST_UNSORTED, totalHits: NEWEST_UNSORTED.length });
+        });
+
+        const result = await searchMeili({ q: "", sort: "newest" });
+
+        assert.deepEqual(result.hits.map((h) => h.id), ["c", "a", "b"], "locally re-sorted — whole-page check still applies with no query text");
+        assert.equal(calls, 2, "retry still fires: an empty q never scopes, regardless of sort mode");
+        mock.reset();
+    });
+
+    it("guards salary_desc scoped mode the same way as newest", async () => {
+        mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+        await resolveCompanyIntent("engineer");
+        mock.reset();
+
+        // "b" (not titled) carries the highest salary, breaking the full
+        // page's descending order; the titled subsequence [a, c] is on its
+        // own correctly salary-descending.
+        const page = [
+            job({ id: "a", title: "Engineer", salary_max: 150_000 }),
+            job({ id: "b", title: "Manager", salary_max: 999_999 }),
+            job({ id: "c", title: "Senior Engineer", salary_max: 100_000 }),
+        ];
+
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return jsonResponse(200, { hits: page, totalHits: page.length });
+        });
+
+        const result = await searchMeili({ q: "engineer", sort: "salary_desc" });
+
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"]);
+        assert.equal(calls, 1, "titled subsequence [a, c] is salary-descending, so no retry fires");
+        mock.reset();
+    });
+});

@@ -4,6 +4,7 @@
  * semantics in one place so unit tests can lock behavior without HTTP mocks.
  */
 import { derivePostedTs } from "./meilisearch";
+import { decodeText, titleMatchesQuery } from "./presentation";
 import type { JobSearchParams, JobSortMode, PublicJob } from "./types";
 
 /** Resolve the effective sort, normalizing invalid combinations (e.g. relevance without query). */
@@ -110,4 +111,42 @@ export function isPageSorted(hits: PublicJob[], mode: JobSortMode): boolean {
         if (compareJobsBySort(hits[i - 1], hits[i], mode) > 0) return false;
     }
     return true;
+}
+
+/**
+ * The subsequence of `hits` whose order the sort-integrity guard
+ * (`applySortIntegrityGuard`, meilisearch.ts) can actually hold to a
+ * monotonic promise.
+ *
+ * 2026-08-14: `typo` now sits ahead of `sort` in `rankingRules`
+ * (JOBS_INDEX_SETTINGS docblock, meilisearch.ts) — Meilisearch applies rules
+ * strictly lexicographically, so the result set is fully partitioned into
+ * typo-count buckets (0-typo, 1-typo, ...) BEFORE `sort` ever runs, and
+ * `sort` then only reorders WITHIN each bucket. A page spanning a bucket
+ * boundary is legitimately non-monotonic as a WHOLE — that restart is the
+ * new rule working as intended (google-serp semantics: exact matches first,
+ * each tier sorted within itself), not the searchCutoffMs partial-sort
+ * disorder this guard exists to catch.
+ *
+ * When `shouldScopeTextMatchToTitle` is active, retrieval is scoped to
+ * title+company, and the titled hits (matched via the SAME
+ * `titleMatchesQuery` predicate the client-side seam partition
+ * (`partitionByTitleMatch`, presentation.ts) uses — one predicate, so the
+ * two can never disagree about what counts as "titled it") are exactly the
+ * 0-typo bucket's visible face. Checking sortedness on that subsequence
+ * alone restores a promise the guard can actually verify. Below the seam
+ * carries no such promise ("weaker matches" — see `seamSummarySorted`,
+ * presentation.ts); it was never this guard's job to order that tail.
+ *
+ * Safe to deploy ahead of the `typo`-before-`sort` rankingRules change
+ * landing on the live index: under the OLD order the whole page was
+ * monotonic, and a subsequence of a monotonic sequence is itself
+ * monotonic — so this narrower check never flags a false positive either way.
+ *
+ * Unscoped (empty `q`, or relevance mode) returns `hits` unchanged — the
+ * guard's original whole-page check.
+ */
+export function sortVerifiableHits(hits: PublicJob[], mode: JobSortMode, q: string | undefined): PublicJob[] {
+    if (!shouldScopeTextMatchToTitle(mode, q)) return hits;
+    return hits.filter((hit) => titleMatchesQuery(decodeText(hit.title), q ?? ""));
 }
