@@ -122,7 +122,7 @@ export function deriveGhostSignals(
             freshness.kind === "relisted"
                 ? { text: `first seen by us ${firstSeenRelative} · posted date refreshed since`, positive: false, kind: "freshness" }
                 : freshness.kind === "fresh"
-                  ? { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" }
+                  ? { text: "posted within the last 7 days", positive: true, kind: "freshness" }
                   : { text: `first seen by us ${firstSeenRelative}`, positive: false, kind: "freshness" },
         );
         signals.push({ text: "repost (close/reopen) history not tracked yet", positive: false, kind: "reposts" });

@@ -15,7 +15,7 @@ test("copy string: exported from one module, plain-language, never claims a job 
 });
 
 test("isAgeSignal: recognizes both branches deriveGhostSignals emits for the freshness/first-seen line", () => {
-  assert.equal(isAgeSignal({ text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" }), true);
+  assert.equal(isAgeSignal({ text: "posted within the last 7 days", positive: true, kind: "freshness" }), true);
   assert.equal(isAgeSignal({ text: "first seen by us 3 months ago", positive: false, kind: "freshness" }), true);
   assert.equal(isAgeSignal({ text: "salary not disclosed (common for some regions)", positive: false, kind: "pay" }), false);
 });
@@ -41,7 +41,7 @@ test("multi-signal class: age negative PLUS another real negative signal — the
 
 test("no negative signals at all: nothing to balance, the note does not mount", () => {
   const signals: GhostSignal[] = [
-    { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" },
+    { text: "posted within the last 7 days", positive: true, kind: "freshness" },
     { text: "no repost history on this role", positive: true, kind: "reposts" },
   ];
   assert.equal(shouldShowAgeBalanceNote(signals), false);
@@ -49,7 +49,7 @@ test("no negative signals at all: nothing to balance, the note does not mount", 
 
 test("the sole negative signal is NOT age (e.g. thin description alone) — the note must not mount, since it's specifically an age-balance note", () => {
   const signals: GhostSignal[] = [
-    { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" },
+    { text: "posted within the last 7 days", positive: true, kind: "freshness" },
     { text: "description is thin", positive: false, kind: "description" },
   ];
   assert.equal(shouldShowAgeBalanceNote(signals), false);

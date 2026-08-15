@@ -21,13 +21,11 @@ import type { GhostSignal } from "@/components/jobs/job-detail-facts";
 export const POSTING_AGE_CONTEXT_COPY =
   "An older posting isn't necessarily inactive — senior and specialized roles can take months to fill, and some companies hire for a role on a rolling basis. We also weigh more than age: repost history, how much the listing actually says, and whether pay is disclosed.";
 
-/** Identifies `deriveGhostSignals`' age-derived line by its known emission
- *  shape rather than exact string matching every future copy tweak — both
- *  branches of that function's freshness block start with one of these two
- *  prefixes (the "fresh" positive case and the "first seen X ago" case),
- *  and it's the only signal category driven by posting age. */
+/** Identifies `deriveGhostSignals`' age-derived line by its `kind`, not by
+ *  matching the text it happens to render — "freshness" is the only signal
+ *  category driven by posting age. */
 export function isAgeSignal(signal: GhostSignal): boolean {
-  return signal.text.startsWith("first seen by us") || signal.text.startsWith("freshness —");
+  return signal.kind === "freshness";
 }
 
 /**

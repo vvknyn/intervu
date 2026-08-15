@@ -10,6 +10,7 @@ import {
     CaretDown,
     CaretUp,
     FunnelSimple,
+    MapPin,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2857,13 +2858,19 @@ function JobsContent() {
                     reportJobEnabled={reportJobEnabled}
                     className="border-0 bg-transparent shadow-none"
                 />
-                {user ? (
-                    <JobDetailActionBar
-                        job={detailJob}
-                        signedIn
-                        onOpenPosting={() => handleOpenPosting(detailJob)}
-                    />
-                ) : null}
+                {/* Rendered for guests too (founder call, 2026-08-15). /jobs is the
+                    SEO front door, so most first-time readers arrive signed out —
+                    and the inline Apply button scrolls out of view, leaving them
+                    with no persistent CTA. `signedIn={false}` is the state this
+                    component was already built for: the label reads "Sign in to
+                    apply", and handleOpenPosting gates at resolveApplyGateDecision
+                    (:2282) before any ATS departure, so the label never
+                    over-promises what the tap delivers. */}
+                <JobDetailActionBar
+                    job={detailJob}
+                    signedIn={Boolean(user)}
+                    onOpenPosting={() => handleOpenPosting(detailJob)}
+                />
             </>
         ) : isDeadJobConfirmed ? (
             <div className="p-4">
@@ -2958,40 +2965,53 @@ function JobsContent() {
                     </h1>
                 </header>
 
-                <section className="rounded-xl border border-slate-300/80 bg-card p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
-                    <div data-search-line className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                        <SearchAutocomplete
-                            value={query}
-                            onChange={(v) => {
-                                setQuery(v);
-                                applyUrlState(buildUrlState({ q: v }), "replace");
-                            }}
-                            onSearch={() => submitSearch(query)}
-                            suggest={suggestForBox}
-                            seeds={searchSeeds}
-                            placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:min-w-[260px] sm:flex-[1_1_260px]"
-                            containerClassName="min-w-0 w-full sm:flex-1"
-                        />
-                        <Input
-                            data-testid="location-input"
-                            type="text"
-                            placeholder="City, state, or remote"
-                            value={locationDraft}
-                            onChange={(e) => setLocationDraft(e.target.value)}
-                            onBlur={commitLocation}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    commitLocation();
-                                }
-                            }}
-                            className="h-[46px] w-full rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:max-w-[200px] sm:flex-[0_1_200px]"
-                        />
+                <section className="rounded-xl border border-slate-300/80 bg-card p-2 sm:p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
+                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
+                        <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-background/80 divide-y divide-slate-200/80 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/30 dark:border-slate-800 dark:bg-background/40 dark:divide-slate-800 sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-lg sm:border-slate-300 dark:sm:border-slate-700">
+                            <SearchAutocomplete
+                                value={query}
+                                onChange={(v) => {
+                                    setQuery(v);
+                                    applyUrlState(buildUrlState({ q: v }), "replace");
+                                }}
+                                onSearch={() => submitSearch(query)}
+                                suggest={suggestForBox}
+                                seeds={searchSeeds}
+                                placeholder={searchPlaceholder}
+                                leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
+                                className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                containerClassName="min-w-0 w-full sm:flex-1"
+                            />
+                            {/* Glyph as a row sibling, not an absolute overlay +
+                                `pl-*` on the field — same reason as
+                                SearchAutocomplete's (see its doc comment): padding
+                                is a shared tailwind-merge axis and an overlay only
+                                stays clear of the text while nobody touches it. */}
+                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                                <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                                    <MapPin size={16} weight="bold" />
+                                </span>
+                                <Input
+                                    data-testid="location-input"
+                                    type="text"
+                                    placeholder="City, state, or remote"
+                                    value={locationDraft}
+                                    onChange={(e) => setLocationDraft(e.target.value)}
+                                    onBlur={commitLocation}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            commitLocation();
+                                        }
+                                    }}
+                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                />
+                            </div>
+                        </div>
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-[46px] w-full rounded-lg bg-slate-900 px-5 text-[13px] font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto"
+                            className="h-11 sm:h-[46px] w-full rounded-xl sm:rounded-lg bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto transition-all"
                         >
                             Search
                         </Button>
@@ -3020,7 +3040,11 @@ function JobsContent() {
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
-                                "w-full justify-center rounded-md font-semibold text-foreground sm:w-auto sm:justify-start",
+                                // h-11 on mobile, then back to chipVariants' own h-9 at
+                                // sm+ — same rule as the detail panel's Apply/Save. An
+                                // `h-8` override here undercut the base chip on BOTH
+                                // breakpoints; measured on the rendered page, not eyeballed.
+                                "h-11 px-3 rounded-lg font-semibold text-foreground inline-flex items-center gap-1.5 shadow-2xs transition-all sm:h-9",
                                 filtersOpen && "border-slate-900 bg-slate-900 text-white ring-2 ring-slate-900/30 dark:border-white dark:bg-white dark:text-slate-900 dark:ring-white/30 hover:border-slate-900 hover:bg-slate-900",
                                 activeCount > 0 && "has-active",
                             )}
@@ -3661,9 +3685,9 @@ function JobsContent() {
                         type="button"
                         aria-label="Close"
                         onClick={() => router.back()}
-                        className="relative flex h-11 w-full shrink-0 items-center justify-center"
+                        className="relative flex h-11 w-full shrink-0 items-center justify-center transition-opacity hover:opacity-80"
                     >
-                        <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border" />
+                        <span aria-hidden="true" className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
                         <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-faint">
                             ×
                         </span>
@@ -3679,7 +3703,16 @@ function JobsContent() {
                         sticky action bar / last content could sit flush
                         against it. Same env() token MobileTabBar.tsx uses. */}
                     <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
-                        {renderDetailSurface(() => router.back())}
+                        {/* `undefined`, not `() => router.back()` — the sheet chrome
+                            above already renders its own × wired to the identical
+                            `router.back()` (the button ~30 lines up). Passing a
+                            handler here makes JobDetail render a SECOND × (its
+                            `{onClose && ...}` gate at JobDetail.tsx:597), duplicating
+                            the close control ~150px away from the first. Do not
+                            "fix" this back — the desktop pane at :3223 is a
+                            different mount site with no chrome × of its own, which
+                            is why it still passes a real handler. */}
+                        {renderDetailSurface(undefined)}
                     </div>
                 </SheetContent>
             </Sheet>
