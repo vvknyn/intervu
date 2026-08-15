@@ -37,15 +37,14 @@ export const themes: Record<string, Theme> = {
     label: "Green",
     colors: {
       light: {
-        // Frozen UI brand #7cb87a
-        brand: "124 184 122",
+        brand: "16 149 106",
         "brand-foreground": "255 255 255",
-        "brand-muted": "168 208 166",
+        "brand-muted": "52 211 153",
       },
       dark: {
-        brand: "94 180 150",
-        "brand-foreground": "15 18 22",
-        "brand-muted": "58 140 110",
+        brand: "46 196 142",
+        "brand-foreground": "13 17 23",
+        "brand-muted": "34 140 100",
       },
     },
   },

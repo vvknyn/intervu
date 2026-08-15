@@ -188,17 +188,25 @@ export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | n
  * the sheet, show the pane" would double-mount `JobDetail` (double
  * related-jobs fetch, double open-rank telemetry).
  *
- * Gates on `detailSheetOpen`, never merely "is there a job to show":
- * `detailJob` (jobs/page.tsx) falls back to `hits[0]` for ambient keyboard
- * highlighting even with no explicit selection, so gating on it here would
- * silently auto-select a job into the pane on load — exactly the
- * poisoned-open-rank-telemetry outcome v1 has no auto-select to avoid.
+ * Auto-preview (2026-08-14 investor-polish, reversing v1's no-auto-select):
+ * at xl+ the pane never sits empty — with no explicit open it previews the
+ * ambient job (`detailJob`'s `hits[0]` fallback) via `hasAmbientJob`. The
+ * original objection to auto-select was open-rank telemetry poisoning, and
+ * that still holds — which is why this stays a RENDER-ONLY mount:
+ * `recordJobOpenedAction`, `openedIds`, and the `?job=` URL write all live
+ * exclusively in `openJob` (jobs/page.tsx), which only a real click/keypress
+ * reaches. Below xl nothing changes: the sheet still opens only on an
+ * explicit open (`detailSheetOpen`).
  */
 export type DetailMountSite = "sheet" | "pane" | "none";
 
-export function resolveDetailMountSite(isXlUp: boolean, detailSheetOpen: boolean): DetailMountSite {
-    if (!detailSheetOpen) return "none";
-    return isXlUp ? "pane" : "sheet";
+export function resolveDetailMountSite(
+    isXlUp: boolean,
+    detailSheetOpen: boolean,
+    hasAmbientJob: boolean,
+): DetailMountSite {
+    if (detailSheetOpen) return isXlUp ? "pane" : "sheet";
+    return isXlUp && hasAmbientJob ? "pane" : "none";
 }
 
 /**

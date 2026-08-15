@@ -60,11 +60,9 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
 }
 
 const SIZE_CLS: Record<"xs" | "sm" | "md" | "lg", string> = {
-    xs: "h-8 w-8 rounded-[4px] text-xs",
-    sm: "h-11 w-11 rounded-xl text-base",
-    // SERP job-card tile size (find-jobs list) — matches the initial-tile
-    // dimensions it replaces there (CompanyInitialTile's h-12/rounded-[10px]).
-    md: "h-12 w-12 rounded-[10px] text-[17px]",
+    xs: "h-7 w-7 rounded-md text-xs",
+    sm: "h-9 w-9 rounded-lg text-sm",
+    md: "h-11 w-11 rounded-xl text-base",
     lg: "h-14 w-14 rounded-2xl text-xl",
 };
 
@@ -88,7 +86,7 @@ export function CompanyLogo({
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center bg-brand/10 font-bold text-brand",
+                "flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white font-bold text-slate-800 shadow-2xs dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-100",
                 SIZE_CLS[size],
             )}
         >
@@ -98,9 +96,8 @@ export function CompanyLogo({
                     src={companyLogoUrl(domain as string)}
                     alt={`${name ?? "Company"} logo`}
                     loading="lazy"
-                    referrerPolicy="no-referrer"
-                    className="h-full w-full rounded-[inherit] object-contain p-1.5"
                     onError={() => setErrored(true)}
+                    className="h-full w-full object-contain p-1"
                 />
             ) : (
                 companyInitial(name)

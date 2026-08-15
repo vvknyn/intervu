@@ -31,13 +31,13 @@ export function LoginClient() {
             className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]"
             style={{
                 background:
-                    "radial-gradient(900px 500px at 50% 40%, #1a1f27 0%, transparent 60%), #12151a",
+                    "linear-gradient(180deg, rgb(var(--green-tint-bg)) 0%, rgb(var(--background)) 420px)",
             }}
         >
             <div className="mb-9 flex flex-col items-center">
                 <div className="flex items-center gap-5">
-                    <BrandMark className="h-24 w-24 text-[#ececec] sm:h-28 sm:w-28" />
-                    <span className="text-[52px] font-semibold leading-none tracking-[-0.045em] text-[#ececec] sm:text-[60px]">
+                    <BrandMark className="h-24 w-24 text-foreground sm:h-28 sm:w-28" />
+                    <span className="text-[52px] font-semibold leading-none tracking-[-0.045em] text-foreground sm:text-[60px]">
                         intervu
                     </span>
                 </div>

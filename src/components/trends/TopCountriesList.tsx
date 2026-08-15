@@ -1,22 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { UNCLASSIFIED_LABEL, type CountryRollupRow } from "@/lib/jobs/country-classification";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
+import { GlobeHemisphereWest } from "@phosphor-icons/react";
 
-/** Numbered rows shown before the list collapses into the Unclassified
- *  footnote row — bounded so the page stays a stats surface, not a full
- *  country directory (that's the Phase 2 /trends/locations/<country> idea
- *  in the spec). */
 const MAX_VISIBLE_COUNTRIES = 15;
 
-/**
- * "Top hiring countries" — numbered ranked list, count + a single-hue CSS
- * proportion bar (dataviz skill: sequential magnitude, one hue, thin marks,
- * never a rainbow), each real country linking into /jobs pre-filtered to it
- * via the one existing URL serializer. The Unclassified row (cities/regions/
- * remote sentinels that failed ISO validation — see
- * country-classification.ts) always renders last, unranked and unlinked: it
- * has no single corpus value to filter search by.
- */
 export function TopCountriesList({ countries }: { countries: CountryRollupRow[] }) {
   if (countries.length === 0) return null;
 
@@ -25,29 +15,36 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
   const maxCount = Math.max(...countries.map((row) => row.count), 1);
 
   return (
-    <section data-testid="trends-countries" className="mt-10 border-t border-foreground pt-6">
-      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-        Top hiring countries
-      </span>
-      <p className="mt-1 text-sm text-muted-foreground">Live active postings, by country.</p>
+    <section data-testid="trends-countries" className="mt-6 rounded-2xl border border-slate-200/90 bg-card p-6 shadow-xs dark:border-slate-800">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <GlobeHemisphereWest size={18} weight="duotone" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-foreground">Top Hiring Countries</h2>
+          <p className="text-xs text-muted-foreground">Live active postings direct from verified employer pages</p>
+        </div>
+      </div>
 
-      <ol className="mt-4 space-y-2">
+      <ol className="mt-5 space-y-2.5">
         {ranked.map((row, i) => (
           <li key={row.country} data-testid="trends-country-row" className="flex items-center gap-3 text-[13.5px]">
-            <span className="w-6 shrink-0 text-right font-mono text-[11px] text-muted-foreground">{i + 1}.</span>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 font-mono text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              {i + 1}
+            </span>
             <Link
               href={`/${serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: { location_country: row.rawValues ?? [] } })}`}
-              className="min-w-0 flex-1 truncate text-foreground hover:underline"
+              className="min-w-0 flex-1 truncate font-medium text-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
             >
               {row.country}
             </Link>
-            <span className="h-3 w-20 shrink-0 bg-foreground/10 sm:w-40">
+            <span className="h-2 w-28 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:w-48">
               <span
-                className="block h-full bg-foreground/40"
+                className="block h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500"
                 style={{ width: `${(row.count / maxCount) * 100}%` }}
               />
             </span>
-            <span className="w-16 shrink-0 text-right font-mono text-[12.5px] text-foreground">
+            <span className="w-18 shrink-0 text-right font-mono text-[12.5px] font-bold text-foreground">
               {row.count.toLocaleString()}
             </span>
           </li>
@@ -57,17 +54,17 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
       {unclassified && (
         <div
           data-testid="trends-country-unclassified"
-          className="mt-3 flex items-center gap-3 border-t border-dashed border-foreground/20 pt-3 text-[13px] text-muted-foreground"
+          className="mt-4 flex items-center gap-3 border-t border-dashed border-slate-200 pt-3 text-[13px] text-muted-foreground dark:border-slate-800"
         >
-          <span className="w-6 shrink-0" aria-hidden />
+          <span className="w-5 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1 truncate">{unclassified.country}</span>
-          <span className="h-3 w-20 shrink-0 bg-foreground/10 sm:w-40">
+          <span className="h-2 w-28 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:w-48">
             <span
-              className="block h-full bg-foreground/20"
+              className="block h-full rounded-full bg-slate-300 dark:bg-slate-700"
               style={{ width: `${(unclassified.count / maxCount) * 100}%` }}
             />
           </span>
-          <span className="w-16 shrink-0 text-right font-mono text-[12.5px]">
+          <span className="w-18 shrink-0 text-right font-mono text-[12.5px] font-semibold">
             {unclassified.count.toLocaleString()}
           </span>
         </div>

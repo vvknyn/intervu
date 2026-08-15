@@ -65,7 +65,7 @@ export function ContactForm() {
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="rounded-none focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20"
+                    className="rounded-lg border-slate-300 focus:border-emerald-600 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700"
                 />
             </div>
 
@@ -78,7 +78,7 @@ export function ContactForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="rounded-none focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20"
+                    className="rounded-lg border-slate-300 focus:border-emerald-600 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700"
                 />
             </div>
 
@@ -88,7 +88,7 @@ export function ContactForm() {
                     id="message"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="min-h-[120px] rounded-none focus-visible:border-foreground focus-visible:ring-foreground/20"
+                    className="min-h-[120px] rounded-lg border-slate-300 focus:border-emerald-600 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700"
                     required
                     minLength={10}
                 />

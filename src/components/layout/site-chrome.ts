@@ -1,13 +1,19 @@
 /**
- * Instrument void chrome — same plane as the landing (#12151a).
- * Hardcoded so a stale `intervu-dark=0` preference can never flash a
- * light TopBar over a dark jobs body again.
+ * Site chrome — an ink band (dark surface) in BOTH themes, not a paper
+ * surface (2026-08-15 dark-chrome pass; formerly the #12151a "instrument
+ * void", then briefly the light paper reading surface). TopBar, Footer,
+ * MobileTabBar, and the two /mock demo bars paint themselves from these
+ * classes. Every element rendered inside a chrome bar must take its paint
+ * from THIS object, never from page-level tokens — foreground/muted-
+ * foreground are illegible on the ink fill, since those tokens are tuned
+ * for the light page surface, not the dark chrome sitting on top of it.
  */
 export const siteChrome = {
-    bar: "bg-[#12151a] text-[#ececec]",
-    muted: "text-[#8b919a]",
-    mutedHover: "text-[#8b919a] transition-colors hover:text-[#ececec]",
-    active: "font-[550] text-[#ececec]",
-    faint: "text-[#5c636e]",
-    border: "border-[#2a2f36]",
+    bar: "bg-chrome text-chrome-foreground",
+    muted: "text-chrome-foreground/70",
+    mutedHover: "text-chrome-foreground/70 transition-colors hover:text-chrome-foreground",
+    active: "font-[550] text-chrome-foreground",
+    faint: "text-chrome-foreground/55",
+    faintHover: "hover:text-chrome-foreground",
+    border: "border-transparent",
 } as const;

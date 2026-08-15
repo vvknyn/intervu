@@ -50,16 +50,16 @@ export function BoardVisitBanner() {
     return (
         <div
             data-testid="board-visit-banner"
-            className="mb-4 flex items-center justify-between gap-3 border border-border bg-card px-4 py-3"
+            className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-300/80 bg-card px-4 py-3 shadow-2xs dark:border-slate-700"
         >
-            <p className="font-mono text-[12.5px] text-muted-foreground">
-                {count} role{count === 1 ? "" : "s"} posted since your last visit
+            <p className="font-mono text-[12.5px] font-medium text-muted-foreground">
+                <span className="font-bold text-foreground">{count}</span> role{count === 1 ? "" : "s"} posted since your last visit
             </p>
             <button
                 type="button"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss"
-                className="flex h-11 w-11 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-foreground"
             >
                 <X size={16} aria-hidden />
             </button>

@@ -143,9 +143,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
+            script in <head> blocks first paint until it runs, so a returning
+            dark-mode visitor never flashes the light surface. Mirrors
+            ThemeProvider's own read of the same "intervu-mode" key; that
+            provider's MutationObserver re-applies brand accent colors
+            whenever this class flips, so this script only sets the class. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(localStorage.getItem("intervu-mode")==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-[#12151a] text-[#ececec]`}
+        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
@@ -154,14 +167,6 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
-        />
-        {/* Instrument product is dark-void only. Force `.dark` before paint and
-            migrate any leftover light preference (`intervu-dark=0`) so the
-            TopBar can never render as a light strip over dark pages. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{document.documentElement.classList.add('dark');if(localStorage.getItem('intervu-dark')==='0'){localStorage.setItem('intervu-dark','1')}}catch(e){document.documentElement.classList.add('dark')}`,
-          }}
         />
         <PostHogProvider>
           <ThemeProvider>

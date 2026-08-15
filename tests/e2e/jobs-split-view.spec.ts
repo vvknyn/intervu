@@ -48,29 +48,41 @@ async function enterBrowseMode(page: Page) {
 test.describe('JOBS-SPLIT-VIEW - xl+ two-panel selector', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test('(a) renders the list AND a placeholder pane, no sheet', async ({ page }) => {
+    test('(a) renders the list AND an auto-previewed first job in the pane, no sheet, no ?job=', async ({ page }) => {
         await enterBrowseMode(page);
 
         await expect(page.getByRole('listbox', { name: 'Job results' })).toBeVisible();
         const pane = page.getByTestId('detail-pane');
         await expect(pane).toBeVisible();
-        // No auto-select in v1 — the placeholder, not a job, is what a
-        // fresh xl+ landing shows (see resolveDetailMountSite's doc
-        // comment, lib/jobs/result-state.ts).
-        await expect(page.getByTestId('detail-pane-placeholder')).toBeVisible();
-        await expect(page.getByRole('dialog')).toHaveCount(0);
-    });
-
-    test('(b) clicking the first row shows that job in the pane; list stays visible; URL carries ?job=', async ({ page }) => {
-        await enterBrowseMode(page);
         const rows = page.getByTestId('job-row');
         if ((await rows.count()) === 0) {
             test.skip(true, 'No job rows in the live corpus for this environment');
         }
-        const firstRow = rows.first();
-        const title = (await firstRow.getByTestId('job-title').textContent())!.trim();
+        // Auto-preview (2026-08-14, reversing v1's no-auto-select): a fresh
+        // xl+ landing shows the FIRST result's detail ambiently — render
+        // only, so the URL must NOT gain ?job= and no placeholder shows
+        // (see resolveDetailMountSite's doc comment, lib/jobs/result-state.ts).
+        const title = (await rows.first().getByTestId('job-title').textContent())!.trim();
+        await expect(pane.locator('h2').first()).toHaveText(title, { timeout: 10000 });
+        await expect(page.getByTestId('detail-pane-placeholder')).toHaveCount(0);
+        await expect(page).not.toHaveURL(/[?&]job=/);
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        // The ambient preview is not an explicit open: no close affordance.
+        await expect(pane.getByRole('button', { name: 'Close' })).toHaveCount(0);
+    });
 
-        await firstRow.click();
+    test('(b) clicking a row shows that job in the pane; list stays visible; URL carries ?job=', async ({ page }) => {
+        await enterBrowseMode(page);
+        const rows = page.getByTestId('job-row');
+        // A SECOND row, so the assertion below proves the click actually
+        // changed the pane away from the auto-previewed first job.
+        if ((await rows.count()) < 2) {
+            test.skip(true, 'Fewer than two job rows in the live corpus for this environment');
+        }
+        const secondRow = rows.nth(1);
+        const title = (await secondRow.getByTestId('job-title').textContent())!.trim();
+
+        await secondRow.click();
 
         const pane = page.getByTestId('detail-pane');
         await expect(pane.locator('h2').first()).toHaveText(title, { timeout: 10000 });
@@ -79,18 +91,19 @@ test.describe('JOBS-SPLIT-VIEW - xl+ two-panel selector', () => {
         // reachable (unlike the sheet, which marks the background
         // aria-hidden).
         await expect(page.getByRole('listbox', { name: 'Job results' })).toBeVisible();
-        await expect(firstRow).toBeVisible();
+        await expect(secondRow).toBeVisible();
         await expect(page).toHaveURL(/[?&]job=/);
         await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
-    test('(c) pane close (×) returns to the placeholder and clears ?job=', async ({ page }) => {
+    test('(c) pane close (×) returns to the ambient first-job preview and clears ?job=', async ({ page }) => {
         await enterBrowseMode(page);
         const rows = page.getByTestId('job-row');
-        if ((await rows.count()) === 0) {
-            test.skip(true, 'No job rows in the live corpus for this environment');
+        if ((await rows.count()) < 2) {
+            test.skip(true, 'Fewer than two job rows in the live corpus for this environment');
         }
-        await rows.first().click();
+        const firstTitle = (await rows.first().getByTestId('job-title').textContent())!.trim();
+        await rows.nth(1).click();
         const pane = page.getByTestId('detail-pane');
         await expect(pane.locator('h2').first()).toBeVisible({ timeout: 10000 });
         await expect(page).toHaveURL(/[?&]job=/);
@@ -100,7 +113,9 @@ test.describe('JOBS-SPLIT-VIEW - xl+ two-panel selector', () => {
         // separate close affordance was built for the pane.
         await pane.getByRole('button', { name: 'Close' }).click();
 
-        await expect(page.getByTestId('detail-pane-placeholder')).toBeVisible();
+        // Closing an explicit open lands back on the ambient auto-preview
+        // (first result), never an empty placeholder pane.
+        await expect(pane.locator('h2').first()).toHaveText(firstTitle, { timeout: 10000 });
         await expect(page).not.toHaveURL(/[?&]job=/);
     });
 });

@@ -116,7 +116,7 @@ export function SavedSearchesPanel({
                     type="button"
                     data-testid="save-search-trigger"
                     onClick={startSave}
-                    className="inline-flex w-fit items-center gap-1.5 text-[12px] text-[#ececec]/80 underline underline-offset-[3px] hover:text-[#ececec]"
+                    className="inline-flex w-fit items-center gap-1.5 text-[12px] text-foreground/80 underline underline-offset-[3px] hover:text-foreground"
                 >
                     <BookmarkSimple size={14} aria-hidden />
                     Save this search
@@ -132,7 +132,7 @@ export function SavedSearchesPanel({
                             if (e.key === "Enter") void commitSave();
                             if (e.key === "Escape") setNaming(false);
                         }}
-                        className="h-8 min-w-[10rem] rounded-none border border-[#ececec]/30 bg-black/30 px-2 text-[12px] text-[#ececec] outline-none focus:border-[#ececec]/60"
+                        className="h-8 min-w-[10rem] rounded-lg border border-slate-300 bg-background px-2.5 text-[12px] text-foreground outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 dark:border-slate-700 shadow-2xs"
                         aria-label="Saved search name"
                         autoFocus
                     />
@@ -140,14 +140,14 @@ export function SavedSearchesPanel({
                         type="button"
                         data-testid="save-search-commit"
                         onClick={() => void commitSave()}
-                        className="text-[12px] font-medium text-[#ececec] underline underline-offset-[3px]"
+                        className="text-[12px] font-medium text-foreground underline underline-offset-[3px]"
                     >
                         Save
                     </button>
                     <button
                         type="button"
                         onClick={() => setNaming(false)}
-                        className="text-[12px] text-[#ececec]/60 underline underline-offset-[3px]"
+                        className="text-[12px] text-foreground/60 underline underline-offset-[3px]"
                     >
                         Cancel
                     </button>
@@ -164,7 +164,7 @@ export function SavedSearchesPanel({
                                     writeVisitCursor(`saved:${savedSearchId(s.href)}`, new Date().toISOString());
                                     onApply(s.href);
                                 }}
-                                className="max-w-[14rem] truncate text-[12px] text-[#ececec] underline underline-offset-[3px] hover:opacity-80"
+                                className="max-w-[14rem] truncate text-[12px] text-foreground underline underline-offset-[3px] hover:opacity-80"
                                 title={s.name}
                             >
                                 {s.name}
@@ -181,7 +181,7 @@ export function SavedSearchesPanel({
                                 type="button"
                                 data-testid="saved-search-remove"
                                 onClick={() => void removeSaved(s)}
-                                className="text-[#ececec]/50 hover:text-[#ececec]"
+                                className="text-foreground/50 hover:text-foreground"
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 <X size={12} />

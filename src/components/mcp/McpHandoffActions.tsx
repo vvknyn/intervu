@@ -60,13 +60,17 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
         return (
             <div className="flex flex-wrap items-center gap-2">
                 {(Object.keys(CLIENT_LABEL) as McpHandoffClient[]).map((client) => (
-                    <Button key={client} variant="outline" size="sm" onClick={() => pickClient(client)}>
+                    <button
+                        key={client}
+                        onClick={() => pickClient(client)}
+                        className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors"
+                    >
                         {CLIENT_LABEL[client]}
-                    </Button>
+                    </button>
                 ))}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-emerald-900 dark:text-emerald-300">
                     First time?{" "}
-                    <Link href="/connect" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground">
+                    <Link href="/connect" className="font-bold underline underline-offset-4 hover:text-emerald-950 dark:hover:text-white">
                         Connect once →
                     </Link>
                 </p>
@@ -77,13 +81,16 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
     if (savedClient) {
         return (
             <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handlePrimary}>
+                <button
+                    onClick={handlePrimary}
+                    className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors"
+                >
                     Open in {CLIENT_LABEL[savedClient]} →
-                </Button>
+                </button>
                 <button
                     type="button"
                     onClick={handleSwitch}
-                    className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    className="text-xs font-medium text-emerald-900 underline underline-offset-4 hover:text-emerald-950 dark:text-emerald-300"
                 >
                     Switch AI
                 </button>
@@ -93,9 +100,12 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrimary}>
+            <button
+                onClick={handlePrimary}
+                className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors"
+            >
                 Open in your AI →
-            </Button>
+            </button>
         </div>
     );
 }

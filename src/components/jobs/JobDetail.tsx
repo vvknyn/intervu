@@ -241,12 +241,12 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+            className="sticky bottom-0 z-20 flex gap-2 border-t border-border/80 bg-card/90 p-3.5 backdrop-blur-md"
         >
             {job.apply_url && (
-                <Button variant="outline" className="h-11 flex-1 gap-1.5 lg:h-9" onClick={onOpenPosting}>
-                    <ArrowSquareOut size={16} />
-                    {signedIn ? "Apply" : "Sign in to apply"}
+                <Button className="h-11 flex-1 gap-2 rounded-lg bg-emerald-600 text-white font-bold shadow-md hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400 transition-all lg:h-10" onClick={onOpenPosting}>
+                    <ArrowSquareOut size={18} weight="bold" />
+                    {signedIn ? "Apply on Company Site" : "Sign in to apply"}
                 </Button>
             )}
         </div>
@@ -313,9 +313,9 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
             type="button"
             data-testid="related-job-row"
             onClick={onClick}
-            className="flex w-full flex-col gap-0.5 border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-foreground/40"
+            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-slate-400 hover:shadow-2xs dark:border-slate-700 dark:bg-slate-900/60"
         >
-            <span className="truncate text-[13px] font-medium text-foreground">{decodeText(job.title)}</span>
+            <span className="truncate text-[13px] font-semibold text-foreground">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-[11px] text-muted-foreground">
                 {displayCompany(job.company, job.company_domain) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
@@ -369,7 +369,18 @@ export function JobDetail({
     onOpenRelated?: (jobId: string) => void;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
+    // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
+    // list/company surfaces stay quiet on unscored rows): in THIS panel the
+    // check ledger's facts are worth showing even before a scoring pass has
+    // run — with a verdict pill that says exactly that, never a fabricated
+    // clear (2026-08-14 investor-polish; founding rule: facts, no inference).
+    const ghost = ghostMetaFor(job.ghost_badge, staleCheck) ?? {
+        label: "Not yet scored",
+        cls: STATUS_PILL.saved,
+        dot: "bg-st-saved",
+        explain:
+            "This posting hasn't been through a ghost-risk scoring pass yet — the signals below are the facts we can already state.",
+    };
     // S2 — HONESTY RULE: the row badge states a fact ("Fresh"/"Relisted");
     // this facts line is where the underlying dates it's based on live.
     const freshness = classifyPostingFreshness(job, now);
@@ -440,21 +451,21 @@ export function JobDetail({
     }, [job.id, job.company_domain, job.title, signedIn]);
 
     return (
-        <div className={cn("relative overflow-hidden border border-border bg-card", className)}>
+        <div className={cn("relative overflow-hidden rounded-2xl border border-slate-300/80 bg-card shadow-lg dark:border-slate-700", className)}>
             {/* Identity header — title/company/location/freshness/fact-chips
                 — rendered OUTSIDE the sign-in gate below (see `!signedIn`
                 near the bottom of this component): a guest could previously
                 never confirm which job they'd opened, since the blur+overlay
                 covered the title along with everything else. Only the
                 action row and body further down stay gated. */}
-            <div className="border-b border-border px-5 pb-3.5 pt-1">
-                <div className="flex items-start gap-3">
+            <div className="border-b border-border/80 px-6 pb-4 pt-4">
+                <div className="flex items-start gap-3.5">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold leading-tight tracking-tight">{decodeText(job.title)}</h2>
-                        <div className="mt-1 text-sm text-muted-foreground">
+                        <h2 className="text-[22px] font-bold leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
+                        <div className="mt-1 text-sm font-medium text-muted-foreground">
                             {cleanedCompany ? (
-                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="hover:text-foreground hover:underline">
+                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
                                     {cleanedCompany}
                                 </Link>
                             ) : (
@@ -469,75 +480,50 @@ export function JobDetail({
                             {locationText(job)}
                         </div>
                         {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                            <div className="mt-1 text-sm text-muted-foreground">
+                            <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-medium text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
                                 Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
                                 {firstSeenRelative} — often a repost.
                             </div>
                         )}
-                        {/* Pay stat (Task 3) — the one fact chip promoted out
-                            of the row into its own headline figure, since pay
-                            is the number a candidate scans for first. Renders
-                            from the SAME `salaryText` the (now-filtered) chip
-                            row and the SERP card both read, so this can never
-                            disagree with either. */}
                         {salary && (
-                            <div className="mt-3">
-                                <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                            <div className="mt-3 inline-flex items-center gap-2.5 rounded-lg border border-emerald-300/90 bg-emerald-50 px-3.5 py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/60">
+                                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                                     pay
-                                </div>
-                                <div className="font-mono text-xl font-semibold tracking-tight text-foreground">
+                                </span>
+                                <span className="font-mono text-lg font-bold tracking-tight text-emerald-950 dark:text-emerald-100">
                                     {salary}
-                                </div>
+                                </span>
                             </div>
                         )}
-                        {/* Full facts row (docs-mockup.html Comp B2) — squared
-                            `key value` boxes, mono throughout (THE RULES #4),
-                            plus the green "also in" cluster-variant fact when
-                            this posting has duplicates at other locations.
-                            Salary is excluded (`nonSalaryChips`) — it has its
-                            own headline stat above, so it never appears twice. */}
                         {(nonSalaryChips.length > 0 || alsoIn) && (
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {nonSalaryChips.map((c) => {
-                                    // Posted date is the EMPLOYER's claim (posting-freshness.ts)
-                                    // — once classifyPostingFreshness has caught a relist (posted_at
-                                    // re-stamped well after our own first_seen_at), this chip's claim
-                                    // is exactly the one worth doubting, so it switches to the shared
-                                    // caution status token instead of matching every other chip's
-                                    // neutral styling (which would present it as equally trustworthy
-                                    // as "first seen by us").
                                     const caution = c.kind === "posted" && freshness.kind === "relisted";
                                     return (
                                         <span
                                             key={c.kind}
                                             className={cn(
-                                                "mono-data inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px]",
-                                                caution ? STATUS_PILL.intv : "border border-border bg-background text-foreground",
+                                                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-2xs",
+                                                caution
+                                                    ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+                                                    : "border-slate-300/90 bg-slate-100/90 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
                                             )}
                                         >
-                                            <b className={cn("font-medium", !caution && "text-muted-foreground")}>
+                                            <b className={cn("font-bold uppercase text-[10px]", caution ? "text-amber-700 dark:text-amber-400" : "text-slate-500 dark:text-slate-400")}>
                                                 {FACT_CHIP_KEY[c.kind]}
                                             </b>
-                                            {/* "First seen by us…" — the one chip that underwrites a
-                                                verified corpus fact, so it alone carries the signature
-                                                underline (see globals.css's .verified-underline doc). */}
-                                            <span className={c.kind === "first_seen" ? "verified-underline" : undefined}>
+                                            <span className={c.kind === "first_seen" ? "font-semibold" : "font-medium"}>
                                                 {factValue(c.kind, c.label)}
                                             </span>
                                         </span>
                                     );
                                 })}
                                 {alsoIn && (
-                                    <span className={cn(chipVariants({ active: true }), "mono-data h-auto py-1.5 text-[12px]")}>
+                                    <span className={cn(chipVariants({ active: true }), "mono-data h-auto py-1 text-[11px]")}>
                                         <b className="font-medium">also in</b>
                                         {alsoIn}
                                     </span>
                                 )}
-                                {/* G5d (Grok UX wave) — same quiet house tooltip
-                                    mechanism (ContextHelp) as the row badge's,
-                                    not a second ad-hoc one. Only worth
-                                    explaining when BOTH dates show — a single
-                                    date chip has nothing to disambiguate. */}
                                 {nonSalaryChips.some((c) => c.kind === "posted") && nonSalaryChips.some((c) => c.kind === "first_seen") && (
                                     <ContextHelp
                                         content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
@@ -554,7 +540,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
                             >
                                 ×
                             </button>
@@ -563,36 +549,19 @@ export function JobDetail({
                 </div>
             </div>
 
-            {/* Action row + body. Apply/Save render here for guests too
-                (G4, Grok UX wave) — no longer blurred behind a paywall
-                overlay, since clicking either already gates through
-                `resolveApplyGateDecision` (jobs/page.tsx) rather than
-                relying on this panel to physically block the click. */}
-            <div>
-            <div className="border-b border-border px-5 pb-3.5 pt-3.5">
-                {/* Primary action row (docs-mockup.html Comp B2): Apply ink /
-                    Save quiet — the two-weight subset of the button family
-                    (THE RULES #3) that's left once "Am I a fit?" moved to
-                    MCP (2026-08-02, see the McpHandoffNote in the "How you
-                    match" rail below — the header row itself degrades by
-                    omission rather than repeating that line up here). Prep
-                    removed 2026-08-02 — see the static note below this row
-                    instead of a button. */}
-                <div className="flex flex-wrap items-center gap-2 px-5">
+            {/* Action row + body. Apply/Save render here for guests too */}
+            <div className="border-b border-border/80 px-5 py-3.5">
+                <div className="flex flex-wrap items-center gap-2">
                     {job.apply_url && (
                         <Button onClick={onOpenPosting} className="gap-2">
                             <ArrowSquareOut size={16} />
-                            {signedIn ? "Apply" : "Sign in to apply"}
+                            Apply
                         </Button>
                     )}
-                    {/* The one verb (spec §2/§3): "Save" is the primary save
-                        action. Once a pursuit exists, it becomes a quiet
-                        confirmation link instead — pressing it again would
-                        be meaningless. */}
                     {pursuit ? (
                         <Link
                             href={`/yours/${pursuit.id}`}
-                            className="inline-flex h-9 items-center gap-1.5 border border-border bg-background px-4 text-sm font-medium text-brand hover:bg-muted/40"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
                         >
                             <Check size={16} weight="bold" />
                             Saved
@@ -604,57 +573,36 @@ export function JobDetail({
                         </Button>
                     )}
                 </div>
-                {/* Prep runs in the user's AI (2026-08-02) — the ONE nudge
-                    for this pane lives in the "How you match" rail below,
-                    not duplicated up here (see that McpHandoffNote's
-                    comment). "Apply with tailored resume" moved to MCP the
-                    same day. "Mark as applied" was a third peer action here
-                    (G2, Grok UX wave) — removed as a peer; it's reachable
-                    via the apply-return prompt (jobs/page.tsx,
-                    `shouldPromptApplyReturn`) after a real departure to the
-                    employer's site, and via the Tracker's own status
-                    controls (PursuitDetailSheet.tsx / yours/[id]/page.tsx),
-                    never duplicated here as a third button. */}
             </div>
 
             <div className="px-5 pb-6 pt-4">
-                {!signedIn ? (
-                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
-                ) : (
-                <>
                 {/* Ghost check module (squared design-system pass): a neutral
                     check ledger, not a tinted verdict box — color stays
                     concentrated in the verdict pill (`ghost.cls`, the SAME
                     token the row badge/JobDetail banner have always shared
                     via `ghostMetaFor`), never on the module's own ground. */}
                 {ghost && (
-                    <div className="mb-5 border border-border">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3.5 py-2.5">
-                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <div className="mb-5 overflow-hidden rounded-xl border border-slate-300/80 bg-slate-50/50 shadow-2xs dark:border-slate-700 dark:bg-slate-900/40">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/80 px-4 py-2.5">
+                            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                                 ghost check
                             </span>
                             {ghostSignals.length > 0 && (
                                 <>
-                                    {/* Meter — one cell per signal, positive ones filled.
-                                        A count-at-a-glance ahead of the verdict pill, no
-                                        new color: filled cells reuse the SAME green token
-                                        (`bg-st-offer`) the "clear" verdict pill uses. */}
-                                    <span aria-hidden className="flex gap-[3px]">
+                                    <span aria-hidden className="flex items-center gap-1">
                                         {ghostSignals.map((s, i) => (
                                             <i
                                                 key={i}
-                                                className={cn("h-[7px] w-3.5", s.positive ? "bg-st-offer" : "border border-border")}
+                                                className={cn("h-2 w-4 rounded-full", s.positive ? "bg-emerald-500 shadow-2xs" : "bg-slate-200 dark:bg-slate-700")}
                                             />
                                         ))}
                                     </span>
-                                    <span className="font-mono text-[12px] font-semibold">
-                                        {positiveSignalCount}/{ghostSignals.length}
+                                    <span className="font-mono text-[12px] font-bold text-foreground">
+                                        {positiveSignalCount}/{ghostSignals.length} favorable
                                     </span>
                                 </>
                             )}
-                            {/* Verdict pill — the ONE colored element in this module,
-                                the EXISTING `ghost.cls` token (no new color logic). */}
-                            <span className={cn("inline-flex items-center px-2 py-0.5 font-mono text-[11px]", ghost.cls)}>
+                            <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider", ghost.cls)}>
                                 {ghost.label}
                             </span>
                             <span className="ml-auto font-mono text-[11px] text-muted-foreground">
@@ -727,6 +675,14 @@ export function JobDetail({
                     </div>
                 )}
 
+                {/* The ghost-check ledger above renders for EVERYONE — it is
+                    public, derived, and the product's differentiator
+                    (2026-08-14 investor-polish); only the description body
+                    and below stay behind the sign-in gate. */}
+                {!signedIn ? (
+                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
+                ) : (
+                <>
                 <div className="mb-5">
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (
@@ -747,12 +703,12 @@ export function JobDetail({
                             )}
                         </>
                     ) : (
-                        <div className="border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
+                        <div className="rounded-xl border border-slate-300/80 bg-slate-50/70 p-4 text-[13.5px] text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 shadow-2xs">
                             No description was captured for this role.{" "}
                             {job.apply_url ? (
                                 <>
                                     Use{" "}
-                                    <span className="font-medium text-foreground">
+                                    <span className="font-semibold text-foreground">
                                         {signedIn ? "Apply" : "Sign in to apply"}
                                     </span>{" "}
                                     to read the full details on the employer&apos;s site.
@@ -771,7 +727,7 @@ export function JobDetail({
                             {job.tags.slice(0, 16).map((tag) => (
                                 <span
                                     key={tag}
-                                    className="mono-data border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                                    className="mono-data rounded-md border border-slate-300 bg-slate-100/90 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                 >
                                     {decodeText(tag)}
                                 </span>
@@ -780,11 +736,7 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* "How you match" rail replaced 2026-08-02 — fit assessment,
-                    gap analysis, and tailored-resume generation all moved to
-                    MCP; this is the ONE line for the whole job-detail pane
-                    that says so (the header action row above deliberately
-                    doesn't repeat it — see its own comment). */}
+                {/* "How you match" rail replaced 2026-08-02 */}
                 <McpHandoffNote
                     className="mb-5"
                     job={{
@@ -795,41 +747,36 @@ export function JobDetail({
                     }}
                 />
 
-                {/* Company hiring-truth mini-KPI rail (docs-mockup.html Comp
-                    B2) — reads the SAME denormalized company_* fields
-                    company-intel.ts already reads for the SERP card's intel
-                    strip. Degrades by omission: no KPI renders unless its
-                    OWN field is present, and the whole module is skipped
-                    when none are (never a placeholder zero). */}
+                {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="border border-border bg-background p-4">
-                        <div className="mono-data text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
+                        <div className="mono-data text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                             {cleanedCompany || "This company"} · hiring truth
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-6">
+                        <div className="mt-3.5 flex flex-wrap gap-6">
                             {typeof job.company_open_count === "number" && (
                                 <div>
-                                    <div className="verified-underline mono-data inline-block text-2xl">
+                                    <div className="font-mono text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {job.company_open_count.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-1.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                                         Live roles
                                     </div>
                                 </div>
                             )}
                             {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
                                 <div>
-                                    <div className="verified-underline mono-data inline-block text-2xl">
+                                    <div className="font-mono text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-1.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                                         Opened / closed, 90d
                                     </div>
                                 </div>
                             )}
                         </div>
                         {cleanedCompany && (
-                            <Button asChild variant="quiet" className="mt-3.5 w-full justify-center">
+                            <Button asChild variant="quiet" className="mt-4 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)}>Company page →</Link>
                             </Button>
                         )}
@@ -858,7 +805,6 @@ export function JobDetail({
                 )}
                 </>
                 )}
-            </div>
             </div>
         </div>
     );
