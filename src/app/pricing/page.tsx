@@ -4,7 +4,7 @@ import { PricingCard } from "@/app/pricing/PricingCard";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 const TITLE = "Pricing";
-const DESCRIPTION = "Free while intervu is in beta. No card required — up to 20 applications a day.";
+const DESCRIPTION = "Free while intervu is in beta. No card required — up to 20 tracked applications a day.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -29,11 +29,6 @@ export default function PricingPage() {
           ))}
         </div>
       </section>
-
-      <div className="mt-10 flex items-center justify-center gap-2.5 font-mono text-[13px] text-muted-foreground">
-        <span className="h-[9px] w-[9px] bg-brand" aria-hidden />
-        20 applications a day, on us
-      </div>
     </main>
   );
 }
