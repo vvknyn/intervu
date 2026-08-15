@@ -31,6 +31,7 @@ import {
     recordJobOpenedAction,
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
+import { reportJobEnabledAction } from "@/actions/report-job";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
@@ -41,7 +42,7 @@ import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { checkFreshness, rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
     cleanCompany,
@@ -406,10 +407,10 @@ function JobCard({
     const trust = rowTrustChip(job.ghost_badge, job.updated_at, now);
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
-    // Repost caution (Task 3, Vivek request) — same classifier + same
-    // caution token JobDetail's own posted-chip already reads (STATUS_PILL.intv),
-    // so the SERP row and the detail panel can never disagree about which
-    // postings are re-stamped listings.
+    // Relist caution (Task 3, Vivek request; retitled ITEM T 2026-08-15 — a
+    // relist is a posted-date refresh, NOT a repost/close-reopen) — same
+    // classifier JobDetail's own posted-chip reads, so the SERP row and the
+    // detail panel can never disagree about which postings are re-stamped.
     const relisted = classifyPostingFreshness(job, now).kind === "relisted";
     const level = prettyEnum(job.experience_level);
     const employment = prettyEnum(job.employment_type);
@@ -526,25 +527,11 @@ function JobCard({
                     </span>
                 )}
                 {age && (
-                    <span
-                        className={cn(
-                            FACT_BOX,
-                            relisted
-                                ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
-                                : "border-sky-200/90 bg-sky-50/90 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/60 dark:text-sky-200",
-                        )}
-                    >
-                        <b
-                            className={cn(
-                                "font-bold uppercase tracking-wider text-[10px]",
-                                relisted ? "text-amber-700 dark:text-amber-400" : "text-sky-600 dark:text-sky-400",
-                            )}
-                        >
-                            {relisted ? "reposted" : "posted"}
+                    <span className={cn(FACT_BOX, LISTING_STATE_CHIP[relisted ? "relisted" : "fresh"])}>
+                        <b className={cn("font-bold uppercase tracking-wider text-[10px]", LISTING_STATE_CHIP_LABEL[relisted ? "relisted" : "fresh"])}>
+                            {relisted ? "relisted" : "posted"}
                         </b>
-                        <span className={relisted ? "font-semibold text-amber-950 dark:text-amber-100" : "font-semibold text-sky-950 dark:text-sky-100"}>
-                            {age}
-                        </span>
+                        <span className="font-semibold">{age}</span>
                     </span>
                 )}
                 {employment &&
@@ -1187,6 +1174,25 @@ function JobsContent() {
             })
             .catch(() => {
                 /* transport failure — unknown; keep the optimistic default */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // ITEM O-FE (2026-08-15) — the flags endpoint isn't deployed yet.
+    // Defaults to hidden (unlike postedDateSupported's optimistic default
+    // above) so "Report listing" never renders as a dead button while this
+    // probe is in flight or fails.
+    const [reportJobEnabled, setReportJobEnabled] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        reportJobEnabledAction()
+            .then((ok) => {
+                if (!cancelled) setReportJobEnabled(ok);
+            })
+            .catch(() => {
+                /* transport failure — keep hidden */
             });
         return () => {
             cancelled = true;
@@ -2848,6 +2854,7 @@ function JobsContent() {
                     pursuit={detailPursuit}
                     goingAfter={goingAfterId === detailJob.id}
                     onClose={onClose}
+                    reportJobEnabled={reportJobEnabled}
                     className="border-0 bg-transparent shadow-none"
                 />
                 {user ? (
@@ -3441,16 +3448,13 @@ function JobsContent() {
                                                     </div>
                                                 )}
                                             </div>
-                                            {activeCount > 0 && (
-                                                <ActiveFilterActions
-                                                    className="mb-3"
-                                                    entries={activeEntries}
-                                                    onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
-                                                    clearFiltersTestId="results-clear-filters-chip-row"
-                                                    clearQueryTestId="results-clear-query-chip-row"
-                                                    chipTestId="results-clear-chip"
-                                                />
-                                            )}
+                                            {/* ITEM S (2026-08-15, Vivek: "duplicate information") — this
+                                                used to render a second row of "✕ clear <facet>" chips
+                                                restating exactly what "Clear filters · N" above already
+                                                covers. Removed: the toolbar's FacetBar dropdowns (each
+                                                facet chip → open → click the active option) already let a
+                                                user remove one facet at a time in 1-2 clicks, so this was a
+                                                second mechanism for the same job, not a missing one. */}
                                         </>
                                     )}
                                 <div
