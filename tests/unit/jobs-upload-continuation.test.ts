@@ -125,9 +125,23 @@ test("handleMyResumeClick delegates its whole branch decision to runResumeContro
 });
 
 test('the "My résumé" control is never disabled — muted state stays clickable/focusable (a11y)', () => {
-    const body = section('data-testid="jobs-upload-resume"', "My résumé");
+    const body = section('data-testid="jobs-my-resume"', "My résumé");
     assert.doesNotMatch(body, /\bdisabled\b/);
     assert.match(body, /aria-label=/);
+});
+
+// 2026-08-15 a11y follow-up — measured (headless render, computed colour
+// over the real page backdrop): the muted state's `/60` opacity modifier put
+// this interactive control at 2.25:1, below WCAG AA's 4.5:1 floor for
+// 12px/normal text. The fix carries the muted/active distinction by
+// weight/colour token instead (never opacity, size, or a lighter token), so
+// this guards against the exact regression class: any opacity modifier, a
+// smaller font size, or a `/NN` alpha suffix reappearing on this control.
+test('the "My résumé" control never carries its muted/active state via opacity, a lighter alpha token, or a smaller font size', () => {
+    const body = section('data-testid="jobs-my-resume"', "My résumé");
+    assert.doesNotMatch(body, /text-muted-foreground\/\d+/, "no alpha-suffixed muted-foreground token");
+    assert.doesNotMatch(body, /\bopacity-\d+/, "no opacity utility");
+    assert.doesNotMatch(body, /text-\[1[01]px\]/, "no smaller-than-12px font size");
 });
 
 test('the "My résumé" control wraps its click handler — never handed to onClick bare', () => {

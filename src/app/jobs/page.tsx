@@ -3145,7 +3145,7 @@ function JobsContent() {
                             <button
                                 type="button"
                                 onClick={() => handleMyResumeClick()}
-                                data-testid="jobs-upload-resume"
+                                data-testid="jobs-my-resume"
                                 title={
                                     resumeControlState === "active"
                                         ? "Rank jobs by your résumé"
@@ -3157,10 +3157,20 @@ function JobsContent() {
                                         : "My résumé — no résumé on file, click to upload one"
                                 }
                                 className={cn(
+                                    // Measured (headless render, computed colour over the
+                                    // real (248,250,252) backdrop): `/60` opacity put this
+                                    // interactive control at 2.25:1 — fails WCAG AA (needs
+                                    // 4.5:1 at 12px; not "large text", so the 3:1 allowance
+                                    // doesn't apply). Full-alpha `text-muted-foreground`
+                                    // measures 4.55:1 — the state distinction below is
+                                    // carried by weight/color choice (muted vs foreground,
+                                    // same as the "N tracked" sibling), never by opacity,
+                                    // size, or a lighter token, so it can't regress back
+                                    // under the floor.
                                     "font-mono text-[12px] font-medium underline underline-offset-[3px]",
                                     resumeControlState === "active"
-                                        ? "text-muted-foreground hover:text-foreground"
-                                        : "text-muted-foreground/60 hover:text-muted-foreground",
+                                        ? "text-foreground hover:text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
                                 )}
                             >
                                 My résumé
