@@ -29,6 +29,15 @@ export const STATUS_PILL: Record<StatusTone, string> = {
   closed: "bg-st-closed-soft text-st-closed border border-st-closed/20",
 };
 
+/** Solid proportion-bar fill — same tone scale, no soft bg/border. */
+export const STATUS_FILL: Record<StatusTone, string> = {
+  saved: "bg-st-saved",
+  applied: "bg-st-applied",
+  intv: "bg-st-intv",
+  offer: "bg-st-offer",
+  closed: "bg-st-closed",
+};
+
 /** Solid round icon-chip: same soft bg, colored glyph (no border). */
 export const STATUS_ICON_CHIP: Record<StatusTone, string> = {
   saved: "bg-st-saved-soft text-st-saved",
@@ -100,7 +109,13 @@ export function fitVerdictTone(
   }
 }
 
-/** Ghost-badge → tone. clear→offer (good), caution/likely_ghost→intv (warn). */
+/**
+ * Ghost-badge → tone. clear→offer (green, good), caution→intv (amber,
+ * review), likely_ghost→closed (red, possible ghost), unscored→null (no
+ * chip). Previously caution and likely_ghost shared one amber tone —
+ * collapsing "review" and "possible ghost" into the same color hid the
+ * worse verdict from every consumer (radar bars, mix bands).
+ */
 export function ghostBadgeTone(
   badge: "clear" | "caution" | "likely_ghost" | "unscored" | string,
 ): StatusTone | null {
@@ -108,8 +123,9 @@ export function ghostBadgeTone(
     case "clear":
       return "offer";
     case "caution":
-    case "likely_ghost":
       return "intv";
+    case "likely_ghost":
+      return "closed";
     default:
       return null; // unscored → no chip
   }
