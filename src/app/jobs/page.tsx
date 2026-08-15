@@ -2858,13 +2858,19 @@ function JobsContent() {
                     reportJobEnabled={reportJobEnabled}
                     className="border-0 bg-transparent shadow-none"
                 />
-                {user ? (
-                    <JobDetailActionBar
-                        job={detailJob}
-                        signedIn
-                        onOpenPosting={() => handleOpenPosting(detailJob)}
-                    />
-                ) : null}
+                {/* Rendered for guests too (founder call, 2026-08-15). /jobs is the
+                    SEO front door, so most first-time readers arrive signed out —
+                    and the inline Apply button scrolls out of view, leaving them
+                    with no persistent CTA. `signedIn={false}` is the state this
+                    component was already built for: the label reads "Sign in to
+                    apply", and handleOpenPosting gates at resolveApplyGateDecision
+                    (:2282) before any ATS departure, so the label never
+                    over-promises what the tap delivers. */}
+                <JobDetailActionBar
+                    job={detailJob}
+                    signedIn={Boolean(user)}
+                    onOpenPosting={() => handleOpenPosting(detailJob)}
+                />
             </>
         ) : isDeadJobConfirmed ? (
             <div className="p-4">
