@@ -2959,7 +2959,7 @@ function JobsContent() {
                     </h1>
                 </header>
 
-                <section className="rounded-2xl border border-slate-300/80 bg-card p-2 sm:p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
+                <section className="rounded-xl border border-slate-300/80 bg-card p-2 sm:p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
                         <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-background/80 divide-y divide-slate-200/80 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/30 dark:border-slate-800 dark:bg-background/40 dark:divide-slate-800 sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-lg sm:border-slate-300 dark:sm:border-slate-700">
                             <SearchAutocomplete
@@ -2976,10 +2976,15 @@ function JobsContent() {
                                 className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
                                 containerClassName="min-w-0 w-full sm:flex-1"
                             />
-                            <div className="relative flex items-center w-full sm:max-w-[210px] sm:flex-[0_1_210px]">
-                                <div className="pointer-events-none absolute left-3.5 z-30 flex items-center justify-center text-muted-foreground/70">
+                            {/* Glyph as a row sibling, not an absolute overlay +
+                                `pl-*` on the field — same reason as
+                                SearchAutocomplete's (see its doc comment): padding
+                                is a shared tailwind-merge axis and an overlay only
+                                stays clear of the text while nobody touches it. */}
+                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                                <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
                                     <MapPin size={16} weight="bold" />
-                                </div>
+                                </span>
                                 <Input
                                     data-testid="location-input"
                                     type="text"
@@ -2993,14 +2998,14 @@ function JobsContent() {
                                             commitLocation();
                                         }
                                     }}
-                                    className="h-11 sm:h-[46px] w-full pl-10 rounded-none border-0 bg-transparent text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
                                 />
                             </div>
                         </div>
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
-                            className="h-11 sm:h-[46px] w-full rounded-xl sm:rounded-lg bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400 sm:w-auto transition-all"
+                            className="h-11 sm:h-[46px] w-full rounded-xl sm:rounded-lg bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto transition-all"
                         >
                             Search
                         </Button>
@@ -3670,9 +3675,12 @@ function JobsContent() {
                         type="button"
                         aria-label="Close"
                         onClick={() => router.back()}
-                        className="flex h-6 w-full shrink-0 items-center justify-center pt-2 pb-1 hover:opacity-80 transition-opacity"
+                        className="relative flex h-11 w-full shrink-0 items-center justify-center transition-opacity hover:opacity-80"
                     >
                         <span aria-hidden="true" className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
+                        <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-faint">
+                            ×
+                        </span>
                     </button>
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}

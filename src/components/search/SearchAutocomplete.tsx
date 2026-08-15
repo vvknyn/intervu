@@ -224,16 +224,26 @@ export function SearchAutocomplete({
 
     return (
         <div className={cn("relative group", containerClassName)} ref={containerRef}>
-            <div className="relative flex items-center w-full">
+            {/* The glyph is a FLEX SIBLING of the field, never an absolutely
+                positioned overlay with `pl-*` on the input holding the text
+                clear of it. That older shape coupled the component and its
+                callers on one shared tailwind-merge axis — padding — so any
+                caller passing `px-*` silently deleted the `pl-*` and the icon
+                landed on the placeholder's first word: no error, just a broken
+                field. As row siblings they cannot overlap by construction and
+                callers own their own padding again. `jobs-first-screen.spec.ts`
+                ("no glyph painted over the search field overlaps where its text
+                starts") measures this and is the regression gate. */}
+            <div className="relative flex w-full items-center">
                 {leadingIcon && (
-                    <div className="pointer-events-none absolute left-3.5 z-30 flex items-center justify-center text-muted-foreground/70">
+                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
                         {leadingIcon}
-                    </div>
+                    </span>
                 )}
                 <Input
                     type="text"
                     placeholder={placeholder}
-                    className={cn("relative z-20 transition-all", leadingIcon && "pl-10", className)}
+                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}
                     value={value}
                     onChange={(e) => {
                         onChange(e.target.value);

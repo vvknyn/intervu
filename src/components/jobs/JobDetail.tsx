@@ -42,23 +42,25 @@ const FACT_CHIP_KEY: Record<FactChipKind, string> = {
     employment_type: "type",
     experience_level: "level",
     salary: "salary",
-    // Clean, compact keys that fit comfortably on mobile without breaking into multi-line wraps
-    posted: "posted",
-    first_seen: "first seen",
+    // "posted" is the EMPLOYER's claimed date (re-stamped on a relist,
+    // per posting-freshness.ts) — distinct from "first seen by us" below,
+    // which is OUR observation. Labeling both identically read as if they
+    // carried equal weight; the key now states whose claim each one is.
+    // These two keys are load-bearing prose, not decoration: the ContextHelp
+    // mounted beside these chips names them verbatim ("Employer posted is the
+    // date on their listing. First seen by us is when our crawler actually
+    // found it"), so shortening them for line-fit breaks that pointer. Chip
+    // wrapping is a layout problem — solve it in the chip, not in the word.
+    posted: "employer posted",
+    first_seen: "first seen by us",
 };
 
 /** `buildFactChips`' posted/first_seen labels already embed the verb
  *  ("Posted 3d ago") for the icon-based chip this replaces; the squared
  *  `.fact` box states that verb as the key instead, so it's stripped here
- *  to avoid rendering it twice ("first seen" + "First seen 10d ago"). */
+ *  to avoid rendering it twice ("first seen by us" + "First seen 10d ago"). */
 function factValue(kind: FactChipKind, label: string): string {
     return kind === "posted" || kind === "first_seen" ? label.replace(/^(Posted|First seen)\s+/i, "") : label;
-}
-
-/** Formats ghost signal text to eliminate redundant kind prefix repetition */
-function formatSignalText(kind: string, text: string): string {
-    const prefixRegex = new RegExp(`^${kind}\\s*(—|-|:)?\\s*`, "i");
-    return text.replace(prefixRegex, "");
 }
 
 /**
@@ -531,7 +533,13 @@ export function JobDetail({
                                         <span
                                             key={c.kind}
                                             className={cn(
-                                                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-2xs",
+                                                // `whitespace-nowrap` is what keeps the multi-word
+                                                // keys ("employer posted") readable on a 375px
+                                                // screen: the row still wraps BETWEEN chips, it just
+                                                // never breaks a key mid-phrase. Shortening the words
+                                                // to dodge wrapping would break the ContextHelp that
+                                                // names them — see FACT_CHIP_KEY's note.
+                                                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 font-mono text-[11px] shadow-2xs sm:px-2.5",
                                                 caution
                                                     ? LISTING_STATE_CHIP.relisted
                                                     : "border-slate-300/90 bg-slate-100/90 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
@@ -591,7 +599,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
+                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
                             >
                                 ×
                             </button>
@@ -604,7 +612,7 @@ export function JobDetail({
             <div className="border-b border-border/80 px-4 py-3 sm:px-5 sm:py-3.5">
                 <div className="flex flex-wrap items-center gap-2">
                     {job.apply_url && (
-                        <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 font-semibold">
+                        <Button onClick={onOpenPosting} className="gap-2 h-11 sm:h-9 px-4 font-semibold">
                             <ArrowSquareOut size={16} />
                             Apply
                         </Button>
@@ -612,13 +620,13 @@ export function JobDetail({
                     {pursuit ? (
                         <Link
                             href={`/yours/${pursuit.id}`}
-                            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
+                            className="inline-flex h-11 sm:h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
                         >
                             <Check size={16} weight="bold" />
                             Saved
                         </Link>
                     ) : (
-                        <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 px-4 font-semibold">
+                        <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-11 sm:h-9 px-4 font-semibold">
                             <Check size={16} />
                             {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
                         </Button>
@@ -689,7 +697,6 @@ export function JobDetail({
                             <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-2 px-4 py-3 text-[12px] sm:grid-cols-2">
                                 {ghostSignals.map((s) => {
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
-                                    const formattedText = formatSignalText(s.kind, s.text);
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
                                         <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-[11px]", relistCaution ? LISTING_STATE_TEXT.relisted : s.positive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
@@ -698,7 +705,7 @@ export function JobDetail({
                                         <div className="min-w-0 flex-1 leading-snug">
                                             <b className="font-mono text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
                                             <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
-                                                {formattedText}
+                                                {s.text}
                                                 {!relistCaution && !s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
                                                     <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
                                                 )}
