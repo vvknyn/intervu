@@ -19,7 +19,7 @@ export interface PricingBullet {
 }
 
 export type PricingCta =
-  | { kind: "link"; label: string; href: string; variant: "default" | "outline" | "quiet" }
+  | { kind: "link"; label: string; href: string; variant: "default" | "outline" | "quiet" | "brand" }
   | { kind: "disabled"; label: string; variant: "quiet" };
 
 export interface PricingTier {
@@ -49,8 +49,8 @@ export const PRICING_TIERS: PricingTier[] = [
       { text: "Ghost-signal truth on every posting" },
       { text: "Application tracker" },
       { text: "Connect your AI — fit, tailoring, prep run in YOUR AI", href: "/connect" },
-      { text: "Up to 20 applications a day" },
+      { text: "Up to 20 tracked applications a day" },
     ],
-    cta: { kind: "link", label: "Start free", href: "/", variant: "default" },
+    cta: { kind: "link", label: "Start free", href: "/", variant: "brand" },
   },
 ];

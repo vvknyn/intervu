@@ -61,7 +61,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   if (!data) notFound();
 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);
-  const jobsSearchUrl = `/?q=${encodeURIComponent(data.name)}`;
+  // /jobs is the only route that consumes `q` (src/lib/jobs/url-state.ts) —
+  // `/` is the marketing hero page and silently drops the param.
+  const jobsSearchUrl = `/jobs?q=${encodeURIComponent(data.name)}`;
   const isElite = data.boards.includes("elite");
   const ghostPctIsCompanyWide = ghostPctCoversAllRoles(data);
   const hiring = buildCompanyHiringAnswer(data);
@@ -88,14 +90,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   ];
 
   return (
-    <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
+    <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
-      <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-[900px] font-mono text-xs text-[color:var(--elite-faint)]">
-          <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
+      <div className="border-b border-border bg-card px-4 py-3 sm:px-6">
+        <nav className="mx-auto max-w-[900px] font-mono text-xs text-muted-foreground">
+          <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
           {" / "}
@@ -109,18 +111,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
             {data.oneLiner && (
-              <p className="mt-1.5 text-[15px] leading-snug text-[color:var(--elite-muted)]">
+              <p className="mt-1.5 text-[15px] leading-snug text-muted-foreground">
                 {data.oneLiner}
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               {isElite && (
-                <span className="rounded border border-[color:var(--elite-tint-border)] bg-[color:var(--elite-tint-bg)] px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--elite-brand)]">
+                <span className="rounded border border-brand/20 bg-brand/10 px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-brand">
                   Elite
                 </span>
               )}
               {data.stage && (
-                <span className="rounded border border-[color:var(--elite-border-strong)] bg-[color:var(--elite-rule)] px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--elite-muted)]">
+                <span className="rounded border border-border bg-chip px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {data.stage}
                 </span>
               )}
@@ -131,7 +133,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             domain={data.domain}
             slug={data.slug}
             displayName={data.name}
-            variant="elite"
             className="shrink-0 self-start"
           />
         </header>
@@ -144,16 +145,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             the `company_*` sync lands. */}
         <section
           data-testid="company-hiring-answer"
-          className="mb-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4"
+          className="mb-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs"
         >
-          <h2 className="font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
+          <h2 className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
             Is {data.name} hiring?
           </h2>
           <p className="mt-2 flex items-center gap-2 font-display text-[19px] font-semibold leading-snug">
-            {hiring.hasOpenRoles && <span className="elite-live-dot" aria-hidden />}
+            {hiring.hasOpenRoles && (
+              <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+            )}
             {hiring.headline}
           </p>
-          <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
+          <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
             {hiring.trackRecord}
           </p>
         </section>
@@ -179,14 +182,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <h2 className="mb-3.5 flex items-baseline justify-between font-display text-[19px] font-semibold">
             Open roles
             {data.jobs.length > 0 && (
-              <span className="font-mono text-xs font-normal text-[color:var(--elite-muted)]">
+              <span className="font-mono text-xs font-normal text-muted-foreground">
                 {preview.length} of {openCountText(data)} shown
               </span>
             )}
           </h2>
 
           {preview.length === 0 ? (
-            <p className="text-sm text-[color:var(--elite-muted)]">No open roles indexed right now.</p>
+            <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
           ) : (
             <ul className="space-y-2">
               {preview.map((job) => {
@@ -194,30 +197,30 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 return (
                   <li key={job.id}>
                     <Link
-                      href={`/?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center gap-4 border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-5 py-4 transition-colors hover:border-[#C9C4B4]"
+                      href={`/jobs?job=${encodeURIComponent(job.id)}`}
+                      className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:border-border-strong"
                     >
                       <CompanyLogo domain={data.domain} name={data.name} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
-                        <div className="mt-1 font-mono text-xs text-[color:var(--elite-muted)]">
+                        <div className="mt-1 font-mono text-xs text-muted-foreground">
                           {roleMeta(job)}
                         </div>
                         {ghost && (
                           <div
                             className={cn(
                               "mt-1.5 flex items-center gap-1.5 font-mono text-[11px]",
-                              ghost.live
-                                ? "text-[color:var(--elite-live)]"
-                                : "text-[color:var(--elite-muted)]",
+                              ghost.live ? "text-brand" : "text-muted-foreground",
                             )}
                           >
-                            {ghost.live && <span className="elite-live-dot" aria-hidden />}
-                            {ghost.live ? ghost.text : ghost.text}
+                            {ghost.live && (
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+                            )}
+                            {ghost.text}
                           </div>
                         )}
                       </div>
-                      <span className="shrink-0 text-sm text-[color:var(--elite-faint)]" aria-hidden>
+                      <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
                         →
                       </span>
                     </Link>
@@ -236,19 +239,16 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             never observed — so it renders only when there is a track record
             for it to describe. */}
         {data.hasTrackRecord && (
-          <p className="mt-6 rounded-lg bg-[color:var(--elite-rule)] px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-[color:var(--elite-muted)]">
+          <p className="mt-6 rounded-2xl bg-chip px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
             Metrics derived from observed job postings over 90 days — not fundraising data, employee
             reviews, or third-party valuations.
           </p>
         )}
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3.5 sm:px-6">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 py-3.5 sm:px-6">
         <div className="mx-auto flex max-w-[900px] flex-wrap justify-center gap-3">
-          <Button
-            asChild
-            className="bg-[color:var(--elite-ink)] text-[color:var(--elite-surface)] hover:bg-[color:var(--elite-ink)]/90"
-          >
+          <Button asChild variant="brand">
             <Link href={jobsSearchUrl}>View all {openCountText(data)} jobs</Link>
           </Button>
         </div>
@@ -259,11 +259,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 
 function Kpi({ value, label }: { value: string; label: string }) {
   return (
-    <div className="border border-[color:var(--elite-border)] bg-[color:var(--elite-card)] px-4 py-4 text-center">
-      <span className="inline-block border-b-[3px] border-[color:var(--elite-brand)] pb-1 font-mono text-[26px] font-medium tracking-tight">
+    <div className="rounded-2xl border border-border bg-card px-4 py-4 text-center shadow-xs">
+      <span className="inline-block border-b-[3px] border-brand pb-1 font-mono text-[26px] font-medium tracking-tight">
         {value}
       </span>
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-[color:var(--elite-faint)]">
+      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
     </div>

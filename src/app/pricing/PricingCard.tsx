@@ -55,12 +55,12 @@ export function PricingCard({ tier }: { tier: PricingTier }) {
     <div
       data-testid={`pricing-card-${tier.name.toLowerCase()}`}
       className={cn(
-        "relative flex flex-col gap-4 p-6",
-        highlighted ? "border-2 border-foreground bg-background" : "border border-border bg-background",
+        "relative flex flex-col gap-4 rounded-[14px] p-6",
+        highlighted ? "border-2 border-foreground bg-card" : "border border-border bg-card",
       )}
     >
       {tier.highlight && (
-        <span className="absolute -top-3 left-[18px] bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-brand-foreground">
+        <span className="absolute -top-3 left-[18px] rounded-md bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-brand-foreground">
           {tier.highlight}
         </span>
       )}
