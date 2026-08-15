@@ -12,6 +12,8 @@ import {
 } from "@/lib/jobs/search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
+import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
+import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
@@ -165,23 +167,47 @@ export async function getRelatedJobsAction(
   jobId: string,
   companyDomain: string | null | undefined,
   title: string,
-): Promise<PublicJob[]> {
-  if (!jobId) return [];
+): Promise<{ jobs: PublicJob[]; openCount: OpenCount | null }> {
+  if (!jobId) return { jobs: [], openCount: null };
 
   // Same per-IP chokepoint as `searchJobsAction` above — this action runs up
-  // to two corpus queries per call and is just as callable outside the UI.
+  // to three corpus queries per call and is just as callable outside the UI.
   // Denial is an empty list, not an error: "More like this" is an accelerant,
   // and the panel already renders nothing for an empty result.
   const ip = await getClientIp();
-  if (!allowSearchRequest(ip)) return [];
+  if (!allowSearchRequest(ip)) return { jobs: [], openCount: null };
 
   const companyHits = companyDomain ? await fetchRelatedExcluding(jobId, { companyDomain }) : [];
   const plan = resolveRelatedQuery({ companyHitCount: companyHits.length, title });
 
-  if (plan.mode === "title-fallback") {
-    return fetchRelatedExcluding(jobId, { q: plan.fallbackQuery });
+  const jobs =
+    plan.mode === "title-fallback"
+      ? await fetchRelatedExcluding(jobId, { q: plan.fallbackQuery })
+      : companyHits;
+
+  // The detail panel's "N live roles" figure (JobDetail.tsx) used to read a
+  // sync-time aggregate baked onto the job document — structurally stale,
+  // and it can disagree with /co/[slug]'s own live count for the same
+  // company. Resolved here with the SAME query shape `getCompanyPageData`
+  // uses for that count (companyDomain, COMPANY_JOBS_FETCH_LIMIT, no posted-
+  // window, no ghost exclusion) — deliberately NOT `fetchRelatedExcluding`
+  // above, which is a narrower, different-purpose query (30d window, ghosts
+  // hidden, excludes this job, caps at RELATED_JOBS_LIMIT) built for "More
+  // like this" suggestions; reusing it here would just be a third,
+  // disagreeing definition of "open roles" — the exact bug this closes.
+  // Resolved through `resolveOpenCount`, never raw `total`, so a saturated/
+  // capped result renders as a floor ("N+"), not a false exact count.
+  let openCount: OpenCount | null = null;
+  if (companyDomain) {
+    const countResult = await runSearch({
+      companyDomain,
+      limit: COMPANY_JOBS_FETCH_LIMIT,
+      hideGhosts: false,
+    });
+    openCount = resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
   }
-  return companyHits;
+
+  return { jobs, openCount };
 }
 
 /** Page size for the cached default browse — mirrors `PAGE` in
