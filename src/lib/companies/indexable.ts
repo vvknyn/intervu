@@ -140,6 +140,12 @@ export function isCompanyIndexable(data: CompanyPageData): boolean {
 export interface IndexableCompanyDomain {
   domain: string;
   openRoleCount: number;
+  /** `push-company-directory.mjs`'s `new Date().toISOString()` at publish
+   *  time — when this domain's role count was last measured, not when the
+   *  employer's board actually changed. `null` when the doc omits it or
+   *  carries something `Date.parse` can't read; `sitemap.ts` reads this as
+   *  "unknown" and omits `lastModified` rather than stamping today's date. */
+  computedAt: string | null;
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -158,6 +164,16 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** A parseable ISO-8601 date string, or null. Same nullable shape as
+ *  `market-stats.ts`'s `sourceComputedAt` — this is NOT a gate field like
+ *  `domain`/`openRoleCount`: a company with no (or malformed) `computed_at`
+ *  is still indexable, it's just a page `sitemap.ts` can't date, so it omits
+ *  `lastModified` for that one entry rather than guessing. */
+function isoDate(v: unknown): string | null {
+  if (typeof v !== "string" || v.trim() === "") return null;
+  return Number.isNaN(Date.parse(v)) ? null : v;
+}
+
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
  * Isolated from the fetch so a malformed doc's handling is unit-testable
@@ -170,7 +186,7 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  return { domain, openRoleCount };
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own

@@ -151,10 +151,34 @@ describe("/co/[slug] presentation — numbers the page can actually back", () =>
 
 describe("parseCompanyDirectoryHit — one company_directory doc", () => {
   it("shapes a well-formed hit", () => {
-    assert.deepEqual(parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: 40 }), {
+    assert.deepEqual(
+      parseCompanyDirectoryHit({
+        domain: "acme.com",
+        open_role_count: 40,
+        computed_at: "2026-08-12T03:43:08.472Z",
+      }),
+      {
+        domain: "acme.com",
+        openRoleCount: 40,
+        computedAt: "2026-08-12T03:43:08.472Z",
+      },
+    );
+  });
+
+  it("reads a missing computed_at as null rather than dropping the hit — computed_at is not a gate field", () => {
+    const parsed = parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: 40 });
+    assert.ok(parsed);
+    assert.equal(parsed.computedAt, null);
+  });
+
+  it("reads an unparseable computed_at as null", () => {
+    const parsed = parseCompanyDirectoryHit({
       domain: "acme.com",
-      openRoleCount: 40,
+      open_role_count: 40,
+      computed_at: "not-a-date",
     });
+    assert.ok(parsed);
+    assert.equal(parsed.computedAt, null);
   });
 
   it("rejects a hit missing domain", () => {
