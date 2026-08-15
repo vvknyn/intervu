@@ -41,6 +41,12 @@ export function isAgeSignal(signal: GhostSignal): boolean {
  * negative reading alone).
  */
 export function shouldShowAgeBalanceNote(signals: readonly GhostSignal[]): boolean {
-  const negatives = signals.filter((s) => !s.positive);
+  // ITEM T (2026-08-15): the reposts line is now an always-negative
+  // data-absence marker (no repost/close-reopen history source exists yet
+  // — see deriveGhostSignals's doc comment), not a genuine judgment about
+  // the posting, so it no longer counts toward "how many signals are
+  // really negative" — otherwise every job with a first-seen date would
+  // permanently read as multi-signal and this note would never fire again.
+  const negatives = signals.filter((s) => !s.positive && s.kind !== "reposts");
   return negatives.length === 1 && isAgeSignal(negatives[0]);
 }

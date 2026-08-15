@@ -58,3 +58,19 @@ test("the sole negative signal is NOT age (e.g. thin description alone) — the 
 test("empty signal list: no crash, note does not mount", () => {
   assert.equal(shouldShowAgeBalanceNote([]), false);
 });
+
+// ITEM T (2026-08-15): deriveGhostSignals' reposts line is now ALWAYS
+// `positive: false` (no repost/close-reopen data source exists — see its
+// doc comment), so every job with a first-seen date carries at least one
+// non-favorable reposts row. Without excluding "reposts" from the negatives
+// count, this note would never mount again for ANY job. This pins the class
+// fix, not just the one call site that surfaced it.
+test("ITEM T: an always-negative reposts row (the new deriveGhostSignals reality) does not count toward 'age is the sole negative' — the note still mounts", () => {
+  const signals: GhostSignal[] = [
+    { text: "first seen by us 3 months ago", positive: false, kind: "freshness" },
+    { text: "repost (close/reopen) history not tracked yet", positive: false, kind: "reposts" },
+    { text: "description has real substance", positive: true, kind: "description" },
+    { text: "salary disclosed — $120k-$180k", positive: true, kind: "pay" },
+  ];
+  assert.equal(shouldShowAgeBalanceNote(signals), true);
+});

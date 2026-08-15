@@ -47,14 +47,14 @@ test("fresh: first seen within the 7d window, posted_at absent", () => {
     assert.equal(r.firstSeenMs, NOW - 2 * 86_400_000);
 });
 
-test("relisted: posted_at claims a date >= 14d after first_seen_at", () => {
+test("relisted: posted_at claims a date >= the relist margin after first_seen_at", () => {
     const firstSeen = ago(40 * 86_400_000);
     const posted = ago(40 * 86_400_000 - RELIST_MARGIN_MS); // exactly the margin later
     const r = classifyPostingFreshness({ posted_at: posted, first_seen_at: firstSeen }, NOW);
     assert.equal(r.kind, "relisted");
 });
 
-test("boundary: exactly at the 14d relist margin counts as relisted (>=)", () => {
+test("boundary: exactly at the relist margin counts as relisted (>=)", () => {
     const firstSeenMs = NOW - 30 * 86_400_000;
     const postedMs = firstSeenMs + RELIST_MARGIN_MS;
     const r = classifyPostingFreshness(
@@ -64,9 +64,33 @@ test("boundary: exactly at the 14d relist margin counts as relisted (>=)", () =>
     assert.equal(r.kind, "relisted");
 });
 
-test("boundary: 1ms under the 14d relist margin does not count as relisted", () => {
+test("boundary: 1ms under the relist margin does not count as relisted", () => {
     const firstSeenMs = NOW - 30 * 86_400_000;
     const postedMs = firstSeenMs + RELIST_MARGIN_MS - 1;
+    const r = classifyPostingFreshness(
+        { posted_at: new Date(postedMs).toISOString(), first_seen_at: new Date(firstSeenMs).toISOString() },
+        NOW,
+    );
+    assert.notEqual(r.kind, "relisted");
+});
+
+// ITEM T (2026-08-15) — the margin dropped from 14d to 3d because a real
+// 6-day relist gap Vivek found live went undetected under the old, too-
+// generous threshold. These pin the two concrete gaps that motivated the
+// change, independent of the symbolic RELIST_MARGIN_MS boundary tests above.
+test("ITEM T: a real 6-day posted-vs-first-seen gap reads as relisted", () => {
+    const firstSeenMs = NOW - 13 * 86_400_000;
+    const postedMs = NOW - 7 * 86_400_000; // 6 days after first_seen
+    const r = classifyPostingFreshness(
+        { posted_at: new Date(postedMs).toISOString(), first_seen_at: new Date(firstSeenMs).toISOString() },
+        NOW,
+    );
+    assert.equal(r.kind, "relisted");
+});
+
+test("ITEM T: a 2-day gap (date-only/timezone stamping noise floor) does not read as relisted", () => {
+    const firstSeenMs = NOW - 30 * 86_400_000;
+    const postedMs = firstSeenMs + 2 * 86_400_000;
     const r = classifyPostingFreshness(
         { posted_at: new Date(postedMs).toISOString(), first_seen_at: new Date(firstSeenMs).toISOString() },
         NOW,

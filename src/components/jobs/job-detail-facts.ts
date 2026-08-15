@@ -80,9 +80,9 @@ const SUBSTANTIAL_DESCRIPTION_MIN_CHARS = 200;
  * fabricated one (standing rule: surface facts, not inference). Each signal
  * reuses an EXISTING single source rather than re-deriving its own date math
  * or salary parsing:
- *   - freshness + repost history both read `classifyPostingFreshness`
- *     (posting-freshness.ts) — the same classifier JobDetail's relisted
- *     disclosure sentence already reads, so the two can't disagree.
+ *   - freshness reads `classifyPostingFreshness` (posting-freshness.ts) —
+ *     the same classifier JobDetail's relisted disclosure sentence already
+ *     reads, so the two can't disagree.
  *   - substance reads the caller's own `formatDescription` block count
  *     (JobDetail already computes this — no second parse here) plus the raw
  *     description length.
@@ -90,10 +90,23 @@ const SUBSTANTIAL_DESCRIPTION_MIN_CHARS = 200;
  *     facts row's salary chip uses.
  * A signal is OMITTED (not rendered false/negative) when the underlying
  * field is simply absent — e.g. no `first_seen_at` at all means freshness
- * and repost-history have nothing to report, not a false "no signal".
+ * has nothing to report, not a false "no signal".
  * Salary is the one signal that's always renderable: its absence IS the
  * fact ("not disclosed"), matching the mock's own "— salary not disclosed"
  * line.
+ *
+ * ITEM T correction (Vivek, 2026-08-15): a RELIST (posted date refreshed on
+ * the same listing) is NOT a REPOST (role closed and reopened as a new
+ * listing — close/reopen history). They were conflated here: the reposts
+ * line used to read `freshness.kind`, so every relisted job silently
+ * reported "no repost history" (true only by accident — the field it was
+ * borrowing measures date-refresh, not close/reopen). The relist signal now
+ * lives ONLY on the freshness line (its own fact family); the reposts line
+ * is decoupled entirely. There is no close/reopen data source in the corpus
+ * (grepped `PublicJob` — no `repost_count`/`relist_count` field exists), so
+ * the reposts line always reads a neutral absence, never a green ✓ — a
+ * "no repost history" claim would overclaim evidence this app doesn't have.
+ * Flip it to real ✓/— once that data exists.
  */
 export function deriveGhostSignals(
     job: PublicJob,
@@ -104,20 +117,15 @@ export function deriveGhostSignals(
     const signals: GhostSignal[] = [];
 
     if (freshness.firstSeenMs != null) {
-        signals.push(
-            freshness.kind === "fresh"
-                ? { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" }
-                : {
-                      text: `first seen by us ${formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), nowMs)}`,
-                      positive: false,
-                      kind: "freshness",
-                  },
-        );
+        const firstSeenRelative = formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), nowMs);
         signals.push(
             freshness.kind === "relisted"
-                ? { text: "relisted from an earlier posting", positive: false, kind: "reposts" }
-                : { text: "no repost history on this role", positive: true, kind: "reposts" },
+                ? { text: `first seen by us ${firstSeenRelative} · posted date refreshed since`, positive: false, kind: "freshness" }
+                : freshness.kind === "fresh"
+                  ? { text: "freshness — posted within the last 7 days", positive: true, kind: "freshness" }
+                  : { text: `first seen by us ${firstSeenRelative}`, positive: false, kind: "freshness" },
         );
+        signals.push({ text: "repost (close/reopen) history not tracked yet", positive: false, kind: "reposts" });
     }
 
     const descLength = job.description?.trim().length ?? 0;
