@@ -48,7 +48,6 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
-  const lastModified = new Date();
 
   // `/co/[slug]` company pages. `fetchIndexableCompanyDomains` discovers the
   // CANDIDATES straight from the published `company_directory` index — every
@@ -66,30 +65,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Under-listing a page that a crawler can still reach through `/jobs` is
   // recoverable; over-listing empty pages is the thing #171 fixed.
   const indexableDomains = await fetchIndexableCompanyDomains();
-  const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain }) => ({
+  // `lastModified` comes from the publisher's own `computed_at` — when it
+  // last measured this domain's role count — not from the request time.
+  // `computedAt: null` (doc omits it, or it's unparseable) omits the field
+  // rather than stamping "now": an unknown date is honest, a fabricated one
+  // isn't (see the static entries below, which have no source at all).
+  const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain, computedAt }) => ({
     url: `${siteUrl}${companyBoardPath(domain)}`,
-    lastModified,
+    ...(computedAt ? { lastModified: new Date(computedAt) } : {}),
     changeFrequency: "weekly",
     priority: 0.6,
   }));
 
+  // Static pages have no per-page "last changed" signal available to this
+  // route, so `lastModified` is omitted rather than stamped with the request
+  // time — a crawler reads an ever-advancing `lastModified` as "this page
+  // changes every time we check," which is a worse signal than none.
   return [
     {
       // Jobs search — the front door; `/` 307s here since Phase 1b.
       url: `${siteUrl}/jobs`,
-      lastModified,
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${siteUrl}/trends`,
-      lastModified,
       changeFrequency: "daily",
       priority: 0.8,
     },
     {
       url: `${siteUrl}/pricing`,
-      lastModified,
       changeFrequency: "monthly",
       priority: 0.7,
     },
@@ -100,37 +105,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // than carrying its own sitemap entry, so a redirecting URL never
       // competes with its own target for crawl budget.
       url: `${siteUrl}/connect`,
-      lastModified,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       url: `${siteUrl}/research/ghost-jobs`,
-      lastModified,
       changeFrequency: "monthly",
       priority: 0.6,
     },
     {
       url: `${siteUrl}/about`,
-      lastModified,
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
       url: `${siteUrl}/contact`,
-      lastModified,
       changeFrequency: "monthly",
       priority: 0.4,
     },
     {
       url: `${siteUrl}/privacy`,
-      lastModified,
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
       url: `${siteUrl}/terms`,
-      lastModified,
       changeFrequency: "yearly",
       priority: 0.3,
     },
