@@ -95,7 +95,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
         <>
           <CompanyGhostMixBand ghostMix={profile.ghostMix} />
           <CompanyFreshnessBand freshness={profile.freshness} />
-          <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} />
+          <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
         </>
       )}
     </main>

@@ -142,7 +142,7 @@ function MockJobRow({ job, onClick }: { job: PublicJob; onClick: () => void }) {
         <button
             type="button"
             onClick={onClick}
-            className="mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2]"
+            className="mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#a8b2bf]"
         >
             <div className="row-span-2 self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />

@@ -645,7 +645,13 @@ export function JobDetail({
                                     {/* Meter — one cell per signal, positive ones filled.
                                         A count-at-a-glance ahead of the verdict pill, no
                                         new color: filled cells reuse the SAME green token
-                                        (`bg-st-offer`) the "clear" verdict pill uses. */}
+                                        (`bg-st-offer`) the "clear" verdict pill uses. The
+                                        tally counts favorable OBSERVATIONS (salary disclosed,
+                                        fresh, substantial description) — a different axis
+                                        from the verdict pill (the upstream scorer's
+                                        ghost-risk call). The explicit "favorable" label is
+                                        what stops "No ghost signals" beside "1/4" reading as
+                                        a contradiction. */}
                                     <span aria-hidden className="flex gap-[3px]">
                                         {ghostSignals.map((s, i) => (
                                             <i
@@ -655,7 +661,7 @@ export function JobDetail({
                                         ))}
                                     </span>
                                     <span className="font-mono text-[12px] font-semibold">
-                                        {positiveSignalCount}/{ghostSignals.length}
+                                        {positiveSignalCount}/{ghostSignals.length} favorable
                                     </span>
                                 </>
                             )}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { badgeFor, checkFreshness, daysOpenFrom } from "../../src/lib/jobs/badges";
+import { badgeFor, checkFreshness, daysOpenFrom, rowTrustChip } from "../../src/lib/jobs/badges";
 import { STALE_CHECK_DAYS, STALE_THRESHOLD_MS } from "../../src/lib/jobs/freshness";
 
 const NOW = Date.parse("2026-07-18T12:00:00Z");
@@ -87,4 +87,30 @@ test("daysOpenFrom floors partial days and never goes negative", () => {
     assert.equal(daysOpenFrom(NOW - 90_000_000, NOW), 1); // ~1.04d -> 1
     assert.equal(daysOpenFrom(NOW + 10_000, NOW), 0); // future clock-skew clamps to 0
     assert.equal(daysOpenFrom(null, NOW), null);
+});
+
+// The surfaced bug: unscored jobs must render NO chip, never "verified" —
+// rowTrustChip's whole reason for existing (see badges.ts doc comment).
+test("rowTrustChip: unscored renders no chip", () => {
+    assert.equal(rowTrustChip("unscored", ago(1_000), NOW), null);
+});
+
+test("rowTrustChip: clear + fresh updated_at reads 'verified'", () => {
+    assert.equal(rowTrustChip("clear", ago(30_000), NOW), "verified");
+});
+
+test("rowTrustChip: clear + stale updated_at reads 'checked'", () => {
+    assert.equal(rowTrustChip("clear", ago(STALE_CHECK_MS + 1), NOW), "checked");
+});
+
+test("rowTrustChip: clear + null updated_at reads 'checked' (checkFreshness treats missing as stale)", () => {
+    assert.equal(rowTrustChip("clear", null, NOW), "checked");
+});
+
+test("rowTrustChip: caution reads 'review'", () => {
+    assert.equal(rowTrustChip("caution", null, NOW), "review");
+});
+
+test("rowTrustChip: likely_ghost reads 'review'", () => {
+    assert.equal(rowTrustChip("likely_ghost", null, NOW), "review");
 });

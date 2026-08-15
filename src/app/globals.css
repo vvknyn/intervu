@@ -48,7 +48,7 @@
   /* Frozen UI — light shell (intervu-*-coherent.html / FROZEN mocks).
      *-foreground tokens below point at --foreground rather than repeating
      its triplet, so the ink value has exactly one source. */
-  --background: 229 232 237;
+  --background: 222 226 232;
   --foreground: 18 22 28;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -59,38 +59,38 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 84 92 103;
+  --muted-foreground: 71 79 90;
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 169 62 40;
   --destructive-foreground: 255 255 255;
-  --border: 200 207 216;
+  --border: 185 193 204;
   --input: var(--border-strong);
   --ring: var(--brand);
 
   /* Brand / links — pre-hydration default; ThemeProvider's "green" theme
      (lib/themes.ts, default preset) applies the same values at runtime. */
-  --brand: 47 122 71;
+  --brand: 40 106 61;
   --brand-foreground: 255 255 255;
-  --brand-muted: 124 174 139;
+  --brand-muted: 110 160 126;
 
   /* Surface + text levels */
   --surface: 255 255 255;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 208 213 220;
+  --surface-3: 200 206 214;
   --border-strong: var(--foreground);
   --text-2: var(--muted-foreground);
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 234 237 241;
-  --faint: 122 130 141;
-  --live: 13 133 94;
+  --chip: 228 232 237;
+  --faint: 106 114 126;
+  --live: 11 117 83;
   --green-tint-bg: 230 244 239;
   --green-tint-bg-alt: 223 241 234;
-  --green-tint-border: 157 198 176;
-  --warn: 154 107 16;
+  --green-tint-border: 140 185 161;
+  --warn: 138 94 10;
   --warn-dot: 194 148 65;
   --danger-tint-border: 235 205 196;
 
@@ -98,8 +98,8 @@
      links, buttons, brand stay ink; only the ledger's verdict cell reads
      live/caution/risk. -bg variants are optional, subtle full-row tints for
      caution/risk rows only. */
-  --verdict-live: 46 107 79;
-  --verdict-caution: 154 107 16;
+  --verdict-live: 38 94 68;
+  --verdict-caution: 138 94 10;
   --verdict-risk: 169 62 40;
   --verdict-live-bg: 237 243 239;
   --verdict-caution-bg: 245 239 225;

@@ -40,7 +40,7 @@ import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { checkFreshness, daysOpenFrom } from "@/lib/jobs/badges";
+import { checkFreshness, rowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import {
@@ -335,78 +335,6 @@ function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
 }
 
 /**
- * The ledger's VERDICT CELL (editorial pass spec — the signature: mono,
- * colored, fixed-width, e.g. "■ LIVE · 2H" / "▲ REPOST" / "✕ RISK · STALE
- * 47D" / "— UNSCORED"). Renamed from the portal pass's `flagRowFor` (which
- * composed a dot + prose label) — same real signals, same pure primitives
- * (`checkFreshness`, `classifyPostingFreshness`, `daysOpenFrom`), just a
- * denser glyph+code grammar instead of prose. `ghostMetaFor` above stays the
- * JobDetail banner's separate (longer-copy) source — this function never
- * re-derives a signal itself, only composes the code text + tone.
- */
-type FlagTone = "live" | "warn" | "danger" | "faint";
-interface Verdict {
-    tone: FlagTone;
-    code: string;
-}
-/** Verdict-channel color only (anti-marker: color appears ONLY here). `faint`
- *  reuses the existing neutral `--faint` token rather than a new one. */
-const VERDICT_TONE_CLASS: Record<FlagTone, string> = {
-    live: "text-verdict-live",
-    warn: "text-verdict-caution",
-    danger: "text-verdict-risk",
-    faint: "text-faint",
-};
-
-/** "relisted" (a stated fact from `classifyPostingFreshness`) wins over a
- *  plain staleness count — both are real signals, but a relist is the more
- *  specific/explanatory one when both happen to be present. `null` when
- *  neither signal fires — callers fall back to a generic qualifier-free
- *  label rather than inventing one. */
-function ghostQualifier(job: PublicJob, now: number): string | null {
-    if (classifyPostingFreshness(job, now).kind === "relisted") return "relisted";
-    const days = daysOpenFrom(derivePostedTs(job), now);
-    return days != null ? `stale ${days}d` : null;
-}
-
-/** Compact uppercase age for the verdict cell ("2H"/"3D"), distinct from
- *  `formatRelativeAge`'s prose form ("2h ago") used in JobDetail — same
- *  bucketing thresholds (freshness.ts), a denser rendering for the ledger. */
-function shortAge(iso: string, now: number): string {
-    const ms = Math.max(0, now - Date.parse(iso));
-    if (ms < 60_000) return "NOW";
-    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}M`;
-    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}H`;
-    return `${Math.floor(ms / 86_400_000)}D`;
-}
-
-function verdictFor(job: PublicJob, now: number): Verdict {
-    const updatedAt = job.updated_at;
-    const age = updatedAt && !Number.isNaN(Date.parse(updatedAt)) ? shortAge(updatedAt, now) : null;
-    switch (job.ghost_badge) {
-        case "clear": {
-            if (checkFreshness(updatedAt, now) === "fresh") {
-                return { tone: "live", code: age ? `LIVE · ${age}` : "LIVE" };
-            }
-            return { tone: "live", code: age ? `CHECKED · ${age}` : "CHECKED" };
-        }
-        case "caution": {
-            const q = ghostQualifier(job, now);
-            if (q === "relisted") return { tone: "warn", code: "REPOST" };
-            return { tone: "warn", code: q ? `CAUTION · ${q.toUpperCase()}` : "CAUTION" };
-        }
-        case "likely_ghost": {
-            const q = ghostQualifier(job, now);
-            return { tone: "danger", code: q ? `RISK · ${q.toUpperCase()}` : "RISK" };
-        }
-        case "unscored":
-        default:
-            return { tone: "faint", code: "UNSCORED" };
-    }
-}
-
-
-/**
  * Task 9 — typeahead: adapt `suggestJobsAction`'s plain `{ titles, companies }`
  * into `SearchAutocomplete`'s `SearchSuggestion` shape. Companies are tagged
  * `'company'` so the dropdown renders them with a distinct icon (Buildings,
@@ -475,8 +403,7 @@ function JobCard({
     onToggleExpand?: () => void;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${displayCompany(job.company, job.company_domain) || "Unknown company"}`;
-    const verdict = verdictFor(job, now);
-    const flagged = verdict.tone === "warn" || verdict.tone === "danger";
+    const trust = rowTrustChip(job.ghost_badge, job.updated_at, now);
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // Repost caution (Task 3, Vivek request) — same classifier + same
@@ -507,7 +434,7 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#c0c8d2] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#a8b2bf] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
                 active && "border-foreground shadow-[0_0_0_1px_rgb(var(--foreground))]",
             )}
         >
@@ -558,17 +485,26 @@ function JobCard({
                 </div>
             </div>
             <span className="flex h-fit items-center self-start">
-                {flagged ? (
+                {trust === "review" && (
                     <span className="inline-flex items-center gap-1 border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
                         review
                     </span>
-                ) : (
-                    // Quiet, not a pill (squared design-system pass): no tint bg,
-                    // no border — the ✓ glyph alone carries the verdict-channel
-                    // color (text-verdict-live), same token the row badge/ghost
-                    // module verdict pill share.
+                )}
+                {/* Quiet, not a pill (squared design-system pass): no tint bg,
+                    no border — the ✓ glyph alone carries the verdict-channel
+                    color (text-verdict-live), same token the ghost module's
+                    verdict pill shares. "verified" only while the check is
+                    CURRENT; a stale clear downgrades to past-tense "checked",
+                    and an unscored job gets NO chip at all (rowTrustChip's
+                    contract — never claim a check that didn't run). */}
+                {trust === "verified" && (
                     <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
                         <span aria-hidden className="text-verdict-live">✓</span> verified
+                    </span>
+                )}
+                {trust === "checked" && (
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.04em] text-faint">
+                        checked
                     </span>
                 )}
                 {/* G5d (Grok UX wave) — quiet house tooltip (ContextHelp,
@@ -1035,7 +971,7 @@ function JobsContent() {
     // way to do one-time impure work during render — see React's "components
     // and hooks must be idempotent" doc the `react-hooks/purity` lint rule
     // links to) instead of `Date.now()` being called directly inside render
-    // (JobCard's `postedAge`/`verdictFor`) or inside JSX (the freshness stamp's
+    // (JobCard's `postedAge`/`rowTrustChip`) or inside JSX (the freshness stamp's
     // `isStale`/`formatRelativeAge`). Threading a single value down means the
     // row badge's age and the freshness stamp's age can never disagree about
     // what instant "now" was for this paint, and render stays pure — the

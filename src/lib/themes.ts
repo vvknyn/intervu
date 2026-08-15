@@ -37,12 +37,12 @@ export const themes: Record<string, Theme> = {
     label: "Green",
     colors: {
       light: {
-        // Contrast pass 2026-08-14: #2f7a47 — deep enough to carry text on
+        // Contrast pass 2 2026-08-15: #286a3d — deep enough to carry text on
         // white AND on green-tint-bg (chip active state). Value-paired with
         // globals.css :root --brand; change both together.
-        brand: "47 122 71",
+        brand: "40 106 61",
         "brand-foreground": "255 255 255",
-        "brand-muted": "124 174 139",
+        "brand-muted": "110 160 126",
       },
       dark: {
         brand: "94 180 150",

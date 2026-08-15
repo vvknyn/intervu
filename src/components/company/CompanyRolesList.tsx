@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { checkFreshness } from "@/lib/jobs/badges";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { cn } from "@/lib/utils";
@@ -17,9 +18,13 @@ function roleMeta(job: PublicJob): string {
 export function CompanyRolesList({
   roles,
   jobsSearchUrl,
+  now,
 }: {
   roles: PublicJob[];
   jobsSearchUrl: string;
+  /** Threaded from the page (one clock per render pass, house pattern) so the
+   *  staleness read below is pure and testable — never Date.now() in render. */
+  now: number;
 }) {
   if (roles.length === 0) return null;
 
@@ -36,7 +41,12 @@ export function CompanyRolesList({
 
       <ul className="mt-4 space-y-2">
         {roles.map((job) => {
-          const ghost = ghostMetaFor(job.ghost_badge, false);
+          // Real staleness, not a hardcoded `false`: a "clear" verdict whose
+          // backing check has gone stale renders STALE_CLEAR_META's neutral
+          // "Not recently verified" here exactly as it does on the SERP row
+          // and detail banner — ghostMetaFor is the shared chokepoint, and
+          // this was the one caller bypassing it.
+          const ghost = ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale");
           return (
             <li key={job.id}>
               <Link

@@ -53,6 +53,38 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  *                  already on screen)
  *   unscored     → null (no badge — preserves the pre-Task-8 null behavior)
  */
+/**
+ * The SERP row's terse trust chip. The row previously collapsed the 4-state
+ * `GhostBadge` into one boolean (`flagged = warn|danger`), which put BOTH
+ * "clear" and "unscored" in the same else-branch — an unscored job rendered
+ * "✓ verified", a verification claim about a check that never ran. Same
+ * honesty ladder `badgeFor` above encodes, in chip-sized vocabulary:
+ *   caution/likely_ghost → "review"
+ *   clear + current check → "verified" (checkFreshness, the shared boundary)
+ *   clear + stale check   → "checked" (past tense — the data can't back a
+ *                           present-tense claim; see STALE_CLEAR_META)
+ *   unscored              → null, NO chip (never fabricate a state — the
+ *                           same contract badgeFor's `unscored → null` keeps)
+ */
+export type RowTrustChip = "review" | "verified" | "checked";
+
+export function rowTrustChip(
+    ghostBadge: GhostBadge,
+    updatedAt: string | null,
+    nowMs: number,
+): RowTrustChip | null {
+    switch (ghostBadge) {
+        case "caution":
+        case "likely_ghost":
+            return "review";
+        case "clear":
+            return checkFreshness(updatedAt, nowMs) === "fresh" ? "verified" : "checked";
+        case "unscored":
+        default:
+            return null;
+    }
+}
+
 export function badgeFor(
     ghostBadge: GhostBadge,
     updatedAt: string | null,
