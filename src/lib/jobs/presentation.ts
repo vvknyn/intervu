@@ -448,6 +448,47 @@ export function firstMentionIndex(titles: string[], q: string): number {
 }
 
 /**
+ * `firstMentionIndex`'s "first non-matching title is the seam" trick relies
+ * on a prefix property — every titled hit sorted before every non-titled
+ * one — that only relevance ranking actually holds. Under an explicit sort
+ * (fresh, salary) `sort` acts as a real ORDER BY (see
+ * `shouldScopeTextMatchToTitle`, sort.ts) and title/non-title hits interleave
+ * by date or pay instead: Meili's typo tolerance admits a near-miss like
+ * "Produce Manager" for "product", and it lands wherever ITS date/salary
+ * puts it, not after the last real title match. Counting a leading run
+ * against interleaved input stops at the first interloper (measured live:
+ * 180 of the first 200 hits titled, but the run breaks at index 5).
+ *
+ * This restores the prefix property by construction instead of counting a
+ * run: a stable partition of `hits` into "titled" then "not titled", each
+ * half keeping its original relative (sorted) order. Reuses
+ * `titleMatchesQuery` — same match rule `firstMentionIndex` uses, so the
+ * two never disagree about what counts as "titled it".
+ *
+ * `seamIndex` mirrors `firstMentionIndex`'s return shape: -1 whenever
+ * there's no boundary to draw — empty query, nothing titled (the "no titled
+ * block" case), or everything titled (the whole page IS the titled block) —
+ * and `hits` comes back in its original order in all three, since nothing
+ * moved.
+ */
+export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: PublicJob[]; seamIndex: number } {
+    if (!q.trim()) return { hits, seamIndex: -1 };
+    const titled: PublicJob[] = [];
+    const rest: PublicJob[] = [];
+    for (const hit of hits) {
+        (titleMatchesQuery(decodeText(hit.title), q) ? titled : rest).push(hit);
+    }
+    if (titled.length === 0 || rest.length === 0) return { hits, seamIndex: -1 };
+    return { hits: [...titled, ...rest], seamIndex: titled.length };
+}
+
+/** Shared "role"/"roles" + "is"/"are" agreement for the seam lines below —
+ *  one place so the two copy variants can't drift on how they pluralize. */
+function titledNounVerb(seamIndex: number): { noun: string; verb: string } {
+    return seamIndex === 1 ? { noun: "role", verb: "is" } : { noun: "roles", verb: "are" };
+}
+
+/**
  * The seam line's own copy — real counts on both sides of the "titled it" /
  * "mentions it" boundary instead of a static sentence, so the claim stays
  * honest as the result set changes. `seamIndex` (from `firstMentionIndex`) is
@@ -456,11 +497,28 @@ export function firstMentionIndex(titles: string[], q: string): number {
  * edge case `resolveCorpusCount` (corpus-count.ts) exists to guard against —
  * when that happens this falls back to counting the hits actually loaded
  * rather than printing a negative remainder.
+ *
+ * Relevance ranking only — see `seamSummarySorted` for sorted modes, where
+ * `total` can no longer be trusted to mean "more mention it".
  */
 export function seamSummary(seamIndex: number, total: number, hitsLength: number): string {
     const remaining = total < seamIndex ? hitsLength - seamIndex : total - seamIndex;
     const n = Math.max(remaining, 0);
-    const noun = seamIndex === 1 ? "role" : "roles";
-    const verb = seamIndex === 1 ? "is" : "are";
+    const { noun, verb } = titledNounVerb(seamIndex);
     return `${seamIndex.toLocaleString()} ${noun} ${verb} titled this · ${n.toLocaleString()} more mention it`;
+}
+
+/**
+ * The seam line's copy for a sorted mode's seam (`partitionByTitleMatch`),
+ * where the block below the seam is drawn from the CURRENTLY LOADED page
+ * only — most of what's still unloaded further down the sort order is
+ * itself titled too (it just ranks lower under fresh/salary than relevance),
+ * so `total - seamIndex` is not "more that only mention it" the way it is
+ * under `seamSummary`'s relevance ranking. Rather than print a count we
+ * can't back up, this names what the partition DOES guarantee: everything
+ * visible below the seam, on THIS loaded page, didn't title-match.
+ */
+export function seamSummarySorted(seamIndex: number): string {
+    const { noun, verb } = titledNounVerb(seamIndex);
+    return `${seamIndex.toLocaleString()} ${noun} ${verb} titled this · the rest below are weaker matches`;
 }
