@@ -69,6 +69,14 @@ export interface PublicJob {
   google_indexed_at?: string | null;
   is_indexed_linkedin?: boolean | null;
   linkedin_indexed_at?: string | null;
+  /**
+   * ITEM O-FE (2026-08-15) — user "Report listing" count, aggregated
+   * upstream from the flags endpoint. Same dark-launch posture as the
+   * exposure badges above: absent on every doc until that pipeline lands,
+   * so a job with no field (or `0`) renders no "reported" chip — never a
+   * fabricated one.
+   */
+  report_count?: number | null;
 }
 
 /**

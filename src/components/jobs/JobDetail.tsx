@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
 import { jobCompanyHref } from "@/lib/companies/paths";
@@ -18,7 +19,7 @@ import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
-import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
@@ -341,6 +342,7 @@ export function JobDetail({
     signedIn = true,
     onRequestSignIn,
     onOpenRelated,
+    reportJobEnabled = false,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -348,8 +350,15 @@ export function JobDetail({
     onOpenPosting: () => void;
     /** When false, the description preview is truncated and Apply/Save gate at click (G4, Grok UX wave). */
     signedIn?: boolean;
-    /** Opens auth when the guest preview's sign-in CTA is pressed. */
+    /** Opens auth when the guest preview's sign-in CTA is pressed — also the
+     *  "Report listing" button's gate (ITEM O-FE), same underlying flow
+     *  (AuthPopover on the board, a `/login` redirect on `/jobs/[slug]`),
+     *  not a second gate callback for the same job. */
     onRequestSignIn?: () => void;
+    /** ITEM O-FE (2026-08-15) — probed once by the caller via
+     *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
+     *  this defaults to hidden rather than showing a button that 404s. */
+    reportJobEnabled?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -496,9 +505,9 @@ export function JobDetail({
                             {locationText(job)}
                         </div>
                         {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                            <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-1 text-xs font-medium text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                            <div className={cn("mt-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", LISTING_STATE_CHIP.relisted)}>
                                 Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
-                                {firstSeenRelative} — often a repost.
+                                {firstSeenRelative} — often a relist.
                             </div>
                         )}
                         {salary && (
@@ -521,11 +530,11 @@ export function JobDetail({
                                             className={cn(
                                                 "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-2xs",
                                                 caution
-                                                    ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+                                                    ? LISTING_STATE_CHIP.relisted
                                                     : "border-slate-300/90 bg-slate-100/90 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
                                             )}
                                         >
-                                            <b className={cn("font-bold uppercase text-[10px]", caution ? "text-amber-700 dark:text-amber-400" : "text-slate-500 dark:text-slate-400")}>
+                                            <b className={cn("font-bold uppercase text-[10px]", caution ? LISTING_STATE_CHIP_LABEL.relisted : "text-slate-500 dark:text-slate-400")}>
                                                 {FACT_CHIP_KEY[c.kind]}
                                             </b>
                                             <span className={c.kind === "first_seen" ? "font-semibold" : "font-medium"}>
@@ -540,6 +549,18 @@ export function JobDetail({
                                         {alsoIn}
                                     </span>
                                 )}
+                                {/* ITEM Q/O-FE (2026-08-15) — dark launch: `report_count` doesn't
+                                    exist on any doc yet (see PublicJob's doc comment). Renders
+                                    only once the upstream aggregate lands and is positive — never
+                                    a fabricated "0 reports" claim. */}
+                                {typeof job.report_count === "number" && job.report_count > 0 && (
+                                    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-2xs", LISTING_STATE_CHIP.reported)}>
+                                        <b className={cn("font-bold uppercase text-[10px]", LISTING_STATE_CHIP_LABEL.reported)}>reported</b>
+                                        <span>
+                                            {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                                        </span>
+                                    </span>
+                                )}
                                 {nonSalaryChips.some((c) => c.kind === "posted") && nonSalaryChips.some((c) => c.kind === "first_seen") && (
                                     <ContextHelp
                                         content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
@@ -551,9 +572,11 @@ export function JobDetail({
                         {/* ITEM K (2026-08-15): the ContextHelp above is hover-gated,
                             which failed the founder-discoverability test (Vivek) — this
                             is the same fact, always visible, no hover required. Factual
-                            cue only, matching the amber "posted" chip's caution palette. */}
+                            cue only, matching the "posted" chip's relisted-caution palette
+                            (ITEM Q, 2026-08-15 — moved off amber onto the listing-state
+                            violet tone, shared with every other relisted render site). */}
                         {freshness.kind === "relisted" && (
-                            <p className="mt-1.5 text-[12px] text-amber-700 dark:text-amber-400">
+                            <p className={cn("mt-1.5 text-[12px]", LISTING_STATE_TEXT.relisted)}>
                                 Employer&apos;s posted date is newer than when we first found this role — the date was likely refreshed.
                             </p>
                         )}
@@ -597,6 +620,14 @@ export function JobDetail({
                             {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
                         </Button>
                     )}
+                    {reportJobEnabled && job.apply_url && (
+                        <ReportJobButton
+                            jobUrl={job.apply_url}
+                            jobTitle={job.title}
+                            onRequireAuth={() => onRequestSignIn?.()}
+                            className="ml-auto"
+                        />
+                    )}
                 </div>
             </div>
 
@@ -618,7 +649,14 @@ export function JobDetail({
                                         {ghostSignals.map((s, i) => (
                                             <i
                                                 key={i}
-                                                className={cn("h-2 w-4 rounded-full", s.positive ? "bg-emerald-500 shadow-2xs" : "bg-slate-200 dark:bg-slate-700")}
+                                                className={cn(
+                                                    "h-2 w-4 rounded-full",
+                                                    s.kind === "freshness" && freshness.kind === "relisted"
+                                                        ? "bg-violet-500 shadow-2xs"
+                                                        : s.positive
+                                                          ? "bg-emerald-500 shadow-2xs"
+                                                          : "bg-slate-200 dark:bg-slate-700",
+                                                )}
                                             />
                                         ))}
                                     </span>
@@ -642,13 +680,20 @@ export function JobDetail({
                         )}
                         {ghostSignals.length > 0 && (
                             <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-1.5 px-3.5 py-2.5 text-[12px] sm:grid-cols-2">
-                                {ghostSignals.map((s) => (
+                                {ghostSignals.map((s) => {
+                                    // ITEM T (2026-08-15): a relist is a freshness-integrity
+                                    // fact, not a plain "not favorable" — the freshness row
+                                    // gets the ITEM-Q violet caution treatment instead of the
+                                    // default ✓/— binary. The reposts row is unaffected by
+                                    // relist state (see deriveGhostSignals's doc comment).
+                                    const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
+                                    return (
                                     <span key={s.text} className="flex items-baseline gap-2">
-                                        <span className={s.positive ? "text-verdict-live" : "text-muted-foreground"}>
-                                            {s.positive ? "✓" : "—"}
+                                        <span className={relistCaution ? LISTING_STATE_TEXT.relisted : s.positive ? "text-verdict-live" : "text-muted-foreground"}>
+                                            {relistCaution ? "!" : s.positive ? "✓" : "—"}
                                         </span>
                                         <b className="font-mono text-[12px] font-medium text-foreground">{s.kind}</b>
-                                        <span className="text-[12px] text-muted-foreground">
+                                        <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                             {s.text}
                                             {/* R7 (founder, 2026-08-09): age alone must never
                                                 read as a ghost verdict. Mounted ONLY when this
@@ -656,12 +701,13 @@ export function JobDetail({
                                                 shouldShowAgeBalanceNote's doc for why a
                                                 multi-signal verdict's existing copy stands
                                                 unsoftened instead. */}
-                                            {!s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                            {!relistCaution && !s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
                                                 <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
                                             )}
                                         </span>
                                     </span>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                         <div className="px-3.5 pb-3.5 pt-2.5">
