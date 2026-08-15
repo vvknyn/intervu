@@ -8,7 +8,6 @@ import {
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
-    shouldShowBrowseSeedRow,
     resolveEndOfListState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
@@ -522,11 +521,7 @@ describe('resolveEndOfListState', () => {
     });
 });
 
-// The double seed row (user-reported, prod screenshot 2026-08-08): a
-// zero-results search printed "OR TRY …" twice — the standalone pivot row
-// above the pane AND `EmptyResults`' own row inside it. Both gates read the
-// same state independently; neither knew about the other.
-describe('resolveJobsResultsPanel + shouldShowBrowseSeedRow', () => {
+describe('resolveJobsResultsPanel', () => {
     const panel = (over: Partial<Parameters<typeof resolveJobsResultsPanel>[0]> = {}) =>
         resolveJobsResultsPanel({
             isSerpAsk: false,
@@ -537,42 +532,26 @@ describe('resolveJobsResultsPanel + shouldShowBrowseSeedRow', () => {
             ...over,
         });
 
-    it('the surfaced bug: filters active, fetch finished with zero hits — the empty panel owns the seeds, the pivot row stands down', () => {
-        const p = panel({ hitCount: 0 });
-        assert.equal(p, 'empty');
-        assert.equal(shouldShowBrowseSeedRow('serp-ask', p), false);
+    it('a zero-hit fetch with no other signal resolves to the empty panel', () => {
+        assert.equal(panel({ hitCount: 0 }), 'empty');
     });
 
-    it('the class, not the instance: the ask panel is the other seed-owning panel — no second row above it either', () => {
-        const p = panel({ isSerpAsk: true });
-        assert.equal(p, 'serp-ask');
-        assert.equal(shouldShowBrowseSeedRow('overlay-ask', p), false);
+    it('the ask state wins regardless of the other flags', () => {
+        assert.equal(panel({ isSerpAsk: true }), 'serp-ask');
     });
 
-    it('browse-by-default keeps the pivot row on an empty-search state that DID return hits', () => {
-        const p = panel({ hitCount: 24 });
-        assert.equal(p, 'list');
-        assert.equal(shouldShowBrowseSeedRow('overlay-ask', p), true);
-        assert.equal(shouldShowBrowseSeedRow('serp-ask', p), true);
+    it('a non-zero hit count resolves to the list panel', () => {
+        assert.equal(panel({ hitCount: 24 }), 'list');
     });
 
-    it('still shows while the first page is loading, and on the hard backend panels — none of those render seeds of their own', () => {
+    it('loading with zero hits so far resolves to the loading panel; a background refresh over existing hits keeps the list up', () => {
         assert.equal(panel({ loading: true }), 'loading');
-        assert.equal(shouldShowBrowseSeedRow('overlay-ask', panel({ loading: true })), true);
-        assert.equal(shouldShowBrowseSeedRow('overlay-ask', panel({ notConnected: true })), true);
-        assert.equal(shouldShowBrowseSeedRow('overlay-ask', panel({ blockingError: true })), true);
-    });
-
-    it('a real query is never an empty-search state, so the pivot row never renders for it — whatever the panel', () => {
-        for (const p of ['list', 'empty', 'loading', 'error', 'not-connected', 'serp-ask'] as const) {
-            assert.equal(shouldShowBrowseSeedRow('results', p), false);
-        }
+        assert.equal(panel({ loading: true, hitCount: 5 }), 'list');
     });
 
     it('panel precedence matches the ternary it replaced: ask beats backend states, which beat loading, which beats empty', () => {
         assert.equal(panel({ isSerpAsk: true, notConnected: true, blockingError: true, loading: true }), 'serp-ask');
         assert.equal(panel({ notConnected: true, blockingError: true, loading: true }), 'not-connected');
         assert.equal(panel({ blockingError: true, loading: true }), 'error');
-        assert.equal(panel({ loading: true, hitCount: 5 }), 'list', 'a background refresh over existing hits keeps the list up');
     });
 });

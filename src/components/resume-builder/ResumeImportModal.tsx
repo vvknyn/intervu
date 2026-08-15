@@ -35,12 +35,22 @@ interface ResumeImportModalProps {
      * (fit-ranking the job list) — that caller passes "Rank my jobs".
      */
     confirmLabel?: string;
+    /**
+     * Dialog title/description overrides. Default to today's copy exactly
+     * (the icon + "Import Resume" title, and the step-conditional
+     * description below) — the resume-builder's own mount stays byte-
+     * identical. /jobs (ITEM J, 2026-08-15) passes both: the "best match"
+     * sort tab used to summon this modal with zero explanation, so a caller
+     * that knows WHY it's opening the importer can now say so.
+     */
+    title?: string;
+    description?: string;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
 type InputMethod = 'file' | 'paste';
 
-export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, confirmLabel = "Apply to Resume" }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, confirmLabel = "Apply to Resume", title, description }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -572,15 +582,25 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
             <DialogContent className="sm:max-w-[600px] bg-white dark:bg-neutral-950 max-h-[90dvh] overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
-                            <Upload size={18} weight="bold" className="text-brand" />
-                        </div>
-                        Import Resume
+                        {title ? (
+                            title
+                        ) : (
+                            <>
+                                <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
+                                    <Upload size={18} weight="bold" className="text-brand" />
+                                </div>
+                                Import Resume
+                            </>
+                        )}
                     </DialogTitle>
                     <DialogDescription>
-                        {step === 'input' && "Upload a file or paste your resume text"}
-                        {step === 'parsing' && "AI is analyzing your resume..."}
-                        {step === 'review' && "Review and edit the extracted information"}
+                        {description ? description : (
+                            <>
+                                {step === 'input' && "Upload a file or paste your resume text"}
+                                {step === 'parsing' && "AI is analyzing your resume..."}
+                                {step === 'review' && "Review and edit the extracted information"}
+                            </>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 

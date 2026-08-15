@@ -23,6 +23,8 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction } from "@/actions/jobs";
+import type { OpenCount } from "@/lib/companies/open-count";
+import { openCountText } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -417,9 +419,6 @@ export function JobDetail({
     // S4 — exposure trust badges (dark launch): [] for every job until
     // Subspace's upstream backfill lands (see deriveExposureBadges' doc).
     const exposureBadges = deriveExposureBadges(job, now);
-    const hasCompanyIntel =
-        typeof job.company_open_count === "number" ||
-        (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     // A2 — "More like this." Self-contained: this panel is the only
     // consumer of the related list, so it fetches its own data (via the
@@ -429,26 +428,43 @@ export function JobDetail({
     // against a fast re-open (new `job.id` before the previous fetch lands)
     // painting a stale job's related list onto the new one.
     const [related, setRelated] = useState<PublicJob[]>([]);
+    // ITEM N (2026-08-15) — the hiring-truth rail's "Live roles" figure used
+    // to read `job.company_open_count`, a sync-time aggregate baked onto the
+    // job document that structurally drifts from /co/[slug]'s own live count
+    // for the same company (delta sync can't carry cross-table data). `null`
+    // until this resolves (or for guests, or a companyless job) — the render
+    // below falls back to `job.company_open_count` in that window, same as
+    // before this existed.
+    const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
     useEffect(() => {
         let cancelled = false;
         setRelated([]);
+        setLiveOpenCount(null);
         // Guests see this panel blurred behind the sign-in gate — fetching
-        // for them would spend up to two corpus queries per detail-open on
-        // rows nobody can read.
+        // for them would spend up to three corpus queries per detail-open on
+        // rows/figures nobody can read.
         if (!signedIn) return;
         getRelatedJobsAction(job.id, job.company_domain, job.title)
-            .then((hits) => {
-                if (!cancelled) setRelated(hits);
+            .then((data) => {
+                if (cancelled) return;
+                setRelated(data.jobs);
+                setLiveOpenCount(data.openCount);
             })
             .catch(() => {
                 // "More like this" is an accelerant, never a source of
                 // user-visible error — the render guard below already
-                // renders nothing for an empty list.
+                // renders nothing for an empty list, and the open-count
+                // render falls back to `job.company_open_count`.
             });
         return () => {
             cancelled = true;
         };
     }, [job.id, job.company_domain, job.title, signedIn]);
+
+    const hasCompanyIntel =
+        liveOpenCount != null ||
+        typeof job.company_open_count === "number" ||
+        (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
         <div className={cn("relative overflow-hidden rounded-2xl border border-slate-300/80 bg-card shadow-lg dark:border-slate-700", className)}>
@@ -531,6 +547,15 @@ export function JobDetail({
                                     />
                                 )}
                             </div>
+                        )}
+                        {/* ITEM K (2026-08-15): the ContextHelp above is hover-gated,
+                            which failed the founder-discoverability test (Vivek) — this
+                            is the same fact, always visible, no hover required. Factual
+                            cue only, matching the amber "posted" chip's caution palette. */}
+                        {freshness.kind === "relisted" && (
+                            <p className="mt-1.5 text-[12px] text-amber-700 dark:text-amber-400">
+                                Employer&apos;s posted date is newer than when we first found this role — the date was likely refreshed.
+                            </p>
                         )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -754,10 +779,12 @@ export function JobDetail({
                             {cleanedCompany || "This company"} · hiring truth
                         </div>
                         <div className="mt-3.5 flex flex-wrap gap-6">
-                            {typeof job.company_open_count === "number" && (
+                            {(liveOpenCount != null || typeof job.company_open_count === "number") && (
                                 <div>
                                     <div className="font-mono text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
-                                        {job.company_open_count.toLocaleString()}
+                                        {liveOpenCount != null
+                                            ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
+                                            : job.company_open_count!.toLocaleString()}
                                     </div>
                                     <div className="mono-data mt-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                                         Live roles
