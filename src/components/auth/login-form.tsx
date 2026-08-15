@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { BrandMark } from '@/components/brand/BrandMark'
 import { signInWithUsername, signUpWithUsername, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
@@ -19,7 +20,7 @@ interface LoginFormProps {
 }
 
 const authFieldClass =
-    "min-h-11 border-border bg-card focus:border-foreground focus-visible:border-foreground focus-visible:ring-foreground/20 focus-visible:shadow-none";
+    "min-h-11 rounded-lg border border-border bg-background px-3.5 text-sm text-foreground shadow-2xs focus:border-brand focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30";
 
 /** Standard 4-color Google "G" glyph — no icon library ships a brand mark
  *  for it, and pulling in a new dependency for one static SVG isn't worth
@@ -105,7 +106,6 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
 
         startTransition(async () => {
             try {
-                // Create user + profile on server
                 const formData = new FormData()
                 formData.append('username', username)
                 formData.append('password', password)
@@ -114,7 +114,6 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                     setMessage(result.error)
                     return
                 }
-                // Sign in client-side to create session cookie
                 await signInWithUsername(username, password)
                 router.refresh()
                 if (onSuccess) onSuccess()
@@ -125,27 +124,41 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     }
 
     if (showForgotPassword) {
-        return <ForgotPasswordForm onBack={() => setShowForgotPassword(false)} />;
+        return <ForgotPasswordForm onBack={() => setShowForgotPassword(false)} />
     }
 
     return (
-        <div className="grid gap-6">
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList variant="block" className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="login">Log In</TabsTrigger>
-                    <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                </TabsList>
-
-                <div className="mb-4 text-center space-y-1">
-                    <h3 className="font-semibold text-lg tracking-tight">
-                        {activeTab === "login" ? "Welcome back" : "Create an account"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                        {activeTab === "login"
-                            ? "Enter your credentials to access your account"
-                            : "Enter your email below to create your account"}
-                    </p>
+        <div className="space-y-5 pt-1">
+            <div className="text-center space-y-1.5">
+                <div className="flex items-center justify-center gap-2">
+                    <BrandMark className="h-6 w-6 text-foreground" />
+                    <span className="font-display font-bold text-lg text-foreground">intervu</span>
                 </div>
+                <h3 className="font-bold text-xl tracking-tight text-foreground">
+                    {activeTab === "login" ? "Welcome back" : "Create your account"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                    {activeTab === "login"
+                        ? "Enter your credentials to access your account"
+                        : "Start tracking real openings and syncing with your AI"}
+                </p>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-11 rounded-full bg-chip p-1 mb-5">
+                    <TabsTrigger
+                        value="login"
+                        className="h-full w-full rounded-full font-bold text-xs tracking-wider uppercase data-[state=active]:bg-card data-[state=active]:text-brand data-[state=active]:border data-[state=active]:border-brand/40 data-[state=active]:shadow-none"
+                    >
+                        Log In
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="signup"
+                        className="h-full w-full rounded-full font-bold text-xs tracking-wider uppercase data-[state=active]:bg-card data-[state=active]:text-brand data-[state=active]:border data-[state=active]:border-brand/40 data-[state=active]:shadow-none"
+                    >
+                        Sign Up
+                    </TabsTrigger>
+                </TabsList>
 
                 <div className="grid gap-4">
                     <form onSubmit={activeTab === "login" ? handleUsernameLogin : handleSignUp}>
@@ -197,7 +210,10 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     <p className="text-xs text-muted-foreground">6+ characters</p>
                                 )}
                             </div>
-                            <Button disabled={isPending} className="w-full">
+                            <Button
+                                disabled={isPending}
+                                className="w-full bg-brand text-brand-foreground hover:bg-brand hover:opacity-90 dark:bg-brand dark:text-brand-foreground dark:hover:bg-brand"
+                            >
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />
                                 )}
@@ -211,7 +227,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                             <button
                                 type="button"
                                 onClick={() => setShowForgotPassword(true)}
-                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                className="text-xs text-brand hover:underline"
                             >
                                 Forgot password?
                             </button>

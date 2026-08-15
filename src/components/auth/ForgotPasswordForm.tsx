@@ -50,19 +50,19 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         return (
             <div className="w-full max-w-xs mx-auto text-center">
                 <div className="mb-6 flex justify-center">
-                    <div className="w-12 h-12 rounded-none bg-muted flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center shadow-2xs">
                         <EnvelopeSimple size={24} className="text-foreground" />
                     </div>
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                <h2 className="text-lg font-semibold text-foreground mb-2">
                     Check your email
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                <p className="text-sm text-muted-foreground mb-6">
                     If an account with that email exists, we&apos;ve sent a password reset link to it.
                 </p>
                 <button
                     onClick={onBack}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                    className="text-xs text-faint hover:text-foreground transition-colors"
                 >
                     Back to login
                 </button>
@@ -75,15 +75,15 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             <div className="mb-8">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors mb-4"
+                    className="flex items-center gap-1 text-xs text-faint hover:text-foreground transition-colors mb-4"
                 >
                     <ArrowLeft size={12} />
                     Back
                 </button>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white text-center">
+                <h2 className="text-lg font-semibold text-foreground text-center">
                     Reset password
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1">
+                <p className="text-xs text-muted-foreground text-center mt-1">
                     Enter the email on your account to receive a reset link
                 </p>
             </div>
@@ -98,12 +98,12 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email"
-                        className="block w-full border-b border-slate-300 bg-transparent py-2 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                        className="block w-full border-b border-border bg-transparent py-2 text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
                     />
                 </div>
 
                 {error && (
-                    <div className="mt-2 text-xs text-red-500 text-center">
+                    <div className="mt-2 text-xs text-destructive text-center">
                         {error}
                     </div>
                 )}
@@ -111,7 +111,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 <button
                     type="submit"
                     disabled={isPending}
-                    className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 mt-6"
+                    className="w-full rounded bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
                 >
                     {isPending ? (
                         <CircleNotch size={16} className="mx-auto animate-spin" />
