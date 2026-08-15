@@ -5,7 +5,7 @@ with an older file, this wins. The older passes are archived context only:
 
 | Superseded | What it was |
 |---|---|
-| `PORTAL-REDESIGN-SPEC.md` | Aug 2 portal pass. Stale: specs `/` as "Find jobs" (it is now the front door), specs `/resume-builder` and `/prep` (both deleted), specs 12px radii (we are squared). |
+| `PORTAL-REDESIGN-SPEC.md` | Aug 2 portal pass. Stale: specs `/` as "Find jobs" (it is now the front door), specs `/resume-builder` and `/prep` (both deleted), specs 12px radii (we are squared). **Superseded visually only** — this document is visual-only and does not restate that spec's data-honesty decisions, which remain live there. |
 | `EDITORIAL-PASS-SPEC.md` | "Verification Instrument" pass — another remap of the same var names. |
 | `soft-signal-desktop/`, `soft-signal-mobile/`, `soft-signal-feed/` | Mockup sets with their own `_system.css`. |
 | `elite-company-signal/` | Mockups behind the `.elite-signal` scope. |
