@@ -42,20 +42,23 @@ const FACT_CHIP_KEY: Record<FactChipKind, string> = {
     employment_type: "type",
     experience_level: "level",
     salary: "salary",
-    // "posted" is the EMPLOYER's claimed date (re-stamped on a relist,
-    // per posting-freshness.ts) — distinct from "first seen by us" below,
-    // which is OUR observation. Labeling both identically read as if they
-    // carried equal weight; the key now states whose claim each one is.
-    posted: "employer posted",
-    first_seen: "first seen by us",
+    // Clean, compact keys that fit comfortably on mobile without breaking into multi-line wraps
+    posted: "posted",
+    first_seen: "first seen",
 };
 
 /** `buildFactChips`' posted/first_seen labels already embed the verb
  *  ("Posted 3d ago") for the icon-based chip this replaces; the squared
  *  `.fact` box states that verb as the key instead, so it's stripped here
- *  to avoid rendering it twice ("first seen by us" + "First seen 10d ago"). */
+ *  to avoid rendering it twice ("first seen" + "First seen 10d ago"). */
 function factValue(kind: FactChipKind, label: string): string {
     return kind === "posted" || kind === "first_seen" ? label.replace(/^(Posted|First seen)\s+/i, "") : label;
+}
+
+/** Formats ghost signal text to eliminate redundant kind prefix repetition */
+function formatSignalText(kind: string, text: string): string {
+    const prefixRegex = new RegExp(`^${kind}\\s*(—|-|:)?\\s*`, "i");
+    return text.replace(prefixRegex, "");
 }
 
 /**
@@ -483,11 +486,11 @@ export function JobDetail({
                 never confirm which job they'd opened, since the blur+overlay
                 covered the title along with everything else. Only the
                 action row and body further down stay gated. */}
-            <div className="border-b border-border/80 px-6 pb-4 pt-4">
-                <div className="flex items-start gap-3.5">
+            <div className="border-b border-border/80 px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
+                <div className="flex items-start gap-3 sm:gap-3.5">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-[22px] font-bold leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
+                        <h2 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
                         <div className="mt-1 text-sm font-medium text-muted-foreground">
                             {cleanedCompany ? (
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
@@ -511,17 +514,17 @@ export function JobDetail({
                             </div>
                         )}
                         {salary && (
-                            <div className="mt-3 inline-flex items-center gap-2.5 rounded-lg border border-emerald-300/90 bg-emerald-50 px-3.5 py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/60">
+                            <div className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-emerald-300/90 bg-emerald-50 px-3 py-1 sm:px-3.5 sm:py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/60">
                                 <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                                     pay
                                 </span>
-                                <span className="font-mono text-lg font-bold tracking-tight text-emerald-950 dark:text-emerald-100">
+                                <span className="font-mono text-base sm:text-lg font-bold tracking-tight text-emerald-950 dark:text-emerald-100">
                                     {salary}
                                 </span>
                             </div>
                         )}
                         {(nonSalaryChips.length > 0 || alsoIn) && (
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-2.5 flex flex-wrap gap-1.5 sm:gap-2">
                                 {nonSalaryChips.map((c) => {
                                     const caution = c.kind === "posted" && freshness.kind === "relisted";
                                     return (
@@ -588,7 +591,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
+                                className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
                             >
                                 ×
                             </button>
@@ -598,10 +601,10 @@ export function JobDetail({
             </div>
 
             {/* Action row + body. Apply/Save render here for guests too */}
-            <div className="border-b border-border/80 px-5 py-3.5">
+            <div className="border-b border-border/80 px-4 py-3 sm:px-5 sm:py-3.5">
                 <div className="flex flex-wrap items-center gap-2">
                     {job.apply_url && (
-                        <Button onClick={onOpenPosting} className="gap-2">
+                        <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 font-semibold">
                             <ArrowSquareOut size={16} />
                             Apply
                         </Button>
@@ -609,13 +612,13 @@ export function JobDetail({
                     {pursuit ? (
                         <Link
                             href={`/yours/${pursuit.id}`}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
+                            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
                         >
                             <Check size={16} weight="bold" />
                             Saved
                         </Link>
                     ) : (
-                        <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2">
+                        <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 px-4 font-semibold">
                             <Check size={16} />
                             {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
                         </Button>
@@ -631,7 +634,7 @@ export function JobDetail({
                 </div>
             </div>
 
-            <div className="px-5 pb-6 pt-4">
+            <div className="px-4 pb-6 pt-4 sm:px-5">
                 {/* Ghost check module (squared design-system pass): a neutral
                     check ledger, not a tinted verdict box — color stays
                     concentrated in the verdict pill (`ghost.cls`, the SAME
@@ -639,38 +642,42 @@ export function JobDetail({
                     via `ghostMetaFor`), never on the module's own ground. */}
                 {ghost && (
                     <div className="mb-5 overflow-hidden rounded-xl border border-slate-300/80 bg-slate-50/50 shadow-2xs dark:border-slate-700 dark:bg-slate-900/40">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/80 px-4 py-2.5">
-                            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                                ghost check
-                            </span>
-                            {ghostSignals.length > 0 && (
-                                <>
-                                    <span aria-hidden className="flex items-center gap-1">
-                                        {ghostSignals.map((s, i) => (
-                                            <i
-                                                key={i}
-                                                className={cn(
-                                                    "h-2 w-4 rounded-full",
-                                                    s.kind === "freshness" && freshness.kind === "relisted"
-                                                        ? "bg-violet-500 shadow-2xs"
-                                                        : s.positive
-                                                          ? "bg-emerald-500 shadow-2xs"
-                                                          : "bg-slate-200 dark:bg-slate-700",
-                                                )}
-                                            />
-                                        ))}
-                                    </span>
-                                    <span className="font-mono text-[12px] font-bold text-foreground">
-                                        {positiveSignalCount}/{ghostSignals.length} favorable
-                                    </span>
-                                </>
-                            )}
-                            <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider", ghost.cls)}>
-                                {ghost.label}
-                            </span>
-                            <span className="ml-auto font-mono text-[11px] text-muted-foreground">
-                                {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
-                            </span>
+                        <div className="flex flex-col gap-2 border-b border-border/80 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                    ghost check
+                                </span>
+                                {ghostSignals.length > 0 && (
+                                    <div className="flex items-center gap-1.5">
+                                        <span aria-hidden className="flex items-center gap-1">
+                                            {ghostSignals.map((s, i) => (
+                                                <i
+                                                    key={i}
+                                                    className={cn(
+                                                        "h-2 w-3.5 rounded-full",
+                                                        s.kind === "freshness" && freshness.kind === "relisted"
+                                                            ? "bg-violet-500 shadow-2xs"
+                                                            : s.positive
+                                                              ? "bg-emerald-500 shadow-2xs"
+                                                              : "bg-slate-200 dark:bg-slate-700",
+                                                    )}
+                                                />
+                                            ))}
+                                        </span>
+                                        <span className="font-mono text-[11px] font-bold text-foreground">
+                                            {positiveSignalCount}/{ghostSignals.length} favorable
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2 sm:justify-end">
+                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider", ghost.cls)}>
+                                    {ghost.label}
+                                </span>
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                    {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
+                                </span>
+                            </div>
                         </div>
                         {/* Explain copy only earns its place when the verdict isn't
                             already the unremarkable "clear and current" case — the
@@ -679,33 +686,25 @@ export function JobDetail({
                             <div className="px-3.5 pt-2.5 text-xs text-muted-foreground">{ghost.explain}</div>
                         )}
                         {ghostSignals.length > 0 && (
-                            <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-1.5 px-3.5 py-2.5 text-[12px] sm:grid-cols-2">
+                            <div className="mono-data grid grid-cols-1 gap-x-5 gap-y-2 px-4 py-3 text-[12px] sm:grid-cols-2">
                                 {ghostSignals.map((s) => {
-                                    // ITEM T (2026-08-15): a relist is a freshness-integrity
-                                    // fact, not a plain "not favorable" — the freshness row
-                                    // gets the ITEM-Q violet caution treatment instead of the
-                                    // default ✓/— binary. The reposts row is unaffected by
-                                    // relist state (see deriveGhostSignals's doc comment).
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
+                                    const formattedText = formatSignalText(s.kind, s.text);
                                     return (
-                                    <span key={s.text} className="flex items-baseline gap-2">
-                                        <span className={relistCaution ? LISTING_STATE_TEXT.relisted : s.positive ? "text-verdict-live" : "text-muted-foreground"}>
+                                    <div key={s.text} className="flex items-start gap-2">
+                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-[11px]", relistCaution ? LISTING_STATE_TEXT.relisted : s.positive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
                                             {relistCaution ? "!" : s.positive ? "✓" : "—"}
                                         </span>
-                                        <b className="font-mono text-[12px] font-medium text-foreground">{s.kind}</b>
-                                        <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
-                                            {s.text}
-                                            {/* R7 (founder, 2026-08-09): age alone must never
-                                                read as a ghost verdict. Mounted ONLY when this
-                                                line is the sole negative signal — see
-                                                shouldShowAgeBalanceNote's doc for why a
-                                                multi-signal verdict's existing copy stands
-                                                unsoftened instead. */}
-                                            {!relistCaution && !s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
-                                                <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="self-center" />
-                                            )}
-                                        </span>
-                                    </span>
+                                        <div className="min-w-0 flex-1 leading-snug">
+                                            <b className="font-mono text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
+                                            <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
+                                                {formattedText}
+                                                {!relistCaution && !s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                                    <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
                                     );
                                 })}
                             </div>
@@ -820,36 +819,36 @@ export function JobDetail({
 
                 {/* Company hiring-truth mini-KPI rail */}
                 {hasCompanyIntel && (
-                    <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
+                    <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
                         <div className="mono-data text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                             {cleanedCompany || "This company"} · hiring truth
                         </div>
-                        <div className="mt-3.5 flex flex-wrap gap-6">
+                        <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {(liveOpenCount != null || typeof job.company_open_count === "number") && (
-                                <div>
-                                    <div className="font-mono text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                <div className="min-w-[100px]">
+                                    <div className="font-mono text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {liveOpenCount != null
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
                                             : job.company_open_count!.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                                         Live roles
                                     </div>
                                 </div>
                             )}
                             {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
-                                <div>
-                                    <div className="font-mono text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                <div className="min-w-[120px]">
+                                    <div className="font-mono text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
-                                    <div className="mono-data mt-1 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                                    <div className="mono-data mt-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                                         Opened / closed, 90d
                                     </div>
                                 </div>
                             )}
                         </div>
                         {cleanedCompany && (
-                            <Button asChild variant="quiet" className="mt-4 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
+                            <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
                                 <Link href={jobCompanyHref(cleanedCompany, job.company_domain)}>Company page →</Link>
                             </Button>
                         )}
