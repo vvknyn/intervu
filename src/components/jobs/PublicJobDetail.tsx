@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
+import { reportJobEnabledAction } from "@/actions/report-job";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
@@ -42,6 +43,23 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
         router.push(`/login?next=${encodeURIComponent(pathname)}`);
     };
 
+    // ITEM O-FE (2026-08-15) — same probe `/jobs` runs; the flags endpoint
+    // isn't deployed yet, so this defaults to hidden.
+    const [reportJobEnabled, setReportJobEnabled] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        reportJobEnabledAction()
+            .then((ok) => {
+                if (!cancelled) setReportJobEnabled(ok);
+            })
+            .catch(() => {
+                /* transport failure — keep hidden */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     return (
         <JobDetail
             job={job}
@@ -49,6 +67,8 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
             signedIn
             pursuit={undefined}
             goingAfter={goingAfter}
+            reportJobEnabled={reportJobEnabled}
+            onRequestSignIn={requireAuth}
             onOpenPosting={() => {
                 if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
                     requireAuth();

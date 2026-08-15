@@ -85,23 +85,26 @@ const freshness = (over: Partial<PostingFreshness>): PostingFreshness => ({
     ...over,
 });
 
-test("deriveGhostSignals: a fresh, non-relisted, substantial, salaried posting is all-positive", () => {
+test("deriveGhostSignals: a fresh, non-relisted, substantial, salaried posting — reposts is honest absence, not a fabricated favorable", () => {
     const signals = deriveGhostSignals(
         job({ description: "x".repeat(250), salary_min: 120_000, salary_currency: "USD", salary_period: "year" }),
         freshness({ kind: "fresh", firstSeenMs: NOW - 2 * 86_400_000 }),
         3,
         NOW,
     );
+    // ITEM T (2026-08-15): reposts is ALWAYS non-favorable now — there is no
+    // close/reopen data source in the corpus, so "no repost history" would
+    // overclaim evidence this app doesn't have (see deriveGhostSignals' doc).
     assert.deepEqual(
         signals.map((s) => s.positive),
-        [true, true, true, true],
+        [true, false, true, true],
     );
     assert.deepEqual(
         signals.map((s) => s.kind),
         ["freshness", "reposts", "description", "pay"],
     );
     assert.match(signals[0]!.text, /within the last 7 days/);
-    assert.match(signals[1]!.text, /no repost history/);
+    assert.match(signals[1]!.text, /not tracked yet/);
     assert.match(signals[2]!.text, /real substance/);
     assert.match(signals[3]!.text, /salary disclosed/);
 });
@@ -117,9 +120,21 @@ test("deriveGhostSignals: a relisted, thin, unsalaried posting reports each hone
         signals.map((s) => s.positive),
         [false, false, false, false],
     );
-    assert.match(signals[1]!.text, /relisted from an earlier posting/);
+    // ITEM T correction (2026-08-15): a relist is a freshness-integrity fact,
+    // not a repost — the "refreshed" text lives on the freshness row now;
+    // the reposts row stays its own, unaffected, neutral-absence self.
+    assert.match(signals[0]!.text, /posted date refreshed since/);
+    assert.match(signals[1]!.text, /not tracked yet/);
     assert.match(signals[2]!.text, /thin/);
     assert.match(signals[3]!.text, /not disclosed/);
+});
+
+test("deriveGhostSignals: reposts is UNCHANGED by relist state — same neutral text whether relisted or not", () => {
+    const notRelisted = deriveGhostSignals(job({ description: null }), freshness({ kind: "fresh", firstSeenMs: NOW - 86_400_000 }), 0, NOW);
+    const relisted = deriveGhostSignals(job({ description: null }), freshness({ kind: "relisted", firstSeenMs: NOW - 40 * 86_400_000 }), 0, NOW);
+    const repostsOf = (signals: ReturnType<typeof deriveGhostSignals>) => signals.find((s) => s.kind === "reposts")!;
+    assert.equal(repostsOf(notRelisted).text, repostsOf(relisted).text);
+    assert.equal(repostsOf(notRelisted).positive, repostsOf(relisted).positive);
 });
 
 test("deriveGhostSignals: no first_seen at all omits BOTH freshness signals — never guesses", () => {

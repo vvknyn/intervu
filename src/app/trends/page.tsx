@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { fetchMarketTrends } from "@/lib/jobs/market-trends";
+import { getCachedMarketTrends } from "@/lib/jobs/market-trends";
 import {
   captureDailySnapshotIfAbsent,
   computeLatestDelta,
@@ -64,10 +64,19 @@ export async function generateMetadata(): Promise<Metadata> {
 // ONE /multi-search round trip (see fetchMarketTrends) and cached for this
 // window — never a per-visitor query against a box already measured at
 // 4-7s per facet query under embed-backfill load (spec).
-export const revalidate = 1800;
+//
+// ITEM U (2026-08-15): matched to `getCachedMarketTrends`'s own 900s window
+// (was 1800s, independently set). The data now comes from that ONE shared
+// cache entry — every other consumer (TopBar's ticker, jobs/page.tsx's
+// landing claim) reads it live on each mount, so this page's own outer ISR
+// regen can be at most as stale as the shared cache itself, never stacking
+// a second, longer staleness window on top of it. That stacking (page-shell
+// regen slower than the data cache it embeds) was the second half of the
+// 595-apart skew this fixes, not just the two-loaders half.
+export const revalidate = 900;
 
 export default async function TrendsPage() {
-  const data = await fetchMarketTrends();
+  const data = await getCachedMarketTrends().catch(() => null);
 
   if (!data) {
     return (

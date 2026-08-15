@@ -27,11 +27,16 @@ const FUTURE_GRACE_MS = 24 * 60 * 60 * 1000;
 export const FRESH_WINDOW_MS = 7 * 86_400_000;
 /**
  * posted_at claiming a date this far (or further) after first_seen_at is the
- * relist tell. 14 days deliberately generous: ingest lag or a claimed-date
- * rounding can put posted_at a few days after first observation innocently;
- * two weeks cannot.
+ * relist tell. Floor is 2 days: date-only stamping (no time-of-day) plus
+ * timezone differences between the employer's clock and ours can fake a
+ * gap of up to ~2 days with no real relist behind it — 3 days clears that
+ * noise floor with one day of margin. (ITEM T, 2026-08-15 — was 14 days,
+ * deliberately generous against ingest lag; too generous, a real 6-day
+ * relist gap Vivek found live went undetected. The pipeline's own
+ * `classifyRelisted` is being set to 3 days too, so the two never
+ * disagree about which postings are relisted.)
  */
-export const RELIST_MARGIN_MS = 14 * 86_400_000;
+export const RELIST_MARGIN_MS = 3 * 86_400_000;
 
 /**
  * Parse an ISO timestamp, returning epoch ms only if it's sane: parses, is

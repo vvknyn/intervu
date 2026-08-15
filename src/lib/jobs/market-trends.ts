@@ -13,6 +13,7 @@
  * silently reporting the cap — the same honesty guard /jobs already relies
  * on, extended here rather than reimplemented.
  */
+import { unstable_cache } from "next/cache";
 import { resolveCorpusCount, type CorpusCount } from "./corpus-count";
 import { isBuildPhase } from "@/lib/next-phase";
 import {
@@ -182,3 +183,28 @@ export async function fetchMarketTrends(): Promise<MarketTrendsData | null> {
       .map(([source, count]) => ({ source, count })),
   };
 }
+
+/**
+ * The single cached loader for this aggregation (ITEM U, 2026-08-15). Before
+ * this, two independent clocks read the same underlying fact: the TopBar
+ * ticker + jobs/page.tsx's landing claim went through `unstable_cache` here
+ * (900s), while /trends called `fetchMarketTrends` directly and rode its own
+ * page-level `revalidate` (1800s) instead — two windows over one number, so
+ * a visitor could see the ticker and the /trends card disagree by however
+ * much the two clocks had drifted apart. Every site-wide "live roles" render
+ * site now goes through this one export; do not add a second
+ * `unstable_cache` wrapper around `fetchMarketTrends` anywhere else.
+ *
+ * Only the successful-data path is cached — a null/thrown result must never
+ * be cached, or a Meili outage would stay "down" for the whole revalidation
+ * window instead of recovering on the next request.
+ */
+export const getCachedMarketTrends = unstable_cache(
+  async () => {
+    const data = await fetchMarketTrends();
+    if (!data) throw new Error("fetchMarketTrends returned null");
+    return data;
+  },
+  ["marketing-stats-market-trends"],
+  { revalidate: 900 },
+);
