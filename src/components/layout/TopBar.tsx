@@ -141,7 +141,7 @@ export function TopBar() {
                                     title={user.displayName || user.email || "Account"}
                                     aria-current={accountActive ? "page" : undefined}
                                     className={cn(
-                                        "ml-1 grid h-[32px] w-[32px] place-items-center rounded-full bg-foreground text-[12px] font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground/30",
+                                        "ml-1 grid h-[32px] w-[32px] place-items-center rounded-full bg-chrome-foreground text-[12px] font-medium text-chrome outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground/30",
                                         accountActive && "ring-2 ring-background ring-offset-2 ring-offset-foreground",
                                     )}
                                 >

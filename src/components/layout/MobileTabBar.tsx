@@ -48,7 +48,7 @@ export function MobileTabBar() {
                         {active && (
                             <span
                                 aria-hidden
-                                className="absolute inset-x-0 top-0 mx-auto h-0.5 w-7 rounded-b-sm bg-foreground"
+                                className="absolute inset-x-0 top-0 mx-auto h-0.5 w-7 rounded-b-sm bg-chrome-foreground"
                             />
                         )}
                         {Icon && <Icon />}
