@@ -94,21 +94,33 @@ test("handleImport respects the fitIntentRef guard before applying a queued fit 
  * "My résumé" toolbar control (2026-08-15 follow-up) — replaced the old
  * two-state "Upload résumé" button, which told a RETURNING user with a
  * résumé already on file to "upload" one because `resume` local state is
- * never fetched at mount (Task 4). One control, one label; only the STATE
- * (`resolveResumeControlState`, lib/jobs/result-state.ts) changes. These
- * tests guard the two hard invariants from that change: the no-résumé
- * branch still goes through the one documented upload chokepoint, and the
- * résumé-on-file branch NEVER reopens the importer.
+ * never fetched at mount (Task 4). One control, one label; only the STYLE
+ * (`resolveResumeControlState`) changes.
+ *
+ * A 2026-08-15 follow-up fix caught a second-order version of the SAME bug:
+ * an earlier version of `handleMyResumeClick` decided its branch off
+ * `resumeOnFile`'s rendered STYLE hint instead of its truth, which (a)
+ * reopened the "upload" flow for a window of a few hundred ms on every
+ * returning visit (the presence check starts unknown/`null`, which the old
+ * code folded into "no résumé"), and (b) went dead-silent if a résumé
+ * `resumeOnFile` claimed was present failed to actually resolve. The click
+ * decision moved OUT of page.tsx entirely into `runResumeControlClick`
+ * (lib/jobs/result-state.ts, unit-tested there with injected spies) —
+ * this test's job is just to prove page.tsx actually delegates to it
+ * instead of re-implementing (and risking re-diverging) the same branching
+ * inline.
  */
-test("handleMyResumeClick: the no-résumé branch routes through handleUploadClick, the résumé-on-file branch never does", () => {
+test("handleMyResumeClick delegates its whole branch decision to runResumeControlClick — no local if/else re-implementing it", () => {
     const body = section("const handleMyResumeClick = () => {", "const handleImport = (data: ResumeData");
-    const branches = body.split("void resolveAndApplyFit();");
-    assert.equal(branches.length, 2, "expected exactly one resolveAndApplyFit() call splitting the two branches");
-    assert.match(branches[0], /handleUploadClick\(\);/, "the !resumeOnFile branch must call handleUploadClick");
+    assert.match(
+        body,
+        /runResumeControlClick\(resumeOnFile,\s*resolveAndApplyFit,\s*handleUploadClick\)/,
+        "expected handleMyResumeClick to call runResumeControlClick(resumeOnFile, resolveAndApplyFit, handleUploadClick)",
+    );
     assert.doesNotMatch(
-        branches[1],
-        /handleUploadClick\(\)|setImportOpen\(true\)/,
-        "the resumeOnFile branch must never reopen the importer",
+        body,
+        /if\s*\(/,
+        "the branch decision must live in runResumeControlClick, not a local if/else in page.tsx",
     );
 });
 

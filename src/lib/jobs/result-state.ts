@@ -454,26 +454,66 @@ export function resolveEndOfListState(input: {
 }
 
 /**
- * The "My résumé" toolbar control's three states (page.tsx). One control,
- * one label, always — only its STATE changes:
+ * The "My résumé" toolbar control's three VISUAL states (page.tsx). One
+ * control, one label, always — only its STATE changes:
  *
  * - `"hidden"`: fit is already active, so the "ranked by your résumé ✕"
  *   chip already owns this role — showing both would be redundant.
- * - `"muted"`: no usable résumé is known yet (`resumeOnFile` false) — the
+ * - `"muted"`: `resumeOnFile` is `false` OR `null` (not yet known) — the
  *   control still opens the uploader on click, it's just visually quiet
  *   about it (never `disabled`; a muted-but-clickable control stays
  *   keyboard-focusable and in the tab order — see the button's own
  *   `aria-label`/`title` for the accessible hint).
- * - `"active"`: a usable résumé is known (this session's local state, or
- *   the boolean-only server presence check) — click resolves it and applies
- *   fit directly, without reopening the uploader.
+ * - `"active"`: a usable résumé is `true`-known (this session's local
+ *   state, or the boolean-only server presence check).
+ *
+ * A STYLING decision only — `null` and `false` render identically here on
+ * purpose. Do NOT infer click behavior from this: `resolveResumeControlState`
+ * folds `null` into "muted" because there's nothing better to show while
+ * unknown, but a click must still try the résumé resolve in that case (an
+ * "unknown" visual hint is not the same claim as a "known absent" one). See
+ * `runResumeControlClick` below for the (separate, truth-based) click
+ * decision.
  */
 export type ResumeControlState = "hidden" | "muted" | "active";
 
 export function resolveResumeControlState(input: {
     fitActive: boolean;
-    resumeOnFile: boolean;
+    resumeOnFile: boolean | null;
 }): ResumeControlState {
     if (input.fitActive) return "hidden";
     return input.resumeOnFile ? "active" : "muted";
+}
+
+/**
+ * The "My résumé" control's CLICK decision — deliberately separate from
+ * `resolveResumeControlState` above (that one only decides how the control
+ * LOOKS). Takes the two side-effecting actions as injected callbacks so it's
+ * testable with node:test without a component-render harness (this repo has
+ * none — see tests/unit/jobs-upload-continuation.test.ts's own doc comment).
+ *
+ * Two branches, on the TRUTH of `resumeOnFile`, not its rendered hint:
+ * - `false` (KNOWN absent, locally and on the server) → straight to
+ *   `upload()`, no resolve round-trip — preserves the fast path for a
+ *   genuinely new user so they don't eat an extra network hop before the
+ *   importer opens.
+ * - `true` OR `null` (known present, OR not yet known) → always try
+ *   `resolve()` first. Falling back to `upload()` only when that resolve
+ *   genuinely comes back empty covers BOTH "unknown, and turns out to
+ *   actually be absent" and "presence said yes but the résumé didn't
+ *   actually resolve" with the one branch — never a dead click, and never a
+ *   click that opens the importer for a résumé that was there the whole
+ *   time (the two bugs this function exists to close).
+ */
+export async function runResumeControlClick(
+    resumeOnFile: boolean | null,
+    resolve: () => Promise<boolean>,
+    upload: () => void,
+): Promise<void> {
+    if (resumeOnFile === false) {
+        upload();
+        return;
+    }
+    const applied = await resolve();
+    if (!applied) upload();
 }

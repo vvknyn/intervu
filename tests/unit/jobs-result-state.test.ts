@@ -15,6 +15,7 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     resolveResumeControlState,
+    runResumeControlClick,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
 import type { EmptySearchStateInput } from '../../src/lib/jobs/result-state';
@@ -577,5 +578,60 @@ describe('resolveResumeControlState', () => {
 
     it('fit active with no résumé on file is still hidden — the chip owns this role once fit is on', () => {
         assert.equal(resolveResumeControlState({ fitActive: true, resumeOnFile: false }), 'hidden');
+    });
+
+    // Tri-state follow-up (2026-08-15): `resumeOnFile` can also be `null`
+    // ("not known yet" — the presence round trip hasn't landed). Styling
+    // folds that into "muted", same as a known-absent résumé — it's
+    // `runResumeControlClick` (below) that must NOT make the same fold.
+    it('resumeOnFile null (presence not yet known), fit off — muted, same as known-absent', () => {
+        assert.equal(resolveResumeControlState({ fitActive: false, resumeOnFile: null }), 'muted');
+    });
+
+    it('resumeOnFile null with fit active is still hidden', () => {
+        assert.equal(resolveResumeControlState({ fitActive: true, resumeOnFile: null }), 'hidden');
+    });
+});
+
+// The "My résumé" control's CLICK decision (lib/jobs/result-state.ts) — kept
+// separate from the STYLE decision above on purpose (the defect this guards
+// against: deciding click behavior from the rendered hint instead of the
+// truth). `resolve`/`upload` are injected spies so the branching is
+// exercised directly, with no component-render harness needed.
+describe('runResumeControlClick', () => {
+    function spies() {
+        const calls: string[] = [];
+        const resolve = async (outcome: boolean) => {
+            calls.push('resolve');
+            return outcome;
+        };
+        const upload = () => {
+            calls.push('upload');
+        };
+        return { calls, resolve, upload };
+    }
+
+    it('resumeOnFile null, résumé actually on file — resolves and applies fit, never opens the importer', async () => {
+        const { calls, resolve, upload } = spies();
+        await runResumeControlClick(null, () => resolve(true), upload);
+        assert.deepEqual(calls, ['resolve']);
+    });
+
+    it('resumeOnFile true, but the resolve comes back empty — falls back to the importer, not a dead click', async () => {
+        const { calls, resolve, upload } = spies();
+        await runResumeControlClick(true, () => resolve(false), upload);
+        assert.deepEqual(calls, ['resolve', 'upload']);
+    });
+
+    it('resumeOnFile false (known-absent) — goes straight to the uploader, no resolve round-trip at all', async () => {
+        const { calls, resolve, upload } = spies();
+        await runResumeControlClick(false, () => resolve(true), upload);
+        assert.deepEqual(calls, ['upload']);
+    });
+
+    it('resumeOnFile null, and the resolve genuinely finds nothing — still falls back to the importer', async () => {
+        const { calls, resolve, upload } = spies();
+        await runResumeControlClick(null, () => resolve(false), upload);
+        assert.deepEqual(calls, ['resolve', 'upload']);
     });
 });
