@@ -52,7 +52,9 @@ import {
     postedAgeShort,
     searchResultLine,
     firstMentionIndex,
+    partitionByTitleMatch,
     seamSummary,
+    seamSummarySorted,
     prettyEnum,
     ghostMetaFor,
 } from "@/lib/jobs/presentation";
@@ -110,7 +112,7 @@ import {
 } from "@/lib/jobs/result-state";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
-import { coerceSortToSupported, resolveEffectiveSort } from "@/lib/jobs/sort";
+import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type JobSearchParams,
@@ -1815,25 +1817,48 @@ function JobsContent() {
             failed: zeroQueryFetchFailed,
         }) === "serp-ask";
 
+    // Whether this render's search is scoped to title+company because an
+    // explicit sort turned `sort` into a real ORDER BY — the identical
+    // condition `buildSearchBody` used server-side to decide the SAME thing
+    // (`shouldScopeTextMatchToTitle`, sort.ts). Relevance ranking (explicit
+    // or auto-defaulted) never scopes, so it's false there exactly when it's
+    // false here.
+    const sortScopedSeam = shouldScopeTextMatchToTitle(effectiveSort, result?.effectiveQ ?? "");
+
     // The relevance seam (Task A) — where the "titled it" block of results
-    // ends and the "mentions it" block begins. Tiers against the SERVER's
-    // residual query (`result.effectiveQ`), not the client's `query` state:
-    // the client query can still hold place words (e.g. "canada") that query
+    // ends and the "mentions it" block begins, and the ordering `clusterJobs`
+    // (below) groups. Tiers against the SERVER's residual query
+    // (`result.effectiveQ`), not the client's `query` state: the client
+    // query can still hold place words (e.g. "canada") that query
     // understanding already stripped server-side, and tiering against those
     // would wrongly demote a title that correctly omits the place word.
-    const seamIndex = useMemo(
-        () => firstMentionIndex(hits.map((h) => decodeText(h.title)), result?.effectiveQ ?? ""),
-        [hits, result],
-    );
+    //
+    // `firstMentionIndex` finds the seam by counting hits' leading titled
+    // run — correct ONLY under relevance ranking, which is the one mode
+    // where every titled hit is guaranteed to sort before every non-titled
+    // one. An explicit sort (fresh, salary) breaks that guarantee: title and
+    // non-title hits interleave by date/pay instead, so a run-count stops at
+    // the first interloper (see `partitionByTitleMatch`'s doc, presentation.ts,
+    // for the live numbers). `partitionByTitleMatch` restores the property by
+    // reordering `displayHits` — titled block first, each half keeping its
+    // sorted order — instead of counting a run, so it's used in place of
+    // `firstMentionIndex` for every sort mode other than relevance.
+    const { hits: displayHits, seamIndex } = useMemo(() => {
+        const q = result?.effectiveQ ?? "";
+        if (sortScopedSeam) return partitionByTitleMatch(hits, q);
+        return { hits, seamIndex: firstMentionIndex(hits.map((h) => decodeText(h.title)), q) };
+    }, [hits, result, sortScopedSeam]);
 
     // Deliverable 3 — collapse repeat postings (same title, same company —
     // e.g. one role cross-posted at several locations) into one card each,
     // ranked at the earliest/best-ranked copy's position. `clusterJobs` is
-    // pure (lib/jobs/cluster.ts); this just threads `hits` through it.
-    const clusters = useMemo(() => clusterJobs(hits), [hits]);
+    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`, so a
+    // partitioned sort's reordering (above) survives clustering instead of
+    // being clustered back into raw engine order.
+    const clusters = useMemo(() => clusterJobs(displayHits), [displayHits]);
 
-    // The seam paragraph (above) is inserted at an EXACT `hits` index; after
-    // clustering, positions no longer line up 1:1. Every member of one
+    // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
+    // after clustering, positions no longer line up 1:1. Every member of one
     // cluster shares the same title, so — since results already arrive
     // ranked with the "titled it" block first — a cluster can never straddle
     // the seam: it's entirely on one side or the other. This finds the first
@@ -3488,7 +3513,9 @@ function JobsContent() {
                                                     data-testid="relevance-seam"
                                                     className="border-t border-border pt-4 pb-1 mb-1 font-mono text-[11px] text-muted-foreground"
                                                 >
-                                                    {seamSummary(seamIndex, total, hits.length)}
+                                                    {sortScopedSeam
+                                                        ? seamSummarySorted(seamIndex)
+                                                        : seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
                                                 ...rows,
                                             ];
