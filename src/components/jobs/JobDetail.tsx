@@ -82,7 +82,7 @@ function factValue(kind: FactChipKind, label: string): string {
  *  the structure. See lib/jobs/format-description.ts. */
 function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     return (
-        <div className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <div className="text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     return (
@@ -140,7 +140,7 @@ function GuestDescriptionPreview({
             <div className="mb-2 text-[13px] font-semibold">About this role</div>
             {preview.text ? (
                 <div className={cn("relative", preview.truncated && "max-h-[14rem] overflow-hidden")}>
-                    <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-foreground">
+                    <p className="whitespace-pre-line text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
                         {preview.text}
                         {preview.truncated && "…"}
                     </p>

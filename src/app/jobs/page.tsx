@@ -3697,7 +3697,16 @@ function JobsContent() {
                         sticky action bar / last content could sit flush
                         against it. Same env() token MobileTabBar.tsx uses. */}
                     <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
-                        {renderDetailSurface(() => router.back())}
+                        {/* `undefined`, not `() => router.back()` — the sheet chrome
+                            above already renders its own × wired to the identical
+                            `router.back()` (the button ~30 lines up). Passing a
+                            handler here makes JobDetail render a SECOND × (its
+                            `{onClose && ...}` gate at JobDetail.tsx:597), duplicating
+                            the close control ~150px away from the first. Do not
+                            "fix" this back — the desktop pane at :3223 is a
+                            different mount site with no chrome × of its own, which
+                            is why it still passes a real handler. */}
+                        {renderDetailSurface(undefined)}
                     </div>
                 </SheetContent>
             </Sheet>
