@@ -17,7 +17,11 @@ export const POPULAR_ROUNDS = [
 
 export interface SearchSuggestion {
     text: string;
-    type: 'company' | 'role' | 'history' | 'full';
+    /** `seed` = a popular/trending-search row shown on an empty, focused
+     *  query (SearchAutocomplete's `seeds` prop) — falls through to the
+     *  default magnifying-glass icon like `role`/`full`, distinguished only
+     *  by the "Popular searches" section header rendered above the list. */
+    type: 'company' | 'role' | 'history' | 'full' | 'seed';
 }
 
 export function getSuggestions(query: string, history: string[] = []): SearchSuggestion[] {

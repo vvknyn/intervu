@@ -70,18 +70,18 @@ test("the prep seed line is gone from the board entirely — component, call sit
     assert.doesNotMatch(SOURCE, /handleSeedSubmit|seedSubmitting/);
 });
 
-test("the standalone pivot seed row is gated by the shared panel decision, never by a hand-written condition of its own", () => {
-    // The double-"OR TRY …" bug: this row and `EmptyResults`' own seed row
-    // both rendered on a zero-results search because each gate read the
-    // state independently. `shouldShowBrowseSeedRow` (result-state.ts,
-    // unit-tested) is now the ONE thing that answers it.
-    const pivotRow = section("{shouldShowBrowseSeedRow(", "<BrowseSeedRow");
-    assert.match(pivotRow, /emptySearchState, resultsPanel\)/);
-    assert.doesNotMatch(
-        SOURCE,
-        /emptySearchState !== "results" && !isSerpAsk/,
-        "found the old hand-written pivot-row gate — it can drift out of exclusion with the panel below it again",
-    );
+test("the standalone pivot seed row above the results pane is gone (ITEM H, 2026-08-15) — seeds moved into the search box's own focus dropdown", () => {
+    for (const gone of [/shouldShowBrowseSeedRow/, /emptySearchState !== "results" && !isSerpAsk/]) {
+        assert.doesNotMatch(SOURCE, gone, `expected no trace of the standalone pivot row's gate: ${gone}`);
+    }
+    // BrowseSeedRow now has exactly two call sites left — EmptyResultsState's
+    // and ListTail's own (both genuine no-results/end-of-list surfaces, not
+    // this one) — proving the pivot-row instance is gone without a third
+    // row having crept back in.
+    const browseSeedRowCallSites = SOURCE.match(/<BrowseSeedRow\b/g) ?? [];
+    assert.equal(browseSeedRowCallSites.length, 2);
+    // The search box now carries the seeds instead.
+    assert.match(SOURCE, /<SearchAutocomplete[\s\S]*?seeds=\{searchSeeds\}/);
 });
 
 test("BrowseSeedRow's tail usage lives inside ListTail's own guard", () => {

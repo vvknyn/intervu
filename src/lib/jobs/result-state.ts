@@ -388,13 +388,14 @@ export function resolveJobsRenderMode(
  * exclusion.
  *
  * The drift (user-reported, prod screenshot 2026-08-08): a zero-results
- * search rendered "OR TRY …" TWICE — the standalone pivot seed row above the
+ * search rendered "OR TRY …" TWICE — a standalone pivot seed row above the
  * pane (gated on `emptySearchState !== "results" && !isSerpAsk`) plus
  * `EmptyResults`' own seed row inside it. Nothing tied the two gates
  * together, so the overlap state (empty-search classification AND a
- * zero-hit fetch) satisfied both. `shouldShowBrowseSeedRow` below now
- * derives the pivot row's visibility FROM this panel, so a panel that owns
- * seeds can never have a second row stacked above it.
+ * zero-hit fetch) satisfied both. The standalone row itself is gone now
+ * (2026-08-15, ITEM H — its job folded into the search box's own
+ * "Popular searches" dropdown), but this panel resolver stays: it's still
+ * the one thing that decides which results-pane branch renders.
  *
  * Order is the ternary's own precedence, unchanged: the ask state, then
  * hard backend states, then loading, then empty, then the list.
@@ -413,22 +414,6 @@ export function resolveJobsResultsPanel(input: {
     if (input.blockingError) return "error";
     if (input.loading && input.hitCount === 0) return "loading";
     return input.hitCount === 0 ? "empty" : "list";
-}
-
-/** Panels that render seed shortcuts themselves — `"serp-ask"` (the whole
- *  screen IS the seed list) and `"empty"` (`EmptyResults`' own
- *  `BrowseSeedRow`). Data, not a branch, so a future seed-carrying panel is
- *  one entry away from being covered. */
-const SEED_OWNING_PANELS: ReadonlySet<JobsResultsPanel> = new Set<JobsResultsPanel>(["serp-ask", "empty"]);
-
-/**
- * Should the standalone pivot seed row render ABOVE the results pane?
- * Browse-by-default shows it for any non-`"results"` empty-search state so
- * the seeds never disappear — but only when the panel below isn't already
- * showing seeds of its own (see `resolveJobsResultsPanel`).
- */
-export function shouldShowBrowseSeedRow(emptySearchState: EmptySearchState, panel: JobsResultsPanel): boolean {
-    return emptySearchState !== "results" && !SEED_OWNING_PANELS.has(panel);
 }
 
 /**

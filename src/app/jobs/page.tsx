@@ -101,7 +101,6 @@ import {
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
-    shouldShowBrowseSeedRow,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
@@ -881,11 +880,12 @@ function EmptyResults({
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
-                testids as every other BrowseSeedRow on this page; not a fork.
-                This is the ONLY seed affordance in the zero-results state:
-                the standalone pivot row above the results pane is gated off
-                whenever this panel renders (`shouldShowBrowseSeedRow`,
-                lib/jobs/result-state.ts). */}
+                testids as `ListTail`'s own seed row below; not a fork. The
+                standalone pivot row that used to sit above the results pane
+                is gone (2026-08-15, ITEM H — folded into the search box's
+                own "Popular searches" dropdown), so this is now one of two
+                remaining BrowseSeedRow call sites, both genuine no-results/
+                end-of-list surfaces. */}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
         </div>
     );
@@ -2718,11 +2718,10 @@ function JobsContent() {
     const blockingError = searchError != null && hits.length === 0;
     const backgroundError = searchError != null && hits.length > 0;
 
-    // The ONE decision behind what the results pane renders — and, through
-    // `shouldShowBrowseSeedRow`, whether the standalone pivot seed row shows
-    // above it. Before this, the pane's ternary and that row's gate read the
-    // same state independently and both fired on a zero-results search,
-    // printing "OR TRY …" twice (see `resolveJobsResultsPanel`).
+    // The ONE decision behind what the results pane renders (see
+    // `resolveJobsResultsPanel`) — used to also gate a standalone pivot seed
+    // row above the pane; that row is gone (2026-08-15, ITEM H), its job
+    // folded into the search box's own "Popular searches" dropdown.
     const resultsPanel = resolveJobsResultsPanel({
         isSerpAsk,
         notConnected,
@@ -2962,6 +2961,7 @@ function JobsContent() {
                             }}
                             onSearch={() => submitSearch(query)}
                             suggest={suggestForBox}
+                            seeds={searchSeeds}
                             placeholder={searchPlaceholder}
                             className="h-[46px] w-full min-w-0 rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:min-w-[260px] sm:flex-[1_1_260px]"
                             containerClassName="min-w-0 w-full sm:flex-1"
@@ -2981,11 +2981,6 @@ function JobsContent() {
                             }}
                             className="h-[46px] w-full rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:max-w-[200px] sm:flex-[0_1_200px]"
                         />
-                        {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
-                            <div className="flex items-center">
-                                <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
-                            </div>
-                        )}
                         <Button
                             type="button"
                             onClick={() => submitSearch(query)}
@@ -3033,6 +3028,17 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
+                        {/* ITEM I (2026-08-15): moved here from the search row (was a
+                            flex sibling between the location input and Search button).
+                            It's filter state (suppressible, affects the fetched set),
+                            so it belongs beside the other filter controls, not sitting
+                            in the input line eating horizontal space from the fields
+                            around it. Same component/props, same `flex-wrap` row, so
+                            it wraps below on narrow widths like every other chip here
+                            instead of overflowing. */}
+                        {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
+                            <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
+                        )}
                         {fitActive && (
                             <button
                                 type="button"
@@ -3050,6 +3056,25 @@ function JobsContent() {
                             >
                                 {trackedCount} tracked
                             </Link>
+                        )}
+                        {/* ITEM J (2026-08-15) — a persistent, explicit upload entry
+                            point: previously the only ways in were the "best match"
+                            sort tab (which pops the importer with zero context) and
+                            a session-gated upsell card. `!fitActive` because once fit
+                            IS active, the "ranked by your résumé ✕" chip above already
+                            occupies this role. Goes through `handleUploadClick` — the
+                            documented single entry point — never `setImportOpen`
+                            directly, so this gets the same queued-rerank contract
+                            every other upload trigger on this page gets. */}
+                        {!fitActive && (
+                            <button
+                                type="button"
+                                onClick={() => handleUploadClick()}
+                                data-testid="jobs-upload-resume"
+                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
+                            >
+                                Upload résumé
+                            </button>
                         )}
                         {result?.configured && (
                             <div
@@ -3246,15 +3271,15 @@ function JobsContent() {
                             keeps holding if a sibling (header, notice) is ever added
                             alongside the pane in this wrapper. */}
                         <div className="flex min-h-0 flex-1 flex-col">
-                            {/* Browse-by-default (2026-08-07): a zero-query state
-                                whose fetch is loading or already has hits renders
-                                the compact pivot row above the SAME results
-                                pipeline below (`isSerpAsk` false) — see
-                                `resolveJobsRenderMode`. The seeds never disappear,
-                                they just stop being the whole screen. */}
-                            {shouldShowBrowseSeedRow(emptySearchState, resultsPanel) && (
-                                <BrowseSeedRow seeds={searchSeeds} onSubmit={submitSearch} />
-                            )}
+                            {/* The standalone pivot seed row that used to render here
+                                (browse-by-default, 2026-08-07) is gone (2026-08-15,
+                                ITEM H) — the same seeds now surface in the search
+                                box's own focus dropdown (`SearchAutocomplete`'s
+                                `seeds` prop, "Popular searches" section) instead of
+                                a second row competing with it for the same screen
+                                real estate. `EmptyResultsState` and `ListTail` still
+                                render `BrowseSeedRow` for the genuine no-results /
+                                end-of-list states — unrelated surfaces, left as-is. */}
                             {resultsPanel === "serp-ask" ? (
                                 /* Fallback ask (product spec §2, revised 2026-08-07):
                                    the zero-query browse fetch above (see the debounced
@@ -3593,6 +3618,8 @@ function JobsContent() {
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
                 confirmLabel="Rank my jobs"
+                title="Rank jobs by your résumé"
+                description="Upload or paste your résumé — we'll rank this list by how well each role fits."
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`
