@@ -3034,7 +3034,11 @@ function JobsContent() {
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
-                                "h-8 px-3 rounded-lg font-semibold text-foreground inline-flex items-center gap-1.5 shadow-2xs transition-all",
+                                // h-11 on mobile, then back to chipVariants' own h-9 at
+                                // sm+ — same rule as the detail panel's Apply/Save. An
+                                // `h-8` override here undercut the base chip on BOTH
+                                // breakpoints; measured on the rendered page, not eyeballed.
+                                "h-11 px-3 rounded-lg font-semibold text-foreground inline-flex items-center gap-1.5 shadow-2xs transition-all sm:h-9",
                                 filtersOpen && "border-slate-900 bg-slate-900 text-white ring-2 ring-slate-900/30 dark:border-white dark:bg-white dark:text-slate-900 dark:ring-white/30 hover:border-slate-900 hover:bg-slate-900",
                                 activeCount > 0 && "has-active",
                             )}
