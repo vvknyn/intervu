@@ -144,6 +144,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
+            script in <head> blocks first paint until it runs, so a returning
+            dark-mode visitor never flashes the light surface. Mirrors
+            ThemeProvider's own read of the same "intervu-mode" key; that
+            provider's MutationObserver re-applies brand accent colors
+            whenever this class flips, so this script only sets the class. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(localStorage.getItem("intervu-mode")==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
@@ -155,9 +168,6 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
-        {/* Paper-light only (2026-08-14 reskin): nothing adds `.dark` at
-            runtime anymore, so no pre-paint theme script is needed — SSR and
-            client both render the light token palette. */}
         <PostHogProvider>
           <ThemeProvider>
             <TourProvider>
