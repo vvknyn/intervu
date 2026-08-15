@@ -75,6 +75,7 @@ export function allowSearchRequest(ip: string, now: number = Date.now()): boolea
 export function clearRateLimitStateForTests(): void {
   ipLog.clear();
   connectWaitlistIpLog.clear();
+  jobsSuggestIpLog.clear();
 }
 
 /**
@@ -103,5 +104,29 @@ export function allowConnectWaitlistRequest(ip: string, now: number = Date.now()
     CONNECT_WAITLIST_MAX_REQUESTS,
   );
   connectWaitlistIpLog.set(ip, retained);
+  return allowed;
+}
+
+/**
+ * Per-IP sliding-window rate limit for the jobs typeahead chokepoint
+ * (`GET /api/jobs/suggest`). Its own module-scope map, not `ipLog` above —
+ * same reasoning as the waitlist's own store: a route handler's traffic is
+ * a different counter than the search action's. Sized higher than search's
+ * 40/60s on purpose: a typeahead fires on (debounced) every keystroke, not
+ * once per submit, so real single-visitor usage burns through a search-sized
+ * budget in a few words typed.
+ */
+export const JOBS_SUGGEST_WINDOW_MS = 60_000;
+export const JOBS_SUGGEST_MAX_REQUESTS = 90;
+const jobsSuggestIpLog = new Map<string, number[]>();
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the suggest route's own store. */
+export function allowJobsSuggestRequest(ip: string, now: number = Date.now()): boolean {
+  if (jobsSuggestIpLog.size > SWEEP_THRESHOLD) {
+    sweepStale(jobsSuggestIpLog, now, JOBS_SUGGEST_WINDOW_MS);
+  }
+  const existing = jobsSuggestIpLog.get(ip) ?? [];
+  const { allowed, retained } = checkRateLimitWindow(existing, now, JOBS_SUGGEST_WINDOW_MS, JOBS_SUGGEST_MAX_REQUESTS);
+  jobsSuggestIpLog.set(ip, retained);
   return allowed;
 }

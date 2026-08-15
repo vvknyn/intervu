@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { sanitizeTimestamp } from "./posting-freshness";
-import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "./sort";
+import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -157,7 +157,47 @@ export const JOBS_INDEX_SETTINGS = {
   // the matched set, just hidden behind an earlier bucket. This is inherent
   // to a true ORDER BY, not a new leak, and is accepted per Vivek's
   // directive that FRESHEST shows newest by posted date.
-  rankingRules: ["words", "sort", "typo", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
+  //
+  // 2026-08-14: `typo` moved from after `sort` to directly after `words` —
+  // ["words","typo","sort",...] instead of ["words","sort","typo",...].
+  // Under the 2026-08-13 order, `sort` outranked `typo`, so an explicit sort
+  // was a true global ORDER BY across BOTH exact and typo-tolerant matches
+  // together — a fuzzy admit could freely interleave with real matches
+  // wherever its date/salary put it. Measured live 2026-08-14 (q="product
+  // manager", scoped to title+company, fresh sort): 18 of the first 200 hits
+  // were typo/company-fuzzy admits, e.g. Loblaw "Produce Manager" ("produce"
+  // is a 1-typo match on "product") and "Environmental, Health and Safety
+  // Manager" @ Revere Copper Products (company name is a 1-typo match).
+  // Under an explicit sort — google-serp semantics, Vivek's directive — a
+  // near-miss should never outrank an exact one; it should rank BELOW every
+  // exact match and only compete on date/salary within its own typo tier.
+  //
+  // Two alternatives were measured and rejected before this reorder:
+  //   - rankingScoreThreshold: NOT viable. Typo admits scored 0.6241–0.7497
+  //     while legitimate titled matches spanned 0.5616–1.0 — the two bands
+  //     overlap, so no threshold separates "exact" from "fuzzy" without also
+  //     cutting real matches.
+  //   - per-query typoTolerance (disabling fuzziness for one search rather
+  //     than reordering the whole index): NOT supported on Meili 1.45.2 —
+  //     probed live, the search body 400s with "Unknown field".
+  // Putting `typo` ahead of `sort` fixes it structurally instead: Meilisearch
+  // applies rankingRules strictly lexicographically, so `typo` now fully
+  // partitions the result set into typo-count buckets (0-typo, 1-typo, ...)
+  // BEFORE `sort` ever runs, and `sort` then only reorders WITHIN each
+  // bucket. A page can legitimately restart its date/salary order at a
+  // bucket boundary — that restart is this rule working as intended, not the
+  // searchCutoffMs partial-sort disorder the sort-integrity guard exists to
+  // catch (see `sortVerifiableHits`, sort.ts, and `applySortIntegrityGuard`
+  // below, updated the same day to check only the 0-typo/titled subsequence
+  // rather than the whole page).
+  //
+  // BEST is byte-identical: BEST sends no `sort` param, so the `sort` rule is
+  // inert regardless of where it sits, and moving it past `typo` does not
+  // change the RELATIVE order of any other rule — words, typo, proximity,
+  // attributeRank, wordPosition, exactness, posted_ts:desc, exactly as
+  // before once the inert `sort` rule is excluded. Only an explicit
+  // (non-relevance) sort is affected.
+  rankingRules: ["words", "typo", "sort", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
@@ -635,6 +675,22 @@ async function searchWithDomainPostFilter(
  * `searchWithDomainPostFilter` path all funnel through this one call in
  * `searchMeili`, so one guard covers all three. Relevance mode is untouched:
  * there is no engine-decided order to verify.
+ *
+ * 2026-08-14: checks `sortVerifiableHits(hits, mode, p.q)`, not `hits`
+ * directly. `typo` now sits ahead of `sort` in `rankingRules`
+ * (`JOBS_INDEX_SETTINGS` docblock above), so a scoped sorted page can
+ * legitimately restart its date/salary order at a typo-bucket boundary —
+ * that restart is the new rule order working as intended, not the
+ * searchCutoffMs partial-sort disorder this guard exists to catch, so
+ * checking the WHOLE page would retry (and locally re-sort, undoing the
+ * bucketing) on every such page. `sortVerifiableHits` narrows the check to
+ * the titled subsequence — the 0-typo bucket's visible face, and the only
+ * part of the page this guard can hold to a real monotonic promise; below
+ * that seam carries no such promise ("weaker matches") and was never this
+ * guard's to order. See `sortVerifiableHits`'s own docblock (sort.ts) for
+ * why this is safe to ship ahead of the rankingRules change landing on the
+ * live index. Unscoped requests (empty `q`, or relevance) are unaffected —
+ * they still get the original whole-page check.
  */
 async function applySortIntegrityGuard(
   result: JobSearchResult,
@@ -642,10 +698,12 @@ async function applySortIntegrityGuard(
   runSearch: () => Promise<JobSearchResult>,
 ): Promise<JobSearchResult> {
   const mode = resolveEffectiveSort(p);
-  if (mode === "relevance" || isPageSorted(result.hits, mode)) return result;
+  if (mode === "relevance") return result;
+  const verifiable = (hits: PublicJob[]) => sortVerifiableHits(hits, mode, p.q);
+  if (isPageSorted(verifiable(result.hits), mode)) return result;
 
   const retry = await runSearch();
-  if (isPageSorted(retry.hits, mode)) return retry;
+  if (isPageSorted(verifiable(retry.hits), mode)) return retry;
 
   console.warn("[jobs-search] sort-integrity: engine returned unsorted page, re-sorted locally", {
     q: p.q,
@@ -991,6 +1049,36 @@ export function dedupeJobSuggestionHits(
 
 const EMPTY_SUGGESTIONS: JobSuggestions = { titles: [], companies: [] };
 
+export interface MeiliSuggestBody {
+  q: string;
+  limit: number;
+  attributesToSearchOn: string[];
+  attributesToRetrieve: string[];
+}
+
+/**
+ * Pure: the typeahead's search body. Extracted (same pure-decision/thin-I/O
+ * split `buildSearchBody` above uses) so the shape is unit-testable without
+ * a network call.
+ *
+ * `limit`, not `hitsPerPage` — `hitsPerPage` puts Meilisearch in its
+ * page-mode pagination engine, which computes an EXACT total the typeahead
+ * never reads; `limit` skips that exhaustive count. `attributesToSearchOn`
+ * scopes matching to title+company so a query word buried three paragraphs
+ * into a posting's description doesn't feed suggestions — description text
+ * was never part of what a "suggestion" means here. Measured live against
+ * the box 2026-08-14: the old `{ hitsPerPage, attributesToRetrieve }`-only
+ * shape ran 0.62s cold / ~0.1s warm; this shape ran 0.15s cold / ~0.08s warm.
+ */
+export function buildSuggestBody(q: string): MeiliSuggestBody {
+  return {
+    q,
+    limit: 20,
+    attributesToSearchOn: ["title", "company"],
+    attributesToRetrieve: ["title", "company"],
+  };
+}
+
 /**
  * Read-path: title/company suggestions for the search box's typeahead
  * (Task 9). One search call against the live index — no facet request, no
@@ -1007,7 +1095,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ q: query, hitsPerPage: 20, attributesToRetrieve: ["title", "company"] }),
+      body: JSON.stringify(buildSuggestBody(query)),
     });
     if (!res.ok) return EMPTY_SUGGESTIONS;
     const body = (await res.json()) as { hits?: Array<{ title?: string; company?: string | null }> };

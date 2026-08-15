@@ -8,14 +8,13 @@ import {
   getJobsLastUpdated,
   isPostedDateFilterSupported,
   searchJobs as runSearch,
-  suggestJobs,
   type SearchServeMeta,
 } from "@/lib/jobs/search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
-import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions, PlaceClause, PublicJob } from "@/lib/jobs/types";
+import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
   buildSearchLogEntry,
@@ -379,21 +378,6 @@ export async function getJobsFreshnessAction(): Promise<string | null> {
  */
 export async function getPostedDateFilterSupportAction(): Promise<boolean | null> {
   return isPostedDateFilterSupported();
-}
-
-/**
- * Typeahead: title/company suggestions for the search box (Task 9). Never
- * throws — degrades to `{ titles: [], companies: [] }` on any failure so
- * suggestions are purely an accelerant, never a source of user-visible error.
- * Input capped at 200 chars, matching the neighboring `suggestAdjacentRolesAction`'s
- * posture toward user-controlled text reaching a server action.
- */
-export async function suggestJobsAction(q: string): Promise<JobSuggestions> {
-  try {
-    return await suggestJobs((q ?? "").slice(0, 200));
-  } catch {
-    return { titles: [], companies: [] };
-  }
 }
 
 /**

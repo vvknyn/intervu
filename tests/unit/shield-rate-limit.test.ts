@@ -2,10 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   allowConnectWaitlistRequest,
+  allowJobsSuggestRequest,
   allowSearchRequest,
   checkRateLimitWindow,
   clearRateLimitStateForTests,
   CONNECT_WAITLIST_MAX_REQUESTS,
+  JOBS_SUGGEST_MAX_REQUESTS,
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
 } from "../../src/lib/shield/rate-limit";
@@ -89,5 +91,31 @@ test("allowConnectWaitlistRequest: a different IP starts with a fresh window", (
   }
   assert.equal(allowConnectWaitlistRequest("2.2.2.2", now), false);
   assert.equal(allowConnectWaitlistRequest("3.3.3.3", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowJobsSuggestRequest: keeps its own per-IP window, separate from search's and the waitlist's", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  // Exhaust the suggest window for one IP...
+  for (let i = 0; i < JOBS_SUGGEST_MAX_REQUESTS; i++) {
+    assert.equal(allowJobsSuggestRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowJobsSuggestRequest("1.2.3.4", now), false);
+  // ...without touching that same IP's search or waitlist allowance (proves
+  // the three chokepoints don't share a counter).
+  assert.equal(allowSearchRequest("1.2.3.4", now), true);
+  assert.equal(allowConnectWaitlistRequest("1.2.3.4", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowJobsSuggestRequest: a different IP starts with a fresh window", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < JOBS_SUGGEST_MAX_REQUESTS; i++) {
+    assert.equal(allowJobsSuggestRequest("4.4.4.4", now), true);
+  }
+  assert.equal(allowJobsSuggestRequest("4.4.4.4", now), false);
+  assert.equal(allowJobsSuggestRequest("5.5.5.5", now), true);
   clearRateLimitStateForTests();
 });

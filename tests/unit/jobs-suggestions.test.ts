@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dedupeJobSuggestionHits } from "../../src/lib/jobs/meilisearch";
+import { buildSuggestBody, dedupeJobSuggestionHits } from "../../src/lib/jobs/meilisearch";
 
 test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, first casing wins", () => {
     const hits = [
@@ -40,4 +40,22 @@ test("dedupeJobSuggestionHits dedupes companies case-insensitively, capped at 3,
 
     assert.deepEqual(result.companies, ["Acme Inc", "Beta Corp", "Gamma LLC"]);
     assert.equal(result.companies.length, 3);
+});
+
+// 2026-08-14: the typeahead's request body moved off hitsPerPage (forces
+// Meili's exhaustive-count pagination engine) + unscoped search (description
+// text feeds suggestions) — measured live 0.62s cold / ~0.1s warm — onto
+// limit + attributesToSearchOn:["title","company"] — 0.15s cold / ~0.08s
+// warm. Pinned as a pure body-shape assertion (no fetch mock needed) so a
+// future edit can't silently regress either half of the fix.
+test("buildSuggestBody scopes matching to title+company and uses `limit`, never `hitsPerPage`", () => {
+    const body = buildSuggestBody("engineer");
+
+    assert.deepEqual(body, {
+        q: "engineer",
+        limit: 20,
+        attributesToSearchOn: ["title", "company"],
+        attributesToRetrieve: ["title", "company"],
+    });
+    assert.ok(!("hitsPerPage" in body), "hitsPerPage forces exhaustive-count pagination — must not reappear");
 });
