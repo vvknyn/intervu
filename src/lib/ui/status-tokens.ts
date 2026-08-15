@@ -130,3 +130,42 @@ export function ghostBadgeTone(
       return null; // unscored → no chip
   }
 }
+
+/**
+ * Listing-state vocabulary (ITEM Q, 2026-08-15 — Vivek: "a different color
+ * for reported, a different one for relisted, really fresh jobs"). A
+ * SEPARATE scale from the ghost ladder above (`ghostBadgeTone`'s
+ * clear/caution/likely_ghost stays untouched) — this one describes a
+ * listing's posting-integrity/moderation state, not a ghost verdict, and
+ * the jobs surfaces that render it (SERP row fact chips, JobDetail's fact
+ * chips, the ghost-check ledger's freshness line) already hand-pick raw
+ * Tailwind classes rather than the `--st-*` CSS-var tokens STATUS_PILL
+ * above uses, so this map matches THAT palette instead of introducing a
+ * second token system into an already-Tailwind-literal surface.
+ *
+ * `reported` is deliberately an outline (no filled bg) — `ghostBadgeTone`'s
+ * `likely_ghost` pill is a soft-filled `bg-st-closed-soft`, and reusing that
+ * same weight for "someone flagged this" would read as the same verdict.
+ */
+export type ListingStateTone = "fresh" | "relisted" | "reported";
+
+/** Chip idiom (border + bg + text) — SERP row FACT_BOX, JobDetail's fact chips. */
+export const LISTING_STATE_CHIP: Record<ListingStateTone, string> = {
+  fresh: "border-sky-200/90 bg-sky-50/90 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/60 dark:text-sky-200",
+  relisted: "border-violet-300 bg-violet-50 text-violet-950 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
+  reported: "border border-red-300 bg-transparent text-red-800 dark:border-red-800 dark:text-red-300",
+};
+
+/** Chip idiom's bold uppercase key-label sub-color (the `<b>pay</b>`-style tag). */
+export const LISTING_STATE_CHIP_LABEL: Record<ListingStateTone, string> = {
+  fresh: "text-sky-600 dark:text-sky-400",
+  relisted: "text-violet-700 dark:text-violet-400",
+  reported: "text-red-700 dark:text-red-400",
+};
+
+/** Plain inline-text idiom — prose notes and the ghost-check ledger's per-signal lines (no box). */
+export const LISTING_STATE_TEXT: Record<ListingStateTone, string> = {
+  fresh: "text-sky-700 dark:text-sky-400",
+  relisted: "text-violet-700 dark:text-violet-400",
+  reported: "text-red-700 dark:text-red-400",
+};

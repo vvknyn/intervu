@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ghostBadgeTone } from "../../src/lib/ui/status-tokens";
+import {
+    ghostBadgeTone,
+    LISTING_STATE_CHIP,
+    LISTING_STATE_CHIP_LABEL,
+    LISTING_STATE_TEXT,
+    type ListingStateTone,
+} from "../../src/lib/ui/status-tokens";
+
+const LISTING_STATE_TONES: ListingStateTone[] = ["fresh", "relisted", "reported"];
 
 test("ghostBadgeTone: clear reads offer (green)", () => {
     assert.equal(ghostBadgeTone("clear"), "offer");
@@ -18,4 +26,31 @@ test("ghostBadgeTone: likely_ghost reads closed (red) — distinct from caution"
 test("ghostBadgeTone: unscored and any other unrecognized value read null (no chip)", () => {
     assert.equal(ghostBadgeTone("unscored"), null);
     assert.equal(ghostBadgeTone("something-unrecognized"), null);
+});
+
+test("listing-state maps have complete coverage — every tone has a chip, a chip-label, and a text class", () => {
+    for (const tone of LISTING_STATE_TONES) {
+        assert.ok(LISTING_STATE_CHIP[tone], `LISTING_STATE_CHIP missing "${tone}"`);
+        assert.ok(LISTING_STATE_CHIP_LABEL[tone], `LISTING_STATE_CHIP_LABEL missing "${tone}"`);
+        assert.ok(LISTING_STATE_TEXT[tone], `LISTING_STATE_TEXT missing "${tone}"`);
+    }
+});
+
+test("listing-state tones are visually distinct from each other in every map", () => {
+    for (const map of [LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT]) {
+        const values = LISTING_STATE_TONES.map((t) => map[t]);
+        assert.equal(new Set(values).size, values.length, "expected no two tones to share a class string");
+    }
+});
+
+test("reported chip is an outline (no filled bg) — must not read as the same weight as the likely_ghost verdict pill", () => {
+    assert.doesNotMatch(LISTING_STATE_CHIP.reported, /bg-red-\d|bg-st-closed/, "reported chip must not use a filled/soft background");
+});
+
+test("relisted uses the violet family, fresh uses sky, reported uses red — across all three maps", () => {
+    for (const map of [LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT]) {
+        assert.match(map.fresh, /sky/);
+        assert.match(map.relisted, /violet/);
+        assert.match(map.reported, /red/);
+    }
 });
