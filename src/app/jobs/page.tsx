@@ -28,7 +28,6 @@ import {
     markJobAppliedAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
-    suggestJobsAction,
     recordJobOpenedAction,
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
@@ -406,12 +405,12 @@ function verdictFor(job: PublicJob, now: number): Verdict {
 
 
 /**
- * Task 9 — typeahead: adapt `suggestJobsAction`'s plain `{ titles, companies }`
+ * Task 9 — typeahead: adapt `/api/jobs/suggest`'s plain `{ titles, companies }`
  * into `SearchAutocomplete`'s `SearchSuggestion` shape. Companies are tagged
  * `'company'` so the dropdown renders them with a distinct icon (Buildings,
  * vs. the default magnifying-glass for titles) — the type field doubles as
- * both the render hint and the semantic label; no counts (see
- * `suggestJobsAction`, company isn't a facet).
+ * both the render hint and the semantic label; no counts (company isn't a
+ * facet — see `JobSuggestions`, lib/jobs/types.ts).
  */
 function mapToSuggestions(data: { titles: string[]; companies: string[] }): SearchSuggestion[] {
     return [
@@ -2185,14 +2184,27 @@ function JobsContent() {
     // Task 9): an inline arrow here would get a NEW reference on every
     // render of this component (which re-renders often — loading, result,
     // corpusCount capture, loadingMore all live here), and the box's
-    // debounce effect used to key off that reference. `suggestJobsAction`
-    // and `mapToSuggestions` are both stable (server action import + a
-    // module-level pure function), so `[]` deps are correct — this callback
-    // itself never needs to change.
-    const suggestForBox = useCallback(
-        (q: string) => suggestJobsAction(q).then(mapToSuggestions),
-        [],
-    );
+    // debounce effect used to key off that reference. This callback closes
+    // over nothing from render scope (fetch + `mapToSuggestions`, a
+    // module-level pure function), so `[]` deps are correct — it never needs
+    // to change.
+    //
+    // A route handler (`/api/jobs/suggest`), not a Server Action, as of
+    // 2026-08-14: the page's main search (`searchJobsActionRaw`) is itself a
+    // Server Action, and Next serializes a client's action calls per
+    // request — a typeahead action fired on every keystroke was queuing
+    // behind whatever full search was already in flight. A plain fetch has
+    // no such head-of-line block. Non-ok response or a network rejection
+    // both degrade to empty suggestions — never surfaces as a box error.
+    const suggestForBox = useCallback(async (q: string) => {
+        try {
+            const res = await fetch(`/api/jobs/suggest?q=${encodeURIComponent(q)}`);
+            const data = res.ok ? await res.json() : { titles: [], companies: [] };
+            return mapToSuggestions(data);
+        } catch {
+            return mapToSuggestions({ titles: [], companies: [] });
+        }
+    }, []);
     useEffect(() => () => observerRef.current?.disconnect(), []);
 
     // Every filter/sort mutation below routes through `applyUrlState` with
