@@ -42,7 +42,7 @@ export function MobileTabBar() {
                         aria-current={active ? "page" : undefined}
                         className={cn(
                             "relative flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors duration-100 [&_svg]:h-[22px] [&_svg]:w-[22px]",
-                            active ? "text-foreground" : siteChrome.faint,
+                            active ? siteChrome.active : siteChrome.faint,
                         )}
                     >
                         {active && (

@@ -74,6 +74,11 @@
   --brand-foreground: 255 255 255;
   --brand-muted: 110 160 126;
 
+  /* Site chrome — the dark world's void used as a surface in the light
+     world; TopBar/Footer/MobileTabBar paint with this via site-chrome.ts */
+  --chrome: 18 21 26;
+  --chrome-foreground: 236 238 236;
+
   /* Surface + text levels */
   --surface: 255 255 255;
   --surface-hover: var(--chip);
@@ -184,6 +189,10 @@
   --brand-foreground: 15 18 22;
   --brand-muted: 58 140 110;
 
+  /* Site chrome (dark) — see the light-theme comment above. */
+  --chrome: 22 25 30;
+  --chrome-foreground: 236 238 242;
+
   /* Surface + text levels */
   --surface: 26 30 36;
   --surface-hover: var(--chip);
@@ -253,6 +262,8 @@
   --color-brand: rgb(var(--brand));
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
+  --color-chrome: rgb(var(--chrome));
+  --color-chrome-foreground: rgb(var(--chrome-foreground));
   --color-surface: rgb(var(--surface));
   --color-surface-hover: rgb(var(--surface-hover));
   --color-surface-2: rgb(var(--surface-2));

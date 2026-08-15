@@ -94,7 +94,7 @@ export function TopBar() {
             <div className="relative mx-auto flex h-16 w-full max-w-[920px] items-center justify-center px-5 lg:justify-between sm:px-7">
                 <Link
                     href="/"
-                    className="flex shrink-0 items-center gap-2.5 text-foreground"
+                    className="flex shrink-0 items-center gap-2.5 text-chrome-foreground"
                     data-testid="topbar-logo"
                 >
                     <BrandMark className="h-12 w-12" />
@@ -108,7 +108,7 @@ export function TopBar() {
                         <Link
                             href="/trends"
                             data-testid="topbar-pulse-ticker"
-                            className="hidden shrink-0 font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
+                            className={cn("hidden shrink-0 font-mono text-[12px] lg:inline-flex", siteChrome.mutedHover)}
                         >
                             {liveJobsLabel}
                         </Link>

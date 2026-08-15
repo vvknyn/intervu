@@ -40,7 +40,7 @@ export function FooterContent() {
                         <Link
                             key={link.href}
                             href={link.href}
-                            className="transition-colors duration-100 hover:text-foreground"
+                            className={cn("transition-colors duration-100", siteChrome.faintHover)}
                         >
                             {link.label}
                         </Link>
@@ -52,7 +52,7 @@ export function FooterContent() {
                         href="https://thesubspace.io"
                         target="_blank"
                         rel="noopener"
-                        className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+                        className={cn("underline decoration-dotted underline-offset-2", siteChrome.faintHover)}
                     >
                         Subspace
                     </a>
