@@ -7,6 +7,19 @@ import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
+
+/**
+ * Presence-only signal for a returning visit: does this user have a usable
+ * résumé on file, without shipping the résumé itself down to the client.
+ * Reuses `fetchResumeData`'s read (same doc, same migration) and the shared
+ * `resumeIsUsable` bar rather than a second usability check — the client
+ * gets a boolean, never the document.
+ */
+export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
+    const { data } = await fetchResumeData();
+    return { hasResume: resumeIsUsable(data) };
+}
 
 /**
  * Fetch structured resume data from database

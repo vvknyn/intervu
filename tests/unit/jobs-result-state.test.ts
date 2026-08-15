@@ -14,6 +14,7 @@ import {
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
+    resolveResumeControlState,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
 import type { EmptySearchStateInput } from '../../src/lib/jobs/result-state';
@@ -553,5 +554,28 @@ describe('resolveJobsResultsPanel', () => {
         assert.equal(panel({ isSerpAsk: true, notConnected: true, blockingError: true, loading: true }), 'serp-ask');
         assert.equal(panel({ notConnected: true, blockingError: true, loading: true }), 'not-connected');
         assert.equal(panel({ blockingError: true, loading: true }), 'error');
+    });
+});
+
+// The "My résumé" toolbar control (/jobs, page.tsx): one control, one label,
+// only its state changes. Covers all three states plus the precedence
+// between them (fit-active wins over a resume-on-file signal), not just the
+// single reported symptom (a returning user told to "upload" a résumé they
+// already have).
+describe('resolveResumeControlState', () => {
+    it('state (a): no résumé known anywhere, fit off — muted', () => {
+        assert.equal(resolveResumeControlState({ fitActive: false, resumeOnFile: false }), 'muted');
+    });
+
+    it('state (b): résumé on file, fit off — active', () => {
+        assert.equal(resolveResumeControlState({ fitActive: false, resumeOnFile: true }), 'active');
+    });
+
+    it('state (c): fit active — hidden regardless of résumé presence', () => {
+        assert.equal(resolveResumeControlState({ fitActive: true, resumeOnFile: true }), 'hidden');
+    });
+
+    it('fit active with no résumé on file is still hidden — the chip owns this role once fit is on', () => {
+        assert.equal(resolveResumeControlState({ fitActive: true, resumeOnFile: false }), 'hidden');
     });
 });

@@ -109,6 +109,7 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     resolveEndOfListState,
+    resolveResumeControlState,
 } from "@/lib/jobs/result-state";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
@@ -147,6 +148,8 @@ import {
 import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { useResumePresence } from "@/lib/resume/use-resume-presence";
 
 /**
  * Every search-action call on this page goes through this one
@@ -718,13 +721,6 @@ function JobsListSplash() {
  * page-wide mode — `buildMatchQuery`'s pipeline is re-homed onto `sort=fit`
  * + a dismissible chip (see `applyFit`).
  */
-
-/** A resume is "usable" for matching if it has a profession or at least one skill. */
-function resumeIsUsable(d: ResumeData | undefined): boolean {
-    if (!d) return false;
-    if ((d.profile?.profession ?? "").trim()) return true;
-    return (d.competencies ?? []).some((c) => (c.skills ?? []).some((s) => (s ?? "").trim()));
-}
 
 /**
  * Task 11 — zero-results state. Names the specific excluders instead of a
@@ -1339,6 +1335,24 @@ function JobsContent() {
     // mount fetch) — see that call site's own doc comment for why that's an
     // accepted trade-off, not a bug.
     const hasUsableResume = resumeIsUsable(resume ?? undefined);
+
+    // Boolean-only presence signal for a RETURNING user whose résumé lives
+    // only on the server this session (see the hook's own doc comment) —
+    // called unconditionally, every render, per the Rules of Hooks; combined
+    // with `hasUsableResume` below rather than short-circuited into it.
+    const resumeKnownOnServer = useResumePresence(user?.uid ?? null);
+
+    // Whether the "My résumé" toolbar control (below) should render as
+    // "résumé on file" — `hasUsableResume` covers this SESSION (just
+    // uploaded, or already resolved for a fit application); `resumeKnownOnServer`
+    // fills the returning-user gap without a mount-time fetch of the résumé
+    // itself.
+    const resumeOnFile = hasUsableResume || resumeKnownOnServer;
+
+    // The control's rendered state (see `resolveResumeControlState`'s own
+    // doc comment for the three states) — one hoisted call instead of the
+    // `fitActive`/`resumeOnFile` check inline in the JSX below.
+    const resumeControlState = resolveResumeControlState({ fitActive, resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count, the empty-state's per-filter clear chips, and
@@ -2581,27 +2595,41 @@ function JobsContent() {
         applyUrlState(withSortCleared(buildUrlState()), "replace");
     };
 
-    // Sort menu → "Rank by fit" click. A résumé already on hand applies
-    // immediately; otherwise queue the résumé importer (via the existing
-    // `handleUploadClick` upload-gate) and apply fit the moment it completes
-    // (see `handleImport`'s `resumeActionAfterImportRef` check).
+    // Resolve a usable résumé and apply fit if one is found — the guarded
+    // core shared by `handleRankByFit` (below, falls back to the uploader
+    // when none is found) and the "My résumé" toolbar control's click
+    // (which never falls back: the control itself already only takes this
+    // branch when a résumé is known to be on file — see its JSX).
     //
     // `fitIntentRef` guards the await: `resolveUsableResume()` is a network
     // round-trip, and the Select's `onValueChange` bumps the SAME guard for
     // every sort choice (fit or otherwise, see the toolbar JSX below), so a
-    // user who picks a different sort — or clicks "Rank by fit" again —
+    // user who picks a different sort — or triggers a fit resolve again —
     // before this resolves gets their newer choice honored instead of a
     // stale, late-arriving fit application clobbering it. (review fix,
     // 2026-07-18)
-    const handleRankByFit = async () => {
+    //
+    // @returns true once handled (fit applied, or superseded by a later
+    // choice) — false only when no usable résumé was found, the signal a
+    // caller uses to decide whether to fall back to the uploader.
+    const resolveAndApplyFit = async (): Promise<boolean> => {
         const token = fitIntentRef.current!.begin();
         const r = await resolveUsableResume();
-        if (!fitIntentRef.current!.isCurrent(token)) return;
+        if (!fitIntentRef.current!.isCurrent(token)) return true;
         if (r) {
             applyFit(r);
-            return;
+            return true;
         }
-        handleUploadClick();
+        return false;
+    };
+
+    // Sort menu → "Rank by fit" click. A résumé already on hand applies
+    // immediately; otherwise queue the résumé importer (via the existing
+    // `handleUploadClick` upload-gate) and apply fit the moment it completes
+    // (see `handleImport`'s `resumeActionAfterImportRef` check).
+    const handleRankByFit = async () => {
+        const applied = await resolveAndApplyFit();
+        if (!applied) handleUploadClick();
     };
 
     const chooseSort = (mode: JobSortMode) => {
@@ -2701,6 +2729,23 @@ function JobsContent() {
             return;
         }
         setImportOpen(true);
+    };
+
+    // "My résumé" toolbar control's click (JSX below) — the control's own
+    // rendered state already tells us which of these two is correct:
+    // `resumeOnFile` false ⇒ nothing to resolve, go straight through the
+    // documented upload entry point (state (a)); `resumeOnFile` true ⇒
+    // resolve and apply fit directly, no importer, ever (state (b) — unlike
+    // `handleRankByFit`, this deliberately does NOT fall back to
+    // `handleUploadClick` if the resolve comes back empty, since reopening
+    // the importer for a control the user just saw as "résumé on file" is
+    // exactly the confusion this change removes).
+    const handleMyResumeClick = () => {
+        if (!resumeOnFile) {
+            handleUploadClick();
+            return;
+        }
+        void resolveAndApplyFit();
     };
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
@@ -3064,23 +3109,48 @@ function JobsContent() {
                                 {trackedCount} tracked
                             </Link>
                         )}
-                        {/* ITEM J (2026-08-15) — a persistent, explicit upload entry
-                            point: previously the only ways in were the "best match"
-                            sort tab (which pops the importer with zero context) and
-                            a session-gated upsell card. `!fitActive` because once fit
-                            IS active, the "ranked by your résumé ✕" chip above already
-                            occupies this role. Goes through `handleUploadClick` — the
-                            documented single entry point — never `setImportOpen`
-                            directly, so this gets the same queued-rerank contract
-                            every other upload trigger on this page gets. */}
-                        {!fitActive && (
+                        {/* ITEM J (2026-08-15), revised: one persistent control, label
+                            always "My résumé" — only its STATE changes
+                            (`resolveResumeControlState`). Previously the only ways in
+                            were the "best match" sort tab (pops the importer with zero
+                            context) and a session-gated upsell card; that was extended
+                            to a two-state "Upload résumé" button, but it kept telling a
+                            RETURNING user with a résumé already on file to "upload" one
+                            — `resumeOnFile` (local state OR the boolean-only
+                            `useResumePresence` server check) now distinguishes that
+                            case from a genuinely resume-less visitor. "hidden" because
+                            once fit IS active, the "ranked by your résumé ✕" chip above
+                            already occupies this role. Never `disabled` — the "muted"
+                            state is still clickable/focusable, per the a11y hint below,
+                            just visually quiet about it. `handleMyResumeClick` (state a)
+                            goes through `handleUploadClick` — the documented single
+                            entry point — never `setImportOpen` directly, so this gets
+                            the same queued-rerank contract every other upload trigger
+                            on this page gets; (state b) reuses `resolveUsableResume`/
+                            `applyFit` instead, with no importer involved. */}
+                        {resumeControlState !== "hidden" && (
                             <button
                                 type="button"
-                                onClick={() => handleUploadClick()}
+                                onClick={() => handleMyResumeClick()}
                                 data-testid="jobs-upload-resume"
-                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
+                                title={
+                                    resumeControlState === "active"
+                                        ? "Rank jobs by your résumé"
+                                        : "No résumé on file yet — click to upload one"
+                                }
+                                aria-label={
+                                    resumeControlState === "active"
+                                        ? "My résumé — rank jobs by fit"
+                                        : "My résumé — no résumé on file, click to upload one"
+                                }
+                                className={cn(
+                                    "font-mono text-[12px] font-medium underline underline-offset-[3px]",
+                                    resumeControlState === "active"
+                                        ? "text-muted-foreground hover:text-foreground"
+                                        : "text-muted-foreground/60 hover:text-muted-foreground",
+                                )}
                             >
-                                Upload résumé
+                                My résumé
                             </button>
                         )}
                         {result?.configured && (

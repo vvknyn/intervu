@@ -89,3 +89,39 @@ test("handleImport respects the fitIntentRef guard before applying a queued fit 
     assert.match(body, /queuedAction\?\.kind === "fit"/);
     assert.match(body, /fitIntentRef\.current!\.isCurrent\(queuedAction\.fitToken\)/);
 });
+
+/**
+ * "My résumé" toolbar control (2026-08-15 follow-up) — replaced the old
+ * two-state "Upload résumé" button, which told a RETURNING user with a
+ * résumé already on file to "upload" one because `resume` local state is
+ * never fetched at mount (Task 4). One control, one label; only the STATE
+ * (`resolveResumeControlState`, lib/jobs/result-state.ts) changes. These
+ * tests guard the two hard invariants from that change: the no-résumé
+ * branch still goes through the one documented upload chokepoint, and the
+ * résumé-on-file branch NEVER reopens the importer.
+ */
+test("handleMyResumeClick: the no-résumé branch routes through handleUploadClick, the résumé-on-file branch never does", () => {
+    const body = section("const handleMyResumeClick = () => {", "const handleImport = (data: ResumeData");
+    const branches = body.split("void resolveAndApplyFit();");
+    assert.equal(branches.length, 2, "expected exactly one resolveAndApplyFit() call splitting the two branches");
+    assert.match(branches[0], /handleUploadClick\(\);/, "the !resumeOnFile branch must call handleUploadClick");
+    assert.doesNotMatch(
+        branches[1],
+        /handleUploadClick\(\)|setImportOpen\(true\)/,
+        "the resumeOnFile branch must never reopen the importer",
+    );
+});
+
+test('the "My résumé" control is never disabled — muted state stays clickable/focusable (a11y)', () => {
+    const body = section('data-testid="jobs-upload-resume"', "My résumé");
+    assert.doesNotMatch(body, /\bdisabled\b/);
+    assert.match(body, /aria-label=/);
+});
+
+test('the "My résumé" control wraps its click handler — never handed to onClick bare', () => {
+    assert.doesNotMatch(
+        SOURCE,
+        /onClick=\{handleMyResumeClick\}/,
+        "handleMyResumeClick must never be passed bare — wrap it in `() => handleMyResumeClick()`",
+    );
+});

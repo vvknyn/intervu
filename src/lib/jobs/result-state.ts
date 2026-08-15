@@ -452,3 +452,28 @@ export function resolveEndOfListState(input: {
     if (hitsLength >= maxReachable) return "cap-reached";
     return "more-available";
 }
+
+/**
+ * The "My résumé" toolbar control's three states (page.tsx). One control,
+ * one label, always — only its STATE changes:
+ *
+ * - `"hidden"`: fit is already active, so the "ranked by your résumé ✕"
+ *   chip already owns this role — showing both would be redundant.
+ * - `"muted"`: no usable résumé is known yet (`resumeOnFile` false) — the
+ *   control still opens the uploader on click, it's just visually quiet
+ *   about it (never `disabled`; a muted-but-clickable control stays
+ *   keyboard-focusable and in the tab order — see the button's own
+ *   `aria-label`/`title` for the accessible hint).
+ * - `"active"`: a usable résumé is known (this session's local state, or
+ *   the boolean-only server presence check) — click resolves it and applies
+ *   fit directly, without reopening the uploader.
+ */
+export type ResumeControlState = "hidden" | "muted" | "active";
+
+export function resolveResumeControlState(input: {
+    fitActive: boolean;
+    resumeOnFile: boolean;
+}): ResumeControlState {
+    if (input.fitActive) return "hidden";
+    return input.resumeOnFile ? "active" : "muted";
+}
