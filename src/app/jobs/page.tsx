@@ -434,7 +434,7 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#a8b2bf] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
+                "group mb-2 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[#7e8896] hover:shadow-[0_8px_24px_rgba(18,21,26,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
                 active && "border-foreground shadow-[0_0_0_1px_rgb(var(--foreground))]",
             )}
         >

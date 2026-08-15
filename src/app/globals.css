@@ -48,7 +48,7 @@
   /* Frozen UI — light shell (intervu-*-coherent.html / FROZEN mocks).
      *-foreground tokens below point at --foreground rather than repeating
      its triplet, so the ink value has exactly one source. */
-  --background: 222 226 232;
+  --background: 206 211 218;
   --foreground: 18 22 28;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -59,12 +59,12 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 71 79 90;
+  --muted-foreground: 58 66 77;
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 169 62 40;
   --destructive-foreground: 255 255 255;
-  --border: 185 193 204;
+  --border: 164 173 185;
   --input: var(--border-strong);
   --ring: var(--brand);
 
@@ -83,14 +83,14 @@
   --surface: 255 255 255;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 200 206 214;
+  --surface-3: 182 189 198;
   --border-strong: var(--foreground);
   --text-2: var(--muted-foreground);
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 228 232 237;
-  --faint: 106 114 126;
+  --chip: 216 221 227;
+  --faint: 82 90 102;
   --live: 11 117 83;
   --green-tint-bg: 230 244 239;
   --green-tint-bg-alt: 223 241 234;
