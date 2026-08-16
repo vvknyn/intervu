@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function ConnectPage() {
   return (
-    <main data-testid="connect-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <main data-testid="connect-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-10">
       <Suspense fallback={null}>
         <ConnectClient />
       </Suspense>

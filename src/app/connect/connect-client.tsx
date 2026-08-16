@@ -172,26 +172,26 @@ export function ConnectClient() {
   );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-8 w-full">
       {/* Header Banner */}
       <div>
-        <div className="mb-2.5 inline-flex items-center gap-2 rounded-full border border-emerald-300/80 bg-emerald-50 px-3 py-1 font-mono text-[11px] font-semibold text-emerald-800 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/80 bg-emerald-50 px-3 py-1 font-mono text-[11px] font-semibold text-emerald-800 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300">
           <Sparkle size={13} weight="fill" className="text-emerald-500" />
           Model Context Protocol (MCP) & Local Agents
         </div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
           Connect your AI to live, verified job data
         </h1>
-        <p className="mt-1.5 max-w-2xl text-xs text-muted-foreground leading-relaxed">
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
           Query live ATS postings directly inside your favorite AI client with zero hallucinations.
           Screen for ghost postings, compare true hiring rates, and analyze market trends.
         </p>
       </div>
 
       {/* 2-Column Responsive Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
         {/* Left Column: Universal MCP Server Connection */}
-        <section className="rounded-2xl border border-slate-300/80 bg-card p-5 shadow-xs dark:border-slate-700 sm:p-6 space-y-5">
+        <section className="rounded-2xl border border-slate-300/80 bg-card p-6 sm:p-7 shadow-xs dark:border-slate-700 space-y-6">
           <div className="flex items-center justify-between border-b border-border/80 pb-4">
             <div>
               <h2 className="text-sm font-bold text-foreground">1. Universal MCP Server</h2>
@@ -282,7 +282,7 @@ export function ConnectClient() {
         {/* Right Column: OpenClaw Local Agent & Accordions */}
         <div className="space-y-6">
           {/* OpenClaw Card */}
-          <section className="rounded-2xl border border-slate-300/80 bg-card p-5 shadow-xs dark:border-slate-700 sm:p-6 space-y-4">
+          <section className="rounded-2xl border border-slate-300/80 bg-card p-6 sm:p-7 shadow-xs dark:border-slate-700 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/80 pb-4">
               <div className="flex items-center gap-2">
                 <TerminalWindow size={18} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
