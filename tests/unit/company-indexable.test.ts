@@ -10,8 +10,8 @@ import {
 import {
   buildCompanyPageMetadata,
   companyMetaDescription,
-  ghostPctCoversAllRoles,
   openCountText,
+  sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -44,6 +44,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     openCountIsLowerBound: false,
     ghostFlaggedPct: null,
     boards: ["elite"],
+    nowMs: Date.now(),
     ...overrides,
     jobs,
   };
@@ -143,9 +144,9 @@ describe("/co/[slug] presentation — numbers the page can actually back", () =>
     );
   });
 
-  it("knows when the ghost-flagged share covers only the fetched window", () => {
-    assert.equal(ghostPctCoversAllRoles({ jobs: roles(200), openCount: 940 }), false);
-    assert.equal(ghostPctCoversAllRoles({ jobs: roles(12), openCount: 12 }), true);
+  it("knows when the fetched sample covers only a window, not the whole employer", () => {
+    assert.equal(sampleCoversAllRoles({ jobs: roles(200), openCount: 940 }), false);
+    assert.equal(sampleCoversAllRoles({ jobs: roles(12), openCount: 12 }), true);
   });
 });
 

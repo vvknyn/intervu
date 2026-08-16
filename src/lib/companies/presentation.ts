@@ -13,6 +13,8 @@ import { isCompanyIndexable } from "./indexable";
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import type { PublicJob } from "@/lib/jobs/types";
+import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 
 /**
  * The open-role count as a string, everywhere the page shows it.
@@ -31,20 +33,150 @@ export function openCountText(
 }
 
 /**
- * Does `ghostFlaggedPct` actually describe every counted role, or only the
- * fetched window?
+ * Does the fetched role window (`jobs` — at most `COMPANY_JOBS_FETCH_LIMIT`)
+ * actually cover every one of the employer's open roles, or only a sample of
+ * them?
  *
- * `ghostFlaggedPct` is a share of `jobs` — at most `COMPANY_JOBS_FETCH_LIMIT`
- * roles — while the page presents it next to a company-wide `openCount`. When
- * the window is smaller than the count, that percentage is a sample being
- * read as a census. Derived from the two numbers the page already has rather
- * than from a new field, so this needs no contract change: it is exactly the
- * condition under which the sample is partial.
+ * Concern-neutral on purpose: `jobs.length` is a property of the REQUEST
+ * (the fetch cap), never of the employer, so ANY per-role stat this page
+ * derives from `jobs` and then presents next to the company-wide `openCount`
+ * needs this same gate before it can be read as a census rather than a
+ * sample — currently `ghostFlaggedPct` (the ghost-flagged share) and
+ * `buildFreshnessFact` (the recency fact), both below. One rule, both
+ * callers; a second, independently-drifting copy of it is exactly the
+ * regression this function exists to prevent (see `resolveOpenCount`,
+ * open-count.ts, for the same "window length is not the count" bug this
+ * mirrors). Derived from the two numbers `CompanyPageData` already carries,
+ * so it needs no contract change.
  */
-export function ghostPctCoversAllRoles(
+export function sampleCoversAllRoles(
   data: Pick<CompanyPageData, "jobs" | "openCount">,
 ): boolean {
   return data.jobs.length >= data.openCount;
+}
+
+/**
+ * The CTA's `/jobs?...` URL for browsing this company's roles past the
+ * preview list — built through `serializeJobsUrl`, the ONE encoder /jobs'
+ * own parser (`parseJobsUrl`) agrees with, rather than a hand-built string
+ * that can only ever express `q`. A hand-built `q`-only URL silently
+ * inherits every /jobs default: measured live 2026-08-15, Leogy's "View all
+ * 5 jobs" CTA landed on "No roles match" because /jobs' 30-day default
+ * excluded all 5 of the roles this page had just counted as open.
+ *
+ * Targets `/jobs`, never `/`: `/`'s handler redirects here unconditionally
+ * without forwarding search params (`app/page.tsx`), so a `/`-built link
+ * would silently drop `q` — `/jobs`' parser is the only one that reads it.
+ *
+ * `postedBucket: undefined` serializes to `posted=any` (see
+ * `serializeJobsUrl`): this page's own count is age-agnostic, so the link
+ * must not silently reapply /jobs' 30-day window on top of it.
+ *
+ * Deliberately carries NO `location_country` facet, even though the roles on
+ * this page have known countries. `location_country` is `string | string[] |
+ * null` per role (types.ts) with an unverified encoding/value domain, and it
+ * feeds a HARD AND clause in the corpus filter (`renderPlaceClause`,
+ * meilisearch.ts) — a derived value that doesn't exactly match the corpus's
+ * own string degrades that filter from "no constraint" to "match nothing".
+ * Measured live 2026-08-15: a facet built exactly this way for Leogy
+ * (`country=Germany`/`country=DE`) returned ZERO rows, while dropping it
+ * returned the correct 5. A link can only safely ADD a filter it can prove
+ * matches the corpus; it can't prove that here, so it doesn't try.
+ *
+ * This also means the link cannot suppress /jobs' IP-based geo default:
+ * `hasLocationSignal` (lib/geo/ip-default.ts) is satisfied only by an
+ * explicit place, a `location_country` facet, or the client-side
+ * `suppressLocationDefault` override — and `location-default-preference.ts`
+ * is deliberately localStorage-only and one-way, so there is no URL param
+ * that clears it either. A link therefore cannot widen a searcher's geo
+ * scope, by design — recovering from a geo-narrowed zero-result page is the
+ * /jobs zero-result state's job (a one-tap "clear near {country}" there),
+ * not this URL's.
+ */
+export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "name">): string {
+  return `/jobs${serializeJobsUrl({
+    ...DEFAULT_URL_STATE,
+    q: data.name,
+    postedBucket: undefined,
+  })}`;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * ms window for /jobs' own default recency filter
+ * (`DEFAULT_URL_STATE.postedBucket`, lib/jobs/url-state.ts — "30d" today).
+ * Deliberately NOT read from `BUCKET_MS` (lib/jobs/meilisearch.ts): that
+ * constant is module-private, and meilisearch.ts is out of this change's
+ * scope to edit into an export. Parsed off `DEFAULT_URL_STATE`'s own bucket
+ * key instead — every `PostedBucket` but "older" is already an "Nd" string —
+ * so this tracks the real default by construction rather than adding a
+ * second hardcoded day count. `null` when the default is "any" (`undefined`)
+ * or "older" (not a lookback window), i.e. there is no window to report a
+ * fact about.
+ */
+function defaultRecencyWindowMs(): number | null {
+  const bucket = DEFAULT_URL_STATE.postedBucket;
+  if (!bucket || bucket === "older") return null;
+  const days = Number.parseInt(bucket, 10);
+  return Number.isFinite(days) ? days * MS_PER_DAY : null;
+}
+
+/**
+ * How many of the employer's open roles were posted inside /jobs' own
+ * default recency filter — the fact that reconciles the page's "N open
+ * roles, live right now" headline with /jobs' CTA target treating an
+ * older-but-still-open role as too old to show by default. Stated as a fact
+ * either way (all recent, none recent, or a genuine split), never as a
+ * caveat or apology: a role posted outside the window is still open.
+ *
+ * Two things this must never do, both regressions of bugs this repo already
+ * fixed once:
+ *
+ *  - Present a REQUEST WINDOW as the employer's role count. `data.jobs` is
+ *    capped at `COMPANY_JOBS_FETCH_LIMIT` (200, get-company.ts); an employer
+ *    with more open roles than that (measured live: stripe.com 582,
+ *    amazon.com 18,352) would otherwise render "N of 200" as though 200
+ *    were their count — exactly the `jobs.length`-as-count bug
+ *    `resolveOpenCount` (open-count.ts) already exists to prevent, walked
+ *    right around by a second reader of the same field. Gated on
+ *    `sampleCoversAllRoles` — the SAME sample-vs-census check
+ *    `ghostFlaggedPct`'s rendering already gates on, not a second,
+ *    independently-drifting copy of it — when the window is only a partial
+ *    sample, this returns "" (a supported, documented outcome) rather than
+ *    a sentence that would need a caveat to be true.
+ *  - Count an UNKNOWN posted date as evidence of age. A null `posted_ts`
+ *    role goes in neither the numerator nor the denominator — this product
+ *    surfaces what was observed, never fills a gap with an inference.
+ *
+ * INVARIANT: the denominator here always equals the open-role count the
+ * page states one line above (`openCountText`), never a smaller "roles we
+ * happened to have a date for." A partial known-date set is the same "do we
+ * actually know enough to say this?" question as the two bullets above, not
+ * a separate case — so it folds into the same gate rather than a caveated
+ * sentence over a shrunken denominator (e.g. "3 of 3" for a 5-role employer
+ * where 2 dates are unknown would silently disagree with the "5 open roles"
+ * headline). Render only when EVERY covered role has a known `posted_ts`;
+ * otherwise "".
+ */
+function buildFreshnessFact(data: Pick<CompanyPageData, "jobs" | "openCount">, nowMs: number): string {
+  const windowMs = defaultRecencyWindowMs();
+  if (windowMs == null || !sampleCoversAllRoles(data)) return "";
+  const jobs = data.jobs;
+  if (jobs.length === 0) return "";
+  const known = jobs.filter((j): j is PublicJob & { posted_ts: number } => j.posted_ts != null);
+  if (known.length !== jobs.length) return "";
+  const cutoff = nowMs - windowMs;
+  const recent = known.filter((j) => j.posted_ts >= cutoff).length;
+  const days = Math.round(windowMs / MS_PER_DAY);
+  const roles = known.length === 1 ? "open role" : "open roles";
+  // The zero case reads as a stilted "0 of N" when spelled out numerically —
+  // "None of the N ..." is the same fact in the phrasing a person would
+  // actually say. Every other split keeps the counted "N of M" form.
+  if (recent === 0) {
+    return `None of the ${known.length} ${roles} ${known.length === 1 ? "was" : "were"} posted in the last ${days} days.`;
+  }
+  return `${recent} of ${known.length} open roles were posted in the last ${days} days.`;
 }
 
 export type CompanyHiringAnswer = {
@@ -58,6 +190,10 @@ export type CompanyHiringAnswer = {
   /** The 90-day opened/closed record when it is known, and a plain statement
    *  that it isn't when it isn't. Never phrased as a finding either way. */
   trackRecord: string;
+  /** See `buildFreshnessFact`. Empty string when there is no fetched role to
+   *  measure or no default window to measure against — the page renders it
+   *  conditionally, same as `trackRecord`'s sibling section. */
+  freshness: string;
 };
 
 /**
@@ -78,12 +214,17 @@ export type CompanyHiringAnswer = {
  * only on the count, and `trackRecord` NAMES the gap instead of dressing two
  * nulls as a stable history. When the aggregates arrive the same code says
  * more without being edited — the branch is data-driven, not a TODO.
+ *
+ * `nowMs` is threaded by the caller (same convention as `searchResultLine`,
+ * lib/jobs/presentation.ts) rather than read internally via `Date.now()`, so
+ * `freshness` (see `buildFreshnessFact`) is assertable without a fake timer.
  */
 export function buildCompanyHiringAnswer(
   data: Pick<
     CompanyPageData,
-    "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord"
+    "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord" | "jobs"
   >,
+  nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
   const roles = data.openCount === 1 ? "open role is" : "open roles are";
@@ -98,6 +239,7 @@ export function buildCompanyHiringAnswer(
     trackRecord: data.hasTrackRecord
       ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
       : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
+    freshness: buildFreshnessFact(data, nowMs),
   };
 }
 

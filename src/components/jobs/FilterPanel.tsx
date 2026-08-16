@@ -146,6 +146,13 @@ export function toggleFacetValue(
  */
 export function activeFilterEntries(
     state: FilterState,
+    /** `includeQuietDefaults` opts a normally-silent default BACK into the
+     *  list — today that's only the pristine "30d" posted-bucket (see below).
+     *  The toolbar/mobile-sheet callers omit it (default `undefined`), so
+     *  their output is unchanged; the zero-result state (page.tsx) passes
+     *  `true` because a silently-applied default is exactly the kind of
+     *  excluder that state must name. */
+    opts?: { includeQuietDefaults?: boolean },
 ): { key: string; label: string; clear: (s: FilterState) => FilterState }[] {
     const entries: { key: string; label: string; clear: (s: FilterState) => FilterState }[] = [];
 
@@ -185,11 +192,25 @@ export function activeFilterEntries(
     // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine)
     // and explicit "Any" (`undefined`) are both non-chips — only finite age
     // buckets (24h / 3d / 7d / …) surface. Clear still restores pristine 30d.
-    if (state.postedBucket && state.postedBucket !== PRISTINE_FILTER_STATE.postedBucket) {
+    // `opts.includeQuietDefaults` opts pristine "30d" back in for callers that
+    // need it named (see the param doc above) — "Any" stays excluded either
+    // way, since an explicit "no filter" never narrowed anything to name.
+    const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket;
+    if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
+        // A clear must always WIDEN. For every finite bucket that ISN'T the
+        // pristine default, widening means falling back to pristine 30d — as
+        // before. But when the entry only exists BECAUSE the bucket is
+        // already the pristine default (the `includeQuietDefaults` path),
+        // "restore pristine 30d" is a fixed point (30d → 30d): nothing
+        // changes and the excluder survives its own clear. The only value
+        // that actually widens FROM pristine 30d is explicit "Any"
+        // (`undefined`) — already a first-class `FilterState`/URL value
+        // (`parseJobsUrl`/`serializeJobsUrl`, lib/jobs/url-state.ts).
+        const widenTo = postedIsQuietDefault ? undefined : PRISTINE_FILTER_STATE.postedBucket;
         entries.push({
             key: "postedBucket",
             label: postedBucketLabel(state.postedBucket),
-            clear: (s) => ({ ...s, postedBucket: PRISTINE_FILTER_STATE.postedBucket }),
+            clear: (s) => ({ ...s, postedBucket: widenTo }),
         });
     }
 
