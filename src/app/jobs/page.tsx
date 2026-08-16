@@ -3182,12 +3182,19 @@ function JobsContent() {
                     </div>
 
                     {!isSerpAsk && (
-                        <Link
-                            href="/connect"
-                            className="mt-2 inline-block text-[12px] text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
-                        >
-                            There&apos;s a version of this that works while you sleep →
-                        </Link>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
+                            <Link
+                                href="/connect"
+                                className="inline-block underline underline-offset-[3px] hover:text-foreground"
+                            >
+                                There&apos;s a version of this that works while you sleep →
+                            </Link>
+                            <nav aria-label="Quick links" className="hidden sm:flex items-center gap-3 font-mono text-[11px]">
+                                <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">Pricing</Link>
+                                <Link href="/research/ghost-jobs" className="underline underline-offset-2 hover:text-foreground">Research</Link>
+                                <Link href="/trends" className="underline underline-offset-2 hover:text-foreground">Trends</Link>
+                            </nav>
+                        </div>
                     )}
 
                     {filtersOpen && (isLgUp ? (

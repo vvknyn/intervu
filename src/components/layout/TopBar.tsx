@@ -173,12 +173,21 @@ export function TopBar() {
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href="/settings">Account</Link>
                                 </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="rounded-lg">
+                                    <Link href="/pricing">Pricing</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="rounded-lg">
+                                    <Link href="/research/ghost-jobs">Ghost Job Research</Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <FeedbackModal>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-lg">
                                         Feedback
                                     </DropdownMenuItem>
                                 </FeedbackModal>
+                                <DropdownMenuItem asChild className="rounded-lg text-muted-foreground text-xs">
+                                    <Link href="/privacy">Privacy & Terms</Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onSelect={handleSignOut} className="rounded-lg text-rose-600 dark:text-rose-400">
                                     Sign out
