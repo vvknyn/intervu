@@ -1000,6 +1000,7 @@ function JobsContent() {
     const [nowMs] = useState(() => Date.now());
 
     const [query, setQuery] = useState(initialUrlState.q);
+    const [queryDraft, setQueryDraft] = useState(initialUrlState.q);
     const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>(initialUrlState.facets);
     const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
     const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
@@ -1120,6 +1121,7 @@ function JobsContent() {
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        setQueryDraft(q);
         setQuery(q);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
@@ -1897,6 +1899,7 @@ function JobsContent() {
         const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
         const currentKey = serializeJobsUrl({ ...current, jobId: null });
         if (parsedKey !== currentKey) {
+            setQueryDraft(parsed.q);
             setQuery(parsed.q);
             // Facets are an object, not a primitive — a same-content-but-new-
             // reference set would still be a needless render, so gate it on
@@ -2613,6 +2616,7 @@ function JobsContent() {
     const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
         setFacets(f);
+        setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
@@ -2862,6 +2866,7 @@ function JobsContent() {
     );
 
     const handleClearSearch = () => {
+        setQueryDraft("");
         setQuery("");
         setLocationDraft("");
         applyUrlState(buildUrlState({ q: "" }), "replace");
@@ -3014,12 +3019,11 @@ function JobsContent() {
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
                         <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-background/80 divide-y divide-slate-200/80 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/30 dark:border-slate-800 dark:bg-background/40 dark:divide-slate-800 sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-lg sm:border-slate-300 dark:sm:border-slate-700">
                             <SearchAutocomplete
-                                value={query}
+                                value={queryDraft}
                                 onChange={(v) => {
-                                    setQuery(v);
-                                    applyUrlState(buildUrlState({ q: v }), "replace");
+                                    setQueryDraft(v);
                                 }}
-                                onSearch={() => submitSearch(query)}
+                                onSearch={() => submitSearch(queryDraft)}
                                 suggest={suggestForBox}
                                 seeds={searchSeeds}
                                 placeholder={searchPlaceholder}
@@ -3055,11 +3059,75 @@ function JobsContent() {
                         </div>
                         <Button
                             type="button"
-                            onClick={() => submitSearch(query)}
+                            onClick={() => submitSearch(queryDraft)}
                             className="h-11 sm:h-[46px] w-full rounded-xl sm:rounded-lg bg-slate-900 px-6 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto transition-all"
                         >
                             Search
                         </Button>
+                    </div>
+
+                    {/* Category & Persona Discovery Pills */}
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                        <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">Browse:</span>
+                        {[
+                            { label: "Engineering", q: "Software Engineer" },
+                            { label: "AI & ML", q: "Machine Learning AI" },
+                            { label: "Product", q: "Product Manager" },
+                            { label: "Design", q: "Product Designer UI UX" },
+                        ].map((cat) => {
+                            const isMatch = query.toLowerCase() === cat.q.toLowerCase();
+                            return (
+                                <button
+                                    key={cat.label}
+                                    type="button"
+                                    onClick={() => submitSearch(cat.q)}
+                                    className={cn(
+                                        "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all shadow-2xs",
+                                        isMatch
+                                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-semibold dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-200 ring-1 ring-emerald-500/30"
+                                            : "border-slate-200 bg-slate-100/70 text-slate-700 hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                                    )}
+                                >
+                                    {cat.label}
+                                </button>
+                            );
+                        })}
+                        <button
+                            type="button"
+                            onClick={() => panelToggleFacet("work_type", "remote")}
+                            className={cn(
+                                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all shadow-2xs",
+                                facets.work_type?.includes("remote")
+                                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-semibold dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-200 ring-1 ring-emerald-500/30"
+                                    : "border-slate-200 bg-slate-100/70 text-slate-700 hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                            )}
+                        >
+                            Remote
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
+                            className={cn(
+                                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all shadow-2xs",
+                                salaryMin === 150000
+                                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-semibold dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-200 ring-1 ring-emerald-500/30"
+                                    : "border-slate-200 bg-slate-100/70 text-slate-700 hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                            )}
+                        >
+                            $150k+
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onBoardChange(board === "elite" ? null : "elite")}
+                            className={cn(
+                                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all shadow-2xs",
+                                board === "elite"
+                                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-semibold dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-200 ring-1 ring-emerald-500/30"
+                                    : "border-slate-200 bg-slate-100/70 text-slate-700 hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                            )}
+                        >
+                            Elite Startups
+                        </button>
                     </div>
                 </section>
 
