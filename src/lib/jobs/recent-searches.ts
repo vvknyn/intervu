@@ -159,14 +159,14 @@ export function clearAllRecentSearches(): void {
  * future surface would reuse rather than a second hand-typed copy.
  */
 export const CURATED_SEARCH_SEEDS = [
-    "product manager",
-    "software engineer",
-    "data scientist",
-    "account manager",
-    "customer success manager",
-    "marketing manager",
-    "product designer",
-    "sales engineer",
+    "Remote Software Engineer",
+    "AI / Machine Learning",
+    "Product Manager",
+    "Data Scientist",
+    "Remote Frontend Developer",
+    "Canada Remote",
+    "Product Designer",
+    "DevOps Engineer",
 ];
 
 const SEED_TARGET = 8;

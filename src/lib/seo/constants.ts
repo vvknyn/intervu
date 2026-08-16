@@ -44,34 +44,54 @@ export const SITE_NAME = "Intervu";
  *  jargon test bans machinery terms here. Agent/OpenClaw copy belongs to
  *  the opted-in surfaces (/connect, /openclaw). */
 export const LANDING_TITLE =
-    "Intervu — Live Job Search & Verified Roles | Indeed & LinkedIn Alternative";
+    "Intervu — Live Remote & Tech Job Search | Verified Roles & Indeed Alternative";
 export const LANDING_DESCRIPTION =
-    "Search thousands of live, verified job listings directly from company career pages. The clean alternative to Indeed and LinkedIn — screened for ghost-job risk, freshness, and real hiring signals.";
+    "Search thousands of live, verified remote and tech jobs directly from company career pages. Find the best remote jobs, work-from-home roles, and engineering careers — screened for ghost-job risk, freshness, and salary transparency.";
 
 /** Site-wide default meta description (root layout). Declared here — not in
  *  layout.tsx — so the jargon test covers every guest meta string in one
  *  place. */
 export const SITE_DESCRIPTION =
-    "Search live, verified jobs directly from company career pages. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
+    "Search live, verified remote and tech jobs directly from company career pages. Every role is screened for freshness, salary transparency, and ghost-job risk — the transparent alternative to Indeed and LinkedIn.";
 
-/** High-intent keywords targeting core job discovery, Indeed/LinkedIn alternatives,
- *  tech/remote roles, verified employer postings, and salary transparency. */
+/** High-intent keywords targeting core job discovery, Google Trends top queries,
+ *  remote work, Canada/US markets, tech roles, verified employer postings, and salary transparency. */
 export const SITE_KEYWORDS = [
     "jobs",
     "job search",
     "find jobs",
+    "best remote jobs",
+    "remote work",
+    "remote work jobs",
+    "remote jobs",
+    "work from home jobs",
+    "wfh jobs",
+    "canada remote jobs",
+    "remote jobs canada",
+    "remote jobs in canada",
+    "remote jobs ontario",
+    "remote jobs toronto",
+    "remote jobs vancouver",
+    "us remote jobs",
+    "tech jobs",
+    "remote tech jobs",
+    "software engineer jobs",
+    "remote software engineer jobs",
+    "ai jobs",
+    "machine learning jobs",
+    "data scientist jobs",
+    "entry level remote jobs",
+    "high paying remote jobs",
+    "$150k remote jobs",
+    "engineering jobs",
+    "product manager jobs",
+    "designer jobs",
     "indeed alternative",
     "linkedin alternative",
     "linkedin jobs alternative",
     "better than indeed",
     "job board",
     "job listings",
-    "tech jobs",
-    "remote jobs",
-    "software engineer jobs",
-    "engineering jobs",
-    "product manager jobs",
-    "designer jobs",
     "verified jobs",
     "direct employer jobs",
     "no ghost jobs",
