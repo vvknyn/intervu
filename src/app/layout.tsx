@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, DM_Sans, IBM_Plex_Mono, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -35,25 +35,6 @@ const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
-});
-
-/** Elite mock surfaces only (scoped via `.elite-signal` in elite-signal.css). */
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-elite-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const splineSans = Spline_Sans({
-  variable: "--font-elite-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const splineMono = Spline_Sans_Mono({
-  variable: "--font-elite-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 const SITE_TITLE = SITE_NAME;
@@ -158,7 +139,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-background text-foreground`}
+        className={`${dmSans.variable} ${ibmPlexMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
