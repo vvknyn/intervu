@@ -46,13 +46,10 @@ export async function generateMetadata({
   const { slug } = await params;
   const name = companyFromSlug(slug);
   return {
-    // Same "Is X hiring?" pattern as the canonical `/co/[slug]`. No live role
-    // count here by design — see this file's module doc: `generateMetadata`
-    // deliberately never calls `fetchCompanyProfile`, so a request that's
-    // about to redirect onto `/co/[slug]` still resolves metadata without
-    // paying for the profile fetch twice.
     title: `Is ${name} hiring? Live verified jobs & ghost-job risk`,
     description: `Track live verified job postings and ghost-job risk signals for ${name} on intervu.`,
+    robots: { index: false, follow: true },
+    alternates: { canonical: "/jobs" },
   };
 }
 

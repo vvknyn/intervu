@@ -20,6 +20,7 @@ import {
   salaryText,
 } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import type { CompanyPageData } from "@/lib/companies/types";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { cn } from "@/lib/utils";
 
@@ -50,15 +51,24 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const data = await getCompanyPageData(slug);
-  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
-  return buildCompanyPageMetadata(data);
+  try {
+    const { slug } = await params;
+    const data = await getCompanyPageData(slug);
+    if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+    return buildCompanyPageMetadata(data);
+  } catch {
+    return { title: "Company not found", robots: { index: false, follow: false } };
+  }
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = await getCompanyPageData(slug);
+  let data: CompanyPageData | null = null;
+  try {
+    data = await getCompanyPageData(slug);
+  } catch {
+    data = null;
+  }
   if (!data) notFound();
 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);

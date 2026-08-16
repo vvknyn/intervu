@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Companies hiring hard",
   description: "Elite companies ranked by roles opened in the last 90 days.",
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/jobs" },
 };
 
 export const revalidate = 3600;
