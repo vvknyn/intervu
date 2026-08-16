@@ -3017,7 +3017,7 @@ function JobsContent() {
 
                 <section className="rounded-xl border border-slate-300/80 bg-card p-2 sm:p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
-                        <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-background/80 divide-y divide-slate-200/80 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/30 dark:border-slate-800 dark:bg-background/40 dark:divide-slate-800 sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-lg sm:border-slate-300 dark:sm:border-slate-700">
+                        <div className="flex flex-col rounded-xl border border-slate-200 bg-background/80 divide-y divide-slate-200/80 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/30 dark:border-slate-800 dark:bg-background/40 dark:divide-slate-800 sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-lg sm:border-slate-300 dark:sm:border-slate-700">
                             <SearchAutocomplete
                                 value={queryDraft}
                                 onChange={(v) => {
