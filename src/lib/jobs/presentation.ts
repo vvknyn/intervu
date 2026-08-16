@@ -130,17 +130,55 @@ function tokenize(s: string): string[] {
  *      group)" ⊄ {inog} both keep, because they add a fact the bare name
  *      doesn't already carry.
  */
+/**
+ * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
+ * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
+ *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
+ *      "perspire.zohorecruit.com" -> "Perspire"
+ *      "acme.workable.com" -> "Acme"
+ *      "appmysite.com" -> "Appmysite"
+ */
+export function humanizeTenantSubdomain(raw: string): string {
+    const s = raw.trim();
+    if (!s) return "";
+
+    const atsMatch = s.match(/^([a-z0-9-]+)\.(zohorecruit|applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|recruitee|ashbyhq|breezy|workable)\.(com|io|net|co)$/i);
+    let token = atsMatch ? atsMatch[1] : s;
+
+    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech)$/i, "");
+
+    if (/[-_]/.test(token)) {
+        return token
+            .split(/[-_]+/)
+            .filter(Boolean)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(" ");
+    }
+
+    if (token.toLowerCase().endsWith("it") && token.length > 3) {
+        const root = token.slice(0, -2);
+        return (root.charAt(0).toUpperCase() + root.slice(1).toLowerCase()) + " IT";
+    }
+
+    const camelSpaced = token.replace(/([a-z])([A-Z])/g, "$1 $2");
+    if (camelSpaced.includes(" ")) {
+        return camelSpaced;
+    }
+
+    return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
 
-    // ATS portal hostnames aren't company names — callers fall back to "Unknown company".
-    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters)\.(com|io|net)\b/i.test(out)) {
-        return "";
+    // ATS portal hostnames or bare domains -> extract humanized tenant name
+    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i.test(out)) {
+        return humanizeTenantSubdomain(out);
     }
-    // Bare domain used as a company placeholder (e.g. "acme.applicantpro.com").
+    // Bare domain used as a company placeholder (e.g. "appmysite.com").
     if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(out) && !out.includes(" ")) {
-        return "";
+        return humanizeTenantSubdomain(out);
     }
 
     out = out
@@ -163,14 +201,14 @@ export function cleanCompany(s: string | null | undefined): string {
 }
 
 /**
- * Display-safe company name: falls back to the domain when `cleanCompany`
- * blanks a domain-shaped name (e.g. "Super.Com" -> ""), so the label never
- * reads "Unknown company" next to a `CompanyLogo` that's rendering that same
- * domain's favicon. Callers keep their own final "Unknown company" fallback
- * for the case where there's no domain either.
+ * Display-safe company name: falls back to the humanized domain when `cleanCompany`
+ * is empty, so the label never reads "Unknown company" next to a `CompanyLogo`.
  */
 export function displayCompany(name: string | null | undefined, domain: string | null | undefined): string {
-    return cleanCompany(name) || (domain ?? "").trim();
+    const cleaned = cleanCompany(name);
+    if (cleaned) return cleaned;
+    if (domain) return humanizeTenantSubdomain(domain);
+    return "";
 }
 
 /**
@@ -263,7 +301,12 @@ export function humanizeRawLocation(raw: string): string | null {
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
-        if (readable) return readable;
+        if (readable) {
+            if (j.work_type === "remote" && !/\bremote\b/i.test(readable)) {
+                return `Remote · ${readable}`;
+            }
+            return readable;
+        }
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
     // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
@@ -276,7 +319,13 @@ export function locationText(j: PublicJob): string {
     const parts = [j.location_city, j.location_state, country]
         .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
         .filter((v): v is string => Boolean(v));
-    if (parts.length) return parts.join(", ");
+    if (parts.length) {
+        const loc = parts.join(", ");
+        if (j.work_type === "remote" && !/\bremote\b/i.test(loc)) {
+            return `Remote · ${loc}`;
+        }
+        return loc;
+    }
     if (j.work_type === "remote") return "Remote";
     return "Location not listed";
 }

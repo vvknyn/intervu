@@ -22,6 +22,8 @@ import { FUNCTION_WORDS } from "../geo/common-words";
  *  module load, same pattern resolve-place.ts's own GUARD_WORDS uses. */
 const FUNCTION_WORDS_SET: Set<string> = new Set(FUNCTION_WORDS);
 
+export { TECH_SKILL_TOKENS, isTechSkillQuery } from "./tech-skills";
+
 export interface ParsedQuery {
   /** Query text with recognized tokens removed (may be empty). */
   residualQ: string;
@@ -52,6 +54,40 @@ export function parseWorkTypeTokens(q: string): ParsedQuery {
     }
   }
   return { residualQ: residual.replace(/\s+/g, " ").trim(), workTypes: [...found] };
+}
+
+export interface ParsedSeniority {
+  residualQ: string;
+  experienceLevels: string[];
+}
+
+const SENIORITY_PHRASES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bintern(?:ship)?\b/gi, "intern"],
+  [/\bsummer intern(?:ship)?\b/gi, "intern"],
+  [/\bco-?op\b/gi, "intern"],
+  [/\bjunior\b/gi, "entry"],
+  [/\bentry[- ]level\b/gi, "entry"],
+  [/\bnew grad(?:uate)?\b/gi, "entry"],
+  [/\bassociate\b/gi, "entry"],
+  [/\bdirector\b/gi, "executive"],
+  [/\bvice president\b/gi, "executive"],
+  [/\bvp\b/gi, "executive"],
+  [/\bhead of\b/gi, "executive"],
+  [/\bchief\b/gi, "executive"],
+  [/\bc-level\b/gi, "executive"],
+];
+
+export function parseSeniorityTokens(q: string): ParsedSeniority {
+  let residual = q;
+  const found = new Set<string>();
+  for (const [re, canonical] of SENIORITY_PHRASES) {
+    const next = residual.replace(re, " ");
+    if (next !== residual) {
+      found.add(canonical);
+      residual = next;
+    }
+  }
+  return { residualQ: residual.replace(/\s+/g, " ").trim(), experienceLevels: [...found] };
 }
 
 /* ----------------------- place tokens → filters ----------------------- */
@@ -340,10 +376,6 @@ export async function applyQueryUnderstanding(
   if (vocab && !p.facets?.location_country?.length) {
     const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
-      // A query that was ONLY places ("toronto") leaves an empty residual —
-      // that's a browse of the place, and `resolveEffectiveSort` (sort.ts)
-      // already normalizes relevance-without-query to newest downstream, so
-      // no sort override is needed here.
       next = { ...next, q: parsed.residualQ, places: parsed.places };
     }
   }

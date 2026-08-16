@@ -15,6 +15,8 @@ import {
   normalizeCompanyName,
   type CompanyNameSample,
 } from "./company-intent";
+import { isTechSkillQuery } from "./tech-skills";
+import { decodeText, titleMatchesQuery } from "./presentation";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -532,6 +534,8 @@ export function buildSearchBody(
   // artificially empty under a scope that just proved it matches nothing.
   const sortScoped =
     matchingStrategy !== "last" && shouldScopeTextMatchToTitle(resolveEffectiveSort(p), p.q);
+  const techSkillScoped =
+    !opts?.companyScoped && !sortScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
   return {
     q: p.q ?? "",
     // Whole-document retrieval is the default and stays that way (see the
@@ -545,11 +549,16 @@ export function buildSearchBody(
     //    restricts to `title`+`company` so a fresh/high-salary posting that
     //    only matches in its description can't outrank real title matches
     //    under that ordering. See `shouldScopeTextMatchToTitle` (sort.ts).
+    //  - `techSkillScoped`: standalone tech/programming language tokens
+    //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
+    //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
       : sortScoped
         ? { attributesToSearchOn: ["title", "company"] }
-        : {}),
+        : techSkillScoped
+          ? { attributesToSearchOn: ["title", "tags", "description"] }
+          : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that
@@ -807,7 +816,55 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   };
 
   const result = await runSearch();
+  if (resolveEffectiveSort(p) === "relevance" && result.hits.length > 0) {
+    result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+  }
   return applySortIntegrityGuard(result, p, runSearch);
+}
+
+const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist|driver|paramedic|phlebotomist|teacher|substitute teacher|caregiver|cook|waiter|bus monitor|janitor|custodian)\b/i;
+
+/**
+ * Post-search relevance & quality reranking for default/relevance searches:
+ * Subtly elevates high-signal postings that candidates prioritize:
+ * 0. Demotes non-tech titles on tech queries (e.g. "Therapist at Rust Medical Center" when searching "Rust").
+ * 1. Exact title alignment with search query.
+ * 2. Transparent compensation disclosure (salary_min > 0 or salary_max > 0).
+ * 3. Verified clear ghost badge (ghost_badge === "clear").
+ * 4. Recency tie-breaker.
+ */
+export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): PublicJob[] {
+  if (!hits || hits.length <= 1) return hits;
+  const query = (q ?? "").trim().toLowerCase();
+  const isTech = isTechSkillQuery(query);
+
+  return [...hits].sort((a, b) => {
+    // 0. Non-tech role demotion for tech queries
+    if (isTech) {
+      const aIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(a.title)) ? 1 : 0;
+      const bIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(b.title)) ? 1 : 0;
+      if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
+    }
+
+    // 1. Exact title match tier
+    const aTitleMatch = query && titleMatchesQuery(decodeText(a.title), query) ? 1 : 0;
+    const bTitleMatch = query && titleMatchesQuery(decodeText(b.title), query) ? 1 : 0;
+    if (aTitleMatch !== bTitleMatch) return bTitleMatch - aTitleMatch;
+
+    // 2. Salary disclosure boost (disclosed pay is high signal for job seekers)
+    const aHasSalary = (a.salary_min != null && a.salary_min > 0) || (a.salary_max != null && a.salary_max > 0) ? 1 : 0;
+    const bHasSalary = (b.salary_min != null && b.salary_min > 0) || (b.salary_max != null && b.salary_max > 0) ? 1 : 0;
+    if (aHasSalary !== bHasSalary) return bHasSalary - aHasSalary;
+
+    // 3. Ghost status tiering (clear > unscored/caution > likely_ghost)
+    const ghostScore = (g: string) => (g === "clear" ? 2 : g === "likely_ghost" ? 0 : 1);
+    const aGhost = ghostScore(a.ghost_badge);
+    const bGhost = ghostScore(b.ghost_badge);
+    if (aGhost !== bGhost) return bGhost - aGhost;
+
+    // 4. Recency tie-break (posted_ts)
+    return (b.posted_ts ?? 0) - (a.posted_ts ?? 0);
+  });
 }
 
 /** The three location fields a parsed place can constrain. */
