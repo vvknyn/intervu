@@ -85,5 +85,8 @@ export async function getCompanyPageData(
     ghostFlaggedPct: ghostFlaggedPct(jobs),
     jobs,
     boards,
+    // Read here — the async I/O boundary — not in the page component's
+    // render body. See `CompanyPageData.nowMs`.
+    nowMs: Date.now(),
   };
 }

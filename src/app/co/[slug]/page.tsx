@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
   buildCompanyHiringAnswer,
+  buildCompanyJobsUrl,
   buildCompanyPageMetadata,
-  ghostPctCoversAllRoles,
   openCountText,
+  sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
 import {
   decodeText,
@@ -61,12 +62,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   if (!data) notFound();
 
   const preview = data.jobs.slice(0, ROLES_PREVIEW);
-  // /jobs is the only route that consumes `q` (src/lib/jobs/url-state.ts) —
-  // `/` is the marketing hero page and silently drops the param.
-  const jobsSearchUrl = `/jobs?q=${encodeURIComponent(data.name)}`;
+  // See `buildCompanyJobsUrl`'s docblock (lib/companies/presentation.ts) for
+  // why this can't be a hand-built `?q=...` string.
+  const jobsSearchUrl = buildCompanyJobsUrl(data);
   const isElite = data.boards.includes("elite");
-  const ghostPctIsCompanyWide = ghostPctCoversAllRoles(data);
-  const hiring = buildCompanyHiringAnswer(data);
+  const ghostPctIsCompanyWide = sampleCoversAllRoles(data);
+  const hiring = buildCompanyHiringAnswer(data, data.nowMs);
   const faqJsonLd = buildFaqPageJsonLd(
     buildCompanyFaqItems({
       companyName: data.name,
@@ -159,6 +160,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
             {hiring.trackRecord}
           </p>
+          {hiring.freshness && (
+            <p className="mt-1 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+              {hiring.freshness}
+            </p>
+          )}
         </section>
 
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">

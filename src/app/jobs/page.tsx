@@ -265,15 +265,22 @@ function SortSegment({
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
  */
+/** Country name for an ISO2 via the browser's own region-name table, with a
+ *  bare-code fallback if `Intl.DisplayNames` throws. Shared by
+ *  `DefaultLocationChip` and the zero-result state's geo-default entry
+ *  (below) so there is exactly one place that resolves this, not a second
+ *  copy of the same try/catch. */
+function regionDisplayName(iso2: string): string {
+    try {
+        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
+    } catch {
+        return iso2;
+    }
+}
+
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
-    const name = useMemo(() => {
-        try {
-            return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
-        } catch {
-            return iso2;
-        }
-    }, [iso2]);
+    const name = useMemo(() => regionDisplayName(iso2), [iso2]);
     return (
         <span
             data-testid="default-location-chip"
@@ -730,11 +737,13 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
 /**
  * Task 11 — zero-results state. Names the specific excluders instead of a
  * generic "try broadening your search": one clear-chip per
- * `activeFilterEntries(state)` (FilterPanel.tsx) — the SAME source the
- * toolbar chips and mobile sheet read from, so this can never list a
- * different "what's active" than what's actually applied (no parallel
- * list). `onClearEntry` routes through the caller's `applyFilterState` —
- * the identical apply path the toolbar chips' `onRemove` already uses — so
+ * `activeFilterEntries(state, { includeQuietDefaults: true })`
+ * (FilterPanel.tsx) — the SAME chokepoint the toolbar chips and mobile sheet
+ * read from (they omit the opt), so this can never list a different "what's
+ * active" than what's actually applied, it just additionally names the
+ * pristine "30d" posted-bucket default the toolbar keeps quiet (no parallel
+ * list). `onClearEntry` routes through the caller's `applyFilterState` — the
+ * identical apply path the toolbar chips' `onRemove` already uses — so
  * there's exactly one place a FilterState clear becomes local state + a URL
  * write, not a third one. `ghostRevealCount` arrives pre-gated from
  * `resolveGhostReveal` (lib/jobs/result-state.ts): non-null here already
@@ -747,6 +756,11 @@ function resumeIsUsable(d: ResumeData | undefined): boolean {
  * no one-tap clear. `query`/`onClearQuery` add that as its own chip,
  * first-in-order (the thing most likely to be over-narrowing a search-driven
  * empty state) alongside the existing filter chips.
+ *
+ * `locationDefault` (below) is the one excluder outside `FilterState`
+ * entirely — the IP-geo default (`DefaultLocationChip`'s seam, above) — so it
+ * rides alongside `entries` as its own prop rather than being folded into the
+ * FilterState-shaped list.
  */
 /** Review fix: one source for the `activeFilterEntries` element shape, instead of spelling it out twice below. */
 type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
@@ -757,6 +771,7 @@ function ActiveFilterActions({
     onClearFilters,
     query,
     onClearQuery,
+    locationDefault,
     className,
     clearFiltersTestId = "empty-state-clear-filters",
     clearQueryTestId = "empty-state-clear-query",
@@ -767,6 +782,12 @@ function ActiveFilterActions({
     onClearFilters?: () => void;
     query?: string;
     onClearQuery?: () => void;
+    /** The IP-geo default (`DefaultLocationChip`'s own seam, above) isn't
+     *  part of `FilterState` at all, so it can't travel through `entries`'s
+     *  state-transform `clear`. Same rendered chip, same "✕ clear {label}"
+     *  grammar, resolved `onClear` supplied by the caller instead of a pure
+     *  `(s: FilterState) => FilterState`. */
+    locationDefault?: { label: string; onClear: () => void };
     className?: string;
     clearFiltersTestId?: string;
     clearQueryTestId?: string;
@@ -774,7 +795,7 @@ function ActiveFilterActions({
 }) {
     const hasQuery = (query ?? "").trim().length > 0;
     const hasFilters = entries.length > 0;
-    if (!hasQuery && !hasFilters) return null;
+    if (!hasQuery && !hasFilters && !locationDefault) return null;
     return (
         <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground", className)}>
             {hasFilters && onClearFilters && (
@@ -808,6 +829,16 @@ function ActiveFilterActions({
                     ✕ clear {entry.label}
                 </button>
             ))}
+            {locationDefault && (
+                <button
+                    type="button"
+                    data-testid={chipTestId}
+                    onClick={locationDefault.onClear}
+                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                >
+                    ✕ clear {locationDefault.label}
+                </button>
+            )}
         </p>
     );
 }
@@ -818,6 +849,7 @@ function EmptyResults({
     onClearFilters,
     query,
     onClearQuery,
+    locationDefault,
     ghostRevealCount,
     onRevealGhosts,
     seeds,
@@ -832,6 +864,9 @@ function EmptyResults({
     onClearFilters: () => void;
     query: string;
     onClearQuery: () => void;
+    /** The IP-geo default excluder — see `ActiveFilterActions`'s own doc
+     *  comment for why this travels separately from `entries`. */
+    locationDefault?: { label: string; onClear: () => void };
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
     /** A3 — the SAME seed list `BrowseSeedRow` renders everywhere else on
@@ -842,7 +877,7 @@ function EmptyResults({
     onSubmitSeed: (seed: string) => void;
 }) {
     const hasQuery = query.trim().length > 0;
-    const hasFilters = entries.length > 0;
+    const hasFilters = entries.length > 0 || !!locationDefault;
     return (
         <div className="py-8 text-left">
             <p className="text-[14px] text-foreground">
@@ -856,6 +891,7 @@ function EmptyResults({
                     onClearFilters={onClearFilters}
                     query={query}
                     onClearQuery={onClearQuery}
+                    locationDefault={locationDefault}
                 />
             )}
             {ghostRevealCount != null && (
@@ -1342,10 +1378,19 @@ function JobsContent() {
     const hasUsableResume = resumeIsUsable(resume ?? undefined);
 
     // Single source for "what filters are currently active" — the toolbar
-    // pill's count, the empty-state's per-filter clear chips, and
-    // `emptySearchState` below all read this ONE call instead of a second
-    // `activeFilterEntries(filterState)` per render.
+    // pill's count and `emptySearchState` below both read this ONE call
+    // instead of a second `activeFilterEntries(filterState)` per render.
     const activeEntries = activeFilterEntries(filterState);
+
+    // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
+    // call to the same `activeFilterEntries` chokepoint, with
+    // `includeQuietDefaults: true` — a silently-applied default (today, only
+    // the pristine "30d" posted-bucket) narrowed the result set just as much
+    // as an explicit filter, so a zero-result explanation has to name it even
+    // though the toolbar pill keeps it quiet. Same function, same clear
+    // semantics, one extra opt-in — not a second parallel "what's active"
+    // derivation.
+    const emptyStateEntries = activeFilterEntries(filterState, { includeQuietDefaults: true });
 
     /**
      * No query ⇒ no corpus fetch, ever — regardless of filters or
@@ -3383,11 +3428,20 @@ function JobsContent() {
                                 <JobsListSplash />
                             ) : resultsPanel === "empty" ? (
                                 <EmptyResults
-                                    entries={activeEntries}
+                                    entries={emptyStateEntries}
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
                                     onClearFilters={panelClearAll}
                                     query={query}
                                     onClearQuery={handleClearSearch}
+                                    // SAME `shouldShowLocationDefaultChip`/`suppressLocationDefault`
+                                    // seam the location-control chip above uses (DefaultLocationChip's
+                                    // doc comment) — reused, not a second source for "was a geo
+                                    // default applied."
+                                    locationDefault={
+                                        shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft)
+                                            ? { label: `near ${regionDisplayName(result!.defaultedLocation!)}`, onClear: suppressLocationDefault }
+                                            : undefined
+                                    }
                                     ghostRevealCount={ghostRevealCount}
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
