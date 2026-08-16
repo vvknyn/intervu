@@ -79,6 +79,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
+import { LandingMarketingShowcase } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     toggleFacetValue,
@@ -1420,6 +1421,7 @@ function JobsContent() {
         fitActive,
         activeFilterCount: activeEntries.length,
     });
+    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board;
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -3304,7 +3306,10 @@ function JobsContent() {
                     />
                 </section>
 
-                <div className="mt-9 flex min-h-0 flex-1 flex-col xl:grid xl:grid-cols-[minmax(0,600px)_1fr] xl:gap-6">
+                <div className={cn(
+                    "mt-9 flex min-h-0 flex-1 flex-col",
+                    !isPristineLanding && "xl:grid xl:grid-cols-[minmax(0,600px)_1fr] xl:gap-6"
+                )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
                         the pane's JSX is full of buttons (JobDetail's own ×,
@@ -3318,50 +3323,37 @@ function JobsContent() {
                         column below keeps the default order-0, so it sorts
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
-                        isn't in the layout at all under 1280px.
-
-                        No `xl:self-start`/`items-start`: the pane's grid-item
-                        box must stretch to match the list column's full
-                        (arbitrarily tall, infinite-scroll) height so its
-                        `xl:sticky` containing block spans the whole
-                        scrollable range — default `align-items: stretch`
-                        does that for free. Chrome offset for the sticky top:
-                        traced every ancestor (TopBar, `<main>`, this
-                        results wrapper) for `sticky`/`fixed`/`overflow-
-                        hidden` — none exists on this page (the in-file
-                        comment near the inner scroller div below claiming
-                        "main's lg:overflow-hidden" is stale/no longer
-                        present in the actual className), so the page scrolls
-                        as one normal document and `xl:top-0` needs no offset
-                        subtraction. */}
-                    <div
-                        data-testid="detail-pane"
-                        className="hidden xl:order-2 xl:block xl:sticky xl:top-0 xl:max-h-dvh xl:min-w-0 xl:overflow-y-auto xl:rounded-2xl xl:border xl:border-slate-300/80 xl:bg-card xl:shadow-md dark:xl:border-slate-700 custom-scrollbar"
-                    >
-                        {detailMountSite === "pane" ? (
-                            // Auto-preview (2026-08-14): a render-only mount —
-                            // only a real click/keypress reaches `openJob`
-                            // (telemetry + `?job=` push), so the ambient
-                            // preview gets no close affordance either: with
-                            // nothing pushed, `router.back()` would leave the
-                            // site, and "closing" an always-populated pane has
-                            // no state to return to.
-                            renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
-                        ) : loading ? (
-                            <div className="p-4">
-                                <JobDetailSkeleton />
-                            </div>
-                        ) : (
-                            // Only reachable with zero hits (the ambient
-                            // preview covers every non-empty result set).
-                            <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
-                                Select a role to read it here.
-                            </p>
-                        )}
-                    </div>
+                        isn't in the layout at all under 1280px. */}
+                    {!isPristineLanding && (
+                        <div
+                            data-testid="detail-pane"
+                            className="hidden xl:order-2 xl:block xl:sticky xl:top-0 xl:max-h-dvh xl:min-w-0 xl:overflow-y-auto xl:rounded-2xl xl:border xl:border-slate-300/80 xl:bg-card xl:shadow-md dark:xl:border-slate-700 custom-scrollbar"
+                        >
+                            {detailMountSite === "pane" ? (
+                                renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                            ) : loading ? (
+                                <div className="p-4">
+                                    <JobDetailSkeleton />
+                                </div>
+                            ) : (
+                                <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
+                                    Select a role to read it here.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        <BoardVisitBanner />
+                        {isPristineLanding ? (
+                            <LandingMarketingShowcase
+                                onSelectQuery={(q) => submitSearch(q)}
+                                onSelectRemote={() => panelToggleFacet("work_type", "remote")}
+                                onSelectSalaryMin={(min) => panelSalaryMin(min)}
+                                onSelectBoard={(b) => onBoardChange(b)}
+                            />
+                        ) : (
+                            <>
+                                <BoardVisitBanner />
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -3744,6 +3736,8 @@ function JobsContent() {
                                 </>
                             )}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </main>
