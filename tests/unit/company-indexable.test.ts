@@ -35,6 +35,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     slug: "acme--com",
     name: "Acme",
     nameSource: "corpus-cased",
+    changeEvents: [],
     oneLiner: null,
     stage: null,
     opened90d: null,

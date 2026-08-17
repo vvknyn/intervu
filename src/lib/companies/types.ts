@@ -44,6 +44,24 @@ export interface CompanyNewsArticle {
   confidence: "high" | "medium";
 }
 
+/** One published entry from Subspace's change-event ledger, already scoped to
+ *  this company (the API strips the ledger's `"<domain> — "` title prefix). */
+export interface CompanyChangeEvent {
+  /** Ledger taxonomy: hiring_surge | hiring_freeze | funding | layoff |
+   *  verdict_changed | needs_outside_firm_emerged. Typed as a string rather
+   *  than a union on purpose — the vocabulary is owned by the projector in the
+   *  other repo, and a union here would turn a new event type into a
+   *  cross-repo type error instead of a row this page can simply render. */
+  event_type: string;
+  direction: "improving" | "declining" | "neutral";
+  /** The projected sentence, e.g. "hiring has stalled: 167 new roles in 14d,
+   *  down from 485". Already carries every number a reader needs. */
+  headline: string;
+  /** ISO-8601 — when the underlying change occurred, not when we saw it. */
+  occurred_at: string;
+  confidence: number | null;
+}
+
 export interface CompanyIntelligence {
   funding: CompanyFundingInfo | null;
   visa: CompanyVisaInfo | null;
@@ -91,6 +109,11 @@ export type CompanyPageData = {
   boards: BoardId[];
   /** Subspace enrichment intelligence suite (Funding, Visa & H1B, Tech DNA, Signals) */
   intelligence?: CompanyIntelligence;
+  /** Published change-events from Subspace's ledger, newest first. Empty
+   *  whenever the upstream call fails or the company has none — the two are
+   *  deliberately indistinguishable here, because the page renders the same
+   *  thing (nothing) either way rather than guessing at a reason. */
+  changeEvents: CompanyChangeEvent[];
   /**
    * The clock read at the async I/O boundary (`getCompanyPageData`), not
    * inside the server component's render body — server components must stay

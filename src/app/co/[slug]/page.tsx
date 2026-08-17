@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
+import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -170,6 +171,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             }
           />
         </div>
+
+        <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
 
         <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
 
