@@ -48,6 +48,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     slug: "lumentum--com",
     name: "Lumentum",
     nameSource: "corpus-cased",
+    changeEvents: [],
     oneLiner: null,
     stage: null,
     opened90d: null,

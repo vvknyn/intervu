@@ -3,6 +3,7 @@ import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
+import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { displayCompanyName } from "@/lib/jobs/presentation";
@@ -34,16 +35,21 @@ export async function getCompanyPageData(
   const domain = allowlisted ?? decodeSlug(slug);
   if (!domain) return null;
 
-  // Run concurrently with the jobs search — `fetchCompanyNews` fails soft to
-  // `[]` on its own (missing endpoint, timeout, network error), so it can
-  // never be the reason this function throws or returns late.
-  const [result, news] = await Promise.all([
+  // Run concurrently with the jobs search — `fetchCompanyNews` and
+  // `fetchCompanyEvents` each fail soft to `[]` on their own (missing
+  // endpoint, timeout, network error), so neither can be the reason this
+  // function throws or returns late. Both sit in the SAME Promise.all as the
+  // search rather than being awaited after it: they are independent reads,
+  // so sequencing them would add two round-trips to the page's TTFB for no
+  // ordering benefit.
+  const [result, news, changeEvents] = await Promise.all([
     search({
       companyDomain: domain,
       limit: COMPANY_JOBS_FETCH_LIMIT,
       hideGhosts: false,
     }),
     fetchCompanyNews(domain),
+    fetchCompanyEvents(domain),
   ]);
   // A failed search (bad/unfilterable index config, live outage) must never
   // be read as "this company has zero jobs" — that's how the animana--com
@@ -96,6 +102,7 @@ export async function getCompanyPageData(
     jobs,
     boards,
     intelligence,
+    changeEvents,
     // Read here — the async I/O boundary — not in the page component's
     // render body. See `CompanyPageData.nowMs`.
     nowMs: Date.now(),
