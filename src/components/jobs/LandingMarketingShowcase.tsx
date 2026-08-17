@@ -10,6 +10,74 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
+/**
+ * The marketing statement alone — no controls, nothing focusable.
+ *
+ * Split out of the showcase below (2026-08-17, Vivek) because the two halves
+ * now live on opposite sides of the search line: this states what the corpus
+ * IS and sits ABOVE the search box on the pristine landing, while the
+ * directory and shortcuts below are search entry points and stay next to the
+ * results they seed.
+ *
+ * Deliberately free of buttons and links. `/jobs` keeps it MOUNTED and
+ * collapses it once a search runs (see the `grid-rows-[0fr]` wrapper in
+ * app/jobs/page.tsx) rather than unmounting it, and a collapsed block that
+ * contained a tab stop would leave focus stranded in zero-height content.
+ * Keep it non-interactive, or that wrapper needs `inert` instead.
+ */
+export function LandingMasthead() {
+  return (
+    <div className="pb-4 sm:pb-6">
+    <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/80 pb-4">
+        <div>
+          <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">
+            [ DIRECT ATS INGESTION ENGINE ]
+          </span>
+          <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
+            The Unfiltered Corpus.
+          </h1>
+        </div>
+        <div className="font-mono text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
+          <p className="font-bold text-foreground">EDITION 2026.08</p>
+          <p>100% Direct from Employer ATS</p>
+        </div>
+      </div>
+
+      {/* 3-Column Swiss Editorial Statement */}
+      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
+        <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+            01 / DIRECT SCRAPING
+          </div>
+          <p className="text-muted-foreground">
+            Continuous live crawlers indexing directly from Greenhouse, Lever, Ashby, and Workday. Bypassing recruiter spam and middleman job boards.
+          </p>
+        </div>
+
+        <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+            02 / GHOST DETECTION
+          </div>
+          <p className="text-muted-foreground">
+            Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag phantom or stale roles before you apply.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+            03 / RAW COMPENSATION
+          </div>
+          <p className="text-muted-foreground">
+            Direct extraction of official compensation bands from ATS structured metadata. No guessing or crowd-sourced estimates.
+          </p>
+        </div>
+      </div>
+    </div>
+    </div>
+  );
+}
+
 interface LandingMarketingShowcaseProps {
   onSelectQuery: (q: string) => void;
   onSelectRemote: () => void;
@@ -77,53 +145,6 @@ export function LandingMarketingShowcase({
 
   return (
     <div className="w-full space-y-8 py-2">
-      {/* Swiss Editorial Masthead */}
-      <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/80 pb-4">
-          <div>
-            <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">
-              [ DIRECT ATS INGESTION ENGINE ]
-            </span>
-            <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
-              The Unfiltered Corpus.
-            </h1>
-          </div>
-          <div className="font-mono text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
-            <p className="font-bold text-foreground">EDITION 2026.08</p>
-            <p>100% Direct from Employer ATS</p>
-          </div>
-        </div>
-
-        {/* 3-Column Swiss Editorial Statement */}
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
-          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
-              01 / DIRECT SCRAPING
-            </div>
-            <p className="text-muted-foreground">
-              Continuous live crawlers indexing directly from Greenhouse, Lever, Ashby, and Workday. Bypassing recruiter spam and middleman job boards.
-            </p>
-          </div>
-
-          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
-              02 / GHOST DETECTION
-            </div>
-            <p className="text-muted-foreground">
-              Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag phantom or stale roles before you apply.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
-              03 / RAW COMPENSATION
-            </div>
-            <p className="text-muted-foreground">
-              Direct extraction of official compensation bands from ATS structured metadata. No guessing or crowd-sourced estimates.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Swiss Index Ledger Directory */}
       <div>
