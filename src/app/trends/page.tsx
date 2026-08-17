@@ -32,18 +32,20 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   const delta = computeLatestDelta(snapshots);
 
   return (
-    <>
+    <div className="rounded-lg border border-border bg-muted/25 px-3 py-2">
       {delta && (
-        <p data-testid="trends-pulse-delta" className="mt-1 text-sm text-muted-foreground">
-          Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}:{" "}
-          {delta.netActiveChange >= 0 ? "+" : ""}
-          {delta.netActiveChange.toLocaleString()} net active · {delta.newlyClosed.toLocaleString()} newly closed
+        <p data-testid="trends-pulse-delta" className="font-mono text-xs text-foreground">
+          <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
+          <span className="font-bold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
+          <span className="text-muted-foreground"> net active · </span>
+          <span className="font-bold">{delta.newlyClosed.toLocaleString()}</span>
+          <span className="text-muted-foreground"> newly closed</span>
         </p>
       )}
-      <p data-testid="trends-pulse-tracking-since" className="mt-1 font-mono text-[11px] text-muted-foreground">
-        tracking daily since {firstSnapshotDate}
+      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+        tracking daily baseline since {firstSnapshotDate}
       </p>
-    </>
+    </div>
   );
 }
 
@@ -96,7 +98,18 @@ export default async function TrendsPage() {
         bare
         size="display"
         title="Market trends"
-        description="Live stats from the jobs corpus we track — scraped from companies&apos; own career pages, not curated."
+        description="Live stats from the jobs corpus we track — scraped from companies' own career pages, not curated."
+        actions={
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-mono">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+              Direct Ingestion Active
+            </span>
+          </div>
+        }
       />
 
       <TrendsHero
@@ -105,25 +118,10 @@ export default async function TrendsPage() {
         ghostFlaggedLive={data.ghostFlaggedLive}
       />
 
-      {/* 2-Column Responsive Dashboard Layout */}
+      {/* 2-Column Responsive BI Multi-Column Grid */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left Column: Geographic & Work Flexibility */}
+        {/* Left Column: Flow Velocity, Geographic Reach, Lifecycle Age */}
         <div className="space-y-6">
-          <TopCountriesList countries={data.topCountries} />
-          <WorkArrangementDistribution
-            workTypes={data.workTypeDistribution}
-            visaSponsorship={data.visaSponsorshipDistribution}
-          />
-          <PostingFreshnessBand freshness={data.freshness} />
-        </div>
-
-        {/* Right Column: Ghost Risk & Seniority & Pulse */}
-        <div className="space-y-6">
-          <MarketGhostRadar ghostRadar={data.ghostRadar} />
-          <ExperienceSeniorityDistribution
-            experienceLevels={data.experienceDistribution}
-            employmentTypes={data.employmentTypeDistribution}
-          />
           <MarketPulse
             postedPerDay={data.postedPerDay}
             liveJobs={data.liveJobs}
@@ -131,6 +129,21 @@ export default async function TrendsPage() {
             staleActiveSharePct={data.staleActiveSharePct}
             sourceCoverage={data.sourceCoverage}
             snapshotSummary={<DailySnapshotSummary snapshots={snapshots} />}
+          />
+          <TopCountriesList countries={data.topCountries} />
+          <PostingFreshnessBand freshness={data.freshness} />
+        </div>
+
+        {/* Right Column: Market Integrity, Workplace Flexibility, Seniority Mix */}
+        <div className="space-y-6">
+          <MarketGhostRadar ghostRadar={data.ghostRadar} />
+          <WorkArrangementDistribution
+            workTypes={data.workTypeDistribution}
+            visaSponsorship={data.visaSponsorshipDistribution}
+          />
+          <ExperienceSeniorityDistribution
+            experienceLevels={data.experienceDistribution}
+            employmentTypes={data.employmentTypeDistribution}
           />
         </div>
       </div>
