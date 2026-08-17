@@ -75,11 +75,15 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
 
   const intro =
     "Thanks for signing up. intervu is a job search built on postings taken straight from employers, screened for the ones that aren't really open.";
-  // Deliberately does not promise that a reply "reaches a person" —
-  // RESEND_FROM is a real address (`hello@intervuhq.com`, not a no-reply),
-  // so inviting the reply is honest, but whether the inbox is watched is an
-  // operational fact this template cannot know and must not assert.
-  const outro = "Reply to this email if something's broken or missing.";
+  // Points at the contact form, NOT at a reply. `intervuhq.com` publishes no
+  // MX record (verified 2026-08-17, `dig MX intervuhq.com` returns nothing),
+  // so the domain can send but cannot receive: a reply to this email fails at
+  // the reader's own mail server. Resend is a sending service and does not
+  // provide an inbox. An earlier version of this line invited a reply, which
+  // would have promised a channel that does not exist to every new account.
+  const contactUrl = `${input.siteUrl}/contact`;
+  const outroLead = "Something broken or missing?";
+  const outroText = `${outroLead} Tell us at ${contactUrl}`;
 
   const bodyText = [
     intro,
@@ -87,7 +91,7 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
     // by a single newline the label, blurb and link of adjacent features run
     // together into one wall in every plain-text client.
     features.map((f) => `${f.label}\n${f.blurb}\n${f.href}`).join("\n\n"),
-    outro,
+    outroText,
   ].join("\n\n");
 
   const bodyHtml = [
@@ -99,7 +103,8 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
         `<span style="color:#444;">${f.blurb}</span>` +
         `</p>`,
     ),
-    `<p style="margin:24px 0 0;color:#444;">${outro}</p>`,
+    `<p style="margin:24px 0 0;color:#444;">${outroLead} ` +
+      `<a href="${contactUrl}" style="color:#111;text-decoration:underline;">Tell us</a>.</p>`,
   ].join("");
 
   return {
