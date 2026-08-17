@@ -1,4 +1,4 @@
-import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
@@ -16,28 +16,40 @@ import { toValueArray } from "@/lib/jobs/types";
  * their own `now` and these stay usable from a render body.
  */
 
-// Ghost-badge presentation. Colors route through the shared status-token
-// chokepoint (lib/ui/status-tokens.ts): caution/likely_ghost → intv (amber),
-// clear → offer (green). Token classes carry both light + dark values, so the
-// per-state dark: overrides are no longer needed.
-export const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: string; explain: string } | null> = {
+// Ghost-badge presentation. Colors route through `ghostBadgeTone`
+// (lib/ui/status-tokens.ts) — the ONE badge→tone decision — rather than a
+// hand-picked STATUS_PILL entry per badge. That hand-picked copy had already
+// drifted: `ghostBadgeTone` was introduced to stop `caution` and
+// `likely_ghost` sharing one amber tone ("collapsing 'review' and 'possible
+// ghost' into the same color hid the worse verdict", its own doc), and the
+// radar bars and mix bands were moved onto it — but this map, which every
+// BADGE-rendering surface reads (SERP row tooltip, detail-panel verdict pill,
+// /co roles list), kept `likely_ghost: STATUS_PILL.intv` and stayed amber.
+// A possible-ghost posting therefore looked identical to a merely-cautioned
+// one everywhere a reader actually meets a posting. Derived now, so the two
+// can't disagree again.
+//
+// The `dot` field is gone with the same edit: it had no consumer anywhere in
+// src (a third palette copy kept alive only by the type), and leaving a
+// second color source next to a fix for a second color source invites the
+// exact drift this removes.
+const ghostPill = (badge: "clear" | "caution" | "likely_ghost") => STATUS_PILL[ghostBadgeTone(badge)];
+
+export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explain: string } | null> = {
     likely_ghost: {
         label: "Possible ghost job",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv",
+        cls: ghostPill("likely_ghost"),
         explain:
             "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
     },
     caution: {
         label: "Worth verifying",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv/80",
+        cls: ghostPill("caution"),
         explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
     },
     clear: {
         label: "No ghost signals",
-        cls: STATUS_PILL.offer,
-        dot: "bg-st-offer",
+        cls: ghostPill("clear"),
         explain: "No ghost-risk signals — this posting looks active.",
     },
     unscored: null,
@@ -54,7 +66,6 @@ export const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: s
 export const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
     label: "Not recently verified",
     cls: STATUS_PILL.intv,
-    dot: "bg-st-intv/60",
     explain: "This posting hasn't been re-checked recently — we can't confirm it's still active. Worth a quick sanity-check before you apply.",
 };
 

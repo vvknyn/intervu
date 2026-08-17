@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { titleCaseDisplay } from "../../src/lib/jobs/presentation";
+import { GHOST_META, titleCaseDisplay } from "../../src/lib/jobs/presentation";
+import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
 
 test("title-cases an all-uppercase string", () => {
   assert.equal(titleCaseDisplay("WARSZAWA, POLAND"), "Warszawa, Poland");
@@ -19,4 +20,24 @@ test("leaves deliberately mixed-case names untouched", () => {
 
 test("leaves already-normal title case untouched", () => {
   assert.equal(titleCaseDisplay("Warszawa, Poland"), "Warszawa, Poland");
+});
+
+// GHOST_META used to hand-pick a STATUS_PILL entry per badge, and that copy
+// drifted: `ghostBadgeTone` was introduced specifically to stop `caution` and
+// `likely_ghost` sharing one amber tone ("collapsing 'review' and 'possible
+// ghost' into the same color hid the worse verdict" — its own doc), the radar
+// bars and mix bands were moved onto it, and this map — the one every surface
+// a reader actually meets a POSTING on reads from — was left behind on
+// `STATUS_PILL.intv`. Asserted as a derivation over every badge, not as three
+// expected color strings, so the next tone change can't reopen the gap.
+test("GHOST_META colors are derived from ghostBadgeTone, not a second hand-picked map", () => {
+  for (const badge of ["clear", "caution", "likely_ghost"] as const) {
+    assert.equal(GHOST_META[badge]!.cls, STATUS_PILL[ghostBadgeTone(badge)], badge);
+  }
+  assert.equal(GHOST_META.unscored, null, "unscored has no tone and renders no badge");
+});
+
+test("a possible-ghost posting never looks like a merely-cautioned one", () => {
+  assert.notEqual(GHOST_META.likely_ghost!.cls, GHOST_META.caution!.cls);
+  assert.notEqual(GHOST_META.likely_ghost!.label, GHOST_META.caution!.label);
 });

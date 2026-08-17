@@ -59,7 +59,8 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  * "clear" and "unscored" in the same else-branch — an unscored job rendered
  * "✓ verified", a verification claim about a check that never ran. Same
  * honesty ladder `badgeFor` above encodes, in chip-sized vocabulary:
- *   caution/likely_ghost → "review"
+ *   likely_ghost → "ghost"
+ *   caution → "review"
  *   clear + current check → "clear" (checkFreshness, the shared boundary)
  *   clear + stale check   → "checked" (past tense — the data can't back a
  *                           present-tense claim; see STALE_CLEAR_META)
@@ -76,8 +77,21 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  * The chip now renders `GHOST_META.clear.label` verbatim at the call site
  * rather than a second word for the same state, so the row and the detail
  * panel are one vocabulary by construction and not by review discipline.
+ *
+ * `likely_ghost` split out of "review" (2026-08-17, Vivek: "view all ...but
+ * obviously mark the ghost jobs"). It shared the amber "review" chip with
+ * `caution`, so the row said the same word about "some signals suggest a
+ * sanity-check" and about "our signals flag this as a possible ghost job" —
+ * the SAME collapse `ghostBadgeTone` (lib/ui/status-tokens.ts) was written to
+ * undo for the radar bars, still standing on the one surface where a reader
+ * decides whether to open a posting. It matters now in a way it didn't
+ * before: `/co`'s "View all N jobs" CTA carries `ghosts=show`
+ * (buildCompanyJobsUrl, lib/companies/presentation.ts) so the destination
+ * count matches the count on the link, which means likely-ghost rows now
+ * arrive UNFILTERED in front of people who never asked to see them. Filtering
+ * was doing the marking; when the filter comes off, the mark has to be real.
  */
-export type RowTrustChip = "review" | "clear" | "checked";
+export type RowTrustChip = "ghost" | "review" | "clear" | "checked";
 
 export function rowTrustChip(
     ghostBadge: GhostBadge,
@@ -85,8 +99,9 @@ export function rowTrustChip(
     nowMs: number,
 ): RowTrustChip | null {
     switch (ghostBadge) {
-        case "caution":
         case "likely_ghost":
+            return "ghost";
+        case "caution":
             return "review";
         case "clear":
             return checkFreshness(updatedAt, nowMs) === "fresh" ? "clear" : "checked";

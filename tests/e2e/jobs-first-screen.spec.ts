@@ -414,9 +414,22 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // `GHOST_META.clear.label` on 2026-08-16 (see `rowTrustChip`'s doc
     // comment — the row was claiming verification for a screen that only
     // reports the absence of ghost signals).
-    test("clear rows carry a trust verdict badge", async ({ page }) => {
+    // Asserted through the chip's own testid rather than a free-text match:
+    // the ladder gained a fourth state on 2026-08-17 (`ghost`, split out of
+    // `review` — see `rowTrustChip`), and a text-only assertion silently keeps
+    // passing on the OTHER rows while saying nothing about the new one. This
+    // pins the whole rendered vocabulary instead, so a fifth state or a
+    // reworded label has to come here.
+    test("rows carry a trust verdict chip, and every rendered chip is one of the honest states", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(page.getByText(/^(✓ no ghost signals|review)$/i).first()).toBeVisible();
+        const chips = page.locator('[data-testid="row-trust-chip"]');
+        await expect(chips.first()).toBeVisible();
+        // innerText, not textContent — the chip is `uppercase` in CSS.
+        for (const text of await chips.allInnerTexts()) {
+            expect(text.trim().toLowerCase()).toMatch(
+                /^(✕ possible ghost job|review|✓ no ghost signals|checked)$/,
+            );
+        }
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted

@@ -125,6 +125,23 @@ test("rowTrustChip: caution reads 'review'", () => {
     assert.equal(rowTrustChip("caution", null, NOW), "review");
 });
 
-test("rowTrustChip: likely_ghost reads 'review'", () => {
-    assert.equal(rowTrustChip("likely_ghost", null, NOW), "review");
+test("rowTrustChip: likely_ghost reads 'ghost'", () => {
+    assert.equal(rowTrustChip("likely_ghost", null, NOW), "ghost");
+});
+
+// Vivek, 2026-08-17: "view all ...but obviously mark the ghost jobs". The two
+// flagged verdicts shared the amber "review" chip, so the row said the same
+// word about "worth a quick sanity-check" and about "flagged as a possible
+// ghost job" — the same collapse `ghostBadgeTone` (lib/ui/status-tokens.ts)
+// was written to undo for the radar bars, still standing on the row where a
+// reader decides whether to open a posting. It stopped being cosmetic when
+// `/co`'s CTA started carrying `ghosts=show`: filtering used to do the
+// marking, and once the filter is off the mark has to be real.
+test("rowTrustChip: the two flagged verdicts are DISTINCT chips — no age or check state collapses them", () => {
+    for (const updatedAt of [ago(30_000), ago(STALE_CHECK_MS + 1), null]) {
+        assert.notEqual(
+            rowTrustChip("likely_ghost", updatedAt, NOW),
+            rowTrustChip("caution", updatedAt, NOW),
+        );
+    }
 });

@@ -95,6 +95,19 @@ export function sampleCoversAllRoles(
  * `serializeJobsUrl`): this page's own count is age-agnostic, so the link
  * must not silently reapply /jobs' 30-day window on top of it.
  *
+ * `hideGhosts: false` (→ `ghosts=show`) is the same rule applied to /jobs'
+ * OTHER silent default. This page counts every open role it tracks and
+ * separately discloses what share of them are ghost-flagged (the
+ * `ghostFlaggedPct` KPI tile); /jobs hides likely-ghost rows unless asked.
+ * Measured live 2026-08-16 on `/co/harrods--com`: "View all 108 jobs" landed
+ * on 78 — exactly the 30 the page's own "28% ghost-flagged" tile had just
+ * counted. A link whose label states a number must not hand the destination
+ * a filter that removes some of it; that is the same defect as the Leogy
+ * 30-day case above, in a second default. Vivek's call, 2026-08-17: show all
+ * of them, and mark the flagged ones — which is why this line ships with
+ * `rowTrustChip`'s `likely_ghost` split (lib/jobs/badges.ts). Unfiltering
+ * without marking would be strictly worse than the gap it closes.
+ *
  * Deliberately carries NO `location_country` facet, even though the roles on
  * this page have known countries. `location_country` is `string | string[] |
  * null` per role (types.ts) with an unverified encoding/value domain, and it
@@ -121,6 +134,7 @@ export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): stri
     ...DEFAULT_URL_STATE,
     companyDomain: data.domain,
     postedBucket: undefined,
+    hideGhosts: false,
   })}`;
 }
 

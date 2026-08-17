@@ -241,4 +241,28 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
     const full = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods Limited" }));
     assert.equal(stripped, full);
   });
+
+  // Measured live 2026-08-16: "View all 108 jobs" landed on 78 — exactly the
+  // 30 roles the page's own "28% ghost-flagged" tile had counted, silently
+  // removed by /jobs' hide-ghosts default. A link that states a number must
+  // not hand its destination a filter that removes part of it. Vivek's call,
+  // 2026-08-17: show all of them, marked (see `rowTrustChip`'s `ghost` state).
+  it("carries ghosts=show — the label's count includes ghost-flagged roles, so the destination must too", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+    assert.equal(parsed.hideGhosts, false);
+  });
+
+  // Both of /jobs' silent defaults, asserted together: the two have now each
+  // caused the same class of bug (Leogy's 30d, Harrods' hide-ghosts), and a
+  // third default arriving later should fail this test, not ship quietly.
+  it("neutralizes every /jobs default that would subtract from the stated count", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+    assert.equal(parsed.postedBucket, undefined, "no 30-day window");
+    assert.equal(parsed.hideGhosts, false, "no ghost exclusion");
+    assert.equal(parsed.salaryMin, 0, "no salary floor");
+    assert.equal(parsed.visaOnly, false, "no visa requirement");
+    assert.deepEqual(parsed.facets, {}, "no facet narrowing");
+  });
 });

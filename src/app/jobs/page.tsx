@@ -42,9 +42,9 @@ import { LaunchBanner } from "@/components/jobs/LaunchBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { checkFreshness, rowTrustChip } from "@/lib/jobs/badges";
+import { checkFreshness, rowTrustChip, type RowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
+import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
     cleanCompany,
@@ -369,6 +369,49 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /** Squared mono `key value` fact-chip base */
 const FACT_BOX = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] leading-tight font-medium border shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors";
 
+/** Shared shape of the row's trust chip — only the color and the words differ per state. */
+const TRUST_CHIP_BOX = "leading-none inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em]";
+
+/**
+ * How each `rowTrustChip` state looks and reads — one table instead of one
+ * hand-written `<span>` per state. The states were four near-identical
+ * copy-pasted spans differing in three palette words; adding `ghost` would
+ * have made a fifth, which is how the amber that `caution` and
+ * `likely_ghost` used to share got there in the first place.
+ *
+ * `ghost` takes its class straight from `GHOST_META.likely_ghost.cls` — which
+ * now resolves through `ghostBadgeTone` (lib/ui/status-tokens.ts) — so the
+ * row chip, the tooltip beside it, the detail-panel verdict pill and the /co
+ * roles list are the same red for the same verdict without anyone
+ * remembering to keep them in step. The other three keep their existing
+ * literal palettes verbatim: they render correctly today and restyling a
+ * surface nobody reported is not this change's job.
+ */
+const TRUST_CHIP: Record<RowTrustChip, { label: string; cls: string; glyph?: string; glyphCls?: string }> = {
+    ghost: {
+        label: GHOST_META.likely_ghost!.label,
+        cls: GHOST_META.likely_ghost!.cls,
+        glyph: "✕",
+    },
+    review: {
+        label: "review",
+        cls: "border border-amber-300/90 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+    },
+    clear: {
+        // `GHOST_META.clear.label`, not a second word for the same state —
+        // see `rowTrustChip`'s doc comment for why the row no longer says
+        // "verified".
+        label: GHOST_META.clear!.label,
+        cls: "border border-emerald-300/90 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
+        glyph: "✓",
+        glyphCls: "font-extrabold text-emerald-600 dark:text-emerald-400",
+    },
+    checked: {
+        label: "checked",
+        cls: "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    },
+};
+
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
  * (salary, ghost flag, age — top to bottom, whichever apply) on the right.
@@ -497,23 +540,20 @@ function JobCard({
                 </div>
             </div>
             <span className="flex h-fit items-center self-start">
-                {trust === "review" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-amber-300/90 bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                        review
-                    </span>
-                )}
-                {trust === "clear" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-emerald-300/90 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        {/* `GHOST_META.clear.label`, not a second word for the same
-                            state — see `rowTrustChip`'s doc comment for why the row
-                            no longer says "verified". */}
-                        <span aria-hidden className="font-extrabold text-emerald-600 dark:text-emerald-400">✓</span>{" "}
-                        {GHOST_META.clear!.label}
-                    </span>
-                )}
-                {trust === "checked" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        checked
+                {trust && (
+                    <span
+                        data-testid="row-trust-chip"
+                        data-trust={trust}
+                        className={cn(TRUST_CHIP_BOX, TRUST_CHIP[trust].cls)}
+                    >
+                        {TRUST_CHIP[trust].glyph && (
+                            <>
+                                <span aria-hidden className={TRUST_CHIP[trust].glyphCls}>
+                                    {TRUST_CHIP[trust].glyph}
+                                </span>{" "}
+                            </>
+                        )}
+                        {TRUST_CHIP[trust].label}
                     </span>
                 )}
                 {ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale") && (
