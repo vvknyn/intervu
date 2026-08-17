@@ -67,7 +67,7 @@ function StatusChips({
 }) {
     return (
         <div className="mb-4 flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-xl border border-slate-300/80 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 shadow-2xs">
+            <div className="inline-flex items-center rounded-none border border-border bg-card/75 p-0.5 backdrop-blur-xl">
                 {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
                     const n = key === "all" ? total : counts[key];
                     const active = filter === key;
@@ -78,14 +78,14 @@ function StatusChips({
                             aria-pressed={active}
                             onClick={() => onChange(key)}
                             className={cn(
-                                "flex items-center gap-1.5 rounded-lg px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-all duration-150",
+                                "flex items-center gap-1.5 rounded-none px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-colors",
                                 active
-                                    ? "bg-white text-slate-950 shadow-xs dark:bg-slate-900 dark:text-white border border-slate-200/80 dark:border-slate-700"
-                                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
+                                    ? "bg-foreground text-background font-bold"
+                                    : "text-muted-foreground hover:text-foreground",
                             )}
                         >
                             <span>{label}</span>
-                            <span className={cn("rounded-md px-1 py-0.2 text-[10px]", active ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100" : "opacity-60")}>
+                            <span className={cn("px-1 text-[10px]", active ? "opacity-90" : "opacity-60")}>
                                 {n}
                             </span>
                         </button>
@@ -94,7 +94,7 @@ function StatusChips({
             </div>
 
             {appliedThisWeek >= 1 && (
-                <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-mono text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
+                <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 font-mono text-xs font-bold uppercase tracking-wider text-brand">
                     {appliedThisWeek} applied this week
                 </span>
             )}

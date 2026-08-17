@@ -31,12 +31,12 @@ export function WorkArrangementDistribution({
   return (
     <section
       data-testid="trends-work-types"
-      className="rounded-xl border border-border bg-card p-6 transition-colors"
+      className="rounded-none border border-border bg-card p-6 transition-colors"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
-            <Laptop size={16} weight="duotone" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <Laptop size={15} weight="duotone" />
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-foreground">Workplace Flexibility</h2>
@@ -52,7 +52,7 @@ export function WorkArrangementDistribution({
 
       {/* High-contrast multi-segment visual breakdown */}
       <div className="mt-4">
-        <div className="flex h-2 w-full overflow-hidden rounded-xs bg-muted/80">
+        <div className="flex h-2 w-full overflow-hidden rounded-none bg-muted/80">
           {workTypes.map((item) => (
             <div
               key={item.key}
@@ -74,11 +74,11 @@ export function WorkArrangementDistribution({
           return (
             <li
               key={item.key}
-              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+              className="group flex items-center gap-3 px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span
-                  className={`h-2 w-2 rounded-full shrink-0 ${
+                  className={`h-1.5 w-1.5 rounded-none shrink-0 ${
                     SEGMENT_COLORS[item.key] || "bg-muted-foreground"
                   }`}
                   aria-hidden
@@ -92,9 +92,9 @@ export function WorkArrangementDistribution({
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                <span className="h-1.5 w-24 overflow-hidden rounded-xs bg-muted/80 sm:w-36">
+                <span className="h-1.5 w-24 overflow-hidden rounded-none bg-muted/80 sm:w-36">
                   <span
-                    className="block h-full rounded-xs bg-slate-700 dark:bg-slate-300 transition-all"
+                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
                     style={{ width: `${(item.count / maxCount) * 100}%` }}
                   />
                 </span>
@@ -111,7 +111,7 @@ export function WorkArrangementDistribution({
       </ol>
 
       {visaSponsorship && visaSponsorship.sponsoredCount > 0 && (
-        <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+        <div className="mt-4 flex items-center justify-between rounded-none border border-border bg-muted/20 p-3">
           <div className="flex items-center gap-2">
             <GlobeHemisphereWest className="h-4 w-4 text-foreground/70" weight="duotone" />
             <span className="text-xs font-medium text-foreground">Visa Sponsorship Verified</span>

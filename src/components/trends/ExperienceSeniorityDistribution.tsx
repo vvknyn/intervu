@@ -21,12 +21,12 @@ export function ExperienceSeniorityDistribution({
   return (
     <section
       data-testid="trends-experience-levels"
-      className="rounded-xl border border-border bg-card p-6 transition-colors"
+      className="rounded-none border border-border bg-card p-6 transition-colors"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
-            <UserFocus size={16} weight="duotone" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <UserFocus size={15} weight="duotone" />
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-foreground">Experience & Seniority Mix</h2>
@@ -50,7 +50,7 @@ export function ExperienceSeniorityDistribution({
           return (
             <li
               key={item.key}
-              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+              className="group flex items-center gap-3 px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
             >
               <Link
                 href={href}
@@ -59,9 +59,9 @@ export function ExperienceSeniorityDistribution({
                 {item.label}
               </Link>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="h-1.5 w-24 overflow-hidden rounded-xs bg-muted/80 sm:w-36">
+                <span className="h-1.5 w-24 overflow-hidden rounded-none bg-muted/80 sm:w-36">
                   <span
-                    className="block h-full rounded-xs bg-slate-700 dark:bg-slate-300 transition-all"
+                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
                     style={{ width: `${(item.count / maxCount) * 100}%` }}
                   />
                 </span>
@@ -94,7 +94,7 @@ export function ExperienceSeniorityDistribution({
                 <Link
                   key={type.key}
                   href={href}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-muted/60"
+                  className="inline-flex items-center gap-1.5 rounded-none border border-border bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-muted/50"
                 >
                   <span>{type.label}</span>
                   <span className="font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">

@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>Film — An assistant, not a ghostwriter</title>
+    <link rel="stylesheet" href="./stage.css" />
+    <!--
+      "An assistant, not a ghostwriter." 43000ms, nine beats, 9:16 vertical.
+      Source: docs/superpowers/specs/2026-08-06-messaging-and-film-design.md.
+      Cuts:
+        0      01 · the split — your AI is the assistant
+        5000   02 · the phone buzzes — you didn't have to be watching
+        9000   03 · the reply — you decide
+        13000  04 · it does the typing (chips, then the browser fills)
+        19000  05 · from your resume, nothing invented
+        24000  06 · watch, if you want
+        30000  07 · fix anything
+        35000  08 · nothing goes out without you
+        39000  09 · close card — an assistant, not a ghostwriter
+      Every --at / --start is absolute film time, so a rule reads as "when in
+      the film", not "when in this beat". The renderer scrubs one global clock.
+    -->
+  </head>
+  <body>
+    <!-- ── beat 1 · 0-5000ms · the split ──────────────────────────────────
+         No screen in the life panel — that absence is the whole beat (see
+         stage.css "Beat 1" comment and the spec's craft rule). -->
+    <section class="beat" style="--start: 0ms">
+      <div class="split">
+        <div class="split-panel split-park">
+          <div class="jogger fade" style="--at: 150ms">
+            <div class="jogger-head"></div>
+            <div class="jogger-body"></div>
+          </div>
+        </div>
+        <div class="split-bar">
+          <span class="rise" style="--at: 300ms">Your AI is the assistant.</span>
+        </div>
+        <div class="split-panel split-room">
+          <div class="laptop">
+            <div class="laptop-line fade" style="--at: 650ms">✳ Claude</div>
+            <div class="laptop-line muted fade" style="--at: 950ms; margin-top: 8px">
+              ⚙ intervu · search_jobs · get_resume · fill
+            </div>
+            <div class="laptop-line faint fade" style="--at: 1300ms; margin-top: 6px">
+              typing into greenhouse.io…
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── beat 2 · 5000-9000ms · the glance ──────────────────────────────
+         Continues beat 1's park gradient — same person, same evening. -->
+    <section class="beat beat-park" style="--start: 5000ms">
+      <div class="scene">
+        <div class="phone rise-tilt" style="--at: 5150ms">
+          <div class="wa-bar">
+            <span class="wa-avatar">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path
+                  d="M12 40c7-14 14-20 20-20s13 6 20 20"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+                <circle cx="38.5" cy="34" r="3" fill="currentColor" />
+              </svg>
+            </span>
+            <span>
+              <span class="wa-name">intervu</span>
+              <span class="wa-sub" style="display: block">your agent</span>
+            </span>
+          </div>
+          <div class="wa-thread">
+            <div class="wa-msg rise" style="--at: 5750ms">
+              Found 4 roles that fit. All real, all still hiring.
+              <div class="wa-time">6:42 pm</div>
+            </div>
+          </div>
+          <div class="wa-composer">Message</div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 6150ms">You didn't have to be watching.</div>
+    </section>
+
+    <!-- ── beat 3 · 9000-13000ms · the reply ──────────────────────────────
+         Same phone, same bench. The beat-2 bubble is already there; the
+         thumb and the outgoing reply are what's new. -->
+    <section class="beat beat-park" style="--start: 9000ms">
+      <div class="scene">
+        <div style="position: relative; display: inline-block">
+          <div class="phone rise-tilt" style="--at: 9120ms">
+            <div class="wa-bar">
+              <span class="wa-avatar">
+                <svg viewBox="0 0 64 64" fill="none">
+                  <path
+                    d="M12 40c7-14 14-20 20-20s13 6 20 20"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                  <circle cx="38.5" cy="34" r="3" fill="currentColor" />
+                </svg>
+              </span>
+              <span>
+                <span class="wa-name">intervu</span>
+                <span class="wa-sub" style="display: block">your agent</span>
+              </span>
+            </div>
+            <div class="wa-thread">
+              <div class="wa-msg fade" style="--at: 9200ms">
+                Found 4 roles that fit. All real, all still hiring.
+                <div class="wa-time">6:42 pm</div>
+              </div>
+              <div class="wa-msg out rise" style="--at: 9850ms">
+                apply to the Braze one.
+                <div class="wa-time">6:44 pm <span class="wa-tick">✓✓</span></div>
+              </div>
+            </div>
+            <div class="wa-composer">Message</div>
+          </div>
+          <div class="thumb fade" style="--at: 9550ms"></div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 10450ms">You decide.</div>
+    </section>
+
+    <!-- ── beat 4 · 13000-19000ms · it does the typing ────────────────────
+         Two phases in one beat: the tool calls (MCP visible in UI only, never
+         in a caption), then a cut to the browser filling the form. The
+         "Relevant experience" field types the exact line beat 5 reuses. -->
+    <section class="beat" style="--start: 13000ms">
+      <div class="scene">
+        <div class="scene-phase fade-out" style="--at: 15900ms">
+          <div class="chip-stack">
+            <div class="chip rise" style="--at: 13350ms">
+              <span class="live-dot"></span>intervu · search_jobs
+            </div>
+            <div class="chip rise" style="--at: 13750ms">
+              <span class="live-dot"></span>intervu · get_resume
+            </div>
+            <div class="chip rise" style="--at: 14150ms">
+              <span class="live-dot"></span>intervu · fill
+            </div>
+          </div>
+        </div>
+        <div class="scene-phase">
+          <div class="win win-vertical rise" style="--at: 16100ms">
+            <div class="win-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span
+                class="win-title"
+                style="
+                  font-family: 'IBM Plex Mono', monospace;
+                  border: 1px solid rgb(var(--border));
+                  padding: 6px 0;
+                  margin: 0 0 0 20px;
+                  max-width: 340px;
+                "
+                >boards.greenhouse.io/braze</span
+              >
+            </div>
+            <div class="win-body">
+              <div class="label fade" style="--at: 16450ms">Name</div>
+              <div class="field field-in" style="--at: 16600ms; --at-valid: 17050ms">
+                <span class="type" style="--n: 10; --type-dur: 350ms; --type-at: 16650ms"
+                  >Jordan Lee</span
+                ><span class="caret" style="--caret-from: 16600ms"></span>
+              </div>
+              <div class="label fade" style="--at: 17150ms; margin-top: 26px">
+                Relevant experience
+              </div>
+              <div class="field field-in" style="--at: 17250ms; --at-valid: 18800ms">
+                <span class="type" style="--n: 52; --type-dur: 1500ms; --type-at: 17300ms"
+                  >Led payments infrastructure 0→1 · Stripe · 2022–2025</span
+                ><span class="caret" style="--caret-from: 17250ms"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 13300ms">It does the typing.</div>
+    </section>
+
+    <!-- ── beat 5 · 19000-24000ms · from your resume ──────────────────────
+         Same two-phase structure as beat 4: the resume card sweeps, then cuts
+         to the identical string landing in the identical field. -->
+    <section class="beat" style="--start: 19000ms">
+      <div class="scene">
+        <div class="scene-phase fade-out" style="--at: 21150ms">
+          <div class="resume-card rise" style="--at: 19200ms">
+            <div class="resume-label fade" style="--at: 19420ms">Experience</div>
+            <div class="resume-line dim fade" style="--at: 19600ms">
+              Built internal tooling used by 40+ engineers · 2021–2022
+            </div>
+            <div class="resume-line sweep" style="--at: 19780ms; --at-sweep: 20400ms">
+              Led payments infrastructure 0→1 · Stripe · 2022–2025
+            </div>
+            <div class="resume-line dim fade" style="--at: 19960ms">
+              Owned checkout reliability, 99.98% uptime · 2025
+            </div>
+          </div>
+        </div>
+        <div class="scene-phase">
+          <div class="win win-vertical rise" style="--at: 21350ms">
+            <div class="win-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span
+                class="win-title"
+                style="
+                  font-family: 'IBM Plex Mono', monospace;
+                  border: 1px solid rgb(var(--border));
+                  padding: 6px 0;
+                  margin: 0 0 0 20px;
+                  max-width: 340px;
+                "
+                >boards.greenhouse.io/braze</span
+              >
+            </div>
+            <div class="win-body">
+              <div class="label fade" style="--at: 21650ms">Relevant experience</div>
+              <div class="field field-in" style="--at: 21800ms; --at-valid: 23350ms">
+                <span class="type" style="--n: 52; --type-dur: 1500ms; --type-at: 21850ms"
+                  >Led payments infrastructure 0→1 · Stripe · 2022–2025</span
+                ><span class="caret" style="--caret-from: 21800ms"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 19350ms">From your resume. Nothing invented.</div>
+    </section>
+
+    <!-- ── beat 6 · 24000-30000ms · watch, if you want ────────────────────
+         A mini-recreation of watch-canvas.tsx: black bg, header row (live
+         dot, status, take-control pill, zoom chip), and the mock form
+         gliding field to field inside the phone bezel. -->
+    <section class="beat beat-cool" style="--start: 24000ms">
+      <div class="scene">
+        <div class="phone watch-device rise" style="--at: 24150ms">
+          <div class="watch-header">
+            <span class="live-dot fade" style="--at: 24380ms"></span>
+            <span class="watch-status fade" style="--at: 24380ms">live — following the field</span>
+            <span class="watch-pill fade" style="--at: 24460ms">
+              <span class="pill-lbl">take control</span>
+            </span>
+            <span class="watch-zoom fade" style="--at: 24540ms">tap to zoom out</span>
+          </div>
+          <div class="watch-viewport">
+            <div class="watch-pan">
+              <div class="win watch-mini">
+                <div class="win-bar">
+                  <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  <span
+                    class="win-title"
+                    style="
+                      font-family: 'IBM Plex Mono', monospace;
+                      border: 1px solid rgb(var(--border));
+                      padding: 4px 0;
+                      margin: 0 0 0 14px;
+                      max-width: 210px;
+                    "
+                    >boards.greenhouse.io/braze</span
+                  >
+                </div>
+                <div class="win-body">
+                  <div class="label fade" style="--at: 24600ms">Name</div>
+                  <div class="field fade" style="--at: 24650ms">Jordan Lee</div>
+                  <div class="label fade" style="--at: 24900ms; margin-top: 20px">
+                    Relevant experience
+                  </div>
+                  <div class="field fade" style="--at: 24950ms">
+                    Led payments infrastructure 0→1 · Stripe · 2022–2025
+                  </div>
+                  <div class="label fade" style="--at: 28300ms; margin-top: 20px">Location</div>
+                  <div class="field field-in" style="--at: 28350ms; --at-valid: 28950ms">
+                    <span class="type" style="--n: 15; --type-dur: 510ms; --type-at: 28450ms"
+                      >Berlin, Germany</span
+                    ><span class="caret" style="--caret-from: 28400ms"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 24700ms">Watch, if you want.</div>
+    </section>
+
+    <!-- ── beat 7 · 30000-35000ms · fix anything ───────────────────────────
+         Continues beat 6's scene at rest (no re-pan — that motion was
+         already spent). The pill flips to "watching only", a field gets
+         hand-edited, then the pill flips back and a new field auto-fills. -->
+    <section class="beat beat-cool" style="--start: 30000ms">
+      <div class="scene">
+        <div class="phone watch-device rise" style="--at: 30150ms">
+          <div class="watch-header fade" style="--at: 30300ms">
+            <span class="live-dot"></span>
+            <span class="watch-status">live — following the field</span>
+            <span class="watch-pill">
+              <span class="pill-lbl fade-out" style="--at: 31200ms">take control</span>
+              <span class="pill-lbl pill-mid" style="--at: 31200ms; --at-out: 33400ms"
+                >watching only</span
+              >
+              <span class="pill-lbl fade" style="--at: 33400ms">take control</span>
+            </span>
+            <span class="watch-zoom">tap to zoom out</span>
+          </div>
+          <div class="watch-viewport">
+            <div class="watch-pan rest">
+              <div class="win watch-mini fade" style="--at: 30450ms">
+                <div class="win-bar">
+                  <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  <span
+                    class="win-title"
+                    style="
+                      font-family: 'IBM Plex Mono', monospace;
+                      border: 1px solid rgb(var(--border));
+                      padding: 4px 0;
+                      margin: 0 0 0 14px;
+                      max-width: 210px;
+                    "
+                    >boards.greenhouse.io/braze</span
+                  >
+                </div>
+                <div class="win-body">
+                  <div class="label">Name</div>
+                  <div class="field">Jordan Lee</div>
+                  <div class="label" style="margin-top: 20px">Relevant experience</div>
+                  <div class="field">
+                    Led payments infrastructure 0→1 · Stripe · 2022–2025
+                  </div>
+                  <div class="label" style="margin-top: 20px">Location</div>
+                  <div class="field target">
+                    <svg class="pointer" viewBox="0 0 24 24" style="--at: 31500ms">
+                      <path
+                        d="M5 2.5 19 12.4l-6.1.6 3.2 6.6-2.6 1.3-3.2-6.6-4.3 4.3z"
+                        fill="rgb(var(--foreground))"
+                        stroke="rgb(var(--background))"
+                        stroke-width="1.4"
+                      />
+                    </svg>
+                    <span class="swap" style="--at-swap: 31650ms">
+                      <span>Berlin, Germany</span>
+                      <span
+                        ><span class="type" style="--n: 25; --type-dur: 850ms; --type-at: 31650ms"
+                          >Remote — Berlin preferred</span
+                        ><span class="caret" style="--caret-from: 31600ms"></span
+                      ></span>
+                    </span>
+                  </div>
+                  <div class="label fade" style="--at: 33700ms; margin-top: 20px">Start date</div>
+                  <div class="field field-in" style="--at: 33850ms; --at-valid: 34450ms">
+                    <span class="type" style="--n: 11; --type-dur: 380ms; --type-at: 34000ms"
+                      >Immediately</span
+                    ><span class="caret" style="--caret-from: 33950ms"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 30700ms">Fix anything.</div>
+    </section>
+
+    <!-- ── beat 8 · 35000-39000ms · nothing goes out without you ──────────
+         Same phone/WA language as beats 2/3, same cool seated ambience as
+         beats 6/7. -->
+    <section class="beat beat-cool" style="--start: 35000ms">
+      <div class="scene">
+        <div class="phone rise-tilt" style="--at: 35150ms">
+          <div class="wa-bar">
+            <span class="wa-avatar">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path
+                  d="M12 40c7-14 14-20 20-20s13 6 20 20"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+                <circle cx="38.5" cy="34" r="3" fill="currentColor" />
+              </svg>
+            </span>
+            <span>
+              <span class="wa-name">intervu</span>
+              <span class="wa-sub" style="display: block">your agent</span>
+            </span>
+          </div>
+          <div class="wa-thread">
+            <div class="wa-msg rise" style="--at: 35700ms">
+              Ready. Want me to send it?
+              <div class="wa-time">7:14 am</div>
+            </div>
+            <div class="wa-msg out rise" style="--at: 36550ms">
+              send.
+              <div class="wa-time">7:14 am <span class="wa-tick">✓✓</span></div>
+            </div>
+          </div>
+          <div class="wa-composer">Message</div>
+        </div>
+      </div>
+      <div class="vcaption rise" style="--at: 37100ms">Nothing goes out without you.</div>
+    </section>
+
+    <!-- ── beat 9 · 39000-43000ms · close card ─────────────────────────────
+         Pure black. The wordmark is not the travelling spine the fork source
+         uses to hide its loop point — this film doesn't loop, so it's a
+         plain centred element entering once with .rise, same as the two
+         lines beside it. -->
+    <section class="beat beat-black" style="--start: 39000ms">
+      <div class="center">
+        <div class="wordmark rise" style="--at: 39300ms">
+          <svg viewBox="0 0 64 64" fill="none">
+            <path
+              d="M12 40c7-14 14-20 20-20s13 6 20 20"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+            />
+            <path
+              d="M24 34.5c1.4 1.9 3.2 1.9 4.6 0"
+              stroke="currentColor"
+              stroke-width="1.55"
+              stroke-linecap="round"
+            />
+            <circle cx="38.5" cy="34" r="2.8" fill="rgb(var(--brand))" />
+          </svg>
+          <span>intervu</span>
+        </div>
+        <h2 class="display rise" style="--at: 39700ms">An assistant, not a ghostwriter.</h2>
+        <p class="sub fade" style="--at: 40200ms">It does the typing. You stay the author.</p>
+      </div>
+    </section>
+  </body>
+</html>

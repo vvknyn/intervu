@@ -16,11 +16,11 @@ export function MarketGhostRadar({
   const total = ghostRadar.reduce((sum, row) => sum + row.count.value, 0);
 
   return (
-    <section data-testid="trends-ghost-radar" className="rounded-xl border border-border bg-card p-6 transition-colors">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+    <section data-testid="trends-ghost-radar" className="rounded-none border border-border bg-card p-6 transition-colors">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
-            <ShieldWarning size={16} weight="duotone" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <ShieldWarning size={15} weight="duotone" />
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Ghost Radar</h2>
@@ -41,12 +41,12 @@ export function MarketGhostRadar({
             <li
               key={badge}
               data-testid={`trends-ghost-${badge}`}
-              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+              className="group flex items-center gap-3 px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
             >
               <div className="w-28 shrink-0 sm:w-32">
                 <span
                   className={cn(
-                    "inline-flex items-center justify-center rounded px-2 py-0.5 font-mono text-[10.5px] font-bold uppercase",
+                    "inline-flex items-center justify-center rounded-none px-2 py-0.5 font-mono text-[10.5px] font-bold uppercase",
                     tone
                       ? STATUS_PILL[tone]
                       : "border border-border bg-muted/50 text-muted-foreground",
@@ -56,9 +56,9 @@ export function MarketGhostRadar({
                 </span>
               </div>
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="h-1.5 flex-1 overflow-hidden rounded-xs bg-muted/80">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted/80">
                   <span
-                    className={cn("block h-full rounded-xs transition-all", tone ? STATUS_FILL[tone] : "bg-slate-400 dark:bg-slate-600")}
+                    className={cn("block h-full rounded-none transition-all", tone ? STATUS_FILL[tone] : "bg-slate-400 dark:bg-slate-600")}
                     style={{ width: `${pct}%` }}
                   />
                 </span>

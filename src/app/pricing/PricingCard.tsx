@@ -55,18 +55,18 @@ export function PricingCard({ tier }: { tier: PricingTier }) {
     <div
       data-testid={`pricing-card-${tier.name.toLowerCase()}`}
       className={cn(
-        "relative flex flex-col gap-4 rounded-[14px] p-6",
-        highlighted ? "border-2 border-foreground bg-card" : "border border-border bg-card",
+        "relative flex flex-col gap-4 rounded-none p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]",
+        highlighted ? "border-2 border-foreground bg-card/90" : "border border-border/80 bg-card/75",
       )}
     >
       {tier.highlight && (
-        <span className="absolute -top-3 left-[18px] rounded-md bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-brand-foreground">
+        <span className="absolute -top-3 left-[18px] rounded-none bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-widest text-brand-foreground">
           {tier.highlight}
         </span>
       )}
 
       <div>
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           {tier.name}
         </p>
         <p className="mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground">{tier.price}</p>

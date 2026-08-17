@@ -91,7 +91,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/80 backdrop-blur-md transition-colors"
+            className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/75 backdrop-blur-2xl backdrop-saturate-180 shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)] transition-colors"
         >
             <div className="relative mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7 xl:max-w-[1280px]">
                 <Link
@@ -100,7 +100,7 @@ export function TopBar() {
                     data-testid="topbar-logo"
                 >
                     <BrandMark className="h-7 w-7 text-foreground" />
-                    <span className="font-display text-[20px] font-bold tracking-tight text-foreground">
+                    <span className="font-display text-[20px] font-black uppercase tracking-tight text-foreground">
                         intervu
                     </span>
                 </Link>
@@ -110,9 +110,9 @@ export function TopBar() {
                         <Link
                             href="/trends"
                             data-testid="topbar-pulse-ticker"
-                            className="hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/80 bg-emerald-50/80 px-2.5 py-1 font-mono text-[11px] font-semibold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-100 dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300 lg:inline-flex"
+                            className="hidden shrink-0 items-center gap-1.5 rounded-none border border-brand/40 bg-brand/10 px-2.5 py-0.5 font-mono text-[10.5px] font-bold uppercase tracking-wider text-brand shadow-none transition-colors hover:bg-brand/20 lg:inline-flex"
                         >
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                            <span className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
                             {liveJobsLabel}
                         </Link>
                     )}
@@ -129,10 +129,10 @@ export function TopBar() {
                                     data-testid={tab.testId}
                                     aria-current={active ? "page" : undefined}
                                     className={cn(
-                                        "rounded-md px-3 py-1.5 transition-all duration-150",
+                                        "rounded-none px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-colors",
                                         active
-                                            ? "bg-slate-200/70 font-semibold text-foreground shadow-2xs dark:bg-slate-800"
-                                            : "text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-foreground",
+                                            ? "border-b-2 border-foreground text-foreground font-bold"
+                                            : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
                                     {tab.label}

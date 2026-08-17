@@ -2,18 +2,11 @@
 
 import React from "react";
 import {
-  ShieldCheck,
-  CurrencyDollar,
-  GlobeHemisphereWest,
-  Sparkle,
-  Code,
-  Brain,
-  Kanban,
-  PaintBrush,
-  Buildings,
-  MapPin,
   ArrowRight,
-  CheckCircle,
+  ArrowUpRight,
+  ShieldCheck,
+  GlobeHemisphereWest,
+  CurrencyDollar,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -30,223 +23,199 @@ export function LandingMarketingShowcase({
   onSelectSalaryMin,
   onSelectBoard,
 }: LandingMarketingShowcaseProps) {
-  const trendingCategories = [
+  const indexCategories = [
     {
-      title: "Remote Engineering",
-      desc: "Software Engineer, Full Stack, Backend, Frontend",
-      icon: Code,
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-50 dark:bg-blue-950/40",
-      border: "border-blue-200/80 dark:border-blue-800/60",
+      num: "001",
+      domain: "ENGINEERING",
+      title: "Distributed Systems & Cloud",
+      desc: "Full Stack, Backend Platforms, Go, Rust, Distributed Infrastructure",
       q: "Software Engineer",
+      metric: "HIGH VELOCITY",
     },
     {
-      title: "AI & Machine Learning",
-      desc: "AI Engineer, LLMs, ML Specialist, Data Science",
-      icon: Brain,
-      color: "text-purple-600 dark:text-purple-400",
-      bg: "bg-purple-50 dark:bg-purple-950/40",
-      border: "border-purple-200/80 dark:border-purple-800/60",
+      num: "002",
+      domain: "AI & ML",
+      title: "Foundation Models & Inference",
+      desc: "LLM Infrastructure, Applied ML, PyTorch, Model Optimization",
       q: "Machine Learning AI",
+      metric: "TOP DEMAND",
     },
     {
-      title: "Product & Strategy",
-      desc: "Product Manager, Technical Program Manager",
-      icon: Kanban,
-      color: "text-amber-600 dark:text-amber-400",
-      bg: "bg-amber-50 dark:bg-amber-950/40",
-      border: "border-amber-200/80 dark:border-amber-800/60",
+      num: "003",
+      domain: "PRODUCT",
+      title: "Technical Product & Strategy",
+      desc: "Technical PMs, Systems Architecture, Engineering Leadership",
       q: "Product Manager",
+      metric: "TIER-1 OPENINGS",
     },
     {
-      title: "Design & UX",
-      desc: "Product Designer, UI/UX Specialist, Design Systems",
-      icon: PaintBrush,
-      color: "text-pink-600 dark:text-pink-400",
-      bg: "bg-pink-50 dark:bg-pink-950/40",
-      border: "border-pink-200/80 dark:border-pink-800/60",
+      num: "004",
+      domain: "DESIGN",
+      title: "Design Systems & UI Engineering",
+      desc: "Product Design, Interface Architecture, Design Systems",
       q: "Product Designer UI UX",
+      metric: "VERIFIED SALARY",
     },
     {
-      title: "Canada Remote Jobs",
-      desc: "Top remote opportunities across Canada & Ontario",
-      icon: MapPin,
-      color: "text-red-600 dark:text-red-400",
-      bg: "bg-red-50 dark:bg-red-950/40",
-      border: "border-red-200/80 dark:border-red-800/60",
+      num: "005",
+      domain: "JURISDICTION",
+      title: "Canada Remote Corridor",
+      desc: "Verified remote roles with compliant Canadian employment & payroll",
       q: "Canada",
       isRemote: true,
+      metric: "DIRECT ATS",
     },
     {
-      title: "Tier-1 Tech & Startups",
-      desc: "Anthropic, Stripe, OpenAI, Google, Linear, Figma",
-      icon: Buildings,
-      color: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-50 dark:bg-emerald-950/40",
-      border: "border-emerald-200/80 dark:border-emerald-800/60",
+      num: "006",
+      domain: "COMPANIES",
+      title: "Tier-1 Venture & Core Tech",
+      desc: "Anthropic, Stripe, OpenAI, Google, Linear, Figma, Vercel",
       isElite: true,
+      metric: "NO RECRUITERS",
     },
   ];
 
   return (
-    <div className="w-full py-2 sm:py-4 transition-all duration-300">
-      {/* Hero Headline Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 p-6 sm:p-8 shadow-xs dark:border-slate-800 dark:from-slate-900 dark:via-slate-900/90 dark:to-emerald-950/20">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-100/60 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/70 dark:text-emerald-300 mb-3.5">
-            <Sparkle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Direct ATS Ingestion · 100% Verified Career Pages</span>
-          </div>
-
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white leading-snug">
-            Find Real Jobs at Companies That Are <span className="text-emerald-600 dark:text-emerald-400">Actually Hiring</span>
-          </h2>
-
-          <p className="mt-2.5 text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-            Screened directly from employer career portals (Greenhouse, Lever, Ashby, Workday).
-            Zero recruiter spam, 100% verified salary ranges, and live ghost-job detection.
-          </p>
-
-          {/* Value Highlights */}
-          <div className="mt-5 flex flex-wrap gap-4 text-xs font-medium text-slate-700 dark:text-slate-300">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle weight="fill" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Direct ATS Postings</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle weight="fill" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Ghost-Job Screened</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle weight="fill" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Salary Transparency</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle weight="fill" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Free for Seekers</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3 Core Value Pillars */}
-      <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-        {/* Pillar 1: Ghost Radar */}
-        <div
-          onClick={() => onSelectBoard("elite")}
-          className="group relative cursor-pointer rounded-xl border border-slate-200/80 bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md dark:border-slate-800 dark:hover:border-emerald-500"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                Ghost Job Radar
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Stale listings flagged before you apply
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Pillar 2: Remote Work */}
-        <div
-          onClick={onSelectRemote}
-          className="group relative cursor-pointer rounded-xl border border-slate-200/80 bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md dark:border-slate-800 dark:hover:border-blue-500"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100/70 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300">
-              <GlobeHemisphereWest className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                Verified Remote
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Work-from-home roles across CA & US
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Pillar 3: Salary Transparency */}
-        <div
-          onClick={() => onSelectSalaryMin(150000)}
-          className="group relative cursor-pointer rounded-xl border border-slate-200/80 bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md dark:border-slate-800 dark:hover:border-amber-500"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100/70 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300">
-              <CurrencyDollar className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400">
-                $150k+ Verified Pay
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Explicit compensation bands
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Trending Categories Section */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-3.5">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-              Trending Categories
-            </h3>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              Google Trends
+    <div className="w-full space-y-8 py-2">
+      {/* Swiss Editorial Masthead */}
+      <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/80 pb-4">
+          <div>
+            <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">
+              [ DIRECT ATS INGESTION ENGINE ]
             </span>
+            <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
+              The Unfiltered Corpus.
+            </h1>
           </div>
-          <span className="text-xs text-muted-foreground">Click to search</span>
+          <div className="font-mono text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
+            <p className="font-bold text-foreground">EDITION 2026.08</p>
+            <p>100% Direct from Employer ATS</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {trendingCategories.map((cat) => {
-            const Icon = cat.icon;
-            return (
-              <button
-                key={cat.title}
-                type="button"
-                onClick={() => {
-                  if (cat.isElite) {
-                    onSelectBoard("elite");
-                  } else if (cat.isRemote) {
-                    onSelectQuery(cat.q || "");
-                    onSelectRemote();
-                  } else if (cat.q) {
-                    onSelectQuery(cat.q);
-                  }
-                }}
-                className={cn(
-                  "group flex flex-col text-left rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md",
-                  cat.border,
-                  cat.bg
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2.5">
-                    <div className={cn("p-2 rounded-lg bg-white/80 dark:bg-slate-900/80 shadow-2xs", cat.color)}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="font-semibold text-sm text-slate-900 dark:text-white group-hover:underline underline-offset-2">
-                      {cat.title}
-                    </span>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-                </div>
-                <p className="mt-2.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {cat.desc}
-                </p>
-              </button>
-            );
-          })}
+        {/* 3-Column Swiss Editorial Statement */}
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
+          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+              01 / DIRECT SCRAPING
+            </div>
+            <p className="text-muted-foreground">
+              Continuous live crawlers indexing directly from Greenhouse, Lever, Ashby, and Workday. Bypassing recruiter spam and middleman job boards.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+              02 / GHOST DETECTION
+            </div>
+            <p className="text-muted-foreground">
+              Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag phantom or stale roles before you apply.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+              03 / RAW COMPENSATION
+            </div>
+            <p className="text-muted-foreground">
+              Direct extraction of official compensation bands from ATS structured metadata. No guessing or crowd-sourced estimates.
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Swiss Index Ledger Directory */}
+      <div>
+        <div className="flex items-center justify-between border-b border-foreground pb-2 text-xs font-mono font-bold uppercase tracking-widest text-foreground">
+          <span>[ MARKET SECTOR DIRECTORY ]</span>
+          <span className="text-muted-foreground hidden sm:inline">SELECT DOMAIN TO QUERY</span>
+        </div>
+
+        <div className="divide-y divide-border border-b border-border">
+          {indexCategories.map((cat) => (
+            <button
+              key={cat.num}
+              type="button"
+              onClick={() => {
+                if (cat.isElite) {
+                  onSelectBoard("elite");
+                } else if (cat.isRemote) {
+                  onSelectQuery(cat.q || "");
+                  onSelectRemote();
+                } else if (cat.q) {
+                  onSelectQuery(cat.q);
+                }
+              }}
+              className="group flex w-full flex-col gap-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background sm:flex-row sm:items-center sm:justify-between px-3"
+            >
+              <div className="flex items-start sm:items-center gap-4 min-w-0">
+                <span className="font-mono text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
+                  {cat.num}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-brand group-hover:text-background">
+                      [{cat.domain}]
+                    </span>
+                    <h3 className="font-bold text-sm tracking-tight text-foreground group-hover:text-background">
+                      {cat.title}
+                    </h3>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground group-hover:text-background/80 truncate max-w-xl">
+                    {cat.desc}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+                <span className="rounded-none border border-border group-hover:border-background/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-background">
+                  {cat.metric}
+                </span>
+                <ArrowRight className="h-4 w-4 text-foreground group-hover:text-background transition-transform group-hover:translate-x-1" />
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Direct Filter Shortcuts */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 font-mono text-xs">
+        <button
+          type="button"
+          onClick={() => onSelectBoard("elite")}
+          className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+        >
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">FILTER_01</div>
+            <div className="mt-1 font-bold text-foreground">TIER-1 TECH & STARTUPS</div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onSelectRemote}
+          className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+        >
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">FILTER_02</div>
+            <div className="mt-1 font-bold text-foreground">100% VERIFIED REMOTE</div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSalaryMin(150000)}
+          className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+        >
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">FILTER_03</div>
+            <div className="mt-1 font-bold text-foreground">$150K+ TRANSPARENT SALARY</div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+        </button>
       </div>
     </div>
   );

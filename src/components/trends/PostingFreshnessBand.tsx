@@ -28,11 +28,11 @@ export function PostingFreshnessBand({
   const maxValue = Math.max(...freshness.map((f) => f.count.value), 1);
 
   return (
-    <section data-testid="trends-freshness" className="rounded-xl border border-border bg-card p-6 transition-colors">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+    <section data-testid="trends-freshness" className="rounded-none border border-border bg-card p-6 transition-colors">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
-            <Clock size={16} weight="duotone" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <Clock size={15} weight="duotone" />
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-foreground">Posting Freshness Profile</h2>
@@ -52,7 +52,7 @@ export function PostingFreshnessBand({
             <li
               key={bucket}
               data-testid={`trends-freshness-${bucket}`}
-              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+              className="group flex items-center gap-3 px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
             >
               <div className="min-w-0 flex-1 truncate">
                 {href ? (
@@ -67,9 +67,9 @@ export function PostingFreshnessBand({
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="h-1.5 w-24 overflow-hidden rounded-xs bg-muted/80 sm:w-36">
+                <span className="h-1.5 w-24 overflow-hidden rounded-none bg-muted/80 sm:w-36">
                   <span
-                    className="block h-full rounded-xs bg-slate-700 dark:bg-slate-300 transition-all"
+                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
                     style={{ width: `${(count.value / maxValue) * 100}%` }}
                   />
                 </span>
