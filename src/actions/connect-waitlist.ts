@@ -67,7 +67,7 @@ export async function joinConnectWaitlist(input: {
   } catch (error) {
     console.error("Error joining connect waitlist:", error);
     return {
-      error: "Couldn't save that — email us at hello@intervu.cc and we'll add you.",
+      error: "Couldn't save that — email us at hello@thesubspace.io and we'll add you.",
     };
   }
 }
