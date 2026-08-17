@@ -1,7 +1,7 @@
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
-import type { PublicJob } from "@/lib/jobs/types";
+import type { GhostChecked, PublicJob } from "@/lib/jobs/types";
 
 /**
  * Pure data→chips mapping for JobDetail's structured facts row (2026-08-01
@@ -45,18 +45,34 @@ export function buildFactChips(
  * ghost-verdict module (2026-08-01 explained-verdict deliverable).
  *
  * This is a DIFFERENT concern from posting freshness (posted/first-seen,
- * posting-freshness.ts, which describe the LISTING's age): `updated_at` is
- * the only field carrying when the check itself last ran (the same field
- * `checkFreshness`/badges.ts's "clear" branch already keys the stale-verdict
- * swap off). When it's missing or doesn't parse there is nothing to claim —
- * say so rather than inventing a time, and never fabricate a checklist of
- * what was inspected beyond the badge's own `explain` copy (ghost_badge is
- * a coarse public-safe verdict; the underlying signals are not exposed to
- * this layer — see PublicJob's `ghost_badge` doc comment, types.ts).
+ * posting-freshness.ts, which describe the LISTING's age): `ghost_checked_at`
+ * is when the check itself last ran, and it is the ONLY field that may answer
+ * this question. It read `updated_at` — the last scrape — until 2026-08-17,
+ * which is how a modal came to show "checked 89d ago" directly above "first
+ * seen by us 89d ago": the same column printed twice under two different
+ * labels. When `ghost_checked_at` is missing or doesn't parse there is
+ * nothing to claim — say so rather than falling back to a timestamp that
+ * answers a different question, and never fabricate a checklist of what was
+ * inspected beyond the badge's own `explain` copy (ghost_badge is a coarse
+ * public-safe verdict; the underlying signals are not exposed to this layer
+ * — see PublicJob's `ghost_badge` doc comment, types.ts).
  */
-export function ghostCheckedText(updatedAt: string | null, now: number): string {
-    if (!updatedAt || Number.isNaN(Date.parse(updatedAt))) return "Check time unavailable";
-    return `Checked ${formatRelativeAge(updatedAt, now)}`;
+export function ghostCheckedText(job: GhostChecked, now: number): string {
+    return checkedAgeText(job.ghost_checked_at, now);
+}
+
+/**
+ * The bare "when did a dated check last run" string, shared by the ghost
+ * verdict above and the exposure badges below (`deriveExposureBadges`, whose
+ * `google_indexed_at`/`linkedin_indexed_at` are the same kind of fact about a
+ * different check). Split out when `ghostCheckedText` started taking the job
+ * instead of a timestamp: the exposure badges were borrowing that function
+ * purely for its string shape, and letting them keep passing a loose
+ * timestamp into it would have re-opened the exact hole this change closes.
+ */
+export function checkedAgeText(checkedAt: string | null | undefined, now: number): string {
+    if (!checkedAt || Number.isNaN(Date.parse(checkedAt))) return "Check time unavailable";
+    return `Checked ${formatRelativeAge(checkedAt, now)}`;
 }
 
 /**
@@ -208,10 +224,10 @@ export interface ExposureBadge {
 export function deriveExposureBadges(job: PublicJob, nowMs: number): ExposureBadge[] {
     const badges: ExposureBadge[] = [];
     if (job.is_indexed_google === true && job.google_indexed_at) {
-        badges.push({ label: "Seen on Google", checkedText: ghostCheckedText(job.google_indexed_at, nowMs) });
+        badges.push({ label: "Seen on Google", checkedText: checkedAgeText(job.google_indexed_at, nowMs) });
     }
     if (job.is_indexed_linkedin === true && job.linkedin_indexed_at) {
-        badges.push({ label: "On LinkedIn", checkedText: ghostCheckedText(job.linkedin_indexed_at, nowMs) });
+        badges.push({ label: "On LinkedIn", checkedText: checkedAgeText(job.linkedin_indexed_at, nowMs) });
     }
     return badges;
 }

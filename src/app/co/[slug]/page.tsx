@@ -45,6 +45,15 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
     data = null;
   }
   if (!data) notFound();
+  // One clock read for the whole page, taken here rather than inside JSX so
+  // every staleness decision below is measured against a single instant.
+  // The purity rule fires on any Date.now() in a component body and can't
+  // see that this is an async Server Component — rendered once, per request,
+  // on the server, where a clock read is neither unstable nor re-entrant.
+  // Same pattern and same suppression rationale as CompanyRolesList's `now`
+  // prop on /companies/[slug].
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
 
   // See `buildCompanyJobsUrl`'s docblock (lib/companies/presentation.ts) for
   // why this can't be a hand-built `?q=...` string.
@@ -183,6 +192,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           openCountLabel={openCountText(data)}
           searchesPartialWindow={!sampleCoversAllRoles(data)}
           jobsSearchUrl={jobsSearchUrl}
+          now={now}
         />
 
         {/* The 90-day provenance note describes the opened/closed track

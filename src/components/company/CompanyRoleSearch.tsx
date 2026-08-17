@@ -8,6 +8,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { checkFreshness } from "@/lib/jobs/badges";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
@@ -23,15 +24,22 @@ function roleMeta(job: PublicJob): string {
   return parts.join(" · ");
 }
 
-function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
-  if (job.ghost_badge === "likely_ghost") {
-    const meta = ghostMetaFor(job.ghost_badge, false);
-    return meta ? { text: `● ${meta.label}`, live: false } : null;
-  }
-  if (job.ghost_badge === "clear" || !job.ghost_badge) {
-    return { text: "Live · no ghost signals", live: true };
-  }
-  return null;
+/**
+ * The role row's one-line ghost verdict, read from the shared chokepoint.
+ *
+ * It used to be hand-rolled, and every way it could disagree with the rest of
+ * the product, it did: it passed `stale: false` unconditionally (so a verdict
+ * from a 90-day-old check rendered as current), it hardcoded "Live · no ghost
+ * signals" for `clear`, and — because that branch also matched `!job.ghost_badge`
+ * — it printed the same green "Live" claim for jobs that had never been scored
+ * at all. `ghostMetaFor` returns null for `unscored`, which is the contract
+ * every other surface honours: no verdict, no line.
+ */
+function roleGhostLine(job: PublicJob, now: number): { text: string; live: boolean } | null {
+  const meta = ghostMetaFor(job, now);
+  if (!meta) return null;
+  const live = job.ghost_badge === "clear" && checkFreshness(job, now) === "fresh";
+  return { text: `${live ? "" : "● "}${meta.label}`, live };
 }
 
 /**
@@ -83,6 +91,7 @@ export function CompanyRoleSearch({
   openCountLabel,
   searchesPartialWindow,
   jobsSearchUrl,
+  now,
 }: {
   jobs: PublicJob[];
   companyDomain: string;
@@ -97,6 +106,10 @@ export function CompanyRoleSearch({
    *  roles left unloaded. See lib/companies/open-count.ts. */
   searchesPartialWindow: boolean;
   jobsSearchUrl: string;
+  /** Server-supplied clock, same contract as CompanyRolesList: the ghost
+   *  verdict's staleness read stays pure and testable — never Date.now()
+   *  in a render body, which would also desync client and server HTML. */
+  now: number;
 }) {
   const [query, setQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
@@ -211,7 +224,7 @@ export function CompanyRoleSearch({
       ) : (
         <ul className="space-y-2.5">
           {displayed.map((job) => {
-            const ghost = roleGhostLine(job);
+            const ghost = roleGhostLine(job, now);
             return (
               <li key={job.id}>
                 <button

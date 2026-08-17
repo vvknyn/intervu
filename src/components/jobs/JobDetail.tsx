@@ -385,13 +385,13 @@ export function JobDetail({
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
 }) {
-    const staleCheck = checkFreshness(job.updated_at, now) === "stale";
+    const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
     // list/company surfaces stay quiet on unscored rows): in THIS panel the
     // check ledger's facts are worth showing even before a scoring pass has
     // run — with a verdict pill that says exactly that, never a fabricated
     // clear (2026-08-14 investor-polish; founding rule: facts, no inference).
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck) ?? {
+    const ghost = ghostMetaFor(job, now) ?? {
         label: "Not yet scored",
         cls: STATUS_PILL.saved,
         dot: "bg-st-saved",
@@ -440,7 +440,10 @@ export function JobDetail({
     const assessedSignals = assessedGhostSignals(ghostSignals);
     const favorableSignalCount = assessedSignals.filter((s) => s.status === "favorable").length;
     const unknownSignalCount = ghostSignals.length - assessedSignals.length;
-    const checkedText = ghostCheckedText(job.updated_at, now);
+    // Takes the job, not a timestamp: this line used to be handed
+    // `job.updated_at` and so dated the verdict by the last SCRAPE, which is
+    // what produced "checked 89d ago" over "first seen by us 89d ago".
+    const checkedText = ghostCheckedText(job, now);
     // S4 — exposure trust badges (dark launch): [] for every job until
     // Subspace's upstream backfill lands (see deriveExposureBadges' doc).
     const exposureBadges = deriveExposureBadges(job, now);

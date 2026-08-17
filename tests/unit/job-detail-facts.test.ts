@@ -63,17 +63,41 @@ test("buildFactChips: posted known but first-seen unknown renders only the poste
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
 
-test("ghostCheckedText: a parseable updated_at reads as a relative check time", () => {
-    const updatedAt = new Date(NOW - 3 * 3_600_000).toISOString();
-    assert.equal(ghostCheckedText(updatedAt, NOW), "Checked 3h ago");
+test("ghostCheckedText: a parseable ghost_checked_at reads as a relative check time", () => {
+    const checkedAt = new Date(NOW - 3 * 3_600_000).toISOString();
+    assert.equal(ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: checkedAt }, NOW), "Checked 3h ago");
 });
 
-test("ghostCheckedText: null updated_at never fabricates a time", () => {
-    assert.equal(ghostCheckedText(null, NOW), "Check time unavailable");
+test("ghostCheckedText: null ghost_checked_at never fabricates a time", () => {
+    assert.equal(ghostCheckedText({ ghost_badge: "unscored", ghost_checked_at: null }, NOW), "Check time unavailable");
 });
 
-test("ghostCheckedText: an unparseable updated_at never fabricates a time", () => {
-    assert.equal(ghostCheckedText("not-a-date", NOW), "Check time unavailable");
+test("ghostCheckedText: an unparseable ghost_checked_at never fabricates a time", () => {
+    assert.equal(
+        ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: "not-a-date" }, NOW),
+        "Check time unavailable",
+    );
+});
+
+/**
+ * The reported bug, at the exact surface that reported it: a modal showing
+ * "checked 89d ago" over "first seen by us 89d ago" — one column printed
+ * twice. A job scraped 89 days ago whose check ran this morning must read
+ * from the check, and a document with no check timestamp at all must say so
+ * rather than reaching for the scrape.
+ */
+test("ghostCheckedText: reads the check, never the scrape", () => {
+    const job = {
+        ghost_badge: "caution" as const,
+        ghost_checked_at: new Date(NOW - 2 * 3_600_000).toISOString(),
+        updated_at: new Date(NOW - 89 * 86_400_000).toISOString(),
+    };
+    assert.equal(ghostCheckedText(job, NOW), "Checked 2h ago");
+});
+
+test("ghostCheckedText: a document predating the field claims nothing, rather than borrowing updated_at", () => {
+    const job = { ghost_badge: "clear" as const, updated_at: new Date(NOW - 89 * 86_400_000).toISOString() };
+    assert.equal(ghostCheckedText(job, NOW), "Check time unavailable");
 });
 
 /* ---------------------------- deriveGhostSignals ---------------------------- */

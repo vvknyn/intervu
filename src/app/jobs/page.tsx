@@ -42,7 +42,7 @@ import { LaunchBanner } from "@/components/jobs/LaunchBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { checkFreshness, rowTrustChip, type RowTrustChip } from "@/lib/jobs/badges";
+import { rowTrustChip, type RowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
@@ -458,7 +458,7 @@ function JobCard({
     onToggleExpand?: () => void;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${displayCompany(job.company, job.company_domain) || "Unknown company"}`;
-    const trust = rowTrustChip(job.ghost_badge, job.updated_at, now);
+    const trust = rowTrustChip(job, now);
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // Relist caution (Task 3, Vivek request; retitled ITEM T 2026-08-15 — a
@@ -556,10 +556,10 @@ function JobCard({
                         {TRUST_CHIP[trust].label}
                     </span>
                 )}
-                {ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale") && (
+                {ghostMetaFor(job, now) && (
                     <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center leading-none">
                         <ContextHelp
-                            content={ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale")!.explain}
+                            content={ghostMetaFor(job, now)!.explain}
                             side="left"
                         />
                     </span>

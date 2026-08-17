@@ -1,7 +1,8 @@
 import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
-import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import { checkFreshness } from "@/lib/jobs/badges";
+import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 
 /**
@@ -72,10 +73,41 @@ export const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
 /**
  * Single chokepoint for which `GHOST_META` entry a job's row badge AND
  * detail-panel banner render from — so the two surfaces can never disagree
- * about whether a "clear" verdict is still current.
+ * about whether a verdict is still current.
+ *
+ * Staleness does two different jobs here, and it used to do only the first:
+ *
+ *   1. It DEMOTES a stale "clear". A green "no ghost signals" pill is a
+ *      present-tense safety claim; when the check behind it is a month old
+ *      the claim outlives its evidence, so `STALE_CLEAR_META` replaces it.
+ *
+ *   2. It DATES every other stale verdict. "Worth verifying" and "Possible
+ *      ghost job" also speak in the present tense ("some signals suggest…"),
+ *      and until 2026-08-17 they were exempt from the staleness branch
+ *      entirely — a caution verdict from an 89-day-old check rendered
+ *      identically to one from this morning. It keeps its label (dropping a
+ *      warning because we stopped looking is the dangerous direction — see
+ *      `rowTrustChip`), but the copy now says when we last looked.
+ *
+ * Takes the job so the caller can't hand it the wrong clock; see
+ * `GhostChecked` (types.ts).
  */
-export function ghostMetaFor(ghostBadge: GhostBadge, stale: boolean) {
-    return ghostBadge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[ghostBadge];
+export function ghostMetaFor(job: GhostChecked, nowMs: number) {
+    const stale = checkFreshness(job, nowMs) === "stale";
+    const meta = job.ghost_badge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
+    if (!meta || !stale) return meta;
+    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(job.ghost_checked_at, nowMs)}` };
+}
+
+/**
+ * The dated half of a stale verdict's disclosure. An unknown check date is
+ * stated as unknown rather than smoothed into "a while ago" — the one thing
+ * this whole change exists to stop is a confident number standing in for a
+ * check we can't actually place in time.
+ */
+function lastCheckedClause(checkedAt: string | null | undefined, nowMs: number): string {
+    if (!checkedAt || Number.isNaN(Date.parse(checkedAt))) return "We have no record of when it was last checked.";
+    return `Last checked ${formatRelativeAge(checkedAt, nowMs)}.`;
 }
 
 /**
