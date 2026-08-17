@@ -41,17 +41,25 @@ export function openCountText(
  * (the fetch cap), never of the employer, so ANY per-role stat this page
  * derives from `jobs` and then presents next to the company-wide `openCount`
  * needs this same gate before it can be read as a census rather than a
- * sample — currently `ghostFlaggedPct` (the ghost-flagged share) and
- * `buildFreshnessFact` (the recency fact), both below. One rule, both
- * callers; a second, independently-drifting copy of it is exactly the
- * regression this function exists to prevent (see `resolveOpenCount`,
- * open-count.ts, for the same "window length is not the count" bug this
- * mirrors). Derived from the two numbers `CompanyPageData` already carries,
- * so it needs no contract change.
+ * sample — currently `ghostFlaggedPct` (the ghost-flagged share),
+ * `buildFreshnessFact` (the recency fact), both below, and the in-page role
+ * search's scope caveat (`CompanyRoleSearch`). One rule, all three callers;
+ * a second, independently-drifting copy of it is exactly the regression this
+ * function exists to prevent (see `resolveOpenCount`, open-count.ts, for the
+ * same "window length is not the count" bug this mirrors). Derived from
+ * numbers `CompanyPageData` already carries, so it needs no contract change.
+ *
+ * Both halves are required. A LOWER-BOUND `openCount` cannot be covered by
+ * any window, even one holding `openCount` roles: a floor means an unknown
+ * number of roles exist past it, so `200 >= 200` would assert a census over a
+ * count that is itself only "at least 200". Reading a floor as a total is the
+ * precise over-claim `openCountText` renders as `N+` to avoid, three lines
+ * up; this gate must not quietly re-make it on the same page.
  */
 export function sampleCoversAllRoles(
-  data: Pick<CompanyPageData, "jobs" | "openCount">,
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
 ): boolean {
+  if (data.openCountIsLowerBound) return false;
   return data.jobs.length >= data.openCount;
 }
 
@@ -159,7 +167,10 @@ function defaultRecencyWindowMs(): number | null {
  * headline). Render only when EVERY covered role has a known `posted_ts`;
  * otherwise "".
  */
-function buildFreshnessFact(data: Pick<CompanyPageData, "jobs" | "openCount">, nowMs: number): string {
+function buildFreshnessFact(
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
+  nowMs: number,
+): string {
   const windowMs = defaultRecencyWindowMs();
   if (windowMs == null || !sampleCoversAllRoles(data)) return "";
   const jobs = data.jobs;

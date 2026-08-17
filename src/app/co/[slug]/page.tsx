@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { Button } from "@/components/ui/button";
+import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
   buildCompanyHiringAnswer,
@@ -13,38 +13,11 @@ import {
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
-import {
-  decodeText,
-  ghostMetaFor,
-  locationText,
-  prettyEnum,
-  salaryText,
-} from "@/lib/jobs/presentation";
-import type { PublicJob } from "@/lib/jobs/types";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
-import { cn } from "@/lib/utils";
-
-const ROLES_PREVIEW = 10;
 
 function formatKpi(value: number | null): string {
   return value == null ? "—" : String(value);
-}
-
-function roleMeta(job: PublicJob): string {
-  const parts = [locationText(job), salaryText(job), prettyEnum(job.experience_level)].filter(Boolean);
-  return parts.join(" · ");
-}
-
-function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
-  if (job.ghost_badge === "likely_ghost") {
-    const meta = ghostMetaFor(job.ghost_badge, false);
-    return meta ? { text: `● ${meta.label}`, live: false } : null;
-  }
-  if (job.ghost_badge === "clear" || !job.ghost_badge) {
-    return { text: "Live · no ghost signals", live: true };
-  }
-  return null;
 }
 
 export async function generateMetadata({
@@ -72,7 +45,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   }
   if (!data) notFound();
 
-  const preview = data.jobs.slice(0, ROLES_PREVIEW);
   // See `buildCompanyJobsUrl`'s docblock (lib/companies/presentation.ts) for
   // why this can't be a hand-built `?q=...` string.
   const jobsSearchUrl = buildCompanyJobsUrl(data);
@@ -201,76 +173,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 
         <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
 
-        <section>
-          <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
-            Open roles
-            {data.jobs.length > 0 && (
-              <span className="font-mono text-xs font-normal text-muted-foreground">
-                {preview.length} of {openCountText(data)} shown
-              </span>
-            )}
-          </h2>
-
-          {preview.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
-          ) : (
-            <ul className="space-y-2.5">
-              {preview.map((job) => {
-                const ghost = roleGhostLine(job);
-                return (
-                  <li key={job.id}>
-                    <Link
-                      href={`/jobs?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:border-border-strong"
-                    >
-                      <CompanyLogo domain={data.domain} name={data.name} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
-                        <div className="mt-1 font-mono text-xs text-muted-foreground">
-                          {roleMeta(job)}
-                        </div>
-                        {ghost && (
-                          <div
-                            className={cn(
-                              "mt-1.5 flex items-center gap-1.5 font-mono text-[11px]",
-                              ghost.live ? "text-brand" : "text-muted-foreground",
-                            )}
-                          >
-                            {ghost.live && (
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
-                            )}
-                            {ghost.text}
-                          </div>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
-                        →
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {preview.length > 0 && (
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6 shadow-xs">
-              <div>
-                <h3 className="font-display text-[18px] font-semibold text-foreground">
-                  Explore all {openCountText(data)} open roles at {data.name}
-                </h3>
-                <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                  Screened for ghost-job risk, posting freshness, and verified salary transparency.
-                </p>
-              </div>
-              <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">
-                <Link href={jobsSearchUrl}>
-                  View all {openCountText(data)} jobs →
-                </Link>
-              </Button>
-            </div>
-          )}
-        </section>
+        <CompanyRoleSearch
+          jobs={data.jobs}
+          companyDomain={data.domain}
+          companyName={data.name}
+          openCountLabel={openCountText(data)}
+          searchesPartialWindow={!sampleCoversAllRoles(data)}
+          jobsSearchUrl={jobsSearchUrl}
+        />
 
         {/* The 90-day provenance note describes the opened/closed track
             record specifically, and that is the one thing this page cannot
