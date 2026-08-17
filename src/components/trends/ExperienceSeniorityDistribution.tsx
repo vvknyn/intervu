@@ -6,15 +6,15 @@ import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 
 interface ExperienceSeniorityDistributionProps {
-  experienceLevels: TrendFacetItem[];
-  employmentTypes: TrendFacetItem[];
+  experienceLevels?: TrendFacetItem[];
+  employmentTypes?: TrendFacetItem[];
 }
 
 export function ExperienceSeniorityDistribution({
-  experienceLevels,
-  employmentTypes,
+  experienceLevels = [],
+  employmentTypes = [],
 }: ExperienceSeniorityDistributionProps) {
-  if (experienceLevels.length === 0) return null;
+  if (!experienceLevels || experienceLevels.length === 0) return null;
 
   const maxCount = Math.max(...experienceLevels.map((e) => e.count), 1);
 

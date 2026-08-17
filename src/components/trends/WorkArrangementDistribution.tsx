@@ -6,7 +6,7 @@ import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 
 interface WorkArrangementDistributionProps {
-  workTypes: TrendFacetItem[];
+  workTypes?: TrendFacetItem[];
   visaSponsorship?: {
     sponsoredCount: number;
     sponsoredPct: number;
@@ -15,10 +15,10 @@ interface WorkArrangementDistributionProps {
 }
 
 export function WorkArrangementDistribution({
-  workTypes,
+  workTypes = [],
   visaSponsorship,
 }: WorkArrangementDistributionProps) {
-  if (workTypes.length === 0) return null;
+  if (!workTypes || workTypes.length === 0) return null;
 
   const maxCount = Math.max(...workTypes.map((w) => w.count), 1);
 
