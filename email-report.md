@@ -6,7 +6,7 @@ Branch `feat/email-resend`, 4 commits: 297fc73 (E1+E2), 3cf5b5f (E3), 8bd5351 (E
 - **E1 send seam** — done. `src/lib/email/send.ts` (chokepoint), `types.ts` (EmailKind policy table).
 - **E2 suppression/unsubscribe** — done. `src/lib/email/suppression.ts`, `unsubscribe-token.ts`, `src/app/unsubscribe/route.ts` (GET+POST/RFC8058), `src/app/api/webhooks/resend/route.ts`.
 - **E3 waitlist confirm** — done. `src/lib/email/waitlist-confirmation.ts`; `src/actions/waitlist.ts:52` and `connect-waitlist.ts:30` now upsert+idempotent-send.
-- **E4 weekly digest** — done, cron NOT wired. `src/lib/email/digest/{assemble,collect,send}.ts`, `src/app/api/email/digest/route.ts`, `scripts/digest-dry-run.ts --uid=<uid>`.
+- **E4 weekly digest** — done, cron NOT wired. `src/lib/email/digest/{assemble,collect,send}.ts`, `src/app/api/email/digest/route.ts`, `scripts/digest-dry-run.mts --uid=<uid>`.
 - **E5 preferences** — done. `src/actions/email-preferences.ts`, `EmailPreferencesSection.tsx` in `/settings?tab=account`.
 - **E6 privacy** — done. `src/app/privacy/page.tsx:88` new "Email" section.
 

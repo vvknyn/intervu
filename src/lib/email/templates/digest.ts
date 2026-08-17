@@ -1,5 +1,5 @@
 import { renderEmailShellHtml, renderEmailShellText } from "./base";
-import type { DigestModel, DigestSection } from "../digest/assemble";
+import type { DigestModel, DigestSection, DigestSectionKind } from "../digest/assemble";
 
 /** Job titles/companies are employer-supplied, external data — unlike the
  *  waitlist template's internal enum labels, this needs real escaping. */
@@ -19,9 +19,28 @@ function countLabel(section: Pick<DigestSection, "totalNew" | "mayHaveMore">): s
   return `${section.totalNew}${suffix} ${noun}`;
 }
 
+/**
+ * How each reason words the thing a section is about. An exhaustive
+ * `Record` rather than a ternary on `kind`: a new section kind is then a
+ * compile error here — the one place that has to word it — instead of
+ * silently inheriting whichever branch the ternary fell through to. That is
+ * how the tracked-company lane avoided shipping as "quoted like a saved
+ * search".
+ *
+ * Saved searches are quoted because the name is a string the reader typed;
+ * company names are not, because they are the company's own name. The
+ * tracker says WHY an unfollowed company is here — otherwise a reader who
+ * never followed Stripe gets a Stripe heading with no explanation.
+ */
+const SECTION_SUBJECT: Record<DigestSectionKind, (name: string) => string> = {
+  "followed-company": (name) => name,
+  "tracked-company": (name) => `${name} (in your tracker)`,
+  "saved-search": (name) => `"${name}"`,
+  default: (name) => name,
+};
+
 function sectionHeading(section: DigestSection): string {
-  const subject = section.kind === "followed-company" ? section.name : `"${section.name}"`;
-  return `${subject} — ${countLabel(section)}`;
+  return `${SECTION_SUBJECT[section.kind](section.name)} — ${countLabel(section)}`;
 }
 
 export function buildDigestEmail(model: DigestModel): { subject: string; html: string; text: string } {

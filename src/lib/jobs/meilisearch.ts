@@ -447,8 +447,10 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
   if (p.id) f.push(`id = ${JSON.stringify(p.id)}`);
   const facets = p.facets ?? {};
   for (const key of FACETABLE_KEYS) {
-    const vals = facets[key];
-    if (!vals || vals.length === 0) continue;
+    const rawVals = facets[key];
+    if (!rawVals || rawVals.length === 0) continue;
+    const vals = rawVals.filter((v) => v !== "any" && v !== "all");
+    if (vals.length === 0) continue;
     // OR within a facet, AND across facets. JSON.stringify quotes + escapes the value.
     f.push("(" + vals.map((v) => `${key} = ${JSON.stringify(v)}`).join(" OR ") + ")");
   }

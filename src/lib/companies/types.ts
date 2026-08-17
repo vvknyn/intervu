@@ -30,39 +30,55 @@ export interface CompanyWorkModesInfo {
   onsitePct: number;
 }
 
-export interface CompanySignalItem {
-  id: string;
-  type: "funding" | "product" | "expansion" | "hiring" | "leadership";
-  title: string;
-  detail: string;
-  timeAgo: string;
-}
-
+/** One article as returned by the Subspace `/companies/{domain}/news` endpoint — see fetchCompanyNews. */
 export interface CompanyNewsArticle {
-  id: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  publisher: string;
+  published_at: string | null;
+  is_funding_event: boolean;
+  /** The match tier the API published this under. The server owns the gate
+   *  (high/medium, anchored matches only) — this is carried for provenance,
+   *  NOT re-filtered here. Two gates in two repos drift apart. */
+  confidence: "high" | "medium";
+}
+
+/** One published entry from Subspace's change-event ledger, already scoped to
+ *  this company (the API strips the ledger's `"<domain> — "` title prefix). */
+export interface CompanyChangeEvent {
+  /** Ledger taxonomy: hiring_surge | hiring_freeze | funding | layoff |
+   *  verdict_changed | needs_outside_firm_emerged. Typed as a string rather
+   *  than a union on purpose — the vocabulary is owned by the projector in the
+   *  other repo, and a union here would turn a new event type into a
+   *  cross-repo type error instead of a row this page can simply render. */
+  event_type: string;
+  direction: "improving" | "declining" | "neutral";
+  /** The projected sentence, e.g. "hiring has stalled: 167 new roles in 14d,
+   *  down from 485". Already carries every number a reader needs. */
   headline: string;
-  summary: string;
-  source: string;
-  publishedAt: string;
-  category: "funding" | "product" | "leadership" | "expansion" | "market";
-  url?: string;
+  /** ISO-8601 — when the underlying change occurred, not when we saw it. */
+  occurred_at: string;
+  confidence: number | null;
+  /**
+   * The facts that BACK the headline, read out of the event's payload by the
+   * API. Optional because a company page must still render against an older
+   * API build that predates it — but a card with no evidence is a claim with
+   * no proof, which is the whole reason this field exists.
+   */
+  evidence?: CompanyChangeEventEvidence | null;
 }
 
-export interface CompanyLayoffNotice {
-  date: string;
-  impactedCount: number | null;
-  details: string;
-  noticeType: string;
-  location?: string;
-}
-
-export interface CompanyLayoffInfo {
-  hasRecentLayoffs: boolean;
-  riskLevel: "low" | "moderate" | "elevated";
-  warnNoticeCount: number;
-  lastFiledDate: string | null;
-  recentNotices: CompanyLayoffNotice[];
-  summary: string;
+/** Display-ready proof for one change-event. Mirrors the API's `evidence`. */
+export interface CompanyChangeEventEvidence {
+  /** Stats backing the claim, e.g. "44 new roles in 14 days, vs 13 in the 14 before". */
+  metrics: { label: string; value: string }[];
+  /** The window the claim was measured over — calendar dates, not timestamps. */
+  window: { start: string; end: string } | null;
+  /** A citable external source (SEC EDGAR, a state WARN portal). */
+  sourceUrl: string | null;
+  /** Where the observation came from, in plain words. */
+  provenance: string | null;
 }
 
 export interface CompanyIntelligence {
@@ -70,8 +86,6 @@ export interface CompanyIntelligence {
   visa: CompanyVisaInfo | null;
   techStack: CompanyTechStackInfo | null;
   workModes: CompanyWorkModesInfo | null;
-  layoffs: CompanyLayoffInfo | null;
-  signals: CompanySignalItem[];
   news: CompanyNewsArticle[];
 }
 
@@ -114,6 +128,11 @@ export type CompanyPageData = {
   boards: BoardId[];
   /** Subspace enrichment intelligence suite (Funding, Visa & H1B, Tech DNA, Signals) */
   intelligence?: CompanyIntelligence;
+  /** Published change-events from Subspace's ledger, newest first. Empty
+   *  whenever the upstream call fails or the company has none — the two are
+   *  deliberately indistinguishable here, because the page renders the same
+   *  thing (nothing) either way rather than guessing at a reason. */
+  changeEvents: CompanyChangeEvent[];
   /**
    * The clock read at the async I/O boundary (`getCompanyPageData`), not
    * inside the server component's render body — server components must stay

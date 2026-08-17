@@ -12,8 +12,27 @@ export interface DigestSectionItem {
   href: string;
 }
 
+/**
+ * Why a section is in someone's digest — and the ONLY thing the template
+ * branches on to word its heading. Exported so that `SECTION_SUBJECT`
+ * (templates/digest.ts) can be an exhaustive `Record` over it: adding a
+ * fifth reason becomes a compile error at the one place that has to word
+ * it, rather than silently falling through to another kind's phrasing.
+ */
+export type DigestSectionKind =
+  | "followed-company"
+  | "saved-search"
+  /** A company the reader has a tracker entry for but does NOT follow —
+   *  see `selectTrackedCompanies`, which excludes followed domains so the
+   *  same company can't appear twice under two different reasons. */
+  | "tracked-company"
+  /** The no-signal lane: the reader saved nothing and follows nobody, so
+   *  the section is whatever their stated preferences imply. Off unless
+   *  `isDefaultDigestEnabled()` (see default-section.ts). */
+  | "default";
+
 export interface RawDigestSection {
-  kind: "followed-company" | "saved-search";
+  kind: DigestSectionKind;
   name: string;
   /** Newest-first, already filtered to "since the cursor" — NOT yet capped
    *  for display. */

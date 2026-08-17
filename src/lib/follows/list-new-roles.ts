@@ -17,9 +17,19 @@ import type { FollowedCompany } from "./types";
 
 type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
 
+/**
+ * `Pick<…>` rather than a whole `FollowedCompany`: this function reads only
+ * the domain (to search) and the display name (to label the group), and
+ * `groupFollowAlertsByDomain` below takes the same Pick. Requiring the full
+ * type would force the digest's tracked-company lane — which derives
+ * domains from tracker entries, not from a follow document — to invent a
+ * `slug` and a `createdAt` it has no truthful value for.
+ */
+export type FollowTarget = Pick<FollowedCompany, "domain" | "displayName">;
+
 export async function listNewRolesForFollows(
   sinceIso: string,
-  follows: FollowedCompany[],
+  follows: FollowTarget[],
   search: SearchFn = searchJobs,
 ): Promise<FollowAlertGroup[]> {
   if (follows.length === 0) return [];

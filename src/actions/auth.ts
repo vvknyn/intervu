@@ -4,10 +4,7 @@ import { getServerUser, clearSessionCookie } from "@/lib/firebase/auth-session";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-
-function getEmailFromUsername(username: string) {
-    return `${username}@intervu.cc`;
-}
+import { usernameEmail } from "@/lib/auth/username-email";
 
 export async function checkUsernameAvailability(username: string) {
     try {
@@ -46,7 +43,7 @@ export async function signUp(prevState: any, formData: FormData) {
         return { error: "Username is already taken" };
     }
 
-    const email = getEmailFromUsername(username);
+    const email = usernameEmail(username);
 
     try {
         const adminAuth = getAdminAuth();

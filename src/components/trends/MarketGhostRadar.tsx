@@ -16,44 +16,59 @@ export function MarketGhostRadar({
   const total = ghostRadar.reduce((sum, row) => sum + row.count.value, 0);
 
   return (
-    <section data-testid="trends-ghost-radar" className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-xs">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-chip text-muted-foreground">
-          <ShieldWarning size={18} weight="duotone" />
+    <section data-testid="trends-ghost-radar" className="rounded-xl border border-border bg-card p-6 transition-colors">
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
+            <ShieldWarning size={16} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Ghost Radar</h2>
+            <p className="text-xs text-muted-foreground">Automated risk signals evaluated across all active postings</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-bold text-foreground">Ghost Radar (Market-Wide)</h2>
-          <p className="text-xs text-muted-foreground">Automated ghost-risk signal across every active posting in the index</p>
-        </div>
+        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+          Integrity Scan
+        </span>
       </div>
 
-      <ol className="mt-5 space-y-3">
+      <ol className="mt-4 space-y-2">
         {ghostRadar.map(({ badge, count }) => {
           const tone = ghostBadgeTone(badge);
           const pct = total > 0 ? Math.round((count.value / total) * 100) : 0;
           const label = facetValueLabel("ghost_badge", badge);
           return (
-            <li key={badge} data-testid={`trends-ghost-${badge}`} className="flex items-center gap-3 text-[13.5px]">
-              <span
-                className={cn(
-                  "w-32 shrink-0 sm:w-40 font-medium",
-                  tone
-                    ? cn("inline-flex items-center justify-center rounded-md px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase", STATUS_PILL[tone])
-                    : "text-[12.5px] text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-              <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-chip">
+            <li
+              key={badge}
+              data-testid={`trends-ghost-${badge}`}
+              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+            >
+              <div className="w-28 shrink-0 sm:w-32">
                 <span
-                  className={cn("block h-full rounded-full transition-all", tone ? STATUS_FILL[tone] : "bg-st-saved")}
-                  style={{ width: `${pct}%` }}
-                />
-              </span>
-              <span className="w-12 shrink-0 text-right font-mono text-[12px] font-semibold text-muted-foreground">{pct}%</span>
-              <span className="w-20 shrink-0 text-right font-mono text-[12.5px] font-bold text-foreground">
-                {formatCorpusCount(count)}
-              </span>
+                  className={cn(
+                    "inline-flex items-center justify-center rounded px-2 py-0.5 font-mono text-[10.5px] font-bold uppercase",
+                    tone
+                      ? STATUS_PILL[tone]
+                      : "border border-border bg-muted/50 text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-xs bg-muted/80">
+                  <span
+                    className={cn("block h-full rounded-xs transition-all", tone ? STATUS_FILL[tone] : "bg-slate-400 dark:bg-slate-600")}
+                    style={{ width: `${pct}%` }}
+                  />
+                </span>
+                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                  {pct}%
+                </span>
+                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                  {formatCorpusCount(count)}
+                </span>
+              </div>
             </li>
           );
         })}

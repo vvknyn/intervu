@@ -320,10 +320,14 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
         <button
             type="button"
             data-testid="related-job-row"
-            onClick={onClick}
-            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-slate-400 hover:shadow-2xs dark:border-slate-700 dark:bg-slate-900/60"
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick();
+            }}
+            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip/50 hover:shadow-xs dark:border-slate-700 dark:bg-slate-900/60 cursor-pointer group"
         >
-            <span className="truncate text-[13px] font-semibold text-foreground">{decodeText(job.title)}</span>
+            <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-[11px] text-muted-foreground">
                 {displayCompany(job.company, job.company_domain) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
@@ -378,11 +382,8 @@ export function JobDetail({
     variants?: PublicJob[];
     onClose?: () => void;
     className?: string;
-    /** A2 — "More like this" row click. Absent (rather than defaulted to a
-     *  no-op) reads as "no related panel" — see the render guard below —
-     *  since a caller that truly can't open a job (none exists here) should
-     *  never render rows that silently do nothing on click. */
-    onOpenRelated?: (jobId: string) => void;
+    /** A2 — "More like this" row click. */
+    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -405,6 +406,9 @@ export function JobDetail({
     const firstSeenRelative =
         freshness.firstSeenMs != null ? formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), now) : null;
     const [descExpanded, setDescExpanded] = useState(false);
+    useEffect(() => {
+        setDescExpanded(false);
+    }, [job.id]);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall.
@@ -791,8 +795,9 @@ export function JobDetail({
                             </div>
                             {collapsible && (
                                 <button
+                                    type="button"
                                     onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                                    className="mt-2 text-xs font-medium text-brand hover:underline cursor-pointer"
                                 >
                                     {descExpanded ? "Show less" : "Show full description"}
                                 </button>
@@ -875,7 +880,16 @@ export function JobDetail({
                         </div>
                         {cleanedCompany && (
                             <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
-                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)}>Company page →</Link>
+                                <Link
+                                    href={jobCompanyHref(cleanedCompany, job.company_domain)}
+                                    onClick={() => {
+                                        if (onClose) {
+                                            onClose();
+                                        }
+                                    }}
+                                >
+                                    Company page →
+                                </Link>
                             </Button>
                         )}
                     </div>
@@ -895,7 +909,7 @@ export function JobDetail({
                                     key={r.id}
                                     job={r}
                                     now={now}
-                                    onClick={() => onOpenRelated?.(r.id)}
+                                    onClick={() => onOpenRelated?.(r.id, r)}
                                 />
                             ))}
                         </div>

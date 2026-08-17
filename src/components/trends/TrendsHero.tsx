@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
-import { Briefcase, ClockCounterClockwise, ShieldWarning } from "@phosphor-icons/react";
+import { Briefcase, Database, ShieldWarning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 export function TrendsHero({
@@ -17,29 +17,29 @@ export function TrendsHero({
 }) {
   const tiles = [
     {
-      label: "Live jobs right now",
+      label: "Live Active Openings",
+      subtitle: "Verified direct from employer boards",
       value: liveJobs,
       testId: "trends-stat-live",
-      icon: <Briefcase size={18} weight="duotone" className="text-emerald-700 dark:text-emerald-400" />,
-      badgeCls: "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
-      numberCls: "text-emerald-950 dark:text-emerald-200",
+      icon: <Briefcase size={16} weight="duotone" className="text-foreground" />,
+      indicator: "bg-emerald-500",
       href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
     },
     {
-      label: "Postings tracked, all-time",
+      label: "Total Postings Tracked",
+      subtitle: "Cumulative indexed across all statuses",
       value: totalTracked,
       testId: "trends-stat-total",
-      icon: <ClockCounterClockwise size={18} weight="duotone" className="text-indigo-700 dark:text-indigo-400" />,
-      badgeCls: "bg-indigo-50 text-indigo-950 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800",
-      numberCls: "text-slate-900 dark:text-white",
+      icon: <Database size={16} weight="duotone" className="text-foreground" />,
+      indicator: "bg-slate-400 dark:bg-slate-500",
     },
     {
-      label: "Flagged likely-ghost, live",
+      label: "Ghost-Risk Flagged",
+      subtitle: "Flagged by integrity heuristic checks",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",
-      icon: <ShieldWarning size={18} weight="duotone" className="text-rose-700 dark:text-rose-400" />,
-      badgeCls: "bg-rose-50 text-rose-950 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800",
-      numberCls: "text-rose-950 dark:text-rose-200",
+      icon: <ShieldWarning size={16} weight="duotone" className="text-rose-500" />,
+      indicator: "bg-rose-500",
     },
   ];
 
@@ -49,25 +49,33 @@ export function TrendsHero({
         <div
           key={tile.testId}
           data-testid={tile.testId}
-          className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-card p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-sm dark:border-slate-800"
+          className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-colors hover:border-border-strong"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {tile.label}
-            </span>
-            <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg border", tile.badgeCls)}>
+            <div className="flex items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-full", tile.indicator)} aria-hidden />
+              <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                {tile.label}
+              </span>
+            </div>
+            <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40">
               {tile.icon}
             </div>
           </div>
-          <p className={cn("mt-3 font-mono text-3xl font-extrabold tracking-tight", tile.numberCls)}>
-            {tile.href ? (
-              <Link href={tile.href} className="hover:underline">
-                {formatCorpusCount(tile.value)}
-              </Link>
-            ) : (
-              formatCorpusCount(tile.value)
-            )}
-          </p>
+          <div className="mt-3">
+            <p className="font-mono text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              {tile.href ? (
+                <Link href={tile.href} className="hover:text-brand hover:underline">
+                  {formatCorpusCount(tile.value)}
+                </Link>
+              ) : (
+                formatCorpusCount(tile.value)
+              )}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {tile.subtitle}
+            </p>
+          </div>
         </div>
       ))}
     </div>

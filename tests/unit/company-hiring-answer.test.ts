@@ -48,6 +48,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     slug: "lumentum--com",
     name: "Lumentum",
     nameSource: "corpus-cased",
+    changeEvents: [],
     oneLiner: null,
     stage: null,
     opened90d: null,
@@ -210,10 +211,20 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
     assert.equal(parsed.postedBucket, undefined);
   });
 
-  it("carries no location_country facet — a derived facet on unverified corpus values fails CLOSED, not open (measured live: 5 real Leogy rows -> 0)", () => {
+  // Two facts, one assertion. The value must be the neutral "any" sentinel —
+  // stripped at meilisearch.ts:452, so it constrains nothing, and its only job
+  // is satisfying `hasLocationSignal` so /jobs' IP geo default doesn't narrow a
+  // company link. And it must never be a REAL country: a derived country facet
+  // fails CLOSED against unverified corpus values (measured live 2026-08-15 —
+  // Leogy's 5 real rows went to 0 under `country=Germany`/`country=DE`).
+  it("carries country=any and never a real country value — the sentinel widens, a derived value would fail closed", () => {
     const url = buildCompanyJobsUrl(company({ domain: "multinational.com" }));
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
-    assert.equal(parsed.facets.location_country, undefined);
+    assert.deepEqual(parsed.facets.location_country, ["any"]);
+    assert.ok(
+      !(parsed.facets.location_country ?? []).some((v) => v !== "any"),
+      "a company link must not derive a country value from page data",
+    );
   });
 
   // Regression, measured live 2026-08-16 on /co/harrods--com: the page counted
@@ -263,6 +274,16 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
     assert.equal(parsed.hideGhosts, false, "no ghost exclusion");
     assert.equal(parsed.salaryMin, 0, "no salary floor");
     assert.equal(parsed.visaOnly, false, "no visa requirement");
-    assert.deepEqual(parsed.facets, {}, "no facet narrowing");
+    // Not `deepEqual(facets, {})`: a facet is allowed here IF it cannot
+    // subtract, and `"any"`/`"all"` are stripped before the clause is rendered
+    // (meilisearch.ts:452). Anything else is a real value and would narrow —
+    // which is the thing this test exists to catch.
+    for (const [field, values] of Object.entries(parsed.facets)) {
+      assert.deepEqual(
+        (values ?? []).filter((v) => v !== "any" && v !== "all"),
+        [],
+        `facet ${field} carries a narrowing value`,
+      );
+    }
   });
 });

@@ -9,17 +9,28 @@
 import { followedCompaniesCollection, docToFollowedCompany } from "@/lib/follows/store";
 import { savedSearchesCollection, docToSavedSearch } from "@/lib/jobs/saved-searches-store";
 import { listNewRolesForFollows } from "@/lib/follows/list-new-roles";
-import { JOBS_FETCHED_PER_FOLLOW_DOMAIN } from "@/lib/follows/alerts";
+import { JOBS_FETCHED_PER_FOLLOW_DOMAIN, type FollowAlertGroup } from "@/lib/follows/alerts";
 import {
   listNewRolesForSavedSearch,
   JOBS_FETCHED_PER_SAVED_SEARCH,
 } from "@/lib/jobs/saved-search-new-roles";
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
+import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
+import { domainToSlug } from "@/lib/boards/slug";
+import { getAgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { getDigestCursor } from "../digest-cursor";
-import { assembleDigest, type DigestModel, type DigestSectionItem, type RawDigestSection } from "./assemble";
+import { listTrackedCompanies } from "./tracked-companies";
+import { isDefaultDigestEnabled, defaultDigestSearchState, DEFAULT_SECTION_NAME } from "./default-section";
+import {
+  assembleDigest,
+  type DigestModel,
+  type DigestSectionItem,
+  type DigestSectionKind,
+  type RawDigestSection,
+} from "./assemble";
 
 function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
   return {
@@ -27,6 +38,27 @@ function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
     company: job.company ?? "Unknown company",
     href: `${siteUrl}${jobPath(job)}`,
   };
+}
+
+/**
+ * Both company-shaped lanes (followed and tracked) search by domain and
+ * group identically — they differ only in why the company is here and in
+ * where the slug for its /co link comes from. Kept as one function so the
+ * two can never drift on item mapping or on the `mayHaveMore` floor.
+ */
+function companyGroupsToSections(input: {
+  groups: FollowAlertGroup[];
+  kind: Extract<DigestSectionKind, "followed-company" | "tracked-company">;
+  slugForDomain: (domain: string) => string;
+  siteUrl: string;
+}): RawDigestSection[] {
+  return input.groups.map((group) => ({
+    kind: input.kind,
+    name: group.displayName,
+    items: group.jobs.map((job) => toSectionItem(job, input.siteUrl)),
+    mayHaveMore: group.jobs.length >= JOBS_FETCHED_PER_FOLLOW_DOMAIN,
+    seeAllHref: `${input.siteUrl}/co/${input.slugForDomain(group.domain)}`,
+  }));
 }
 
 export async function collectDigestForUser(uid: string, unsubscribeUrl: string): Promise<DigestModel | null> {
@@ -43,17 +75,34 @@ export async function collectDigestForUser(uid: string, unsubscribeUrl: string):
   const sections: RawDigestSection[] = [];
 
   if (follows.length > 0) {
+    // A follow document stores its own slug, so prefer it over deriving one:
+    // it is what /co actually linked when the reader followed the company.
     const slugByDomain = new Map(follows.map((f) => [f.domain, f.slug]));
-    const groups = await listNewRolesForFollows(sinceIso, follows);
-    for (const group of groups) {
-      sections.push({
+    sections.push(
+      ...companyGroupsToSections({
+        groups: await listNewRolesForFollows(sinceIso, follows),
         kind: "followed-company",
-        name: group.displayName,
-        items: group.jobs.map((job) => toSectionItem(job, siteUrl)),
-        mayHaveMore: group.jobs.length >= JOBS_FETCHED_PER_FOLLOW_DOMAIN,
-        seeAllHref: `${siteUrl}/co/${slugByDomain.get(group.domain) ?? group.domain}`,
-      });
-    }
+        slugForDomain: (domain) => slugByDomain.get(domain) ?? domain,
+        siteUrl,
+      }),
+    );
+  }
+
+  // Excludes anything already followed, so a company the reader both
+  // follows and is tracking appears once, under the stronger reason.
+  const tracked = await listTrackedCompanies(
+    uid,
+    follows.map((f) => f.domain),
+  );
+  if (tracked.length > 0) {
+    sections.push(
+      ...companyGroupsToSections({
+        groups: await listNewRolesForFollows(sinceIso, tracked),
+        kind: "tracked-company",
+        slugForDomain: domainToSlug,
+        siteUrl,
+      }),
+    );
   }
 
   const savedSearchSections = await Promise.all(
@@ -70,6 +119,24 @@ export async function collectDigestForUser(uid: string, unsubscribeUrl: string):
     }),
   );
   sections.push(...savedSearchSections);
+
+  // The no-signal lane, and only for readers who genuinely have no signal.
+  // Gated on the SOURCES being empty rather than on `sections` being empty:
+  // a reader whose saved search simply had a quiet week has told us exactly
+  // what they want, and answering that with a generic section would be a
+  // worse email than the no-email `assembleDigest` is about to return.
+  if (isDefaultDigestEnabled() && follows.length === 0 && savedSearches.length === 0 && tracked.length === 0) {
+    const preferences = await getAgentPreferences(uid);
+    const state = defaultDigestSearchState(preferences.search);
+    const jobs = await listNewRolesForSavedSearch(sinceIso, state);
+    sections.push({
+      kind: "default",
+      name: DEFAULT_SECTION_NAME,
+      items: jobs.map((job) => toSectionItem(job, siteUrl)),
+      mayHaveMore: jobs.length >= JOBS_FETCHED_PER_SAVED_SEARCH,
+      seeAllHref: `${siteUrl}/jobs${serializeJobsUrl(state)}`,
+    });
+  }
 
   // Empty sections (nothing new for that follow/search) are dropped inside
   // assembleDigest itself — not duplicated here, so there's exactly one

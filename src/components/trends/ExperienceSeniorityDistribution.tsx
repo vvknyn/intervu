@@ -21,21 +21,26 @@ export function ExperienceSeniorityDistribution({
   return (
     <section
       data-testid="trends-experience-levels"
-      className="rounded-2xl border border-border bg-card p-6 shadow-xs"
+      className="rounded-xl border border-border bg-card p-6 transition-colors"
     >
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-chip text-indigo-500">
-          <UserFocus size={18} weight="duotone" />
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
+            <UserFocus size={16} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Experience & Seniority Mix</h2>
+            <p className="text-xs text-muted-foreground">
+              Demand distributed across career stages and leadership tiers
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-bold text-foreground">Experience & Seniority Mix</h2>
-          <p className="text-xs text-muted-foreground">
-            Active demand distributed by engineering and leadership seniority
-          </p>
-        </div>
+        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+          Career Tiers
+        </span>
       </div>
 
-      <ol className="mt-5 space-y-2.5">
+      <ol className="mt-4 space-y-1.5">
         {experienceLevels.map((item) => {
           const href = `/${serializeJobsUrl({
             ...DEFAULT_URL_STATE,
@@ -43,35 +48,40 @@ export function ExperienceSeniorityDistribution({
           })}`;
 
           return (
-            <li key={item.key} className="flex items-center gap-3 text-[13.5px]">
+            <li
+              key={item.key}
+              className="group flex items-center gap-3 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
+            >
               <Link
                 href={href}
-                className="w-36 shrink-0 truncate font-medium text-foreground hover:text-indigo-600 dark:hover:text-indigo-400 sm:w-44"
+                className="min-w-0 flex-1 truncate font-medium text-foreground hover:text-brand"
               >
                 {item.label}
               </Link>
-              <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                <span
-                  className="block h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
-                  style={{ width: `${(item.count / maxCount) * 100}%` }}
-                />
-              </span>
-              <span className="w-12 shrink-0 text-right font-mono text-[12px] font-semibold text-muted-foreground">
-                {item.pct}%
-              </span>
-              <span className="w-18 shrink-0 text-right font-mono text-[12.5px] font-bold text-foreground">
-                {item.count.toLocaleString()}
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="h-1.5 w-24 overflow-hidden rounded-xs bg-muted/80 sm:w-36">
+                  <span
+                    className="block h-full rounded-xs bg-slate-700 dark:bg-slate-300 transition-all"
+                    style={{ width: `${(item.count / maxCount) * 100}%` }}
+                  />
+                </span>
+                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                  {item.pct}%
+                </span>
+                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                  {item.count.toLocaleString()}
+                </span>
+              </div>
             </li>
           );
         })}
       </ol>
 
       {employmentTypes.length > 0 && (
-        <div className="mt-5 border-t border-border pt-4">
+        <div className="mt-4 border-t border-border/60 pt-4">
           <div className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
             <Briefcase size={14} weight="duotone" />
-            <span>Employment Structure Breakdown</span>
+            <span>Employment Contract Types</span>
           </div>
           <div className="mt-2.5 flex flex-wrap gap-2">
             {employmentTypes.map((type) => {
@@ -84,10 +94,10 @@ export function ExperienceSeniorityDistribution({
                 <Link
                   key={type.key}
                   href={href}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-chip px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-card"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-muted/60"
                 >
                   <span>{type.label}</span>
-                  <span className="font-mono text-[11px] font-bold text-muted-foreground">
+                  <span className="font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">
                     {type.pct}%
                   </span>
                 </Link>

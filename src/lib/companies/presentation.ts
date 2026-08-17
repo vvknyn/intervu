@@ -41,17 +41,25 @@ export function openCountText(
  * (the fetch cap), never of the employer, so ANY per-role stat this page
  * derives from `jobs` and then presents next to the company-wide `openCount`
  * needs this same gate before it can be read as a census rather than a
- * sample — currently `ghostFlaggedPct` (the ghost-flagged share) and
- * `buildFreshnessFact` (the recency fact), both below. One rule, both
- * callers; a second, independently-drifting copy of it is exactly the
- * regression this function exists to prevent (see `resolveOpenCount`,
- * open-count.ts, for the same "window length is not the count" bug this
- * mirrors). Derived from the two numbers `CompanyPageData` already carries,
- * so it needs no contract change.
+ * sample — currently `ghostFlaggedPct` (the ghost-flagged share),
+ * `buildFreshnessFact` (the recency fact), both below, and the in-page role
+ * search's scope caveat (`CompanyRoleSearch`). One rule, all three callers;
+ * a second, independently-drifting copy of it is exactly the regression this
+ * function exists to prevent (see `resolveOpenCount`, open-count.ts, for the
+ * same "window length is not the count" bug this mirrors). Derived from
+ * numbers `CompanyPageData` already carries, so it needs no contract change.
+ *
+ * Both halves are required. A LOWER-BOUND `openCount` cannot be covered by
+ * any window, even one holding `openCount` roles: a floor means an unknown
+ * number of roles exist past it, so `200 >= 200` would assert a census over a
+ * count that is itself only "at least 200". Reading a floor as a total is the
+ * precise over-claim `openCountText` renders as `N+` to avoid, three lines
+ * up; this gate must not quietly re-make it on the same page.
  */
 export function sampleCoversAllRoles(
-  data: Pick<CompanyPageData, "jobs" | "openCount">,
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
 ): boolean {
+  if (data.openCountIsLowerBound) return false;
   return data.jobs.length >= data.openCount;
 }
 
@@ -108,8 +116,8 @@ export function sampleCoversAllRoles(
  * `rowTrustChip`'s `likely_ghost` split (lib/jobs/badges.ts). Unfiltering
  * without marking would be strictly worse than the gap it closes.
  *
- * Deliberately carries NO `location_country` facet, even though the roles on
- * this page have known countries. `location_country` is `string | string[] |
+ * Deliberately carries NO REAL `location_country` VALUE, even though the roles
+ * on this page have known countries. `location_country` is `string | string[] |
  * null` per role (types.ts) with an unverified encoding/value domain, and it
  * feeds a HARD AND clause in the corpus filter (`renderPlaceClause`,
  * meilisearch.ts) — a derived value that doesn't exactly match the corpus's
@@ -119,15 +127,18 @@ export function sampleCoversAllRoles(
  * returned the correct 5. A link can only safely ADD a filter it can prove
  * matches the corpus; it can't prove that here, so it doesn't try.
  *
- * This also means the link cannot suppress /jobs' IP-based geo default:
- * `hasLocationSignal` (lib/geo/ip-default.ts) is satisfied only by an
- * explicit place, a `location_country` facet, or the client-side
- * `suppressLocationDefault` override — and `location-default-preference.ts`
- * is deliberately localStorage-only and one-way, so there is no URL param
- * that clears it either. A link therefore cannot widen a searcher's geo
- * scope, by design — recovering from a geo-narrowed zero-result page is the
- * /jobs zero-result state's job (a one-tap "clear near {country}" there),
- * not this URL's.
+ * What it carries instead is the `"any"` sentinel, which is NOT a value:
+ * `meilisearch.ts:452` strips "any"/"all" before rendering the clause, so no
+ * country constraint reaches the corpus. Its only effect is on the OTHER
+ * gate — `hasLocationSignal` (lib/geo/ip-default.ts) is satisfied by a
+ * non-empty `location_country` facet, so this suppresses /jobs' IP-based geo
+ * default and the link lands on the company's full result set rather than a
+ * silently geo-narrowed slice of it.
+ *
+ * (Superseded 2026-08-17: this paragraph previously stated a link could not
+ * widen a searcher's geo scope at all. That was true only while no sentinel
+ * existed. The zero-result recovery affordance on /jobs is still that page's
+ * job — this URL just no longer needs it for the common case.)
  */
 export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): string {
   return `/jobs${serializeJobsUrl({
@@ -135,6 +146,7 @@ export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): stri
     companyDomain: data.domain,
     postedBucket: undefined,
     hideGhosts: false,
+    facets: { location_country: ["any"] },
   })}`;
 }
 
@@ -196,7 +208,10 @@ function defaultRecencyWindowMs(): number | null {
  * headline). Render only when EVERY covered role has a known `posted_ts`;
  * otherwise "".
  */
-function buildFreshnessFact(data: Pick<CompanyPageData, "jobs" | "openCount">, nowMs: number): string {
+function buildFreshnessFact(
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
+  nowMs: number,
+): string {
   const windowMs = defaultRecencyWindowMs();
   if (windowMs == null || !sampleCoversAllRoles(data)) return "";
   const jobs = data.jobs;

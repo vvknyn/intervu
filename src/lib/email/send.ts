@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { emailKindPolicy, type EmailKind } from "./types";
 import { isSuppressed } from "./suppression";
 import { normalizeEmail } from "./normalize-email";
+import { isMintedLoginEmail } from "@/lib/auth/username-email";
 
 export interface SendEmailInput {
   to: string;
@@ -29,7 +30,7 @@ export interface SendEmailInput {
   unsubscribeUrl?: string;
 }
 
-export type SendSkipReason = "no-api-key" | "missing-from-address" | "missing-unsubscribe-url";
+export type SendSkipReason = "no-api-key" | "no-mailbox" | "missing-from-address" | "missing-unsubscribe-url";
 export type SendEmailResult =
   | { sent: true; id?: string }
   | { sent: false; reason: SendSkipReason | "suppressed" | "send-error" };
@@ -43,14 +44,27 @@ export type SendEmailResult =
  * posture); the unsubscribe-header requirement is checked before the
  * from-address so a misconfigured non-transactional send never gets as far
  * as "just needs a from address" in test output.
+ *
+ * Takes the recipient itself rather than a `isMinted` boolean the caller
+ * computes: a boolean can be passed wrong, and every caller computing it
+ * separately is how the welcome email ended up guarded while the digest —
+ * the RECURRING one — was not (caught by a dry run, 2026-08-17).
  */
 export function resolveSendPreflight(input: {
   hasApiKey: boolean;
   hasFrom: boolean;
   hasUnsubscribeUrl: boolean;
+  to: string;
   kind: EmailKind;
 }): SendSkipReason | null {
   if (!input.hasApiKey) return "no-api-key";
+  // Checked before the config branches because this is a fact about the
+  // RECIPIENT, not a misconfiguration — reporting "no mailbox exists" as
+  // "missing-from-address" would send someone to fix the wrong thing.
+  // Password signup mints <username>@intervu.cc with nothing behind it, so
+  // every send there is a hard bounce, and bounce rate is the largest
+  // single input to a sending domain's reputation.
+  if (isMintedLoginEmail(input.to)) return "no-mailbox";
   if (emailKindPolicy(input.kind).requiresUnsubscribeHeader && !input.hasUnsubscribeUrl) {
     return "missing-unsubscribe-url";
   }
@@ -82,6 +96,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     hasApiKey: resend !== null,
     hasFrom: Boolean(from),
     hasUnsubscribeUrl: Boolean(input.unsubscribeUrl),
+    to,
     kind: input.kind,
   });
   if (skip) {

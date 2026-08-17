@@ -1,15 +1,13 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import {
   deriveCompanyTechStack,
   deriveWorkModeDistribution,
   deriveCompanyFunding,
   deriveVisaIntelligence,
-  deriveCompanyLayoffInfo,
-  deriveCompanySignals,
-  deriveCompanyNews,
   resolveCompanyIntelligence,
 } from "@/lib/companies/enrichment";
+import { fetchCompanyNews } from "@/lib/companies/news";
 import type { PublicJob } from "@/lib/jobs/types";
 
 function makeTestJob(partial: Partial<PublicJob>): PublicJob {
@@ -76,65 +74,93 @@ test("deriveWorkModeDistribution computes remote, hybrid, and onsite percentages
   assert.equal(modes.onsitePct, 25);
 });
 
-test("deriveCompanyFunding resolves curated venture info for known companies", () => {
-  const stripe = deriveCompanyFunding("stripe.com", "Stripe", null);
+// Regression coverage for the fabrication removal: no domain, however
+// well-known, gets a curated funding/visa answer any more — the only
+// input that can produce a non-null result is real data (a job-listing
+// stage string, or a real visa_sponsorship flag on a real job).
+
+test("deriveCompanyFunding passes through the real job-listing stage for ANY domain, curated or not", () => {
+  // Previously "stripe.com" resolved to a hand-typed $8.7B/investor-list
+  // fixture regardless of `stage`. Now every domain is treated identically.
+  const stripe = deriveCompanyFunding("Series C");
   assert.ok(stripe !== null);
-  assert.equal(stripe.totalRaisedText, "$8.7B Total Raised");
-  assert.ok(stripe.investors.includes("Sequoia Capital"));
-  assert.ok(stripe.investors.includes("Founders Fund"));
+  assert.equal(stripe.stage, "Series C");
+  assert.equal(stripe.totalRaisedText, null);
+  assert.equal(stripe.valuationText, null);
+  assert.deepEqual(stripe.investors, []);
 
-  const openai = deriveCompanyFunding("openai.com", "OpenAI", null);
-  assert.ok(openai !== null);
-  assert.equal(openai.totalRaisedText, "$17.9B Total Raised");
-
-  const unbacked = deriveCompanyFunding("random-domain.com", "Random", "Series A");
-  assert.ok(unbacked !== null);
-  assert.equal(unbacked.stage, "Series A");
-  assert.equal(unbacked.totalRaisedText, null);
+  const randomDomain = deriveCompanyFunding("Series A");
+  assert.ok(randomDomain !== null);
+  assert.equal(randomDomain.stage, "Series A");
+  assert.equal(randomDomain.totalRaisedText, null);
 });
 
-test("deriveVisaIntelligence resolves US DOL filings for top tech employers and computes ratios", () => {
+test("deriveCompanyFunding returns null when stage is null or blank", () => {
+  assert.equal(deriveCompanyFunding(null), null);
+  assert.equal(deriveCompanyFunding(""), null);
+  assert.equal(deriveCompanyFunding("   "), null);
+});
+
+test("deriveVisaIntelligence computes a sponsorship ratio from real job flags for ANY domain", () => {
+  // Previously "stripe.com" resolved to a hand-typed 384-filing/98.6%
+  // DOL benchmark. Now h1bFilingsCount/approvalRatePct are always null —
+  // the only real signal is the ratio of this company's own listings
+  // that carry visa_sponsorship === true.
   const jobs = [makeTestJob({ visa_sponsorship: true }), makeTestJob({ visa_sponsorship: false })];
-  const visa = deriveVisaIntelligence("stripe.com", jobs);
+  const visa = deriveVisaIntelligence(jobs);
   assert.ok(visa !== null);
-  assert.equal(visa.h1bFilingsCount, 384);
-  assert.equal(visa.approvalRatePct, 98.6);
-  assert.equal(visa.permSponsored, true);
-  assert.ok(visa.topSponsoredRoles.length > 0);
-
-  const genericVisa = deriveVisaIntelligence("genericcompany.com", jobs);
-  assert.ok(genericVisa !== null);
-  assert.equal(genericVisa.sponsoredRolesRatioPct, 50);
+  assert.equal(visa.h1bFilingsCount, null);
+  assert.equal(visa.approvalRatePct, null);
+  assert.equal(visa.permSponsored, false);
+  assert.deepEqual(visa.topSponsoredRoles, []);
+  assert.equal(visa.sponsoredRolesRatioPct, 50);
 });
 
-test("deriveCompanyLayoffInfo tracks WARN act notice status", () => {
-  const stripeLayoffs = deriveCompanyLayoffInfo("stripe.com", "Stripe", [makeTestJob({})]);
-  assert.ok(stripeLayoffs !== null);
-  assert.equal(stripeLayoffs.warnNoticeCount, 0);
-  assert.equal(stripeLayoffs.riskLevel, "low");
-
-  const generic = deriveCompanyLayoffInfo("acme.com", "Acme", [makeTestJob({}), makeTestJob({}), makeTestJob({})]);
-  assert.ok(generic !== null);
-  assert.equal(generic.warnNoticeCount, 0);
+test("deriveVisaIntelligence returns null when no job on the company carries visa_sponsorship", () => {
+  const jobs = [makeTestJob({ visa_sponsorship: false }), makeTestJob({ visa_sponsorship: null })];
+  assert.equal(deriveVisaIntelligence(jobs), null);
+  assert.equal(deriveVisaIntelligence([]), null);
 });
 
-test("deriveCompanyNews surfaces curated press coverage and fallback ATS news", () => {
-  const openaiNews = deriveCompanyNews("openai.com", "OpenAI", "Late Stage", [makeTestJob({})]);
-  assert.ok(openaiNews.length >= 2);
-  assert.ok(openaiNews.some((n) => n.source === "TechCrunch" || n.source === "Bloomberg"));
-
-  const fallbackNews = deriveCompanyNews("random.com", "Random", "Seed", [makeTestJob({})]);
-  assert.ok(fallbackNews.length >= 1);
+test("resolveCompanyIntelligence for a company with zero jobs, no stage, and no news returns the honest-empty shape", () => {
+  const intel = resolveCompanyIntelligence([], null, []);
+  assert.deepEqual(intel, {
+    funding: null,
+    visa: null,
+    techStack: null,
+    workModes: null,
+    news: [],
+  });
 });
 
-test("resolveCompanyIntelligence integrates all pillars cleanly", () => {
+test("resolveCompanyIntelligence passes real news articles through untouched", () => {
   const jobs = [makeTestJob({})];
-  const intel = resolveCompanyIntelligence("stripe.com", "Stripe", jobs, "Late Stage");
-  assert.ok(intel.funding !== null);
-  assert.ok(intel.visa !== null);
-  assert.ok(intel.techStack !== null);
-  assert.ok(intel.workModes !== null);
-  assert.ok(intel.layoffs !== null);
-  assert.ok(intel.signals.length > 0);
-  assert.ok(intel.news.length > 0);
+  const news = [
+    {
+      title: "Acme raises Series C",
+      url: "https://example.com/acme-series-c",
+      summary: "A real article summary.",
+      publisher: "Example Wire",
+      published_at: "2026-08-01",
+      is_funding_event: true,
+      confidence: "high" as const,
+    },
+  ];
+  const intel = resolveCompanyIntelligence(jobs, "Series C", news);
+  assert.equal(intel.funding?.stage, "Series C");
+  assert.deepEqual(intel.news, news);
+});
+
+test("fetchCompanyNews fails soft to [] on a non-2xx response (e.g. the endpoint not deployed yet)", async () => {
+  const prevKey = process.env.SUBSPACE_API_KEY;
+  process.env.SUBSPACE_API_KEY = "test-key";
+  mock.method(globalThis, "fetch", async () => ({ ok: false, status: 404 }) as Response);
+
+  try {
+    const articles = await fetchCompanyNews("acme.com");
+    assert.deepEqual(articles, []);
+  } finally {
+    mock.reset();
+    process.env.SUBSPACE_API_KEY = prevKey;
+  }
 });
