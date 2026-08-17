@@ -726,7 +726,13 @@ export function JobDetail({
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
                                         <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-[11px]", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : "—"}
+                                            {/* Three glyphs for three states. The meter above already
+                                                excludes unknowns from the ratio and labels them
+                                                "· N not tracked", but the ROW still marked them with the
+                                                same "—" as a real negative — so a reader scanning the
+                                                column tallied our missing data as findings against the
+                                                employer, which is the misread the ratio fix was for. */}
+                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—"}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
                                             <b className="font-mono text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
