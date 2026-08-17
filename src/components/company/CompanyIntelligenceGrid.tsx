@@ -9,6 +9,8 @@ import {
   CheckCircle,
   Newspaper,
   ArrowUpRight,
+  ShieldCheck,
+  ShieldWarning,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 
@@ -24,11 +26,11 @@ export function CompanyIntelligenceGrid({
   className,
 }: CompanyIntelligenceGridProps) {
   if (!intelligence) return null;
-  const { funding, visa, techStack, workModes, signals, news } = intelligence;
+  const { funding, visa, techStack, workModes, layoffs, signals, news } = intelligence;
 
   // If no intelligence data is available at all, return null gracefully
   const hasAnyData = Boolean(
-    funding || visa || techStack || workModes || signals.length > 0 || (news && news.length > 0),
+    funding || visa || techStack || workModes || layoffs || signals.length > 0 || (news && news.length > 0),
   );
   if (!hasAnyData) return null;
 
@@ -71,9 +73,20 @@ export function CompanyIntelligenceGrid({
                 </div>
               )}
 
-              {funding?.valuationText && (
+            {funding?.valuationText && (
                 <div className="mt-1.5 font-mono text-[13px] font-medium text-muted-foreground">
                   {funding.valuationText}
+                </div>
+              )}
+
+              {layoffs && (
+                <div className="mt-3.5 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11.5px] text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" weight="fill" />
+                  <span className="font-mono font-medium">
+                    {layoffs.warnNoticeCount === 0
+                      ? "Zero WARN Notices Filed · Low Layoff Risk"
+                      : `${layoffs.warnNoticeCount} Layoff Filings Recorded`}
+                  </span>
                 </div>
               )}
             </div>
@@ -98,9 +111,9 @@ export function CompanyIntelligenceGrid({
           </div>
 
           <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
-            {funding?.investors?.length
+            {layoffs?.summary || (funding?.investors?.length
               ? "Verified venture & institutional backing"
-              : "Financial health screened via career activity"}
+              : "Financial health screened via career activity")}
           </div>
         </div>
 

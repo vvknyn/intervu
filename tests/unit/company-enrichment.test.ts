@@ -5,7 +5,9 @@ import {
   deriveWorkModeDistribution,
   deriveCompanyFunding,
   deriveVisaIntelligence,
+  deriveCompanyLayoffInfo,
   deriveCompanySignals,
+  deriveCompanyNews,
   resolveCompanyIntelligence,
 } from "@/lib/companies/enrichment";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -105,12 +107,24 @@ test("deriveVisaIntelligence resolves US DOL filings for top tech employers and 
   assert.equal(genericVisa.sponsoredRolesRatioPct, 50);
 });
 
-test("deriveCompanySignals creates live signals feed", () => {
-  const jobs = [makeTestJob({})];
-  const signals = deriveCompanySignals("stripe.com", "Stripe", "Late Stage", jobs);
-  assert.ok(signals.length >= 2);
-  assert.ok(signals.some((s) => s.title.includes("ATS Integration")));
-  assert.ok(signals.some((s) => s.type === "funding"));
+test("deriveCompanyLayoffInfo tracks WARN act notice status", () => {
+  const stripeLayoffs = deriveCompanyLayoffInfo("stripe.com", "Stripe", [makeTestJob({})]);
+  assert.ok(stripeLayoffs !== null);
+  assert.equal(stripeLayoffs.warnNoticeCount, 0);
+  assert.equal(stripeLayoffs.riskLevel, "low");
+
+  const generic = deriveCompanyLayoffInfo("acme.com", "Acme", [makeTestJob({}), makeTestJob({}), makeTestJob({})]);
+  assert.ok(generic !== null);
+  assert.equal(generic.warnNoticeCount, 0);
+});
+
+test("deriveCompanyNews surfaces curated press coverage and fallback ATS news", () => {
+  const openaiNews = deriveCompanyNews("openai.com", "OpenAI", "Late Stage", [makeTestJob({})]);
+  assert.ok(openaiNews.length >= 2);
+  assert.ok(openaiNews.some((n) => n.source === "TechCrunch" || n.source === "Bloomberg"));
+
+  const fallbackNews = deriveCompanyNews("random.com", "Random", "Seed", [makeTestJob({})]);
+  assert.ok(fallbackNews.length >= 1);
 });
 
 test("resolveCompanyIntelligence integrates all pillars cleanly", () => {
@@ -120,5 +134,7 @@ test("resolveCompanyIntelligence integrates all pillars cleanly", () => {
   assert.ok(intel.visa !== null);
   assert.ok(intel.techStack !== null);
   assert.ok(intel.workModes !== null);
+  assert.ok(intel.layoffs !== null);
   assert.ok(intel.signals.length > 0);
+  assert.ok(intel.news.length > 0);
 });

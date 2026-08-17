@@ -48,11 +48,29 @@ export interface CompanyNewsArticle {
   url?: string;
 }
 
+export interface CompanyLayoffNotice {
+  date: string;
+  impactedCount: number | null;
+  details: string;
+  noticeType: string;
+  location?: string;
+}
+
+export interface CompanyLayoffInfo {
+  hasRecentLayoffs: boolean;
+  riskLevel: "low" | "moderate" | "elevated";
+  warnNoticeCount: number;
+  lastFiledDate: string | null;
+  recentNotices: CompanyLayoffNotice[];
+  summary: string;
+}
+
 export interface CompanyIntelligence {
   funding: CompanyFundingInfo | null;
   visa: CompanyVisaInfo | null;
   techStack: CompanyTechStackInfo | null;
   workModes: CompanyWorkModesInfo | null;
+  layoffs: CompanyLayoffInfo | null;
   signals: CompanySignalItem[];
   news: CompanyNewsArticle[];
 }
