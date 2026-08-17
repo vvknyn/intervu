@@ -24,6 +24,7 @@
  * "ATS portal hostname" case `displayCompany` exists to strip.
  */
 import { getJobById } from "@/lib/jobs/get-job";
+import { displayCompany } from "@/lib/jobs/presentation";
 import { listPursuitsForUser } from "@/lib/pursuits/list";
 import type { FollowTarget } from "@/lib/follows/list-new-roles";
 
@@ -69,7 +70,12 @@ export function selectTrackedCompanies(input: {
     if (picked.size >= cap) break;
     const domain = candidate.domain ? normalizeDomain(candidate.domain) : "";
     if (!domain || excluded.has(domain) || picked.has(domain)) continue;
-    picked.set(domain, { domain, displayName: candidate.displayName?.trim() || domain });
+    // `displayCompany`, not a bare `name || domain`: a listing's company
+    // field is external data and is sometimes an ATS portal hostname or a
+    // bare domain placeholder, which that function already knows how to
+    // repair against the domain. Reusing it keeps the digest's labels
+    // consistent with what /jobs and /co render for the same company.
+    picked.set(domain, { domain, displayName: displayCompany(candidate.displayName, domain) || domain });
   }
 
   return [...picked.values()];

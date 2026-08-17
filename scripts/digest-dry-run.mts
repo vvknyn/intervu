@@ -8,7 +8,7 @@
  * the E4 requirement: ship the endpoint + this script, no cron wired yet —
  * Vivek reviews real output here before anything runs on a schedule.
  *
- *   npx tsx scripts/digest-dry-run.ts --uid=<firebase-uid>
+ *   npx tsx scripts/digest-dry-run.mts --uid=<firebase-uid>
  *
  * Needs Firebase admin creds + a working jobs search backend. Reads
  * .env.local the same manual way scripts/apply-synonyms.mjs does (this
@@ -32,7 +32,7 @@ try {
 const uidArg = process.argv.find((a) => a.startsWith("--uid="));
 const uid = uidArg?.slice("--uid=".length);
 if (!uid) {
-    console.error("Usage: npx tsx scripts/digest-dry-run.ts --uid=<firebase-uid>");
+    console.error("Usage: npx tsx scripts/digest-dry-run.mts --uid=<firebase-uid>");
     process.exit(1);
 }
 

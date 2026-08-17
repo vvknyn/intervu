@@ -68,12 +68,27 @@ describe("selectTrackedCompanies", () => {
         assert.deepEqual(picked, []);
     });
 
-    it("labels with the domain when the listing carries no company name", () => {
+    // Falls back through `displayCompany`, the same rule /jobs and /co
+    // render with — so a nameless listing yields the humanized company
+    // rather than a raw hostname in someone's inbox.
+    it("derives a label from the domain when the listing carries no company name", () => {
         const picked = selectTrackedCompanies({
             candidates: [candidate("stripe.com", null), candidate("plaid.com", "   ")],
             excludeDomains: [],
         });
-        assert.deepEqual(picked.map((p) => p.displayName), ["stripe.com", "plaid.com"]);
+        assert.deepEqual(picked.map((p) => p.displayName), ["Stripe", "Plaid"]);
+    });
+
+    // The reason the fallback goes through `displayCompany` at all: a
+    // listing's company field is external data and sometimes arrives as the
+    // ATS portal hostname or a bare domain placeholder. Repairing it here
+    // costs nothing; shipping it means an email headed "boards.greenhouse.io".
+    it("repairs a company field that is really an ATS hostname", () => {
+        const picked = selectTrackedCompanies({
+            candidates: [candidate("stripe.com", "boards.greenhouse.io")],
+            excludeDomains: [],
+        });
+        assert.doesNotMatch(picked[0]!.displayName, /greenhouse/i);
     });
 
     it("caps how many companies the lane contributes", () => {
