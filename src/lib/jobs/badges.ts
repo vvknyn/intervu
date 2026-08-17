@@ -60,13 +60,24 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  * "✓ verified", a verification claim about a check that never ran. Same
  * honesty ladder `badgeFor` above encodes, in chip-sized vocabulary:
  *   caution/likely_ghost → "review"
- *   clear + current check → "verified" (checkFreshness, the shared boundary)
+ *   clear + current check → "clear" (checkFreshness, the shared boundary)
  *   clear + stale check   → "checked" (past tense — the data can't back a
  *                           present-tense claim; see STALE_CLEAR_META)
  *   unscored              → null, NO chip (never fabricate a state — the
  *                           same contract badgeFor's `unscored → null` keeps)
+ *
+ * "verified" is gone (2026-08-16, Vivek). `ghost_badge === "clear"` means the
+ * ghost screen ran and flagged nothing — `GHOST_META.clear.label` has always
+ * said exactly that, "No ghost signals". The row translated the identical
+ * state into a verification claim, so a reader saw "✓ VERIFIED" on a row
+ * whose own detail panel itemised its evidence as thin. Nothing in this
+ * codebase verifies that a posting is genuine; claiming it is the one thing
+ * a job board must not do (the same rule that keeps `unscored` chip-less).
+ * The chip now renders `GHOST_META.clear.label` verbatim at the call site
+ * rather than a second word for the same state, so the row and the detail
+ * panel are one vocabulary by construction and not by review discipline.
  */
-export type RowTrustChip = "review" | "verified" | "checked";
+export type RowTrustChip = "review" | "clear" | "checked";
 
 export function rowTrustChip(
     ghostBadge: GhostBadge,
@@ -78,7 +89,7 @@ export function rowTrustChip(
         case "likely_ghost":
             return "review";
         case "clear":
-            return checkFreshness(updatedAt, nowMs) === "fresh" ? "verified" : "checked";
+            return checkFreshness(updatedAt, nowMs) === "fresh" ? "clear" : "checked";
         case "unscored":
         default:
             return null;

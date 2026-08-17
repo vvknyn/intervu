@@ -410,11 +410,13 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // disclosure lives in JobDetail's ghost module (`ghostCheckedText`) now,
     // not the SERP row — this asserts the row badge that's actually there
     // instead. The squared design-system pass (Task 4) dropped the tinted
-    // "verified" pill for a quiet "✓ verified" text pair — the regex below
-    // matches that literal text instead of the old bare "verified".
+    // pill for a quiet text pair; the word itself changed from "verified" to
+    // `GHOST_META.clear.label` on 2026-08-16 (see `rowTrustChip`'s doc
+    // comment — the row was claiming verification for a screen that only
+    // reports the absence of ghost signals).
     test("clear rows carry a trust verdict badge", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(page.getByText(/^(✓ verified|review)$/i).first()).toBeVisible();
+        await expect(page.getByText(/^(✓ no ghost signals|review)$/i).first()).toBeVisible();
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted

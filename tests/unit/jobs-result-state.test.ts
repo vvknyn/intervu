@@ -380,6 +380,7 @@ describe('resolveEmptySearchState', () => {
             hasQuery: false,
             fitActive: false,
             activeFilterCount: 0,
+            hasCorpusScope: false,
             ...overrides,
         };
     }
@@ -397,6 +398,23 @@ describe('resolveEmptySearchState', () => {
 
     it('no query, no filters — the plain first-screen overlay', () => {
         assert.equal(resolveEmptySearchState(input()), 'overlay-ask');
+    });
+
+    // Regression, measured locally 2026-08-16: "overlay-ask" is the one state
+    // page.tsx serves from the CACHED, fixed-shape `getDefaultBrowseAction`,
+    // which cannot carry the caller's params. A scoped visit that landed there
+    // rendered the whole corpus (721,946 roles) beneath an "EMPLOYER
+    // harrods.com" chip. Any corpus narrowing must therefore route through the
+    // params-carrying fetch, whether it came from a company link or a board.
+    it('a corpus scope with no query never lands on the cached default browse', () => {
+        assert.equal(resolveEmptySearchState(input({ hasCorpusScope: true })), 'serp-ask');
+    });
+
+    it('a corpus scope still yields to a real query', () => {
+        assert.equal(
+            resolveEmptySearchState(input({ hasCorpusScope: true, hasQuery: true })),
+            'results',
+        );
     });
 
     it('filters-only (no query) — SERP-ask, not the full-screen overlay', () => {

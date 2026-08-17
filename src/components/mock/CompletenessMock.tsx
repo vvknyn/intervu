@@ -518,7 +518,7 @@ function MockJobDetail({
                             <div className="mono-data mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 text-[12px] sm:grid-cols-2">
                                 {ghostSignals.map((s) => (
                                     <span key={s.text}>
-                                        {s.positive ? "✓ " : "— "}
+                                        {s.status === "favorable" ? "✓ " : "— "}
                                         {s.text}
                                     </span>
                                 ))}

@@ -59,6 +59,7 @@ import {
     seamSummarySorted,
     prettyEnum,
     ghostMetaFor,
+    GHOST_META,
 } from "@/lib/jobs/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
@@ -501,9 +502,13 @@ function JobCard({
                         review
                     </span>
                 )}
-                {trust === "verified" && (
+                {trust === "clear" && (
                     <span className="leading-none inline-flex items-center gap-1 rounded-md border border-emerald-300/90 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        <span aria-hidden className="font-extrabold text-emerald-600 dark:text-emerald-400">✓</span> verified
+                        {/* `GHOST_META.clear.label`, not a second word for the same
+                            state — see `rowTrustChip`'s doc comment for why the row
+                            no longer says "verified". */}
+                        <span aria-hidden className="font-extrabold text-emerald-600 dark:text-emerald-400">✓</span>{" "}
+                        {GHOST_META.clear!.label}
                     </span>
                 )}
                 {trust === "checked" && (
@@ -1433,6 +1438,7 @@ function JobsContent() {
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
+        hasCorpusScope: Boolean(scope.board || scope.companyDomain),
     });
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain;
 
