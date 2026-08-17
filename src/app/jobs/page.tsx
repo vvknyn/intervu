@@ -38,6 +38,7 @@ import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
+import { LaunchBanner } from "@/components/jobs/LaunchBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -3009,6 +3010,8 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
+
+                <LaunchBanner />
 
                 {/* Clean, authoritative search header */}
                 <header className="pb-3 pt-2">
