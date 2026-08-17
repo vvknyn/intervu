@@ -15,6 +15,7 @@ import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
+import { getJobById } from "@/lib/jobs/get-job";
 import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
@@ -469,6 +470,11 @@ export async function jobsBackendStatusAction(): Promise<{
   note: string;
 }> {
   return getJobsBackendStatus();
+}
+
+/** Fetch a single job by id. */
+export async function getJobByIdAction(id: string): Promise<PublicJob | null> {
+  return getJobById(id);
 }
 
 /**

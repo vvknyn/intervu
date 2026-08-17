@@ -405,6 +405,9 @@ export function JobDetail({
     const firstSeenRelative =
         freshness.firstSeenMs != null ? formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), now) : null;
     const [descExpanded, setDescExpanded] = useState(false);
+    useEffect(() => {
+        setDescExpanded(false);
+    }, [job.id]);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall.
@@ -772,8 +775,9 @@ export function JobDetail({
                             </div>
                             {collapsible && (
                                 <button
+                                    type="button"
                                     onClick={() => setDescExpanded((v) => !v)}
-                                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                                    className="mt-2 text-xs font-medium text-brand hover:underline cursor-pointer"
                                 >
                                     {descExpanded ? "Show less" : "Show full description"}
                                 </button>
@@ -856,7 +860,16 @@ export function JobDetail({
                         </div>
                         {cleanedCompany && (
                             <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
-                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)}>Company page →</Link>
+                                <Link
+                                    href={jobCompanyHref(cleanedCompany, job.company_domain)}
+                                    onClick={() => {
+                                        if (onClose) {
+                                            onClose();
+                                        }
+                                    }}
+                                >
+                                    Company page →
+                                </Link>
                             </Button>
                         )}
                     </div>

@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { X } from "@phosphor-icons/react";
+import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 /** Rendered-list cap — both the default (no-query) preview and a search
@@ -124,6 +126,27 @@ export function CompanyRoleSearch({
       document.body.style.overflow = "";
     };
   }, [selectedJob, handleKeyDown]);
+
+  const handleOpenRelated = useCallback(
+    async (jobId: string) => {
+      const found = jobs.find((j) => j.id === jobId);
+      if (found) {
+        setSelectedJob(found);
+        return;
+      }
+      try {
+        const fetched = await getJobByIdAction(jobId);
+        if (fetched) {
+          setSelectedJob(fetched);
+        } else {
+          toast.error("Could not load job details");
+        }
+      } catch {
+        toast.error("Could not load job details");
+      }
+    },
+    [jobs],
+  );
 
   return (
     <section data-testid="company-role-search">
@@ -264,7 +287,11 @@ export function CompanyRoleSearch({
             </div>
 
             {/* Public Job Detail Content */}
-            <PublicJobDetail job={selectedJob} />
+            <PublicJobDetail
+              job={selectedJob}
+              onClose={() => setSelectedJob(null)}
+              onOpenRelated={handleOpenRelated}
+            />
           </div>
         </div>
       )}

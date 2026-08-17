@@ -10,30 +10,16 @@ import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 
+export interface PublicJobDetailProps {
+    job: PublicJob;
+    onClose?: () => void;
+    onOpenRelated?: (jobId: string) => void;
+}
+
 /**
- * Client-side wiring for `JobDetail` on the standalone `/jobs/[slug]` page.
- * The route itself is a server component and can't hand `JobDetail`
- * function props (Apply/Save handlers) across the RSC boundary, so this
- * thin wrapper supplies them. It renders no body UI of its own — everything
- * still comes from `JobDetail` (writing-lean-code: do not fork a second
- * detail component).
- *
- * `signedIn` is forced `true` here regardless of the visitor's real auth
- * state. On the board (`/jobs`), `JobDetail`'s `!signedIn` branch hides the
- * ghost-verdict module, exposure badges, and company-intel rail behind a
- * truncated preview + sign-in CTA (G4 guest gate) — correct there, where the
- * visitor is already inside the product. This route's entire purpose is the
- * opposite (spec §6): the verdict/exposure content is what a crawler or a
- * shared link is supposed to see, and Googlebot never carries a session. So
- * this page always shows the full body and gates only the real mutations
- * (apply / save) on the actual signed-in state below, through the same pure
- * `resolveApplyGateDecision` the board itself uses — one gate decision, not
- * a second one reimplemented here.
+ * Client-side wiring for `JobDetail` on standalone or modal job views.
  */
-export function PublicJobDetail({ job }: { job: PublicJob }) {
-    // Single clock read for this component's lifetime — JobDetail derives
-    // relative ages from it during render, where a fresh Date.now() would be
-    // the impure-render call react-hooks/purity flags.
+export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetailProps) {
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
     const pathname = usePathname();
@@ -43,8 +29,6 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
         router.push(`/login?next=${encodeURIComponent(pathname)}`);
     };
 
-    // ITEM O-FE (2026-08-15) — same probe `/jobs` runs; the flags endpoint
-    // isn't deployed yet, so this defaults to hidden.
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
         let cancelled = false;
@@ -60,6 +44,14 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
         };
     }, []);
 
+    const handleOpenRelated = (jobId: string) => {
+        if (onOpenRelated) {
+            onOpenRelated(jobId);
+        } else {
+            router.push(`/jobs?job=${encodeURIComponent(jobId)}`);
+        }
+    };
+
     return (
         <JobDetail
             job={job}
@@ -68,13 +60,13 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
             pursuit={undefined}
             goingAfter={goingAfter}
             reportJobEnabled={reportJobEnabled}
+            onClose={onClose}
+            onOpenRelated={handleOpenRelated}
             onRequestSignIn={requireAuth}
             onOpenPosting={() => {
-                if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
-                    requireAuth();
-                    return;
+                if (job.apply_url) {
+                    window.open(job.apply_url, "_blank", "noopener,noreferrer");
                 }
-                if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
             }}
             onGoAfter={() => {
                 if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
