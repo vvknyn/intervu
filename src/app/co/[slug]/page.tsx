@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
   buildCompanyHiringAnswer,

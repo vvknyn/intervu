@@ -210,9 +210,9 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
     assert.equal(parsed.postedBucket, undefined);
   });
 
-  it("carries no location_country facet — a derived facet on unverified corpus values fails CLOSED, not open (measured live: 5 real Leogy rows -> 0)", () => {
+  it("carries country=any to suppress regional IP defaults for worldwide company search", () => {
     const url = buildCompanyJobsUrl(company({ name: "Multinational Co" }));
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
-    assert.equal(parsed.facets.location_country, undefined);
+    assert.deepEqual(parsed.facets.location_country, ["any"]);
   });
 });

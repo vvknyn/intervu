@@ -106,6 +106,7 @@ export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "name">): string
     ...DEFAULT_URL_STATE,
     q: data.name,
     postedBucket: undefined,
+    facets: { location_country: ["any"] },
   })}`;
 }
 

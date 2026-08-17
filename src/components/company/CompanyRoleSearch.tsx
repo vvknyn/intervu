@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { X } from "@phosphor-icons/react";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
@@ -68,13 +70,9 @@ function roleCountLabel(
 /**
  * Filter-in-place box over this company's already-fetched roles (`jobs` —
  * server-fetched once, up to `COMPANY_JOBS_FETCH_LIMIT`) plus the roles list
- * that used to render unconditionally in `page.tsx`. Moved here as one unit
- * because the heading's count line and the footer CTA both need to react to
- * the same filter state the input owns.
+ * that used to render unconditionally in `page.tsx`.
  *
- * No debounce: the data is already local, filtering 200 rows is trivial, and
- * a debounced local filter is a delay with no upstream request behind it to
- * justify it (standard filter-within-results pattern, ui-patterns.com).
+ * When a user opens any role, it displays in a rich modal in-place without navigating away.
  */
 export function CompanyRoleSearch({
   jobs,
@@ -99,14 +97,36 @@ export function CompanyRoleSearch({
   jobsSearchUrl: string;
 }) {
   const [query, setQuery] = useState("");
+  const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
+
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
 
   const matched = hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs;
   const displayed = matched.slice(0, ROLES_PREVIEW);
 
+  // Close modal on Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setSelectedJob(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedJob) {
+      window.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [selectedJob, handleKeyDown]);
+
   return (
-    <section>
+    <section data-testid="company-role-search">
       <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
         Open roles
         {jobs.length > 0 && (
@@ -162,13 +182,16 @@ export function CompanyRoleSearch({
             const ghost = roleGhostLine(job);
             return (
               <li key={job.id}>
-                <Link
-                  href={`/jobs?job=${encodeURIComponent(job.id)}`}
-                  className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:border-border-strong"
+                <button
+                  type="button"
+                  onClick={() => setSelectedJob(job)}
+                  className="w-full text-left flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <CompanyLogo domain={companyDomain} name={companyName} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
+                    <div className="text-[15px] font-semibold text-foreground group-hover:text-brand transition-colors">
+                      {decodeText(job.title)}
+                    </div>
                     <div className="mt-1 font-mono text-xs text-muted-foreground">
                       {roleMeta(job)}
                     </div>
@@ -186,10 +209,10 @@ export function CompanyRoleSearch({
                       </div>
                     )}
                   </div>
-                  <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
-                    →
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground group-hover:text-brand group-hover:translate-x-0.5 transition-all" aria-hidden>
+                    View role →
                   </span>
-                </Link>
+                </button>
               </li>
             );
           })}
@@ -211,6 +234,38 @@ export function CompanyRoleSearch({
               View all {openCountLabel} jobs →
             </Link>
           </Button>
+        </div>
+      )}
+
+      {/* ── JOB DETAILS MODAL (IN-PLACE WITHOUT NAVIGATING AWAY) ── */}
+      {selectedJob && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={selectedJob.title}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedJob(null);
+            }
+          }}
+        >
+          <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-border bg-card shadow-2xl p-4 sm:p-8 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <div className="sticky top-0 z-20 -mt-2 -mr-2 mb-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedJob(null)}
+                aria-label="Close job details"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+              >
+                <X size={18} weight="bold" />
+              </button>
+            </div>
+
+            {/* Public Job Detail Content */}
+            <PublicJobDetail job={selectedJob} />
+          </div>
         </div>
       )}
     </section>
