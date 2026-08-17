@@ -180,3 +180,41 @@ test("fetchCompanyEvents asks the API for a bounded number of events", async () 
     assert.match(requested, /\/companies\/acme\.com\/events\?limit=\d+$/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Evidence passthrough — the numbers must survive the client
+// ---------------------------------------------------------------------------
+
+test("fetchCompanyEvents carries the evidence through to the page", async () => {
+  // The regression this guards: the claim reached the page and its proof did
+  // not. harrods.com's stored title is bare ("hiring is accelerating"); every
+  // number backing it arrives in `evidence`.
+  await withKey(async () => {
+    const evidence = {
+      metrics: [
+        { label: "Postings", value: "44 new roles in 14 days, vs 13 in the 14 before" },
+        { label: "Pace", value: "3.4x the prior pace" },
+      ],
+      window: { start: "2026-05-14", end: "2026-06-11" },
+      sourceUrl: null,
+      provenance: "measured from postings we track",
+    };
+    mock.method(globalThis, "fetch", async () =>
+      envelope([event({ event_type: "hiring_surge", headline: "hiring is accelerating", evidence })]),
+    );
+    const events = await fetchCompanyEvents("harrods.com");
+    assert.equal(events.length, 1);
+    assert.deepEqual(events[0].evidence, evidence);
+  });
+});
+
+test("fetchCompanyEvents still renders an event from an API build with no evidence field", async () => {
+  // The field is optional on purpose: the two repos deploy separately, and a
+  // company page must not go blank because the API is one release behind.
+  await withKey(async () => {
+    mock.method(globalThis, "fetch", async () => envelope([event()]));
+    const events = await fetchCompanyEvents("acme.com");
+    assert.equal(events.length, 1);
+    assert.equal(events[0].evidence, undefined);
+  });
+});

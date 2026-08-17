@@ -60,6 +60,25 @@ export interface CompanyChangeEvent {
   /** ISO-8601 — when the underlying change occurred, not when we saw it. */
   occurred_at: string;
   confidence: number | null;
+  /**
+   * The facts that BACK the headline, read out of the event's payload by the
+   * API. Optional because a company page must still render against an older
+   * API build that predates it — but a card with no evidence is a claim with
+   * no proof, which is the whole reason this field exists.
+   */
+  evidence?: CompanyChangeEventEvidence | null;
+}
+
+/** Display-ready proof for one change-event. Mirrors the API's `evidence`. */
+export interface CompanyChangeEventEvidence {
+  /** Stats backing the claim, e.g. "44 new roles in 14 days, vs 13 in the 14 before". */
+  metrics: { label: string; value: string }[];
+  /** The window the claim was measured over — calendar dates, not timestamps. */
+  window: { start: string; end: string } | null;
+  /** A citable external source (SEC EDGAR, a state WARN portal). */
+  sourceUrl: string | null;
+  /** Where the observation came from, in plain words. */
+  provenance: string | null;
 }
 
 export interface CompanyIntelligence {
