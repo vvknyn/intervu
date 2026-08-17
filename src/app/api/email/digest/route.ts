@@ -1,7 +1,7 @@
 /**
  * POST /api/email/digest/run — the digest endpoint the brief asks for.
  * Deliberately NOT wired to a cron in this PR (Vivek reviews real dry-run
- * output first — see scripts/digest-dry-run.mjs — before anything triggers
+ * output first — see scripts/digest-dry-run.mts — before anything triggers
  * this on a schedule). `EMAIL_DIGEST_CRON_SECRET` absent means this route
  * always 503s: an unauthenticated bulk-send trigger sitting on the public
  * internet is not a state this endpoint should ever be reachable in.

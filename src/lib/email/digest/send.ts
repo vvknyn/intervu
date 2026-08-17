@@ -1,19 +1,20 @@
 /**
  * The digest's thin sender. `previewDigestForUser` does everything up to
  * "here's the exact email" without ever calling `sendEmail` or advancing
- * the cursor — that's what `scripts/digest-dry-run.mjs` calls, so a dry
+ * the cursor — that's what `scripts/digest-dry-run.mts` calls, so a dry
  * run is a real code path, not a separate reimplementation that could
  * silently drift from what actually gets sent.
  */
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { getSiteUrl } from "@/lib/seo/constants";
+import { isMintedLoginEmail } from "@/lib/auth/username-email";
 import { signUnsubscribeToken } from "../unsubscribe-token";
 import { sendEmail, type SendEmailResult } from "../send";
 import { buildDigestEmail } from "../templates/digest";
 import { setDigestCursor } from "../digest-cursor";
 import { collectDigestForUser } from "./collect";
 
-export type DigestSkipReason = "no-email" | "no-new-items" | "missing-unsubscribe-url";
+export type DigestSkipReason = "no-email" | "no-mailbox" | "no-new-items" | "missing-unsubscribe-url";
 
 export interface DigestPreview {
   email: string;
@@ -31,6 +32,13 @@ export async function previewDigestForUser(uid: string): Promise<DigestPreviewRe
     .catch(() => null);
   const email = user?.email;
   if (!email) return { skipped: "no-email" };
+  // `sendEmail` refuses these anyway (`resolveSendPreflight` -> "no-mailbox"),
+  // so this is cost, not correctness: collecting a digest is a Meilisearch
+  // query per followed/tracked company plus one per saved search, and there
+  // is no reason to spend that assembling an email for an address that has
+  // no mailbox. A dry run on 2026-08-17 found a minted address at the top of
+  // the eligible set doing exactly that.
+  if (isMintedLoginEmail(email)) return { skipped: "no-mailbox" };
 
   const token = signUnsubscribeToken(email, "digest");
   if (!token) return { skipped: "missing-unsubscribe-url" };

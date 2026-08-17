@@ -16,6 +16,13 @@ import type { UnsubscribeScope } from "@/lib/email/unsubscribe-token";
 const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     digest: "the weekly digest",
     waitlist_confirm: "waitlist confirmations",
+    // Unreachable from the welcome email's own footer, which deliberately
+    // signs an "all"-scoped token instead (see lib/email/welcome.ts — a
+    // kind-scoped opt-out on a one-shot email would silently leave the
+    // digest running). Required all the same: `UnsubscribeScope` covers
+    // every `EmailKind`, and this Record is what makes a new kind a compile
+    // error here rather than an empty sentence on the confirmation page.
+    welcome: "introduction emails",
     transactional: "account emails",
     all: "all intervu emails",
 };
