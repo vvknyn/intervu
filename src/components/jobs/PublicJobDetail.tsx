@@ -13,7 +13,7 @@ import { toast } from "@/lib/toast";
 export interface PublicJobDetailProps {
     job: PublicJob;
     onClose?: () => void;
-    onOpenRelated?: (jobId: string) => void;
+    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
 }
 
 /**
@@ -44,9 +44,9 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
         };
     }, []);
 
-    const handleOpenRelated = (jobId: string) => {
+    const handleOpenRelated = (jobId: string, relatedJob?: PublicJob) => {
         if (onOpenRelated) {
-            onOpenRelated(jobId);
+            onOpenRelated(jobId, relatedJob);
         } else {
             router.push(`/jobs?job=${encodeURIComponent(jobId)}`);
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { X } from "@phosphor-icons/react";
 import { getJobByIdAction } from "@/actions/jobs";
@@ -127,17 +127,26 @@ export function CompanyRoleSearch({
     };
   }, [selectedJob, handleKeyDown]);
 
+  const modalScrollRef = useRef<HTMLDivElement>(null);
+
   const handleOpenRelated = useCallback(
-    async (jobId: string) => {
+    async (jobId: string, directJob?: PublicJob) => {
+      if (directJob) {
+        setSelectedJob(directJob);
+        modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       const found = jobs.find((j) => j.id === jobId);
       if (found) {
         setSelectedJob(found);
+        modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
       try {
         const fetched = await getJobByIdAction(jobId);
         if (fetched) {
           setSelectedJob(fetched);
+          modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           toast.error("Could not load job details");
         }
@@ -273,7 +282,7 @@ export function CompanyRoleSearch({
             }
           }}
         >
-          <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-border bg-card shadow-2xl p-4 sm:p-8 animate-in zoom-in-95 duration-200">
+          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-border bg-card shadow-2xl p-4 sm:p-8 animate-in zoom-in-95 duration-200">
             {/* Close Button */}
             <div className="sticky top-0 z-20 -mt-2 -mr-2 mb-2 flex justify-end">
               <button

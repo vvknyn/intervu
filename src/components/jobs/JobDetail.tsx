@@ -320,10 +320,14 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
         <button
             type="button"
             data-testid="related-job-row"
-            onClick={onClick}
-            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-slate-400 hover:shadow-2xs dark:border-slate-700 dark:bg-slate-900/60"
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick();
+            }}
+            className="flex w-full flex-col gap-0.5 rounded-xl border border-slate-300/80 bg-card px-3.5 py-2.5 text-left transition-all hover:border-brand hover:bg-chip/50 hover:shadow-xs dark:border-slate-700 dark:bg-slate-900/60 cursor-pointer group"
         >
-            <span className="truncate text-[13px] font-semibold text-foreground">{decodeText(job.title)}</span>
+            <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-[11px] text-muted-foreground">
                 {displayCompany(job.company, job.company_domain) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
@@ -378,11 +382,8 @@ export function JobDetail({
     variants?: PublicJob[];
     onClose?: () => void;
     className?: string;
-    /** A2 — "More like this" row click. Absent (rather than defaulted to a
-     *  no-op) reads as "no related panel" — see the render guard below —
-     *  since a caller that truly can't open a job (none exists here) should
-     *  never render rows that silently do nothing on click. */
-    onOpenRelated?: (jobId: string) => void;
+    /** A2 — "More like this" row click. */
+    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
 }) {
     const staleCheck = checkFreshness(job.updated_at, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -889,7 +890,7 @@ export function JobDetail({
                                     key={r.id}
                                     job={r}
                                     now={now}
-                                    onClick={() => onOpenRelated?.(r.id)}
+                                    onClick={() => onOpenRelated?.(r.id, r)}
                                 />
                             ))}
                         </div>
