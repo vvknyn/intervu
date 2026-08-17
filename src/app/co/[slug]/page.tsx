@@ -121,7 +121,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
-      <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-28 sm:px-8 xl:px-10">
+      <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
         <header className="mb-8 flex gap-5 items-start">
           <CompanyLogo domain={data.domain} name={data.name} size="lg" />
           <div className="min-w-0 flex-1">
@@ -252,6 +252,24 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               })}
             </ul>
           )}
+
+          {preview.length > 0 && (
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6 shadow-xs">
+              <div>
+                <h3 className="font-display text-[18px] font-semibold text-foreground">
+                  Explore all {openCountText(data)} open roles at {data.name}
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+                  Screened for ghost-job risk, posting freshness, and verified salary transparency.
+                </p>
+              </div>
+              <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">
+                <Link href={jobsSearchUrl}>
+                  View all {openCountText(data)} jobs →
+                </Link>
+              </Button>
+            </div>
+          )}
         </section>
 
         {/* The 90-day provenance note describes the opened/closed track
@@ -268,14 +286,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           </p>
         )}
       </main>
-
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 py-3.5 sm:px-6">
-        <div className="mx-auto flex max-w-6xl xl:max-w-7xl flex-wrap justify-center gap-3">
-          <Button asChild variant="brand">
-            <Link href={jobsSearchUrl}>View all {openCountText(data)} jobs</Link>
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
