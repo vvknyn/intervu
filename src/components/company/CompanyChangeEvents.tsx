@@ -1,7 +1,7 @@
 import React from "react";
 import { TrendUp, TrendDown, Minus } from "@phosphor-icons/react/dist/ssr";
 import { eventTypeLabel } from "@/lib/companies/events";
-import type { CompanyChangeEvent } from "@/lib/companies/types";
+import type { CompanyChangeEvent, CompanyChangeEventEvidence } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +23,85 @@ function eventDate(iso: string): string | null {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+/** "14 May – 11 Jun 2026" from two calendar dates. Rendered in UTC and parsed
+ *  from the plain `YYYY-MM-DD` the API sends, so the window a reader sees is
+ *  the window that was measured — not one shifted by their timezone. */
+function windowText(w: { start: string; end: string }): string | null {
+  const s = Date.parse(`${w.start}T00:00:00Z`);
+  const e = Date.parse(`${w.end}T00:00:00Z`);
+  if (Number.isNaN(s) || Number.isNaN(e)) return null;
+  const fmt = (ms: number, withYear: boolean) =>
+    new Date(ms).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(withYear ? { year: "numeric" as const } : {}),
+      timeZone: "UTC",
+    });
+  const sameYear = new Date(s).getUTCFullYear() === new Date(e).getUTCFullYear();
+  return `${fmt(s, !sameYear)} – ${fmt(e, true)}`;
+}
+
+/**
+ * The proof under the claim.
+ *
+ * This is the part that was missing: a card read "hiring is accelerating" with
+ * nothing under it, while the numbers that produced that sentence sat unread in
+ * the event's payload. A claim on this page now shows its arithmetic, the
+ * window it was measured over, and — where the observation came from outside
+ * our own crawl — a link to the source document.
+ *
+ * Renders nothing at all when there is nothing to show. An "evidence" block
+ * with no evidence in it would be worse than the bare card it replaced.
+ */
+function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
+  const window = evidence.window ? windowText(evidence.window) : null;
+  const hasFooter = Boolean(window || evidence.provenance || evidence.sourceUrl);
+  if (evidence.metrics.length === 0 && !hasFooter) return null;
+
+  return (
+    <div className="mt-3 border-t border-border/60 pt-3">
+      {evidence.metrics.length > 0 && (
+        <dl className="space-y-1.5">
+          {evidence.metrics.map((m) => (
+            <div key={m.label} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+              <dt className="min-w-[84px] font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </dt>
+              <dd className="text-[13px] tabular-nums text-foreground">{m.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {hasFooter && (
+        <p
+          className={cn(
+            "font-mono text-[10px] text-muted-foreground",
+            evidence.metrics.length > 0 && "mt-2.5",
+          )}
+        >
+          {window && <>Measured {window}</>}
+          {window && evidence.provenance && " · "}
+          {evidence.provenance}
+          {evidence.sourceUrl && (
+            <>
+              {(window || evidence.provenance) && " · "}
+              <a
+                href={evidence.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                source
+              </a>
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** Direction drives the only colour on the row. `improving`/`declining` are
@@ -107,6 +186,7 @@ export function CompanyChangeEvents({
                   {date && <span className="font-mono text-[11px] text-muted-foreground">{date}</span>}
                 </div>
                 <p className="mt-1.5 text-[15px] leading-snug text-foreground">{event.headline}</p>
+                {event.evidence && <EventEvidence evidence={event.evidence} />}
               </div>
             </li>
           );
