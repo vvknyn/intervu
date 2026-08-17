@@ -2,6 +2,61 @@ import type { BoardId } from "@/lib/boards/types";
 import type { CompanyNameSource } from "@/lib/companies/company-name";
 import type { PublicJob } from "@/lib/jobs/types";
 
+export interface CompanyFundingInfo {
+  totalRaisedText: string | null;
+  stage: string | null;
+  valuationText: string | null;
+  investors: string[];
+}
+
+export interface CompanyVisaInfo {
+  h1bFilingsCount: number | null;
+  approvalRatePct: number | null;
+  sponsoredRolesRatioPct: number | null;
+  permSponsored: boolean;
+  topSponsoredRoles: { title: string; salaryRange: string }[];
+}
+
+export interface CompanyTechStackInfo {
+  languages: string[];
+  frameworks: string[];
+  infrastructure: string[];
+  aiMlTools: string[];
+}
+
+export interface CompanyWorkModesInfo {
+  remotePct: number;
+  hybridPct: number;
+  onsitePct: number;
+}
+
+export interface CompanySignalItem {
+  id: string;
+  type: "funding" | "product" | "expansion" | "hiring" | "leadership";
+  title: string;
+  detail: string;
+  timeAgo: string;
+}
+
+export interface CompanyNewsArticle {
+  id: string;
+  headline: string;
+  summary: string;
+  source: string;
+  publishedAt: string;
+  category: "funding" | "product" | "leadership" | "expansion" | "market";
+  url?: string;
+}
+
+export interface CompanyIntelligence {
+  funding: CompanyFundingInfo | null;
+  visa: CompanyVisaInfo | null;
+  techStack: CompanyTechStackInfo | null;
+  workModes: CompanyWorkModesInfo | null;
+  signals: CompanySignalItem[];
+  news: CompanyNewsArticle[];
+}
+
 export type CompanyPageData = {
   domain: string;
   slug: string;
@@ -39,6 +94,8 @@ export type CompanyPageData = {
   ghostFlaggedPct: number | null;
   jobs: PublicJob[];
   boards: BoardId[];
+  /** Subspace enrichment intelligence suite (Funding, Visa & H1B, Tech DNA, Signals) */
+  intelligence?: CompanyIntelligence;
   /**
    * The clock read at the async I/O boundary (`getCompanyPageData`), not
    * inside the server component's render body — server components must stay

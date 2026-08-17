@@ -2,6 +2,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
+import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
@@ -53,6 +54,7 @@ export async function getCompanyPageData(
 
   const name = resolveCompanyName(jobs, domain);
   const openCount = resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT);
+  const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
   // The `company_*` aggregates land on documents progressively as the sync
   // re-writes them, so most of a company's hits still carry nothing while some
   // already do. Take them from the first hit that HAS them rather than from
@@ -63,6 +65,7 @@ export async function getCompanyPageData(
   // `resolveOpenCount` owns that decision because it is the only thing that
   // knows whether the number is exact or a floor.
   const trackRecord = resolveTrackRecord(jobs);
+  const intelligence = resolveCompanyIntelligence(domain, name.value, jobs, stage);
 
   return {
     domain,
@@ -76,7 +79,7 @@ export async function getCompanyPageData(
     nameSource: name.source,
     // No product tagline in the index yet — do not misuse company_stage as one.
     oneLiner: null,
-    stage: firstNonNull(jobs, (j) => j.company_stage?.trim() || null),
+    stage,
     opened90d: trackRecord?.opened90d ?? null,
     closed90d: trackRecord?.closed90d ?? null,
     hasTrackRecord: trackRecord !== null,
@@ -85,6 +88,7 @@ export async function getCompanyPageData(
     ghostFlaggedPct: ghostFlaggedPct(jobs),
     jobs,
     boards,
+    intelligence,
     // Read here — the async I/O boundary — not in the page component's
     // render body. See `CompanyPageData.nowMs`.
     nowMs: Date.now(),

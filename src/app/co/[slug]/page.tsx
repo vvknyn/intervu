@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
+import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
@@ -96,7 +97,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   // unconditional (domain, hence a logo URL, always exists here); FAQPage
   // drops out when `buildFaqPageJsonLd` has nothing valid to say.
   const companyJsonLd = [
-    buildCompanyOrganizationJsonLd({ name: data.name, domain: data.domain }),
+    buildCompanyOrganizationJsonLd({
+      name: data.name,
+      domain: data.domain,
+      knowsAbout: data.intelligence?.techStack?.languages,
+    }),
     ...(faqJsonLd ? [faqJsonLd] : []),
   ];
 
@@ -106,8 +111,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
-      <div className="border-b border-border bg-card px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-[900px] font-mono text-xs text-muted-foreground">
+      <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
+        <nav className="mx-auto max-w-6xl xl:max-w-7xl font-mono text-xs text-muted-foreground">
           <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
@@ -116,13 +121,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
-      <main data-testid="company-page" className="mx-auto max-w-[900px] px-4 py-8 pb-28 sm:px-6">
-        <header className="mb-7 flex gap-4">
+      <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-28 sm:px-8 xl:px-10">
+        <header className="mb-8 flex gap-5 items-start">
           <CompanyLogo domain={data.domain} name={data.name} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
+            <h1 className="font-display text-[32px] sm:text-[36px] font-semibold tracking-tight">{data.name}</h1>
             {data.oneLiner && (
-              <p className="mt-1.5 text-[15px] leading-snug text-muted-foreground">
+              <p className="mt-1.5 text-[15px] sm:text-[16px] leading-snug text-muted-foreground">
                 {data.oneLiner}
               </p>
             )}
@@ -156,28 +161,28 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             the `company_*` sync lands. */}
         <section
           data-testid="company-hiring-answer"
-          className="mb-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs"
+          className="mb-6 rounded-2xl border border-border bg-card px-6 py-5 shadow-xs"
         >
           <h2 className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
             Is {data.name} hiring?
           </h2>
-          <p className="mt-2 flex items-center gap-2 font-display text-[19px] font-semibold leading-snug">
+          <p className="mt-2 flex items-center gap-2 font-display text-[20px] sm:text-[22px] font-semibold leading-snug">
             {hiring.hasOpenRoles && (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
             )}
             {hiring.headline}
           </p>
-          <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-muted-foreground">
             {hiring.trackRecord}
           </p>
           {hiring.freshness && (
-            <p className="mt-1 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 font-mono text-[12px] leading-relaxed text-muted-foreground">
               {hiring.freshness}
             </p>
           )}
         </section>
 
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-3.5 sm:grid-cols-4">
           <Kpi value={openCountText(data)} label="Open roles" />
           <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
@@ -194,8 +199,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           />
         </div>
 
+        <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
+
         <section>
-          <h2 className="mb-3.5 flex items-baseline justify-between font-display text-[19px] font-semibold">
+          <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
             Open roles
             {data.jobs.length > 0 && (
               <span className="font-mono text-xs font-normal text-muted-foreground">
@@ -207,7 +214,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           {preview.length === 0 ? (
             <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {preview.map((job) => {
                 const ghost = roleGhostLine(job);
                 return (
@@ -263,7 +270,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 py-3.5 sm:px-6">
-        <div className="mx-auto flex max-w-[900px] flex-wrap justify-center gap-3">
+        <div className="mx-auto flex max-w-6xl xl:max-w-7xl flex-wrap justify-center gap-3">
           <Button asChild variant="brand">
             <Link href={jobsSearchUrl}>View all {openCountText(data)} jobs</Link>
           </Button>

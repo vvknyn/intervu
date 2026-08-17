@@ -284,13 +284,18 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
  * tag — rather than inventing a second logo source; it's always derivable
  * because `CompanyPageData.domain` is never empty.
  */
-export function buildCompanyOrganizationJsonLd(input: { name: string; domain: string }): OrganizationJsonLd {
+export function buildCompanyOrganizationJsonLd(input: {
+  name: string;
+  domain: string;
+  knowsAbout?: string[];
+}): OrganizationJsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: input.name,
     url: `https://${input.domain}`,
     logo: companyLogoUrl(input.domain),
+    ...(input.knowsAbout && input.knowsAbout.length > 0 ? { knowsAbout: input.knowsAbout } : {}),
   };
 }
 
