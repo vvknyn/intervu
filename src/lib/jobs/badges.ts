@@ -8,21 +8,24 @@
  * makes it unit-testable without a DOM.
  */
 import { formatRelativeAge, isStale, STALE_CHECK_DAYS, STALE_THRESHOLD_MS } from "./freshness";
-import type { GhostBadge } from "./types";
+import type { GhostChecked, PublicJob } from "./types";
 
 const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
 
 /**
- * Is a "clear" (no-ghost-signals) verdict still backed by a CURRENT check?
- * `updated_at` older than `STALE_CHECK_DAYS`, missing, or unparseable all
- * count as stale — a "clear" call from a month-plus-old check isn't a
- * current one, however green it still looks. Exported and unit-tested
- * (tests/unit/jobs-badges.test.ts) so the row badge's text, the row badge's
- * color, and the detail-panel "No ghost signals" banner all read the SAME
- * verdict and can never disagree about which side of "stale" a job is on.
+ * Is this job's verdict still backed by a CURRENT check? `ghost_checked_at`
+ * older than `STALE_CHECK_DAYS`, missing, or unparseable all count as stale —
+ * a verdict from a month-plus-old check isn't a current one, whichever way it
+ * went. Exported and unit-tested (tests/unit/jobs-badges.test.ts) so the row
+ * badge's text, the row badge's color, and the detail-panel banner all read
+ * the SAME verdict and can never disagree about which side of "stale" a job
+ * is on.
+ *
+ * Takes the job rather than a timestamp on purpose — see `GhostChecked`
+ * (types.ts). It read `updated_at` (the last scrape) until 2026-08-17.
  */
-export function checkFreshness(updatedAt: string | null, nowMs: number): "fresh" | "stale" {
-    return isStale(updatedAt, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
+export function checkFreshness(job: GhostChecked, nowMs: number): "fresh" | "stale" {
+    return isStale(job.ghost_checked_at ?? null, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
 }
 
 /**
@@ -37,16 +40,17 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
 
 /**
  * Row-badge label contract (Task 8; "live" gated by staleness fix):
- *   clear        → "✓ live {age}" ONLY when updated_at is within
- *                  STALE_THRESHOLD_MS (freshness.ts — the same constant that
- *                  drives the toolbar's amber `isStale` stamp) of `now`.
- *                  Past that threshold but within STALE_CHECK_DAYS, or when
- *                  updated_at is missing/unparseable, the data can't back a
- *                  liveness claim: render the neutral "checked {age}" (or
- *                  bare "checked" with no age at all) instead. Past
- *                  STALE_CHECK_DAYS (`checkFreshness` above), even "checked"
- *                  overstates it — "last seen {age}" (or "not recently
- *                  verified" with no parseable age).
+ *   clear        → "✓ live {age}" ONLY when the CHECK (`ghost_checked_at`)
+ *                  is within STALE_THRESHOLD_MS (freshness.ts — the same
+ *                  constant that drives the toolbar's amber `isStale` stamp)
+ *                  of `now`. Past that threshold but within STALE_CHECK_DAYS,
+ *                  the data can't back a liveness claim: render the neutral
+ *                  "checked {age}" instead. Past STALE_CHECK_DAYS
+ *                  (`checkFreshness` above), even "checked" overstates it —
+ *                  "last seen {age}", and THAT age comes from `updated_at`,
+ *                  the scrape, because "last seen" is the one question the
+ *                  scrape actually answers ("not recently verified" when
+ *                  neither timestamp parses).
  *   caution      → "⚠ {daysOpen} days open" (daysOpen derived from posted_ts)
  *   likely_ghost → "✕ likely ghost" (visibility is filtering's job, not this
  *                  function's — it only decides the TEXT for a badge that's
@@ -93,18 +97,24 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  */
 export type RowTrustChip = "ghost" | "review" | "clear" | "checked";
 
-export function rowTrustChip(
-    ghostBadge: GhostBadge,
-    updatedAt: string | null,
-    nowMs: number,
-): RowTrustChip | null {
-    switch (ghostBadge) {
+export function rowTrustChip(job: GhostChecked, nowMs: number): RowTrustChip | null {
+    switch (job.ghost_badge) {
+        // Neither flagged verdict gets a staleness split, unlike "clear"
+        // below: a warning makes no claim that decays. A month-old "worth
+        // verifying" is still worth verifying, and quietly dropping a warning
+        // because we stopped looking would be the dangerous direction. The
+        // detail panel's copy is where the check's AGE gets disclosed
+        // (ghostMetaFor). They stay DISTINCT chips for the reason above.
         case "likely_ghost":
             return "ghost";
         case "caution":
             return "review";
         case "clear":
-            return checkFreshness(updatedAt, nowMs) === "fresh" ? "clear" : "checked";
+            // Reads the CHECK's age, not the scrape's: `checkFreshness` takes
+            // the job so there is no timestamp left for a caller to pass
+            // wrongly. A stale "clear" demotes to "checked" — the verdict
+            // still happened, we just can't call it current.
+            return checkFreshness(job, nowMs) === "fresh" ? "clear" : "checked";
         case "unscored":
         default:
             return null;
@@ -112,23 +122,29 @@ export function rowTrustChip(
 }
 
 export function badgeFor(
-    ghostBadge: GhostBadge,
-    updatedAt: string | null,
+    job: GhostChecked & Pick<PublicJob, "updated_at">,
     postedTs: number | null,
     nowMs: number,
 ): string | null {
-    switch (ghostBadge) {
+    switch (job.ghost_badge) {
         case "clear": {
-            if (checkFreshness(updatedAt, nowMs) === "stale") {
-                const parsed = updatedAt == null ? NaN : Date.parse(updatedAt);
+            // Two DIFFERENT clocks in one branch, which is why they now come
+            // from two different fields: "last seen" is when we last pulled
+            // the posting (`updated_at`), "checked"/"live" is when the ghost
+            // check last ran (`ghost_checked_at`). One field used to serve
+            // both and therefore served one of them a lie.
+            if (checkFreshness(job, nowMs) === "stale") {
+                const seen = job.updated_at;
+                const parsed = seen == null ? NaN : Date.parse(seen);
                 return Number.isNaN(parsed)
                     ? "not recently verified"
-                    : `last seen ${formatRelativeAge(updatedAt as string, nowMs)}`;
+                    : `last seen ${formatRelativeAge(seen as string, nowMs)}`;
             }
-            // "fresh" guarantees updatedAt parses (checkFreshness treats
-            // null/unparseable as stale) — no null/NaN fallback needed here.
-            const parsed = Date.parse(updatedAt as string);
-            const age = formatRelativeAge(updatedAt as string, nowMs);
+            // "fresh" guarantees ghost_checked_at parses (checkFreshness
+            // treats null/unparseable as stale) — no NaN fallback needed.
+            const checkedAt = job.ghost_checked_at as string;
+            const parsed = Date.parse(checkedAt);
+            const age = formatRelativeAge(checkedAt, nowMs);
             return nowMs - parsed > STALE_THRESHOLD_MS ? `checked ${age}` : `✓ live ${age}`;
         }
         case "caution": {

@@ -419,8 +419,8 @@ function MockJobDetail({
     onSignIn: () => void;
     onClose?: () => void;
 }) {
-    const staleCheck = checkFreshness(job.updated_at, MOCK_NOW) === "stale";
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
+    const staleCheck = checkFreshness(job, MOCK_NOW) === "stale";
+    const ghost = ghostMetaFor(job, MOCK_NOW);
     const freshness = classifyPostingFreshness(job, MOCK_NOW);
     const postedRelative =
         freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), MOCK_NOW) : null;
@@ -429,7 +429,7 @@ function MockJobDetail({
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, MOCK_NOW);
-    const checkedText = ghostCheckedText(job.updated_at, MOCK_NOW);
+    const checkedText = ghostCheckedText(job, MOCK_NOW);
     const handoffJob = {
         id: job.id,
         title: decodeText(job.title),
