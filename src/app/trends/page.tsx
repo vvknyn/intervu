@@ -32,7 +32,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   const delta = computeLatestDelta(snapshots);
 
   return (
-    <div className="rounded-lg border border-border bg-muted/25 px-3 py-2">
+    <div className="rounded-none border border-border bg-muted/20 px-3 py-2">
       {delta && (
         <p data-testid="trends-pulse-delta" className="font-mono text-xs text-foreground">
           <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
@@ -100,10 +100,10 @@ export default async function TrendsPage() {
         title="Market trends"
         description="Live stats from the jobs corpus we track — scraped from companies' own career pages, not curated."
         actions={
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-mono">
+          <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs font-mono">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-none bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-none bg-emerald-500" />
             </span>
             <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
               Direct Ingestion Active
@@ -118,7 +118,7 @@ export default async function TrendsPage() {
         ghostFlaggedLive={data.ghostFlaggedLive}
       />
 
-      {/* 2-Column Responsive BI Multi-Column Grid */}
+      {/* 2-Column Responsive Carbon BI Multi-Column Grid */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column: Flow Velocity, Geographic Reach, Lifecycle Age */}
         <div className="space-y-6">

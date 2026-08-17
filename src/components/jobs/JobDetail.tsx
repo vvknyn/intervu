@@ -249,12 +249,12 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className="sticky bottom-0 z-20 flex gap-2 border-t border-border/80 bg-card/90 p-3.5 backdrop-blur-md"
+            className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card/80 p-3.5 backdrop-blur-xl"
         >
             {job.apply_url && (
-                <Button className="h-11 flex-1 gap-2 rounded-lg bg-emerald-600 text-white font-bold shadow-md hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400 transition-all lg:h-10" onClick={onOpenPosting}>
+                <Button className="h-11 flex-1 gap-2 rounded-none bg-foreground text-background font-mono text-xs font-bold uppercase tracking-wider hover:bg-foreground/90 transition-colors lg:h-10" onClick={onOpenPosting}>
                     <ArrowSquareOut size={18} weight="bold" />
-                    {signedIn ? "Apply on Company Site" : "Sign in to apply"}
+                    {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
                 </Button>
             )}
         </div>
@@ -495,93 +495,82 @@ export function JobDetail({
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
-        <div className={cn("relative overflow-hidden rounded-2xl border border-slate-300/80 bg-card shadow-lg dark:border-slate-700", className)}>
-            {/* Identity header — title/company/location/freshness/fact-chips
-                — rendered OUTSIDE the sign-in gate below (see `!signedIn`
-                near the bottom of this component): a guest could previously
-                never confirm which job they'd opened, since the blur+overlay
-                covered the title along with everything else. Only the
-                action row and body further down stay gated. */}
-            <div className="border-b border-border/80 px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
-                <div className="flex items-start gap-3 sm:gap-3.5">
-                    <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
-                        <div className="mt-1 text-sm font-medium text-muted-foreground">
-                            {cleanedCompany ? (
-                                <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
-                                    {cleanedCompany}
-                                </Link>
-                            ) : (
-                                "Unknown company"
-                            )}{" "}
-                            ·{" "}
-                            {countryFlag && (
-                                <span aria-hidden className="mr-1">
-                                    {countryFlag}
-                                </span>
+        <div className={cn("relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]", className)}>
+            {/* Sticky Header Portion — pins to top while description scrolls beneath */}
+            <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs">
+                {/* Identity header */}
+                <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
+                    <div className="flex items-start gap-3 sm:gap-3.5">
+                        <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
+                            <div className="mt-1 text-sm font-medium text-muted-foreground">
+                                {cleanedCompany ? (
+                                    <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
+                                        {cleanedCompany}
+                                    </Link>
+                                ) : (
+                                    "Unknown company"
+                                )}{" "}
+                                ·{" "}
+                                {countryFlag && (
+                                    <span aria-hidden className="mr-1">
+                                        {countryFlag}
+                                    </span>
+                                )}
+                                {locationText(job)}
+                            </div>
+                            {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
+                                <div className={cn("mt-1.5 rounded-none border px-2.5 py-1 text-xs font-mono font-medium", LISTING_STATE_CHIP.relisted)}>
+                                    Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
+                                    {firstSeenRelative} — often a relist.
+                                </div>
                             )}
-                            {locationText(job)}
-                        </div>
-                        {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                            <div className={cn("mt-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", LISTING_STATE_CHIP.relisted)}>
-                                Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
-                                {firstSeenRelative} — often a relist.
-                            </div>
-                        )}
-                        {salary && (
-                            <div className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-emerald-300/90 bg-emerald-50 px-3 py-1 sm:px-3.5 sm:py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/60">
-                                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                                    pay
-                                </span>
-                                <span className="font-mono text-base sm:text-lg font-bold tracking-tight text-emerald-950 dark:text-emerald-100">
-                                    {salary}
-                                </span>
-                            </div>
-                        )}
-                        {(nonSalaryChips.length > 0 || alsoIn) && (
-                            <div className="mt-2.5 flex flex-wrap gap-1.5 sm:gap-2">
+
+                            {/* Unified Aligned Metadata & Compensation Bar with Segmented Demarcation */}
+                            <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                {salary && (
+                                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 font-mono text-[11px] overflow-hidden">
+                                        <span className="bg-emerald-500/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
+                                        <span className="px-2 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
+                                    </span>
+                                )}
                                 {nonSalaryChips.map((c) => {
                                     const caution = c.kind === "posted" && freshness.kind === "relisted";
                                     return (
                                         <span
                                             key={c.kind}
                                             className={cn(
-                                                // `whitespace-nowrap` is what keeps the multi-word
-                                                // keys ("employer posted") readable on a 375px
-                                                // screen: the row still wraps BETWEEN chips, it just
-                                                // never breaks a key mid-phrase. Shortening the words
-                                                // to dodge wrapping would break the ContextHelp that
-                                                // names them — see FACT_CHIP_KEY's note.
-                                                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 font-mono text-[11px] shadow-2xs sm:px-2.5",
+                                                "inline-flex items-center rounded-none border font-mono text-[11px] overflow-hidden",
                                                 caution
-                                                    ? LISTING_STATE_CHIP.relisted
-                                                    : "border-slate-300/90 bg-slate-100/90 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+                                                    ? "border-amber-500/40 bg-amber-500/10"
+                                                    : "border-border/80 bg-background/50",
                                             )}
                                         >
-                                            <b className={cn("font-bold uppercase text-[10px]", caution ? LISTING_STATE_CHIP_LABEL.relisted : "text-slate-500 dark:text-slate-400")}>
+                                            <span className={cn(
+                                                "px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider border-r",
+                                                caution
+                                                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30"
+                                                    : "bg-muted/70 text-muted-foreground border-border/80",
+                                            )}>
                                                 {FACT_CHIP_KEY[c.kind]}
-                                            </b>
-                                            <span className={c.kind === "first_seen" ? "font-semibold" : "font-medium"}>
+                                            </span>
+                                            <span className={cn("px-2 py-0.5 font-medium text-foreground", c.kind === "first_seen" && "font-semibold")}>
                                                 {factValue(c.kind, c.label)}
                                             </span>
                                         </span>
                                     );
                                 })}
                                 {alsoIn && (
-                                    <span className={cn(chipVariants({ active: true }), "mono-data h-auto py-1 text-[11px]")}>
-                                        <b className="font-medium">also in</b>
-                                        {alsoIn}
+                                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[11px] overflow-hidden">
+                                        <span className="bg-muted/70 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">also in</span>
+                                        <span className="px-2 py-0.5 font-medium text-foreground">{alsoIn}</span>
                                     </span>
                                 )}
-                                {/* ITEM Q/O-FE (2026-08-15) — dark launch: `report_count` doesn't
-                                    exist on any doc yet (see PublicJob's doc comment). Renders
-                                    only once the upstream aggregate lands and is positive — never
-                                    a fabricated "0 reports" claim. */}
                                 {typeof job.report_count === "number" && job.report_count > 0 && (
-                                    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] shadow-2xs", LISTING_STATE_CHIP.reported)}>
-                                        <b className={cn("font-bold uppercase text-[10px]", LISTING_STATE_CHIP_LABEL.reported)}>reported</b>
-                                        <span>
+                                    <span className="inline-flex items-center rounded-none border border-amber-500/40 bg-amber-500/10 font-mono text-[11px] overflow-hidden">
+                                        <span className="bg-amber-500/20 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-amber-500 border-r border-amber-500/30">reported</span>
+                                        <span className="px-2 py-0.5 font-medium text-foreground">
                                             {job.report_count} {job.report_count === 1 ? "user" : "users"}
                                         </span>
                                     </span>
@@ -593,77 +582,68 @@ export function JobDetail({
                                     />
                                 )}
                             </div>
-                        )}
-                        {/* ITEM K (2026-08-15): the ContextHelp above is hover-gated,
-                            which failed the founder-discoverability test (Vivek) — this
-                            is the same fact, always visible, no hover required. Factual
-                            cue only, matching the "posted" chip's relisted-caution palette
-                            (ITEM Q, 2026-08-15 — moved off amber onto the listing-state
-                            violet tone, shared with every other relisted render site). */}
-                        {freshness.kind === "relisted" && (
-                            <p className={cn("mt-1.5 text-[12px]", LISTING_STATE_TEXT.relisted)}>
-                                Employer&apos;s posted date is newer than when we first found this role — the date was likely refreshed.
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        <CopyJobLinkButton job={job} />
-                        {onClose && (
-                            <button
-                                type="button"
-                                aria-label="Close"
-                                onClick={onClose}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-card text-base text-muted-foreground hover:text-foreground hover:border-slate-400 shadow-2xs transition-colors"
-                            >
-                                ×
-                            </button>
-                        )}
+
+                            {freshness.kind === "relisted" && (
+                                <p className={cn("mt-1.5 text-[12px] font-mono", LISTING_STATE_TEXT.relisted)}>
+                                    Employer&apos;s posted date is newer than when we first found this role — the date was likely refreshed.
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                            <CopyJobLinkButton job={job} />
+                            {onClose && (
+                                <button
+                                    type="button"
+                                    aria-label="Close"
+                                    onClick={onClose}
+                                    className="flex h-10 w-10 items-center justify-center rounded-none glass-tint-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Action row + body. Apply/Save render here for guests too */}
-            <div className="border-b border-border/80 px-4 py-3 sm:px-5 sm:py-3.5">
-                <div className="flex flex-wrap items-center gap-2">
-                    {job.apply_url && (
-                        <Button onClick={onOpenPosting} className="gap-2 h-11 sm:h-9 px-4 font-semibold">
-                            <ArrowSquareOut size={16} />
-                            Apply
-                        </Button>
-                    )}
-                    {pursuit ? (
-                        <Link
-                            href={`/yours/${pursuit.id}`}
-                            className="inline-flex h-11 sm:h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs hover:bg-emerald-100"
-                        >
-                            <Check size={16} weight="bold" />
-                            Saved
-                        </Link>
-                    ) : (
-                        <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-11 sm:h-9 px-4 font-semibold">
-                            <Check size={16} />
-                            {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
-                        </Button>
-                    )}
-                    {reportJobEnabled && job.apply_url && (
-                        <ReportJobButton
-                            jobUrl={job.apply_url}
-                            jobTitle={job.title}
-                            onRequireAuth={() => onRequestSignIn?.()}
-                            className="ml-auto"
-                        />
-                    )}
+                {/* Action row */}
+                <div className="border-t border-border/80 px-4 py-2.5 sm:px-6 sm:py-3 bg-muted/20">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {job.apply_url && (
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none glass-tint-blue font-mono text-xs font-bold uppercase tracking-wider transition-colors">
+                                <ArrowSquareOut size={16} />
+                                Apply
+                            </Button>
+                        )}
+                        {pursuit ? (
+                            <Link
+                                href={`/yours/${pursuit.id}`}
+                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-mono font-bold uppercase tracking-wider"
+                            >
+                                <Check size={16} weight="bold" />
+                                Saved
+                            </Link>
+                        ) : (
+                            <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted font-mono text-xs font-bold uppercase tracking-wider transition-colors">
+                                <Check size={16} />
+                                {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
+                            </Button>
+                        )}
+                        {reportJobEnabled && job.apply_url && (
+                            <ReportJobButton
+                                jobUrl={job.apply_url}
+                                jobTitle={job.title}
+                                onRequireAuth={() => onRequestSignIn?.()}
+                                className="ml-auto"
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
 
             <div className="px-4 pb-6 pt-4 sm:px-5">
-                {/* Ghost check module (squared design-system pass): a neutral
-                    check ledger, not a tinted verdict box — color stays
-                    concentrated in the verdict pill (`ghost.cls`, the SAME
-                    token the row badge/JobDetail banner have always shared
-                    via `ghostMetaFor`), never on the module's own ground. */}
+                {/* Ghost check module: a tinted glass check ledger */}
                 {ghost && (
-                    <div className="mb-5 overflow-hidden rounded-xl border border-slate-300/80 bg-slate-50/50 shadow-2xs dark:border-slate-700 dark:bg-slate-900/40">
+                    <div className="mb-5 overflow-hidden rounded-none glass-panel p-4">
                         <div className="flex flex-col gap-2 border-b border-border/80 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                                 <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">

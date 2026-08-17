@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -19,21 +19,18 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
+import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
 
-// Frozen UI typeface pair (see globals.css --font-sans/--font-mono/
-// --font-display). DM Sans covers UI, wordmark, and headings; IBM Plex Mono
-// carries numbers, timestamps, verdicts, and micro-labels.
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+// Clean, airy, minimal typeface pair: Inter for UI & Headings, JetBrains Mono for technical data
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -124,7 +121,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
             script in <head> blocks first paint until it runs, so a returning
@@ -139,7 +136,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} antialiased bg-background text-foreground`}
+        className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
@@ -151,6 +148,7 @@ export default function RootLayout({
         />
         <PostHogProvider>
           <ThemeProvider>
+            <CursorFabricBackground />
             <TourProvider>
               <TopBar />
               {children}

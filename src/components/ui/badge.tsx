@@ -5,26 +5,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden",
+  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-[11px] font-mono font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "bg-primary/90 text-primary-foreground [a&]:hover:bg-primary",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "bg-secondary/70 text-secondary-foreground [a&]:hover:bg-secondary/90 border border-border/50",
         destructive:
-          "bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive/80 text-white [a&]:hover:bg-destructive dark:bg-destructive/60",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+          "border-border/80 bg-background/50 text-foreground [a&]:hover:bg-muted/70",
+        ghost: "[a&]:hover:bg-muted/60 text-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
-        brand: "bg-brand/10 text-brand border-brand/20 [a&]:hover:bg-brand/20",
+        brand: "bg-brand/15 text-brand border-brand/25 [a&]:hover:bg-brand/25",
         // Status variants — design-token backed, dark-mode correct (see lib/ui/status-tokens.ts).
-        "st-saved": "bg-st-saved-soft text-st-saved border-st-saved/20",
-        "st-applied": "bg-st-applied-soft text-st-applied border-st-applied/20",
-        "st-intv": "bg-st-intv-soft text-st-intv border-st-intv/20",
-        "st-offer": "bg-st-offer-soft text-st-offer border-st-offer/20",
-        "st-closed": "bg-st-closed-soft text-st-closed border-st-closed/20",
+        "st-saved": "bg-st-saved-soft/80 text-st-saved border-st-saved/30",
+        "st-applied": "bg-st-applied-soft/80 text-st-applied border-st-applied/30",
+        "st-intv": "bg-st-intv-soft/80 text-st-intv border-st-intv/30",
+        "st-offer": "bg-st-offer-soft/80 text-st-offer border-st-offer/30",
+        "st-closed": "bg-st-closed-soft/80 text-st-closed border-st-closed/30",
       },
     },
     defaultVariants: {

@@ -26,13 +26,13 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "rounded-xl p-1 group-data-[orientation=horizontal]/tabs:h-10 group/tabs-list text-muted-foreground inline-flex w-fit items-center justify-center group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
+  "rounded-none group-data-[orientation=horizontal]/tabs:h-10 group/tabs-list text-muted-foreground inline-flex w-fit items-center justify-center group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
   {
     variants: {
       variant: {
-        default: "bg-slate-100 dark:bg-slate-800",
-        line: "gap-1 bg-transparent",
-        block: "gap-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-1 group-data-[orientation=horizontal]/tabs:h-auto",
+        default: "border-b border-border bg-transparent gap-0 p-0",
+        line: "gap-0 bg-transparent border-b border-border",
+        block: "gap-0 rounded-none border border-border bg-muted/30 p-0.5 group-data-[orientation=horizontal]/tabs:h-auto",
       },
     },
     defaultVariants: {
@@ -65,9 +65,10 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap text-muted-foreground transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:pointer-events-none disabled:opacity-50",
-        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs",
-        "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:data-[state=active]:bg-slate-900 group-data-[variant=block]/tabs-list:data-[state=active]:text-white dark:group-data-[variant=block]/tabs-list:data-[state=active]:bg-white dark:group-data-[variant=block]/tabs-list:data-[state=active]:text-slate-950",
+        "inline-flex h-9 items-center justify-center gap-1.5 rounded-none px-4 text-xs font-semibold whitespace-nowrap text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50",
+        "border-b-2 border-transparent hover:text-foreground hover:border-border-strong",
+        "data-[state=active]:border-foreground data-[state=active]:text-foreground",
+        "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:border-b-0 group-data-[variant=block]/tabs-list:data-[state=active]:bg-foreground group-data-[variant=block]/tabs-list:data-[state=active]:text-background",
         className
       )}
       {...props}

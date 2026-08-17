@@ -68,3 +68,8 @@ supabase/.temp/
 
 # The viewer's WebRTC stack, installed on the user's machine by install.sh.
 openclaw/node_modules/
+
+# Local IDE & agent temp profiles
+.wf-chrome-profile/
+.claude/
+

@@ -15,21 +15,34 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
     return (
         <div
             data-testid="launch-banner"
-            className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-300/80 bg-emerald-50/80 px-4 py-3 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60"
+            className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4 text-left border-l-4 border-l-brand transition-all"
         >
-            <p className="font-mono text-[12.5px] font-medium text-emerald-900 dark:text-emerald-200">
-                Search intervu&apos;s verified jobs from inside Claude, ChatGPT, or Cursor — no tab-switching required.{" "}
-                <Link href="/connect" className="font-semibold underline underline-offset-2 hover:no-underline">
-                    Connect your AI
-                </Link>
-            </p>
+            <div className="flex h-9 w-9 items-center justify-center rounded-none glass-tint-blue font-mono font-bold text-xs">
+                AI
+            </div>
+            <div className="min-w-0 flex flex-col justify-center">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-brand">
+                    AI WORKFLOWS
+                </span>
+                <p className="mt-1 text-[13.5px] font-normal leading-relaxed text-foreground/90">
+                    Search intervu&apos;s verified corpus inside Claude, ChatGPT, or Cursor without tab-switching.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                    <Link
+                        href="/connect"
+                        className="inline-flex items-center gap-1.5 rounded-none glass-tint-emerald px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-wider hover:underline"
+                    >
+                        Connect your AI →
+                    </Link>
+                </div>
+            </div>
             <button
                 type="button"
                 onClick={onDismiss}
                 aria-label="Dismiss launch banner"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-emerald-800/70 transition-colors hover:bg-emerald-100 dark:text-emerald-300/70 dark:hover:bg-emerald-900"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
             >
-                <X size={16} aria-hidden />
+                <X size={13} aria-hidden />
             </button>
         </div>
     );

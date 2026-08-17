@@ -45,23 +45,38 @@ export function BoardVisitBanner() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Auto-dismiss toast after 6 seconds
+    useEffect(() => {
+        if (state === "shown" && !dismissed) {
+            const timer = setTimeout(() => {
+                setDismissed(true);
+            }, 6000);
+            return () => clearTimeout(timer);
+        }
+    }, [state, dismissed]);
+
     if (state === "hidden" || dismissed) return null;
 
     return (
         <div
             data-testid="board-visit-banner"
-            className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-300/80 bg-card px-4 py-3 shadow-2xs dark:border-slate-700"
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center justify-between gap-3 rounded-none glass-panel border border-border/80 bg-card/85 px-4 py-3 shadow-2xl backdrop-blur-2xl backdrop-saturate-180 animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
-            <p className="font-mono text-[12.5px] font-medium text-muted-foreground">
-                <span className="font-bold text-foreground">{count}</span> role{count === 1 ? "" : "s"} posted since your last visit
-            </p>
+            <div className="flex items-center gap-2.5">
+                <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
+                <p className="font-mono text-xs font-medium text-foreground">
+                    <span className="font-bold text-brand tabular-nums">{count}</span> new role{count === 1 ? "" : "s"} posted since your last visit
+                </p>
+            </div>
             <button
                 type="button"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-foreground"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-foreground"
             >
-                <X size={16} aria-hidden />
+                <X size={14} aria-hidden />
             </button>
         </div>
     );

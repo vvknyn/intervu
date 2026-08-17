@@ -8,9 +8,9 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-muted/20 bg-muted/10 border-border/60 focus:border-brand/50 h-10 w-full min-w-0 rounded-lg border px-3 py-1 text-base transition-all duration-150 outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        "focus-visible:border-brand focus-visible:ring-brand/20 focus-visible:ring-[3px] focus-visible:shadow-[inset_0_1px_4px_rgb(0_0_0/0.04)]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground bg-background/60 backdrop-blur-md border-border/80 h-10 w-full min-w-0 rounded-none border px-3 py-1 text-base transition-all outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]",
+        "focus-visible:border-foreground focus-visible:bg-background/90 focus-visible:ring-1 focus-visible:ring-foreground",
+        "aria-invalid:border-destructive",
         className
       )}
       {...props}

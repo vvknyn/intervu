@@ -34,11 +34,11 @@ export function MarketPulse({
   const maxValue = Math.max(...postedPerDay.map((d) => d.count.value), 1);
 
   return (
-    <section data-testid="trends-pulse" className="rounded-xl border border-border bg-card p-6 transition-colors">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-4">
+    <section data-testid="trends-pulse" className="rounded-none border border-border bg-card p-6 transition-colors">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded border border-border bg-muted/40 text-foreground/70">
-            <Pulse size={16} weight="duotone" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <Pulse size={15} weight="duotone" />
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-foreground">Ingestion Velocity & Daily Pulse</h2>
@@ -64,14 +64,14 @@ export function MarketPulse({
           <li
             key={date}
             data-testid={`trends-pulse-day-${date}`}
-            className="group flex items-center gap-3 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/40"
+            className="group flex items-center gap-3 px-2 py-1 text-xs transition-colors hover:bg-muted/40"
           >
             <span className="w-12 shrink-0 font-mono text-[11px] font-medium text-muted-foreground">
               {shortDayLabel(date)}
             </span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-xs bg-muted/80">
+            <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted/80">
               <span
-                className="block h-full rounded-xs bg-slate-700 dark:bg-slate-300 transition-all"
+                className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
                 style={{ width: `${(count.value / maxValue) * 100}%` }}
               />
             </span>
@@ -83,7 +83,7 @@ export function MarketPulse({
       </ol>
 
       {sourceCoverage.length > 0 && (
-        <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="mt-4 rounded-none border border-border bg-muted/20 p-3">
           <p data-testid="trends-pulse-coverage" className="font-mono text-[11px] leading-relaxed text-muted-foreground">
             <span className="font-bold uppercase tracking-wider text-foreground mr-1">
               ATS Ingestion Feeds:
