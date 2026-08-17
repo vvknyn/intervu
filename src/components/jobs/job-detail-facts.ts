@@ -59,15 +59,43 @@ export function ghostCheckedText(updatedAt: string | null, now: number): string 
     return `Checked ${formatRelativeAge(updatedAt, now)}`;
 }
 
+/**
+ * What one ghost-check line actually establishes.
+ *
+ * Three states, not a boolean, because "we looked and it's bad" and "there
+ * is nothing to look at" are different facts and were being reported as the
+ * same one. `positive: boolean` used to carry both — its own doc comment
+ * called `false` "a neutral '—' fact, never a fabricated negative", but the
+ * only consumer that counted (`positiveSignalCount / signals.length`,
+ * JobDetail) read every `false` as a failed check. Live 2026-08-16 a
+ * perfectly ordinary posting rendered "1/4 favorable" whose other three
+ * lines were an untracked repost history (no data source exists at all),
+ * an undisclosed salary, and its age.
+ *
+ * `unknown` is therefore a first-class outcome: it is never counted against
+ * a posting, and a signal that can never be anything else (see the reposts
+ * line below) can no longer drag every job's score down by construction.
+ */
+export type GhostSignalStatus = "favorable" | "unfavorable" | "unknown";
+
 export interface GhostSignal {
     text: string;
-    /** true = ✓ (a fact in the posting's favor); false = a neutral "—" fact,
-     *  never a fabricated negative — see the doc comment below. */
-    positive: boolean;
+    /** favorable = ✓ (a fact in the posting's favor); unfavorable = a fact
+     *  against it; unknown = nothing was observed either way — an absence of
+     *  data, never scored as a negative. */
+    status: GhostSignalStatus;
     /** Which fact family this line belongs to — drives the mono `key` label
      *  in the ghost-check ledger (JobDetail.tsx); one signal, one kind, set
      *  right where each line is pushed below so the two can never drift. */
     kind: "freshness" | "reposts" | "description" | "pay";
+}
+
+/** The signals that actually carry a verdict — the honest denominator for
+ *  "N of M favorable". Excludes `unknown` by construction, so no caller can
+ *  reintroduce the "absence counted as failure" bug by dividing by
+ *  `signals.length` again. */
+export function assessedGhostSignals(signals: readonly GhostSignal[]): GhostSignal[] {
+    return signals.filter((s) => s.status !== "unknown");
 }
 
 /** Below this length a description doesn't back an honest "has real
@@ -120,28 +148,39 @@ export function deriveGhostSignals(
         const firstSeenRelative = formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), nowMs);
         signals.push(
             freshness.kind === "relisted"
-                ? { text: `first seen by us ${firstSeenRelative} · posted date refreshed since`, positive: false, kind: "freshness" }
+                ? { text: `first seen by us ${firstSeenRelative} · posted date refreshed since`, status: "unfavorable", kind: "freshness" }
                 : freshness.kind === "fresh"
-                  ? { text: "posted within the last 7 days", positive: true, kind: "freshness" }
-                  : { text: `first seen by us ${firstSeenRelative}`, positive: false, kind: "freshness" },
+                  ? { text: "posted within the last 7 days", status: "favorable", kind: "freshness" }
+                  : { text: `first seen by us ${firstSeenRelative}`, status: "unfavorable", kind: "freshness" },
         );
-        signals.push({ text: "repost (close/reopen) history not tracked yet", positive: false, kind: "reposts" });
+        // `unknown`, not `unfavorable`: there is no close/reopen data source
+        // in the corpus at all (see this function's doc comment), so this
+        // line can NEVER come back favorable. Scoring it as a negative made
+        // every job with a first-seen date permanently lose a point for a
+        // check that was never run — `shouldShowAgeBalanceNote` had already
+        // hand-excluded it for exactly that reason; the status now says it
+        // once, where the signal is created, instead of at each reader.
+        signals.push({ text: "repost (close/reopen) history not tracked yet", status: "unknown", kind: "reposts" });
     }
 
     const descLength = job.description?.trim().length ?? 0;
     if (descLength > 0) {
         signals.push(
             descBlockCount > 0 && descLength >= SUBSTANTIAL_DESCRIPTION_MIN_CHARS
-                ? { text: "description has real substance", positive: true, kind: "description" }
-                : { text: "description is thin", positive: false, kind: "description" },
+                ? { text: "description has real substance", status: "favorable", kind: "description" }
+                : { text: "description is thin", status: "unfavorable", kind: "description" },
         );
     }
 
     const salary = salaryText(job);
+    // An undisclosed salary is a gap in what the EMPLOYER published, not
+    // evidence about whether the role is real — and the line's own copy has
+    // always conceded that ("common for some regions"). It reports as an
+    // absence; a posting is not marked down for it.
     signals.push(
         salary
-            ? { text: `salary disclosed — ${salary}`, positive: true, kind: "pay" }
-            : { text: "salary not disclosed (common for some regions)", positive: false, kind: "pay" },
+            ? { text: `salary disclosed — ${salary}`, status: "favorable", kind: "pay" }
+            : { text: "salary not disclosed (common for some regions)", status: "unknown", kind: "pay" },
     );
 
     return signals;

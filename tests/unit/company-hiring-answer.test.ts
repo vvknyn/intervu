@@ -201,19 +201,89 @@ describe("companies/presentation — freshness fact (reconciles the CTA's own 30
 
 describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit scope)", () => {
   it("round-trips through parseJobsUrl carrying posted=any — never inherits /jobs' 30d default", () => {
-    const url = buildCompanyJobsUrl(company({ name: "Leogy" }));
+    const url = buildCompanyJobsUrl(company({ domain: "leogy.com" }));
     assert.match(url, /^\/jobs\?/);
 
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
-    assert.equal(parsed.q, "Leogy");
+    assert.equal(parsed.companyDomain, "leogy.com");
     // undefined = "any" internally (see url-state.ts) — the whole point: the
     // page's own age-agnostic count must not silently regain /jobs' 30d cut.
     assert.equal(parsed.postedBucket, undefined);
   });
 
-  it("carries country=any to suppress regional IP defaults for worldwide company search", () => {
-    const url = buildCompanyJobsUrl(company({ name: "Multinational Co" }));
+  // Two facts, one assertion. The value must be the neutral "any" sentinel —
+  // stripped at meilisearch.ts:452, so it constrains nothing, and its only job
+  // is satisfying `hasLocationSignal` so /jobs' IP geo default doesn't narrow a
+  // company link. And it must never be a REAL country: a derived country facet
+  // fails CLOSED against unverified corpus values (measured live 2026-08-15 —
+  // Leogy's 5 real rows went to 0 under `country=Germany`/`country=DE`).
+  it("carries country=any and never a real country value — the sentinel widens, a derived value would fail closed", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "multinational.com" }));
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
     assert.deepEqual(parsed.facets.location_country, ["any"]);
+    assert.ok(
+      !(parsed.facets.location_country ?? []).some((v) => v !== "any"),
+      "a company link must not derive a country value from page data",
+    );
+  });
+
+  // Regression, measured live 2026-08-16 on /co/harrods--com: the page counted
+  // 108 roles by domain while its CTA's `q=Harrods` returned 109 rows with ZERO
+  // Harrods listings in the top 20 — "Harrods" is a VENUE, so Chanel/Burberry/
+  // Saint Laurent/Hermès concession roles inside the store all matched the text.
+  // The name is deliberately the ONE thing this URL must not contain.
+  it("scopes by domain and puts NO company name in `q` — a name over-matches (venue) and under-matches (legal suffix)", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+
+    assert.equal(parsed.companyDomain, "harrods.com");
+    // The scope is the whole message; there is no text query riding alongside
+    // it to AND against and quietly hide roles that don't repeat the name.
+    assert.equal(parsed.q, "");
+    assert.doesNotMatch(url, /[?&]q=/);
+  });
+
+  // The other half of the same failure: the index stores "Harrods Limited"
+  // while the page displays the suffix-stripped "Harrods", so `isCompanyNameQuery`
+  // (company-intent.ts, exact-match after normalization) could never rescue the
+  // text query either. The domain is unaffected by display-name cleaning.
+  it("is untouched by legal-suffix stripping — display name and scope are independent", () => {
+    const stripped = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods" }));
+    const full = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods Limited" }));
+    assert.equal(stripped, full);
+  });
+
+  // Measured live 2026-08-16: "View all 108 jobs" landed on 78 — exactly the
+  // 30 roles the page's own "28% ghost-flagged" tile had counted, silently
+  // removed by /jobs' hide-ghosts default. A link that states a number must
+  // not hand its destination a filter that removes part of it. Vivek's call,
+  // 2026-08-17: show all of them, marked (see `rowTrustChip`'s `ghost` state).
+  it("carries ghosts=show — the label's count includes ghost-flagged roles, so the destination must too", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+    assert.equal(parsed.hideGhosts, false);
+  });
+
+  // Both of /jobs' silent defaults, asserted together: the two have now each
+  // caused the same class of bug (Leogy's 30d, Harrods' hide-ghosts), and a
+  // third default arriving later should fail this test, not ship quietly.
+  it("neutralizes every /jobs default that would subtract from the stated count", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+    assert.equal(parsed.postedBucket, undefined, "no 30-day window");
+    assert.equal(parsed.hideGhosts, false, "no ghost exclusion");
+    assert.equal(parsed.salaryMin, 0, "no salary floor");
+    assert.equal(parsed.visaOnly, false, "no visa requirement");
+    // Not `deepEqual(facets, {})`: a facet is allowed here IF it cannot
+    // subtract, and `"any"`/`"all"` are stripped before the clause is rendered
+    // (meilisearch.ts:452). Anything else is a real value and would narrow —
+    // which is the thing this test exists to catch.
+    for (const [field, values] of Object.entries(parsed.facets)) {
+      assert.deepEqual(
+        (values ?? []).filter((v) => v !== "any" && v !== "all"),
+        [],
+        `facet ${field} carries a narrowing value`,
+      );
+    }
   });
 });

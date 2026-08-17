@@ -9,7 +9,7 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
+import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, type FactChipKind } from "@/components/jobs/job-detail-facts";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
@@ -432,7 +432,14 @@ export function JobDetail({
     // signal list; see deriveGhostSignals's doc comment for why each line
     // reuses an existing single source instead of new inferred logic.
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, now);
-    const positiveSignalCount = ghostSignals.filter((s) => s.positive).length;
+    // Denominator is the ASSESSED signals, not every line rendered: an
+    // untracked repost history and an undisclosed salary are absences of
+    // data, and counting them as failed checks made ordinary postings read
+    // "1/4 favorable" (live 2026-08-16). The unknowns are still shown — and
+    // still counted, as unknowns — they just don't score against the job.
+    const assessedSignals = assessedGhostSignals(ghostSignals);
+    const favorableSignalCount = assessedSignals.filter((s) => s.status === "favorable").length;
+    const unknownSignalCount = ghostSignals.length - assessedSignals.length;
     const checkedText = ghostCheckedText(job.updated_at, now);
     // S4 — exposure trust badges (dark launch): [] for every job until
     // Subspace's upstream backfill lands (see deriveExposureBadges' doc).
@@ -669,16 +676,28 @@ export function JobDetail({
                                                         "h-2 w-3.5 rounded-full",
                                                         s.kind === "freshness" && freshness.kind === "relisted"
                                                             ? "bg-violet-500 shadow-2xs"
-                                                            : s.positive
+                                                            : s.status === "favorable"
                                                               ? "bg-emerald-500 shadow-2xs"
-                                                              : "bg-slate-200 dark:bg-slate-700",
+                                                              : s.status === "unfavorable"
+                                                                ? "bg-slate-300 dark:bg-slate-600"
+                                                                // Unknown reads as an outline, not a filled
+                                                                // pip: nothing was measured, so there is no
+                                                                // result to shade either way.
+                                                                : "border border-dashed border-slate-300 dark:border-slate-700",
                                                     )}
                                                 />
                                             ))}
                                         </span>
-                                        <span className="font-mono text-[11px] font-bold text-foreground">
-                                            {positiveSignalCount}/{ghostSignals.length} favorable
-                                        </span>
+                                        {assessedSignals.length > 0 && (
+                                            <span className="font-mono text-[11px] font-bold text-foreground">
+                                                {favorableSignalCount}/{assessedSignals.length} favorable
+                                            </span>
+                                        )}
+                                        {unknownSignalCount > 0 && (
+                                            <span className="font-mono text-[11px] text-muted-foreground">
+                                                · {unknownSignalCount} not tracked
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -703,14 +722,14 @@ export function JobDetail({
                                     const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
                                     return (
                                     <div key={s.text} className="flex items-start gap-2">
-                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-[11px]", relistCaution ? LISTING_STATE_TEXT.relisted : s.positive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                                            {relistCaution ? "!" : s.positive ? "✓" : "—"}
+                                        <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-bold text-[11px]", relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                                            {relistCaution ? "!" : s.status === "favorable" ? "✓" : "—"}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
                                             <b className="font-mono text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
                                             <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                                 {s.text}
-                                                {!relistCaution && !s.positive && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                                {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
                                                     <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
                                                 )}
                                             </span>

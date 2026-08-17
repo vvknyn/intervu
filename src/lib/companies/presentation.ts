@@ -72,6 +72,29 @@ export function sampleCoversAllRoles(
  * 5 jobs" CTA landed on "No roles match" because /jobs' 30-day default
  * excluded all 5 of the roles this page had just counted as open.
  *
+ * Scopes by DOMAIN, never by name. This page fetches its roles and its count
+ * with `companyDomain` (get-company.ts); handing the CTA `q: data.name`
+ * instead re-derived the employer from a display string and got a DIFFERENT
+ * set back. Measured live 2026-08-16 on `/co/harrods--com`: the page counted
+ * 108 roles, `q=Harrods` returned 109 of which zero in the top 20 were
+ * Harrods — "Harrods" names a VENUE, so Chanel/Burberry/Saint Laurent/Hermès
+ * concession roles inside the store all matched it. The near-equal totals
+ * (108 vs 109) are a coincidence of two unrelated scopes, which is exactly
+ * why a count agreeing is not evidence the sets agree.
+ *
+ * Nor could /jobs recover the intent: `isCompanyNameQuery` (company-intent.ts)
+ * would have scoped the search to the `company` attribute, but it requires
+ * the text to EQUAL the indexed name and deliberately refuses to strip legal
+ * suffixes — the index holds "Harrods Limited" while `data.name` is the
+ * suffix-stripped "Harrods" (`displayCompanyName`), so the gate saw zero
+ * exact matches and failed open. That makes this a whole class, not one
+ * employer: every company whose ATS publishes a legal suffix had the same
+ * broken CTA, worst wherever the bare name is also a place or common word.
+ *
+ * `q` is therefore left EMPTY rather than kept "as a hint" alongside the
+ * domain — the two would AND together and hide roles whose text happens not
+ * to repeat the employer's own name.
+ *
  * Targets `/jobs`, never `/`: `/`'s handler redirects here unconditionally
  * without forwarding search params (`app/page.tsx`), so a `/`-built link
  * would silently drop `q` — `/jobs`' parser is the only one that reads it.
@@ -80,8 +103,21 @@ export function sampleCoversAllRoles(
  * `serializeJobsUrl`): this page's own count is age-agnostic, so the link
  * must not silently reapply /jobs' 30-day window on top of it.
  *
- * Deliberately carries NO `location_country` facet, even though the roles on
- * this page have known countries. `location_country` is `string | string[] |
+ * `hideGhosts: false` (→ `ghosts=show`) is the same rule applied to /jobs'
+ * OTHER silent default. This page counts every open role it tracks and
+ * separately discloses what share of them are ghost-flagged (the
+ * `ghostFlaggedPct` KPI tile); /jobs hides likely-ghost rows unless asked.
+ * Measured live 2026-08-16 on `/co/harrods--com`: "View all 108 jobs" landed
+ * on 78 — exactly the 30 the page's own "28% ghost-flagged" tile had just
+ * counted. A link whose label states a number must not hand the destination
+ * a filter that removes some of it; that is the same defect as the Leogy
+ * 30-day case above, in a second default. Vivek's call, 2026-08-17: show all
+ * of them, and mark the flagged ones — which is why this line ships with
+ * `rowTrustChip`'s `likely_ghost` split (lib/jobs/badges.ts). Unfiltering
+ * without marking would be strictly worse than the gap it closes.
+ *
+ * Deliberately carries NO REAL `location_country` VALUE, even though the roles
+ * on this page have known countries. `location_country` is `string | string[] |
  * null` per role (types.ts) with an unverified encoding/value domain, and it
  * feeds a HARD AND clause in the corpus filter (`renderPlaceClause`,
  * meilisearch.ts) — a derived value that doesn't exactly match the corpus's
@@ -91,21 +127,25 @@ export function sampleCoversAllRoles(
  * returned the correct 5. A link can only safely ADD a filter it can prove
  * matches the corpus; it can't prove that here, so it doesn't try.
  *
- * This also means the link cannot suppress /jobs' IP-based geo default:
- * `hasLocationSignal` (lib/geo/ip-default.ts) is satisfied only by an
- * explicit place, a `location_country` facet, or the client-side
- * `suppressLocationDefault` override — and `location-default-preference.ts`
- * is deliberately localStorage-only and one-way, so there is no URL param
- * that clears it either. A link therefore cannot widen a searcher's geo
- * scope, by design — recovering from a geo-narrowed zero-result page is the
- * /jobs zero-result state's job (a one-tap "clear near {country}" there),
- * not this URL's.
+ * What it carries instead is the `"any"` sentinel, which is NOT a value:
+ * `meilisearch.ts:452` strips "any"/"all" before rendering the clause, so no
+ * country constraint reaches the corpus. Its only effect is on the OTHER
+ * gate — `hasLocationSignal` (lib/geo/ip-default.ts) is satisfied by a
+ * non-empty `location_country` facet, so this suppresses /jobs' IP-based geo
+ * default and the link lands on the company's full result set rather than a
+ * silently geo-narrowed slice of it.
+ *
+ * (Superseded 2026-08-17: this paragraph previously stated a link could not
+ * widen a searcher's geo scope at all. That was true only while no sentinel
+ * existed. The zero-result recovery affordance on /jobs is still that page's
+ * job — this URL just no longer needs it for the common case.)
  */
-export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "name">): string {
+export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): string {
   return `/jobs${serializeJobsUrl({
     ...DEFAULT_URL_STATE,
-    q: data.name,
+    companyDomain: data.domain,
     postedBucket: undefined,
+    hideGhosts: false,
     facets: { location_country: ["any"] },
   })}`;
 }
