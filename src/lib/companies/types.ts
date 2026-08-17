@@ -30,39 +30,18 @@ export interface CompanyWorkModesInfo {
   onsitePct: number;
 }
 
-export interface CompanySignalItem {
-  id: string;
-  type: "funding" | "product" | "expansion" | "hiring" | "leadership";
-  title: string;
-  detail: string;
-  timeAgo: string;
-}
-
+/** One article as returned by the Subspace `/companies/{domain}/news` endpoint — see fetchCompanyNews. */
 export interface CompanyNewsArticle {
-  id: string;
-  headline: string;
-  summary: string;
-  source: string;
-  publishedAt: string;
-  category: "funding" | "product" | "leadership" | "expansion" | "market";
-  url?: string;
-}
-
-export interface CompanyLayoffNotice {
-  date: string;
-  impactedCount: number | null;
-  details: string;
-  noticeType: string;
-  location?: string;
-}
-
-export interface CompanyLayoffInfo {
-  hasRecentLayoffs: boolean;
-  riskLevel: "low" | "moderate" | "elevated";
-  warnNoticeCount: number;
-  lastFiledDate: string | null;
-  recentNotices: CompanyLayoffNotice[];
-  summary: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  publisher: string;
+  published_at: string | null;
+  is_funding_event: boolean;
+  /** The match tier the API published this under. The server owns the gate
+   *  (high/medium, anchored matches only) — this is carried for provenance,
+   *  NOT re-filtered here. Two gates in two repos drift apart. */
+  confidence: "high" | "medium";
 }
 
 export interface CompanyIntelligence {
@@ -70,8 +49,6 @@ export interface CompanyIntelligence {
   visa: CompanyVisaInfo | null;
   techStack: CompanyTechStackInfo | null;
   workModes: CompanyWorkModesInfo | null;
-  layoffs: CompanyLayoffInfo | null;
-  signals: CompanySignalItem[];
   news: CompanyNewsArticle[];
 }
 

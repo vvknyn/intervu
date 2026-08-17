@@ -3,6 +3,7 @@ import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
+import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
@@ -33,11 +34,17 @@ export async function getCompanyPageData(
   const domain = allowlisted ?? decodeSlug(slug);
   if (!domain) return null;
 
-  const result = await search({
-    companyDomain: domain,
-    limit: COMPANY_JOBS_FETCH_LIMIT,
-    hideGhosts: false,
-  });
+  // Run concurrently with the jobs search — `fetchCompanyNews` fails soft to
+  // `[]` on its own (missing endpoint, timeout, network error), so it can
+  // never be the reason this function throws or returns late.
+  const [result, news] = await Promise.all([
+    search({
+      companyDomain: domain,
+      limit: COMPANY_JOBS_FETCH_LIMIT,
+      hideGhosts: false,
+    }),
+    fetchCompanyNews(domain),
+  ]);
   // A failed search (bad/unfilterable index config, live outage) must never
   // be read as "this company has zero jobs" — that's how the animana--com
   // 400 became a false 404. Distinguish via the same `unavailable` signal
@@ -65,7 +72,7 @@ export async function getCompanyPageData(
   // `resolveOpenCount` owns that decision because it is the only thing that
   // knows whether the number is exact or a floor.
   const trackRecord = resolveTrackRecord(jobs);
-  const intelligence = resolveCompanyIntelligence(domain, name.value, jobs, stage);
+  const intelligence = resolveCompanyIntelligence(jobs, stage, news);
 
   return {
     domain,
