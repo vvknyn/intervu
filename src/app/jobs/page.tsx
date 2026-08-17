@@ -81,7 +81,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMarketingShowcase } from "@/components/jobs/LandingMarketingShowcase";
+import { LandingMarketingShowcase, LandingMasthead } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     toggleFacetValue,
@@ -3091,6 +3091,31 @@ function JobsContent() {
                 >
                     Skip to results
                 </a>
+
+                {/* Landing masthead — ABOVE the search line, and NON-DESTRUCTIVE.
+                    It stays mounted always; running a search collapses its row
+                    to 0fr, so the search box travels up into the space it
+                    vacates instead of the page swapping one layout for another.
+                    That keeps the input's value, caret and focus intact across
+                    the transition (a remount would drop all three mid-keystroke),
+                    and clearing the query plays the same move in reverse.
+                    `grid-rows-[0fr]→[1fr]` is the collapse idiom already used in
+                    components/layout/Header.tsx; `motion-reduce` opts out because
+                    globals.css' reduced-motion block is class-scoped, not blanket.
+                    Safe to leave in the tree while collapsed only because
+                    `LandingMasthead` holds no focusable node — see its doc. */}
+                <div
+                    aria-hidden={!isPristineLanding}
+                    data-landing-masthead={isPristineLanding ? "open" : "collapsed"}
+                    className={cn(
+                        "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
+                        isPristineLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                    )}
+                >
+                    <div className="min-h-0 overflow-hidden">
+                        <LandingMasthead />
+                    </div>
+                </div>
 
                 <section className="rounded-none glass-panel p-2 sm:p-2.5 transition-colors">
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
