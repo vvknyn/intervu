@@ -64,6 +64,29 @@ export function sampleCoversAllRoles(
  * 5 jobs" CTA landed on "No roles match" because /jobs' 30-day default
  * excluded all 5 of the roles this page had just counted as open.
  *
+ * Scopes by DOMAIN, never by name. This page fetches its roles and its count
+ * with `companyDomain` (get-company.ts); handing the CTA `q: data.name`
+ * instead re-derived the employer from a display string and got a DIFFERENT
+ * set back. Measured live 2026-08-16 on `/co/harrods--com`: the page counted
+ * 108 roles, `q=Harrods` returned 109 of which zero in the top 20 were
+ * Harrods — "Harrods" names a VENUE, so Chanel/Burberry/Saint Laurent/Hermès
+ * concession roles inside the store all matched it. The near-equal totals
+ * (108 vs 109) are a coincidence of two unrelated scopes, which is exactly
+ * why a count agreeing is not evidence the sets agree.
+ *
+ * Nor could /jobs recover the intent: `isCompanyNameQuery` (company-intent.ts)
+ * would have scoped the search to the `company` attribute, but it requires
+ * the text to EQUAL the indexed name and deliberately refuses to strip legal
+ * suffixes — the index holds "Harrods Limited" while `data.name` is the
+ * suffix-stripped "Harrods" (`displayCompanyName`), so the gate saw zero
+ * exact matches and failed open. That makes this a whole class, not one
+ * employer: every company whose ATS publishes a legal suffix had the same
+ * broken CTA, worst wherever the bare name is also a place or common word.
+ *
+ * `q` is therefore left EMPTY rather than kept "as a hint" alongside the
+ * domain — the two would AND together and hide roles whose text happens not
+ * to repeat the employer's own name.
+ *
  * Targets `/jobs`, never `/`: `/`'s handler redirects here unconditionally
  * without forwarding search params (`app/page.tsx`), so a `/`-built link
  * would silently drop `q` — `/jobs`' parser is the only one that reads it.
@@ -93,10 +116,10 @@ export function sampleCoversAllRoles(
  * /jobs zero-result state's job (a one-tap "clear near {country}" there),
  * not this URL's.
  */
-export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "name">): string {
+export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): string {
   return `/jobs${serializeJobsUrl({
     ...DEFAULT_URL_STATE,
-    q: data.name,
+    companyDomain: data.domain,
     postedBucket: undefined,
   })}`;
 }

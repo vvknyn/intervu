@@ -1011,11 +1011,21 @@ function JobsContent() {
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
     const [board, setBoard] = useState<BoardId | null>(initialUrlState.board);
+    // Single-employer scope, arriving from `/co/[slug]`'s "View all N jobs"
+    // CTA (`buildCompanyJobsUrl`). Held next to `board` because they are the
+    // same concern — see `scope` below.
+    const [companyDomain, setCompanyDomain] = useState<string | null>(initialUrlState.companyDomain);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
     const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
+    // The corpus narrowings that aren't user-picked filters, in one object so
+    // the four `buildJobSearchPayload` call sites below can't pick up one and
+    // forget the other — the same single-source rule `filterState` above
+    // exists for. Plain object, same as `filterState`: it's only ever spread
+    // into a payload, never a hook dependency.
+    const scope = { board, companyDomain };
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1076,6 +1086,7 @@ function JobsContent() {
         postedBucket,
         hideGhosts,
         board,
+        companyDomain,
         // `fitActive` wins the default so `sort=fit` survives unrelated
         // mutations (a facet toggle, a job open) that rebuild the URL via
         // `buildUrlState({...})` without an explicit `sort` override.
@@ -1364,13 +1375,14 @@ function JobsContent() {
                 postedBucket,
                 hideGhosts,
                 board,
+                companyDomain,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported],
     );
 
     // Single source: résumé usable, hoisted here (instead of
@@ -1422,7 +1434,7 @@ function JobsContent() {
         fitActive,
         activeFilterCount: activeEntries.length,
     });
-    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board;
+    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain;
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -1455,7 +1467,7 @@ function JobsContent() {
                     emptySearchState === "overlay-ask"
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
-                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                               withFacets: true,
                               limit: PAGE,
                               offset: 0,
@@ -1620,7 +1632,7 @@ function JobsContent() {
                             query,
                             backendSort,
                             postedDateSupported,
-                            board,
+                            scope,
                             locationDefaultSuppressed,
                         ),
                         withFacets: true,
@@ -1653,7 +1665,7 @@ function JobsContent() {
                 // number the spec forbids.
                 if (postedBucket === "30d") {
                     searchJobsAction({
-                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                         postedBucket: undefined,
                         limit: 0,
                         offset: 0,
@@ -1916,6 +1928,7 @@ function JobsContent() {
             setPostedBucket(parsed.postedBucket);
             setHideGhosts(parsed.hideGhosts);
             setBoard(parsed.board);
+            setCompanyDomain(parsed.companyDomain);
             setSortOverride(resolveUrlSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -2119,7 +2132,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -2155,7 +2168,7 @@ function JobsContent() {
         // reason: page 2+ must never silently reapply a default this
         // session already cleared.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -2213,6 +2226,21 @@ function JobsContent() {
     const onBoardChange = (next: BoardId | null) => {
         setBoard(next);
         applyUrlState(buildUrlState({ board: next }), "replace");
+    };
+
+    /**
+     * Widen a single-employer browse back to the whole corpus.
+     *
+     * Deliberately NOT folded into `panelClearAll` (which resets
+     * `FilterState` only): the employer scope is the corpus this search runs
+     * against, not a filter the searcher picked off the toolbar, and a
+     * "Clear filters" that silently dumped them out of the company they
+     * arrived for would be the same undisclosed-scope change the chip below
+     * exists to prevent. One affordance, one meaning.
+     */
+    const clearCompanyScope = () => {
+        setCompanyDomain(null);
+        applyUrlState(buildUrlState({ companyDomain: null }), "replace");
     };
 
     useEffect(() => {
@@ -2686,7 +2714,7 @@ function JobsContent() {
     };
 
     const canSaveSearch = Boolean(
-        query.trim() || activeCount > 0 || fitActive || sortOverride || board,
+        query.trim() || activeCount > 0 || fitActive || sortOverride || board || companyDomain,
     );
 
     // Task 11 review fix — the tombstone's "similar roles" CTA clears the
@@ -3566,6 +3594,39 @@ function JobsContent() {
                                                         control itself (G3, Grok UX wave) — see
                                                         DefaultLocationChip's doc comment above. */}
                                                 </div>
+                                                {/* Employer-scope disclosure — the standard removable
+                                                    filter-token pattern. Mounted OUTSIDE the
+                                                    query/filter row below because the scope arrives from
+                                                    a link (`/co/[slug]`'s CTA), not from anything the
+                                                    searcher typed or toggled: with no token they'd see a
+                                                    count far below the corpus with nothing on screen
+                                                    saying why, and no way back out. Labelled with the
+                                                    domain, which is the scope the search actually
+                                                    applies — not a display name derived from the hits,
+                                                    which would be absent in the one state where this
+                                                    disclosure matters most (zero results). */}
+                                                {companyDomain && (
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span
+                                                            data-testid="company-scope-chip"
+                                                            className="inline-flex items-center gap-2 rounded-md border border-border bg-chip px-2 py-1 font-mono text-[11.5px]"
+                                                        >
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                                                employer
+                                                            </span>
+                                                            <span className="text-foreground">{companyDomain}</span>
+                                                            <button
+                                                                type="button"
+                                                                data-testid="company-scope-clear"
+                                                                aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                onClick={clearCompanyScope}
+                                                                className="text-muted-foreground transition-colors hover:text-foreground"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 {(query.trim() || activeCount > 0) && (
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                                         {activeCount > 0 && (

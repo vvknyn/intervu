@@ -200,19 +200,45 @@ describe("companies/presentation — freshness fact (reconciles the CTA's own 30
 
 describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit scope)", () => {
   it("round-trips through parseJobsUrl carrying posted=any — never inherits /jobs' 30d default", () => {
-    const url = buildCompanyJobsUrl(company({ name: "Leogy" }));
+    const url = buildCompanyJobsUrl(company({ domain: "leogy.com" }));
     assert.match(url, /^\/jobs\?/);
 
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
-    assert.equal(parsed.q, "Leogy");
+    assert.equal(parsed.companyDomain, "leogy.com");
     // undefined = "any" internally (see url-state.ts) — the whole point: the
     // page's own age-agnostic count must not silently regain /jobs' 30d cut.
     assert.equal(parsed.postedBucket, undefined);
   });
 
   it("carries no location_country facet — a derived facet on unverified corpus values fails CLOSED, not open (measured live: 5 real Leogy rows -> 0)", () => {
-    const url = buildCompanyJobsUrl(company({ name: "Multinational Co" }));
+    const url = buildCompanyJobsUrl(company({ domain: "multinational.com" }));
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
     assert.equal(parsed.facets.location_country, undefined);
+  });
+
+  // Regression, measured live 2026-08-16 on /co/harrods--com: the page counted
+  // 108 roles by domain while its CTA's `q=Harrods` returned 109 rows with ZERO
+  // Harrods listings in the top 20 — "Harrods" is a VENUE, so Chanel/Burberry/
+  // Saint Laurent/Hermès concession roles inside the store all matched the text.
+  // The name is deliberately the ONE thing this URL must not contain.
+  it("scopes by domain and puts NO company name in `q` — a name over-matches (venue) and under-matches (legal suffix)", () => {
+    const url = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods" }));
+    const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
+
+    assert.equal(parsed.companyDomain, "harrods.com");
+    // The scope is the whole message; there is no text query riding alongside
+    // it to AND against and quietly hide roles that don't repeat the name.
+    assert.equal(parsed.q, "");
+    assert.doesNotMatch(url, /[?&]q=/);
+  });
+
+  // The other half of the same failure: the index stores "Harrods Limited"
+  // while the page displays the suffix-stripped "Harrods", so `isCompanyNameQuery`
+  // (company-intent.ts, exact-match after normalization) could never rescue the
+  // text query either. The domain is unaffected by display-name cleaning.
+  it("is untouched by legal-suffix stripping — display name and scope are independent", () => {
+    const stripped = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods" }));
+    const full = buildCompanyJobsUrl(company({ domain: "harrods.com", name: "Harrods Limited" }));
+    assert.equal(stripped, full);
   });
 });
