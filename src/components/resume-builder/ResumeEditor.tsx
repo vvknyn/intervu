@@ -258,33 +258,35 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     return (
         <div
             className={cn(
-                "relative flex h-[85vh] min-h-[640px] flex-col rounded-none border border-border bg-card shadow-none overflow-hidden",
+                // Height subtracts only global chrome (TopBar + mobile tab bar).
+                // Page header/tabs are hidden while this editor is open.
+                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card shadow-none lg:h-[calc(100dvh-4.5rem)]",
                 className,
             )}
         >
             {/* Top Toolbar */}
-            <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 py-3 sm:px-6 backdrop-blur-md">
-                <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 py-2.5 sm:px-6 sm:py-3 backdrop-blur-md">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={onClose}
-                        className="gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-none"
+                        className="shrink-0 gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-none"
                     >
                         <ArrowLeft size={14} /> Back
                     </Button>
-                    <div className="hidden sm:block h-4 w-px bg-border" />
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                            Live Template Editor
+                    <div className="hidden sm:block h-4 w-px shrink-0 bg-border" />
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="hidden truncate text-xs font-bold uppercase tracking-wider text-foreground sm:inline">
+                            Live template editor
                         </span>
                         {hasUnsavedChanges ? (
-                            <span className="rounded-none bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                Unsaved edits
+                            <span className="shrink-0 rounded-none bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                Unsaved
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check size={10} weight="bold" /> Saved
                             </span>
                         )}
@@ -292,7 +294,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 </div>
 
                 {/* Right controls */}
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                     {/* Versions Button */}
                     <Button
                         type="button"
@@ -300,9 +302,10 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={() => setVersionsOpen(!versionsOpen)}
                         className="gap-1 text-xs rounded-none"
+                        title="Versions & diffs"
                     >
                         <ClockCounterClockwise size={14} />
-                        <span className="hidden sm:inline">Versions & Diffs</span>
+                        <span className="hidden sm:inline">Versions & diffs</span>
                     </Button>
 
                     {/* Diff Toggle */}
@@ -318,7 +321,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         title="Toggle visual diff highlights"
                     >
                         <GitDiff size={14} />
-                        <span className="hidden md:inline">{showDiffs ? "Diffs On" : "Show Diffs"}</span>
+                        <span className="hidden md:inline">{showDiffs ? "Diffs on" : "Show diffs"}</span>
                     </Button>
 
                     <Button
@@ -360,7 +363,8 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         className="gap-1.5 text-xs font-semibold rounded-none"
                     >
                         {saving ? <CircleNotch size={14} className="animate-spin" /> : <FloppyDisk size={14} />}
-                        {saving ? "Saving…" : "Save Changes"}
+                        <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
+                        <span className="hidden sm:inline">{saving ? "Saving…" : "Save changes"}</span>
                     </Button>
                 </div>
             </div>

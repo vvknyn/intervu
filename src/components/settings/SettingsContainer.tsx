@@ -34,7 +34,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
         { key: "account", label: "Account" },
     ];
     return (
-        <div className="mb-4 flex flex-wrap gap-1 rounded-none border border-border bg-card p-1" role="tablist">
+        <div className="mb-4 flex rounded-none border border-border bg-card p-1" role="tablist">
             {tabs.map(({ key, label }) => (
                 <button
                     key={key}
@@ -43,7 +43,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
                     aria-selected={tab === key}
                     onClick={() => onChange(key)}
                     className={cn(
-                        "rounded-none px-3.5 py-2 text-[13px] font-semibold text-muted-foreground transition-colors",
+                        "flex-1 min-w-0 whitespace-nowrap rounded-none px-2 py-2 text-[13px] font-semibold text-muted-foreground transition-colors sm:px-3.5",
                         tab === key && "bg-foreground text-background font-bold",
                     )}
                 >
@@ -73,6 +73,7 @@ export function SettingsContainer() {
     const [resetEmail, setResetEmail] = useState("");
     const [isResetting, setIsResetting] = useState(false);
     const [resetMessage, setResetMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [resumeEditorOpen, setResumeEditorOpen] = useState(false);
 
     const handlePasswordReset = async () => {
         const email = (resetEmail || user?.email || "").trim();
@@ -159,22 +160,35 @@ export function SettingsContainer() {
 
     return (
         <PageLayout fullWidth>
-            <div className={cn("mx-auto px-4 pb-16 pt-6 sm:px-8 xl:px-10 transition-all", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-[760px]")}>
-                <div className="mb-5">
-                    <PageHeader title="Account" description={ACCOUNT_SUBCOPY} size="display" bare />
-                </div>
-                {message && (
-                    <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-destructive"}`}>
-                        {message.text}
-                    </div>
+            <div
+                className={cn(
+                    "mx-auto transition-all",
+                    resumeEditorOpen
+                        ? "max-w-6xl px-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        : cn("px-4 pb-16 pt-6 sm:px-8 xl:px-10", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-[760px]"),
+                )}
+            >
+                {!resumeEditorOpen && (
+                    <>
+                        <div className="mb-5">
+                            <PageHeader title="Account" description={ACCOUNT_SUBCOPY} size="display" bare />
+                        </div>
+                        {message && (
+                            <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-destructive"}`}>
+                                {message.text}
+                            </div>
+                        )}
+                        <TabBar tab={tab} onChange={selectTab} />
+                    </>
                 )}
 
-                <TabBar tab={tab} onChange={selectTab} />
-
                 {tab === "resume" && (
-                    <SettingsCard>
-                        <YourResumeSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} embedded />
-                    </SettingsCard>
+                    <YourResumeSection
+                        user={user}
+                        onLoginClick={() => setAuthPopoverOpen(true)}
+                        embedded
+                        onEditorActiveChange={setResumeEditorOpen}
+                    />
                 )}
 
                 {tab === "prefs" && (
@@ -192,17 +206,17 @@ export function SettingsContainer() {
                             </p>
                             {user ? (
                                 <>
-                                    <dl className="mb-4 grid grid-cols-[120px_1fr] gap-x-3.5 gap-y-2 text-[13px]">
+                                    <dl className="mb-4 grid grid-cols-1 gap-y-2 text-[13px] sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
                                         <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Email</dt>
-                                        <dd>{user.email}</dd>
+                                        <dd className="min-w-0 break-words">{user.email}</dd>
                                         <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Username</dt>
-                                        <dd>{user.displayName || user.email?.split("@")[0]}</dd>
+                                        <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
                                     </dl>
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button onClick={() => void handlePasswordReset()} disabled={isResetting}>
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                                        <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full sm:w-auto rounded-none">
                                             {isResetting ? "Sending…" : "Send password reset link"}
                                         </Button>
-                                        <Button variant="outline" onClick={() => void handleSignOut()}>
+                                        <Button variant="outline" onClick={() => void handleSignOut()} className="w-full sm:w-auto rounded-none">
                                             Sign out
                                         </Button>
                                     </div>
