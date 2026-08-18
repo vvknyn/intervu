@@ -3117,9 +3117,18 @@ function JobsContent() {
                     </div>
                 </div>
 
-                <section className="rounded-none glass-panel p-2 sm:p-2.5 transition-colors">
+                {/* `glass-panel-raised` marks this as the page's focal surface.
+                    Plain `glass-panel` left the search line indistinguishable
+                    from the page behind it — see the class' note in globals.css.
+                    This is the only raised surface on /jobs; if another one is
+                    ever added here, neither will read as the primary action. */}
+                <section className="rounded-none glass-panel glass-panel-raised p-2 sm:p-2.5 transition-colors">
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
-                        <div className="flex flex-col rounded-none border border-border bg-background divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                        {/* `bg-card`, not `bg-background`: inside the raised well
+                            the field has to be the brightest thing on the page,
+                            which is the only direction contrast can go on a
+                            light ground. */}
+                        <div className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     value={queryDraft}
