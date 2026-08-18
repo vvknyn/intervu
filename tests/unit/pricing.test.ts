@@ -1,10 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 import { PACKS } from "@/lib/pricing";
 import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
 import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
-import { buildPricingTiers } from "@/app/pricing/pricing-tiers";
+import { buildPricingTiers, type PricingBullet } from "@/app/pricing/pricing-tiers";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 
 describe("PACKS shape", () => {
@@ -47,6 +49,91 @@ describe("/pricing copy derives from the constants it describes", () => {
     const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
     assert.doesNotMatch(coinsBullet, /\bprep\b/i);
     assert.doesNotMatch(coinsBullet, /cover letter/i);
+  });
+});
+
+// Guard for the class of bug that shipped "Connect your AI — fit, tailoring,
+// prep run in YOUR AI": a bullet asserting an AI capability that no code
+// path actually reaches. Rather than a blocklist of invented-feature words
+// (which only catches the NEXT bullet if it happens to reuse one of today's
+// words), any bullet claiming a capability declares `backedBy: { module,
+// symbol }`, and this checks that symbol is (a) a real export of that
+// module and (b) actually imported by app/UI code — not merely present in
+// its own file, which is exactly the shape of a dead, unreachable export.
+const REPO_ROOT = join(__dirname, "..", "..");
+
+function sourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...sourceFiles(full));
+      continue;
+    }
+    if (/\.tsx?$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+function exportsSymbol(module: string, symbol: string): boolean {
+  const src = readFileSync(join(REPO_ROOT, module), "utf8");
+  return (
+    new RegExp(`export\\s+(?:async\\s+)?function\\s+${symbol}\\b`).test(src) ||
+    new RegExp(`export\\s+(?:const|class|interface|type)\\s+${symbol}\\b`).test(src) ||
+    new RegExp(`export\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}`).test(src)
+  );
+}
+
+/** Whole-word import of `symbol` from an `import { ... } from ...` list, in
+ * any file under src/app or src/components other than the module itself —
+ * i.e. genuinely wired into the app, not just declared. */
+function isImportedUnderAppOrComponents(module: string, symbol: string): boolean {
+  const modulePath = join(REPO_ROOT, module);
+  const importRe = new RegExp(`import\\s+(?:type\\s+)?\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*from`);
+  for (const dir of ["app", "components"]) {
+    for (const file of sourceFiles(join(REPO_ROOT, "src", dir))) {
+      if (file === modulePath) continue;
+      if (importRe.test(readFileSync(file, "utf8"))) return true;
+    }
+  }
+  return false;
+}
+
+describe("pricing bullets that claim an AI capability point at reachable code", () => {
+  const claims = buildPricingTiers(null)
+    .flatMap((tier) => tier.bullets)
+    .filter((b): b is PricingBullet & { backedBy: NonNullable<PricingBullet["backedBy"]> } => !!b.backedBy);
+
+  it("has at least one bullet declaring backedBy (guard isn't vacuous)", () => {
+    assert.ok(claims.length > 0, "expected the /connect bullet to declare backedBy");
+  });
+
+  it("every backedBy claim in the live pricing copy names a real, reachable export", () => {
+    for (const bullet of claims) {
+      const { module, symbol } = bullet.backedBy;
+      assert.ok(exportsSymbol(module, symbol), `${module} does not export ${symbol} (bullet: "${bullet.text}")`);
+      assert.ok(
+        isImportedUnderAppOrComponents(module, symbol),
+        `${symbol} from ${module} is never imported under src/app or src/components — "${bullet.text}" claims an unreachable capability`,
+      );
+    }
+  });
+
+  // Non-motivating case: a fabricated capability must fail this guard the
+  // same way "fit, tailoring, prep" should have. `generateCoverLetter` is a
+  // real, exported function (src/actions/cover-letter.ts) — it just has zero
+  // importers outside its own file, so nothing in the app can ever reach it.
+  it("rejects a bullet that cites a real but dead export as its backing", () => {
+    const fabricated: PricingBullet["backedBy"] = {
+      module: "src/actions/cover-letter.ts",
+      symbol: "generateCoverLetter",
+    };
+    assert.ok(exportsSymbol(fabricated!.module, fabricated!.symbol), "sanity: generateCoverLetter must actually exist for this case to prove anything");
+    assert.equal(
+      isImportedUnderAppOrComponents(fabricated!.module, fabricated!.symbol),
+      false,
+      "generateCoverLetter is now reachable from the app — this fixture no longer represents a dead export and should be replaced",
+    );
   });
 });
 
