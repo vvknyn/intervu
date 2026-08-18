@@ -4,8 +4,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { PACKS } from "@/lib/pricing";
-import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
-import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION, WELCOME_CREDITS } from "@/lib/llm/credit-gate";
+import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { buildPricingTiers, type PricingBullet } from "@/app/pricing/pricing-tiers";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 
@@ -32,34 +32,26 @@ describe("PACKS shape", () => {
 describe("/pricing copy derives from the constants it describes", () => {
   const bulletTexts = buildPricingTiers(null).flatMap((tier) => tier.bullets.map((b) => b.text));
 
-  it("states the real monthly coin allowance and per-action cost, not a hardcoded pair", () => {
-    const coinsBullet = bulletTexts.find((t) => t.includes("coin"));
-    assert.ok(coinsBullet, "expected a bullet mentioning coins");
-    assert.match(coinsBullet!, new RegExp(String(MONTHLY_FREE_CREDITS)));
-    assert.match(coinsBullet!, new RegExp(`${CREDITS_PER_ACTION} coin per AI action`));
+  const creditsBullet = bulletTexts.find((t) => t.includes("every month"));
+
+  it("states the real monthly allowance and per-action cost, not a hardcoded pair", () => {
+    assert.ok(creditsBullet, "expected a bullet stating the monthly allowance");
+    assert.ok(creditsBullet!.includes(`${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many}`), creditsBullet);
+    assert.ok(creditsBullet!.includes(creditCount(CREDITS_PER_ACTION)), creditsBullet);
   });
 
-  it("states the real daily apply cap, not a hardcoded literal", () => {
-    const capBullet = bulletTexts.find((t) => t.includes("tracked applications a day"));
-    assert.ok(capBullet, "expected the daily-apply-cap bullet");
-    assert.match(capBullet!, new RegExp(String(DAILY_APPLY_CAP)));
+  it("never advertises prep or cover-letter generation as example actions (MCP-only, not credit-billed)", () => {
+    assert.doesNotMatch(creditsBullet!, /\bprep\b/i);
+    assert.doesNotMatch(creditsBullet!, /cover letter/i);
   });
 
-  it("never advertises prep or cover-letter generation as example actions (MCP-only, not coin-billed)", () => {
-    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
-    assert.doesNotMatch(coinsBullet, /\bprep\b/i);
-    assert.doesNotMatch(coinsBullet, /cover letter/i);
-  });
-
-  // Non-motivating case: the "about N actions a month" figure is itself a
-  // derived value (MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION), not a second
-  // hardcoded "40" — this is a different derivation than the coin/action
-  // pair the tests above cover, and would drift independently if someone
-  // retyped it.
-  it("states the free monthly action count as coins divided by cost, not a re-typed figure", () => {
-    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
-    const expectedActions = Math.floor(MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION);
-    assert.match(coinsBullet, new RegExp(`about ${expectedActions} AI actions a month`));
+  // Non-motivating case: the one-time sign-up grant is a THIRD constant
+  // (WELCOME_CREDITS, granted by `grantWelcomeCredits` on first sign-in) that
+  // would drift independently of the monthly pair the test above covers.
+  it("states the sign-up grant from WELCOME_CREDITS, not a re-typed figure", () => {
+    const grantBullet = bulletTexts.find((t) => t.startsWith("Plus "));
+    assert.ok(grantBullet, "expected a bullet naming the sign-up grant");
+    assert.ok(grantBullet!.includes(creditCount(WELCOME_CREDITS)), grantBullet);
   });
 
   // The four real coin-spending actions must read as plain human capability
@@ -163,18 +155,70 @@ describe("pricing bullets that claim an AI capability point at reachable code", 
 });
 
 describe("/pricing corpus-count bullet derives from the same source as the rest of the site", () => {
+  // Asserts the COMPOSITION (count formatted by the shared helper), not the
+  // whole sentence — an exact-string assertion breaks on every wording edit
+  // and teaches people to delete the test rather than read it.
   it("renders the live count via formatCorpusCount when stats are available", () => {
     const stats = { liveJobs: { kind: "exact" as const, value: 2_060_299 } };
     const bullet = buildPricingTiers(stats).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
     assert.ok(bullet);
-    assert.equal(bullet!.text, `Search ${formatCorpusCount(stats.liveJobs)} live verified jobs`);
+    assert.ok(bullet!.text.includes(formatCorpusCount(stats.liveJobs)), bullet!.text);
     assert.match(bullet!.text, /2,060,299/);
   });
 
   it("degrades to a count-free claim (never a stale or fabricated number) when stats are unavailable", () => {
     const bullet = buildPricingTiers(null).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
     assert.ok(bullet);
-    assert.equal(bullet!.text, "Search live verified jobs");
-    assert.doesNotMatch(bullet!.text, /\d/);
+    assert.doesNotMatch(bullet!.text, /\d/, bullet!.text);
+  });
+});
+
+// The /pricing page and the balance a user actually sees must name the AI
+// unit with the same word. They didn't: this page said "coins" while the
+// sidebar said "40 credits", the out-of-credits block said "credits", and
+// /terms had a "Credits" heading — one product, two nouns, and the page whose
+// whole job is explaining the economy was the one using the word that appears
+// nowhere else. Both now compose from `CREDIT_UNIT`/`creditCount`
+// (lib/llm/credit-copy.ts), which is a pure module precisely so the "use
+// client" sidebar can read it without pulling firebase-admin in.
+describe("the AI unit has exactly one user-facing name", () => {
+  const bulletTexts = buildPricingTiers(null).flatMap((tier) => tier.bullets.map((b) => b.text));
+
+  it("no /pricing bullet uses the retired 'coin' vocabulary", () => {
+    for (const text of bulletTexts) assert.doesNotMatch(text, /\bcoins?\b/i, text);
+  });
+
+  it("the sidebar balance takes its noun from the shared export, not a hand-typed plural", () => {
+    const balance = readFileSync(join(REPO_ROOT, "src/components/layout/CreditBalance.tsx"), "utf8");
+    assert.match(balance, /from "@\/lib\/llm\/credit-copy"/);
+    // The exact shape this replaced: `${s.total} credit${s.total === 1 ? "" : "s"}`.
+    assert.doesNotMatch(balance, /credit\$\{/);
+  });
+
+  it("creditCount pluralizes from the one noun (guard isn't vacuous)", () => {
+    assert.equal(creditCount(1), `1 ${CREDIT_UNIT.one}`);
+    assert.equal(creditCount(0), `0 ${CREDIT_UNIT.many}`);
+    assert.equal(creditCount(MONTHLY_FREE_CREDITS), `${MONTHLY_FREE_CREDITS} ${CREDIT_UNIT.many}`);
+  });
+});
+
+// The free plan advertised "Up to 20 tracked applications a day" and the app
+// enforced it (`assertUnderDailyApplyCap`, removed 2026-08-18). Copy and
+// enforcement are two halves of one promise and the dangerous states are the
+// mismatched ones — a cap enforced but undisclosed surprises a user mid-flow,
+// a cap advertised but unenforced is a lie. Both halves are gone; this fails
+// if either comes back alone.
+describe("no daily application limit is advertised or enforced", () => {
+  it("no pricing bullet claims a per-day allowance", () => {
+    for (const text of buildPricingTiers(null).flatMap((t) => t.bullets.map((b) => b.text))) {
+      assert.doesNotMatch(text, /\b(a|per)\s+day\b/i, text);
+    }
+  });
+
+  it("no source file enforces a daily apply cap", () => {
+    const offenders = sourceFiles(join(REPO_ROOT, "src")).filter((f) =>
+      /DAILY_APPLY_CAP|assertUnderDailyApplyCap|pursuits\/apply-cap/.test(readFileSync(f, "utf8")),
+    );
+    assert.deepEqual(offenders, [], "daily apply cap enforcement is back but /pricing does not disclose it");
   });
 });

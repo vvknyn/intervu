@@ -507,8 +507,8 @@ export interface SaveResumeVariantInput {
  * ever creates/touches a pursuit — so the common validation-failure case
  * (blank content or label) can't leave behind an "interested" pursuit with
  * zero resume variants on it. Stage is always "interested": preparing a
- * resume must never consume the free-plan daily apply-cap slot, which only
- * an "applied" transition does (`isNewAppliedTransition`, apply-cap.ts).
+ * resume must never advance the pursuit to "applied" — only an explicit
+ * `mark_applied` says the user actually applied.
  *
  * `download_url` (R5a, 2026-08-09 founder report: a tailored variant must
  * be downloadable IMMEDIATELY from the chat) points at the pursuit page's

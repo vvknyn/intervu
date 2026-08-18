@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chipVariants } from "@/components/ui/chip";
@@ -28,6 +29,40 @@ import {
  * the bar, the panel, and the URL can never disagree. The full panel stays
  * as "All filters" for everything long-tail.
  */
+
+/**
+ * The facets this bar gives a searcher a named, one-click control for.
+ * Drives the rendering below AND `facetBarRepresents` — one list, so the
+ * "what does the bar already show" answer cannot drift from what it renders
+ * the moment a chip is added or removed here.
+ *
+ * Why anything needs that answer: the toolbar's per-filter chip row was
+ * removed 2026-08-15 as "duplicate information", on the premise that this
+ * bar already lets a searcher see and drop each active filter one at a time.
+ * That premise holds only for the concerns listed here — `location_country`
+ * (set from the location box, never a chip), `employment_type`,
+ * `visa_sponsorship` and `source` have no control on this bar, so when one
+ * is active the toolbar showed a bare count naming nothing. `page.tsx` names
+ * exactly the leftovers rather than restoring the whole duplicated row.
+ */
+export const FACET_BAR_FACETS: readonly { label: string; key: FacetKey; testId: string }[] = [
+    { label: "Work mode", key: "work_type", testId: "facet-chip-work-mode" },
+    { label: "Experience", key: "experience_level", testId: "facet-chip-experience" },
+];
+
+/**
+ * Heads of the `activeFilterEntries` keys this bar controls — facet keys
+ * plus the non-facet concerns it owns. `postedDateSupported` is a prop, not
+ * a constant: when the backend can't sort/filter by date the Posted chip
+ * isn't rendered, so on that path the bar genuinely doesn't represent it.
+ */
+export function facetBarRepresents(postedDateSupported: boolean): ReadonlySet<string> {
+    return new Set<string>([
+        ...FACET_BAR_FACETS.map((f) => f.key),
+        "salaryMin",
+        ...(postedDateSupported ? ["postedBucket"] : []),
+    ]);
+}
 
 /** One dropdown chip. `activeValue` doubles as the active-state signal and
  *  the chip's value suffix ("Posted · Past week"). */
@@ -145,8 +180,9 @@ export function FacetBar({
                     </Affordance>
                 ))}
             </FacetChip>
-            {facetChip("Work mode", "work_type", "facet-chip-work-mode")}
-            {facetChip("Experience", "experience_level", "facet-chip-experience")}
+            {FACET_BAR_FACETS.map((f) => (
+                <Fragment key={f.key}>{facetChip(f.label, f.key, f.testId)}</Fragment>
+            ))}
         </div>
     );
 }

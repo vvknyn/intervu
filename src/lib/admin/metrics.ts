@@ -282,7 +282,7 @@ export const METRICS: readonly MetricSpec[] = [
         "created_at",
     ),
     totalCount(
-        { id: "apply_days", label: "Apply-active user-days", group: "Product use", note: "One row per person per UTC day they marked something applied — not a click count. The counter carries no timestamp to window on." },
+        { id: "apply_days", label: "Apply-active user-days (to 2026-08-18)", group: "Product use", note: "One row per person per UTC day they marked something applied — not a click count. FROZEN: the counter existed only to enforce the free-plan daily apply cap, which was removed 2026-08-18, so nothing writes `apply_counters` anymore. This is the historical total, not a live figure." },
         { collection: "apply_counters" },
     ),
     totalCount(

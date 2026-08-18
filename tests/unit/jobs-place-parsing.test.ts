@@ -23,14 +23,24 @@ const DATA: GazetteerData = {
   countries: [
     ["CA", "CAN", "Canada"],
     ["US", "USA", "United States"],
+    ["AU", "AUS", "Australia"],
   ],
   admin1: [
     ["CA", "ON", "Ontario"],
     ["US", "FL", "Florida"], // the location-facet bug's surfacing instance (below)
+    ["US", "GA", "Georgia"],
+    ["AU", "NSW", "New South Wales"],
   ],
   cities: [
     ["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356],
     ["Richmond Hill", null, 43.8828, -79.4403, "CA", "ON", 202022], // ~20km from Toronto — a radius neighbor
+    // The foreign twins that make the homonym real rather than described.
+    // `scopeCityCandidates` only scopes a name the gazetteer knows in more
+    // than one country, so without these rows this fixture would assert a
+    // country scope the real artifact applies for a reason the fixture
+    // doesn't model (Richmond Hill: CA+US, Toronto: CA+AU).
+    ["Richmond Hill", null, 31.9377, -81.3037, "US", "GA", 9281],
+    ["Toronto", null, -33.0167, 151.5833, "AU", "NSW", 5386],
     ["New York", null, 40.7128, -74.006, "US", "NY", 8804190],
     ["Lisbon", null, 38.7223, -9.1393, "PT", null, 506654],
   ],

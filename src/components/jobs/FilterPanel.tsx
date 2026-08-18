@@ -107,6 +107,54 @@ export function facetValueLabel(key: FacetKey, v: string): string {
     return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** What to call a facet KEY in a chip that has to say which filter it is
+ *  ("Location · Bangalore"), as opposed to `facetValueLabel`'s value side.
+ *  The map only overrides where a derived name would read badly; the
+ *  fallback humanises the key itself, so a facet added to `FACETABLE_KEYS`
+ *  gets a serviceable label without an edit here. */
+const KEY_LABELS: Partial<Record<FacetKey, string>> = {
+    location_country: "Location",
+    work_type: "Work mode",
+    experience_level: "Experience",
+    employment_type: "Employment",
+    visa_sponsorship: "Visa",
+    ghost_badge: "Posting status",
+};
+
+export function facetKeyLabel(key: FacetKey): string {
+    return (
+        KEY_LABELS[key] ??
+        key.replace(/^location_/, "").replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+}
+
+/**
+ * The active filters a caller has to name for itself, because the FacetBar
+ * has no control for them (`facetBarRepresents`, FacetBar.tsx). Splitting on
+ * ":" recovers the facet key from an `activeFilterEntries` entry key
+ * (`"location_country:Bangalore"`); non-facet entries ("salaryMin",
+ * "visaOnly", …) have no colon and compare whole.
+ *
+ * Pure and generic over the entry shape so the toolbar can pass its own
+ * already-hoisted `activeEntries` rather than recomputing, and so this is
+ * testable without rendering anything.
+ */
+export function entriesNeedingOwnChip<T extends { key: string }>(
+    entries: readonly T[],
+    represented: ReadonlySet<string>,
+): T[] {
+    return entries.filter((e) => !represented.has(e.key.split(":")[0]));
+}
+
+/** Chip text for one such entry. A facet entry names its key ("Location ·
+ *  Bangalore") because with no dropdown on the bar nothing else on screen
+ *  says WHICH filter the value belongs to; the non-facet entries already
+ *  read as complete phrases ("Sponsors visas"), so they're left alone. */
+export function chipLabelForEntry(entry: { key: string; label: string }): string {
+    const [head, ...rest] = entry.key.split(":");
+    return rest.length > 0 ? `${facetKeyLabel(head as FacetKey)} · ${entry.label}` : entry.label;
+}
+
 export interface FilterState {
     facets: Partial<Record<FacetKey, string[]>>;
     salaryMin: number;

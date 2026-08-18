@@ -6,6 +6,8 @@ import {
   scanPlacePhrases,
   countryPlaceCandidates,
   buildCityVariantIndex,
+  scopeCityCandidates,
+  buildAmbiguousCityNames,
   PLACE_MIN_LENGTH,
 } from "../../src/lib/geo/resolve-place";
 import { JOBS_SYNONYMS } from "../../src/lib/jobs/meilisearch";
@@ -20,10 +22,13 @@ const DATA: GazetteerData = {
   countries: [
     ["CA", "CAN", "Canada"],
     ["US", "USA", "United States"],
+    ["AU", "AUS", "Australia"],
   ],
   admin1: [
     ["CA", "ON", "Ontario"],
     ["US", "CA", "California"],
+    ["US", "GA", "Georgia"],
+    ["AU", "NSW", "New South Wales"],
   ],
   cities: [
     // Toronto-area cluster, all within ~50km of Toronto.
@@ -36,6 +41,14 @@ const DATA: GazetteerData = {
     // radius expansion must not leak (bug: a bare `location_city = "Richmond
     // Hill"` clause matches BOTH; the fix scopes it to Ontario/Canada).
     ["Richmond Hill", null, 43.8828, -79.4403, "CA", "ON", 202022],
+    // The homonyms the two comments above only DESCRIBED. Until they existed
+    // as rows, the fixture could not actually distinguish "scoped because
+    // the name is shared with another country" from "scoped always" — and
+    // `scopeCityCandidates` reads ambiguity off the gazetteer, so a fixture
+    // that omits the twin claims a name is unique when the real artifact
+    // knows it isn't (Richmond Hill: CA+US, Toronto: CA+AU).
+    ["Richmond Hill", null, 31.9377, -81.3037, "US", "GA", 9281],
+    ["Toronto", null, -33.0167, 151.5833, "AU", "NSW", 5386],
     // Far outside the radius — must never show up as a Toronto neighbor.
     ["Ottawa", null, 45.4215, -75.6972, "CA", "ON", 934243],
     // Same NAME as the Canadian province, but a real (smaller) US city —
@@ -524,5 +537,96 @@ test("canonical-missing guard, real table: every CITY_NAME_VARIANTS canonical ac
   for (const alias of ["bangalore", "bombay", "calcutta", "madras", "kiev", "saigon", "peking", "gurgaon"]) {
     const r = resolvePlacePhrase(alias, gazetteer);
     assert.ok(r, `renamed-city alias "${alias}" must resolve against the real committed gazetteer`);
+  }
+});
+
+/**
+ * The country scope only earns its cost when a name is shared across
+ * countries. Applying it unconditionally ANDs against `location_country`, a
+ * field the corpus fills far less reliably than `location_city` — measured
+ * on the live index, 17 of the 20 Bengaluru/Bangalore polymer postings carry
+ * a wrong country ('Bengaluru' echoed from the city, or a fabricated 'United
+ * States' from raw text reading "Bangalore, KA, IN, 560066"), so the scope
+ * was discarding real matches to prevent a collision that cannot happen.
+ */
+test("scopeCityCandidates: an unambiguous primary drops the scope AND any candidate that needed it", () => {
+  const candidates = [
+    { field: "location_city" as const, value: "Bengaluru" },
+    { field: "location_city" as const, value: "Bangalore" },
+    { field: "location_city" as const, value: "Springfield" }, // shared with other countries
+  ];
+  const scope = [{ field: "location_country" as const, value: "India" }];
+  const out = scopeCityCandidates(candidates, scope, "Bengaluru", (n) => n === "Springfield");
+  assert.deepEqual(out.countryScope, [], "nothing to disambiguate -> no scope");
+  assert.deepEqual(
+    out.candidates.map((c) => c.value),
+    ["Bengaluru", "Bangalore"],
+    "an unscoped clause must not offer a name that was only safe while scoped",
+  );
+});
+
+test("scopeCityCandidates: an ambiguous primary keeps scope and candidates exactly as-is", () => {
+  const candidates = [
+    { field: "location_city" as const, value: "Richmond Hill" },
+    { field: "location_city" as const, value: "Markham" },
+  ];
+  const scope = [{ field: "location_country" as const, value: "Canada" }];
+  const out = scopeCityCandidates(candidates, scope, "Richmond Hill", () => true);
+  assert.deepEqual(out.countryScope, scope);
+  assert.deepEqual(out.candidates, candidates);
+});
+
+test("buildAmbiguousCityNames: only names the gazetteer knows in MORE THAN ONE country", () => {
+  const names = buildAmbiguousCityNames(GAZETTEER);
+  assert.ok(names.has("richmond hill"), "CA + US");
+  assert.ok(names.has("toronto"), "CA + AU");
+  assert.ok(!names.has("mississauga"), "CA only — a scope could never disambiguate it");
+  assert.ok(
+    !names.has("springfield"),
+    "two Springfields, both US — same-country duplicates are not a cross-country collision",
+  );
+});
+
+test("an unambiguous city resolves UNSCOPED, so a wrong/missing location_country can't hide it", () => {
+  const r = resolvePlacePhrase("mississauga", GAZETTEER);
+  assert.ok(r);
+  assert.deepEqual(r!.countryScope, [], "Mississauga exists in one country — nothing to scope against");
+  const cities = fieldValues(r!.candidates, "location_city");
+  assert.ok(cities.includes("Mississauga"));
+  for (const ambiguous of ["Toronto", "Richmond Hill"]) {
+    assert.ok(
+      !cities.includes(ambiguous),
+      `${ambiguous} is a cross-country homonym — it must not ride along in an unscoped clause`,
+    );
+  }
+});
+
+test("real gazetteer, not just the reported city: renamed cities resolve to BOTH spellings and stay unscoped, while homonyms keep their scope", async () => {
+  const { loadGazetteer } = await import("../../src/lib/geo/gazetteer");
+  const gazetteer = loadGazetteer();
+
+  // Both spellings must be offered — the corpus genuinely splits across them.
+  for (const [typed, spellings] of [
+    ["bangalore", ["Bengaluru", "Bangalore"]],
+    ["bengaluru", ["Bengaluru", "Bangalore"]],
+    ["bombay", ["Mumbai", "Bombay"]],
+  ] as const) {
+    const r = resolvePlacePhrase(typed, gazetteer);
+    assert.ok(r, `${typed} must resolve`);
+    assert.deepEqual(r!.countryScope, [], `${typed} names one city on earth — expected no country scope`);
+    const cities = fieldValues(r!.candidates, "location_city");
+    for (const spelling of spellings) {
+      assert.ok(cities.includes(spelling), `expected ${spelling} among ${typed}'s candidates`);
+    }
+  }
+
+  // The guard the scope exists for is untouched.
+  for (const homonym of ["richmond hill", "london", "hyderabad"]) {
+    const r = resolvePlacePhrase(homonym, gazetteer);
+    assert.ok(r, `${homonym} must resolve`);
+    assert.ok(
+      r!.countryScope.length > 0,
+      `${homonym} exists in more than one country — its scope must survive`,
+    );
   }
 });

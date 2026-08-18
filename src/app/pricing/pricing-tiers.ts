@@ -23,9 +23,11 @@
  * `parseResumeWithAI`), story import from pasted text (`StoryImportModal` →
  * `parseStoriesFromText`), story extraction from an uploaded document
  * (`StoryEditorWizard` → `convertBlobToStar`), and AI-drafted interview
- * questions (`AddQuestionModal` → `addInterviewQuestion`). The coin count and
- * per-action cost are read from `credit-gate.ts` rather than retyped, so this
- * copy can't drift from what's actually charged. Same reasoning for the
+ * questions (`AddQuestionModal` → `addInterviewQuestion`). The credit amounts
+ * are read from `credit-gate.ts` and the unit noun from `credit-copy.ts`
+ * rather than retyped, so this copy can't drift from what's actually charged
+ * or from what the sidebar balance calls it (it said "coins" here and
+ * "credits" everywhere else until 2026-08-18). Same reasoning for the
  * corpus-size bullet: it reads the live count off the same
  * `getMarketingStatsAction`/`formatCorpusCount` source the landing page's
  * ticker uses (`TopBar.tsx`), rather than a hand-typed figure that can go
@@ -35,8 +37,8 @@
  * asserts that symbol is a real, reachable export, which is the guard that
  * would have caught the "fit, tailoring, prep" bullet this file used to ship.
  */
-import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
-import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION, WELCOME_CREDITS } from "@/lib/llm/credit-gate";
+import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 import type { MarketingCorpusStats } from "@/lib/marketing-stats";
 
@@ -88,29 +90,31 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
     {
       name: "Free",
       price: "$0",
-      tagline: "everything below — no card required",
-      priceNote: "paid truth tiers come later",
+      tagline: "the whole product",
+      priceNote: "No card required. Nothing to cancel.",
       bullets: [
         {
           text: stats
-            ? `Search ${formatCorpusCount(stats.liveJobs)} live verified jobs`
-            : "Search live verified jobs",
+            ? `Search ${formatCorpusCount(stats.liveJobs)} live jobs, straight from companies' own career pages`
+            : "Search live jobs, straight from companies' own career pages",
         },
-        { text: "Posting check on every role" },
-        { text: "Application tracker" },
+        { text: "A posting check on every role — actively posted, worth verifying, or possibly stale" },
+        { text: "Track every application in one place, from interested to offer" },
         {
-          text: `${MONTHLY_FREE_CREDITS} free coins a month — ${CREDITS_PER_ACTION} coin per AI action, so about ${Math.floor(MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION)} AI actions a month.`,
+          text: `${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many} every month for AI actions — ${creditCount(CREDITS_PER_ACTION)} per action, refilled on the 1st`,
         },
         {
-          text: "For example: rank your job list against your résumé, import your stories from pasted text, turn a rough note into a full story, or draft an interview question.",
+          text: `Plus ${creditCount(WELCOME_CREDITS)} when you sign up, which never expire`,
+        },
+        {
+          text: "For example: rank your job list against your résumé, import your stories from pasted text, turn a rough note into a full story, or draft an interview question",
           backedBy: { module: "src/actions/resume.ts", symbol: "parseResumeWithAI" },
         },
         {
-          text: "Connect your AI — search and save jobs, track applications, read and update your résumé, right from YOUR AI",
+          text: "Connect your own AI — search and save jobs, track applications, and update your résumé without leaving your chat",
           href: "/connect",
           backedBy: { module: "src/lib/agent/tools.ts", symbol: "toolSearchJobs" },
         },
-        { text: `Up to ${DAILY_APPLY_CAP} tracked applications a day` },
       ],
       cta: { kind: "link", label: "Start free", href: "/", variant: "brand" },
     },

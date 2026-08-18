@@ -206,6 +206,69 @@ function radiusNeighbors(city: GazetteerCity, gazetteer: Gazetteer): GazetteerCi
     .slice(0, PLACE_RADIUS_MAX_NEIGHBORS);
 }
 
+/**
+ * The country scope (`PlaceResolution.countryScope`) exists for exactly one
+ * job: stop a same-named city in ANOTHER country from satisfying the clause
+ * (the Richmond Hill, Ontario vs Richmond Hill, Georgia case `PlaceClause`
+ * documents). When no candidate name is shared with another country there is
+ * nothing for it to disambiguate — and applying it anyway is not free, it's
+ * an AND against `location_country`, a field the corpus populates far less
+ * reliably than `location_city`. Measured 2026-08-18 on the live index, the
+ * 20 Bengaluru/Bangalore polymer postings carry `location_country` =
+ * 'Bengaluru' (9, the city echoed into the country field) and 'United
+ * States' (8, from raw text that literally reads "Bangalore, KA, IN,
+ * 560066") against only 3 correct 'India' — so the scope discarded 17 of 20
+ * genuine matches to guard against a collision that cannot exist, since
+ * "Bengaluru" names one city on earth.
+ *
+ * So: scope only when it can actually disambiguate. When the primary name is
+ * unambiguous we drop the scope AND drop any radius-neighbor candidate whose
+ * own name IS ambiguous — an unscoped clause must never offer a value that
+ * needed the scope to be safe. Ambiguous primaries keep both, unchanged.
+ *
+ * Pure so the decision is unit-testable without a gazetteer: `isAmbiguous`
+ * is the only thing that needs one.
+ */
+export function scopeCityCandidates(
+  candidates: readonly PlaceCandidate[],
+  countryScope: readonly PlaceCandidate[],
+  primaryName: string,
+  isAmbiguous: (cityName: string) => boolean,
+): { candidates: PlaceCandidate[]; countryScope: PlaceCandidate[] } {
+  if (isAmbiguous(primaryName)) return { candidates: [...candidates], countryScope: [...countryScope] };
+  return {
+    candidates: candidates.filter((c) => c.field !== "location_city" || !isAmbiguous(c.value)),
+    countryScope: [],
+  };
+}
+
+/** Lowercase city names the gazetteer knows in more than one country — the
+ *  only names a country scope can disambiguate. Built once per gazetteer
+ *  instance, same memoized shape as `cityVariantIndex`. */
+export function buildAmbiguousCityNames(gazetteer: Gazetteer): Set<string> {
+  const countriesByName = new Map<string, Set<string>>();
+  for (const list of gazetteer.citiesByName.values()) {
+    for (const city of list) {
+      const key = city.name.toLowerCase();
+      let seen = countriesByName.get(key);
+      if (!seen) countriesByName.set(key, (seen = new Set()));
+      seen.add(city.countryCode.toUpperCase());
+    }
+  }
+  return new Set([...countriesByName].filter(([, cc]) => cc.size > 1).map(([name]) => name));
+}
+
+const ambiguousCityNamesCache = new WeakMap<Gazetteer, Set<string>>();
+
+function ambiguousCityNames(gazetteer: Gazetteer): Set<string> {
+  let names = ambiguousCityNamesCache.get(gazetteer);
+  if (!names) {
+    names = buildAmbiguousCityNames(gazetteer);
+    ambiguousCityNamesCache.set(gazetteer, names);
+  }
+  return names;
+}
+
 function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution | null {
   const matches = gazetteer.citiesByName.get(normalized);
   if (!matches || matches.length === 0) return null;
@@ -240,14 +303,21 @@ function resolveCity(normalized: string, gazetteer: Gazetteer): PlaceResolution 
   }
   for (const neighbor of radiusNeighbors(primary, gazetteer)) addCity(neighbor);
   const country = gazetteer.countriesByIso2.get(primary.countryCode.toUpperCase());
-  return {
-    entity: { type: "city", name: primary.name, countryCode: primary.countryCode },
+  const ambiguous = ambiguousCityNames(gazetteer);
+  const scoped = scopeCityCandidates(
     candidates,
     // Fails open to [] (unscoped) if the gazetteer has a city whose country
     // code isn't itself registered — never happens for the committed
     // artifact (both come from the same GeoNames dump) but keeps a
     // hand-built fixture from throwing instead of just being less precise.
-    countryScope: country ? countryCandidates(country, gazetteer) : [],
+    country ? countryCandidates(country, gazetteer) : [],
+    primary.name,
+    (name) => ambiguous.has(name.toLowerCase()),
+  );
+  return {
+    entity: { type: "city", name: primary.name, countryCode: primary.countryCode },
+    candidates: scoped.candidates,
+    countryScope: scoped.countryScope,
     wordsConsumed: normalized.split(" ").length,
   };
 }

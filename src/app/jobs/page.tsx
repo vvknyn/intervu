@@ -85,6 +85,8 @@ import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, LandingMasthead, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
+    entriesNeedingOwnChip,
+    chipLabelForEntry,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
     type FilterState,
@@ -92,7 +94,7 @@ import {
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
-import { FacetBar } from "@/components/jobs/FacetBar";
+import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
@@ -1473,6 +1475,14 @@ function JobsContent() {
     // pill's count and `emptySearchState` below both read this ONE call
     // instead of a second `activeFilterEntries(filterState)` per render.
     const activeEntries = activeFilterEntries(filterState);
+
+    // The active filters the FacetBar has no control for — see
+    // `FACET_BAR_FACETS`. The toolbar names these itself, because for them
+    // the 2026-08-15 "duplicate information" removal had nothing to be a
+    // duplicate OF: `location_country` is set from the location box and
+    // appears on no chip, so "Clear filters (1)" was the only trace that a
+    // search had been narrowed at all.
+    const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
 
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
@@ -3452,6 +3462,19 @@ function JobsContent() {
                                 {trackedCount} tracked
                             </Link>
                         )}
+                        {unnamedEntries.map((entry) => (
+                            <span
+                                key={entry.key}
+                                data-testid="active-filter-chip"
+                                className={cn(chipVariants({ active: false }), "mono-data h-7 gap-1.5 text-[12px]")}
+                            >
+                                {chipLabelForEntry(entry)}
+                                <ChipDismiss
+                                    label={`Clear ${chipLabelForEntry(entry)}`}
+                                    onClick={() => applyFilterState(entry.clear(filterState))}
+                                />
+                            </span>
+                        ))}
                         {activeCount > 0 && (
                             <button
                                 type="button"
