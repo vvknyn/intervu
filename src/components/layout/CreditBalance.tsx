@@ -58,6 +58,7 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
         <Link
             href="/settings"
             title={title}
+            data-testid="topbar-credit-balance"
             className={cn(
                 "flex items-center gap-2.5 p-2 rounded-[9px] text-[13px] transition-colors hover:bg-muted",
                 collapsed && "justify-center",
