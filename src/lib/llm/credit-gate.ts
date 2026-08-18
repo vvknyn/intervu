@@ -72,8 +72,10 @@ function adminEmails(): string[] {
         .filter(Boolean);
 }
 
-/** Current "YYYY-MM" period key used for the monthly free-credit refill. */
-function currentPeriod(): string {
+/** Current "YYYY-MM" period key used for the monthly free-credit refill.
+ *  Exported so the admin metrics read the SAME period key the charge path
+ *  writes — a second copy of this format would silently count nothing. */
+export function currentPeriod(): string {
     const d = new Date();
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }

@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { CircleNotch, Check, Bug, ChatCircle, DotsThree, ArrowLeft } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { MetricsDashboard } from "@/components/admin/MetricsDashboard";
 import Link from "next/link";
 
 const TYPE_CONFIG: Record<string, { label: string; icon: typeof Bug; color: string }> = {
@@ -90,6 +92,9 @@ export function AdminPanel() {
                 />
             }
         >
+            <div className="space-y-6">
+            <MetricsDashboard />
+
             {isLoading ? (
                 <div className="py-16 flex flex-col items-center justify-center text-muted-foreground gap-3">
                     <div className="w-5 h-5 border border-border border-t-foreground rounded-full animate-spin" />
@@ -104,7 +109,7 @@ export function AdminPanel() {
                     )}
 
                     {/* Donation Settings */}
-                    <div className="bg-card rounded-xl p-4 sm:p-6 shadow-[var(--shadow-sm)]">
+                    <Card className="gap-4 p-4 sm:p-6">
                         <h3 className="text-sm font-semibold mb-4">Donation Settings</h3>
 
                         <div className="space-y-4">
@@ -136,7 +141,7 @@ export function AdminPanel() {
                                 />
                             </div>
                         </div>
-                    </div>
+                    </Card>
 
                     <Button onClick={handleSave} disabled={isSaving} className="gap-2">
                         {isSaving ? (
@@ -148,7 +153,7 @@ export function AdminPanel() {
                     </Button>
 
                     {/* Feedback Section */}
-                    <div className="bg-card rounded-xl p-4 sm:p-6 shadow-[var(--shadow-sm)]">
+                    <Card className="gap-4 p-4 sm:p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-semibold">
                                 User Feedback
@@ -210,9 +215,10 @@ export function AdminPanel() {
                                 })}
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
             )}
+            </div>
         </PageLayout>
     );
 }
