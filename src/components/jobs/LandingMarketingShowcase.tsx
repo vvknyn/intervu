@@ -57,10 +57,10 @@ export function LandingMasthead() {
 
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
           <div className="font-mono font-bold text-foreground uppercase tracking-wider">
-            02 / GHOST DETECTION
+            02 / POSTING CHECKS
           </div>
           <p className="text-muted-foreground">
-            Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag phantom or stale roles before you apply.
+            Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag roles that aren&apos;t really live before you apply.
           </p>
         </div>
 

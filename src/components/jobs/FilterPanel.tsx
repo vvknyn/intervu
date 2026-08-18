@@ -8,13 +8,30 @@
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { GHOST_META } from "@/lib/jobs/presentation";
 
+/**
+ * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
+ *
+ * They used to be a second hand-written copy of the same four strings, which
+ * is the failure mode this file is now the fix for: renaming the verdicts at
+ * their chokepoint left this filter still offering "No ghost signals" while
+ * every row said something else. A duplicated label map is a rename that is
+ * guaranteed to go half-done.
+ *
+ * `unscored` has no GHOST_META entry (it is `null` there — nothing has been
+ * checked, so there is no verdict to show on a row). The filter still needs a
+ * name for it, and that name lives here because this is the only surface that
+ * offers it as a choice.
+ */
 const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
     ghost_badge: {
-        clear: "No ghost signals",
-        caution: "Worth verifying",
-        likely_ghost: "Possible ghost",
-        unscored: "Unscored",
+        ...Object.fromEntries(
+            Object.entries(GHOST_META)
+                .filter(([, meta]) => meta !== null)
+                .map(([value, meta]) => [value, meta!.label]),
+        ),
+        unscored: "Not checked yet",
     },
 };
 
@@ -217,7 +234,7 @@ export function activeFilterEntries(
     if (state.hideGhosts === false) {
         entries.push({
             key: "hideGhosts",
-            label: "Showing likely-ghost",
+            label: "Showing possibly stale",
             clear: (s) => ({ ...s, hideGhosts: true }),
         });
     }

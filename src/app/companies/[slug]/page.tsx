@@ -9,6 +9,7 @@ import { CompanyHeader } from "@/components/company/CompanyHeader";
 import { CompanyGhostMixBand } from "@/components/company/CompanyGhostMixBand";
 import { CompanyFreshnessBand } from "@/components/company/CompanyFreshnessBand";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 /**
  * Per-company truth page — live roles, ghost mix, posting freshness, all
@@ -46,8 +47,8 @@ export async function generateMetadata({
   const { slug } = await params;
   const name = companyFromSlug(slug);
   return {
-    title: `Is ${name} hiring? Live verified jobs & ghost-job risk`,
-    description: `Track live verified job postings and ghost-job risk signals for ${name} on intervu.`,
+    title: `Is ${name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`,
+    description: `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${name} on intervu.`,
     robots: { index: false, follow: true },
     alternates: { canonical: "/jobs" },
   };

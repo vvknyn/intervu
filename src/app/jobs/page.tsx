@@ -756,7 +756,7 @@ function JobsListSplash() {
     return (
         <div>
             <p className="pt-8 font-mono text-[13px] text-muted-foreground">
-                Finding live roles… screening each posting for ghost-job signals.
+                Finding live roles… checking each posting is still active.
             </p>
             <div className="mt-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -956,7 +956,7 @@ function EmptyResults({
                     onClick={onRevealGhosts}
                     className="mt-2 font-mono text-xs text-foreground underline underline-offset-2"
                 >
-                    {ghostRevealCount.toLocaleString()} roles hidden as likely-ghost — show them
+                    {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
@@ -3627,8 +3627,8 @@ function JobsContent() {
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
-                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the ghost-job
-                                        signal that flags postings that aren&apos;t really hiring.
+                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the posting check
+                                        that flags roles that aren&apos;t really hiring.
                                     </p>
                                     {result?.note && (
                                         <p className="mt-1 max-w-md font-mono text-xs text-muted-foreground/70">{result.note}</p>

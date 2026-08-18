@@ -7,7 +7,7 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
  * drifting into two independently-edited wordings of the same fact.
  */
 export const CORPUS_SOURCE_DESCRIPTOR =
-    "scraped from companies' own career pages, screened for ghost-job risk";
+    "scraped from companies' own career pages, screened for postings that aren't really live";
 
 /**
  * Numbers the landing claim can render when available. Sourced from the same

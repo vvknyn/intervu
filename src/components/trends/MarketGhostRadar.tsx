@@ -23,7 +23,7 @@ export function MarketGhostRadar({
             <ShieldWarning size={15} weight="duotone" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Ghost Radar</h2>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Posting Checks</h2>
             <p className="text-xs text-muted-foreground">Automated risk signals evaluated across all active postings</p>
           </div>
         </div>

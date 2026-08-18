@@ -52,7 +52,7 @@ export function daysOpenFrom(postedTs: number | null, nowMs: number): number | n
  *                  scrape actually answers ("not recently verified" when
  *                  neither timestamp parses).
  *   caution      → "⚠ {daysOpen} days open" (daysOpen derived from posted_ts)
- *   likely_ghost → "✕ likely ghost" (visibility is filtering's job, not this
+ *   likely_ghost → "✕ possibly stale" (visibility is filtering's job, not this
  *                  function's — it only decides the TEXT for a badge that's
  *                  already on screen)
  *   unscored     → null (no badge — preserves the pre-Task-8 null behavior)
@@ -152,7 +152,7 @@ export function badgeFor(
             return days != null ? `⚠ ${days} days open` : "⚠ worth verifying";
         }
         case "likely_ghost":
-            return "✕ likely ghost";
+            return "✕ possibly stale";
         case "unscored":
         default:
             return null;
