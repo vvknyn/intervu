@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alsoInLabel, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText } from "../../src/components/jobs/job-detail-facts";
+import { alsoInLabel, assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText } from "../../src/components/jobs/job-detail-facts";
 import type { PostingFreshness } from "../../src/lib/jobs/posting-freshness";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -63,17 +63,41 @@ test("buildFactChips: posted known but first-seen unknown renders only the poste
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
 
-test("ghostCheckedText: a parseable updated_at reads as a relative check time", () => {
-    const updatedAt = new Date(NOW - 3 * 3_600_000).toISOString();
-    assert.equal(ghostCheckedText(updatedAt, NOW), "Checked 3h ago");
+test("ghostCheckedText: a parseable ghost_checked_at reads as a relative check time", () => {
+    const checkedAt = new Date(NOW - 3 * 3_600_000).toISOString();
+    assert.equal(ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: checkedAt }, NOW), "Checked 3h ago");
 });
 
-test("ghostCheckedText: null updated_at never fabricates a time", () => {
-    assert.equal(ghostCheckedText(null, NOW), "Check time unavailable");
+test("ghostCheckedText: null ghost_checked_at never fabricates a time", () => {
+    assert.equal(ghostCheckedText({ ghost_badge: "unscored", ghost_checked_at: null }, NOW), "Check time unavailable");
 });
 
-test("ghostCheckedText: an unparseable updated_at never fabricates a time", () => {
-    assert.equal(ghostCheckedText("not-a-date", NOW), "Check time unavailable");
+test("ghostCheckedText: an unparseable ghost_checked_at never fabricates a time", () => {
+    assert.equal(
+        ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: "not-a-date" }, NOW),
+        "Check time unavailable",
+    );
+});
+
+/**
+ * The reported bug, at the exact surface that reported it: a modal showing
+ * "checked 89d ago" over "first seen by us 89d ago" — one column printed
+ * twice. A job scraped 89 days ago whose check ran this morning must read
+ * from the check, and a document with no check timestamp at all must say so
+ * rather than reaching for the scrape.
+ */
+test("ghostCheckedText: reads the check, never the scrape", () => {
+    const job = {
+        ghost_badge: "caution" as const,
+        ghost_checked_at: new Date(NOW - 2 * 3_600_000).toISOString(),
+        updated_at: new Date(NOW - 89 * 86_400_000).toISOString(),
+    };
+    assert.equal(ghostCheckedText(job, NOW), "Checked 2h ago");
+});
+
+test("ghostCheckedText: a document predating the field claims nothing, rather than borrowing updated_at", () => {
+    const job = { ghost_badge: "clear" as const, updated_at: new Date(NOW - 89 * 86_400_000).toISOString() };
+    assert.equal(ghostCheckedText(job, NOW), "Check time unavailable");
 });
 
 /* ---------------------------- deriveGhostSignals ---------------------------- */
@@ -92,12 +116,14 @@ test("deriveGhostSignals: a fresh, non-relisted, substantial, salaried posting �
         3,
         NOW,
     );
-    // ITEM T (2026-08-15): reposts is ALWAYS non-favorable now — there is no
+    // ITEM T (2026-08-15): reposts can never come back favorable — there is no
     // close/reopen data source in the corpus, so "no repost history" would
     // overclaim evidence this app doesn't have (see deriveGhostSignals' doc).
+    // It is `unknown`, NOT `unfavorable` (2026-08-16): a check that cannot run
+    // must not score against the posting.
     assert.deepEqual(
-        signals.map((s) => s.positive),
-        [true, false, true, true],
+        signals.map((s) => s.status),
+        ["favorable", "unknown", "favorable", "favorable"],
     );
     assert.deepEqual(
         signals.map((s) => s.kind),
@@ -116,9 +142,11 @@ test("deriveGhostSignals: a relisted, thin, unsalaried posting reports each hone
         1,
         NOW,
     );
+    // Age and a thin description are real findings against the posting;
+    // an untracked repost history and an undisclosed salary are absences.
     assert.deepEqual(
-        signals.map((s) => s.positive),
-        [false, false, false, false],
+        signals.map((s) => s.status),
+        ["unfavorable", "unknown", "unfavorable", "unknown"],
     );
     // ITEM T correction (2026-08-15): a relist is a freshness-integrity fact,
     // not a repost — the "refreshed" text lives on the freshness row now;
@@ -134,7 +162,7 @@ test("deriveGhostSignals: reposts is UNCHANGED by relist state — same neutral 
     const relisted = deriveGhostSignals(job({ description: null }), freshness({ kind: "relisted", firstSeenMs: NOW - 40 * 86_400_000 }), 0, NOW);
     const repostsOf = (signals: ReturnType<typeof deriveGhostSignals>) => signals.find((s) => s.kind === "reposts")!;
     assert.equal(repostsOf(notRelisted).text, repostsOf(relisted).text);
-    assert.equal(repostsOf(notRelisted).positive, repostsOf(relisted).positive);
+    assert.equal(repostsOf(notRelisted).status, repostsOf(relisted).status);
 });
 
 test("deriveGhostSignals: no first_seen at all omits BOTH freshness signals — never guesses", () => {
@@ -229,4 +257,45 @@ test("alsoInLabel: a variant at the SAME place as the primary is excluded, not d
 test("alsoInLabel: every variant sharing the primary's place renders no chip", () => {
     const here = job({ location_city: "Noida" });
     assert.equal(alsoInLabel(here, [job({ location_city: "Noida" })]), null);
+});
+
+/* --------------------- assessed vs unmeasured signals ---------------------- */
+
+// Regression, reported live 2026-08-16 with a screenshot: an ordinary
+// Globaltechmarkets posting showed "1/4 favorable" — a scary-looking score
+// whose three non-favorable rows were an untracked repost history (no data
+// source exists), an undisclosed salary, and its age. Two of those three were
+// absences of data being counted as failed checks.
+test("assessedGhostSignals: unmeasured signals leave the denominator — an absence is not a failure", () => {
+    const signals = deriveGhostSignals(
+        job({ description: "x".repeat(400), salary_min: null, salary_max: null }),
+        freshness({ kind: null, firstSeenMs: NOW - 13 * 86_400_000 }),
+        4,
+        NOW,
+    );
+    assert.deepEqual(
+        signals.map((s) => s.status),
+        ["unfavorable", "unknown", "favorable", "unknown"],
+    );
+
+    const assessed = assessedGhostSignals(signals);
+    const favorable = assessed.filter((s) => s.status === "favorable").length;
+
+    // What the panel renders: "1/2 favorable · 2 not tracked", never "1/4".
+    assert.equal(assessed.length, 2);
+    assert.equal(favorable, 1);
+    assert.equal(signals.length - assessed.length, 2);
+});
+
+// The unknowns are still SHOWN — this fix removes them from the score, not
+// from the ledger. Hiding them would trade one dishonesty for another.
+test("assessedGhostSignals: filters a copy — every signal is still rendered", () => {
+    const signals = deriveGhostSignals(
+        job({ description: null, salary_min: null }),
+        freshness({ kind: "fresh", firstSeenMs: NOW - 86_400_000 }),
+        0,
+        NOW,
+    );
+    assert.equal(signals.length, 3);
+    assert.equal(assessedGhostSignals(signals).length, 1);
 });

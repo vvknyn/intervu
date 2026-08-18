@@ -12,10 +12,18 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN [ -f data/geo/dbip-country-lite.mmdb ] || node scripts/download-mmdb.mjs
+# Docker deliberately excludes a build secret's CONTENTS from the layer cache
+# key, so editing the env file alone leaves both steps below cached and the
+# rebuild is a silent no-op: measured 2026-08-18, `docker compose build intervu`
+# after adding two keys reported 13/13 steps CACHED, exit 0, "Image ... Built",
+# and produced a byte-identical image with neither key inlined. ENV_DIGEST is a
+# hash of that file, supplied by deploy.sh, and is referenced in each command
+# purely so the cache key moves when the env does.
+ARG ENV_DIGEST=unset
 RUN --mount=type=secret,id=env,target=/run/build.env \
-    sh scripts/lint-env.sh /run/build.env
+    : "env-digest ${ENV_DIGEST}" && sh scripts/lint-env.sh /run/build.env
 RUN --mount=type=secret,id=env,target=/run/build.env \
-    set -a && . /run/build.env && set +a && npm run build
+    : "env-digest ${ENV_DIGEST}" && set -a && . /run/build.env && set +a && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app

@@ -8,7 +8,7 @@
  * added to `EMAIL_KIND_POLICY` below, not by editing an if/else ladder in
  * send.ts.
  */
-export type EmailKind = "digest" | "waitlist_confirm" | "transactional";
+export type EmailKind = "digest" | "waitlist_confirm" | "welcome" | "transactional";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -26,6 +26,13 @@ export interface EmailKindPolicy {
 const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   digest: { suppressible: true, requiresUnsubscribeHeader: true },
   waitlist_confirm: { suppressible: true, requiresUnsubscribeHeader: true },
+  // Suppressible even though it is triggered by the user's own first
+  // sign-in. A welcome email that describes what the product does is
+  // promotional content by every definition CAN-SPAM/CASL use, and someone
+  // who has already unsubscribed from "all" must not receive one because it
+  // happened to be classed as a courtesy. The honest test is what the email
+  // CONTAINS, not what triggered it.
+  welcome: { suppressible: true, requiresUnsubscribeHeader: true },
   transactional: { suppressible: false, requiresUnsubscribeHeader: false },
 };
 

@@ -1,7 +1,8 @@
-import { STATUS_PILL } from "@/lib/ui/status-tokens";
+import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
-import type { GhostBadge, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import { checkFreshness } from "@/lib/jobs/badges";
+import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 
 /**
@@ -16,29 +17,57 @@ import { toValueArray } from "@/lib/jobs/types";
  * their own `now` and these stay usable from a render body.
  */
 
-// Ghost-badge presentation. Colors route through the shared status-token
-// chokepoint (lib/ui/status-tokens.ts): caution/likely_ghost → intv (amber),
-// clear → offer (green). Token classes carry both light + dark values, so the
-// per-state dark: overrides are no longer needed.
-export const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: string; explain: string } | null> = {
+// Ghost-badge presentation. Colors route through `ghostBadgeTone`
+// (lib/ui/status-tokens.ts) — the ONE badge→tone decision — rather than a
+// hand-picked STATUS_PILL entry per badge. That hand-picked copy had already
+// drifted: `ghostBadgeTone` was introduced to stop `caution` and
+// `likely_ghost` sharing one amber tone ("collapsing 'review' and 'possible
+// ghost' into the same color hid the worse verdict", its own doc), and the
+// radar bars and mix bands were moved onto it — but this map, which every
+// BADGE-rendering surface reads (SERP row tooltip, detail-panel verdict pill,
+// /co roles list), kept `likely_ghost: STATUS_PILL.intv` and stayed amber.
+// A possible-ghost posting therefore looked identical to a merely-cautioned
+// one everywhere a reader actually meets a posting. Derived now, so the two
+// can't disagree again.
+//
+// The `dot` field is gone with the same edit: it had no consumer anywhere in
+// src (a third palette copy kept alive only by the type), and leaving a
+// second color source next to a fix for a second color source invites the
+// exact drift this removes.
+const ghostPill = (badge: "clear" | "caution" | "likely_ghost") => STATUS_PILL[ghostBadgeTone(badge)];
+
+export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explain: string } | null> = {
+    // "Ghost job" is jobseeker-forum vocabulary. It reads as insider jargon to
+    // anyone who has not met it before — and the corpus is not a tech corpus
+    // (nursing and physical therapy each match as many live postings as
+    // software engineering), so most readers have not. Feedback from the
+    // medical field, 2026-08-17.
+    //
+    // The replacement is not just plainer, it is more honest. "Ghost" asserts
+    // the employer's INTENT — a posting kept up to farm résumés. What the
+    // signals below actually measure is whether a posting still looks live:
+    // freshness, repost history, whether pay is disclosed. "Possibly stale"
+    // is the claim the evidence supports; "possible ghost job" was a claim
+    // about motive we cannot see.
+    //
+    // The term is deliberately KEPT on /research/ghost-jobs and its metadata:
+    // people search for "ghost jobs", so it earns its place as an acquisition
+    // surface. It is the in-product labels that had to change.
     likely_ghost: {
-        label: "Possible ghost job",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv",
+        label: "Possibly stale",
+        cls: ghostPill("likely_ghost"),
         explain:
-            "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
+            "Our signals suggest this posting may no longer be live — it could be old, permanently open, or already filled. Worth verifying before you invest time.",
     },
     caution: {
         label: "Worth verifying",
-        cls: STATUS_PILL.intv,
-        dot: "bg-st-intv/80",
+        cls: ghostPill("caution"),
         explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
     },
     clear: {
-        label: "No ghost signals",
-        cls: STATUS_PILL.offer,
-        dot: "bg-st-offer",
-        explain: "No ghost-risk signals — this posting looks active.",
+        label: "Actively posted",
+        cls: ghostPill("clear"),
+        explain: "Nothing suggests this posting is stale — it looks active.",
     },
     unscored: null,
 };
@@ -54,17 +83,47 @@ export const GHOST_META: Record<GhostBadge, { label: string; cls: string; dot: s
 export const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
     label: "Not recently verified",
     cls: STATUS_PILL.intv,
-    dot: "bg-st-intv/60",
     explain: "This posting hasn't been re-checked recently — we can't confirm it's still active. Worth a quick sanity-check before you apply.",
 };
 
 /**
  * Single chokepoint for which `GHOST_META` entry a job's row badge AND
  * detail-panel banner render from — so the two surfaces can never disagree
- * about whether a "clear" verdict is still current.
+ * about whether a verdict is still current.
+ *
+ * Staleness does two different jobs here, and it used to do only the first:
+ *
+ *   1. It DEMOTES a stale "clear". A green "no ghost signals" pill is a
+ *      present-tense safety claim; when the check behind it is a month old
+ *      the claim outlives its evidence, so `STALE_CLEAR_META` replaces it.
+ *
+ *   2. It DATES every other stale verdict. "Worth verifying" and "Possible
+ *      ghost job" also speak in the present tense ("some signals suggest…"),
+ *      and until 2026-08-17 they were exempt from the staleness branch
+ *      entirely — a caution verdict from an 89-day-old check rendered
+ *      identically to one from this morning. It keeps its label (dropping a
+ *      warning because we stopped looking is the dangerous direction — see
+ *      `rowTrustChip`), but the copy now says when we last looked.
+ *
+ * Takes the job so the caller can't hand it the wrong clock; see
+ * `GhostChecked` (types.ts).
  */
-export function ghostMetaFor(ghostBadge: GhostBadge, stale: boolean) {
-    return ghostBadge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[ghostBadge];
+export function ghostMetaFor(job: GhostChecked, nowMs: number) {
+    const stale = checkFreshness(job, nowMs) === "stale";
+    const meta = job.ghost_badge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
+    if (!meta || !stale) return meta;
+    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(job.ghost_checked_at, nowMs)}` };
+}
+
+/**
+ * The dated half of a stale verdict's disclosure. An unknown check date is
+ * stated as unknown rather than smoothed into "a while ago" — the one thing
+ * this whole change exists to stop is a confident number standing in for a
+ * check we can't actually place in time.
+ */
+function lastCheckedClause(checkedAt: string | null | undefined, nowMs: number): string {
+    if (!checkedAt || Number.isNaN(Date.parse(checkedAt))) return "We have no record of when it was last checked.";
+    return `Last checked ${formatRelativeAge(checkedAt, nowMs)}.`;
 }
 
 /**
@@ -130,17 +189,55 @@ function tokenize(s: string): string[] {
  *      group)" ⊄ {inog} both keep, because they add a fact the bare name
  *      doesn't already carry.
  */
+/**
+ * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
+ * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
+ *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
+ *      "perspire.zohorecruit.com" -> "Perspire"
+ *      "acme.workable.com" -> "Acme"
+ *      "appmysite.com" -> "Appmysite"
+ */
+export function humanizeTenantSubdomain(raw: string): string {
+    const s = raw.trim();
+    if (!s) return "";
+
+    const atsMatch = s.match(/^([a-z0-9-]+)\.(zohorecruit|applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|recruitee|ashbyhq|breezy|workable)\.(com|io|net|co)$/i);
+    let token = atsMatch ? atsMatch[1] : s;
+
+    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech)$/i, "");
+
+    if (/[-_]/.test(token)) {
+        return token
+            .split(/[-_]+/)
+            .filter(Boolean)
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(" ");
+    }
+
+    if (token.toLowerCase().endsWith("it") && token.length > 3) {
+        const root = token.slice(0, -2);
+        return (root.charAt(0).toUpperCase() + root.slice(1).toLowerCase()) + " IT";
+    }
+
+    const camelSpaced = token.replace(/([a-z])([A-Z])/g, "$1 $2");
+    if (camelSpaced.includes(" ")) {
+        return camelSpaced;
+    }
+
+    return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
 
-    // ATS portal hostnames aren't company names — callers fall back to "Unknown company".
-    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters)\.(com|io|net)\b/i.test(out)) {
-        return "";
+    // ATS portal hostnames or bare domains -> extract humanized tenant name
+    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i.test(out)) {
+        return humanizeTenantSubdomain(out);
     }
-    // Bare domain used as a company placeholder (e.g. "acme.applicantpro.com").
+    // Bare domain used as a company placeholder (e.g. "appmysite.com").
     if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(out) && !out.includes(" ")) {
-        return "";
+        return humanizeTenantSubdomain(out);
     }
 
     out = out
@@ -163,14 +260,14 @@ export function cleanCompany(s: string | null | undefined): string {
 }
 
 /**
- * Display-safe company name: falls back to the domain when `cleanCompany`
- * blanks a domain-shaped name (e.g. "Super.Com" -> ""), so the label never
- * reads "Unknown company" next to a `CompanyLogo` that's rendering that same
- * domain's favicon. Callers keep their own final "Unknown company" fallback
- * for the case where there's no domain either.
+ * Display-safe company name: falls back to the humanized domain when `cleanCompany`
+ * is empty, so the label never reads "Unknown company" next to a `CompanyLogo`.
  */
 export function displayCompany(name: string | null | undefined, domain: string | null | undefined): string {
-    return cleanCompany(name) || (domain ?? "").trim();
+    const cleaned = cleanCompany(name);
+    if (cleaned) return cleaned;
+    if (domain) return humanizeTenantSubdomain(domain);
+    return "";
 }
 
 /**
@@ -263,7 +360,12 @@ export function humanizeRawLocation(raw: string): string | null {
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
-        if (readable) return readable;
+        if (readable) {
+            if (j.work_type === "remote" && !/\bremote\b/i.test(readable)) {
+                return `Remote · ${readable}`;
+            }
+            return readable;
+        }
     }
     // The STRUCTURED fields carry the same accident: the Toolbx doc holds
     // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
@@ -276,7 +378,13 @@ export function locationText(j: PublicJob): string {
     const parts = [j.location_city, j.location_state, country]
         .map((v) => (v ? humanizeRawLocation(decodeText(v)) : null))
         .filter((v): v is string => Boolean(v));
-    if (parts.length) return parts.join(", ");
+    if (parts.length) {
+        const loc = parts.join(", ");
+        if (j.work_type === "remote" && !/\bremote\b/i.test(loc)) {
+            return `Remote · ${loc}`;
+        }
+        return loc;
+    }
     if (j.work_type === "remote") return "Remote";
     return "Location not listed";
 }

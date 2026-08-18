@@ -21,13 +21,11 @@ import type { GhostSignal } from "@/components/jobs/job-detail-facts";
 export const POSTING_AGE_CONTEXT_COPY =
   "An older posting isn't necessarily inactive — senior and specialized roles can take months to fill, and some companies hire for a role on a rolling basis. We also weigh more than age: repost history, how much the listing actually says, and whether pay is disclosed.";
 
-/** Identifies `deriveGhostSignals`' age-derived line by its known emission
- *  shape rather than exact string matching every future copy tweak — both
- *  branches of that function's freshness block start with one of these two
- *  prefixes (the "fresh" positive case and the "first seen X ago" case),
- *  and it's the only signal category driven by posting age. */
+/** Identifies `deriveGhostSignals`' age-derived line by its `kind`, not by
+ *  matching the text it happens to render — "freshness" is the only signal
+ *  category driven by posting age. */
 export function isAgeSignal(signal: GhostSignal): boolean {
-  return signal.text.startsWith("first seen by us") || signal.text.startsWith("freshness —");
+  return signal.kind === "freshness";
 }
 
 /**
@@ -41,12 +39,11 @@ export function isAgeSignal(signal: GhostSignal): boolean {
  * negative reading alone).
  */
 export function shouldShowAgeBalanceNote(signals: readonly GhostSignal[]): boolean {
-  // ITEM T (2026-08-15): the reposts line is now an always-negative
-  // data-absence marker (no repost/close-reopen history source exists yet
-  // — see deriveGhostSignals's doc comment), not a genuine judgment about
-  // the posting, so it no longer counts toward "how many signals are
-  // really negative" — otherwise every job with a first-seen date would
-  // permanently read as multi-signal and this note would never fire again.
-  const negatives = signals.filter((s) => !s.positive && s.kind !== "reposts");
+  // ITEM T (2026-08-15) hand-excluded `kind === "reposts"` here because that
+  // line is a data-absence marker, not a judgment. That carve-out is gone
+  // (2026-08-16): `GhostSignalStatus` now says so at the signal itself, so
+  // "really negative" is a property every reader gets for free instead of a
+  // per-reader exception list that the ghost-check counter never received.
+  const negatives = signals.filter((s) => s.status === "unfavorable");
   return negatives.length === 1 && isAgeSignal(negatives[0]);
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
-import { Briefcase, ClockCounterClockwise, ShieldWarning } from "@phosphor-icons/react";
+import { Briefcase, Database, ShieldWarning, ArrowUpRight } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 export function TrendsHero({
@@ -17,59 +17,78 @@ export function TrendsHero({
 }) {
   const tiles = [
     {
-      label: "Live jobs right now",
+      label: "Live Active Openings",
+      subtitle: "Verified direct from employer career pages",
       value: liveJobs,
       testId: "trends-stat-live",
-      icon: <Briefcase size={18} weight="duotone" className="text-emerald-700 dark:text-emerald-400" />,
-      badgeCls: "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
-      numberCls: "text-emerald-950 dark:text-emerald-200",
+      icon: <Briefcase size={16} weight="duotone" className="text-foreground" />,
+      indicator: "bg-emerald-500",
       href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
     },
     {
-      label: "Postings tracked, all-time",
+      label: "Total Postings Tracked",
+      subtitle: "Cumulative indexed across all historical statuses",
       value: totalTracked,
       testId: "trends-stat-total",
-      icon: <ClockCounterClockwise size={18} weight="duotone" className="text-indigo-700 dark:text-indigo-400" />,
-      badgeCls: "bg-indigo-50 text-indigo-950 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800",
-      numberCls: "text-slate-900 dark:text-white",
+      icon: <Database size={16} weight="duotone" className="text-foreground" />,
+      indicator: "bg-slate-400 dark:bg-slate-500",
     },
     {
-      label: "Flagged likely-ghost, live",
+      label: "Possibly Stale",
+      subtitle: "Flagged by automated integrity heuristic checks",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",
-      icon: <ShieldWarning size={18} weight="duotone" className="text-rose-700 dark:text-rose-400" />,
-      badgeCls: "bg-rose-50 text-rose-950 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800",
-      numberCls: "text-rose-950 dark:text-rose-200",
+      icon: <ShieldWarning size={16} weight="duotone" className="text-rose-500" />,
+      indicator: "bg-rose-500",
     },
   ];
 
   return (
     <div data-testid="trends-hero" className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-3">
-      {tiles.map((tile) => (
-        <div
-          key={tile.testId}
-          data-testid={tile.testId}
-          className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-card p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-sm dark:border-slate-800"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {tile.label}
-            </span>
-            <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg border", tile.badgeCls)}>
-              {tile.icon}
-            </div>
-          </div>
-          <p className={cn("mt-3 font-mono text-3xl font-extrabold tracking-tight", tile.numberCls)}>
-            {tile.href ? (
-              <Link href={tile.href} className="hover:underline">
+      {tiles.map((tile) => {
+        const content = (
+          <div
+            data-testid={tile.testId}
+            className="group relative flex h-full flex-col justify-between rounded-none border border-border/80 bg-card/75 p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] transition-all duration-150 hover:bg-card/90 hover:border-border-strong"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)} aria-hidden />
+                  <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {tile.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border/70 bg-muted/40 backdrop-blur-md">
+                    {tile.icon}
+                  </div>
+                  {tile.href && (
+                    <ArrowUpRight
+                      size={14}
+                      className="text-muted-foreground opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-foreground"
+                    />
+                  )}
+                </div>
+              </div>
+              <p className="mt-3 font-mono text-3xl font-bold tracking-tight text-foreground tabular-nums">
                 {formatCorpusCount(tile.value)}
-              </Link>
-            ) : (
-              formatCorpusCount(tile.value)
-            )}
-          </p>
-        </div>
-      ))}
+              </p>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {tile.subtitle}
+            </p>
+          </div>
+        );
+
+        return tile.href ? (
+          <Link key={tile.testId} href={tile.href} className="block">
+            {content}
+          </Link>
+        ) : (
+          <div key={tile.testId}>{content}</div>
+        );
+      })}
     </div>
   );
 }

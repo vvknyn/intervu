@@ -9,7 +9,7 @@ import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 import { cn } from "@/lib/utils";
 
 /** Quiet footer links — Research/Pricing live here (not primary nav). */
-const LEGAL_LINKS: { label: string; href: string }[] = [
+export const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
     { label: "Pricing", href: "/pricing" },
     { label: "About", href: "/about" },
@@ -18,6 +18,24 @@ const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Privacy", href: "/privacy" },
     { label: "Terms", href: "/terms" },
 ];
+
+/** Compact 1-line footer links for embedding inside filter drawers and toolbars without chasing infinite scroll. */
+export function CompactFooterLinks({ className }: { className?: string }) {
+    return (
+        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-mono text-muted-foreground", className)}>
+            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
+                <Link
+                    key={link.href}
+                    href={link.href}
+                    className="transition-colors hover:text-foreground underline underline-offset-2"
+                >
+                    {link.label}
+                </Link>
+            ))}
+            <span className="text-muted-foreground/60">· Job data by Subspace</span>
+        </div>
+    );
+}
 
 /** The actual footer markup, mounted once by `Footer` below. */
 export function FooterContent() {
@@ -68,11 +86,17 @@ export function FooterContent() {
  * on the same routes `TopBar` hides its own chrome on — a login/auth screen
  * shouldn't repeat the product nav. Landing (`/`) is full-bleed instrument —
  * chrome hidden via `shouldHideSiteChrome`.
+ *
+ * Suppressed on infinite-scroll routes (`/jobs`) so the footer never runs away
+ * or jumps when the list sentinel auto-loads more results. Secondary links
+ * live in the filter panel, top nav, and settings on those surfaces.
  */
 export function Footer() {
     const pathname = usePathname();
     const hideNav = shouldHideSiteChrome(pathname);
-    if (hideNav) return null;
+    const isInfiniteScroll = pathname === "/jobs" || pathname.startsWith("/jobs/");
+    if (hideNav || isInfiniteScroll) return null;
 
     return <FooterContent />;
 }
+

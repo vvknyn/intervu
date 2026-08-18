@@ -34,34 +34,48 @@ export function MarketPulse({
   const maxValue = Math.max(...postedPerDay.map((d) => d.count.value), 1);
 
   return (
-    <section data-testid="trends-pulse" className="mt-6 rounded-2xl border border-slate-200/90 bg-card p-6 shadow-xs dark:border-slate-800">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-          <Pulse size={18} weight="duotone" />
+    <section data-testid="trends-pulse" className="rounded-none border border-border bg-card p-6 transition-colors">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
+            <Pulse size={15} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Ingestion Velocity & Daily Pulse</h2>
+            <p className="text-xs text-muted-foreground">
+              {formatCorpusCount(liveJobs)} active
+              {closed
+                ? ` · ${closed.closed.toLocaleString()} closed in ${closed.windowDays}d (${closed.companiesTracked.toLocaleString()} employers)`
+                : ""}
+              . {staleActiveSharePct}% older than 60d.
+              <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-bold text-foreground">Market Pulse & Ingestion Velocity</h2>
-          <p className="text-xs text-muted-foreground">
-            {formatCorpusCount(liveJobs)} active
-            {closed
-              ? ` · ${closed.closed.toLocaleString()} closed in last ${closed.windowDays}d across ${closed.companiesTracked.toLocaleString()} employers`
-              : ""}
-            . {staleActiveSharePct}% open 60+ days.
-            <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
-          </p>
-        </div>
+        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+          14-Day Velocity
+        </span>
       </div>
 
-      {snapshotSummary}
+      {snapshotSummary && <div className="mt-3">{snapshotSummary}</div>}
 
-      <ol className="mt-5 space-y-2.5">
+      <ol className="mt-4 space-y-1">
         {postedPerDay.map(({ date, count }) => (
-          <li key={date} data-testid={`trends-pulse-day-${date}`} className="flex items-center gap-3 text-[13.5px]">
-            <span className="w-12 shrink-0 font-mono text-[11px] font-bold text-muted-foreground">{shortDayLabel(date)}</span>
-            <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <span className="block h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500" style={{ width: `${(count.value / maxValue) * 100}%` }} />
+          <li
+            key={date}
+            data-testid={`trends-pulse-day-${date}`}
+            className="group flex items-center gap-3 px-2 py-1 text-xs transition-colors hover:bg-muted/40"
+          >
+            <span className="w-12 shrink-0 font-mono text-[11px] font-medium text-muted-foreground">
+              {shortDayLabel(date)}
             </span>
-            <span className="w-20 shrink-0 text-right font-mono text-[12.5px] font-bold text-foreground">
+            <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted/80">
+              <span
+                className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
+                style={{ width: `${(count.value / maxValue) * 100}%` }}
+              />
+            </span>
+            <span className="w-16 shrink-0 text-right font-mono text-xs font-bold text-foreground tabular-nums">
               {formatCorpusCount(count)}
             </span>
           </li>
@@ -69,9 +83,11 @@ export function MarketPulse({
       </ol>
 
       {sourceCoverage.length > 0 && (
-        <div className="mt-5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
-          <p data-testid="trends-pulse-coverage" className="font-mono text-[11px] text-muted-foreground">
-            <span className="font-bold text-foreground uppercase tracking-wider mr-1">ATS Ingestion Coverage:</span>
+        <div className="mt-4 rounded-none border border-border bg-muted/20 p-3">
+          <p data-testid="trends-pulse-coverage" className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <span className="font-bold uppercase tracking-wider text-foreground mr-1">
+              ATS Ingestion Feeds:
+            </span>
             {sourceCoverage
               .slice(0, MAX_VISIBLE_SOURCES)
               .map((row) => `${facetValueLabel("source", row.source)} (${row.count.toLocaleString()})`)

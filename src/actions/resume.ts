@@ -5,6 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
+import { RESUME_PARSE_FREE_LADDER } from "@/lib/llm/models";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -216,7 +217,13 @@ export async function parseResumeWithAI(
             ...configOverride
         };
 
-        const result = await generateGenericJSON(prompt, optimizedConfig);
+        // Free models first, the paid default behind them. Résumé parsing is
+        // structured extraction over ~8K characters — a task free models do
+        // well — and it ran on a paid model for every upload. The user is still
+        // charged exactly one credit for the generation no matter how many
+        // rungs run: the charge lives above the walk, inside `fetchJSON`.
+        // See lib/llm/model-ladder.ts for why the last rung must be paid.
+        const result = await generateGenericJSON(prompt, optimizedConfig, RESUME_PARSE_FREE_LADDER);
 
         if (!result) {
             return { error: "No response from AI. Please try again in a moment." };

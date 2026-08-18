@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, DM_Sans, IBM_Plex_Mono, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -19,41 +19,19 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
+import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
 
-// Frozen UI typeface pair (see globals.css --font-sans/--font-mono/
-// --font-display). DM Sans covers UI, wordmark, and headings; IBM Plex Mono
-// carries numbers, timestamps, verdicts, and micro-labels.
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+// Clean, airy, minimal typeface pair: Inter for UI & Headings, JetBrains Mono for technical data
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
-});
-
-/** Elite mock surfaces only (scoped via `.elite-signal` in elite-signal.css). */
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-elite-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const splineSans = Spline_Sans({
-  variable: "--font-elite-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const splineMono = Spline_Sans_Mono({
-  variable: "--font-elite-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 const SITE_TITLE = SITE_NAME;
@@ -143,7 +121,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
             script in <head> blocks first paint until it runs, so a returning
@@ -158,7 +136,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${ibmPlexMono.variable} ${bricolage.variable} ${splineSans.variable} ${splineMono.variable} antialiased bg-background text-foreground`}
+        className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
@@ -170,6 +148,7 @@ export default function RootLayout({
         />
         <PostHogProvider>
           <ThemeProvider>
+            <CursorFabricBackground />
             <TourProvider>
               <TopBar />
               {children}

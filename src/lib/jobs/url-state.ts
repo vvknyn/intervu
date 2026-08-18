@@ -16,6 +16,33 @@ export interface JobsUrlState {
     sort: UrlSort | null;
     jobId: string | null;
     board: BoardId | null;
+    /**
+     * Restrict the corpus to ONE employer, addressed by `company_domain` —
+     * the identity the index actually keys on (`JobSearchParams.companyDomain`,
+     * types.ts → `company_domain = "..."`, meilisearch.ts).
+     *
+     * Exists because `/co/[slug]`'s "View all N jobs" CTA had no way to say
+     * "this employer" and fell back to `q: <display name>`, a free-text
+     * search. Measured live 2026-08-16: `/co/harrods--com` counts 108 roles
+     * by domain, its CTA's `q=Harrods` returned 109 rows of which ZERO in the
+     * top 20 were Harrods — "Harrods" is a VENUE, so it saturates the titles
+     * and locations of other employers' concession roles inside the store
+     * (Chanel, Burberry, Saint Laurent, Hermès).
+     *
+     * A name is a lossy encoding of an employer in both directions: it
+     * over-matches (the venue case above) and under-matches (the index stores
+     * "Harrods Limited"; the page displays the suffix-stripped "Harrods", and
+     * `isCompanyNameQuery`'s company-scoping rescue — company-intent.ts —
+     * requires exact equality after normalization, so it never fired). A
+     * domain has neither failure mode: the CTA's result set is now the SAME
+     * set the page counted, by construction rather than by heuristic.
+     *
+     * Kept as its own field rather than folded into `board`: `board` is an
+     * allowlist-validated `BoardId` (`isBoardId`) naming a CURATED domain
+     * set, so expressing one employer through it would mean enumerating
+     * employers in an allowlist — the coupling this field exists to avoid.
+     */
+    companyDomain: string | null;
 }
 
 /**
@@ -70,7 +97,20 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     sort: null,
     jobId: null,
     board: null,
+    companyDomain: null,
 };
+
+/**
+ * A `company` param's canonical form. Lower/trimmed to match how the filter
+ * itself compares (`company_domain = <trim().toLowerCase()>`, meilisearch.ts)
+ * so `?company=Harrods.COM` and `?company=harrods.com` are ONE scope rather
+ * than two URLs that search the same thing but compare unequal in
+ * `searchKey`. Empty → `null` (no scope), never an empty-string filter that
+ * would match nothing.
+ */
+function normalizeCompanyDomain(raw: string | null): string | null {
+    return raw?.trim().toLowerCase() || null;
+}
 
 const FACET_PARAMS: Record<string, FacetKey> = {
     work: "work_type",
@@ -113,7 +153,10 @@ export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
 export function jobSearchParamsFromUrlState(
     state: JobsUrlState,
     sinceMs?: number,
-): Pick<JobSearchParams, "q" | "facets" | "salaryMin" | "visaOnly" | "hideGhosts" | "board" | "postedSinceMs"> {
+): Pick<
+    JobSearchParams,
+    "q" | "facets" | "salaryMin" | "visaOnly" | "hideGhosts" | "board" | "companyDomain" | "postedSinceMs"
+> {
     return {
         q: state.q || undefined,
         facets: state.facets,
@@ -121,6 +164,10 @@ export function jobSearchParamsFromUrlState(
         visaOnly: state.visaOnly || undefined,
         hideGhosts: state.hideGhosts,
         board: state.board ?? undefined,
+        // A company-scoped saved search must stay company-scoped: dropping it
+        // here would widen the count banner and the digest back to the
+        // free-text corpus the scope exists to exclude.
+        companyDomain: state.companyDomain ?? undefined,
         ...(sinceMs !== undefined ? { postedSinceMs: sinceMs } : {}),
     };
 }
@@ -160,6 +207,7 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     if (job) s.jobId = job;
     const board = sp.get("board");
     if (board && isBoardId(board)) s.board = board;
+    s.companyDomain = normalizeCompanyDomain(sp.get("company"));
     return s;
 }
 
@@ -182,6 +230,7 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     if (s.sort) sp.set("sort", s.sort);
     if (s.jobId) sp.set("job", s.jobId);
     if (s.board) sp.set("board", s.board);
+    if (s.companyDomain) sp.set("company", s.companyDomain);
     const out = sp.toString();
     return out ? `?${out}` : "";
 }

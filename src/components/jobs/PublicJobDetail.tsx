@@ -7,35 +7,25 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
+import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
+import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { decodeText, locationText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 
+export interface PublicJobDetailProps {
+    job: PublicJob;
+    onClose?: () => void;
+    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+}
+
 /**
- * Client-side wiring for `JobDetail` on the standalone `/jobs/[slug]` page.
- * The route itself is a server component and can't hand `JobDetail`
- * function props (Apply/Save handlers) across the RSC boundary, so this
- * thin wrapper supplies them. It renders no body UI of its own — everything
- * still comes from `JobDetail` (writing-lean-code: do not fork a second
- * detail component).
- *
- * `signedIn` is forced `true` here regardless of the visitor's real auth
- * state. On the board (`/jobs`), `JobDetail`'s `!signedIn` branch hides the
- * ghost-verdict module, exposure badges, and company-intel rail behind a
- * truncated preview + sign-in CTA (G4 guest gate) — correct there, where the
- * visitor is already inside the product. This route's entire purpose is the
- * opposite (spec §6): the verdict/exposure content is what a crawler or a
- * shared link is supposed to see, and Googlebot never carries a session. So
- * this page always shows the full body and gates only the real mutations
- * (apply / save) on the actual signed-in state below, through the same pure
- * `resolveApplyGateDecision` the board itself uses — one gate decision, not
- * a second one reimplemented here.
+ * Client-side wiring for `JobDetail` on standalone or modal job views.
  */
-export function PublicJobDetail({ job }: { job: PublicJob }) {
-    // Single clock read for this component's lifetime — JobDetail derives
-    // relative ages from it during render, where a fresh Date.now() would be
-    // the impure-render call react-hooks/purity flags.
+export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetailProps) {
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
+    const [applyIntentOpen, setApplyIntentOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
 
@@ -43,8 +33,6 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
         router.push(`/login?next=${encodeURIComponent(pathname)}`);
     };
 
-    // ITEM O-FE (2026-08-15) — same probe `/jobs` runs; the flags endpoint
-    // isn't deployed yet, so this defaults to hidden.
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
         let cancelled = false;
@@ -60,7 +48,31 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
         };
     }, []);
 
+    const handleOpenRelated = (jobId: string, relatedJob?: PublicJob) => {
+        if (onOpenRelated) {
+            onOpenRelated(jobId, relatedJob);
+        } else {
+            router.push(`/jobs?job=${encodeURIComponent(jobId)}`);
+        }
+    };
+
     return (
+        <>
+        <ApplyIntentDialog
+            job={{
+                id: job.id,
+                title: decodeText(job.title),
+                company: job.company || "Unknown company",
+                location: locationText(job) || null,
+            }}
+            open={applyIntentOpen}
+            onOpenChange={setApplyIntentOpen}
+            onContinue={() => {
+                if (job.apply_url) {
+                    window.open(job.apply_url, "_blank", "noopener,noreferrer");
+                }
+            }}
+        />
         <JobDetail
             job={job}
             now={nowMs}
@@ -68,13 +80,19 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
             pursuit={undefined}
             goingAfter={goingAfter}
             reportJobEnabled={reportJobEnabled}
+            onClose={onClose}
+            onOpenRelated={handleOpenRelated}
             onRequestSignIn={requireAuth}
             onOpenPosting={() => {
-                if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
-                    requireAuth();
+                if (!job.apply_url) return;
+                // Second entry point into the same departure. /jobs' own
+                // handler gates here too; this one has to as well or the
+                // prompt silently depends on which surface you applied from.
+                if (shouldPromptApplyIntent()) {
+                    setApplyIntentOpen(true);
                     return;
                 }
-                if (job.apply_url) window.open(job.apply_url, "_blank", "noopener,noreferrer");
+                window.open(job.apply_url, "_blank", "noopener,noreferrer");
             }}
             onGoAfter={() => {
                 if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
@@ -98,5 +116,6 @@ export function PublicJobDetail({ job }: { job: PublicJob }) {
                 })();
             }}
         />
+        </>
     );
 }

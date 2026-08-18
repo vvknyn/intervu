@@ -1,5 +1,17 @@
 # Editorial Pass — "Verification Instrument"
 
+> **SUPERSEDED — archive only. Do not implement from this file.**
+>
+> Canon is [`DESIGN-LANGUAGE.md`](./DESIGN-LANGUAGE.md), which supersedes every design spec
+> in this repo and carries the supersession table. This pass was retired 2026-08-04 (#120)
+> and the shipped UI moved again since (investor-polish reskin, 2026-08-15).
+>
+> The anti-marker rules below describe a look the app deliberately no longer has. Reading
+> them as current has already cost us once: rule 6 ("no decorative icons") was cited in
+> 2026-08-15 to justify deleting the `/jobs` search glyph, which took the field's `pl-*`
+> with it and dropped the magnifier onto the placeholder text (#205). History, not
+> instructions.
+
 Supersedes the visual layer of PORTAL-REDESIGN-SPEC.md. All DATA-HONESTY rules, route mappings,
 and cut-features from that spec still apply verbatim — this pass changes how things look, not
 what data appears. Vivek's verdict on the shipped portal look: templated ("vibecoded"). This

@@ -254,7 +254,7 @@ const mcpHandler = createMcpHandler(
                     `salary_min, visa_sponsorship_only (filters to roles tagged as visa-sponsoring — sponsorship ` +
                     `info exists on only a small share of roles, since most postings don't state it either way, ` +
                     `so this narrows hard; omit it to search everything) — all AND together and with query. ` +
-                    `Ghost jobs (postings unlikely to lead to an ` +
+                    `Postings that look stale (unlikely to lead to an ` +
                     `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
                     `Returns up to ${AGENT.RESULT_CAP} results per page (default 10), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
                     `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

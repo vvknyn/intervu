@@ -12,6 +12,21 @@ import type { BoardId } from "@/lib/boards/types";
 
 export type GhostBadge = "clear" | "caution" | "likely_ghost" | "unscored";
 
+/**
+ * Everything a ghost-verdict claim is allowed to be derived from: the verdict
+ * and the moment it was reached. Every helper that renders or qualifies that
+ * verdict (`checkFreshness`, `rowTrustChip`, `badgeFor` — badges.ts;
+ * `ghostMetaFor` — presentation.ts; `ghostCheckedText` — job-detail-facts.ts)
+ * takes THIS, not a loose timestamp argument.
+ *
+ * That is the whole point. Those helpers used to take `(ghostBadge, updatedAt,
+ * now)`, which made "which field means *when we checked*" a decision each of
+ * the eight call sites re-made independently — and all eight passed
+ * `job.updated_at`, the last scrape. Passing the job removes the decision
+ * instead of correcting eight copies of it.
+ */
+export type GhostChecked = Pick<PublicJob, "ghost_badge" | "ghost_checked_at">;
+
 export interface PublicJob {
   id: string;
   title: string;
@@ -52,6 +67,25 @@ export interface PublicJob {
   vacancy_status: string;
   /** Coarse, public-safe ghost signal. Raw scores intentionally excluded (B2B IP). */
   ghost_badge: GhostBadge;
+  /**
+   * When the check that produced `ghost_badge` actually RAN — Subspace's
+   * `integrity_scored_at`, written by score_jobs in the same statement as the
+   * verdict itself, so it can only ever date THIS verdict.
+   *
+   * This exists because we used to date the verdict by `updated_at` (the
+   * row's last successful-scrape write) and render "checked 89d ago" from it.
+   * Those are different events and the substitution was wrong in BOTH
+   * directions — measured across Subspace's active rows on 2026-08-17, the
+   * median row's check is ~5 days NEWER than its last write while 256,555
+   * rows have a check more than 7 days OLDER. Nothing may fall back to
+   * `updated_at` when this is absent: a check we cannot date is a check we
+   * cannot claim, and `GhostChecked` below exists so no caller has to pick.
+   *
+   * Optional because documents indexed before the field shipped don't carry
+   * it. Absent is treated exactly like "never scored": unknown-age, which
+   * `checkFreshness` reads as stale — the conservative direction.
+   */
+  ghost_checked_at?: string | null;
   /** Company aggregate fields — optional until sync backfills (Task 5). */
   company_opened_90d?: number | null;
   company_closed_90d?: number | null;

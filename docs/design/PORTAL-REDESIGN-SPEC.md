@@ -1,5 +1,20 @@
 # Portal Redesign — Implementation Spec
 
+> **VISUAL LAYER SUPERSEDED — the data-honesty decisions below are still live.**
+>
+> For anything about *look* — tokens, radii, type, density, components — canon is
+> [`DESIGN-LANGUAGE.md`](./DESIGN-LANGUAGE.md); it supersedes this file and carries the
+> supersession table. Also stale here: `/` is now the front door rather than "Find jobs",
+> and `/resume-builder` and `/prep` no longer exist.
+>
+> Still load-bearing: the *data-honesty* decisions — notably honest empty-state copy such as
+> mono muted "salary not listed" instead of a fabricated or hidden value. `DESIGN-LANGUAGE.md`
+> is a purely visual document and does not restate them, so this file remains their only
+> written record. Do not treat it as fully dead.
+>
+> The "this spec wins" line immediately below is scoped to the mock it was written against,
+> not to current canon.
+
 Source design: `docs/design/intervu-portal.dc.html` (Claude Design export, "Intervu Jobs.dc.html").
 Read the design file for exact layout/spacing/typography of each screen. This spec covers the
 **adaptations** — where the mock's fake data meets the real app — and the token/font system.

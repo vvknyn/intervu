@@ -2,6 +2,8 @@
 
 import { getAdminDb } from "@/lib/firebase/admin";
 import { validate, contactMessageSchema, isHoneypotTripped } from "@/lib/validation";
+import { sendEmail } from "@/lib/email/send";
+import { verifyTurnstile } from "@/lib/shield/turnstile";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 3;
@@ -11,18 +13,25 @@ export async function submitContactMessage({
     email,
     message,
     honeypot,
+    turnstileToken,
     path,
 }: {
     name?: string;
     email: string;
     message: string;
     honeypot: string;
+    turnstileToken?: string;
     path: string;
 }) {
     if (isHoneypotTripped(honeypot)) {
         // Bot fill — accept-and-drop silently so it doesn't retry with a
         // different pattern. Never hits Firestore, never surfaces an error.
         return { success: true };
+    }
+
+    const turnstile = await verifyTurnstile(turnstileToken);
+    if (turnstile.status === "reject") {
+        return { error: "Verification failed — please try again." };
     }
 
     const parsed = validate(contactMessageSchema, { name, email, message });
@@ -54,6 +63,14 @@ export async function submitContactMessage({
             name: parsed.data.name ?? null,
             ts: new Date().toISOString(),
             path,
+        });
+
+        // Dispatch notification email to hello@thesubspace.io
+        await sendEmail({
+            to: "hello@thesubspace.io",
+            subject: `[Intervu Contact] Message from ${parsed.data.name ? `${parsed.data.name} (${parsed.data.email})` : parsed.data.email}`,
+            text: `New contact form submission on Intervu:\n\nName: ${parsed.data.name || "Not provided"}\nEmail: ${parsed.data.email}\nSubmitted from: ${path}\nTime: ${new Date().toISOString()}\n\nMessage:\n${parsed.data.message}\n`,
+            kind: "transactional",
         });
 
         return { success: true };

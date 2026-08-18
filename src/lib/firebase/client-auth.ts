@@ -17,6 +17,7 @@ import {
     updatePassword,
 } from "firebase/auth";
 import { getFirebaseAuth } from "./config";
+import { usernameEmail } from "@/lib/auth/username-email";
 
 export type { User } from "firebase/auth";
 
@@ -73,7 +74,7 @@ async function clearSessionCookie() {
  */
 export async function signInWithUsername(username: string, password: string): Promise<User> {
     const auth = getFirebaseAuth();
-    const email = `${username}@intervu.cc`;
+    const email = usernameEmail(username);
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await syncSessionCookie(user);
     return user;
@@ -84,7 +85,7 @@ export async function signInWithUsername(username: string, password: string): Pr
  */
 export async function signUpWithUsername(username: string, password: string): Promise<User> {
     const auth = getFirebaseAuth();
-    const email = `${username}@intervu.cc`;
+    const email = usernameEmail(username);
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await syncSessionCookie(user);
     return user;

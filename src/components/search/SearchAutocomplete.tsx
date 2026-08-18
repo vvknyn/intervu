@@ -20,6 +20,7 @@ interface SearchAutocompleteProps {
     className?: string; // Class for the Input
     containerClassName?: string;
     autoFocus?: boolean;
+    leadingIcon?: React.ReactNode;
     /**
      * Optional async suggestion source (e.g. title/company from a live search
      * index). When provided, it REPLACES the local `getSuggestions` + history
@@ -52,6 +53,7 @@ export function SearchAutocomplete({
     className,
     containerClassName,
     autoFocus,
+    leadingIcon,
     suggest,
     seeds
 }: SearchAutocompleteProps) {
@@ -222,38 +224,48 @@ export function SearchAutocomplete({
 
     return (
         <div className={cn("relative group", containerClassName)} ref={containerRef}>
-            {/* No leading glyph over the field, and so no padding here reserving
-                room for one. Both halves left together on purpose: the icon used
-                to be absolutely positioned at `left-4` with `pl-12` on the input
-                holding the text clear of it, which only holds while every caller
-                leaves padding alone. Padding is one shared tailwind-merge axis,
-                so the editorial pass flattening this field to a ruled line with
-                `px-0` deleted `pl-12` as a conflict — no error, just a magnifier
-                sitting on top of the placeholder's first word. Deleting the icon
-                is also what EDITORIAL-PASS-SPEC.md asks for directly (rule 6, no
-                decorative icons; the search field is a bare document line), so
-                the coupling is gone rather than re-tuned. Reserve space
-                structurally, not with padding, if a glyph is ever wanted back —
-                jobs-first-screen.spec.ts measures the overlap either way. */}
-            <Input
-                type="text"
-                placeholder={placeholder}
-                className={cn("relative z-20 transition-all", className)}
-                value={value}
-                onChange={(e) => {
-                    onChange(e.target.value);
-                    setIsOpen(true);
-                    setActiveIndex(-1);
-                }}
-                onFocus={() => setIsOpen(true)}
-                onKeyDown={handleKeyDown}
-                disabled={disabled}
-                autoFocus={autoFocus}
-            />
+            {/* The glyph is a FLEX SIBLING of the field, never an absolutely
+                positioned overlay with `pl-*` on the input holding the text
+                clear of it. That older shape coupled the component and its
+                callers on one shared tailwind-merge axis — padding — so any
+                caller passing `px-*` silently deleted the `pl-*` and the icon
+                landed on the placeholder's first word: no error, just a broken
+                field. As row siblings they cannot overlap by construction and
+                callers own their own padding again. `jobs-first-screen.spec.ts`
+                ("no glyph painted over the search field overlaps where its text
+                starts") measures this and is the regression gate. */}
+            <div className="relative flex w-full items-center">
+                {leadingIcon && (
+                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                        {leadingIcon}
+                    </span>
+                )}
+                <Input
+                    type="text"
+                    placeholder={placeholder}
+                    className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}
+                    value={value}
+                    onChange={(e) => {
+                        onChange(e.target.value);
+                        setIsOpen(true);
+                        setActiveIndex(-1);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    onKeyDown={handleKeyDown}
+                    disabled={disabled}
+                    autoFocus={autoFocus}
+                />
+            </div>
 
-            {/* Dropdown */}
+            {/* Dropdown. The only surface in the app that floats over page
+                content with nothing behind it — every dialog has a scrim, this
+                has the results list. It used to be separated by `shadow-xl`;
+                elevation is none everywhere now, so the edge and the fill have
+                to carry it: a full-strength border rather than a half-opacity
+                one, and an opaque popover rather than 95%, which the rows
+                underneath were reading through. */}
             {isOpen && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
                     {suggestions[0]?.type === 'seed' && (
                         <p className="px-4 pt-2.5 pb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Popular searches

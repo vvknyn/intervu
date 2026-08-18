@@ -6,11 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Frozen UI typeface pair — DM Sans leads sans/display; IBM Plex Mono for
-     data strings. System stack is the only fallback if a font load fails. */
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
-  --font-display: var(--font-dm-sans), var(--font-sans);
+  /* Minimal, Airy, High-Legibility Typeface Pair — Inter & JetBrains Mono */
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --font-display: var(--font-inter), var(--font-sans);
 
   /* Display scale addition (visual-identity pass) — the landing-hero
      wordmark morph (app/page.tsx) and the /trends h1 both size off this one
@@ -37,17 +36,11 @@
 
 
 :root {
-  /* Mobile tab bar height (P27 mobile pass) — single source for both the
-     body's bottom-padding rule below (keeps page content clear of the fixed
-     nav) and JobDetail's mobile action bar (stacks its own fixed bottom bar
-     above the tab bar instead of hardcoding the same 56px a third time).
-     Matches MobileTabBar.tsx's `h-14` row height; the two can't drift apart
-     since both static references trace back to this one value. */
   --mobile-tabbar-h: 56px;
 
-  /* Polished modern UI palette — crisp porcelain/slate shell with high contrast readability. */
-  --background: 248 250 252;
-  --foreground: 15 23 42;
+  /* Swiss Modernist Index — Stark Paper (#FAFAFA) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
+  --background: 250 250 250;
+  --foreground: 10 10 10;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
   --popover: 255 255 255;
@@ -57,155 +50,151 @@
   --secondary: var(--chip);
   --secondary-foreground: var(--foreground);
   --muted: var(--chip);
-  --muted-foreground: 100 116 139;
+  --muted-foreground: 115 115 115;
   --accent: var(--chip);
   --accent-foreground: var(--foreground);
   --destructive: 225 29 72;
   --destructive-foreground: 255 255 255;
-  --border: 226 232 240;
-  --input: var(--border-strong);
+  --border: 229 229 229;
+  --input: 10 10 10;
   --ring: var(--brand);
 
-  /* Brand / links — refined emerald accent */
-  --brand: 16 149 106;
+  /* Brand / accent — International Klein Blue (#002FA7) & Safety Signal Orange (#FF4400) */
+  --brand: 0 47 167;
   --brand-foreground: 255 255 255;
-  --brand-muted: 52 211 153;
+  --brand-muted: 37 99 235;
 
   /* Site chrome */
-  --chrome: 15 23 42;
-  --chrome-foreground: 248 250 252;
+  --chrome: 10 10 10;
+  --chrome-foreground: 250 250 250;
 
   /* Surface + text levels */
   --surface: 255 255 255;
-  --surface-hover: var(--chip);
-  --surface-2: var(--chip);
-  --surface-3: 203 213 225;
-  --border-strong: 203 213 225;
+  --surface-hover: 245 245 245;
+  --surface-2: 245 245 245;
+  --surface-3: 212 212 212;
+  --border-strong: 10 10 10;
   --text-2: var(--muted-foreground);
   --text-3: var(--faint);
 
   /* Soft Signal accents */
-  --chip: 241 245 249;
-  --faint: 148 163 184;
-  --live: 16 149 106;
-  --green-tint-bg: 240 253 244;
-  --green-tint-bg-alt: 236 253 245;
-  --green-tint-border: 187 247 208;
+  --chip: 245 245 245;
+  --faint: 163 163 163;
+  --live: 0 47 167;
+  /* Named for the ROLE (the tint that accompanies --live), not for a hue.
+     These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
+     since the accent moved from emerald to Klein blue — a token whose name
+     contradicts its value is how the next pass reintroduces the old colour
+     by trusting the name. --live is the one accent they tint with, so they
+     track it by construction. */
+  --live-tint-bg: 240 249 255;
+  --live-tint-bg-alt: 239 246 255;
+  --live-tint-border: 191 219 254;
   --warn: 217 119 6;
   --warn-dot: 245 158 11;
   --danger-tint-border: 254 205 211;
 
   /* Verdict channel */
-  --verdict-live: 16 149 106;
+  --verdict-live: 0 47 167;
   --verdict-caution: 217 119 6;
   --verdict-risk: 225 29 72;
-  --verdict-live-bg: 240 253 244;
+  --verdict-live-bg: 239 246 255;
   --verdict-caution-bg: 254 243 199;
   --verdict-risk-bg: 255 241 242;
 
   /* Pipeline / status colors */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
-  --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
+  --st-applied: var(--live);              --st-applied-soft: var(--live-tint-bg);
   --st-intv: var(--warn);                 --st-intv-soft: 254 243 199;
-  --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
+  --st-offer: var(--live);                --st-offer-soft: var(--live-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 255 241 242;
 
   /* Sidebar width */
   --sb-w: 250px;
 
-  /* Shadow tokens */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-
   /* Motion tokens */
-  --transition-fast: 120ms;
-  --transition-panel: 180ms;
+  --transition-fast: 100ms;
+  --transition-panel: 150ms;
 }
 
 .dark {
-  /* Polished dark theme — sleek obsidian void (#0D1117) with refined contrast */
-  --background: 13 17 23;
-  --foreground: 240 246 252;
-  --card: 22 27 34;
-  --card-foreground: 240 246 252;
-  --popover: 22 27 34;
-  --popover-foreground: 240 246 252;
-  --primary: 240 246 252;
-  --primary-foreground: 13 17 23;
+  /* Swiss Modernist Dark — Pitch Charcoal (#0A0A0A) with Chalk White (#F5F5F5) & Electric Klein Blue (#2D68FF) */
+  --background: 10 10 10;
+  --foreground: 245 245 245;
+  --card: 18 18 18;
+  --card-foreground: 245 245 245;
+  --popover: 18 18 18;
+  --popover-foreground: 245 245 245;
+  --primary: 245 245 245;
+  --primary-foreground: 10 10 10;
   --secondary: var(--chip);
-  --secondary-foreground: 240 246 252;
+  --secondary-foreground: 245 245 245;
   --muted: var(--chip);
-  --muted-foreground: 139 148 158;
+  --muted-foreground: 163 163 163;
   --accent: var(--chip);
-  --accent-foreground: 240 246 252;
-  --destructive: 244 63 94;
-  --destructive-foreground: 13 17 23;
-  --border: 48 54 61;
-  --input: var(--border-strong);
+  --accent-foreground: 245 245 245;
+  --destructive: 255 59 105;
+  --destructive-foreground: 10 10 10;
+  --border: 38 38 38;
+  --input: 245 245 245;
   --ring: var(--brand);
-  --chart-1: 250 250 250;
-  --chart-2: 204 204 204;
-  --chart-3: 153 153 153;
-  --chart-4: 102 102 102;
-  --chart-5: 51 51 51;
-  --sidebar: 18 22 28;
-  --sidebar-foreground: 240 246 252;
-  --sidebar-primary: 46 196 142;
-  --sidebar-primary-foreground: 13 17 23;
-  --sidebar-accent: 33 38 45;
-  --sidebar-accent-foreground: 240 246 252;
-  --sidebar-border: 48 54 61;
-  --sidebar-ring: 112 112 112;
+  --chart-1: 45 104 255;
+  --chart-2: 245 245 245;
+  --chart-3: 163 163 163;
+  --chart-4: 82 82 82;
+  --chart-5: 38 38 38;
+  --sidebar: 14 14 14;
+  --sidebar-foreground: 245 245 245;
+  --sidebar-primary: 45 104 255;
+  --sidebar-primary-foreground: 10 10 10;
+  --sidebar-accent: 26 26 26;
+  --sidebar-accent-foreground: 245 245 245;
+  --sidebar-border: 38 38 38;
+  --sidebar-ring: 45 104 255;
 
-  /* Brand / links — luminous emerald */
-  --brand: 46 196 142;
-  --brand-foreground: 13 17 23;
-  --brand-muted: 34 140 100;
+  /* Brand / links — Electric Klein Blue (#2D68FF) */
+  --brand: 45 104 255;
+  --brand-foreground: 255 255 255;
+  --brand-muted: 37 99 235;
 
   /* Site chrome (dark) */
-  --chrome: 18 22 28;
-  --chrome-foreground: 240 246 252;
+  --chrome: 14 14 14;
+  --chrome-foreground: 245 245 245;
 
   /* Surface + text levels */
-  --surface: 22 27 34;
+  --surface: 18 18 18;
   --surface-hover: var(--chip);
   --surface-2: var(--chip);
-  --surface-3: 48 54 61;
-  --border-strong: 84 94 106;
-  --text-2: 181 186 194;
-  --text-3: 139 148 158;
+  --surface-3: 38 38 38;
+  --border-strong: 245 245 245;
+  --text-2: 180 180 180;
+  --text-3: 140 140 140;
 
   /* Soft Signal accents (dark) */
-  --chip: 33 38 45;
-  --faint: 110 118 129;
-  --live: 46 196 142;
-  --green-tint-bg: 13 37 29;
-  --green-tint-bg-alt: 10 30 23;
-  --green-tint-border: 35 84 68;
+  --chip: 26 26 26;
+  --faint: 115 115 115;
+  --live: 45 104 255;
+  --live-tint-bg: 15 23 42;
+  --live-tint-bg-alt: 15 23 42;
+  --live-tint-border: 30 58 138;
   --warn: 245 158 11;
   --warn-dot: 245 158 11;
   --danger-tint-border: 120 30 45;
 
   /* Verdict channel (dark) */
-  --verdict-live: 52 211 153;
+  --verdict-live: 45 104 255;
   --verdict-caution: 251 191 36;
-  --verdict-risk: 251 113 133;
-  --verdict-live-bg: 13 37 29;
+  --verdict-risk: 255 59 105;
+  --verdict-live-bg: 15 23 42;
   --verdict-caution-bg: 38 31 16;
-  --verdict-risk-bg: 38 18 22;
+  --verdict-risk-bg: 42 16 22;
 
   /* Pipeline / status colors (dark) */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
-  --st-applied: var(--live);              --st-applied-soft: var(--green-tint-bg);
+  --st-applied: var(--live);              --st-applied-soft: var(--live-tint-bg);
   --st-intv: var(--warn);                 --st-intv-soft: 38 31 16;
-  --st-offer: var(--live);                --st-offer-soft: var(--green-tint-bg-alt);
-  --st-closed: var(--destructive);        --st-closed-soft: 38 18 22;
-
-  /* Shadow tokens (dark) */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
+  --st-offer: var(--live);                --st-offer-soft: var(--live-tint-bg-alt);
+  --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 }
 
 @theme inline {
@@ -258,9 +247,9 @@
   --color-chip: rgb(var(--chip));
   --color-faint: rgb(var(--faint));
   --color-live: rgb(var(--live));
-  --color-green-tint-bg: rgb(var(--green-tint-bg));
-  --color-green-tint-bg-alt: rgb(var(--green-tint-bg-alt));
-  --color-green-tint-border: rgb(var(--green-tint-border));
+  --color-live-tint-bg: rgb(var(--live-tint-bg));
+  --color-live-tint-bg-alt: rgb(var(--live-tint-bg-alt));
+  --color-live-tint-border: rgb(var(--live-tint-border));
   --color-warn: rgb(var(--warn));
   --color-warn-dot: rgb(var(--warn-dot));
   --color-danger-tint-border: rgb(var(--danger-tint-border));
@@ -270,25 +259,48 @@
   --color-verdict-live-bg: rgb(var(--verdict-live-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
-  --shadow-2xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-xs: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 2px 5px 0 rgba(15, 23, 42, 0.05), 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 14px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 35px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
-  --shadow-glow: 0 0 25px -5px rgba(16, 149, 106, 0.25);
+  /* Elevation: none (DESIGN-LANGUAGE.md "Tokens"). Separation comes from a
+     1px --border and whitespace, so every key in the shadow scale resolves to
+     `none` — including 2xs/xs/xl, which the 2026-08-04 pass zeroed only in
+     :root and left live here. Tailwind emits @theme above :root, so those
+     :root overrides never applied to the three keys defined ONLY here, and
+     `shadow-2xs` (33 call sites) went on casting a real shadow against a doc
+     that says there is no elevation. The keys must stay declared — deleting
+     them removes the `shadow-*` utilities and breaks the call sites — so the
+     scale is kept and flattened, in ONE place rather than two competing ones.
+     Tinting mattered too: these were rgba(15,23,42) slate against a purely
+     neutral ramp (--foreground 10 10 10), so the app cast blue-grey shadows
+     onto neutral surfaces. Moot at `none`, but that is why nothing here is
+     re-tinted instead of zeroed.
 
-  /* Modern radius scale */
-  --radius: 0.5rem;
-  --radius-2xs: 0.125rem;
-  --radius-xs: 0.25rem;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
-  --radius-3xl: 1.5rem;
-  --radius-4xl: 2rem;
+     The list below is EVERY key Tailwind ships in its default shadow scale
+     (node_modules/tailwindcss/theme.css), not every key this file happened to
+     define. Redefining only the latter is what let `shadow-2xl` keep casting
+     Tailwind's stock 0 25px 50px -12px on seven surfaces — a key nobody here
+     had ever written down was never a key the rule could reach. The guard in
+     tests/unit/design-language.test.ts reads that same framework file, so a
+     Tailwind release that adds a scale step fails the test instead of quietly
+     reintroducing elevation. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+  --shadow-inner: none;
+
+  /* Strict 0px Carbon radius scale */
+  --radius: 0px;
+  --radius-2xs: 0px;
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
   --color-sidebar-primary: rgb(var(--sidebar-primary));
@@ -309,10 +321,10 @@ body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.4;
-  letter-spacing: -0.011em;
-  font-feature-settings: "kern" 1, "cv02", "cv03", "cv04", "cv11";
+  font-size: 14.5px;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -331,10 +343,161 @@ h4 {
   letter-spacing: -0.025em;
 }
 
-/* Remove 3D/Glass effects */
-.glass-panel {
-  background: rgb(var(--background) / 0.8);
-  backdrop-filter: blur(16px);
+/* Complete Tinted Glassmorphic Design System */
+/* The outer edge must be DARKER than the page, the inset sheen lighter.
+   This started as a white 0.6 border, which on our light ground
+   (--background is slate-50) is lighter than the page behind it — so the
+   edge erased itself and every glass surface read as a white rectangle on
+   a white page. Glass only refracts when there is content behind it to
+   refract; over a flat fill it degrades to a plain translucent panel, and
+   then the border and shadow are the only separators left. */
+.glass-panel,
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(10, 10, 10, 0.1);
+  box-shadow:
+    0 10px 30px 0 rgba(10, 10, 10, 0.07),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 0 12px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass-panel,
+.dark .glass-card {
+  background: rgba(18, 18, 18, 0.6);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 12px 36px 0 rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* The focal surface of a page — the one panel that has to read as the
+   primary action rather than merely be visible. Layers elevation on top of
+   the glass instead of replacing it: near-opaque fill so the panel is the
+   brightest thing on screen, a definite edge, and a real drop shadow that
+   lifts it off the ground. Stays achromatic so it does not compete with
+   the accent colours the content itself carries.
+
+   Use it ONCE per page. A spotlight that is everywhere is not a spotlight,
+   it is just a heavier default — which is how .glass-panel ended up
+   edgeless in the first place. */
+.glass-panel-raised {
+  background: rgba(229, 229, 229, 0.85);
+  border: 1px solid rgba(10, 10, 10, 0.22);
+  box-shadow:
+    0 1px 2px 0 rgba(10, 10, 10, 0.08),
+    0 20px 44px -14px rgba(10, 10, 10, 0.3),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .glass-panel-raised {
+  background: rgba(26, 26, 26, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.5),
+    0 20px 48px -14px rgba(0, 0, 0, 0.8),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+/* Tinted Color Glass Variants */
+.glass-tint-blue {
+  background: rgba(45, 104, 255, 0.12) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(45, 104, 255, 0.35) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(147, 197, 253, 0.4),
+    inset 0 0 14px 0 rgba(45, 104, 255, 0.14) !important;
+  color: rgb(37, 99, 235) !important;
+}
+
+.dark .glass-tint-blue {
+  background: rgba(45, 104, 255, 0.18) !important;
+  border: 1px solid rgba(96, 165, 250, 0.4) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(191, 219, 254, 0.35),
+    inset 0 0 16px 0 rgba(45, 104, 255, 0.22) !important;
+  color: rgb(147, 197, 253) !important;
+}
+
+.glass-tint-emerald {
+  background: rgba(16, 185, 129, 0.12) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(167, 243, 208, 0.45),
+    inset 0 0 14px 0 rgba(16, 185, 129, 0.14) !important;
+  color: rgb(5, 150, 105) !important;
+}
+
+.dark .glass-tint-emerald {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(167, 243, 208, 0.35),
+    inset 0 0 16px 0 rgba(16, 185, 129, 0.22) !important;
+  color: rgb(110, 231, 183) !important;
+}
+
+.glass-tint-amber {
+  background: rgba(245, 158, 11, 0.12) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(253, 230, 138, 0.45),
+    inset 0 0 14px 0 rgba(245, 158, 11, 0.14) !important;
+  color: rgb(217, 119, 6) !important;
+}
+
+.dark .glass-tint-amber {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border: 1px solid rgba(251, 191, 36, 0.4) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(253, 230, 138, 0.35),
+    inset 0 0 16px 0 rgba(245, 158, 11, 0.22) !important;
+  color: rgb(252, 211, 77) !important;
+}
+
+.glass-tint-purple {
+  background: rgba(168, 85, 247, 0.12) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(168, 85, 247, 0.35) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(216, 180, 254, 0.45),
+    inset 0 0 14px 0 rgba(168, 85, 247, 0.14) !important;
+  color: rgb(147, 51, 234) !important;
+}
+
+.dark .glass-tint-purple {
+  background: rgba(168, 85, 247, 0.18) !important;
+  border: 1px solid rgba(192, 132, 252, 0.4) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(216, 180, 254, 0.35),
+    inset 0 0 16px 0 rgba(168, 85, 247, 0.22) !important;
+  color: rgb(216, 180, 254) !important;
+}
+
+.glass-tint-muted {
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.dark .glass-tint-muted {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.10) !important;
 }
 
 /* Minimalist Animation */
@@ -597,14 +760,19 @@ textarea::selection {
   }
 }
 
+/* The live pulse. Its ring was rgba(124,184,122) — #7cb87a, the retired
+   emerald, the same value the brand mark's dot was stuck on — so a "live"
+   indicator kept breathing in a colour the palette had dropped. It reads
+   --live now, which is the token for exactly this meaning, so it follows the
+   accent through the theme instead of pinning one dead hex. */
 @keyframes instrument-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(124, 184, 122, 0);
+    box-shadow: 0 0 0 0 rgb(var(--live) / 0);
     opacity: 1;
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(124, 184, 122, 0.12);
+    box-shadow: 0 0 0 5px rgb(var(--live) / 0.12);
     opacity: 0.9;
   }
 }

@@ -3,28 +3,16 @@ import { cva } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 /**
- * Squared chip geometry — the ONE shared shape for a toggle/filter/tag
- * affordance (docs-mockup.html "THE RULES" #1 — pills retired; #5 — green
- * tint marks the active/verified state only). Before this, the SERP's
- * filter-chip row (FilterChipsRow.tsx) and the active-filter pill strip
- * (app/page.tsx) each hand-rolled their own `rounded-full border …` class
- * string, which is exactly how the two drifted from each other and from
- * the mock's squared chip.
- *
- * Exported as a `cva` class function rather than a wrapping component
- * because the two real call sites need different elements — a whole chip
- * that IS a `<button>` (FilterChipsRow's cycling quick-filter), and a
- * `<span>` label with a separate dismiss `<button>` inside it (page.tsx's
- * active-filter chip, JobDetail's cluster/"also in" chip) — so the shared
- * contract is the CLASS, not the element.
+ * Carbon-Glass chip geometry — sharp 0px rectangular geometry, 1px border,
+ * frosted backdrop blur and specular top highlight.
  */
 export const chipVariants = cva(
-  "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-[13px] font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-none border px-2 text-[11px] font-mono tracking-tight transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "border-emerald-600 bg-emerald-50 text-emerald-950 font-semibold ring-2 ring-emerald-600/30 dark:border-emerald-500 dark:bg-emerald-950/70 dark:text-emerald-200 dark:ring-emerald-500/30 shadow-xs",
-        false: "border-slate-300 bg-card text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:border-slate-600 shadow-2xs",
+        true: "border-foreground/90 bg-foreground/10 text-foreground font-semibold shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] dark:bg-foreground/15",
+        false: "border-border/70 bg-card/40 text-muted-foreground hover:border-foreground/60 hover:text-foreground",
       },
     },
     defaultVariants: { active: false },
@@ -47,7 +35,7 @@ export function ChipDismiss({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className={cn("leading-none opacity-70 hover:opacity-100", className)}
+      className={cn("leading-none opacity-70 hover:opacity-100 cursor-pointer", className)}
     >
       ×
     </button>

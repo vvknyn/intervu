@@ -13,7 +13,10 @@ import { TopCountriesList } from "@/components/trends/TopCountriesList";
 import { PostingFreshnessBand } from "@/components/trends/PostingFreshnessBand";
 import { MarketGhostRadar } from "@/components/trends/MarketGhostRadar";
 import { MarketPulse } from "@/components/trends/MarketPulse";
+import { WorkArrangementDistribution } from "@/components/trends/WorkArrangementDistribution";
+import { ExperienceSeniorityDistribution } from "@/components/trends/ExperienceSeniorityDistribution";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 /**
  * The daily-snapshot delta/tracking-since lines (P2, daily-snapshot.ts) —
@@ -30,18 +33,20 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   const delta = computeLatestDelta(snapshots);
 
   return (
-    <>
+    <div className="rounded-none border border-border bg-muted/20 px-3 py-2">
       {delta && (
-        <p data-testid="trends-pulse-delta" className="mt-1 text-sm text-muted-foreground">
-          Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}:{" "}
-          {delta.netActiveChange >= 0 ? "+" : ""}
-          {delta.netActiveChange.toLocaleString()} net active · {delta.newlyClosed.toLocaleString()} newly closed
+        <p data-testid="trends-pulse-delta" className="font-mono text-xs text-foreground">
+          <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
+          <span className="font-bold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
+          <span className="text-muted-foreground"> net active · </span>
+          <span className="font-bold">{delta.newlyClosed.toLocaleString()}</span>
+          <span className="text-muted-foreground"> newly closed</span>
         </p>
       )}
-      <p data-testid="trends-pulse-tracking-since" className="mt-1 font-mono text-[11px] text-muted-foreground">
-        tracking daily since {firstSnapshotDate}
+      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+        tracking daily baseline since {firstSnapshotDate}
       </p>
-    </>
+    </div>
   );
 }
 
@@ -52,7 +57,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
 export async function generateMetadata(): Promise<Metadata> {
   const asOf = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const title = "Market trends";
-  const description = `Live ghost-job and hiring stats — hiring countries, posting freshness, ghost-job risk. Snapshot as of ${asOf}.`;
+  const description = `Live ${GHOST_JOB_TERM} and hiring stats — hiring countries, posting freshness, ${GHOST_JOB_TERM} risk. Snapshot as of ${asOf}.`;
   return {
     title,
     description,
@@ -64,15 +69,6 @@ export async function generateMetadata(): Promise<Metadata> {
 // ONE /multi-search round trip (see fetchMarketTrends) and cached for this
 // window — never a per-visitor query against a box already measured at
 // 4-7s per facet query under embed-backfill load (spec).
-//
-// ITEM U (2026-08-15): matched to `getCachedMarketTrends`'s own 900s window
-// (was 1800s, independently set). The data now comes from that ONE shared
-// cache entry — every other consumer (TopBar's ticker, jobs/page.tsx's
-// landing claim) reads it live on each mount, so this page's own outer ISR
-// regen can be at most as stale as the shared cache itself, never stacking
-// a second, longer staleness window on top of it. That stacking (page-shell
-// regen slower than the data cache it embeds) was the second half of the
-// 595-apart skew this fixes, not just the two-loaders half.
 export const revalidate = 900;
 
 export default async function TrendsPage() {
@@ -80,7 +76,7 @@ export default async function TrendsPage() {
 
   if (!data) {
     return (
-      <main data-testid="trends-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
         <p className="text-sm text-muted-foreground">Market data isn&apos;t available right now.</p>
       </main>
     );
@@ -88,12 +84,6 @@ export default async function TrendsPage() {
 
   // Lazy daily snapshot (P2): create-if-absent off THIS fetch's numbers (no
   // extra Meili cost), never throws — see daily-snapshot.ts's module doc.
-  //
-  // Skipped entirely when the closed figure is unknown. The snapshot series
-  // is differenced (`newlyClosed: latest.closed - prev.closed`), so a
-  // placeholder 0 does not just mis-state one day — it corrupts the deltas
-  // on BOTH sides of it. Losing a day is recoverable; a fabricated row in a
-  // historical series is not.
   if (data.closed) {
     await captureDailySnapshotIfAbsent({
       totalDocs: data.totalTracked.value,
@@ -104,18 +94,23 @@ export default async function TrendsPage() {
   const snapshots = await readRecentSnapshots();
 
   return (
-    <main data-testid="trends-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      {/* `bare`: this page isn't rendered through `PageLayout`'s `header`
-          slot, so it needs the title row only, embedded inline in its own
-          content column (same shape as Prep's landing view). No `actions`
-          status line — the mock's "snapshot · updated Xh ago" needs an
-          as-of timestamp `fetchMarketTrends` doesn't return, and fabricating
-          one would misrepresent freshness. */}
+    <main data-testid="trends-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-20 sm:px-8 sm:py-10 xl:px-10">
       <PageHeader
         bare
         size="display"
         title="Market trends"
-        description="Live stats from the jobs corpus we track — scraped from companies&apos; own career pages, not curated."
+        description="Live stats from the jobs corpus we track — scraped from companies' own career pages, not curated."
+        actions={
+          <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs font-mono">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-none bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-none bg-emerald-500" />
+            </span>
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+              Direct Ingestion Active
+            </span>
+          </div>
+        }
       />
 
       <TrendsHero
@@ -123,17 +118,36 @@ export default async function TrendsPage() {
         totalTracked={data.totalTracked}
         ghostFlaggedLive={data.ghostFlaggedLive}
       />
-      <TopCountriesList countries={data.topCountries} />
-      <PostingFreshnessBand freshness={data.freshness} />
-      <MarketGhostRadar ghostRadar={data.ghostRadar} />
-      <MarketPulse
-        postedPerDay={data.postedPerDay}
-        liveJobs={data.liveJobs}
-        closed={data.closed}
-        staleActiveSharePct={data.staleActiveSharePct}
-        sourceCoverage={data.sourceCoverage}
-        snapshotSummary={<DailySnapshotSummary snapshots={snapshots} />}
-      />
+
+      {/* 2-Column Responsive Carbon BI Multi-Column Grid */}
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Left Column: Flow Velocity, Geographic Reach, Lifecycle Age */}
+        <div className="space-y-6">
+          <MarketPulse
+            postedPerDay={data.postedPerDay}
+            liveJobs={data.liveJobs}
+            closed={data.closed}
+            staleActiveSharePct={data.staleActiveSharePct}
+            sourceCoverage={data.sourceCoverage}
+            snapshotSummary={<DailySnapshotSummary snapshots={snapshots} />}
+          />
+          <TopCountriesList countries={data.topCountries} />
+          <PostingFreshnessBand freshness={data.freshness} />
+        </div>
+
+        {/* Right Column: Market Integrity, Workplace Flexibility, Seniority Mix */}
+        <div className="space-y-6">
+          <MarketGhostRadar ghostRadar={data.ghostRadar} />
+          <WorkArrangementDistribution
+            workTypes={data.workTypeDistribution}
+            visaSponsorship={data.visaSponsorshipDistribution}
+          />
+          <ExperienceSeniorityDistribution
+            experienceLevels={data.experienceDistribution}
+            employmentTypes={data.employmentTypeDistribution}
+          />
+        </div>
+      </div>
     </main>
   );
 }

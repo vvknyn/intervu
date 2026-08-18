@@ -380,7 +380,7 @@ function MockJobRow({
                     "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
                     flagged
                         ? "border-border bg-card text-muted-foreground"
-                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                        : "border-live-tint-border bg-live-tint-bg text-verdict-live",
                 )}
             >
                 {flagged ? "review" : "verified"}
@@ -419,8 +419,8 @@ function MockJobDetail({
     onSignIn: () => void;
     onClose?: () => void;
 }) {
-    const staleCheck = checkFreshness(job.updated_at, MOCK_NOW) === "stale";
-    const ghost = ghostMetaFor(job.ghost_badge, staleCheck);
+    const staleCheck = checkFreshness(job, MOCK_NOW) === "stale";
+    const ghost = ghostMetaFor(job, MOCK_NOW);
     const freshness = classifyPostingFreshness(job, MOCK_NOW);
     const postedRelative =
         freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), MOCK_NOW) : null;
@@ -429,7 +429,7 @@ function MockJobDetail({
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     const chips = buildFactChips(job, postedRelative, firstSeenRelative);
     const ghostSignals = deriveGhostSignals(job, freshness, blocks.length, MOCK_NOW);
-    const checkedText = ghostCheckedText(job.updated_at, MOCK_NOW);
+    const checkedText = ghostCheckedText(job, MOCK_NOW);
     const handoffJob = {
         id: job.id,
         title: decodeText(job.title),
@@ -518,7 +518,7 @@ function MockJobDetail({
                             <div className="mono-data mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 text-[12px] sm:grid-cols-2">
                                 {ghostSignals.map((s) => (
                                     <span key={s.text}>
-                                        {s.positive ? "✓ " : "— "}
+                                        {s.status === "favorable" ? "✓ " : "— "}
                                         {s.text}
                                     </span>
                                 ))}
@@ -725,7 +725,7 @@ export function CompletenessMock() {
                                 >
                                     Filters · 3
                                 </button>
-                                <span className="font-mono text-[11px] text-[#8b919a]">Remote · Past month · Hide ghosts</span>
+                                <span className="font-mono text-[11px] text-[#8b919a]">Remote · Past month · Hide stale</span>
                             </div>
                             {filtersOpen && (
                                 <div className="panel-enter mt-3 rounded-none border-0 bg-black/40 p-4 text-[13px] text-[#ececec]">

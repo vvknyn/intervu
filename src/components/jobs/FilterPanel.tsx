@@ -8,13 +8,30 @@
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { GHOST_META } from "@/lib/jobs/presentation";
 
+/**
+ * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
+ *
+ * They used to be a second hand-written copy of the same four strings, which
+ * is the failure mode this file is now the fix for: renaming the verdicts at
+ * their chokepoint left this filter still offering "No ghost signals" while
+ * every row said something else. A duplicated label map is a rename that is
+ * guaranteed to go half-done.
+ *
+ * `unscored` has no GHOST_META entry (it is `null` there — nothing has been
+ * checked, so there is no verdict to show on a row). The filter still needs a
+ * name for it, and that name lives here because this is the only surface that
+ * offers it as a choice.
+ */
 const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
     ghost_badge: {
-        clear: "No ghost signals",
-        caution: "Worth verifying",
-        likely_ghost: "Possible ghost",
-        unscored: "Unscored",
+        ...Object.fromEntries(
+            Object.entries(GHOST_META)
+                .filter(([, meta]) => meta !== null)
+                .map(([value, meta]) => [value, meta!.label]),
+        ),
+        unscored: "Not checked yet",
     },
 };
 
@@ -146,6 +163,13 @@ export function toggleFacetValue(
  */
 export function activeFilterEntries(
     state: FilterState,
+    /** `includeQuietDefaults` opts a normally-silent default BACK into the
+     *  list — today that's only the pristine "30d" posted-bucket (see below).
+     *  The toolbar/mobile-sheet callers omit it (default `undefined`), so
+     *  their output is unchanged; the zero-result state (page.tsx) passes
+     *  `true` because a silently-applied default is exactly the kind of
+     *  excluder that state must name. */
+    opts?: { includeQuietDefaults?: boolean },
 ): { key: string; label: string; clear: (s: FilterState) => FilterState }[] {
     const entries: { key: string; label: string; clear: (s: FilterState) => FilterState }[] = [];
 
@@ -185,18 +209,32 @@ export function activeFilterEntries(
     // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine)
     // and explicit "Any" (`undefined`) are both non-chips — only finite age
     // buckets (24h / 3d / 7d / …) surface. Clear still restores pristine 30d.
-    if (state.postedBucket && state.postedBucket !== PRISTINE_FILTER_STATE.postedBucket) {
+    // `opts.includeQuietDefaults` opts pristine "30d" back in for callers that
+    // need it named (see the param doc above) — "Any" stays excluded either
+    // way, since an explicit "no filter" never narrowed anything to name.
+    const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket;
+    if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
+        // A clear must always WIDEN. For every finite bucket that ISN'T the
+        // pristine default, widening means falling back to pristine 30d — as
+        // before. But when the entry only exists BECAUSE the bucket is
+        // already the pristine default (the `includeQuietDefaults` path),
+        // "restore pristine 30d" is a fixed point (30d → 30d): nothing
+        // changes and the excluder survives its own clear. The only value
+        // that actually widens FROM pristine 30d is explicit "Any"
+        // (`undefined`) — already a first-class `FilterState`/URL value
+        // (`parseJobsUrl`/`serializeJobsUrl`, lib/jobs/url-state.ts).
+        const widenTo = postedIsQuietDefault ? undefined : PRISTINE_FILTER_STATE.postedBucket;
         entries.push({
             key: "postedBucket",
             label: postedBucketLabel(state.postedBucket),
-            clear: (s) => ({ ...s, postedBucket: PRISTINE_FILTER_STATE.postedBucket }),
+            clear: (s) => ({ ...s, postedBucket: widenTo }),
         });
     }
 
     if (state.hideGhosts === false) {
         entries.push({
             key: "hideGhosts",
-            label: "Showing likely-ghost",
+            label: "Showing possibly stale",
             clear: (s) => ({ ...s, hideGhosts: true }),
         });
     }

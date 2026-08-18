@@ -10,8 +10,8 @@ import {
 import {
   buildCompanyPageMetadata,
   companyMetaDescription,
-  ghostPctCoversAllRoles,
   openCountText,
+  sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -35,6 +35,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     slug: "acme--com",
     name: "Acme",
     nameSource: "corpus-cased",
+    changeEvents: [],
     oneLiner: null,
     stage: null,
     opened90d: null,
@@ -44,6 +45,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     openCountIsLowerBound: false,
     ghostFlaggedPct: null,
     boards: ["elite"],
+    nowMs: Date.now(),
     ...overrides,
     jobs,
   };
@@ -143,9 +145,43 @@ describe("/co/[slug] presentation — numbers the page can actually back", () =>
     );
   });
 
-  it("knows when the ghost-flagged share covers only the fetched window", () => {
-    assert.equal(ghostPctCoversAllRoles({ jobs: roles(200), openCount: 940 }), false);
-    assert.equal(ghostPctCoversAllRoles({ jobs: roles(12), openCount: 12 }), true);
+  it("knows when the fetched sample covers only a window, not the whole employer", () => {
+    assert.equal(
+      sampleCoversAllRoles({ jobs: roles(200), openCount: 940, openCountIsLowerBound: false }),
+      false,
+    );
+    assert.equal(
+      sampleCoversAllRoles({ jobs: roles(12), openCount: 12, openCountIsLowerBound: false }),
+      true,
+    );
+  });
+
+  // The measured regression (2026-08-17, anthropic.com live on :3987): 469
+  // open roles, an EXACT Meili total on the healthy page-mode path, of which
+  // the page fetches 200. `openCountIsLowerBound` is correctly false here —
+  // the count is provable — so a scope disclosure keyed off that flag stayed
+  // silent on the employers whose window was least complete. The two
+  // questions are separate: "is the COUNT exact?" vs "did we LOAD all of it?"
+  it("an EXACT count larger than the window is still only a sample — isLowerBound is a different question", () => {
+    assert.equal(
+      sampleCoversAllRoles({ jobs: roles(200), openCount: 469, openCountIsLowerBound: false }),
+      false,
+    );
+  });
+
+  // The other direction, and a case the surfacing bug never exercised: the
+  // window holds every role the count names, but the count is a FLOOR, so an
+  // unknown number exist past it. `200 >= 200` must not be read as a census
+  // over a number the page itself renders as "200+".
+  it("a saturated window against a FLOOR count is not coverage, even at equality", () => {
+    assert.equal(
+      sampleCoversAllRoles({ jobs: roles(200), openCount: 200, openCountIsLowerBound: true }),
+      false,
+    );
+    assert.equal(
+      sampleCoversAllRoles({ jobs: roles(200), openCount: 200, openCountIsLowerBound: false }),
+      true,
+    );
   });
 });
 

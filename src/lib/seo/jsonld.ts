@@ -122,6 +122,16 @@ export function buildJobSearchFaqJsonLd(): FaqPageJsonLd | null {
         "Unlike Indeed and LinkedIn which allow sponsored reposts, stale third-party feeds, and unmonitored listings, Intervu indexes live jobs directly from employer applicant tracking systems (Greenhouse, Lever, Ashby, Workday, etc.) and actively screens every posting for freshness, salary transparency, and ghost-job risk.",
     },
     {
+      question: "How do I find the best remote and work-from-home jobs on Intervu?",
+      answer:
+        "Intervu features a dedicated Remote filter and verified work-mode badges. Simply search for your desired role or tech stack (e.g. 'Software Engineer', 'AI Specialist', 'Data Analyst') and select the Remote filter to browse live, vetted work-from-home opportunities across Canada, the US, and worldwide.",
+    },
+    {
+      question: "Are remote jobs in Canada and the United States verified on Intervu?",
+      answer:
+        "Yes, every remote listing is verified directly against the hiring company's live career portal. Intervu checks hiring activity, location eligibility, and compensation bands so Canadian, American, and international candidates apply only to genuine openings.",
+    },
+    {
       question: "What is a ghost job and how does Intervu screen for them?",
       answer:
         "A ghost job is a listing that remains posted indefinitely even when the company is not actively hiring. Intervu monitors posting duration, company hiring velocity, ATS update frequencies, and listing freshness to flag stale or low-signal roles before you waste time applying.",
@@ -216,11 +226,13 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
       "Intervu",
       "Intervu Jobs",
       "Intervu Job Search",
+      "Intervu Remote Jobs",
+      "Intervu Canada Remote Jobs",
       "Intervu - Indeed & LinkedIn Alternative",
       "Intervu HQ",
     ],
     description:
-      "Search live, verified jobs directly from company career pages with ghost-job screening and hiring signals.",
+      "Search live, verified remote and tech jobs directly from company career pages with ghost-job screening and hiring signals.",
     inLanguage: "en-US",
     potentialAction: {
       "@type": "SearchAction",
@@ -247,6 +259,10 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
       "Live jobs, checked for ghost postings — the transparent alternative to Indeed & LinkedIn",
     knowsAbout: [
       "Job Search",
+      "Remote Jobs",
+      "Best Remote Jobs",
+      "Canada Remote Jobs",
+      "Work From Home Jobs",
       "Verified Jobs",
       "Hiring Market Trends",
       "Direct ATS Postings",
@@ -268,13 +284,18 @@ export function buildOrganizationJsonLd(): OrganizationJsonLd {
  * tag — rather than inventing a second logo source; it's always derivable
  * because `CompanyPageData.domain` is never empty.
  */
-export function buildCompanyOrganizationJsonLd(input: { name: string; domain: string }): OrganizationJsonLd {
+export function buildCompanyOrganizationJsonLd(input: {
+  name: string;
+  domain: string;
+  knowsAbout?: string[];
+}): OrganizationJsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: input.name,
     url: `https://${input.domain}`,
     logo: companyLogoUrl(input.domain),
+    ...(input.knowsAbout && input.knowsAbout.length > 0 ? { knowsAbout: input.knowsAbout } : {}),
   };
 }
 

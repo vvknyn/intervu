@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 
 /**
  * TEST GROUP: JOBS-FIRST-SCREEN - /jobs renders on first paint, no entry gate
@@ -63,6 +63,58 @@ test.beforeAll(async ({ browser }) => {
         await page.close();
     }
 });
+
+/**
+ * Search-line field chrome: nothing drawn inside a field's own container
+ * may sit on top of where that field's text starts.
+ *
+ * Both `SearchAutocomplete` (query) and the location `Input` reserve room
+ * for the glyph painted beside them with left padding on the `<input>`
+ * itself (see each call site's own doc comment — both moved to a
+ * flex-sibling glyph for the same reason: an absolutely-positioned overlay
+ * only stays clear of the text while nobody touches the shared `pl-*`/`px-*`
+ * Tailwind axis). A caller that restyles the field at all — the editorial
+ * pass once flattened one to a bare ruled line with `px-0` — silently wins
+ * the `tailwind-merge` conflict and deletes that reservation, leaving the
+ * glyph stacked on the first word of the placeholder. Nothing failed; the
+ * class list just quietly lost its padding.
+ *
+ * So `glyphCollisions` below asserts the INVARIANT rather than the absence
+ * of one particular glyph: measure where the input's text actually begins
+ * (its own computed padding) and require every glyph the field paints over
+ * itself to end before that. Re-adding a leading icon is fine — re-adding
+ * one whose space isn't reserved, by any route (px-0, a smaller pl-*, a
+ * bigger icon), fails here. Dropdown glyphs are excluded by construction:
+ * the filter keeps only boxes that overlap the input's own line vertically.
+ * Both the query and location fields share this exact failure mode (both
+ * are flex-sibling glyphs beside a padded input inside the same
+ * `data-search-line` row), so callers iterate the field list instead of
+ * asserting one field twice — a third field added to the row is covered by
+ * construction, not by another copy-paste. Module-level (not nested in one
+ * describe) so both the desktop test below and the mobile case in the
+ * `mobile` describe block share this one measurement.
+ */
+const searchLineFields = (page: import('@playwright/test').Page) => [
+    { name: "search query", box: page.getByPlaceholder(/What kind of work/i) },
+    { name: "location", box: page.getByTestId("location-input") },
+];
+
+async function glyphCollisions(box: Locator): Promise<string[]> {
+    return box.evaluate((el) => {
+        const input = el as HTMLInputElement;
+        const field = input.getBoundingClientRect();
+        const textStartsAt = field.left + parseFloat(getComputedStyle(input).paddingLeft);
+        const container = input.parentElement;
+        if (!container) return [];
+        return [...container.querySelectorAll("svg")]
+            .map((glyph) => ({ glyph, rect: glyph.getBoundingClientRect() }))
+            .filter(({ rect }) => rect.width > 0 && rect.height > 0)
+            // On the field's own line, not the dropdown stacked below it.
+            .filter(({ rect }) => rect.top < field.bottom && rect.bottom > field.top)
+            .filter(({ rect }) => rect.right > textStartsAt && rect.left < field.right)
+            .map(({ rect }) => `glyph ends at x=${Math.round(rect.right)}, text starts at x=${Math.round(textStartsAt)}`);
+    });
+}
 
 test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // Desktop split view (2026-08-08): this describe block's own intent —
@@ -358,11 +410,26 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // disclosure lives in JobDetail's ghost module (`ghostCheckedText`) now,
     // not the SERP row — this asserts the row badge that's actually there
     // instead. The squared design-system pass (Task 4) dropped the tinted
-    // "verified" pill for a quiet "✓ verified" text pair — the regex below
-    // matches that literal text instead of the old bare "verified".
-    test("clear rows carry a trust verdict badge", async ({ page }) => {
+    // pill for a quiet text pair; the word itself changed from "verified" to
+    // `GHOST_META.clear.label` on 2026-08-16 (see `rowTrustChip`'s doc
+    // comment — the row was claiming verification for a screen that only
+    // reports the absence of ghost signals).
+    // Asserted through the chip's own testid rather than a free-text match:
+    // the ladder gained a fourth state on 2026-08-17 (`ghost`, split out of
+    // `review` — see `rowTrustChip`), and a text-only assertion silently keeps
+    // passing on the OTHER rows while saying nothing about the new one. This
+    // pins the whole rendered vocabulary instead, so a fifth state or a
+    // reworded label has to come here.
+    test("rows carry a trust verdict chip, and every rendered chip is one of the honest states", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await expect(page.getByText(/^(✓ verified|review)$/i).first()).toBeVisible();
+        const chips = page.locator('[data-testid="row-trust-chip"]');
+        await expect(chips.first()).toBeVisible();
+        // innerText, not textContent — the chip is `uppercase` in CSS.
+        for (const text of await chips.allInnerTexts()) {
+            expect(text.trim().toLowerCase()).toMatch(
+                /^(✕ possible ghost job|review|✓ no ghost signals|checked)$/,
+            );
+        }
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted
@@ -521,47 +588,14 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
 
 
-    /**
-     * Search field chrome: nothing drawn inside the field may sit on top of
-     * where its text starts.
-     *
-     * `SearchAutocomplete` reserves room for anything it paints over the field
-     * with left padding on the `<input>` itself. Padding is a shared Tailwind
-     * axis, so a caller that restyles the field at all — the editorial pass
-     * flattened it to a bare ruled line with `px-0` — silently wins the
-     * `tailwind-merge` conflict and deletes that reservation, leaving the glyph
-     * stacked on the first word of the placeholder. Nothing failed; the class
-     * list just quietly lost `pl-12`.
-     *
-     * So this asserts the INVARIANT rather than the absence of one particular
-     * glyph: measure where the input's text actually begins (its own computed
-     * padding) and require every glyph the field paints over itself to end
-     * before that. Re-adding a leading icon is fine — re-adding one whose space
-     * isn't reserved, by any route (px-0, a smaller pl-*, a bigger icon), fails
-     * here. Dropdown glyphs are excluded by construction: the filter keeps only
-     * boxes that overlap the input's own line vertically.
-     */
-    test("no glyph painted over the search field overlaps where its text starts", async ({ page }) => {
+    test("no glyph painted over a search-line field overlaps where its text starts", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        const box = page.getByPlaceholder(/What kind of work/i);
-        await expect(box).toBeVisible();
 
-        const collisions = await box.evaluate((el) => {
-            const input = el as HTMLInputElement;
-            const field = input.getBoundingClientRect();
-            const textStartsAt = field.left + parseFloat(getComputedStyle(input).paddingLeft);
-            const container = input.parentElement;
-            if (!container) return [];
-            return [...container.querySelectorAll("svg")]
-                .map((glyph) => ({ glyph, rect: glyph.getBoundingClientRect() }))
-                .filter(({ rect }) => rect.width > 0 && rect.height > 0)
-                // On the field's own line, not the dropdown stacked below it.
-                .filter(({ rect }) => rect.top < field.bottom && rect.bottom > field.top)
-                .filter(({ rect }) => rect.right > textStartsAt && rect.left < field.right)
-                .map(({ rect }) => `glyph ends at x=${Math.round(rect.right)}, text starts at x=${Math.round(textStartsAt)}`);
-        });
-
-        expect(collisions).toEqual([]);
+        for (const { name, box } of searchLineFields(page)) {
+            await expect(box).toBeVisible();
+            const collisions = await glyphCollisions(box);
+            expect(collisions, `${name} field at 1100x800 (desktop): ${collisions.join('; ')}`).toEqual([]);
+        }
     });
 });
 
@@ -609,6 +643,21 @@ test.describe("mobile", () => {
         expect(queryRect).toBeTruthy();
         expect(locationRect).toBeTruthy();
         expect(locationRect!.y).toBeGreaterThanOrEqual(queryRect!.y + queryRect!.height - 2);
+    });
+
+    // Same invariant as the desktop "no glyph painted over a search-line
+    // field" test above (shared `glyphCollisions` helper, module-level doc
+    // comment) — re-asserted at this describe block's own 390x844 viewport
+    // because the query field stacks full-width above the location field
+    // here, a layout the desktop case never exercises.
+    test("no glyph painted over a search-line field overlaps where its text starts on mobile", async ({ page }) => {
+        await page.goto('/jobs?posted=any');
+
+        for (const { name, box } of searchLineFields(page)) {
+            await expect(box).toBeVisible();
+            const collisions = await glyphCollisions(box);
+            expect(collisions, `${name} field at 390x844 (mobile): ${collisions.join('; ')}`).toEqual([]);
+        }
     });
 
     // Resolution #5: exact scroll restoration is flaky under the list's

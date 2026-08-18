@@ -1,0 +1,888 @@
+/* ============================================================================
+ * "An assistant, not a ghostwriter" — shared stage
+ *
+ * Forked from docs/design/how-it-works-videos/studio/stage.css for a single
+ * 9:16 vertical film (1080x1920, 43000ms, 9 beats — see
+ * docs/superpowers/specs/2026-08-06-messaging-and-film-design.md). Governed by
+ * the same rule as the fork source: radius 0, elevation none, colour from
+ * tokens only, brand used sparingly. Values come from tokens.generated.css,
+ * which is lifted straight out of src/app/globals.css.
+ *
+ * MOTION EXCEPTION (DESIGN-LANGUAGE.md:72 requires the reason in writing):
+ * the app's rule is "colour transitions only, 150ms". These pages are not an
+ * interactive surface — they are frames of a rendered film, and motion is the
+ * medium. The restraint is kept in the vocabulary instead: fades, translates of
+ * 8-20px, typing, and list stagger. Beat 6's field-to-field pan is the one
+ * larger translate in this film, justified because the crop-follow it depicts
+ * is a real, named mechanic of the product's own watch page (watch-canvas.tsx)
+ * — not decoration. No bounce, no spring, no parallax, and the app's own
+ * easing curve throughout, so the film moves like the product.
+ * `prefers-reduced-motion` cannot apply to a video file; the player honours it
+ * by showing the poster instead of autoplaying.
+ * ========================================================================== */
+
+@import "./tokens.generated.css";
+@import "./fonts/fonts.css";
+
+:root {
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Canvas — 9:16 vertical, unlike the horizontal fork source. */
+  --W: 1080px;
+  --H: 1920px;
+
+  /* Type. The film is watched at social-feed width (a downscale of several
+     times), so — as in the fork source — source sizes read large by page
+     standards. Tuned for a 1080px-wide canvas rather than ported from the
+     1920-wide source, whose scale would overflow every full-frame beat here. */
+  --t-display: 64px;
+  --t-hero: 24px; /* strings that must be legible downscaled: typed field values */
+  --t-ui: 20px; /* mock body copy — reads as texture, caption carries meaning */
+  --t-ui-sm: 15px;
+
+  /* The two ambience gradients every full-frame beat draws from, defined once
+     so beat 1's split panels and the later full-frame beats that continue the
+     same setting (2/3 = park, 6/7/8 = the room's own cool tone) cannot drift
+     apart into two near-identical hand-typed gradients. */
+  --grad-park: linear-gradient(135deg, #4a3a26, #2b2216);
+  --grad-room: linear-gradient(160deg, #131722, #0b0d13);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: var(--W);
+  height: var(--H);
+  overflow: hidden;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Beat layers ---------------------------------------------------------
+ * Each beat is an opaque full-bleed layer that fades in at its own --start and
+ * is then covered by the next one. Hard cuts, no crossfade. DOM order is
+ * stacking order, so a beat never has to remove itself. */
+
+.beat {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--background));
+  opacity: 0;
+  animation: beat-in 260ms var(--ease) var(--start) forwards;
+}
+
+@keyframes beat-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Beat-level ambience modifiers. Beats 2/3 (park bench) and 6/7/8 (the same
+   neutral room the empty laptop sat in during beat 1) each reuse one of the
+   two gradients above instead of the flat token background. */
+.beat-park {
+  background: var(--grad-park);
+}
+
+.beat-cool {
+  background: var(--grad-room);
+}
+
+/* Beat 9's close card is a pure black card per the spec, not the dark theme's
+   near-black --background token. */
+.beat-black {
+  background: #000;
+}
+
+/* --- Full-frame content area ----------------------------------------------
+ * Every beat from 2 onward composes its device/phone/window centred in this
+ * area, which stops short of the bottom of the canvas so a .vcaption never
+ * collides with it — vertical social players commonly cover the bottom strip
+ * with their own chrome, which is also why .vcaption itself sits well clear
+ * of the true bottom edge. */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  bottom: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 70px;
+}
+
+/* Beats 4 and 5 each cut once, in place, between two phases (chip calls ->
+   the browser window; the resume card -> the same field). .scene's own flex
+   centres a single child directly; a beat with two phases instead gives each
+   one of these, so both centre independently in the same spot as position:
+   absolute takes them out of .scene's flex flow — without it they would sit
+   side by side in the row instead of crossfading in place. */
+.scene-phase {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Bottom-third caption overlay, beats 2-8. Beat 1's caption lives on its own
+   black bar (see .split-bar) and beat 9's lines are the close card's own
+   .display/.sub — neither uses this. */
+.vcaption {
+  position: absolute;
+  left: 70px;
+  right: 70px;
+  bottom: 260px;
+  z-index: 8;
+  text-align: center;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.28;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow:
+    0 2px 20px rgba(0, 0, 0, 0.6),
+    0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+/* --- Title / payoff beat (9) ----------------------------------------------
+ * Simple flexbox centring rather than the fork source's magic-number `top`
+ * offset: that value was solved for a specific 1920x1080 layout this film
+ * doesn't share, and flexbox is the same idiom without porting a number that
+ * would no longer mean anything here. */
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  text-align: center;
+}
+
+.display {
+  font-size: var(--t-display);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  max-width: 880px;
+}
+
+.sub {
+  font-size: 26px;
+  color: rgb(var(--muted-foreground));
+  letter-spacing: -0.005em;
+}
+
+/* --- The wordmark -----------------------------------------------------
+ * The fork source keeps one wordmark element on screen for the whole film,
+ * travelling corner-to-centre-to-corner (`@keyframes spine`) so that the
+ * loop point (frame 0 = last frame) is invisible. This film does not loop —
+ * it ends on a close card — so that mechanic is dropped entirely rather than
+ * ported unused: the wordmark below is a plain, un-positioned element that
+ * only ever appears once, centred, inside beat 9's .center, entering with
+ * the same .rise treatment as the heading and sub line next to it. */
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.wordmark svg {
+  width: 48px;
+  height: auto;
+  display: block;
+}
+
+/* --- Device primitives ---------------------------------------------------
+ * Separation is a 1px border and whitespace. No radius, no shadow. */
+
+.win {
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  overflow: hidden;
+}
+
+/* Full-frame UI-forward beats (4/5) show the window at a wider, fixed width
+   rather than letting it fill .scene edge to edge. */
+.win-vertical {
+  width: 900px;
+}
+
+.win-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 28px;
+  height: 60px;
+  border-bottom: 1px solid rgb(var(--border));
+  font-size: var(--t-ui-sm);
+  color: rgb(var(--muted-foreground));
+}
+
+/* Genuinely circular, so exempt from the radius rule. Monochrome on purpose —
+   macOS traffic-light colours would be three raw hexes off our palette. */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgb(var(--faint) / 0.42);
+  flex: none;
+}
+
+.win-title {
+  flex: 1;
+  text-align: center;
+  margin-right: 52px;
+}
+
+.win-body {
+  padding: 34px 34px 38px;
+}
+
+.label {
+  font-size: var(--t-ui-sm);
+  color: rgb(var(--muted-foreground));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  height: 62px;
+  padding: 0 22px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--background));
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--t-hero);
+  margin-top: 14px;
+}
+
+/* The one place brand is allowed to carry meaning: a control reporting valid. */
+.field.valid {
+  border-color: rgb(var(--brand));
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  font-size: var(--t-ui-sm);
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.chip-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgb(var(--brand));
+  flex: none;
+}
+
+/* --- Resume proof shot (beat 5) --------------------------------------------
+ * A resume "card" with one line that sweeps to a highlighted state — reusing
+ * the app's own validate idiom (border/background colour-shift, see
+ * .field-in/@keyframes validate below) rather than inventing a second one,
+ * since a verified, unpadded resume line is the same kind of "this is true"
+ * signal a valid field ring already carries. */
+
+.resume-card {
+  width: 820px;
+  margin: 0 auto;
+  padding: 46px 50px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+}
+
+.resume-label {
+  font-size: var(--t-ui-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--muted-foreground));
+  margin-bottom: 24px;
+}
+
+.resume-line {
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  border: 1px solid transparent;
+  font-size: 24px;
+  line-height: 1.5;
+}
+
+.resume-line:last-child {
+  margin-bottom: 0;
+}
+
+.resume-line.dim {
+  color: rgb(var(--muted-foreground));
+}
+
+/* --- Phone ---------------------------------------------------------------
+ * The film's one radius exception, granted for exactly the reason
+ * DESIGN-LANGUAGE.md grants it to WhatsAppThreadHero: this depicts a literal
+ * phone, and a phone has rounded corners. The WhatsApp-thread beats (2/3/8)
+ * use the same fixed hexes WhatsAppThreadHero carries — pulled from that
+ * component directly rather than the fork source's earlier placeholder pass
+ * — and, as there, that palette must not leak onto anything outside the
+ * frame. Beats 6/7 reuse the same bezel for the product's own watch page,
+ * which is black-on-black rather than WhatsApp's palette (see .watch-device). */
+
+.phone {
+  width: 476px;
+  height: 916px;
+  margin: 0 auto;
+  border: 1px solid rgb(var(--border));
+  border-radius: 44px;
+  background: #0b141a;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wa-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 30px 22px 16px;
+  background: #1f2c34;
+  color: #e9edef;
+}
+
+.wa-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #2a3942;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.wa-avatar svg {
+  width: 30px;
+  color: #8aab9a;
+}
+
+.wa-name {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.wa-sub {
+  font-size: 15px;
+  color: #8aab9a;
+}
+
+.wa-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 18px;
+}
+
+.wa-msg {
+  align-self: flex-start;
+  max-width: 88%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #202c33;
+  color: #e9edef;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+/* Outgoing variant — .wa-msg is incoming-only by default (matches the app's
+   own thread, which only ever renders the agent's side that way); beats 3 and
+   8 both need a reply the person sent, so this is the modifier that makes the
+   bubble right-aligned in the authentic WhatsApp "sent" green. */
+.wa-msg.out {
+  align-self: flex-end;
+  background: #005c4b;
+}
+
+.wa-msg b {
+  font-weight: 600;
+}
+
+.wa-time {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #8aab9a;
+  text-align: right;
+}
+
+.wa-tick {
+  color: #53bdeb;
+}
+
+.wa-composer {
+  padding: 16px 20px 30px;
+  background: #1f2c34;
+  color: #8aab9a;
+  font-size: 18px;
+}
+
+/* --- Beat 1: the life/laptop split -----------------------------------------
+ * Two full-bleed panels stacked with a black caption bar between them. Panel
+ * one (the park) is deliberately screen-free — no phone, no laptop, nothing
+ * screen-shaped — that absence is the entire point of the beat (see spec
+ * "craft rule"): two panels that both show a screen read as "connected
+ * devices" no matter what divides them, where a person living beside an
+ * empty room where a laptop works alone reads as "meanwhile". */
+
+.split {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-panel {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+.split-park {
+  background: var(--grad-park);
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.split-room {
+  background: var(--grad-room);
+  align-items: center;
+  justify-content: center;
+}
+
+.split-bar {
+  flex: none;
+  height: 168px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 60px;
+}
+
+.split-bar span {
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-align: center;
+}
+
+/* A person, reduced to two shapes — deliberately not a photo or a stock
+   silhouette asset, matching the film's no-stock-footage, no-faces rule. */
+.jogger {
+  margin-bottom: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.jogger-head {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #0e0c09;
+}
+
+.jogger-body {
+  width: 54px;
+  height: 100px;
+  margin-top: 4px;
+  border-radius: 22px 22px 8px 8px;
+  background: #0e0c09;
+  transform: rotate(7deg);
+}
+
+/* The one screen this beat is allowed — it belongs to the empty room, not the
+   person. */
+.laptop {
+  width: 520px;
+  padding: 36px 40px;
+  background: #12151b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px 10px 2px 2px;
+}
+
+.laptop-line {
+  font-size: 22px;
+  line-height: 1.6;
+}
+
+.laptop-line.muted {
+  font-size: 19px;
+  color: rgb(var(--muted-foreground));
+}
+
+.laptop-line.faint {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* A thumb near the phone in beat 3 — the reply gesture, abstracted to a
+   shape rather than a stock hand photo. */
+.thumb {
+  position: absolute;
+  right: -22px;
+  bottom: 46px;
+  width: 92px;
+  height: 132px;
+  border-radius: 46% 46% 40% 40% / 55% 55% 45% 45%;
+  background: linear-gradient(160deg, #d8a878, #b98858);
+  opacity: 0.92;
+  z-index: 5;
+}
+
+/* --- Beats 6/7: the watch page ---------------------------------------------
+ * A faithful mini-recreation of src/components/viewer/watch-canvas.tsx inside
+ * the same .phone bezel used for the WhatsApp beats — black background,
+ * header row (live dot, status text, take-control pill, right-aligned zoom
+ * chip), canvas area below. */
+
+.watch-device {
+  background: #000;
+}
+
+.watch-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 26px;
+  background: #000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.watch-status {
+  font-size: 18px;
+}
+
+.watch-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 186px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 999px;
+  font-size: 15px;
+  overflow: hidden;
+}
+
+/* A label inside .watch-pill, stacked absolutely so several of them can
+   occupy the same slot across time without the pill reflowing between them
+   (beat 7 needs three: take control -> watching only -> take control). */
+.pill-lbl {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The middle label of a three-state swap: fades in, then fades back out —
+   composed as one animation list per the rule below (Composites), since two
+   classes each declaring `animation` would not merge. */
+.pill-mid {
+  opacity: 0;
+  animation:
+    fade 420ms var(--ease) var(--at) forwards,
+    fade-out 420ms var(--ease) var(--at-out) forwards;
+}
+
+.watch-zoom {
+  margin-left: auto;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.watch-viewport {
+  position: relative;
+  height: 748px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* The crop-follow pan (see file header, MOTION EXCEPTION): the mock form
+   glides field to field inside the fixed watch-viewport, echoing the real
+   page's computeCrop() following whatever the agent is typing into. */
+.watch-pan {
+  animation: watch-pan 5200ms var(--ease) 24300ms forwards;
+}
+
+@keyframes watch-pan {
+  0% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-160px);
+  }
+  80%,
+  100% {
+    transform: translateY(-320px);
+  }
+}
+
+/* Beat 7 continues from where beat 6's pan settled, without re-animating —
+   the motion budget for this scene was already spent in beat 6. */
+.watch-pan.rest {
+  animation: none;
+  transform: translateY(-320px);
+}
+
+/* The mock form inside the phone is a scaled-down .win: same primitives
+   (.win/.win-bar/.win-title/.win-body/.label/.field), just re-sized for the
+   ~394px-wide interior of a phone bezel instead of the ~900px-wide window
+   beats 4/5 show at full frame. */
+.watch-mini .win-bar {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 13px;
+}
+
+.watch-mini .win-body {
+  padding: 22px 20px;
+}
+
+.watch-mini .label {
+  font-size: 13px;
+}
+
+.watch-mini .field {
+  height: auto;
+  min-height: 50px;
+  padding: 12px 16px;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* --- Typing --------------------------------------------------------------
+ * Monospace strings reveal by character with steps(); --n is the character
+ * count, so the width lands exactly on a glyph boundary every frame. */
+
+.type {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  width: 0;
+  animation: type var(--type-dur) steps(var(--n)) var(--type-at) forwards;
+}
+
+@keyframes type {
+  to {
+    width: var(--type-w, calc(var(--n) * 1ch));
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 3px;
+  height: 1.1em;
+  vertical-align: text-bottom;
+  background: rgb(var(--foreground));
+  opacity: 0;
+  animation:
+    caret-on 1ms linear var(--caret-from) forwards,
+    caret-blink 900ms steps(2, jump-none) var(--caret-from) infinite;
+}
+
+@keyframes caret-on {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* --- Pointer ---------------------------------------------------------------
+ * A hand touching a field, for the one moment in this film a person edits
+ * something directly (beat 7). Lives inside the element it taps (.target sets
+ * the containing block), so its travel is a local offset rather than a
+ * canvas-wide one. */
+
+.target {
+  position: relative;
+}
+
+.pointer {
+  position: absolute;
+  left: 62%;
+  top: 54%;
+  z-index: 9;
+  width: 34px;
+  height: 34px;
+  opacity: 0;
+  animation:
+    fade 320ms var(--ease) var(--at) forwards,
+    point 820ms var(--ease) var(--at) forwards;
+}
+
+@keyframes point {
+  from {
+    transform: translate(84px, 64px);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+/* --- Entrance utilities --------------------------------------------------
+ * Every delay is absolute film time, which is what makes the pages readable:
+ * a rule says when in the film the thing happens, not when in its own beat. */
+
+.rise {
+  opacity: 0;
+  animation: rise 520ms var(--ease) var(--at) forwards;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Same as .rise, plus a fixed tilt baked into both keyframe endpoints — a
+   static transform and an animated one can't share the `transform` property
+   across two stacked classes (the later class's animation fully replaces it),
+   so the tilt has to live inside this animation rather than beside it. Used
+   for the phone in beats 2/3/8, which all share one "casual life phone"
+   visual language and stay slightly off-axis throughout. */
+.rise-tilt {
+  opacity: 0;
+  animation: rise-tilt 520ms var(--ease) var(--at) forwards;
+}
+
+@keyframes rise-tilt {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(-4deg);
+  }
+}
+
+.fade {
+  opacity: 0;
+  animation: fade 420ms var(--ease) var(--at) forwards;
+}
+
+@keyframes fade {
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-out {
+  animation: fade-out 420ms var(--ease) var(--at) forwards;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* --- Composites ----------------------------------------------------------
+ * `animation` is a shorthand, so two classes each declaring one do not merge —
+ * the later rule replaces the earlier outright. Anything that needs two timed
+ * behaviours declares both in one list here rather than stacking classes. */
+
+/* Enters, then reports valid. The brand ring is the one moment a control is
+   allowed to carry colour. */
+.field-in {
+  opacity: 0;
+  animation:
+    fade 420ms var(--ease) var(--at) forwards,
+    validate 320ms var(--ease) var(--at-valid) forwards;
+}
+
+@keyframes validate {
+  to {
+    border-color: rgb(var(--brand));
+  }
+}
+
+/* The resume-line highlight sweep — same idiom as .field-in/@keyframes
+   validate above (a control/line reporting "this is real"), reused rather
+   than given its own colour language. */
+.resume-line.sweep {
+  opacity: 0;
+  animation:
+    fade 420ms var(--ease) var(--at) forwards,
+    sweep 380ms var(--ease) var(--at-sweep) forwards;
+}
+
+@keyframes sweep {
+  to {
+    background: rgb(var(--brand) / 0.14);
+    border-color: rgb(var(--brand));
+  }
+}
+
+/* One chip (or label) replaced in place by another — no reflow, so the row
+   does not twitch when the label changes length. */
+.swap {
+  position: relative;
+  display: inline-flex;
+}
+
+.swap > :first-child {
+  animation: fade-out 300ms var(--ease) var(--at-swap) forwards;
+}
+
+.swap > :last-child {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  animation: fade 340ms var(--ease) var(--at-swap) forwards;
+}

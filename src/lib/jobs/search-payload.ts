@@ -44,14 +44,26 @@ export function buildJobSearchPayload(
     query: string,
     sort: JobSortMode | null | undefined,
     postedDateSupported: boolean,
-    board: BoardId | null | undefined,
+    /**
+     * The corpus narrowings that are NOT user-picked filters: a curated
+     * `board` allowlist, or a single employer by `companyDomain`. Grouped
+     * into one argument rather than one positional each — both express the
+     * same concern (which slice of the corpus is even in play), both are
+     * threaded from the URL rather than from `FilterState`, and both are
+     * consumed by the same `company_domain` clause downstream
+     * (`renderBaseFilters`, meilisearch.ts). A second positional would also
+     * have pushed `suppressLocationDefault` to seventh place at four call
+     * sites for no gain.
+     */
+    scope: { board?: BoardId | null; companyDomain?: string | null },
     /** The searcher dismissed the default-location chip (persisted client-
      *  side, JobsPage) — carried through so page 2+/probe requests never
      *  silently re-apply a default the searcher already cleared. */
     suppressLocationDefault?: boolean,
 ): Pick<
     JobSearchParams,
-    "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort" | "board" | "suppressLocationDefault"
+    | "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort"
+    | "board" | "companyDomain" | "suppressLocationDefault"
 > {
     return {
         q: query.trim() || undefined,
@@ -61,7 +73,8 @@ export function buildJobSearchPayload(
         postedBucket: postedDateSupported ? state.postedBucket : undefined,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
-        board: board ?? undefined,
+        board: scope.board ?? undefined,
+        companyDomain: scope.companyDomain ?? undefined,
         suppressLocationDefault: suppressLocationDefault || undefined,
     };
 }

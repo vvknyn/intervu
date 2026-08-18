@@ -5,6 +5,7 @@ import { validate } from "@/lib/validation";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowConnectWaitlistRequest } from "@/lib/shield/rate-limit";
+import { verifyTurnstile } from "@/lib/shield/turnstile";
 import { CONNECT_CLIENTS, CONNECT_CLIENT_IDS } from "@/lib/connect-clients";
 import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
 
@@ -16,9 +17,9 @@ import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
  * re-merges the same doc instead of racing a query-then-write check.
  *
  * Shield: per-IP rate limited via `allowConnectWaitlistRequest` (its own
- * store, not shared with the jobs-search chokepoint's `allowSearchRequest`)
- * before this ever touches Firestore — same "fail before the backend" shape
- * as `searchJobsAction` in actions/jobs.ts.
+ * store, not shared with the jobs-search chokepoint's `allowSearchRequest`),
+ * then Turnstile-verified — both before this ever touches Firestore, same
+ * "fail before the backend" shape as `searchJobsAction` in actions/jobs.ts.
  */
 const connectWaitlistSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, "email is too long").email("must be a valid email"),
@@ -30,6 +31,7 @@ const connectWaitlistSchema = z.object({
 export async function joinConnectWaitlist(input: {
   email: string;
   client: string;
+  turnstileToken?: string;
 }): Promise<{ error?: string; success?: true }> {
   const parsed = validate(connectWaitlistSchema, input);
   if (!parsed.ok) return { error: parsed.error };
@@ -37,6 +39,11 @@ export async function joinConnectWaitlist(input: {
   const ip = await getClientIp();
   if (!allowConnectWaitlistRequest(ip)) {
     return { error: "Too many attempts — try again in a few minutes." };
+  }
+
+  const turnstile = await verifyTurnstile(input.turnstileToken, ip);
+  if (turnstile.status === "reject") {
+    return { error: "Verification failed — please try again." };
   }
 
   try {
@@ -67,7 +74,7 @@ export async function joinConnectWaitlist(input: {
   } catch (error) {
     console.error("Error joining connect waitlist:", error);
     return {
-      error: "Couldn't save that — email us at hello@intervu.cc and we'll add you.",
+      error: "Couldn't save that — email us at hello@thesubspace.io and we'll add you.",
     };
   }
 }

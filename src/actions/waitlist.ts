@@ -6,6 +6,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { PACKS, type PackId } from "@/lib/pricing";
 import { sendWaitlistConfirmation } from "@/lib/email/waitlist-confirmation";
 import { normalizeEmail } from "@/lib/email/normalize-email";
+import { verifyTurnstile } from "@/lib/shield/turnstile";
 
 // Derived from PACKS, not a hand-retyped "starter" | "hunt" | "deep" union —
 // a fourth pack in pricing.ts is covered here automatically.
@@ -34,9 +35,15 @@ export async function validateWaitlistInput(input: {
   email: string;
   packId: string;
   honeypot: string;
+  turnstileToken?: string;
 }): Promise<WaitlistValidation> {
   if (input.honeypot.trim() !== "") {
     return { kind: "silent-drop" };
+  }
+
+  const turnstile = await verifyTurnstile(input.turnstileToken);
+  if (turnstile.status === "reject") {
+    return { kind: "invalid", error: "Verification failed — please try again." };
   }
 
   const parsed = validate(waitlistInputSchema, { email: input.email, packId: input.packId });
@@ -70,6 +77,7 @@ export async function submitWaitlistAction(input: {
   email: string;
   packId: string;
   honeypot: string;
+  turnstileToken?: string;
 }): Promise<{ success: true } | { error: string }> {
   const result = await validateWaitlistInput(input);
 

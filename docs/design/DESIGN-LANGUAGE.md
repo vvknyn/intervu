@@ -5,7 +5,7 @@ with an older file, this wins. The older passes are archived context only:
 
 | Superseded | What it was |
 |---|---|
-| `PORTAL-REDESIGN-SPEC.md` | Aug 2 portal pass. Stale: specs `/` as "Find jobs" (it is now the front door), specs `/resume-builder` and `/prep` (both deleted), specs 12px radii (we are squared). |
+| `PORTAL-REDESIGN-SPEC.md` | Aug 2 portal pass. Stale: specs `/` as "Find jobs" (it is now the front door), specs `/resume-builder` and `/prep` (both deleted), specs 12px radii (we are squared). **Superseded visually only** — this document is visual-only and does not restate that spec's data-honesty decisions, which remain live there. |
 | `EDITORIAL-PASS-SPEC.md` | "Verification Instrument" pass — another remap of the same var names. |
 | `soft-signal-desktop/`, `soft-signal-mobile/`, `soft-signal-feed/` | Mockup sets with their own `_system.css`. |
 | `elite-company-signal/` | Mockups behind the `.elite-signal` scope. |
@@ -23,8 +23,15 @@ happens again.
    copying that.)
 3. **Radius stays 0 everywhere.** Squared is our signature. (ollama.com is pills; we are not
    copying that either.)
-4. **Primary buttons are ink, not brand-coloured.** The green survives as a sparing accent for
+4. **Primary buttons are ink, not brand-coloured.** The accent survives as a sparing accent for
    links, live states and small marks — the same role ollama gives its one blue.
+
+   **Amended 2026-08-17.** This clause said "the green" until PR #217 (`49b0448`, Swiss Tinted
+   Glass) moved `--brand` from `16 149 106` to `0 47 167` and took the neutrals off the slate
+   ramp. The accent is **International Klein Blue `#002FA7`** in light and Electric Klein Blue
+   `#2D68FF` in dark; there is no green in the system. Nothing downstream of `--brand` followed
+   that change at the time, which is what the amendments below repair. Decisions 1–3 are
+   unaffected.
 
 The result is deliberately not an ollama clone: their restraint, our geometry.
 
@@ -66,11 +73,77 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   phone has rounded corners. That component is otherwise a self-contained artifact (its own
   fixed WhatsApp hex colours, not theme tokens) that must never leak its palette onto the page
   around it — elevation still applies to it though: no exception on `shadow-*` there.
-- **Elevation: none.** `--shadow-sm/md/lg` are `none`. Separation comes from a 1px `--border`
-  and whitespace — ollama's rule, and it suits a squared system. Never `shadow-lg`,
-  `shadow-2xl`, or a raw `shadow-*` class.
+- **Elevation: none.** *Every* `--shadow-*` key Tailwind ships is `none` — `2xs`, `xs`, `sm`,
+  `md`, `lg`, `xl`, `2xl`, `inner`. Not "every key we happen to have written down": that reading
+  is what left `2xl` casting Tailwind's stock shadow for a fortnight. Separation comes from a 1px
+  `--border` and whitespace — ollama's rule, and it suits a squared system. Never `shadow-lg`,
+  `shadow-2xl`, or a raw `shadow-*` class. A surface that floats over content **with no scrim**
+  must declare its own full-strength border; it has no elevation left to borrow.
+
+  **Amended 2026-08-17.** The 2026-08-04 pass zeroed `sm/md/lg` in `:root`/`.dark` but left
+  `2xs`, `xs` and `xl` at their live slate-tinted values in `@theme inline`, where no `:root`
+  override existed to flatten them. `shadow-2xs` is the most-used shadow in the app (33 call
+  sites), so elevation was on the whole time this document said it was off. Every key now has
+  exactly **one** declaration, in `@theme inline`, all `none`. That matters beyond tidiness: they
+  had been declared twice with different values, and which one won depended on Tailwind v4
+  hoisting `@theme` above `:root` — a cascade detail no reader should have to know.
+  `--shadow-glow` was deleted outright: defined once, referenced nowhere, and still carrying the
+  retired emerald.
+
+  "Every key" means **every key Tailwind ships**, not every key this repo had written down. The
+  first pass zeroed the six that appeared in `globals.css` and missed `--shadow-2xl`, which was
+  never declared here at all — so Tailwind's stock `0 25px 50px -12px` went on rendering on seven
+  surfaces under a document that said elevation was off. `--shadow-2xl` and `--shadow-inner` are
+  now declared `none` too, and the guard derives its list from
+  `node_modules/tailwindcss/theme.css` so a future scale step fails a test rather than silently
+  reintroducing elevation.
+
+  **Two standing exceptions**, both in `globals.css` and both deliberate:
+  - `.glass-panel-raised` (PR #219), the single focal surface per page — currently `/jobs`' search
+    line. It exists because a page whose every surface is separated only by a 1px border gives the
+    reader nothing to enter through, which is the defect #219 was opened to fix ("it is just
+    blending in the page"). Use it **once per page**. Everything about it is now achromatic: its
+    shadow, border and fill were `rgba(15,23,42)` / slate-200 against a purely neutral ramp, so
+    the focal panel of the app was the bluest thing in it. Elevation is light, and light is grey
+    here.
+  - `.glass-panel` / `.glass-card` carry a soft `0 10px 30px` at 7% — glass over a flat fill has
+    no content to refract, so without it the panel degrades to a plain translucent rectangle.
+
+  Anything that floats over page content with **no scrim behind it** has to declare its own edge,
+  because it can no longer borrow one from the shadow scale. `SearchAutocomplete`'s dropdown is
+  the case that proved it: `border-border/50` over `bg-popover/95` was invisible the moment
+  `shadow-xl` went to `none`, and the results list underneath read straight through it. It is now
+  a full-strength `border-border-strong` on an opaque fill. Every other `shadow-2xl` site was
+  already safe — dialogs and sheets have scrims, and the banner is a `.glass-panel`.
+
+  The `.glass-tint-*` chips keep hued shadows and are not a violation — theirs are `inset`
+  sheens, which paint the surface rather than lift it. The `instrument-breathe` live pulse *was*
+  a violation and is fixed: its ring was `rgba(124,184,122)` — `#7cb87a`, the retired emerald —
+  and now reads `--live`.
+- **Names describe the role, never the hue** (added 2026-08-17). `--green-tint-bg/-bg-alt/-border`
+  had held blue-50/blue-100/blue-200 ever since the accent moved, so the names actively lied.
+  They are now `--live-tint-*`, which is what they are: the tint that accompanies `--live`. A
+  token named for a colour is how a retired colour gets reintroduced by someone trusting the
+  name, and it is the reason six passes could each "remap the same var names to different
+  values" without anyone noticing.
+
+- **The brand mark is one artifact with one dot colour** (added 2026-08-17).
+  `BrandMark.tsx` centralised the bracket *geometry* and told every other renderer to import it
+  — but not the dot's fill, which was hand-copied. Six renderings (`BrandMark`,
+  `opengraph-image`, `lib/og/page-card`, `global-error`, `public/mark.svg`, `src/app/icon.svg`)
+  carried two different greens, `#7cb87a` and `#6fad6d`, neither of them the brand colour. The
+  fill is now `BRAND_MARK_DOT_FILL`, exported beside the geometry and keyed to `--live` (the
+  docstring defines the dot as the live signal the brackets hold). In-app the component uses
+  `fill-live` so it themes; Satori and the two static SVGs take the literal, because they render
+  without a cascade. `src/app/icon.svg` additionally used `#12151a`/`#e8e6e1` — in the palette
+  at all — and is now on the `.dark` token values.
+
 - **Motion:** colour transitions only, 150ms, `cubic-bezier(0.4,0,0.2,1)`. Anything more needs
   a reason written next to it, and must respect `prefers-reduced-motion`.
+
+- **Guard:** `tests/unit/design-language.test.ts` enforces the three rules above against the
+  rule rather than against a list — a new shadow key, a new hue-named token or a seventh copy
+  of the mark fails without anyone remembering to extend an enumeration.
 
 ## Type — one scale, used everywhere
 
@@ -113,7 +186,10 @@ Known debt, to be repaid rather than extended (from the 2026-08-04 audit):
   build one** rather than writing a fourth.
 - 13 files hardcode raw Tailwind palette colours.
 - ~~Two competing shadow systems (`shadow-[var(--shadow-sm)]` and plain `shadow-sm`) — both go to
-  none.~~ **Done (2026-08-04, one-visual-world PR):** `--shadow-sm/md/lg` are `none` in both
+  none.~~ **Partially done (2026-08-04, one-visual-world PR)** — completed 2026-08-17; the entry
+  below claimed a repo-wide flattening that only covered three of the six shadow keys, so plain
+  `shadow-2xs`/`shadow-xs`/`shadow-xl` kept rendering real elevation. See the Elevation
+  amendment above. Original entry: `--shadow-sm/md/lg` are `none` in both
   `:root` and `.dark`, which flattens every call site reading one of those three tokens. The
   plain-class side was swept in the files that PR touched for other reasons — `ui/card.tsx`,
   `ui/button.tsx` (`brand` variant), `ui/input.tsx`, `ui/dropdown-menu.tsx`,

@@ -31,7 +31,7 @@ export function LoginClient() {
             className="flex min-h-dvh flex-col items-center justify-center px-5 pb-12 pt-[72px]"
             style={{
                 background:
-                    "linear-gradient(180deg, rgb(var(--green-tint-bg)) 0%, rgb(var(--background)) 420px)",
+                    "linear-gradient(180deg, rgb(var(--live-tint-bg)) 0%, rgb(var(--background)) 420px)",
             }}
         >
             <div className="mb-9 flex flex-col items-center">

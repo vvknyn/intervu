@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { firestoreStore } from "@/lib/agent/store";
 import { registerClient } from "@/lib/agent/oauth";
 import { AGENT } from "@/lib/agent/config";
-import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/agent/rate-limit";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 
 /**
  * The DCR request body is attacker-controlled JSON — every field read from it
@@ -34,7 +35,7 @@ export function sanitizeClientName(value: unknown): string | undefined {
  * their users (see `PUBLIC_RATE_LIMIT`'s doc comment, config.ts).
  */
 export async function POST(request: Request) {
-    const rate = checkRateLimit(`dcr:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_register");
+    const rate = checkRateLimit(`dcr:${resolveClientIpFromHeaders(request.headers)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_register");
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
     let body: { client_name?: unknown; redirect_uris?: unknown };

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { assembleDigest, type RawDigestSection } from "@/lib/email/digest/assemble";
 
 function item(title: string) {
-    return { title, company: "Acme", href: `https://intervuhq.com/jobs/${title}` };
+    return { title, company: "Acme", href: `https://intervuhq.com/jobs/${title}`, location: "Remote" };
 }
 
 function section(overrides: Partial<RawDigestSection> = {}): RawDigestSection {
@@ -20,13 +20,14 @@ function section(overrides: Partial<RawDigestSection> = {}): RawDigestSection {
 
 describe("assembleDigest", () => {
     it("empty input (no sections at all) assembles to null", () => {
-        assert.equal(assembleDigest({ sections: [], unsubscribeUrl: "https://x/unsub" }), null);
+        assert.equal(assembleDigest({ sections: [], unsubscribeUrl: "https://x/unsub", siteUrl: "https://intervuhq.com" }), null);
     });
 
     it("sections present but every one has zero items assembles to null (never a hollow send)", () => {
         const result = assembleDigest({
             sections: [section({ items: [] }), section({ kind: "saved-search", name: "PM roles", items: [] })],
             unsubscribeUrl: "https://x/unsub",
+            siteUrl: "https://intervuhq.com",
         });
         assert.equal(result, null);
     });
@@ -35,6 +36,7 @@ describe("assembleDigest", () => {
         const result = assembleDigest({
             sections: [section({ items: [item("role-1"), item("role-2")] })],
             unsubscribeUrl: "https://x/unsub",
+            siteUrl: "https://intervuhq.com",
         });
         assert.ok(result);
         assert.equal(result!.sections.length, 1);
@@ -48,6 +50,7 @@ describe("assembleDigest", () => {
         const result = assembleDigest({
             sections: [section({ items, mayHaveMore: true })],
             unsubscribeUrl: "https://x/unsub",
+            siteUrl: "https://intervuhq.com",
         });
         assert.equal(result!.sections[0].items.length, 5);
         assert.equal(result!.sections[0].totalNew, 8);
@@ -59,6 +62,7 @@ describe("assembleDigest", () => {
         const result = assembleDigest({
             sections: [section({ items })],
             unsubscribeUrl: "https://x/unsub",
+            siteUrl: "https://intervuhq.com",
             itemCap: 2,
         });
         assert.equal(result!.sections[0].items.length, 2);
@@ -73,6 +77,7 @@ describe("assembleDigest", () => {
                 section({ kind: "saved-search", name: "Remote eng", items: [item("b1"), item("b2")] }),
             ],
             unsubscribeUrl: "https://x/unsub",
+            siteUrl: "https://intervuhq.com",
         });
         assert.equal(result!.sections.length, 2);
         assert.deepEqual(
@@ -85,7 +90,7 @@ describe("assembleDigest", () => {
         const items = [item("role-1"), item("role-2"), item("role-3")];
         const original = section({ items });
         const snapshotLength = original.items.length;
-        assembleDigest({ sections: [original], unsubscribeUrl: "https://x/unsub", itemCap: 1 });
+        assembleDigest({ sections: [original], unsubscribeUrl: "https://x/unsub", siteUrl: "https://intervuhq.com", itemCap: 1 });
         assert.equal(original.items.length, snapshotLength);
     });
 });

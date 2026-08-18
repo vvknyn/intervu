@@ -10,6 +10,7 @@ import {
     CaretDown,
     CaretUp,
     FunnelSimple,
+    MapPin,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,12 +38,13 @@ import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
+import { LaunchBanner } from "@/components/jobs/LaunchBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
-import { checkFreshness, rowTrustChip } from "@/lib/jobs/badges";
+import { rowTrustChip, type RowTrustChip } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
+import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
     cleanCompany,
@@ -57,6 +59,7 @@ import {
     seamSummarySorted,
     prettyEnum,
     ghostMetaFor,
+    GHOST_META,
 } from "@/lib/jobs/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
@@ -78,6 +81,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
+import { LandingMarketingShowcase, LandingMasthead } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     toggleFacetValue,
@@ -85,6 +89,8 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
+import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
@@ -213,7 +219,7 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
  * (`chipVariants`, components/ui/chip.tsx) — previously a bare 11px text
  * button with a ~15px hit target (measured on prod, below the 24px WCAG
  * floor) and "pressed" conveyed by underline alone. Active/pressed now
- * reuses the SAME green-tint chip state every other active chip in the app
+ * reuses the SAME live-tint chip state every other active chip in the app
  * uses, rather than a one-off text treatment.
  */
 function SortSegment({
@@ -268,15 +274,22 @@ function SortSegment({
  * SAME `suppressLocationDefault` write path the old results-row chip used —
  * REUSED, not a second suppression flag.
  */
+/** Country name for an ISO2 via the browser's own region-name table, with a
+ *  bare-code fallback if `Intl.DisplayNames` throws. Shared by
+ *  `DefaultLocationChip` and the zero-result state's geo-default entry
+ *  (below) so there is exactly one place that resolves this, not a second
+ *  copy of the same try/catch. */
+function regionDisplayName(iso2: string): string {
+    try {
+        return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
+    } catch {
+        return iso2;
+    }
+}
+
 function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => void }) {
     const flag = countryToFlag(iso2);
-    const name = useMemo(() => {
-        try {
-            return new Intl.DisplayNames(["en"], { type: "region" }).of(iso2) ?? iso2;
-        } catch {
-            return iso2;
-        }
-    }, [iso2]);
+    const name = useMemo(() => regionDisplayName(iso2), [iso2]);
     return (
         <span
             data-testid="default-location-chip"
@@ -360,7 +373,50 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /* ----------------------------- ledger row ----------------------------- */
 
 /** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] leading-tight font-medium border shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors";
+const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 font-mono text-[10.5px] leading-tight font-medium glass-tint-muted transition-colors";
+
+/** Shared shape of the row's trust chip — only the color and the words differ per state. */
+const TRUST_CHIP_BOX = "leading-none inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em]";
+
+/**
+ * How each `rowTrustChip` state looks and reads — one table instead of one
+ * hand-written `<span>` per state. The states were four near-identical
+ * copy-pasted spans differing in three palette words; adding `ghost` would
+ * have made a fifth, which is how the amber that `caution` and
+ * `likely_ghost` used to share got there in the first place.
+ *
+ * `ghost` takes its class straight from `GHOST_META.likely_ghost.cls` — which
+ * now resolves through `ghostBadgeTone` (lib/ui/status-tokens.ts) — so the
+ * row chip, the tooltip beside it, the detail-panel verdict pill and the /co
+ * roles list are the same red for the same verdict without anyone
+ * remembering to keep them in step. The other three keep their existing
+ * literal palettes verbatim: they render correctly today and restyling a
+ * surface nobody reported is not this change's job.
+ */
+const TRUST_CHIP: Record<RowTrustChip, { label: string; cls: string; glyph?: string; glyphCls?: string }> = {
+    ghost: {
+        label: GHOST_META.likely_ghost!.label,
+        cls: GHOST_META.likely_ghost!.cls,
+        glyph: "✕",
+    },
+    review: {
+        label: "review",
+        cls: "border border-amber-300/90 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+    },
+    clear: {
+        // `GHOST_META.clear.label`, not a second word for the same state —
+        // see `rowTrustChip`'s doc comment for why the row no longer says
+        // "verified".
+        label: GHOST_META.clear!.label,
+        cls: "border border-emerald-300/90 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
+        glyph: "✓",
+        glyphCls: "font-extrabold text-emerald-600 dark:text-emerald-400",
+    },
+    checked: {
+        label: "checked",
+        cls: "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    },
+};
 
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
@@ -408,7 +464,7 @@ function JobCard({
     onToggleExpand?: () => void;
 }) {
     const accessibleName = `${decodeText(job.title)} at ${displayCompany(job.company, job.company_domain) || "Unknown company"}`;
-    const trust = rowTrustChip(job.ghost_badge, job.updated_at, now);
+    const trust = rowTrustChip(job, now);
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // Relist caution (Task 3, Vivek request; retitled ITEM T 2026-08-15 — a
@@ -439,8 +495,8 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-xl border border-border bg-card p-4 text-left transition-[border-color,box-shadow,transform] duration-150 hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-[0_4px_16px_rgba(15,23,42,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/60 focus-visible:-outline-offset-2",
-                active && "border-emerald-600 ring-2 ring-emerald-600/40 shadow-md bg-emerald-50/15 dark:border-emerald-500 dark:ring-emerald-500/40 dark:bg-emerald-950/20",
+                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4 text-left transition-all duration-150 hover:border-foreground/50",
+                active && "border-brand border-l-4 border-l-brand glass-tint-blue",
             )}
         >
             <div className="row-span-2 self-start">
@@ -490,25 +546,26 @@ function JobCard({
                 </div>
             </div>
             <span className="flex h-fit items-center self-start">
-                {trust === "review" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-amber-300/90 bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                        review
+                {trust && (
+                    <span
+                        data-testid="row-trust-chip"
+                        data-trust={trust}
+                        className={cn(TRUST_CHIP_BOX, TRUST_CHIP[trust].cls)}
+                    >
+                        {TRUST_CHIP[trust].glyph && (
+                            <>
+                                <span aria-hidden className={TRUST_CHIP[trust].glyphCls}>
+                                    {TRUST_CHIP[trust].glyph}
+                                </span>{" "}
+                            </>
+                        )}
+                        {TRUST_CHIP[trust].label}
                     </span>
                 )}
-                {trust === "verified" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-emerald-300/90 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        <span aria-hidden className="font-extrabold text-emerald-600 dark:text-emerald-400">✓</span> verified
-                    </span>
-                )}
-                {trust === "checked" && (
-                    <span className="leading-none inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        checked
-                    </span>
-                )}
-                {ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale") && (
+                {ghostMetaFor(job, now) && (
                     <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center leading-none">
                         <ContextHelp
-                            content={ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale")!.explain}
+                            content={ghostMetaFor(job, now)!.explain}
                             side="left"
                         />
                     </span>
@@ -516,38 +573,45 @@ function JobCard({
             </span>
             <div className="col-span-full flex flex-wrap items-center gap-1.5 pt-0.5">
                 {salary && (
-                    <span className={cn(FACT_BOX, "border-emerald-300/90 bg-emerald-50/90 text-emerald-950 dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-200")}>
-                        <b className="font-bold uppercase tracking-wider text-[10px] text-emerald-700 dark:text-emerald-400">pay</b>
-                        <span className="font-bold text-emerald-950 dark:text-emerald-100">{salary}</span>
+                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 font-mono text-[10.5px] overflow-hidden">
+                        <span className="bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
+                        <span className="px-1.5 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
                     </span>
                 )}
-                <span className={cn(FACT_BOX, "border-slate-300/80 bg-slate-100/90 text-slate-800 dark:border-slate-700/80 dark:bg-slate-800/80 dark:text-slate-200")}>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{locationLine}</span>
+                <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                    <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LOCATION</span>
+                    <span className="px-1.5 py-0.5 font-medium text-foreground">{locationLine}</span>
                 </span>
                 {level && (
-                    <span className={cn(FACT_BOX, "border-indigo-200/90 bg-indigo-50/90 text-indigo-950 dark:border-indigo-900/70 dark:bg-indigo-950/60 dark:text-indigo-200")}>
-                        <b className="font-bold uppercase tracking-wider text-[10px] text-indigo-600 dark:text-indigo-400">level</b>
-                        <span className="font-semibold text-indigo-950 dark:text-indigo-100">{level}</span>
+                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                        <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LEVEL</span>
+                        <span className="px-1.5 py-0.5 font-medium text-foreground">{level}</span>
                     </span>
                 )}
                 {age && (
-                    <span className={cn(FACT_BOX, LISTING_STATE_CHIP[relisted ? "relisted" : "fresh"])}>
-                        <b className={cn("font-bold uppercase tracking-wider text-[10px]", LISTING_STATE_CHIP_LABEL[relisted ? "relisted" : "fresh"])}>
-                            {relisted ? "relisted" : "posted"}
-                        </b>
-                        <span className="font-semibold">{age}</span>
+                    <span className={cn(
+                        "inline-flex items-center rounded-none border font-mono text-[10.5px] overflow-hidden",
+                        relisted ? "border-amber-500/40 bg-amber-500/10" : "border-border/80 bg-background/50"
+                    )}>
+                        <span className={cn(
+                            "px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider border-r",
+                            relisted ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30" : "bg-muted/70 text-muted-foreground border-border/80"
+                        )}>
+                            {relisted ? "RELISTED" : "POSTED"}
+                        </span>
+                        <span className="px-1.5 py-0.5 font-medium text-foreground">{age}</span>
                     </span>
                 )}
                 {employment &&
                     employment.toLowerCase() !== "full-time" &&
                     employment.toLowerCase() !== "full time" && (
-                        <span className={cn(FACT_BOX, "border-purple-200/90 bg-purple-50/90 text-purple-950 dark:border-purple-900/70 dark:bg-purple-950/60 dark:text-purple-200")}>
-                            <b className="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">type</b>
-                            <span className="font-semibold text-purple-950 dark:text-purple-100">{employment}</span>
+                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                            <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">TYPE</span>
+                            <span className="px-1.5 py-0.5 font-medium text-foreground">{employment}</span>
                         </span>
                     )}
                 {!salary && (
-                    <span className={cn(FACT_BOX, "border-dashed border-slate-300/80 bg-slate-50/80 text-slate-500 dark:border-slate-700/80 dark:bg-slate-900/60 dark:text-slate-400")}>
+                    <span className="inline-flex items-center rounded-none border border-dashed border-border/80 bg-background/40 font-mono text-[10px] text-muted-foreground px-2 py-0.5">
                         pay undisclosed
                     </span>
                 )}
@@ -696,7 +760,7 @@ function JobsListSplash() {
     return (
         <div>
             <p className="pt-8 font-mono text-[13px] text-muted-foreground">
-                Finding live roles… screening each posting for ghost-job signals.
+                Finding live roles… checking each posting is still active.
             </p>
             <div className="mt-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -726,11 +790,13 @@ function JobsListSplash() {
 /**
  * Task 11 — zero-results state. Names the specific excluders instead of a
  * generic "try broadening your search": one clear-chip per
- * `activeFilterEntries(state)` (FilterPanel.tsx) — the SAME source the
- * toolbar chips and mobile sheet read from, so this can never list a
- * different "what's active" than what's actually applied (no parallel
- * list). `onClearEntry` routes through the caller's `applyFilterState` —
- * the identical apply path the toolbar chips' `onRemove` already uses — so
+ * `activeFilterEntries(state, { includeQuietDefaults: true })`
+ * (FilterPanel.tsx) — the SAME chokepoint the toolbar chips and mobile sheet
+ * read from (they omit the opt), so this can never list a different "what's
+ * active" than what's actually applied, it just additionally names the
+ * pristine "30d" posted-bucket default the toolbar keeps quiet (no parallel
+ * list). `onClearEntry` routes through the caller's `applyFilterState` — the
+ * identical apply path the toolbar chips' `onRemove` already uses — so
  * there's exactly one place a FilterState clear becomes local state + a URL
  * write, not a third one. `ghostRevealCount` arrives pre-gated from
  * `resolveGhostReveal` (lib/jobs/result-state.ts): non-null here already
@@ -743,6 +809,11 @@ function JobsListSplash() {
  * no one-tap clear. `query`/`onClearQuery` add that as its own chip,
  * first-in-order (the thing most likely to be over-narrowing a search-driven
  * empty state) alongside the existing filter chips.
+ *
+ * `locationDefault` (below) is the one excluder outside `FilterState`
+ * entirely — the IP-geo default (`DefaultLocationChip`'s seam, above) — so it
+ * rides alongside `entries` as its own prop rather than being folded into the
+ * FilterState-shaped list.
  */
 /** Review fix: one source for the `activeFilterEntries` element shape, instead of spelling it out twice below. */
 type FilterEntry = ReturnType<typeof activeFilterEntries>[number];
@@ -753,6 +824,7 @@ function ActiveFilterActions({
     onClearFilters,
     query,
     onClearQuery,
+    locationDefault,
     className,
     clearFiltersTestId = "empty-state-clear-filters",
     clearQueryTestId = "empty-state-clear-query",
@@ -763,6 +835,12 @@ function ActiveFilterActions({
     onClearFilters?: () => void;
     query?: string;
     onClearQuery?: () => void;
+    /** The IP-geo default (`DefaultLocationChip`'s own seam, above) isn't
+     *  part of `FilterState` at all, so it can't travel through `entries`'s
+     *  state-transform `clear`. Same rendered chip, same "✕ clear {label}"
+     *  grammar, resolved `onClear` supplied by the caller instead of a pure
+     *  `(s: FilterState) => FilterState`. */
+    locationDefault?: { label: string; onClear: () => void };
     className?: string;
     clearFiltersTestId?: string;
     clearQueryTestId?: string;
@@ -770,7 +848,7 @@ function ActiveFilterActions({
 }) {
     const hasQuery = (query ?? "").trim().length > 0;
     const hasFilters = entries.length > 0;
-    if (!hasQuery && !hasFilters) return null;
+    if (!hasQuery && !hasFilters && !locationDefault) return null;
     return (
         <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground", className)}>
             {hasFilters && onClearFilters && (
@@ -804,6 +882,16 @@ function ActiveFilterActions({
                     ✕ clear {entry.label}
                 </button>
             ))}
+            {locationDefault && (
+                <button
+                    type="button"
+                    data-testid={chipTestId}
+                    onClick={locationDefault.onClear}
+                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                >
+                    ✕ clear {locationDefault.label}
+                </button>
+            )}
         </p>
     );
 }
@@ -814,6 +902,7 @@ function EmptyResults({
     onClearFilters,
     query,
     onClearQuery,
+    locationDefault,
     ghostRevealCount,
     onRevealGhosts,
     seeds,
@@ -828,6 +917,9 @@ function EmptyResults({
     onClearFilters: () => void;
     query: string;
     onClearQuery: () => void;
+    /** The IP-geo default excluder — see `ActiveFilterActions`'s own doc
+     *  comment for why this travels separately from `entries`. */
+    locationDefault?: { label: string; onClear: () => void };
     ghostRevealCount: number | null;
     onRevealGhosts: () => void;
     /** A3 — the SAME seed list `BrowseSeedRow` renders everywhere else on
@@ -838,7 +930,7 @@ function EmptyResults({
     onSubmitSeed: (seed: string) => void;
 }) {
     const hasQuery = query.trim().length > 0;
-    const hasFilters = entries.length > 0;
+    const hasFilters = entries.length > 0 || !!locationDefault;
     return (
         <div className="py-8 text-left">
             <p className="text-[14px] text-foreground">
@@ -852,6 +944,7 @@ function EmptyResults({
                     onClearFilters={onClearFilters}
                     query={query}
                     onClearQuery={onClearQuery}
+                    locationDefault={locationDefault}
                 />
             )}
             {ghostRevealCount != null && (
@@ -860,7 +953,7 @@ function EmptyResults({
                     onClick={onRevealGhosts}
                     className="mt-2 font-mono text-xs text-foreground underline underline-offset-2"
                 >
-                    {ghostRevealCount.toLocaleString()} roles hidden as likely-ghost — show them
+                    {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
@@ -960,6 +1053,7 @@ function JobsContent() {
     const [nowMs] = useState(() => Date.now());
 
     const [query, setQuery] = useState(initialUrlState.q);
+    const [queryDraft, setQueryDraft] = useState(initialUrlState.q);
     const [facets, setFacets] = useState<Partial<Record<FacetKey, string[]>>>(initialUrlState.facets);
     const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
     const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
@@ -968,11 +1062,21 @@ function JobsContent() {
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
     const [board, setBoard] = useState<BoardId | null>(initialUrlState.board);
+    // Single-employer scope, arriving from `/co/[slug]`'s "View all N jobs"
+    // CTA (`buildCompanyJobsUrl`). Held next to `board` because they are the
+    // same concern — see `scope` below.
+    const [companyDomain, setCompanyDomain] = useState<string | null>(initialUrlState.companyDomain);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
     const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
+    // The corpus narrowings that aren't user-picked filters, in one object so
+    // the four `buildJobSearchPayload` call sites below can't pick up one and
+    // forget the other — the same single-source rule `filterState` above
+    // exists for. Plain object, same as `filterState`: it's only ever spread
+    // into a payload, never a hook dependency.
+    const scope = { board, companyDomain };
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1033,6 +1137,7 @@ function JobsContent() {
         postedBucket,
         hideGhosts,
         board,
+        companyDomain,
         // `fitActive` wins the default so `sort=fit` survives unrelated
         // mutations (a facet toggle, a job open) that rebuild the URL via
         // `buildUrlState({...})` without an explicit `sort` override.
@@ -1080,6 +1185,7 @@ function JobsContent() {
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        setQueryDraft(q);
         setQuery(q);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
@@ -1320,13 +1426,14 @@ function JobsContent() {
                 postedBucket,
                 hideGhosts,
                 board,
+                companyDomain,
                 sort: sortOverride ? modeToUrlSort(sortOverride) : null,
                 jobId: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported],
+        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported],
     );
 
     // Single source: résumé usable, hoisted here (instead of
@@ -1362,10 +1469,19 @@ function JobsContent() {
     const resumeControlState = resolveResumeControlState({ fitActive, resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
-    // pill's count, the empty-state's per-filter clear chips, and
-    // `emptySearchState` below all read this ONE call instead of a second
-    // `activeFilterEntries(filterState)` per render.
+    // pill's count and `emptySearchState` below both read this ONE call
+    // instead of a second `activeFilterEntries(filterState)` per render.
     const activeEntries = activeFilterEntries(filterState);
+
+    // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
+    // call to the same `activeFilterEntries` chokepoint, with
+    // `includeQuietDefaults: true` — a silently-applied default (today, only
+    // the pristine "30d" posted-bucket) narrowed the result set just as much
+    // as an explicit filter, so a zero-result explanation has to name it even
+    // though the toolbar pill keeps it quiet. Same function, same clear
+    // semantics, one extra opt-in — not a second parallel "what's active"
+    // derivation.
+    const emptyStateEntries = activeFilterEntries(filterState, { includeQuietDefaults: true });
 
     /**
      * No query ⇒ no corpus fetch, ever — regardless of filters or
@@ -1392,7 +1508,9 @@ function JobsContent() {
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
+        hasCorpusScope: Boolean(scope.board || scope.companyDomain),
     });
+    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain;
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -1425,7 +1543,7 @@ function JobsContent() {
                     emptySearchState === "overlay-ask"
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
-                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                               withFacets: true,
                               limit: PAGE,
                               offset: 0,
@@ -1590,7 +1708,7 @@ function JobsContent() {
                             query,
                             backendSort,
                             postedDateSupported,
-                            board,
+                            scope,
                             locationDefaultSuppressed,
                         ),
                         withFacets: true,
@@ -1623,7 +1741,7 @@ function JobsContent() {
                 // number the spec forbids.
                 if (postedBucket === "30d") {
                     searchJobsAction({
-                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                         postedBucket: undefined,
                         limit: 0,
                         offset: 0,
@@ -1872,6 +1990,7 @@ function JobsContent() {
         const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
         const currentKey = serializeJobsUrl({ ...current, jobId: null });
         if (parsedKey !== currentKey) {
+            setQueryDraft(parsed.q);
             setQuery(parsed.q);
             // Facets are an object, not a primitive — a same-content-but-new-
             // reference set would still be a needless render, so gate it on
@@ -1885,6 +2004,7 @@ function JobsContent() {
             setPostedBucket(parsed.postedBucket);
             setHideGhosts(parsed.hideGhosts);
             setBoard(parsed.board);
+            setCompanyDomain(parsed.companyDomain);
             setSortOverride(resolveUrlSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -2088,7 +2208,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, board, locationDefaultSuppressed),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -2124,7 +2244,7 @@ function JobsContent() {
         // reason: page 2+ must never silently reapply a default this
         // session already cleared.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -2182,6 +2302,21 @@ function JobsContent() {
     const onBoardChange = (next: BoardId | null) => {
         setBoard(next);
         applyUrlState(buildUrlState({ board: next }), "replace");
+    };
+
+    /**
+     * Widen a single-employer browse back to the whole corpus.
+     *
+     * Deliberately NOT folded into `panelClearAll` (which resets
+     * `FilterState` only): the employer scope is the corpus this search runs
+     * against, not a filter the searcher picked off the toolbar, and a
+     * "Clear filters" that silently dumped them out of the company they
+     * arrived for would be the same undisclosed-scope change the chip below
+     * exists to prevent. One affordance, one meaning.
+     */
+    const clearCompanyScope = () => {
+        setCompanyDomain(null);
+        applyUrlState(buildUrlState({ companyDomain: null }), "replace");
     };
 
     useEffect(() => {
@@ -2283,6 +2418,10 @@ function JobsContent() {
     const pursuitsByJobIdRef = useRef(pursuitsByJobId);
     pursuitsByJobIdRef.current = pursuitsByJobId;
     const [applyReturnPrompt, setApplyReturnPrompt] = useState<PublicJob | null>(null);
+    // The job whose apply click is currently held open by the AI hand-off
+    // prompt. Holding the job rather than a boolean keeps the dialog's content
+    // and its "continue" target the same object the click started from.
+    const [applyIntentJob, setApplyIntentJob] = useState<PublicJob | null>(null);
 
     // "Apply with tailored resume" / the fit-check drawer moved to MCP
     // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
@@ -2298,18 +2437,34 @@ function JobsContent() {
     // JobDetail's `onOpenPosting` prop), so gating here covers both by
     // construction. Signed in: unchanged, new-tab `window.open` (safe —
     // this always runs synchronously inside the click's own gesture stack).
+    // The departure itself, split out from the gating above so the apply-intent
+    // dialog's "Continue to the posting" button can reach it. It must stay
+    // callable straight from a click handler: `window.open` outside a user
+    // gesture is what popup blockers exist to stop.
+    const openPostingNow = (job: PublicJob) => {
+        if (!job.apply_url) return;
+        // A1 — only a real, signed-in departure to the employer's site arms the
+        // return prompt; the gated branches return before reaching here, so
+        // guests never do.
+        awayForApplyRef.current = { job, leftAt: Date.now() };
+        window.open(job.apply_url, "_blank", "noopener,noreferrer");
+    };
+
     const handleOpenPosting = (job: PublicJob) => {
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
         }
-        if (job.apply_url) {
-            // A1 — only a real, signed-in departure to the employer's site
-            // (this branch) arms the return prompt; the gated branch above
-            // returns first, so guests never reach here.
-            awayForApplyRef.current = { job, leftAt: Date.now() };
-            window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        // Offer the AI hand-off once, at the only moment it is worth anything.
+        // Ordered after the auth gate on purpose: a signed-out visitor has no
+        // résumé or tracker for an assistant to read, so the offer would be
+        // hollow, and two interruptions stacked on one click is worse than the
+        // problem either solves.
+        if (job.apply_url && shouldPromptApplyIntent()) {
+            setApplyIntentJob(job);
+            return;
         }
+        openPostingNow(job);
     };
 
     const doMarkApplied = async (job: PublicJob) => {
@@ -2588,6 +2743,7 @@ function JobsContent() {
     const applyFit = (r: ResumeData) => {
         const { q, facets: f } = buildMatchQuery(r);
         setFacets(f);
+        setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
@@ -2668,7 +2824,7 @@ function JobsContent() {
     };
 
     const canSaveSearch = Boolean(
-        query.trim() || activeCount > 0 || fitActive || sortOverride || board,
+        query.trim() || activeCount > 0 || fitActive || sortOverride || board || companyDomain,
     );
 
     // Task 11 review fix — the tombstone's "similar roles" CTA clears the
@@ -2868,6 +3024,7 @@ function JobsContent() {
     );
 
     const handleClearSearch = () => {
+        setQueryDraft("");
         setQuery("");
         setLocationDraft("");
         applyUrlState(buildUrlState({ q: "" }), "replace");
@@ -2909,13 +3066,19 @@ function JobsContent() {
                     reportJobEnabled={reportJobEnabled}
                     className="border-0 bg-transparent shadow-none"
                 />
-                {user ? (
-                    <JobDetailActionBar
-                        job={detailJob}
-                        signedIn
-                        onOpenPosting={() => handleOpenPosting(detailJob)}
-                    />
-                ) : null}
+                {/* Rendered for guests too (founder call, 2026-08-15). /jobs is the
+                    SEO front door, so most first-time readers arrive signed out —
+                    and the inline Apply button scrolls out of view, leaving them
+                    with no persistent CTA. `signedIn={false}` is the state this
+                    component was already built for: the label reads "Sign in to
+                    apply", and handleOpenPosting gates at resolveApplyGateDecision
+                    (:2282) before any ATS departure, so the label never
+                    over-promises what the tap delivers. */}
+                <JobDetailActionBar
+                    job={detailJob}
+                    signedIn={Boolean(user)}
+                    onOpenPosting={() => handleOpenPosting(detailJob)}
+                />
             </>
         ) : isDeadJobConfirmed ? (
             <div className="p-4">
@@ -2991,11 +3154,16 @@ function JobsContent() {
         <div
             className="min-h-screen"
             style={{
+                // Was a literal rgba(16, 149, 106, …) — the retired emerald
+                // --brand, frozen into the page wash where no theme could
+                // reach it. Reads the token now, so the wash follows the
+                // accent through light/dark instead of tinting the whole
+                // results page a colour the palette had dropped.
                 background:
-                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgba(16, 149, 106, 0.12), transparent 70%), rgb(var(--background))",
+                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
             }}
         >
-            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-6 sm:px-5 xl:max-w-[1280px]">
+            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-2 sm:px-5 sm:pt-3 xl:max-w-[1440px]">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -3003,50 +3171,183 @@ function JobsContent() {
                     Skip to results
                 </a>
 
-                {/* Clean, authoritative search header */}
-                <header className="pb-3 pt-2">
-                    <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                        Search Verified Jobs
-                    </h1>
-                </header>
+                {/* Landing masthead — ABOVE the search line, and NON-DESTRUCTIVE.
+                    It stays mounted always; running a search collapses its row
+                    to 0fr, so the search box travels up into the space it
+                    vacates instead of the page swapping one layout for another.
+                    That keeps the input's value, caret and focus intact across
+                    the transition (a remount would drop all three mid-keystroke),
+                    and clearing the query plays the same move in reverse.
+                    `grid-rows-[0fr]→[1fr]` is the collapse idiom already used in
+                    components/layout/Header.tsx; `motion-reduce` opts out because
+                    globals.css' reduced-motion block is class-scoped, not blanket.
+                    Safe to leave in the tree while collapsed only because
+                    `LandingMasthead` holds no focusable node — see its doc. */}
+                <div
+                    aria-hidden={!isPristineLanding}
+                    data-landing-masthead={isPristineLanding ? "open" : "collapsed"}
+                    className={cn(
+                        "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
+                        isPristineLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                    )}
+                >
+                    <div className="min-h-0 overflow-hidden">
+                        <LandingMasthead />
+                    </div>
+                </div>
 
-                <section className="rounded-xl border border-slate-300/80 bg-card p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-slate-700">
-                    <div data-search-line className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-                        <SearchAutocomplete
-                            value={query}
-                            onChange={(v) => {
-                                setQuery(v);
-                                applyUrlState(buildUrlState({ q: v }), "replace");
-                            }}
-                            onSearch={() => submitSearch(query)}
-                            suggest={suggestForBox}
-                            seeds={searchSeeds}
-                            placeholder={searchPlaceholder}
-                            className="h-[46px] w-full min-w-0 rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:min-w-[260px] sm:flex-[1_1_260px]"
-                            containerClassName="min-w-0 w-full sm:flex-1"
-                        />
-                        <Input
-                            data-testid="location-input"
-                            type="text"
-                            placeholder="City, state, or remote"
-                            value={locationDraft}
-                            onChange={(e) => setLocationDraft(e.target.value)}
-                            onBlur={commitLocation}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    commitLocation();
-                                }
-                            }}
-                            className="h-[46px] w-full rounded-lg border border-slate-300 bg-background px-3.5 text-sm text-foreground shadow-2xs placeholder:text-muted-foreground/70 focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/30 dark:border-slate-700 sm:max-w-[200px] sm:flex-[0_1_200px]"
-                        />
-                        <Button
+                {/* `glass-panel-raised` marks this as the page's focal surface.
+                    Plain `glass-panel` left the search line indistinguishable
+                    from the page behind it — see the class' note in globals.css.
+                    This is the only raised surface on /jobs; if another one is
+                    ever added here, neither will read as the primary action. */}
+                <section className="rounded-none glass-panel glass-panel-raised p-2 sm:p-2.5 transition-colors">
+                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
+                        {/* `bg-card`, not `bg-background`: inside the raised well
+                            the field has to be the brightest thing on the page,
+                            which is the only direction contrast can go on a
+                            light ground. */}
+                        <div className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                            <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
+                                <SearchAutocomplete
+                                    value={queryDraft}
+                                    onChange={(v) => {
+                                        setQueryDraft(v);
+                                    }}
+                                    onSearch={() => submitSearch(queryDraft)}
+                                    suggest={suggestForBox}
+                                    seeds={searchSeeds}
+                                    placeholder={searchPlaceholder}
+                                    leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
+                                    className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    containerClassName="min-w-0 w-full"
+                                />
+                                {/* NOT `results-clear-query` — that is the toolbar's
+                                    "✕ clear search", which also drops the location draft
+                                    and the location_country facet. This one empties the
+                                    field and re-runs, nothing else. Two behaviours behind
+                                    one testid made either selector ambiguous. */}
+                                {queryDraft && (
+                                    <button
+                                        type="button"
+                                        data-testid="search-input-clear"
+                                        aria-label="Clear query"
+                                        onClick={() => {
+                                            setQueryDraft("");
+                                            submitSearch("");
+                                        }}
+                                        className="absolute right-2.5 flex h-6 w-6 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground font-mono text-xs z-10"
+                                        title="Clear query"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                            {/* Glyph as a row sibling, not an absolute overlay +
+                                `pl-*` on the field — same reason as
+                                SearchAutocomplete's (see its doc comment): padding
+                                is a shared tailwind-merge axis and an overlay only
+                                stays clear of the text while nobody touches it. */}
+                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                                <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
+                                    <MapPin size={16} weight="bold" />
+                                </span>
+                                <Input
+                                    data-testid="location-input"
+                                    type="text"
+                                    placeholder="City, state, or remote"
+                                    value={locationDraft}
+                                    onChange={(e) => setLocationDraft(e.target.value)}
+                                    onBlur={commitLocation}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            commitLocation();
+                                        }
+                                    }}
+                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                type="button"
+                                onClick={() => submitSearch(queryDraft)}
+                                className="h-11 sm:h-[46px] w-full rounded-none bg-foreground px-6 text-xs font-mono font-bold uppercase tracking-wider text-background hover:bg-foreground/90 sm:w-auto transition-colors"
+                            >
+                                Search
+                            </Button>
+                            <SavedSearchesPanel
+                                saved={savedSearches}
+                                urlState={buildUrlState()}
+                                canSave={canSaveSearch}
+                                onApply={applySavedSearch}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Category & Persona Discovery Micro-Pills */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1 pt-1.5 border-t border-border/70">
+                        <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">INDEX:</span>
+                        {[
+                            { label: "Engineering", q: "Software Engineer" },
+                            { label: "AI & ML", q: "Machine Learning AI" },
+                            { label: "Product", q: "Product Manager" },
+                            { label: "Design", q: "Product Designer UI UX" },
+                        ].map((cat) => {
+                            const isMatch = query.toLowerCase() === cat.q.toLowerCase();
+                            return (
+                                <button
+                                    key={cat.label}
+                                    type="button"
+                                    onClick={() => submitSearch(cat.q)}
+                                    className={cn(
+                                        "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                        isMatch
+                                            ? "border-foreground bg-foreground text-background font-bold"
+                                            : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {cat.label}
+                                </button>
+                            );
+                        })}
+                        <button
                             type="button"
-                            onClick={() => submitSearch(query)}
-                            className="h-[46px] w-full rounded-lg bg-slate-900 px-5 text-[13px] font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto"
+                            onClick={() => panelToggleFacet("work_type", "remote")}
+                            className={cn(
+                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                facets.work_type?.includes("remote")
+                                    ? "border-foreground bg-foreground text-background font-bold"
+                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                            )}
                         >
-                            Search
-                        </Button>
+                            Remote
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
+                            className={cn(
+                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                salaryMin === 150000
+                                    ? "border-foreground bg-foreground text-background font-bold"
+                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                            )}
+                        >
+                            $150k+
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onBoardChange(board === "elite" ? null : "elite")}
+                            className={cn(
+                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                board === "elite"
+                                    ? "border-foreground bg-foreground text-background font-bold"
+                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                            )}
+                        >
+                            Tier-1 Tech
+                        </button>
                     </div>
                 </section>
 
@@ -3072,8 +3373,8 @@ function JobsContent() {
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
-                                "w-full justify-center rounded-md font-semibold text-foreground sm:w-auto sm:justify-start",
-                                filtersOpen && "border-slate-900 bg-slate-900 text-white ring-2 ring-slate-900/30 dark:border-white dark:bg-white dark:text-slate-900 dark:ring-white/30 hover:border-slate-900 hover:bg-slate-900",
+                                "h-11 px-3 rounded-none font-semibold text-foreground inline-flex items-center gap-1.5 transition-colors sm:h-9",
+                                filtersOpen && "border-foreground bg-foreground text-background ring-1 ring-foreground hover:border-foreground hover:bg-foreground",
                                 activeCount > 0 && "has-active",
                             )}
                         >
@@ -3081,12 +3382,26 @@ function JobsContent() {
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-sm border border-emerald-300 bg-emerald-100 px-1 font-mono text-[10px] font-bold leading-[16px] text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-100">
+                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 font-mono text-[10px] font-bold leading-[16px] text-brand">
                                     {activeCount}
                                 </span>
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
+                        {/* Sits next to "All filters" because it undoes the same
+                            thing that row sets — the query is what the toolbar
+                            filters narrow. It used to live in the results-count
+                            box, which is a reporting surface, not a control one. */}
+                        {query.trim() && (
+                            <button
+                                type="button"
+                                data-testid="results-clear-query"
+                                onClick={handleClearSearch}
+                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground transition-colors"
+                            >
+                                ✕ clear search
+                            </button>
+                        )}
                         {/* ITEM I (2026-08-15): moved here from the search row (was a
                             flex sibling between the location input and Search button).
                             It's filter state (suppressible, affects the fetched set),
@@ -3115,6 +3430,16 @@ function JobsContent() {
                             >
                                 {trackedCount} tracked
                             </Link>
+                        )}
+                        {activeCount > 0 && (
+                            <button
+                                type="button"
+                                data-testid="results-clear-filters"
+                                onClick={panelClearAll}
+                                className="font-mono text-[12px] font-bold text-brand underline underline-offset-[3px] hover:text-foreground transition-colors"
+                            >
+                                Clear filters ({activeCount})
+                            </button>
                         )}
                         {/* ITEM J (2026-08-15), revised: one persistent control, label
                             always "My résumé" — only its STATE changes. Previously the
@@ -3180,7 +3505,7 @@ function JobsContent() {
                             <div
                                 role="group"
                                 aria-label="Sort"
-                                className="ml-auto hidden items-center rounded-lg border border-slate-300 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800/80 lg:flex shadow-2xs"
+                                className="ml-auto hidden items-center rounded-none border border-border/80 bg-muted/40 p-0.5 lg:flex"
                             >
                                 {postedDateSupported && (
                                     <SortSegment
@@ -3204,15 +3529,6 @@ function JobsContent() {
                             </div>
                         )}
                     </div>
-
-                    {!isSerpAsk && (
-                        <Link
-                            href="/connect"
-                            className="mt-2 inline-block text-[12px] text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
-                        >
-                            There&apos;s a version of this that works while you sleep →
-                        </Link>
-                    )}
 
                     {filtersOpen && (isLgUp ? (
                         <div
@@ -3243,17 +3559,12 @@ function JobsContent() {
                             </SheetContent>
                         </Sheet>
                     ))}
-
-                    <SavedSearchesPanel
-                        saved={savedSearches}
-                        urlState={buildUrlState()}
-                        canSave={canSaveSearch}
-                        onApply={applySavedSearch}
-                        className="mt-2 px-0.5"
-                    />
                 </section>
 
-                <div className="mt-9 flex min-h-0 flex-1 flex-col xl:grid xl:grid-cols-[minmax(0,600px)_1fr] xl:gap-6">
+                <div className={cn(
+                    "mt-4 flex min-h-0 flex-1 flex-col",
+                    !isPristineLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
                         the pane's JSX is full of buttons (JobDetail's own ×,
@@ -3267,50 +3578,37 @@ function JobsContent() {
                         column below keeps the default order-0, so it sorts
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
-                        isn't in the layout at all under 1280px.
-
-                        No `xl:self-start`/`items-start`: the pane's grid-item
-                        box must stretch to match the list column's full
-                        (arbitrarily tall, infinite-scroll) height so its
-                        `xl:sticky` containing block spans the whole
-                        scrollable range — default `align-items: stretch`
-                        does that for free. Chrome offset for the sticky top:
-                        traced every ancestor (TopBar, `<main>`, this
-                        results wrapper) for `sticky`/`fixed`/`overflow-
-                        hidden` — none exists on this page (the in-file
-                        comment near the inner scroller div below claiming
-                        "main's lg:overflow-hidden" is stale/no longer
-                        present in the actual className), so the page scrolls
-                        as one normal document and `xl:top-0` needs no offset
-                        subtraction. */}
-                    <div
-                        data-testid="detail-pane"
-                        className="hidden xl:order-2 xl:block xl:sticky xl:top-0 xl:max-h-dvh xl:min-w-0 xl:overflow-y-auto xl:rounded-2xl xl:border xl:border-slate-300/80 xl:bg-card xl:shadow-md dark:xl:border-slate-700 custom-scrollbar"
-                    >
-                        {detailMountSite === "pane" ? (
-                            // Auto-preview (2026-08-14): a render-only mount —
-                            // only a real click/keypress reaches `openJob`
-                            // (telemetry + `?job=` push), so the ambient
-                            // preview gets no close affordance either: with
-                            // nothing pushed, `router.back()` would leave the
-                            // site, and "closing" an always-populated pane has
-                            // no state to return to.
-                            renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
-                        ) : loading ? (
-                            <div className="p-4">
-                                <JobDetailSkeleton />
-                            </div>
-                        ) : (
-                            // Only reachable with zero hits (the ambient
-                            // preview covers every non-empty result set).
-                            <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
-                                Select a role to read it here.
-                            </p>
-                        )}
-                    </div>
+                        isn't in the layout at all under 1280px. */}
+                    {!isPristineLanding && (
+                        <div
+                            data-testid="detail-pane"
+                            className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border/80 xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] custom-scrollbar"
+                        >
+                            {detailMountSite === "pane" ? (
+                                renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                            ) : loading ? (
+                                <div className="p-4">
+                                    <JobDetailSkeleton />
+                                </div>
+                            ) : (
+                                <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
+                                    Select a role to read it here.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        <BoardVisitBanner />
+                        {isPristineLanding ? (
+                            <LandingMarketingShowcase
+                                onSelectQuery={(q) => submitSearch(q)}
+                                onSelectRemote={() => panelToggleFacet("work_type", "remote")}
+                                onSelectSalaryMin={(min) => panelSalaryMin(min)}
+                                onSelectBoard={(b) => onBoardChange(b)}
+                            />
+                        ) : (
+                            <>
+                                <BoardVisitBanner />
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -3422,8 +3720,8 @@ function JobsContent() {
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
                                     <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
-                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the ghost-job
-                                        signal that flags postings that aren&apos;t really hiring.
+                                        We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the posting check
+                                        that flags roles that aren&apos;t really hiring.
                                     </p>
                                     {result?.note && (
                                         <p className="mt-1 max-w-md font-mono text-xs text-muted-foreground/70">{result.note}</p>
@@ -3452,11 +3750,20 @@ function JobsContent() {
                                 <JobsListSplash />
                             ) : resultsPanel === "empty" ? (
                                 <EmptyResults
-                                    entries={activeEntries}
+                                    entries={emptyStateEntries}
                                     onClearEntry={(entry) => applyFilterState(entry.clear(filterState))}
                                     onClearFilters={panelClearAll}
                                     query={query}
                                     onClearQuery={handleClearSearch}
+                                    // SAME `shouldShowLocationDefaultChip`/`suppressLocationDefault`
+                                    // seam the location-control chip above uses (DefaultLocationChip's
+                                    // doc comment) — reused, not a second source for "was a geo
+                                    // default applied."
+                                    locationDefault={
+                                        shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft)
+                                            ? { label: `near ${regionDisplayName(result!.defaultedLocation!)}`, onClear: suppressLocationDefault }
+                                            : undefined
+                                    }
                                     ghostRevealCount={ghostRevealCount}
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
@@ -3466,80 +3773,67 @@ function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Corpus claim renders once, in the hero header above —
-                                                the guest tip keeps only its own sign-in line. */}
-                                            {!user && !guestTipDismissed && (
-                                                <div
-                                                    data-testid="guest-serp-tip"
-                                                    className="mb-3 flex items-baseline justify-between gap-3 font-mono text-[11px] text-faint"
-                                                >
-                                                    <span>{GUEST_SERP_TIP}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setGuestTipDismissed(true)}
-                                                        className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                                                    >
-                                                        Dismiss
-                                                    </button>
-                                                </div>
-                                            )}
-                                            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+                                            {/* Consolidated Swiss Glass Status Ribbon */}
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none glass-panel px-3.5 py-2 font-mono text-[11px]">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
-                                                        className="text-[13px] text-muted-foreground tabular-nums"
+                                                        className="font-bold uppercase tracking-wider text-foreground tabular-nums"
                                                     >
                                                         {resultsCountLabel}
                                                     </span>
                                                     {beyondWindow.show && (
-                                                        <span
-                                                            data-testid="beyond-window-hint"
-                                                            className="text-[13px] text-muted-foreground tabular-nums"
+                                                        <button
+                                                            type="button"
+                                                            data-testid="beyond-window-show-all"
+                                                            onClick={() => panelPostedBucket(undefined)}
+                                                            className="text-muted-foreground hover:text-foreground underline underline-offset-2"
                                                         >
-                                                            · {beyondWindowText} —{" "}
+                                                            ({beyondWindowText} — show all)
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {/* Employer-scope disclosure — the standard removable
+                                                    filter-token pattern. Mounted OUTSIDE the
+                                                    query/filter row below because the scope arrives from
+                                                    a link (`/co/[slug]`'s CTA), not from anything the
+                                                    searcher typed or toggled: with no token they'd see a
+                                                    count far below the corpus with nothing on screen
+                                                    saying why, and no way back out. Labelled with the
+                                                    domain, which is the scope the search actually
+                                                    applies — not a display name derived from the hits,
+                                                    which would be absent in the one state where this
+                                                    disclosure matters most (zero results). */}
+                                                {companyDomain && (
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span
+                                                            data-testid="company-scope-chip"
+                                                            className="inline-flex items-center gap-2 rounded-md border border-border bg-chip px-2 py-1 font-mono text-[11.5px]"
+                                                        >
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                                                employer
+                                                            </span>
+                                                            <span className="text-foreground">{companyDomain}</span>
                                                             <button
                                                                 type="button"
-                                                                data-testid="beyond-window-show-all"
-                                                                onClick={() => panelPostedBucket(undefined)}
-                                                                className="font-medium text-foreground underline underline-offset-[3px]"
+                                                                data-testid="company-scope-clear"
+                                                                aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                onClick={clearCompanyScope}
+                                                                className="text-muted-foreground transition-colors hover:text-foreground"
                                                             >
-                                                                show all
+                                                                ✕
                                                             </button>
                                                         </span>
-                                                    )}
-                                                    {/* Default-location disclosure moved into the location
-                                                        control itself (G3, Grok UX wave) — see
-                                                        DefaultLocationChip's doc comment above. */}
-                                                </div>
-                                                {(query.trim() || activeCount > 0) && (
-                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        {activeCount > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                data-testid="results-clear-filters"
-                                                                onClick={panelClearAll}
-                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
-                                                            >
-                                                                Clear filters
-                                                                {activeCount > 1 ? (
-                                                                    <span className="ml-1 font-mono text-[11px] opacity-75">
-                                                                        · {activeCount}
-                                                                    </span>
-                                                                ) : null}
-                                                            </button>
-                                                        )}
-                                                        {query.trim() && (
-                                                            <button
-                                                                type="button"
-                                                                data-testid="results-clear-query"
-                                                                onClick={handleClearSearch}
-                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
-                                                            >
-                                                                ✕ clear search
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 )}
+                                                {/* 2026-08-17, Vivek: "too much happening in that small
+                                                    box". Both clear controls moved up to the toolbar,
+                                                    beside "All filters" — they undo what that row sets,
+                                                    so that is where they belong (same reasoning as ITEM I
+                                                    above). "Clear filters" was additionally a straight
+                                                    DUPLICATE of the toolbar's own, down to a second copy
+                                                    of `data-testid="results-clear-filters"`. What is left
+                                                    here only reports: the count, the window, the scope. */}
                                             </div>
                                             {/* ITEM S (2026-08-15, Vivek: "duplicate information") — this
                                                 used to render a second row of "✕ clear <facet>" chips
@@ -3596,6 +3890,9 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
+                                            if (i === 3) {
+                                                rows.push(<LaunchBanner key="launch-banner-inline" />);
+                                            }
                                             if (i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
@@ -3684,6 +3981,8 @@ function JobsContent() {
                                 </>
                             )}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </main>
@@ -3754,9 +4053,9 @@ function JobsContent() {
                         type="button"
                         aria-label="Close"
                         onClick={() => router.back()}
-                        className="relative flex h-11 w-full shrink-0 items-center justify-center"
+                        className="relative flex h-11 w-full shrink-0 items-center justify-center transition-opacity hover:opacity-80"
                     >
-                        <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border" />
+                        <span aria-hidden="true" className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
                         <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-faint">
                             ×
                         </span>
@@ -3772,7 +4071,16 @@ function JobsContent() {
                         sticky action bar / last content could sit flush
                         against it. Same env() token MobileTabBar.tsx uses. */}
                     <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
-                        {renderDetailSurface(() => router.back())}
+                        {/* `undefined`, not `() => router.back()` — the sheet chrome
+                            above already renders its own × wired to the identical
+                            `router.back()` (the button ~30 lines up). Passing a
+                            handler here makes JobDetail render a SECOND × (its
+                            `{onClose && ...}` gate at JobDetail.tsx:597), duplicating
+                            the close control ~150px away from the first. Do not
+                            "fix" this back — the desktop pane at :3223 is a
+                            different mount site with no chrome × of its own, which
+                            is why it still passes a real handler. */}
+                        {renderDetailSurface(undefined)}
                     </div>
                 </SheetContent>
             </Sheet>
@@ -3783,6 +4091,31 @@ function JobsContent() {
                 offset above the real toast stack's own corner so a
                 concurrent "Marked as applied" success toast never stacks
                 directly on top of it. */}
+            {/* Held-open apply click. `onContinue` fires from a click inside
+                the dialog, which keeps `window.open` inside a user gesture. */}
+            <ApplyIntentDialog
+                job={
+                    applyIntentJob
+                        ? {
+                              // Same mapping JobDetail already uses for
+                              // McpHandoffNote, so both entry points hand the
+                              // assistant an identically shaped role.
+                              id: applyIntentJob.id,
+                              title: decodeText(applyIntentJob.title),
+                              company: applyIntentJob.company || "Unknown company",
+                              location: locationText(applyIntentJob) || null,
+                          }
+                        : null
+                }
+                open={Boolean(applyIntentJob)}
+                onOpenChange={(next) => {
+                    if (!next) setApplyIntentJob(null);
+                }}
+                onContinue={() => {
+                    if (applyIntentJob) openPostingNow(applyIntentJob);
+                }}
+            />
+
             {applyReturnPrompt && (
                 <div
                     data-testid="apply-return-prompt"

@@ -14,9 +14,13 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="font-display text-display font-extrabold text-foreground">About</h1>
+      <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+        <div className="border-b border-border pb-4 mb-6">
+          <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">[ ABOUT INTERVU ]</span>
+          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">About The Corpus</h1>
+        </div>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <article className="prose prose-sm max-w-none dark:prose-invert">
         <h2>What intervu is</h2>
         <p>
           The job market runs on information asymmetry. Employers know which roles are actively being filled,
@@ -56,7 +60,7 @@ export default function AboutPage() {
             reposts and staffing-firm duplicates, Intervu syncs directly with verified company career portals.
           </li>
           <li>
-            <strong>Active ghost-job screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
+            <strong>Active stale-posting screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
             when hiring has paused. Intervu monitors employer hiring velocity, ATS update timestamps, and posting age to
             protect you from dead-end applications.
           </li>
@@ -87,6 +91,7 @@ export default function AboutPage() {
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
+      </div>
     </main>
   );
 }

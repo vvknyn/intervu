@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 const TITLE = "Terms of Service";
-const DESCRIPTION = "The terms for using intervu, including how we frame ghost-job and risk signals.";
+const DESCRIPTION = "The terms for using intervu, including how we frame posting-check and risk signals.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -16,9 +17,13 @@ const LAST_UPDATED = "August 1, 2026";
 export default function TermsPage() {
   return (
     <main data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="font-display text-display font-extrabold text-foreground">Terms of Service</h1>
+      <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+        <div className="border-b border-border pb-4 mb-6">
+          <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & TERMS ]</span>
+          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Terms of Service</h1>
+        </div>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <article className="prose prose-sm max-w-none dark:prose-invert">
         <p>Last updated: {LAST_UPDATED}</p>
 
         <p>
@@ -33,9 +38,10 @@ export default function TermsPage() {
           charge employers to be included.
         </p>
 
-        <h2>Ghost-job and risk signals are estimates, not facts</h2>
+        <h2>Posting-check and risk signals are estimates, not facts</h2>
         <p>
-          Ghost-job and risk signals — labels like &quot;possible ghost job&quot; or &quot;worth verifying&quot; —
+          Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
+          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; —
           are automated estimates based on posting age, listing freshness, and patterns across an employer&apos;s
           other listings. They are not statements of fact about any specific listing or employer, and we make no
           warranty as to their accuracy. Treat every signal as one input, not a verdict, when you decide where to
@@ -78,6 +84,7 @@ export default function TermsPage() {
           Questions: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
+      </div>
     </main>
   );
 }

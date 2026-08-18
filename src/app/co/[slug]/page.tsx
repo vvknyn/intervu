@@ -2,46 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/companies/FollowButton";
+import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
+import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
+import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { Button } from "@/components/ui/button";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
   buildCompanyHiringAnswer,
+  buildCompanyJobsUrl,
   buildCompanyPageMetadata,
-  ghostPctCoversAllRoles,
   openCountText,
+  sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
-import {
-  decodeText,
-  ghostMetaFor,
-  locationText,
-  prettyEnum,
-  salaryText,
-} from "@/lib/jobs/presentation";
-import type { PublicJob } from "@/lib/jobs/types";
+import type { CompanyPageData } from "@/lib/companies/types";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
-import { cn } from "@/lib/utils";
-
-const ROLES_PREVIEW = 10;
 
 function formatKpi(value: number | null): string {
   return value == null ? "—" : String(value);
-}
-
-function roleMeta(job: PublicJob): string {
-  const parts = [locationText(job), salaryText(job), prettyEnum(job.experience_level)].filter(Boolean);
-  return parts.join(" · ");
-}
-
-function roleGhostLine(job: PublicJob): { text: string; live: boolean } | null {
-  if (job.ghost_badge === "likely_ghost") {
-    const meta = ghostMetaFor(job.ghost_badge, false);
-    return meta ? { text: `● ${meta.label}`, live: false } : null;
-  }
-  if (job.ghost_badge === "clear" || !job.ghost_badge) {
-    return { text: "Live · no ghost signals", live: true };
-  }
-  return null;
 }
 
 export async function generateMetadata({
@@ -49,24 +26,41 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const data = await getCompanyPageData(slug);
-  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
-  return buildCompanyPageMetadata(data);
+  try {
+    const { slug } = await params;
+    const data = await getCompanyPageData(slug);
+    if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+    return buildCompanyPageMetadata(data);
+  } catch {
+    return { title: "Company not found", robots: { index: false, follow: false } };
+  }
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = await getCompanyPageData(slug);
+  let data: CompanyPageData | null = null;
+  try {
+    data = await getCompanyPageData(slug);
+  } catch {
+    data = null;
+  }
   if (!data) notFound();
+  // One clock read for the whole page, taken here rather than inside JSX so
+  // every staleness decision below is measured against a single instant.
+  // The purity rule fires on any Date.now() in a component body and can't
+  // see that this is an async Server Component — rendered once, per request,
+  // on the server, where a clock read is neither unstable nor re-entrant.
+  // Same pattern and same suppression rationale as CompanyRolesList's `now`
+  // prop on /companies/[slug].
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
 
-  const preview = data.jobs.slice(0, ROLES_PREVIEW);
-  // /jobs is the only route that consumes `q` (src/lib/jobs/url-state.ts) —
-  // `/` is the marketing hero page and silently drops the param.
-  const jobsSearchUrl = `/jobs?q=${encodeURIComponent(data.name)}`;
+  // See `buildCompanyJobsUrl`'s docblock (lib/companies/presentation.ts) for
+  // why this can't be a hand-built `?q=...` string.
+  const jobsSearchUrl = buildCompanyJobsUrl(data);
   const isElite = data.boards.includes("elite");
-  const ghostPctIsCompanyWide = ghostPctCoversAllRoles(data);
-  const hiring = buildCompanyHiringAnswer(data);
+  const ghostPctIsCompanyWide = sampleCoversAllRoles(data);
+  const hiring = buildCompanyHiringAnswer(data, data.nowMs);
   const faqJsonLd = buildFaqPageJsonLd(
     buildCompanyFaqItems({
       companyName: data.name,
@@ -85,7 +79,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   // unconditional (domain, hence a logo URL, always exists here); FAQPage
   // drops out when `buildFaqPageJsonLd` has nothing valid to say.
   const companyJsonLd = [
-    buildCompanyOrganizationJsonLd({ name: data.name, domain: data.domain }),
+    buildCompanyOrganizationJsonLd({
+      name: data.name,
+      domain: data.domain,
+      knowsAbout: data.intelligence?.techStack?.languages,
+    }),
     ...(faqJsonLd ? [faqJsonLd] : []),
   ];
 
@@ -95,8 +93,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
-      <div className="border-b border-border bg-card px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-[900px] font-mono text-xs text-muted-foreground">
+      <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
+        <nav className="mx-auto max-w-6xl xl:max-w-7xl font-mono text-xs text-muted-foreground">
           <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
@@ -105,13 +103,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
-      <main data-testid="company-page" className="mx-auto max-w-[900px] px-4 py-8 pb-28 sm:px-6">
-        <header className="mb-7 flex gap-4">
+      <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
+        <header className="mb-8 flex gap-5 items-start">
           <CompanyLogo domain={data.domain} name={data.name} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[32px] font-semibold tracking-tight">{data.name}</h1>
+            <h1 className="font-display text-[32px] sm:text-[36px] font-semibold tracking-tight">{data.name}</h1>
             {data.oneLiner && (
-              <p className="mt-1.5 text-[15px] leading-snug text-muted-foreground">
+              <p className="mt-1.5 text-[15px] sm:text-[16px] leading-snug text-muted-foreground">
                 {data.oneLiner}
               </p>
             )}
@@ -145,23 +143,28 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             the `company_*` sync lands. */}
         <section
           data-testid="company-hiring-answer"
-          className="mb-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs"
+          className="mb-6 rounded-2xl border border-border bg-card px-6 py-5 shadow-xs"
         >
           <h2 className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
             Is {data.name} hiring?
           </h2>
-          <p className="mt-2 flex items-center gap-2 font-display text-[19px] font-semibold leading-snug">
+          <p className="mt-2 flex items-center gap-2 font-display text-[20px] sm:text-[22px] font-semibold leading-snug">
             {hiring.hasOpenRoles && (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
             )}
             {hiring.headline}
           </p>
-          <p className="mt-1.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-muted-foreground">
             {hiring.trackRecord}
           </p>
+          {hiring.freshness && (
+            <p className="mt-1 font-mono text-[12px] leading-relaxed text-muted-foreground">
+              {hiring.freshness}
+            </p>
+          )}
         </section>
 
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-3.5 sm:grid-cols-4">
           <Kpi value={openCountText(data)} label="Open roles" />
           <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
           <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
@@ -172,64 +175,25 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             // stops reading as a company-wide audit it never was.
             label={
               ghostPctIsCompanyWide
-                ? "Ghost-flagged"
-                : `Ghost-flagged of ${data.jobs.length} shown`
+                ? "Possibly stale"
+                : `Possibly stale of ${data.jobs.length} shown`
             }
           />
         </div>
 
-        <section>
-          <h2 className="mb-3.5 flex items-baseline justify-between font-display text-[19px] font-semibold">
-            Open roles
-            {data.jobs.length > 0 && (
-              <span className="font-mono text-xs font-normal text-muted-foreground">
-                {preview.length} of {openCountText(data)} shown
-              </span>
-            )}
-          </h2>
+        <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
 
-          {preview.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
-          ) : (
-            <ul className="space-y-2">
-              {preview.map((job) => {
-                const ghost = roleGhostLine(job);
-                return (
-                  <li key={job.id}>
-                    <Link
-                      href={`/jobs?job=${encodeURIComponent(job.id)}`}
-                      className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-colors hover:border-border-strong"
-                    >
-                      <CompanyLogo domain={data.domain} name={data.name} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[15px] font-semibold">{decodeText(job.title)}</div>
-                        <div className="mt-1 font-mono text-xs text-muted-foreground">
-                          {roleMeta(job)}
-                        </div>
-                        {ghost && (
-                          <div
-                            className={cn(
-                              "mt-1.5 flex items-center gap-1.5 font-mono text-[11px]",
-                              ghost.live ? "text-brand" : "text-muted-foreground",
-                            )}
-                          >
-                            {ghost.live && (
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
-                            )}
-                            {ghost.text}
-                          </div>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
-                        →
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
+
+        <CompanyRoleSearch
+          jobs={data.jobs}
+          companyDomain={data.domain}
+          companyName={data.name}
+          openCountLabel={openCountText(data)}
+          searchesPartialWindow={!sampleCoversAllRoles(data)}
+          jobsSearchUrl={jobsSearchUrl}
+          now={now}
+        />
 
         {/* The 90-day provenance note describes the opened/closed track
             record specifically, and that is the one thing this page cannot
@@ -245,14 +209,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           </p>
         )}
       </main>
-
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card px-4 py-3.5 sm:px-6">
-        <div className="mx-auto flex max-w-[900px] flex-wrap justify-center gap-3">
-          <Button asChild variant="brand">
-            <Link href={jobsSearchUrl}>View all {openCountText(data)} jobs</Link>
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

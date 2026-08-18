@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { checkFreshness } from "@/lib/jobs/badges";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { cn } from "@/lib/utils";
@@ -46,7 +45,7 @@ export function CompanyRolesList({
           // "Not recently verified" here exactly as it does on the SERP row
           // and detail banner — ghostMetaFor is the shared chokepoint, and
           // this was the one caller bypassing it.
-          const ghost = ghostMetaFor(job.ghost_badge, checkFreshness(job.updated_at, now) === "stale");
+          const ghost = ghostMetaFor(job, now);
           return (
             <li key={job.id}>
               <Link

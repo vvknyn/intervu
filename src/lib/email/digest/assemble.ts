@@ -10,10 +10,34 @@ export interface DigestSectionItem {
   title: string;
   company: string;
   href: string;
+  /** Rendered location, already through `locationText` (which prefixes
+   *  "Remote ·" and strips the junk values the corpus carries). Empty when
+   *  the posting genuinely has no location — the template then omits the
+   *  line rather than printing a blank one. */
+  location: string;
 }
 
+/**
+ * Why a section is in someone's digest — and the ONLY thing the template
+ * branches on to word its heading. Exported so that `SECTION_SUBJECT`
+ * (templates/digest.ts) can be an exhaustive `Record` over it: adding a
+ * fifth reason becomes a compile error at the one place that has to word
+ * it, rather than silently falling through to another kind's phrasing.
+ */
+export type DigestSectionKind =
+  | "followed-company"
+  | "saved-search"
+  /** A company the reader has a tracker entry for but does NOT follow —
+   *  see `selectTrackedCompanies`, which excludes followed domains so the
+   *  same company can't appear twice under two different reasons. */
+  | "tracked-company"
+  /** The no-signal lane: the reader saved nothing and follows nobody, so
+   *  the section is whatever their stated preferences imply. Off unless
+   *  `isDefaultDigestEnabled()` (see default-section.ts). */
+  | "default";
+
 export interface RawDigestSection {
-  kind: "followed-company" | "saved-search";
+  kind: DigestSectionKind;
   name: string;
   /** Newest-first, already filtered to "since the cursor" — NOT yet capped
    *  for display. */
@@ -39,11 +63,14 @@ export interface DigestSection extends Omit<RawDigestSection, "items"> {
 export interface DigestModel {
   sections: DigestSection[];
   unsubscribeUrl: string;
+  /** Absolute site origin, for the brand header and footer links. */
+  siteUrl: string;
 }
 
 export interface AssembleDigestInput {
   sections: RawDigestSection[];
   unsubscribeUrl: string;
+  siteUrl: string;
   itemCap?: number;
 }
 
@@ -68,5 +95,5 @@ export function assembleDigest(input: AssembleDigestInput): DigestModel | null {
 
   if (sections.length === 0) return null;
 
-  return { sections, unsubscribeUrl: input.unsubscribeUrl };
+  return { sections, unsubscribeUrl: input.unsubscribeUrl, siteUrl: input.siteUrl };
 }

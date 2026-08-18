@@ -98,7 +98,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        display ? "border-b border-border bg-background" : "bg-background/80 backdrop-blur-xl shadow-[var(--shadow-sm)]",
+        display ? "border-b border-border bg-background/75 backdrop-blur-2xl backdrop-saturate-180" : "bg-background/75 backdrop-blur-2xl backdrop-saturate-180 border-b border-border/80",
         sticky && "sticky top-0 z-50",
       )}
     >

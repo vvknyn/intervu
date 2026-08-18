@@ -115,7 +115,18 @@ export function fitVerdictTone(
  * chip). Previously caution and likely_ghost shared one amber tone —
  * collapsing "review" and "possible ghost" into the same color hid the
  * worse verdict from every consumer (radar bars, mix bands).
+ *
+ * Overloaded so the three REAL verdicts return a non-null `StatusTone`:
+ * only `unscored` (and an unrecognized string) has no tone, and a caller
+ * naming a real badge shouldn't need a `!` to say so. That matters because
+ * `GHOST_META` (lib/jobs/presentation.ts) now builds its pill classes
+ * through this function instead of hand-picking a second STATUS_PILL entry
+ * per badge — the drift that let `likely_ghost` stay amber here for every
+ * badge-rendering surface long after the radar/mix-band consumers were
+ * fixed to red.
  */
+export function ghostBadgeTone(badge: "clear" | "caution" | "likely_ghost"): StatusTone;
+export function ghostBadgeTone(badge: string): StatusTone | null;
 export function ghostBadgeTone(
   badge: "clear" | "caution" | "likely_ghost" | "unscored" | string,
 ): StatusTone | null {

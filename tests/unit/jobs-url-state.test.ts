@@ -137,3 +137,30 @@ test("board=elite round-trips through serialize + parse", () => {
 test("unknown board param is dropped", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("board=nope")).board, null);
 });
+
+// Employer scope (2026-08-16). `/co/[slug]`'s CTA had no way to say "this
+// employer" and fell back to a free-text `q=<name>`; the URL grammar now
+// carries the `company_domain` the index actually keys on.
+test("company scope round-trips as ?company=<domain>", () => {
+    const s = { ...DEFAULT_URL_STATE, companyDomain: "harrods.com" };
+    assert.equal(serializeJobsUrl(s), "?company=harrods.com");
+    assert.deepEqual(parseJobsUrl(new URLSearchParams("company=harrods.com")), s);
+});
+
+test("no company scope stays out of the URL entirely", () => {
+    assert.equal(serializeJobsUrl(DEFAULT_URL_STATE), "");
+    assert.equal(parseJobsUrl(new URLSearchParams("")).companyDomain, null);
+});
+
+// One scope, one URL: the filter compares `company_domain` lower-cased
+// (meilisearch.ts), so two casings must not become two distinct `searchKey`s
+// that refetch the identical result set.
+test("a company domain is canonicalized to lower/trimmed, and blank means no scope", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("company=Harrods.COM")).companyDomain, "harrods.com");
+    assert.equal(parseJobsUrl(new URLSearchParams("company=%20%20")).companyDomain, null);
+});
+
+test("company scope composes with a query and survives the round-trip alongside it", () => {
+    const s = { ...DEFAULT_URL_STATE, q: "driver", companyDomain: "harrods.com" };
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+});

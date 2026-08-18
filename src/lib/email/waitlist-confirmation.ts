@@ -23,8 +23,9 @@ export async function sendWaitlistConfirmation(
     return { sent: false, reason: "missing-unsubscribe-url" };
   }
 
-  const unsubscribeUrl = `${getSiteUrl()}/unsubscribe?token=${encodeURIComponent(token)}`;
-  const { subject, html, text } = buildWaitlistConfirmEmail({ whatSignedUpFor, unsubscribeUrl });
+  const siteUrl = getSiteUrl();
+  const unsubscribeUrl = `${siteUrl}/unsubscribe?token=${encodeURIComponent(token)}`;
+  const { subject, html, text } = buildWaitlistConfirmEmail({ whatSignedUpFor, unsubscribeUrl, siteUrl });
 
   return sendEmail({ to: email, subject, html, text, kind: "waitlist_confirm", unsubscribeUrl });
 }

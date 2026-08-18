@@ -337,11 +337,29 @@ export interface EmptySearchStateInput {
     hasQuery: boolean;
     fitActive: boolean;
     activeFilterCount: number;
+    /**
+     * A corpus narrowing is in play that is NOT one of the toolbar filters
+     * `activeFilterCount` counts — a `board` allowlist or a single-employer
+     * `companyDomain` (JobsUrlState).
+     *
+     * Load-bearing, not cosmetic: `"overlay-ask"` is the ONE state page.tsx
+     * serves from `getDefaultBrowseAction` — a cached, fixed-shape browse
+     * shared across every visitor in the same country, which by design does
+     * not carry the caller's params. A scoped visit with no typed query
+     * therefore rendered the ENTIRE corpus while the page displayed the
+     * scope: measured locally 2026-08-16, `/jobs?company=harrods.com` showed
+     * "721,946 roles" of unrelated employers under an "EMPLOYER harrods.com"
+     * chip. `board` had the identical latent bug (`/jobs?board=elite` with no
+     * query), which is why the input is a general "is the corpus narrowed"
+     * fact rather than a companyDomain flag — the next scope is covered by
+     * construction.
+     */
+    hasCorpusScope: boolean;
 }
 
 export function resolveEmptySearchState(input: EmptySearchStateInput): EmptySearchState {
     if (input.hasQuery || input.fitActive) return "results";
-    return input.activeFilterCount > 0 ? "serp-ask" : "overlay-ask";
+    return input.activeFilterCount > 0 || input.hasCorpusScope ? "serp-ask" : "overlay-ask";
 }
 
 /** The zero-query fetch's outcome, as far as `resolveJobsRenderMode` needs
