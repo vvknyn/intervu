@@ -73,9 +73,12 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   phone has rounded corners. That component is otherwise a self-contained artifact (its own
   fixed WhatsApp hex colours, not theme tokens) that must never leak its palette onto the page
   around it — elevation still applies to it though: no exception on `shadow-*` there.
-- **Elevation: none.** *Every* `--shadow-*` key is `none` — `2xs`, `xs`, `sm`, `md`, `lg`, `xl`.
-  Separation comes from a 1px `--border` and whitespace — ollama's rule, and it suits a squared
-  system. Never `shadow-lg`, `shadow-2xl`, or a raw `shadow-*` class.
+- **Elevation: none.** *Every* `--shadow-*` key Tailwind ships is `none` — `2xs`, `xs`, `sm`,
+  `md`, `lg`, `xl`, `2xl`, `inner`. Not "every key we happen to have written down": that reading
+  is what left `2xl` casting Tailwind's stock shadow for a fortnight. Separation comes from a 1px
+  `--border` and whitespace — ollama's rule, and it suits a squared system. Never `shadow-lg`,
+  `shadow-2xl`, or a raw `shadow-*` class. A surface that floats over content **with no scrim**
+  must declare its own full-strength border; it has no elevation left to borrow.
 
   **Amended 2026-08-17.** The 2026-08-04 pass zeroed `sm/md/lg` in `:root`/`.dark` but left
   `2xs`, `xs` and `xl` at their live slate-tinted values in `@theme inline`, where no `:root`
