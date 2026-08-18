@@ -122,8 +122,8 @@ test("caution badge falls back when posted_ts is missing", () => {
 });
 
 test("likely_ghost badge is a static warning, independent of timestamps", () => {
-    assert.equal(badgeFor(job("likely_ghost", null, null), null, NOW), "✕ likely ghost");
-    assert.equal(badgeFor(job("likely_ghost", ago(1_000)), NOW - 86_400_000, NOW), "✕ likely ghost");
+    assert.equal(badgeFor(job("likely_ghost", null, null), null, NOW), "✕ possibly stale");
+    assert.equal(badgeFor(job("likely_ghost", ago(1_000)), NOW - 86_400_000, NOW), "✕ possibly stale");
 });
 
 test("unscored renders no badge (preserves pre-Task-8 null behavior)", () => {

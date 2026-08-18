@@ -725,7 +725,7 @@ export function CompletenessMock() {
                                 >
                                     Filters · 3
                                 </button>
-                                <span className="font-mono text-[11px] text-[#8b919a]">Remote · Past month · Hide ghosts</span>
+                                <span className="font-mono text-[11px] text-[#8b919a]">Remote · Past month · Hide stale</span>
                             </div>
                             {filtersOpen && (
                                 <div className="panel-enter mt-3 rounded-none border-0 bg-black/40 p-4 text-[13px] text-[#ececec]">

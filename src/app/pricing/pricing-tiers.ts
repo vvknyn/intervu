@@ -46,7 +46,7 @@ export const PRICING_TIERS: PricingTier[] = [
     priceNote: "paid truth tiers come later",
     bullets: [
       { text: "Search 1.5M+ live verified jobs" },
-      { text: "Ghost-signal truth on every posting" },
+      { text: "Posting check on every role" },
       { text: "Application tracker" },
       { text: "Connect your AI — fit, tailoring, prep run in YOUR AI", href: "/connect" },
       { text: "Up to 20 tracked applications a day" },

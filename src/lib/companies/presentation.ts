@@ -15,6 +15,7 @@ import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 /**
  * The open-role count as a string, everywhere the page shows it.
@@ -302,9 +303,9 @@ export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
     const count = data.openCountIsLowerBound ? `at least ${data.openCount}` : String(data.openCount);
-    return `${data.name} has ${count} live, verified open ${roles} tracked on intervu, screened for ghost-job risk.`;
+    return `${data.name} has ${count} live, verified open ${roles} tracked on intervu, screened for ${GHOST_JOB_TERM} risk.`;
   }
-  return `Track live verified job postings and ghost-job risk signals for ${data.name} on intervu.`;
+  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on intervu.`;
 }
 
 /**
@@ -326,7 +327,7 @@ export function companyMetaDescription(data: CompanyPageData): string {
  * page is still a legitimate path to them.
  */
 export function buildCompanyPageMetadata(data: CompanyPageData): Metadata {
-  const title = `Is ${data.name} hiring? Live verified jobs & ghost-job risk`;
+  const title = `Is ${data.name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
   const description = companyMetaDescription(data);
   return {
     title,

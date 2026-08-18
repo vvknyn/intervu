@@ -157,8 +157,8 @@ export function SerpFilters({
 }) {
     const ghostHideLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
-            ? `Hide likely ghosts (−${ghostHiddenCount.toLocaleString()})`
-            : "Hide likely ghosts";
+            ? `Hide possibly stale (−${ghostHiddenCount.toLocaleString()})`
+            : "Hide possibly stale";
     const workShare = distributionTaggedShare(distribution?.work_type);
     const visaShare = booleanTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
 
@@ -229,7 +229,7 @@ export function SerpFilters({
                     cap={TOP_N}
                 />
 
-                <Group label="Ghost risk">
+                <Group label="Posting check">
                     <Affordance inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
                         {ghostHideLabel}
                     </Affordance>
