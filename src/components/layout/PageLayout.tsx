@@ -26,7 +26,7 @@ export function PageLayout({ children, header, sidebar, fullWidth, className, sh
       {header}
       <main className={cn(
         "flex-1",
-        !fullWidth && "max-w-5xl mx-auto w-full px-4 sm:px-6 py-6",
+        !fullWidth && "mx-auto w-full max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-6 xl:px-10",
         className
       )}>
         {sidebar ? (

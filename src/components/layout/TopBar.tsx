@@ -94,7 +94,7 @@ export function TopBar() {
             data-testid="topbar"
             className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/75 backdrop-blur-2xl backdrop-saturate-180 shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)] transition-colors"
         >
-            <div className="relative mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7 xl:max-w-[1280px]">
+            <div className="relative mx-auto flex h-16 w-full max-w-6xl xl:max-w-7xl items-center justify-between px-4 sm:px-8 xl:px-10">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 text-foreground transition-opacity hover:opacity-90"

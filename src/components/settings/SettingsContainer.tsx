@@ -35,7 +35,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
         { key: "account", label: "Account" },
     ];
     return (
-        <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1" role="tablist">
+        <div className="mb-4 flex flex-wrap gap-1 rounded-none border border-border bg-card p-1" role="tablist">
             {tabs.map(({ key, label }) => (
                 <button
                     key={key}
@@ -44,8 +44,8 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
                     aria-selected={tab === key}
                     onClick={() => onChange(key)}
                     className={cn(
-                        "rounded-[9px] px-3.5 py-2 text-[13px] font-semibold text-muted-foreground transition-colors",
-                        tab === key && "bg-foreground text-background",
+                        "rounded-none px-3.5 py-2 text-[13px] font-semibold text-muted-foreground transition-colors",
+                        tab === key && "bg-foreground text-background font-bold",
                     )}
                 >
                     {label}
@@ -56,7 +56,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
 }
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
-    return <div className="mb-3 rounded-2xl border border-border bg-card p-[18px]">{children}</div>;
+    return <div className="mb-3 rounded-none border border-border bg-card p-[18px]">{children}</div>;
 }
 
 export function SettingsContainer() {
@@ -150,7 +150,7 @@ export function SettingsContainer() {
     if (isLoading) {
         return (
             <PageLayout fullWidth>
-                <div className="mx-auto flex max-w-[720px] flex-col items-center justify-center gap-3 px-5 py-16 text-muted-foreground sm:px-7">
+                <div className="mx-auto flex max-w-6xl xl:max-w-7xl flex-col items-center justify-center gap-3 px-4 py-16 text-muted-foreground sm:px-8 xl:px-10">
                     <div className="h-5 w-5 animate-spin rounded-full border border-border border-t-foreground" />
                     <p className="text-sm">Loading account…</p>
                 </div>
@@ -160,7 +160,7 @@ export function SettingsContainer() {
 
     return (
         <PageLayout fullWidth>
-            <div className="mx-auto max-w-[720px] px-5 pb-16 pt-6 sm:px-7">
+            <div className={cn("mx-auto px-4 pb-16 pt-6 sm:px-8 xl:px-10 transition-all", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-[760px]")}>
                 <div className="mb-5">
                     <PageHeader title="Account" description={ACCOUNT_SUBCOPY} size="display" bare />
                 </div>

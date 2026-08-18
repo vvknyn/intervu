@@ -291,3 +291,74 @@ export function validateResumeUploadText(raw: string): ResumeUploadTextValidatio
     }
     return { ok: true, text };
 }
+
+export interface SavedResumeVersion {
+    id: string;
+    content: string;
+    label: string;
+    saved_at: string;
+    structuredData?: ResumeData | null;
+}
+
+/**
+ * Fetch all saved resume versions and history snapshots for a user, latest first.
+ */
+export async function getResumeHistoryForUser(uid: string): Promise<SavedResumeVersion[]> {
+    const db = getAdminDb();
+    const snap = await db
+        .collection("profiles")
+        .doc(uid)
+        .collection("resume_history")
+        .orderBy("saved_at", "desc")
+        .get();
+
+    return snap.docs.map((doc) => {
+        const d = doc.data();
+        let structuredData: ResumeData | null = null;
+        if (d.content && typeof d.content === "string") {
+            const trimmed = d.content.trim();
+            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    const val = validateResumeData(parsed);
+                    if (val.ok) structuredData = val.data;
+                } catch {
+                    // Ignore non-JSON content
+                }
+            }
+        }
+        return {
+            id: doc.id,
+            content: d.content || "",
+            label: d.label || "Saved version",
+            saved_at: d.saved_at || "",
+            structuredData,
+        };
+    });
+}
+
+/**
+ * Save a named resume version snapshot explicitly for a user.
+ */
+export async function saveNamedResumeVersion(
+    uid: string,
+    input: { data: ResumeData; label: string },
+): Promise<SavedResumeVersion> {
+    const db = getAdminDb();
+    const historyRef = db.collection("profiles").doc(uid).collection("resume_history");
+    const jsonStr = JSON.stringify(input.data);
+    const entry = {
+        content: jsonStr,
+        label: input.label?.trim() || "Saved Version",
+        saved_at: new Date().toISOString(),
+    };
+    const docRef = await historyRef.add(entry);
+    return {
+        id: docRef.id,
+        content: entry.content,
+        label: entry.label,
+        saved_at: entry.saved_at,
+        structuredData: input.data,
+    };
+}
+

@@ -3183,7 +3183,7 @@ function JobsContent() {
                     "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
             }}
         >
-            <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-2 sm:px-5 sm:pt-3 xl:max-w-[1440px]">
+            <main className="mx-auto flex min-h-screen w-full max-w-6xl xl:max-w-7xl flex-col px-4 pb-20 pt-2 sm:px-8 sm:pt-3 xl:px-10">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"

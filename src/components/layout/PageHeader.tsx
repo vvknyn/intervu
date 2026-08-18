@@ -102,15 +102,7 @@ export function PageHeader({
         sticky && "sticky top-0 z-50",
       )}
     >
-      <div
-        className={
-          fullWidth
-            ? "mx-auto max-w-[1440px] px-6 sm:px-10 lg:px-14"
-            : display
-              ? "mx-auto max-w-5xl px-4 sm:px-6"
-              : "px-4 sm:px-6"
-        }
-      >
+      <div className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 xl:px-10">
         <div className={display ? "pb-4 pt-8" : undefined}>{row}</div>
         {children && <div className="pb-4">{children}</div>}
       </div>
