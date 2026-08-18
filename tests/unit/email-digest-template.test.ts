@@ -10,13 +10,14 @@ function model(overrides: Partial<DigestModel> = {}): DigestModel {
             {
                 kind: "followed-company",
                 name: "Acme",
-                items: [{ title: "Engineer", company: "Acme", href: "https://intervuhq.com/jobs/engineer" }],
+                items: [{ title: "Engineer", company: "Acme", href: "https://intervuhq.com/jobs/engineer", location: "Remote" }],
                 totalNew: 1,
                 mayHaveMore: false,
                 seeAllHref: "https://intervuhq.com/co/acme",
             },
         ],
         unsubscribeUrl: "https://intervuhq.com/unsubscribe?token=abc",
+        siteUrl: "https://intervuhq.com",
         ...overrides,
     };
 }
@@ -33,7 +34,7 @@ describe("buildDigestEmail", () => {
                 {
                     kind: "followed-company",
                     name: "Acme",
-                    items: [{ title: "Engineer", company: "Acme", href: "https://x/1" }],
+                    items: [{ title: "Engineer", company: "Acme", href: "https://x/1", location: "Remote" }],
                     totalNew: 10,
                     mayHaveMore: true,
                     seeAllHref: "https://x/co/acme",
@@ -56,7 +57,7 @@ describe("buildDigestEmail", () => {
                 {
                     kind: "followed-company",
                     name: "Acme",
-                    items: [{ title: '<script>alert(1)</script>', company: "A&B", href: "https://x/1" }],
+                    items: [{ title: '<script>alert(1)</script>', company: "A&B", href: "https://x/1", location: "Remote" }],
                     totalNew: 1,
                     mayHaveMore: false,
                     seeAllHref: "https://x/co/acme",
@@ -78,7 +79,7 @@ describe("buildDigestEmail — section headings say WHY a section is there", () 
                     {
                         kind,
                         name,
-                        items: [{ title: "Engineer", company: "Acme", href: "https://x/1" }],
+                        items: [{ title: "Engineer", company: "Acme", href: "https://x/1", location: "Remote" }],
                         totalNew: 1,
                         mayHaveMore: false,
                         seeAllHref: "https://x/1",
@@ -86,7 +87,13 @@ describe("buildDigestEmail — section headings say WHY a section is there", () 
                 ],
             }),
         );
-        return text.split("\n").find((line) => line.includes("new role")) ?? "";
+        // The em dash is what separates a SECTION heading ("Acme — 1 new
+        // role") from the shell's own heading line ("1 new role this week"),
+        // which also contains "new role" and now comes first in the text
+        // body. Matching on "new role" alone silently returned the shell
+        // heading for every case, so all four assertions compared the same
+        // string and the drift guard below could never have failed.
+        return text.split("\n").find((line) => line.includes("new role") && line.includes("—")) ?? "";
     }
 
     it("quotes a saved search's name — it is a string the reader typed", () => {

@@ -30,15 +30,17 @@ const TEMPLATES: Record<string, () => { html: string; text: string }> = {
         buildWaitlistConfirmEmail({
             whatSignedUpFor: "the Hunt credit pack",
             unsubscribeUrl: "https://intervuhq.com/unsubscribe?t=x",
+            siteUrl: "https://intervuhq.com",
         }),
     digest: () =>
         buildDigestEmail({
             unsubscribeUrl: "https://intervuhq.com/unsubscribe?t=x",
+            siteUrl: "https://intervuhq.com",
             sections: [
                 {
                     kind: "saved-search",
                     name: "staff engineer",
-                    items: [{ title: "Staff Engineer", company: "Acme", href: "https://intervuhq.com/jobs/1" }],
+                    items: [{ title: "Staff Engineer", company: "Acme", href: "https://intervuhq.com/jobs/1", location: "Remote" }],
                     totalNew: 1,
                     mayHaveMore: false,
                     seeAllHref: "https://intervuhq.com/jobs?q=staff+engineer",
