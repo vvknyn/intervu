@@ -5,7 +5,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-[11px] font-mono font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
+  // Same rule as Chip: a badge is a label, so sans — with tabular figures for
+  // the counts badges often carry.
+  "inline-flex items-center justify-center rounded-none border border-transparent px-2 py-0.5 text-[11px] tabular-nums font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none transition-colors",
   {
     variants: {
       variant: {

@@ -65,7 +65,7 @@ export default function PricingOpengraphImage() {
             lineHeight: 1.3,
           }}
         >
-          No card required. Up to 20 tracked applications a day.
+          No card required. Every feature, for everyone.
         </div>
       </div>
     ),

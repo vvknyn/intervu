@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { firestoreStore } from "@/lib/agent/store";
 import { exchangeCode, refreshAccess } from "@/lib/agent/oauth";
 import { AGENT } from "@/lib/agent/config";
-import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/agent/rate-limit";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 
 /** RFC 6749 token requests are form-urlencoded by spec, but MCP clients vary — accept JSON too. */
 async function parseTokenRequestBody(request: Request): Promise<Record<string, string>> {
@@ -43,7 +44,7 @@ function tokenJson(body: object, status = 200): Response {
  * egress IP to reach, so the default per-credential budget would starve them.
  */
 export async function POST(request: Request) {
-    const rate = checkRateLimit(`token:${clientIpFromRequest(request)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_token");
+    const rate = checkRateLimit(`token:${resolveClientIpFromHeaders(request.headers)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_token");
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
     let body: Record<string, string>;

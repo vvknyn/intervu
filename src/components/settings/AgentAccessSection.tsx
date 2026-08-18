@@ -212,7 +212,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                             Copy this now — we can&apos;t show it to you again.
                         </p>
                         <div className="flex items-center gap-2">
-                            <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs font-mono">
+                            <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
                                 {newSecret}
                             </code>
                             <CopyButton value={newSecret} label="Copy" />
@@ -230,7 +230,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             <div className="rounded-lg border border-border p-4 space-y-3 text-sm">
                 <p className="font-medium">Connect an agent</p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs font-mono">
+                    <code className="flex-1 min-w-0 truncate rounded-md bg-muted px-2.5 py-1.5 text-xs">
                         {mcpUrl}
                     </code>
                     <CopyButton value={mcpUrl} label="Copy URL" />
@@ -238,7 +238,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                 <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
                     <li>
                         <span className="text-foreground font-medium">Claude Code:</span>{" "}
-                        <code className="font-mono">{claudeCodeConnectCommand(mcpUrl)}</code>
+                        <code className="">{claudeCodeConnectCommand(mcpUrl)}</code>
                     </li>
                     <li>
                         <span className="text-foreground font-medium">Chat apps with custom connectors:</span>{" "}

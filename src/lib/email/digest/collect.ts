@@ -17,6 +17,7 @@ import {
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
+import { locationText } from "@/lib/jobs/presentation";
 import { domainToSlug } from "@/lib/boards/slug";
 import { getAgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -37,6 +38,11 @@ function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
     title: job.title,
     company: job.company ?? "Unknown company",
     href: `${siteUrl}${jobPath(job)}`,
+    // The site's own formatter, not a second one: it already handles the
+    // "Remote ·" prefix, multi-country arrays, and the "[object Object]"
+    // junk class the corpus carries in both the free-text and structured
+    // location fields.
+    location: locationText(job),
   };
 }
 
@@ -141,5 +147,5 @@ export async function collectDigestForUser(uid: string, unsubscribeUrl: string):
   // Empty sections (nothing new for that follow/search) are dropped inside
   // assembleDigest itself — not duplicated here, so there's exactly one
   // place that decides "does this section earn a spot in the email."
-  return assembleDigest({ sections, unsubscribeUrl });
+  return assembleDigest({ sections, unsubscribeUrl, siteUrl });
 }

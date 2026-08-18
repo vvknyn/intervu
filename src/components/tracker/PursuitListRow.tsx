@@ -39,13 +39,13 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
             </div>
             <span
                 className={cn(
-                    "inline-flex h-fit items-center rounded-full border border-border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-muted-foreground",
+                    "inline-flex h-fit items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em] text-muted-foreground",
                     trackerStatusBadgeClass(pursuit.status),
                 )}
             >
                 {trackerStatusLabel(pursuit.status)}
             </span>
-            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#8b939e]">
+            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#8b939e]">
                 <span>{days}d in tracker</span>
                 <span aria-hidden="true">·</span>
                 <span>{resumeLinked ? "resume linked" : "no resume"}</span>

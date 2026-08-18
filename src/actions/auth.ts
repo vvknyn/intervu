@@ -5,6 +5,9 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { usernameEmail } from "@/lib/auth/username-email";
+import { getClientIp } from "@/lib/shield/client-ip";
+import { allowAuthSignupRequest } from "@/lib/shield/rate-limit";
+import { verifyTurnstile } from "@/lib/shield/turnstile";
 
 export async function checkUsernameAvailability(username: string) {
     try {
@@ -28,6 +31,7 @@ export async function checkUsernameAvailability(username: string) {
 export async function signUp(prevState: any, formData: FormData) {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
+    const turnstileToken = formData.get("turnstileToken") as string | null;
 
     if (!username || !password) {
         return { error: "Username and password are required" };
@@ -35,6 +39,16 @@ export async function signUp(prevState: any, formData: FormData) {
 
     if (username.length < 3) {
         return { error: "Username must be at least 3 characters" };
+    }
+
+    const ip = await getClientIp();
+    if (!allowAuthSignupRequest(ip)) {
+        return { error: "Too many attempts — try again in a few minutes." };
+    }
+
+    const turnstile = await verifyTurnstile(turnstileToken, ip);
+    if (turnstile.status === "reject") {
+        return { error: "Verification failed — please try again." };
     }
 
     // 1. Check availability again to be safe
@@ -49,12 +63,15 @@ export async function signUp(prevState: any, formData: FormData) {
         const adminAuth = getAdminAuth();
         const db = getAdminDb();
 
-        // 2. Create user in Firebase Auth
+        // 2. Create user in Firebase Auth. `emailVerified` is deliberately
+        // omitted (defaults false) — this address is synthesized by
+        // `usernameEmail`, not one the user actually supplied and proved
+        // control of (see lib/auth/username-email.ts); claiming it verified
+        // would be an unearned claim nothing in this codebase even reads.
         const userRecord = await adminAuth.createUser({
             email,
             password,
             displayName: username,
-            emailVerified: true,
         });
 
         // 3. Create profile document in Firestore

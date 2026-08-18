@@ -17,7 +17,7 @@ import { buildGuestPreview } from "@/lib/jobs/guest-preview";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -252,7 +252,7 @@ export function JobDetailActionBar({
             className="sticky bottom-0 z-20 flex gap-2 border-t border-border bg-card/80 p-3.5 backdrop-blur-xl"
         >
             {job.apply_url && (
-                <Button className="h-11 flex-1 gap-2 rounded-none bg-foreground text-background font-mono text-xs font-bold uppercase tracking-wider hover:bg-foreground/90 transition-colors lg:h-10" onClick={onOpenPosting}>
+                <Button className="h-11 flex-1 gap-2 rounded-none bg-foreground text-background text-xs font-bold uppercase tracking-wider hover:bg-foreground/90 transition-colors lg:h-10" onClick={onOpenPosting}>
                     <ArrowSquareOut size={18} weight="bold" />
                     {signedIn ? "Apply on Company Site →" : "Sign in to apply →"}
                 </Button>
@@ -307,7 +307,7 @@ function CopyJobLinkButton({ job }: { job: Pick<PublicJob, "id" | "title" | "com
  * handler) that a 5-row "more like this" list doesn't need, and importing it
  * here would be a circular import (page.tsx is JobDetail's own caller). What
  * IS reused is the single source of truth for each fact's presentation —
- * `displayCompany`/`locationText`/`salaryText`/`postedAgeShort`
+ * `displayCompanyBrand`/`locationText`/`salaryText`/`postedAgeShort`
  * (lib/jobs/presentation.ts) — the exact same helpers `JobCard` itself
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
@@ -329,7 +329,7 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
         >
             <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-[11px] text-muted-foreground">
-                {displayCompany(job.company, job.company_domain) || "Unknown company"}
+                {displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
                 {age ? ` · ${age}` : ""}
                 {salary ? ` · from ${salary}` : ""}
@@ -352,6 +352,7 @@ export function JobDetail({
     onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
+    collapseDescription = true,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -384,6 +385,19 @@ export function JobDetail({
     className?: string;
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+    /** Whether a long description clamps behind "Show full description"
+     *  (see the `collapsible` comment below for why the clamp exists at
+     *  all). Defaults to `true` so every existing mount site — the xl+
+     *  sticky pane in particular, which genuinely needs the clamp — keeps
+     *  today's behaviour unchanged. The mobile bottom sheet passes `false`
+     *  (jobs/page.tsx's `renderDetailSurface`): that sheet already owns its
+     *  own `overflow-y-auto` scroller, so JobDetail clamping the
+     *  description a second level deeper just hid nearly every real
+     *  description (>700 chars) behind a click inside an already-scrollable
+     *  surface. This is a prop, not a breakpoint check, because the mount
+     *  site is resolved by `resolveDetailMountSite` (state + breakpoint
+     *  together) — a `sm:`/`xl:` class here could silently disagree with it. */
+    collapseDescription?: boolean;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -396,7 +410,7 @@ export function JobDetail({
         cls: STATUS_PILL.saved,
         dot: "bg-st-saved",
         explain:
-            "This posting hasn't been through a ghost-risk scoring pass yet — the signals below are the facts we can already state.",
+            "This posting hasn't been checked yet — the signals below are the facts we can already state.",
     };
     // S2 — HONESTY RULE: the row badge states a fact ("Fresh"/"Relisted");
     // this facts line is where the underlying dates it's based on live.
@@ -411,8 +425,10 @@ export function JobDetail({
     }, [job.id]);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
-    // detail panel doesn't run thousands of pixels tall.
-    const collapsible = (job.description?.length ?? 0) > 700;
+    // detail panel doesn't run thousands of pixels tall. `collapseDescription`
+    // (default true) is the seam that turns this off for mount sites that
+    // already provide their own scroller — see its doc comment above.
+    const collapsible = collapseDescription && (job.description?.length ?? 0) > 700;
     // Structured facts row (Deliverable 1, 2026-08-01) — consolidates what
     // used to be a separate "Posted X · First seen by us Y" prose line plus
     // this chip row into ONE scannable row; see buildFactChips for the
@@ -423,7 +439,14 @@ export function JobDetail({
     // appears twice.
     const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
     const salary = salaryText(job);
+    // `cleanedCompany` keeps its legal suffix (e.g. "Qualys, Inc.") — it
+    // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
+    // slug when the job has no `company_domain`, so it can't move to the
+    // brand form without moving the slug too. `companyBrand` is the reader-
+    // facing text (header, hiring-truth heading, MCP handoff copy) — same
+    // split `displayCompanyBrand`'s own doc comment calls out.
     const cleanedCompany = displayCompany(job.company, job.company_domain);
+    const companyBrand = displayCompanyBrand(job.company, job.company_domain);
     // Himalayas-style flag chip (visual-identity pass) — see JobCard's
     // matching comment in app/page.tsx for the null-safety rationale.
     const countryFlag = countryToFlag(job.location_country);
@@ -507,7 +530,7 @@ export function JobDetail({
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
-                                        {cleanedCompany}
+                                        {companyBrand}
                                     </Link>
                                 ) : (
                                     "Unknown company"
@@ -521,7 +544,7 @@ export function JobDetail({
                                 {locationText(job)}
                             </div>
                             {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
-                                <div className={cn("mt-1.5 rounded-none border px-2.5 py-1 text-xs font-mono font-medium", LISTING_STATE_CHIP.relisted)}>
+                                <div className={cn("mt-1.5 rounded-none border px-2.5 py-1 text-xs font-medium", LISTING_STATE_CHIP.relisted)}>
                                     Listed as new on {shortDate(freshness.postedMs)}, but this role first appeared{" "}
                                     {firstSeenRelative} — often a relist.
                                 </div>
@@ -530,7 +553,7 @@ export function JobDetail({
                             {/* Unified Aligned Metadata & Compensation Bar with Segmented Demarcation */}
                             <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
                                 {salary && (
-                                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 font-mono text-[11px] overflow-hidden">
+                                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-[11px] overflow-hidden">
                                         <span className="bg-emerald-500/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
                                         <span className="px-2 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
                                     </span>
@@ -541,7 +564,7 @@ export function JobDetail({
                                         <span
                                             key={c.kind}
                                             className={cn(
-                                                "inline-flex items-center rounded-none border font-mono text-[11px] overflow-hidden",
+                                                "inline-flex items-center rounded-none border text-[11px] overflow-hidden",
                                                 caution
                                                     ? "border-amber-500/40 bg-amber-500/10"
                                                     : "border-border/80 bg-background/50",
@@ -562,13 +585,13 @@ export function JobDetail({
                                     );
                                 })}
                                 {alsoIn && (
-                                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[11px] overflow-hidden">
+                                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[11px] overflow-hidden">
                                         <span className="bg-muted/70 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">also in</span>
                                         <span className="px-2 py-0.5 font-medium text-foreground">{alsoIn}</span>
                                     </span>
                                 )}
                                 {typeof job.report_count === "number" && job.report_count > 0 && (
-                                    <span className="inline-flex items-center rounded-none border border-amber-500/40 bg-amber-500/10 font-mono text-[11px] overflow-hidden">
+                                    <span className="inline-flex items-center rounded-none border border-amber-500/40 bg-amber-500/10 text-[11px] overflow-hidden">
                                         <span className="bg-amber-500/20 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-amber-500 border-r border-amber-500/30">reported</span>
                                         <span className="px-2 py-0.5 font-medium text-foreground">
                                             {job.report_count} {job.report_count === 1 ? "user" : "users"}
@@ -584,7 +607,7 @@ export function JobDetail({
                             </div>
 
                             {freshness.kind === "relisted" && (
-                                <p className={cn("mt-1.5 text-[12px] font-mono", LISTING_STATE_TEXT.relisted)}>
+                                <p className={cn("mt-1.5 text-[12px]", LISTING_STATE_TEXT.relisted)}>
                                     Employer&apos;s posted date is newer than when we first found this role — the date was likely refreshed.
                                 </p>
                             )}
@@ -609,7 +632,7 @@ export function JobDetail({
                 <div className="border-t border-border/80 px-4 py-2.5 sm:px-6 sm:py-3 bg-muted/20">
                     <div className="flex flex-wrap items-center gap-2">
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none glass-tint-blue font-mono text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none glass-tint-blue text-xs font-bold uppercase tracking-wider transition-colors">
                                 <ArrowSquareOut size={16} />
                                 Apply
                             </Button>
@@ -617,13 +640,13 @@ export function JobDetail({
                         {pursuit ? (
                             <Link
                                 href={`/yours/${pursuit.id}`}
-                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-mono font-bold uppercase tracking-wider"
+                                className="inline-flex h-10 sm:h-9 items-center gap-1.5 rounded-none glass-tint-emerald px-4 text-xs font-bold uppercase tracking-wider"
                             >
                                 <Check size={16} weight="bold" />
                                 Saved
                             </Link>
                         ) : (
-                            <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted font-mono text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted text-xs font-bold uppercase tracking-wider transition-colors">
                                 <Check size={16} />
                                 {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
                             </Button>
@@ -646,8 +669,8 @@ export function JobDetail({
                     <div className="mb-5 overflow-hidden rounded-none glass-panel p-4">
                         <div className="flex flex-col gap-2 border-b border-border/80 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                                    ghost check
+                                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                    posting check
                                 </span>
                                 {ghostSignals.length > 0 && (
                                     <div className="flex items-center gap-1.5">
@@ -672,12 +695,12 @@ export function JobDetail({
                                             ))}
                                         </span>
                                         {assessedSignals.length > 0 && (
-                                            <span className="font-mono text-[11px] font-bold text-foreground">
+                                            <span className="text-[11px] font-bold text-foreground">
                                                 {favorableSignalCount}/{assessedSignals.length} favorable
                                             </span>
                                         )}
                                         {unknownSignalCount > 0 && (
-                                            <span className="font-mono text-[11px] text-muted-foreground">
+                                            <span className="text-[11px] text-muted-foreground">
                                                 · {unknownSignalCount} not tracked
                                             </span>
                                         )}
@@ -685,10 +708,10 @@ export function JobDetail({
                                 )}
                             </div>
                             <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider", ghost.cls)}>
+                                <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider", ghost.cls)}>
                                     {ghost.label}
                                 </span>
-                                <span className="font-mono text-[10px] text-muted-foreground">
+                                <span className="text-[10px] text-muted-foreground">
                                     {checkedText.charAt(0).toLowerCase()}{checkedText.slice(1)}
                                 </span>
                             </div>
@@ -715,7 +738,7 @@ export function JobDetail({
                                             {relistCaution ? "!" : s.status === "favorable" ? "✓" : s.status === "unknown" ? "·" : "—"}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-snug">
-                                            <b className="font-mono text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
+                                            <b className="text-[11px] font-bold uppercase tracking-wide text-foreground mr-1.5">{s.kind}</b>
                                             <span className={cn("text-[12px]", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
                                                 {s.text}
                                                 {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
@@ -776,7 +799,10 @@ export function JobDetail({
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (
                         <>
-                            <div className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}>
+                            <div
+                                data-testid="job-detail-description"
+                                className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                            >
                                 <JobDescription blocks={blocks} />
                                 {collapsible && !descExpanded && (
                                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
@@ -832,7 +858,7 @@ export function JobDetail({
                     job={{
                         id: job.id,
                         title: decodeText(job.title),
-                        company: cleanedCompany || job.company || "Unknown company",
+                        company: companyBrand || job.company || "Unknown company",
                         location: locationText(job) || null,
                     }}
                 />
@@ -841,12 +867,12 @@ export function JobDetail({
                 {hasCompanyIntel && (
                     <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
                         <div className="mono-data text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                            {cleanedCompany || "This company"} · hiring truth
+                            {companyBrand || "This company"} · hiring truth
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {(liveOpenCount != null || typeof job.company_open_count === "number") && (
                                 <div className="min-w-[100px]">
-                                    <div className="font-mono text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                    <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {liveOpenCount != null
                                             ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
                                             : job.company_open_count!.toLocaleString()}
@@ -858,7 +884,7 @@ export function JobDetail({
                             )}
                             {typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number" && (
                                 <div className="min-w-[120px]">
-                                    <div className="font-mono text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
+                                    <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {job.company_opened_90d.toLocaleString()}/{job.company_closed_90d.toLocaleString()}
                                     </div>
                                     <div className="mono-data mt-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">

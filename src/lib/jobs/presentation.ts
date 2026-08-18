@@ -37,11 +37,27 @@ import { toValueArray } from "@/lib/jobs/types";
 const ghostPill = (badge: "clear" | "caution" | "likely_ghost") => STATUS_PILL[ghostBadgeTone(badge)];
 
 export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explain: string } | null> = {
+    // "Ghost job" is jobseeker-forum vocabulary. It reads as insider jargon to
+    // anyone who has not met it before — and the corpus is not a tech corpus
+    // (nursing and physical therapy each match as many live postings as
+    // software engineering), so most readers have not. Feedback from the
+    // medical field, 2026-08-17.
+    //
+    // The replacement is not just plainer, it is more honest. "Ghost" asserts
+    // the employer's INTENT — a posting kept up to farm résumés. What the
+    // signals below actually measure is whether a posting still looks live:
+    // freshness, repost history, whether pay is disclosed. "Possibly stale"
+    // is the claim the evidence supports; "possible ghost job" was a claim
+    // about motive we cannot see.
+    //
+    // The term is deliberately KEPT on /research/ghost-jobs and its metadata:
+    // people search for "ghost jobs", so it earns its place as an acquisition
+    // surface. It is the in-product labels that had to change.
     likely_ghost: {
-        label: "Possible ghost job",
+        label: "Possibly stale",
         cls: ghostPill("likely_ghost"),
         explain:
-            "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
+            "Our signals suggest this posting may no longer be live — it could be old, permanently open, or already filled. Worth verifying before you invest time.",
     },
     caution: {
         label: "Worth verifying",
@@ -49,9 +65,9 @@ export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explai
         explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
     },
     clear: {
-        label: "No ghost signals",
+        label: "Actively posted",
         cls: ghostPill("clear"),
-        explain: "No ghost-risk signals — this posting looks active.",
+        explain: "Nothing suggests this posting is stale — it looks active.",
     },
     unscored: null,
 };
@@ -174,12 +190,51 @@ function tokenize(s: string): string[] {
  *      doesn't already carry.
  */
 /**
+ * Generic labels a company puts IN FRONT of its own name when it sets up a
+ * careers subdomain — "careers.algoleap.com", "jobs.acme.io" — carrying no
+ * brand information of their own. Stripped as a leading run (possibly
+ * several deep — "careers.jobs.acme" -> "acme") by `humanizeTenantSubdomain`
+ * below, never as a suffix or mid-string match, so a company whose own name
+ * happens to contain one of these words elsewhere is untouched. Exported so
+ * any future subdomain-humanizing code reuses this one list rather than
+ * drifting a second copy.
+ */
+export const GENERIC_SUBDOMAIN_PREFIXES = new Set([
+    "www",
+    "careers", "career",
+    "jobs", "job",
+    "apply",
+    "hire", "hiring",
+    "recruiting", "recruit",
+    "talent",
+    "work", "workforce",
+    "employment",
+    "opportunities",
+]);
+
+/** Drops a leading run of `GENERIC_SUBDOMAIN_PREFIXES` labels from a
+ *  dot-joined token — "careers.jobs.acme" -> "acme". Always leaves at least
+ *  one label standing: a token that is ENTIRELY generic words ("careers.jobs")
+ *  or has only one label to begin with ("careers") comes back unchanged
+ *  rather than stripped to nothing, since an empty/near-empty name is worse
+ *  than an imperfect one. */
+function stripGenericSubdomainPrefixes(token: string): string {
+    const labels = token.split(".");
+    let start = 0;
+    while (start < labels.length - 1 && GENERIC_SUBDOMAIN_PREFIXES.has(labels[start]!.toLowerCase())) {
+        start += 1;
+    }
+    return labels.slice(start).join(".");
+}
+
+/**
  * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
  * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
  *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
  *      "perspire.zohorecruit.com" -> "Perspire"
  *      "acme.workable.com" -> "Acme"
  *      "appmysite.com" -> "Appmysite"
+ *      "careers.algoleap" -> "Algoleap" (generic careers-subdomain prefix stripped)
  */
 export function humanizeTenantSubdomain(raw: string): string {
     const s = raw.trim();
@@ -189,6 +244,10 @@ export function humanizeTenantSubdomain(raw: string): string {
     let token = atsMatch ? atsMatch[1] : s;
 
     token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech)$/i, "");
+    // Runs after the TLD strip above so "careers.com" loses its TLD first
+    // (-> "careers", a single label the prefix-strip leaves alone) rather
+    // than being read as prefix "careers" + bare-TLD remainder "com".
+    token = stripGenericSubdomainPrefixes(token);
 
     if (/[-_]/.test(token)) {
         return token
@@ -211,16 +270,34 @@ export function humanizeTenantSubdomain(raw: string): string {
     return token.charAt(0).toUpperCase() + token.slice(1);
 }
 
+const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i;
+const BARE_DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
+
+/**
+ * True when a raw `company` string isn't real prose asserting a name at
+ * all — it's an ATS portal hostname ("acme.workable.com") or a bare domain
+ * used as a placeholder ("appmysite.com"), the two shapes `cleanCompany`
+ * below routes through `humanizeTenantSubdomain` instead of its normal
+ * cleanup. `cleanCompany` still extracts a best-effort display label from
+ * these (Defect 1's job: something is better than a raw hostname on
+ * screen), but a caller deciding whether the CORPUS actually asserted a name
+ * — `resolveCompanyName`'s tally — needs the sharper answer this gives:
+ * "no", so it can fall back to the domain-derived label honestly (`source:
+ * "domain"`) instead of presenting an extraction guess as corpus evidence.
+ * One predicate, two consumers, so they can't disagree about the shape.
+ */
+export function isCompanyPlaceholder(s: string | null | undefined): boolean {
+    const out = decodeText(s).trim();
+    if (!out) return false;
+    return ATS_PORTAL_HOSTNAME_RE.test(out) || (BARE_DOMAIN_RE.test(out) && !out.includes(" "));
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
 
     // ATS portal hostnames or bare domains -> extract humanized tenant name
-    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i.test(out)) {
-        return humanizeTenantSubdomain(out);
-    }
-    // Bare domain used as a company placeholder (e.g. "appmysite.com").
-    if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(out) && !out.includes(" ")) {
+    if (isCompanyPlaceholder(out)) {
         return humanizeTenantSubdomain(out);
     }
 
@@ -263,45 +340,128 @@ export function displayCompany(name: string | null | undefined, domain: string |
  * `.value`, e.g. "Jabil Inc.") depends on the suffix surviving in what's shown.
  * This list DOES render, so it stays deliberately narrow:
  *   - comma-separated forms always strip ("ServiceTitan, Inc." -> "ServiceTitan")
- *   - the bare, no-comma spelling strips ONLY for the two forms unambiguous
- *     enough not to eat a real word ("Apple Inc." -> "Apple", "Acme Limited"
- *     -> "Acme") — never a bare "Ltd"/"Co"/"Corp" that could be the genuine
- *     tail of an unrelated name, and never a word that merely CONTAINS one of
- *     these tokens ("Inc Magazine" is untouched — the match is end-anchored).
+ *     — the comma is an unambiguous separator, so any recognized legal form
+ *     after one is safe to drop.
+ *   - the bare, no-comma spelling is riskier — there's no separator, so a
+ *     token could be the genuine tail of an unrelated name rather than a
+ *     suffix. `stripBareLegalForm` below makes THAT safe as a general
+ *     property (the remainder left after stripping must still carry real
+ *     brand content) instead of hand-picking which individual tokens are
+ *     "safe enough" — so growing `BARE_LEGAL_SUFFIXES` never needs a fresh
+ *     ambiguity argument per addition. What still keeps a token OUT of it is
+ *     the token's OWN shape: an everyday unpunctuated English word/abbreviation
+ *     ("Corp", "Co", "Group") that could plausibly BE a deliberate name
+ *     ending stays excluded — "Acme Corp" must read as a company literally
+ *     named that. A word that merely CONTAINS one of these tokens is never
+ *     touched either way ("Inc Magazine" is untouched — every match here is
+ *     end-anchored).
  */
 const COMMA_LEGAL_SUFFIXES = [
     "Inc.", "Inc", "L.L.C.", "LLC", "Ltd.", "Corporation", "Corp.", "Co.",
     "GmbH", "S.A.", "Pty Ltd", "PLC",
 ];
-const BARE_LEGAL_SUFFIXES = ["Inc.", "Limited"];
+/** Longest phrase first isn't required for correctness (see
+ *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
+ *  documenting as multi-word forms are added. */
+const BARE_LEGAL_SUFFIXES = [
+    "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
+    "Ltd.", "Limited", "L.L.C.", "LLC", "Inc.",
+    "GmbH", "PLC", "S.p.A.", "S.A.", "B.V.", "N.V.", "AG", "AB", "Oy",
+];
+const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const LEGAL_SUFFIX_RE = new RegExp(
-    `(?:,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})` +
-        `|\\s+(?:${BARE_LEGAL_SUFFIXES.map(escapeRegExp).join("|")}))$`,
-    "i",
+/** Lowercase, punctuation-stripped word — the shared normal form
+ *  `BARE_LEGAL_WORDS` and `isOnlyLegalForm` compare on, so "Ltd.", "ltd",
+ *  and a stray "L.L.C" missing its final period all read as the same
+ *  token regardless of exactly how a source string punctuated it. A
+ *  punctuation-only word ("," — what's left of ", Inc." once " Inc." is
+ *  cut) normalizes to "", which both callers below treat as chaff too. */
+function normalizeLegalWord(w: string): string {
+    return w.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` entry
+ *  (multi-word phrases split apart) — the vocabulary `isOnlyLegalForm`
+ *  checks a stripped remainder's words against. */
+const BARE_LEGAL_WORDS = new Set(
+    BARE_LEGAL_SUFFIXES.flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
 );
+
+const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})$`, "i");
+
+/** True when every word of `s` carries no brand identity of its own —
+ *  either a recognized legal-form word (`BARE_LEGAL_WORDS`) or pure
+ *  punctuation left over from a strip (a lone "," when ", Inc." loses
+ *  " Inc."). An empty `s` counts too (nothing real survived). Guards
+ *  `stripBareLegalForm` against hollowing a name down to nothing but
+ *  suffix chaff. */
+function isOnlyLegalForm(s: string): boolean {
+    const words = s.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    return words.every((w) => {
+        const norm = normalizeLegalWord(w);
+        return !norm || BARE_LEGAL_WORDS.has(norm);
+    });
+}
+
+/**
+ * Strips ONE trailing bare (no-comma) legal-form phrase from `s`, trying
+ * `BARE_LEGAL_SUFFIXES_BY_LENGTH` longest-first so a multi-word form
+ * ("Private Ltd.") strips as a whole unit rather than a shorter member of
+ * the same family ("Ltd.") leaving a dangling "...Private" behind. A match
+ * only takes effect when the remainder is real brand content — non-empty
+ * and not itself `isOnlyLegalForm` — which is what keeps a name that IS
+ * just a legal form (or reduces to one after a strip) coming back
+ * untouched, and is the general property that makes growing the vocabulary
+ * safe by construction rather than by re-deriving safety per token.
+ */
+function stripBareLegalForm(s: string): string {
+    for (const suffix of BARE_LEGAL_SUFFIXES_BY_LENGTH) {
+        const re = new RegExp(`\\s+${escapeRegExp(suffix)}$`, "i");
+        if (!re.test(s)) continue;
+        const remainder = s.replace(re, "").trim();
+        if (remainder && !isOnlyLegalForm(remainder)) return remainder;
+    }
+    return s;
+}
 
 /**
  * `cleanCompany`'s output, further stripped of a trailing legal-entity
  * suffix for surfaces that want the brand name alone (`/co/[slug]`'s H1,
  * `<title>`, OG image and JSON-LD — see that page for why they all read from
- * this one function rather than recomputing). A companion rather than a
+ * this one function rather than recomputing; also `/jobs`' results row and
+ * detail panel via `displayCompanyBrand` below). A companion rather than a
  * change to `cleanCompany` itself: `cleanCompany("Acme Inc.")` already has
- * callers (the `/jobs` row + detail panel, `resolveCompanyName`'s corpus
- * tally) that depend on the suffix surviving, so mutating the shared
- * chokepoint would silently change what THEY show. Never strips down to
- * nothing or whitespace — a name that IS just a legal-form word (or empty)
- * is returned as `cleanCompany` left it.
+ * callers (`resolveCompanyName`'s corpus tally, company-page links/slugs
+ * built off a name) that depend on the suffix surviving, so mutating the
+ * shared chokepoint would silently change what THEY key or count by. Never
+ * strips down to nothing or whitespace — a name that IS just a legal-form
+ * word (or empty) is returned as `cleanCompany` left it.
  */
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
-    const stripped = cleaned.replace(LEGAL_SUFFIX_RE, "").trim();
-    return stripped || cleaned;
+    const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
+    return stripBareLegalForm(withoutComma);
+}
+
+/**
+ * `displayCompany`'s domain-fallback pattern (above), but through
+ * `displayCompanyName` so a reader sees a brand name rather than a raw legal
+ * one. `displayCompany`/`cleanCompany` stay untouched for every caller that
+ * needs the un-stripped form — a company-page link/slug built off a name
+ * (no domain to key off) or `resolveCompanyName`'s corpus tally both depend
+ * on the suffix surviving in what they key or count by.
+ */
+export function displayCompanyBrand(name: string | null | undefined, domain: string | null | undefined): string {
+    const brand = displayCompanyName(name);
+    if (brand) return brand;
+    if (domain) return humanizeTenantSubdomain(domain);
+    return "";
 }
 
 /**

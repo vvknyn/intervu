@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, Sparkle, Key } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
+import { BETA_UNLIMITED_CREDITS, BETA_UNLIMITED_NOTE, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { cn } from "@/lib/utils";
 
-type CreditState = { isAdmin: boolean; isBYOK: boolean; credits: number; monthlyFree: number };
+type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
 
 /**
  * Sidebar AI-credit indicator. Reads the current user's credit state once on
@@ -28,13 +29,29 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
 
     if (!s) return null;
 
-    // icon + short label + optional tone, per account kind.
+    // icon + short label + optional tone, per account kind. The total is what
+    // a spend actually draws against; the tooltip discloses the allowance/
+    // earned split so a balance that doesn't reset on the 1st isn't a
+    // surprise.
     let Icon = Coins;
-    let label = `${s.credits} credit${s.credits === 1 ? "" : "s"}`;
-    let title = `${s.credits} of ${s.monthlyFree} free AI credits left this month.`;
-    let low = !s.isAdmin && !s.isBYOK && s.credits <= 2;
+    let label = creditCount(s.total);
+    let title = `${s.allowance} of ${s.monthlyFree} free AI ${CREDIT_UNIT.many} left this month.`;
+    if (s.earned > 0) {
+        title += ` Plus ${creditCount(s.earned)} earned that never expire.`;
+    }
+    let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
 
-    if (s.isAdmin) {
+    if (BETA_UNLIMITED_CREDITS) {
+        // Checked before the account-kind branches because it is true for
+        // every account. The balance underneath is real and untouched — the
+        // gate simply never draws on it during beta — so the honest thing to
+        // render is the state, not the number, which would otherwise sit
+        // frozen and read as a stuck counter.
+        Icon = Sparkle;
+        label = "Unlimited";
+        title = BETA_UNLIMITED_NOTE;
+        low = false;
+    } else if (s.isAdmin) {
         Icon = Sparkle;
         label = "Unlimited";
         title = "Admin — unlimited AI use.";
@@ -52,6 +69,7 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
         <Link
             href="/settings"
             title={title}
+            data-testid="topbar-credit-balance"
             className={cn(
                 "flex items-center gap-2.5 p-2 rounded-[9px] text-[13px] transition-colors hover:bg-muted",
                 collapsed && "justify-center",

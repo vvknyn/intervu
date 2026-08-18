@@ -103,7 +103,7 @@ export function SimpleAuthForm() {
                         placeholder="Username"
                         value={username}
                         onChange={handleUsernameChange}
-                        className={`block w-full border-b bg-transparent py-2 text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none
+                        className={`block w-full border-b bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none
                             ${availability?.available === false && !isLogin ? 'border-destructive/50 focus:border-destructive' : 'border-border'}
                             ${availability?.available === true && !isLogin ? 'border-green-300 focus:border-green-500' : ''}
                         `}
@@ -133,7 +133,7 @@ export function SimpleAuthForm() {
                         placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="block w-full border-b border-border bg-transparent py-2 text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
+                        className="block w-full border-b border-border bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
                     />
                 </div>
 

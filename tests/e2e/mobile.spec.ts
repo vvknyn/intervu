@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 
 /**
  * TEST GROUP: MOBILE - Mobile Responsive Tests
@@ -7,11 +7,84 @@ import { test, expect } from '@playwright/test';
  * across all main pages.
  */
 
+/**
+ * Assert the page does not scroll sideways, and say WHAT is too wide when it
+ * does.
+ *
+ * This replaces a two-line `body.scrollWidth <= innerWidth + 20` that was
+ * copy-pasted per test. Three things were wrong with that shape:
+ *
+ *  - It reported "450 is not <= 410" and nothing else, so a failure told you
+ *    a page was broken but not which element to look at.
+ *  - `document.body.scrollWidth` is the wrong ruler; `documentElement` is what
+ *    actually scrolls.
+ *  - The 20px tolerance is a hole big enough for a real defect to sit in, and
+ *    it existed for no stated reason. 1px covers sub-pixel rounding.
+ *
+ * The offender list deliberately reports every element wider than the
+ * viewport, widest first. Elements that are merely `w-full` inside an
+ * already-widened document (a fixed nav, a full-bleed canvas) show up too —
+ * they are symptoms, and seeing them next to the true cause is what makes the
+ * cause obvious.
+ */
+async function expectNoHorizontalScroll(page: import('@playwright/test').Page, where: string) {
+  const report = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const offenders = [...document.querySelectorAll('*')]
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter(({ box }) => box.width > vw + 1 || box.right > vw + 1)
+      .sort((a, b) => b.box.right - a.box.right)
+      .slice(0, 5)
+      .map(({ el, box }) => ({
+        tag: el.tagName.toLowerCase(),
+        cls: (el.className?.toString?.() || '').slice(0, 70),
+        width: Math.round(box.width),
+        right: Math.round(box.right),
+        text: (el.textContent || '').trim().slice(0, 40),
+      }));
+    return { vw, scrollWidth: document.documentElement.scrollWidth, offenders };
+  });
+
+  expect(
+    report.scrollWidth,
+    `${where} scrolls sideways: document is ${report.scrollWidth}px wide in a ` +
+      `${report.vw}px viewport. Widest elements:\n` +
+      report.offenders
+        .map((o) => `  <${o.tag} class="${o.cls}"> w=${o.width} right=${o.right} — "${o.text}"`)
+        .join('\n'),
+  ).toBeLessThanOrEqual(report.vw + 1);
+}
+
 test.describe('MOBILE - Mobile Responsive Tests', () => {
   // Set mobile viewport for all tests in this group
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 }); // iPhone 13 dimensions
   });
+
+  /**
+   * TC-MOBILE-010: No public page scrolls sideways on a phone
+   *
+   * The regression that prompted this: `/jobs`' sector directory put a
+   * `truncate` (i.e. `white-space: nowrap`) description inside a flex column
+   * with no `min-w-0`, so the column refused to shrink below its full line
+   * width and pushed the document to 450px inside a 390px viewport. Every
+   * page then scrolled sideways — row numbers and metric chips off the left
+   * edge, descriptions off the right.
+   *
+   * TC-MOBILE-001 already asserted this for `/` alone and was failing; one
+   * page's assertion is not a rule. This walks the public surface so the next
+   * unshrinkable flex child is caught wherever it lands, not only where it
+   * landed last time.
+   */
+  for (const route of ['/jobs', '/', '/trends', '/connect', '/pricing']) {
+    test(`TC-MOBILE-010: ${route} does not scroll sideways on mobile`, async ({ page }) => {
+      await page.goto(route);
+      // The board is a client-rendered island; assert against the settled DOM,
+      // not the SSR shell, or this measures a spinner.
+      await page.waitForLoadState('networkidle');
+      await expectNoHorizontalScroll(page, route);
+    });
+  }
 
   /**
    * TC-MOBILE-001: Home page renders correctly on mobile
@@ -33,10 +106,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // The board's own search input, not a waitlist email form.
     await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
 
-    // No horizontal scroll
-    const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
-    const viewportWidth = await page.evaluate(() => window.innerWidth);
-    expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20);
+    await expectNoHorizontalScroll(page, '/');
   });
 
   /**
@@ -192,9 +262,148 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await expect(page.getByRole('tab', { name: 'Gemini' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cursor' })).toBeVisible();
 
-    // No horizontal scroll (same pattern as TC-MOBILE-001).
-    const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
-    const viewportWidth = await page.evaluate(() => window.innerWidth);
-    expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20);
+    await expectNoHorizontalScroll(page, '/connect');
+  });
+
+  /**
+   * TC-MOBILE-011: Focusing a field never zooms the page
+   *
+   * iOS Safari zooms when a focused form control computes under 16px, and it
+   * does not zoom back out — the user is left scrolled sideways mid-form.
+   *
+   * The unit guard for this reads source, and source-reading has a floor: it
+   * has to recognise a control by how it is WRITTEN. Two rounds of that guard
+   * passed while the /jobs search box sat at 14px — first because the tag
+   * regex truncated at the `>` inside `onChange={(e) => …}`, then because the
+   * component is called `SearchAutocomplete` and the matcher was looking for
+   * names containing "Input". This test asks the rendered page instead, so it
+   * cannot be fooled by naming or by JSX shape: whatever ends up as a real
+   * focusable field, at a real phone width, has to be at least 16px.
+   */
+  test('TC-MOBILE-011: no form control is under 16px (iOS focus-zoom)', async ({ page }) => {
+    for (const route of ['/jobs', '/', '/connect', '/pricing']) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle').catch(() => { });
+
+      const tooSmall = await page.evaluate(() => {
+        const controls = Array.from(
+          document.querySelectorAll<HTMLElement>('input, textarea, select'),
+        );
+        return controls
+          .filter((c) => {
+            const type = (c as HTMLInputElement).type;
+            // Hidden / non-text controls never summon a keyboard, so they
+            // cannot trigger the zoom.
+            if (['hidden', 'checkbox', 'radio', 'submit', 'button', 'range', 'color'].includes(type)) return false;
+            return c.offsetParent !== null;
+          })
+          .map((c) => ({
+            px: parseFloat(getComputedStyle(c).fontSize),
+            id: c.getAttribute('data-testid') || (c as HTMLInputElement).placeholder || c.tagName,
+          }))
+          .filter((c) => c.px < 16);
+      });
+
+      expect(
+        tooSmall,
+        `${route}: these zoom the page when focused on iOS — ${JSON.stringify(tooSmall)}`,
+      ).toEqual([]);
+    }
+  });
+});
+
+/**
+ * TC-MOBILE-012: mobile job-detail sheet scroll plumbing (2026-08-18)
+ *
+ * Root cause of the underlying bug: `JobDetail.tsx`'s own `collapsible`
+ * clamp (`(description length) > 700`) fires for nearly every real
+ * description and caps the description container at `max-h-[20rem]`
+ * (320px) behind a "Show full description" click — a SECOND, redundant
+ * height cap one level inside the mobile bottom sheet, which already owns a
+ * real `overflow-y-auto` scroller (`data-testid="mobile-detail-scroller"`,
+ * jobs/page.tsx). On a phone this meant opening a role showed a 320px stub
+ * no matter how long the posting actually was.
+ *
+ * Fix: `JobDetail` takes a `collapseDescription` prop (default `true`, so
+ * the desktop xl+ sticky pane is unchanged); `renderDetailSurface` in
+ * jobs/page.tsx threads it through, and only the mobile sheet's call site
+ * passes `false`.
+ *
+ * EVIDENCE LEVELS — read this before trusting either check below:
+ *  - The actual 320px-clamp -> full-height DELTA is proven at the
+ *    COMPONENT level, not here: `tests/unit/job-detail-description-collapse.test.ts`
+ *    renders the real `JobDetail` via `renderToStaticMarkup` signed IN (the
+ *    only path the clamp applies to) at two description lengths, and
+ *    verifiably fails against the pre-fix logic. That is real, but it is
+ *    not a browser.
+ *  - THIS Playwright test runs at a genuine 390x844 mobile profile
+ *    (`devices['iPhone 13']` — real viewport, touch, isMobile — the repo's
+ *    `playwright.config.ts` only defines a Desktop Chrome project, so a
+ *    spec must opt into a phone profile itself or it isn't testing one) in
+ *    a REAL browser against the dev server. It runs SIGNED OUT deliberately
+ *    — no test account is created (a prior attempt at a signed-in run
+ *    created real accounts in the PRODUCTION Firebase project this repo's
+ *    `.env.local` points `localhost:3000` at; that was wrong and is not
+ *    repeated here). Signed out, `GuestDescriptionPreview` renders instead
+ *    of the clamp this fix touches (JobDetail.tsx:142, its own truncation,
+ *    a deliberate gate — out of scope), so this test cannot observe the
+ *    20rem clamp. What it DOES prove, live, in a browser: the sheet opens,
+ *    its scroller has real overflow (scrollHeight > clientHeight), scrolling
+ *    it actually advances `scrollTop`, and the guest sign-in CTA — off
+ *    screen at load — becomes reachable after that scroll. That is the
+ *    mount-site/scroll-plumbing half of this bug, verified end to end.
+ */
+test.describe('MOBILE - guest job-detail sheet scroll reaches the sign-in CTA', () => {
+  // NOT `{ ...devices['iPhone 13'] }` — that preset's `defaultBrowserType:
+  // 'webkit'` forces a new worker/browser type, which Playwright rejects
+  // inside a `describe` (`test.use` there can only tweak context options,
+  // not switch browsers) and this repo's config only registers a chromium
+  // project anyway. Instead: the same real-phone context options (touch,
+  // mobile UA, device pixel ratio) on top of chromium, at the explicit
+  // 390x844 this file's other MOBILE tests already standardize on.
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: devices['iPhone 13'].deviceScaleFactor,
+    userAgent: devices['iPhone 13'].userAgent,
+  });
+
+  // A real corpus job with a long-enough description/ledger that its
+  // guest sign-in CTA sits below the fold at 390x844 — verified live
+  // 2026-08-18. `posted=any` bypasses the default 30-day window since this
+  // is a real, possibly-old record. Pick a new id via a `q=` search if this
+  // one ever gets removed from the index.
+  const JOB = { id: '51130b30-8920-4e75-b076-86c898f1b091', q: 'Ramsayhealthcare' };
+
+  test('TC-MOBILE-012: signed-out mobile sheet scrolls to reveal the sign-in CTA', async ({ page }) => {
+    await page.goto(`/jobs?q=${encodeURIComponent(JOB.q)}&posted=any&job=${JOB.id}`);
+    await page.waitForLoadState('networkidle');
+
+    const scroller = page.getByTestId('mobile-detail-scroller');
+    await expect(scroller, 'mobile bottom sheet never opened').toBeVisible({ timeout: 15000 });
+
+    const cta = page.getByTestId('job-detail-signin-cta');
+    await expect(cta, 'guest sign-in CTA never rendered').toBeVisible({ timeout: 15000 });
+
+    // The scroller genuinely has more content than fits — this is what the
+    // prior commit on this branch (`overscroll-y-contain`) exists to keep
+    // scoped to this div rather than chaining to the page behind the sheet.
+    const before = await scroller.evaluate((el) => ({ scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(before.scrollHeight, `scroller scrollHeight ${before.scrollHeight} <= clientHeight ${before.clientHeight} — nothing to scroll`).toBeGreaterThan(before.clientHeight);
+    expect(before.scrollTop, 'sheet should start scrolled to the top').toBe(0);
+
+    // Off-screen at load: the CTA sits below the initial viewport.
+    const viewport = page.viewportSize()!;
+    const ctaBoxBefore = await cta.boundingBox();
+    expect(ctaBoxBefore!.y, 'CTA should start below the fold for this to be a meaningful scroll test').toBeGreaterThanOrEqual(viewport.height);
+
+    // Scroll the SHEET's own scroller (not the page) all the way down.
+    await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    const after = await scroller.evaluate((el) => el.scrollTop);
+    expect(after, 'scrollTop did not advance — the scroller did not actually scroll').toBeGreaterThan(before.scrollTop);
+
+    // Reachable: after scrolling, the CTA is inside the visible viewport.
+    await expect(cta, 'guest sign-in CTA not reachable by scrolling').toBeInViewport();
   });
 });

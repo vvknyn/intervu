@@ -21,8 +21,8 @@ export function GhostRadarCard({
 
     return (
         <div className="border-t border-foreground pt-2.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Ghost radar</span>
-            <p className="mt-2 font-mono text-[12.5px] leading-relaxed text-foreground">
+            <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Posting check</span>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-foreground">
                 Of {formatCorpusCount(total)} matches for this search, {flagged.toLocaleString()} carry ghost-risk
                 flags. We flag postings that look stale or not actively hiring, so you don&apos;t waste an
                 application on one.

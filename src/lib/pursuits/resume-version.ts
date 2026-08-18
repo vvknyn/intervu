@@ -2,7 +2,7 @@
  * Write/read seam for resume-version snapshots filed against a pursuit
  * (see `ResumeVersionSnapshot` in `./types`). `uid` is supplied directly by
  * the caller rather than resolved from a cookie session — same shape as
- * `assertUnderDailyApplyCap` in `./apply-cap.ts` — so both cookie-session
+ * `upsertPursuitCore` in `./upsert-core.ts` — so both cookie-session
  * web callers (`actions/applications.ts`) and a bearer-token MCP tool can
  * call these exact functions without either depending on the other's auth
  * mechanism.

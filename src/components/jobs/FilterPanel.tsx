@@ -8,13 +8,30 @@
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { GHOST_META } from "@/lib/jobs/presentation";
 
+/**
+ * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
+ *
+ * They used to be a second hand-written copy of the same four strings, which
+ * is the failure mode this file is now the fix for: renaming the verdicts at
+ * their chokepoint left this filter still offering "No ghost signals" while
+ * every row said something else. A duplicated label map is a rename that is
+ * guaranteed to go half-done.
+ *
+ * `unscored` has no GHOST_META entry (it is `null` there — nothing has been
+ * checked, so there is no verdict to show on a row). The filter still needs a
+ * name for it, and that name lives here because this is the only surface that
+ * offers it as a choice.
+ */
 const VALUE_LABELS: Partial<Record<FacetKey, Record<string, string>>> = {
     ghost_badge: {
-        clear: "No ghost signals",
-        caution: "Worth verifying",
-        likely_ghost: "Possible ghost",
-        unscored: "Unscored",
+        ...Object.fromEntries(
+            Object.entries(GHOST_META)
+                .filter(([, meta]) => meta !== null)
+                .map(([value, meta]) => [value, meta!.label]),
+        ),
+        unscored: "Not checked yet",
     },
 };
 
@@ -88,6 +105,54 @@ export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
 /** Human-friendly label for a facet value (shared with the active-filter chips). */
 export function facetValueLabel(key: FacetKey, v: string): string {
     return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** What to call a facet KEY in a chip that has to say which filter it is
+ *  ("Location · Bangalore"), as opposed to `facetValueLabel`'s value side.
+ *  The map only overrides where a derived name would read badly; the
+ *  fallback humanises the key itself, so a facet added to `FACETABLE_KEYS`
+ *  gets a serviceable label without an edit here. */
+const KEY_LABELS: Partial<Record<FacetKey, string>> = {
+    location_country: "Location",
+    work_type: "Work mode",
+    experience_level: "Experience",
+    employment_type: "Employment",
+    visa_sponsorship: "Visa",
+    ghost_badge: "Posting status",
+};
+
+export function facetKeyLabel(key: FacetKey): string {
+    return (
+        KEY_LABELS[key] ??
+        key.replace(/^location_/, "").replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+}
+
+/**
+ * The active filters a caller has to name for itself, because the FacetBar
+ * has no control for them (`facetBarRepresents`, FacetBar.tsx). Splitting on
+ * ":" recovers the facet key from an `activeFilterEntries` entry key
+ * (`"location_country:Bangalore"`); non-facet entries ("salaryMin",
+ * "visaOnly", …) have no colon and compare whole.
+ *
+ * Pure and generic over the entry shape so the toolbar can pass its own
+ * already-hoisted `activeEntries` rather than recomputing, and so this is
+ * testable without rendering anything.
+ */
+export function entriesNeedingOwnChip<T extends { key: string }>(
+    entries: readonly T[],
+    represented: ReadonlySet<string>,
+): T[] {
+    return entries.filter((e) => !represented.has(e.key.split(":")[0]));
+}
+
+/** Chip text for one such entry. A facet entry names its key ("Location ·
+ *  Bangalore") because with no dropdown on the bar nothing else on screen
+ *  says WHICH filter the value belongs to; the non-facet entries already
+ *  read as complete phrases ("Sponsors visas"), so they're left alone. */
+export function chipLabelForEntry(entry: { key: string; label: string }): string {
+    const [head, ...rest] = entry.key.split(":");
+    return rest.length > 0 ? `${facetKeyLabel(head as FacetKey)} · ${entry.label}` : entry.label;
 }
 
 export interface FilterState {
@@ -217,7 +282,7 @@ export function activeFilterEntries(
     if (state.hideGhosts === false) {
         entries.push({
             key: "hideGhosts",
-            label: "Showing likely-ghost",
+            label: "Showing possibly stale",
             clear: (s) => ({ ...s, hideGhosts: true }),
         });
     }

@@ -23,11 +23,11 @@ export function MarketGhostRadar({
             <ShieldWarning size={15} weight="duotone" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Ghost Radar</h2>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Market Integrity & Posting Checks</h2>
             <p className="text-xs text-muted-foreground">Automated risk signals evaluated across all active postings</p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           Integrity Scan
         </span>
       </div>
@@ -46,7 +46,7 @@ export function MarketGhostRadar({
               <div className="w-28 shrink-0 sm:w-32">
                 <span
                   className={cn(
-                    "inline-flex items-center justify-center rounded-none px-2 py-0.5 font-mono text-[10.5px] font-bold uppercase",
+                    "inline-flex items-center justify-center rounded-none px-2 py-0.5 text-[10.5px] font-bold uppercase",
                     tone
                       ? STATUS_PILL[tone]
                       : "border border-border bg-muted/50 text-muted-foreground",
@@ -62,10 +62,10 @@ export function MarketGhostRadar({
                     style={{ width: `${pct}%` }}
                   />
                 </span>
-                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="w-10 text-right text-[11px] text-muted-foreground tabular-nums">
                   {pct}%
                 </span>
-                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
                   {formatCorpusCount(count)}
                 </span>
               </div>

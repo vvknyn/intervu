@@ -5,8 +5,22 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
+import { RESUME_PARSE_FREE_LADDER } from "@/lib/llm/models";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
+
+/**
+ * Presence-only signal for a returning visit: does this user have a usable
+ * résumé on file, without shipping the résumé itself down to the client.
+ * Reuses `fetchResumeData`'s read (same doc, same migration) and the shared
+ * `resumeIsUsable` bar rather than a second usability check — the client
+ * gets a boolean, never the document.
+ */
+export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
+    const { data } = await fetchResumeData();
+    return { hasResume: resumeIsUsable(data) };
+}
 
 /**
  * Fetch structured resume data from database
@@ -203,7 +217,13 @@ export async function parseResumeWithAI(
             ...configOverride
         };
 
-        const result = await generateGenericJSON(prompt, optimizedConfig);
+        // Free models first, the paid default behind them. Résumé parsing is
+        // structured extraction over ~8K characters — a task free models do
+        // well — and it ran on a paid model for every upload. The user is still
+        // charged exactly one credit for the generation no matter how many
+        // rungs run: the charge lives above the walk, inside `fetchJSON`.
+        // See lib/llm/model-ladder.ts for why the last rung must be paid.
+        const result = await generateGenericJSON(prompt, optimizedConfig, RESUME_PARSE_FREE_LADDER);
 
         if (!result) {
             return { error: "No response from AI. Please try again in a moment." };

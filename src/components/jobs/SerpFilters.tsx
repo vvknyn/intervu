@@ -68,7 +68,7 @@ export function Affordance({
             />
             <span className="min-w-0 flex-1">{children}</span>
             {typeof count === "number" && (
-                <span className="ml-auto font-mono text-[11px] text-faint tabular-nums">{count.toLocaleString()}</span>
+                <span className="ml-auto text-[11px] text-faint tabular-nums">{count.toLocaleString()}</span>
             )}
         </label>
     );
@@ -77,7 +77,7 @@ export function Affordance({
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div className="flex flex-col">
-            <h4 className="mb-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-faint">
+            <h4 className="mb-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-faint">
                 {label}
             </h4>
             <div className="flex flex-col gap-2">{children}</div>
@@ -117,7 +117,7 @@ function FacetGroup({
                     {facetValueLabel(facetKey, value)}
                 </Affordance>
             ))}
-            {caption && <p className="mt-1 font-mono text-[10px] text-faint">{caption}</p>}
+            {caption && <p className="mt-1 text-[10px] text-faint">{caption}</p>}
         </Group>
     );
 }
@@ -157,8 +157,8 @@ export function SerpFilters({
 }) {
     const ghostHideLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
-            ? `Hide likely ghosts (−${ghostHiddenCount.toLocaleString()})`
-            : "Hide likely ghosts";
+            ? `Hide possibly stale (−${ghostHiddenCount.toLocaleString()})`
+            : "Hide possibly stale";
     const workShare = distributionTaggedShare(distribution?.work_type);
     const visaShare = booleanTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
 
@@ -229,7 +229,7 @@ export function SerpFilters({
                     cap={TOP_N}
                 />
 
-                <Group label="Ghost risk">
+                <Group label="Posting check">
                     <Affordance inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
                         {ghostHideLabel}
                     </Affordance>
@@ -266,7 +266,7 @@ export function SerpFilters({
                         Sponsors visas
                     </Affordance>
                     {visaShare != null && (
-                        <p className="pl-5 font-mono text-[10px] text-faint">
+                        <p className="pl-5 text-[10px] text-faint">
                             sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
                         </p>
                     )}

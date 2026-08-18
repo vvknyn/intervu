@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCompany, displayCompany, displayCompanyName } from "../../src/lib/jobs/presentation";
+import { cleanCompany, displayCompany, displayCompanyName, humanizeTenantSubdomain } from "../../src/lib/jobs/presentation";
 
 // Real production company strings, retrieved live 2026-07-26.
 
@@ -109,10 +109,50 @@ test("displayCompanyName strips other comma-form suffixes from the list (LLC, Lt
     assert.equal(displayCompanyName("Muster, GmbH"), "Muster");
 });
 
-test("displayCompanyName strips the bare 'Limited' form but leaves a bare 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
+test("displayCompanyName strips the bare 'Limited' form but leaves a bare, unpunctuated 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
     assert.equal(displayCompanyName("Acme Limited"), "Acme");
     assert.equal(displayCompanyName("Acme Ltd"), "Acme Ltd");
     assert.equal(displayCompanyName("Acme Corp"), "Acme Corp");
+});
+
+// Live production evidence, 2026-08-18: `q=qualys` returned three different-
+// looking company labels on ONE results page — a user reads that as three
+// employers, not one under three legal spellings. All three forms strip to
+// the same brand (or, for the third, to the same NON-brand root the class
+// change is scoped to — see the module doc's note on brand-root unification
+// being explicitly out of scope).
+test("displayCompanyName strips all three real Qualys legal-entity forms", () => {
+    assert.equal(displayCompanyName("Qualys, Inc."), "Qualys");
+    assert.equal(displayCompanyName("Qualys Ltd."), "Qualys");
+    assert.equal(displayCompanyName("Qualys Security TechServices Private Ltd."), "Qualys Security TechServices");
+});
+
+// cleanCompany (the grouping/counting/slug/tally value) must NOT move —
+// only displayCompanyName's presentation layer changed.
+test("cleanCompany keeps the suffixed form for all three Qualys strings — grouping/tally is unaffected", () => {
+    assert.equal(cleanCompany("Qualys, Inc."), "Qualys, Inc.");
+    assert.equal(cleanCompany("Qualys Ltd."), "Qualys Ltd.");
+    assert.equal(cleanCompany("Qualys Security TechServices Private Ltd."), "Qualys Security TechServices Private Ltd.");
+});
+
+// The bare-form vocabulary generalizes past Qualys/Inc./Limited — an Indian
+// "Pvt Ltd" and a German "GmbH", neither hand-picked before this change.
+test("displayCompanyName strips bare legal forms class-wide, not just the two originally hand-picked", () => {
+    assert.equal(displayCompanyName("Nimbus Solutions Pvt Ltd"), "Nimbus Solutions");
+    assert.equal(displayCompanyName("Muster Systeme GmbH"), "Muster Systeme");
+});
+
+// Negatives the growth must not touch.
+test("displayCompanyName negatives survive the widened bare-form vocabulary untouched", () => {
+    // A legal-form word that opens the name, not closes it — end-anchored,
+    // so mere containment is never enough.
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+    assert.equal(displayCompanyName("Limited Brands"), "Limited Brands");
+    // A name that IS only a legal form: stripping the trailing "Ltd." would
+    // leave "Private", which is itself just another legal-form word — the
+    // general remainder-purity rule rejects that, not a hand-picked
+    // exception for this one string.
+    assert.equal(displayCompanyName("Private Ltd."), "Private Ltd.");
 });
 
 test("displayCompanyName matches case-insensitively", () => {
@@ -122,4 +162,114 @@ test("displayCompanyName matches case-insensitively", () => {
 test("displayCompanyName null/undefined pass through as empty string", () => {
     assert.equal(displayCompanyName(null), "");
     assert.equal(displayCompanyName(undefined), "");
+});
+
+// humanizeTenantSubdomain / cleanCompany — generic careers-subdomain prefix
+// stripping. Live bug 2026-08: a job row rendered "Careers.algoleap" as the
+// company name because the bare-domain rule routed it to
+// humanizeTenantSubdomain, which stripped a trailing TLD but never a leading
+// subdomain like "careers.". Cases below prove the fix is class-wide (several
+// distinct prefixes, a stacked prefix), not a single hardcoded string, and
+// that the guard rails against over-stripping hold.
+
+test("strips the generic 'careers' subdomain prefix — the reported live bug", () => {
+    assert.equal(humanizeTenantSubdomain("Careers.algoleap"), "Algoleap");
+    assert.equal(cleanCompany("Careers.algoleap"), "Algoleap");
+});
+
+test("strips other generic subdomain prefixes — class-wide, not one instance", () => {
+    assert.equal(humanizeTenantSubdomain("jobs.acme"), "Acme");
+    assert.equal(humanizeTenantSubdomain("www.foo.com"), "Foo");
+    assert.equal(humanizeTenantSubdomain("apply.widgetco"), "Widgetco");
+    assert.equal(humanizeTenantSubdomain("talent.zippy"), "Zippy");
+});
+
+test("strips a stacked run of generic prefixes down to the real brand", () => {
+    assert.equal(humanizeTenantSubdomain("careers.jobs.acme"), "Acme");
+});
+
+// Guard rail 1: a real company name that happens to BE a generic word plus
+// "Inc" has a space, so cleanCompany's bare-domain rule (which requires no
+// space) never routes it to humanizeTenantSubdomain in the first place.
+test("guard rail: a real company name that IS the stripped word survives untouched", () => {
+    assert.equal(cleanCompany("Careers Inc"), "Careers Inc");
+});
+
+// Guard rail 2: "Amazon.com" has no subdomain prefix to strip — the existing
+// trailing-TLD rule already turns it into "Amazon", and the new prefix logic
+// must not touch or break that unrelated path.
+test("guard rail: 'Amazon.com' still resolves via the existing TLD-suffix rule, not prefix logic", () => {
+    assert.equal(humanizeTenantSubdomain("Amazon.com"), "Amazon");
+});
+
+// Guard rail 3: a single-label token has no leading-prefix-then-remainder
+// structure at all, so it is left alone by construction.
+test("guard rail: a single-label token with no dot is untouched", () => {
+    assert.equal(humanizeTenantSubdomain("Acme"), "Acme");
+    assert.equal(humanizeTenantSubdomain("jobs"), "Jobs");
+});
+
+// Guard rail 4: stripping must never leave an empty string. "careers.com"
+// loses its TLD first (the existing suffix rule), leaving the single label
+// "careers" — which guard rail 3's single-label rule then leaves alone,
+// rather than being read as prefix "careers" + a meaningless "com" remainder.
+test("guard rail: 'careers.com' does not crash or collapse to an empty name", () => {
+    assert.equal(humanizeTenantSubdomain("careers.com"), "Careers");
+});
+
+// A token that is ENTIRELY generic words never loses its last label either —
+// same "always leave one label standing" invariant, exercised with no real
+// TLD present to strip first.
+test("guard rail: an all-generic-words token keeps its last label instead of stripping to nothing", () => {
+    assert.equal(humanizeTenantSubdomain("careers.jobs"), "Jobs");
+});
+
+// Guard rail 5 (corpus measurement, 2026-08-18): real brand names that are
+// THEMSELVES styled like a domain — company + ".com"/".ai" IS the name, not
+// a placeholder — sit in the same dot-no-space shape the bare-domain rule
+// matches. Real production values (`job_listings`, GROUP BY): Roadsurfer.Com
+// (459), Checkout.Com (429), Scrums.com (416), Kraken.Com (337), Jerry.Ai
+// (296). The bare-domain branch already strips their TLD today — a
+// pre-existing characteristic of `cleanCompany` this change does not touch —
+// and the new subdomain-PREFIX logic must be a no-op on all five: none of
+// these words are in `GENERIC_SUBDOMAIN_PREFIXES`, and a single-label token
+// (post TLD-strip) is left alone by guard rail 3 regardless. Proves the new
+// prefix rule doesn't WIDEN what already happens to this class.
+test("guard rail: dot-styled real brand names are untouched by the new prefix rule (pre-existing TLD-strip still fires, unchanged)", () => {
+    for (const [raw, expected] of [
+        ["Roadsurfer.Com", "Roadsurfer"],
+        ["Checkout.Com", "Checkout"],
+        ["Scrums.com", "Scrums"],
+        ["Kraken.Com", "Kraken"],
+        ["Jerry.Ai", "Jerry"],
+    ] as const) {
+        assert.equal(cleanCompany(raw), expected, raw);
+    }
+});
+
+// The exact live stored value (2026-08-18 measurement), WITH its real ".com"
+// suffix — the module-doc example above uses the bare "Careers.algoleap"
+// shape; this pins the literal production string, and that its clean form
+// ("Algoleap") matches the 27 rows already stored clean for the same
+// employer, so the fix converges the two spellings.
+test("strips the real stored 'careers.algoleap.com' value to match the already-clean form in the same table", () => {
+    assert.equal(cleanCompany("careers.algoleap.com"), "Algoleap");
+});
+
+// Second high-volume URL-ish-prefix instance (636 rows) — proves the prefix
+// rule generalizes past the "careers"/"jobs" examples to "www" too, on a
+// value with no known-ATS-provider match and no recognized trailing TLD.
+test("strips a 'www.' prefix off a bare non-TLD-suffixed placeholder ('www.google', 636 rows live)", () => {
+    assert.equal(cleanCompany("www.google"), "Google");
+});
+
+// Leading entity-code stripping (existing mechanism, unmodified) generalizes
+// to a SECOND QLYS_* variant beyond the one already pinned above ("QLYS_CA")
+// — confirms the regex is shape-based (2-10 alnum + "_" + 2-10 alnum + space),
+// not a hardcoded "QLYS_CA" lookup, on the real "QLYS_IN" stored value.
+test("the existing leading-entity-code strip generalizes to a different real QLYS_* variant (QLYS_IN, 451 rows live)", () => {
+    assert.equal(
+        cleanCompany("QLYS_IN Qualys Security TechServices Private Ltd."),
+        "Qualys Security TechServices Private Ltd.",
+    );
 });

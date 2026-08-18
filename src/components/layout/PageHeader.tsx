@@ -51,7 +51,7 @@ export function PageHeader({
       </h1>
       {description &&
         (display ? (
-          <div className="mt-1.5 font-mono text-[12.5px] text-muted-foreground">{description}</div>
+          <div className="mt-1.5 text-[12.5px] text-muted-foreground">{description}</div>
         ) : (
           <p className="truncate text-sm text-muted-foreground">{description}</p>
         ))}

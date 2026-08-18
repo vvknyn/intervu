@@ -318,7 +318,7 @@ function CopyUrlBar() {
     };
     return (
         <div className="flex items-stretch rounded-none border-2 border-foreground">
-            <code className="flex-1 truncate px-3 py-2.5 font-mono text-sm text-foreground">{MCP_URL}</code>
+            <code className="flex-1 truncate px-3 py-2.5 text-sm text-foreground">{MCP_URL}</code>
             <button
                 type="button"
                 onClick={handleCopy}
@@ -377,15 +377,15 @@ function MockJobRow({
             </div>
             <span
                 className={cn(
-                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
+                    "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em]",
                     flagged
                         ? "border-border bg-card text-muted-foreground"
-                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                        : "border-live-tint-border bg-live-tint-bg text-verdict-live",
                 )}
             >
                 {flagged ? "review" : "verified"}
             </span>
-            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-faint">
+            <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
                 <span>{locationLine}</span>
                 {age && (
                     <>
@@ -598,7 +598,7 @@ function TrackerStatusChips({
                         aria-pressed={filter === key}
                         onClick={() => onChange(key)}
                         className={cn(
-                            "rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors",
+                            "rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors",
                             filter === key && "border-foreground bg-foreground text-background",
                         )}
                     >
@@ -654,7 +654,7 @@ export function CompletenessMock() {
     return (
         <div className="min-h-screen bg-background text-foreground">
             <div className={cn("border-b px-4 py-2 text-center text-xs", siteChrome.border, siteChrome.bar, siteChrome.muted)}>
-                <span className="font-mono uppercase tracking-wider">Completeness mock — not live</span>
+                <span className="uppercase tracking-wider">Completeness mock — not live</span>
                 {" · "}
                 <Link href="/mock/auth-gate" className="text-brand underline-offset-2 hover:underline">
                     Auth-gate mock
@@ -701,13 +701,13 @@ export function CompletenessMock() {
                                     readOnly
                                     defaultValue="product manager"
                                     aria-label="Role search"
-                                    className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
+                                    className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black/40 px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
                                 />
                                 <Input
                                     readOnly
                                     defaultValue="Remote"
                                     aria-label="Location search"
-                                    className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black/40 px-3.5 text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
+                                    className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black/40 px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black/40 focus-visible:ring-0"
                                 />
                                 <Button className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-[13px] font-semibold text-[#12151a] hover:opacity-90">
                                     Search
@@ -725,7 +725,7 @@ export function CompletenessMock() {
                                 >
                                     Filters · 3
                                 </button>
-                                <span className="font-mono text-[11px] text-[#8b919a]">Remote · Past month · Hide ghosts</span>
+                                <span className="text-[11px] text-[#8b919a]">Remote · Past month · Hide stale</span>
                             </div>
                             {filtersOpen && (
                                 <div className="panel-enter mt-3 rounded-none border-0 bg-black/40 p-4 text-[13px] text-[#ececec]">

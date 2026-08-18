@@ -10,6 +10,11 @@ export interface DigestSectionItem {
   title: string;
   company: string;
   href: string;
+  /** Rendered location, already through `locationText` (which prefixes
+   *  "Remote ·" and strips the junk values the corpus carries). Empty when
+   *  the posting genuinely has no location — the template then omits the
+   *  line rather than printing a blank one. */
+  location: string;
 }
 
 /**
@@ -58,11 +63,14 @@ export interface DigestSection extends Omit<RawDigestSection, "items"> {
 export interface DigestModel {
   sections: DigestSection[];
   unsubscribeUrl: string;
+  /** Absolute site origin, for the brand header and footer links. */
+  siteUrl: string;
 }
 
 export interface AssembleDigestInput {
   sections: RawDigestSection[];
   unsubscribeUrl: string;
+  siteUrl: string;
   itemCap?: number;
 }
 
@@ -87,5 +95,5 @@ export function assembleDigest(input: AssembleDigestInput): DigestModel | null {
 
   if (sections.length === 0) return null;
 
-  return { sections, unsubscribeUrl: input.unsubscribeUrl };
+  return { sections, unsubscribeUrl: input.unsubscribeUrl, siteUrl: input.siteUrl };
 }

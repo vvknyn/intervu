@@ -1,5 +1,5 @@
 import { describe, it, beforeEach } from 'node:test'; import assert from 'node:assert/strict';
-import { checkRateLimit, _resetRateLimits, clientIpFromRequest, rateLimitedResponse } from '../../src/lib/agent/rate-limit';
+import { checkRateLimit, _resetRateLimits, rateLimitedResponse } from '../../src/lib/agent/rate-limit';
 import { AGENT } from '../../src/lib/agent/config';
 describe('agent rate limit', () => {
   beforeEach(() => { _resetRateLimits(); });
@@ -81,35 +81,12 @@ describe('agent rate limit', () => {
   });
 });
 
-describe('clientIpFromRequest — keying for the two public unauthenticated OAuth endpoints', () => {
-  it('reads the LAST (rightmost) hop out of a multi-hop X-Forwarded-For — the one Caddy itself appended', () => {
-    const req = new Request('http://x', { headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.1, 10.0.0.2' } });
-    assert.equal(clientIpFromRequest(req), '10.0.0.2');
-  });
-  it('is not fooled by a caller-forged leftmost entry (spoofing resistance)', () => {
-    // A direct HTTP client can freely set X-Forwarded-For itself. If Caddy
-    // appends its own hop (standard reverse-proxy behavior) rather than
-    // replacing the header, the forged value ends up first — reading the
-    // last entry instead means the forged value here is ignored.
-    const req = new Request('http://x', { headers: { 'x-forwarded-for': '1.2.3.4' /* forged */ + ', 198.51.100.9' /* Caddy's real hop */ } });
-    assert.equal(clientIpFromRequest(req), '198.51.100.9');
-  });
-  it('trims whitespace around the last hop', () => {
-    const req = new Request('http://x', { headers: { 'x-forwarded-for': '203.0.113.5,   10.0.0.1  ' } });
-    assert.equal(clientIpFromRequest(req), '10.0.0.1');
-  });
-  it('handles a single-value header (no comma) — e.g. Caddy replaced rather than appended', () => {
-    const req = new Request('http://x', { headers: { 'x-forwarded-for': '203.0.113.5' } });
-    assert.equal(clientIpFromRequest(req), '203.0.113.5');
-  });
-  it('falls back to a shared "unknown" bucket when the header is absent', () => {
-    assert.equal(clientIpFromRequest(new Request('http://x')), 'unknown');
-  });
-  it('falls back to "unknown" for an empty or whitespace-only header value', () => {
-    assert.equal(clientIpFromRequest(new Request('http://x', { headers: { 'x-forwarded-for': '' } })), 'unknown');
-    assert.equal(clientIpFromRequest(new Request('http://x', { headers: { 'x-forwarded-for': ' , ,' } })), 'unknown');
-  });
-});
+// `clientIpFromRequest` (LAST-hop XFF reader) was deleted 2026-08-16 — it
+// assumed Caddy APPENDS to X-Forwarded-For, which 100 forged-XFF requests to
+// /api/jobs/suggest proved wrong (Caddy REPLACES; leftmost is the real
+// client). The two OAuth routes now resolve through the single shield
+// resolver instead: `resolveClientIpFromHeaders` in
+// `src/lib/shield/client-ip.ts`, covered by `tests/unit/shield-client-ip.test.ts`.
 
 describe('rateLimitedResponse — the one 429 shape shared by /api/mcp, /api/oauth/register, /api/oauth/token', () => {
   it('carries Retry-After in seconds and the rate_limited body, plus retryAfterSeconds/limiter for JSON-only clients', async () => {

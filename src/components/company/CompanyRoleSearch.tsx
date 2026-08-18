@@ -175,7 +175,7 @@ export function CompanyRoleSearch({
       <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
         Open roles
         {jobs.length > 0 && (
-          <span className="font-mono text-xs font-normal text-muted-foreground" aria-live="polite">
+          <span className="text-xs font-normal text-muted-foreground" aria-live="polite">
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
@@ -197,7 +197,7 @@ export function CompanyRoleSearch({
             placeholder={`Search ${companyName}'s open roles…`}
           />
           {searchesPartialWindow && hasQuery && (
-            <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Searching the {jobs.length} most recent roles —{" "}
               <Link href={jobsSearchUrl} className="text-brand hover:underline">
                 use full search
@@ -237,13 +237,13 @@ export function CompanyRoleSearch({
                     <div className="text-[15px] font-semibold text-foreground group-hover:text-brand transition-colors">
                       {decodeText(job.title)}
                     </div>
-                    <div className="mt-1 font-mono text-xs text-muted-foreground">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {roleMeta(job)}
                     </div>
                     {ghost && (
                       <div
                         className={cn(
-                          "mt-1.5 flex items-center gap-1.5 font-mono text-[11px]",
+                          "mt-1.5 flex items-center gap-1.5 text-[11px]",
                           ghost.live ? "text-brand" : "text-muted-foreground",
                         )}
                       >
@@ -254,7 +254,7 @@ export function CompanyRoleSearch({
                       </div>
                     )}
                   </div>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground group-hover:text-brand group-hover:translate-x-0.5 transition-all" aria-hidden>
+                  <span className="shrink-0 text-xs text-muted-foreground group-hover:text-brand group-hover:translate-x-0.5 transition-all" aria-hidden>
                     View role →
                   </span>
                 </button>
@@ -271,7 +271,7 @@ export function CompanyRoleSearch({
               Explore all {openCountLabel} open roles at {companyName}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Screened for ghost-job risk, posting freshness, and verified salary transparency.
+              Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
             </p>
           </div>
           <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">

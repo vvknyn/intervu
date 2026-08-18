@@ -29,8 +29,8 @@ export type BaseResume =
 /**
  * The canonical-source decision, pulled out as a pure function (no
  * Firestore) so it's unit-testable directly — same reasoning as
- * `buildResumeVersionSnapshot` (resume-version.ts) and `hasCapRoom`
- * (apply-cap.ts). `resumeData` wins whenever `hasResumeContent` says it has
+ * `buildResumeVersionSnapshot` (resume-version.ts) and `mergeGuestPursuit`
+ * (pursuits/types.ts). `resumeData` wins whenever `hasResumeContent` says it has
  * real content; otherwise a non-blank `resumeText` (trimmed) is the
  * fallback; otherwise an honest "none" rather than a fabricated résumé.
  */

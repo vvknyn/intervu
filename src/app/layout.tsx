@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
@@ -21,15 +21,43 @@ import {
 import { Toaster } from "@/lib/toast";
 import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
 
-// Clean, airy, minimal typeface pair: Inter for UI & Headings, JetBrains Mono for technical data
-const inter = Inter({
-  variable: "--font-inter",
+/**
+ * Three faces, each named for the ROLE it plays rather than the vendor that
+ * happens to fill it. The previous pair was declared as `--font-inter` and
+ * `--font-jetbrains-mono`, which meant swapping a typeface required renaming
+ * a variable in every consumer — the naming itself made the design system
+ * expensive to change, so it never changed.
+ *
+ * Why these, replacing Inter + JetBrains Mono everywhere (2026-08-17): the
+ * site reads as built-for-engineers to people outside tech, which is a
+ * problem when the corpus is genuinely multi-vertical (nursing and physical
+ * therapy each match as many postings as software engineering). Inter is the
+ * default startup sans and JetBrains Mono is literally an IDE typeface; a
+ * nurse reading a page set in them correctly concludes it is not for them.
+ *
+ * - Libre Franklin (display): an American gothic with warmth in it. Carries
+ *   headline voice without the geometric coolness of the startup defaults.
+ * - Source Sans 3 (body/UI): humanist, built for interfaces, holds up at the
+ *   small sizes this UI leans on, and ships true tabular figures — which is
+ *   what lets data columns line up WITHOUT conscripting a monospace face.
+ * - JetBrains Mono (mono): kept, but demoted to literal code — shell commands
+ *   and MCP keys in Settings/Connect, where looking technical is correct
+ *   because the content IS technical. It is no longer the voice of the site.
+ */
+const display = Libre_Franklin({
+  variable: "--font-display-face",
   subsets: ["latin"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const sans = Source_Sans_3({
+  variable: "--font-sans-face",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  variable: "--font-mono-face",
   subsets: ["latin"],
   display: "swap",
 });
@@ -121,7 +149,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         {/* Dark-mode FOUC guard (2026-08-15 mode toggle) — a synchronous
             script in <head> blocks first paint until it runs, so a returning
@@ -136,7 +164,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
+        className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
         {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box

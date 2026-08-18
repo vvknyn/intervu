@@ -84,7 +84,7 @@ function ConsentCard({ clientName, params }: { clientName: string; params: Conse
                 <CardTitle>{clientName}</CardTitle>
                 <CardDescription>wants to connect to your intervu account</CardDescription>
                 <p className="text-xs text-muted-foreground pt-1">
-                    Will send its access code to: <span className="font-mono">{redirectHost(params.redirect_uri)}</span>
+                    Will send its access code to: <span className="">{redirectHost(params.redirect_uri)}</span>
                 </p>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
