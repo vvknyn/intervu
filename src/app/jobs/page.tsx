@@ -3143,10 +3143,15 @@ function JobsContent() {
                                     className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
                                 />
+                                {/* NOT `results-clear-query` — that is the toolbar's
+                                    "✕ clear search", which also drops the location draft
+                                    and the location_country facet. This one empties the
+                                    field and re-runs, nothing else. Two behaviours behind
+                                    one testid made either selector ambiguous. */}
                                 {queryDraft && (
                                     <button
                                         type="button"
-                                        data-testid="results-clear-query"
+                                        data-testid="search-input-clear"
                                         aria-label="Clear query"
                                         onClick={() => {
                                             setQueryDraft("");
@@ -3304,6 +3309,20 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
+                        {/* Sits next to "All filters" because it undoes the same
+                            thing that row sets — the query is what the toolbar
+                            filters narrow. It used to live in the results-count
+                            box, which is a reporting surface, not a control one. */}
+                        {query.trim() && (
+                            <button
+                                type="button"
+                                data-testid="results-clear-query"
+                                onClick={handleClearSearch}
+                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground transition-colors"
+                            >
+                                ✕ clear search
+                            </button>
+                        )}
                         {/* ITEM I (2026-08-15): moved here from the search row (was a
                             flex sibling between the location input and Search button).
                             It's filter state (suppressible, affects the fetched set),
@@ -3687,35 +3706,14 @@ function JobsContent() {
                                                         </span>
                                                     </div>
                                                 )}
-                                                {(query.trim() || activeCount > 0) && (
-                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        {activeCount > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                data-testid="results-clear-filters"
-                                                                onClick={panelClearAll}
-                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
-                                                            >
-                                                                Clear filters
-                                                                {activeCount > 1 ? (
-                                                                    <span className="ml-1 font-mono text-[11px] opacity-75">
-                                                                        · {activeCount}
-                                                                    </span>
-                                                                ) : null}
-                                                            </button>
-                                                        )}
-                                                        {query.trim() && (
-                                                            <button
-                                                                type="button"
-                                                                data-testid="results-clear-query"
-                                                                onClick={handleClearSearch}
-                                                                className="text-[13px] font-medium text-foreground underline underline-offset-[3px]"
-                                                            >
-                                                                ✕ clear search
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                {/* 2026-08-17, Vivek: "too much happening in that small
+                                                    box". Both clear controls moved up to the toolbar,
+                                                    beside "All filters" — they undo what that row sets,
+                                                    so that is where they belong (same reasoning as ITEM I
+                                                    above). "Clear filters" was additionally a straight
+                                                    DUPLICATE of the toolbar's own, down to a second copy
+                                                    of `data-testid="results-clear-filters"`. What is left
+                                                    here only reports: the count, the window, the scope. */}
                                             </div>
                                             {/* ITEM S (2026-08-15, Vivek: "duplicate information") — this
                                                 used to render a second row of "✕ clear <facet>" chips
