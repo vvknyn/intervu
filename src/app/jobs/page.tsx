@@ -3376,7 +3376,7 @@ function JobsContent() {
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                             )}
                         >
-                            Tier-1 Tech
+                            Top tech
                             {board === "elite" ? <X size={9} weight="bold" aria-hidden /> : null}
                         </button>
                     </div>

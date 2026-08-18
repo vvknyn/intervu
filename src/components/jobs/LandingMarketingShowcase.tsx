@@ -4,11 +4,7 @@ import React from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  ShieldCheck,
-  GlobeHemisphereWest,
-  CurrencyDollar,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
 
 interface LandingMastheadProps {
   /**
@@ -40,12 +36,12 @@ interface LandingMastheadProps {
  */
 export function LandingMasthead({ claim }: LandingMastheadProps) {
   return (
-    <div className="pb-4 sm:pb-6">
+    <div className="panel-enter pb-4 sm:pb-6">
     <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
       <span className="text-xs font-bold uppercase tracking-widest text-brand">
         Jobs posted by the companies themselves
       </span>
-      <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
+      <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
         Every job, straight from the employer.
       </h1>
       {claim ? (
