@@ -3192,7 +3192,7 @@ function JobsContent() {
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
-                        <LandingMasthead />
+                        <LandingMasthead claim={marketClaim} />
                     </div>
                 </div>
 
