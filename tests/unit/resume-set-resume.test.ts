@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { validateResumeData, planResumeUpload, validateResumeUploadText } from "@/lib/resume/set-resume";
+import {
+    validateResumeData,
+    planResumeUpload,
+    validateResumeUploadText,
+    isBareDocumentId,
+} from "@/lib/resume/set-resume";
 import { AGENT } from "@/lib/agent/config";
 import type { BaseResume } from "@/lib/resume/base-resume";
 import type { ResumeData } from "@/types/resume";
@@ -253,5 +258,32 @@ describe("validateResumeUploadText", () => {
     it("a too-long error message states the real cap, not a hand-copied number that can drift", () => {
         const result = validateResumeUploadText("x".repeat(AGENT.RESUME_TEXT_MAX_CHARS + 1));
         assert.ok(!result.ok && result.error.includes(AGENT.RESUME_TEXT_MAX_CHARS.toLocaleString()));
+    });
+});
+
+describe("isBareDocumentId()", () => {
+    // The uid in the path already confines a caller to their own history.
+    // This closes the one remaining way out: Firestore reads a slash in
+    // `.doc()` as a path separator, so an id carrying one would address a
+    // document outside the subcollection the delete is scoped to.
+    it("accepts the ids Firestore actually generates", () => {
+        for (const id of ["aBcD1234", "x", "A1_b-2", "kJ8sh2Ksh2mLq0PqR3zZ"]) {
+            assert.ok(isBareDocumentId(id), `${id} should be accepted`);
+        }
+    });
+
+    it("rejects anything that could walk out of the subcollection", () => {
+        for (const id of [
+            "",
+            "a/b",
+            "../profiles",
+            "x/resume_history/y",
+            "profiles/other-uid",
+            "a b",
+            "a.b",
+            "..",
+        ]) {
+            assert.equal(isBareDocumentId(id), false, `${id} should be rejected`);
+        }
     });
 });

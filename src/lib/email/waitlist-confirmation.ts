@@ -1,8 +1,11 @@
 /**
- * The one place that knows how to send a waitlist confirmation — both
- * `actions/waitlist.ts` (credit packs) and `actions/connect-waitlist.ts`
- * (per-client "notify me") call this instead of each building their own
- * unsubscribe token + template + send call.
+ * The one place that knows how to send a waitlist confirmation.
+ * `actions/connect-waitlist.ts` (per-client "notify me") calls this instead
+ * of building its own unsubscribe token + template + send call.
+ *
+ * A second caller, `actions/waitlist.ts`, sold credit packs and was deleted
+ * 2026-08-18: it had zero callers and its confirmation named a price the
+ * product cannot charge during beta.
  */
 import { getSiteUrl } from "@/lib/seo/constants";
 import { signUnsubscribeToken } from "./unsubscribe-token";

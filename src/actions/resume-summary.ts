@@ -44,7 +44,7 @@ export async function deleteBaseResumeAction(): Promise<{ error?: string }> {
     return {};
 }
 
-import { getResumeHistoryForUser, saveNamedResumeVersion, type SavedResumeVersion } from "@/lib/resume/set-resume";
+import { deleteResumeVersionForUser, getResumeHistoryForUser, saveNamedResumeVersion, type SavedResumeVersion } from "@/lib/resume/set-resume";
 import type { ResumeData } from "@/types/resume";
 
 export async function fetchResumeVersionsAction(): Promise<{ data?: SavedResumeVersion[]; error?: string }> {
@@ -52,8 +52,19 @@ export async function fetchResumeVersionsAction(): Promise<{ data?: SavedResumeV
     if (!user) return { error: "Unauthorized" };
     try {
         return { data: await getResumeHistoryForUser(user.uid) };
-    } catch (e: any) {
-        return { error: e.message || "Failed to load versions" };
+    } catch (e) {
+        return { error: e instanceof Error ? e.message : "Failed to load versions" };
+    }
+}
+
+export async function deleteResumeVersionAction(versionId: string): Promise<{ error?: string }> {
+    const user = await getServerUser();
+    if (!user) return { error: "Unauthorized" };
+    try {
+        await deleteResumeVersionForUser(user.uid, versionId);
+        return {};
+    } catch (e) {
+        return { error: e instanceof Error ? e.message : "Failed to delete version" };
     }
 }
 
@@ -62,8 +73,8 @@ export async function saveNamedResumeVersionAction(input: { data: ResumeData; la
     if (!user) return { error: "Unauthorized" };
     try {
         return { data: await saveNamedResumeVersion(user.uid, input) };
-    } catch (e: any) {
-        return { error: e.message || "Failed to save version" };
+    } catch (e) {
+        return { error: e instanceof Error ? e.message : "Failed to save version" };
     }
 }
 

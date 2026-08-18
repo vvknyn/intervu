@@ -12,6 +12,7 @@ import { downloadBlob } from "@/lib/export-utils";
 import { resumeDataToParsedDocument, parseResumeContent } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import {
+    deleteResumeVersionAction,
     fetchResumeVersionsAction,
     saveNamedResumeVersionAction,
 } from "@/actions/resume-summary";
@@ -25,6 +26,7 @@ import {
     CircleNotch,
     Check,
     ClockCounterClockwise,
+    Trash,
     GitDiff,
     X,
     BookmarkSimple,
@@ -94,7 +96,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     // `compareBaseline` is the explicit override you pick from Version History;
     // null means "fall back to the saved state", which is the only way back.
     const [originalBaseline, setOriginalBaseline] = useState<ResumeData>(initialData);
-    const [compareBaseline, setCompareBaseline] = useState<{ data: ResumeData; label: string } | null>(null);
+    const [compareBaseline, setCompareBaseline] = useState<{ data: ResumeData; label: string; id: string } | null>(null);
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
     const [saving, setSaving] = useState(false);
@@ -107,6 +109,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [newVersionLabel, setNewVersionLabel] = useState("");
     const [savingVersion, setSavingVersion] = useState(false);
+    // Two-step delete: the first click arms the row, the second commits.
+    // An inline confirm rather than window.confirm — a native modal blocks
+    // the whole page and cannot be styled or dismissed by the app.
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const loadVersions = useCallback(async () => {
         setLoadingVersions(true);
@@ -188,10 +195,29 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             toast.error("Could not parse comparison data.");
             return;
         }
-        setCompareBaseline({ data: parsed, label: ver.label });
+        setCompareBaseline({ data: parsed, label: ver.label, id: ver.id });
         setShowDiffs(true);
         toast.success(`Comparing live against: "${ver.label}"`);
         setVersionsOpen(false);
+    };
+
+    const handleDeleteVersion = async (ver: SavedResumeVersion) => {
+        setDeletingId(ver.id);
+        try {
+            const res = await deleteResumeVersionAction(ver.id);
+            if (res.error) throw new Error(res.error);
+            setVersions((prev) => prev.filter((v) => v.id !== ver.id));
+            // If the diff was baselined against this snapshot, that baseline
+            // just stopped existing. Fall back to the last saved resume rather
+            // than keep diffing against something the user deleted.
+            setCompareBaseline((cur) => (cur?.id === ver.id ? null : cur));
+            toast.success(`Deleted "${ver.label}"`);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Failed to delete version");
+        } finally {
+            setDeletingId(null);
+            setConfirmDeleteId(null);
+        }
     };
 
     const handleDownloadPdf = () => {
@@ -522,24 +548,68 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                 </div>
 
                                                 <div className="flex items-center gap-2 pt-1 border-t border-border/60">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleRecallVersion(ver)}
-                                                        className="h-7 text-[11px] gap-1 rounded-none flex-1"
-                                                    >
-                                                        <ArrowCounterClockwise size={12} /> Recall
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleCompareVersion(ver)}
-                                                        className="h-7 text-[11px] gap-1 rounded-none flex-1 text-amber-600 dark:text-amber-400"
-                                                    >
-                                                        <GitDiff size={12} /> Compare
-                                                    </Button>
+                                                    {confirmDeleteId === ver.id ? (
+                                                        <>
+                                                            <span className="flex-1 text-[11px] font-semibold text-destructive">
+                                                                Delete this version?
+                                                            </span>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => setConfirmDeleteId(null)}
+                                                                className="h-7 text-[11px] rounded-none"
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                disabled={deletingId === ver.id}
+                                                                onClick={() => void handleDeleteVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none"
+                                                            >
+                                                                {deletingId === ver.id ? (
+                                                                    <CircleNotch size={12} className="animate-spin" />
+                                                                ) : (
+                                                                    <Trash size={12} />
+                                                                )}
+                                                                Delete
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleRecallVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1"
+                                                            >
+                                                                <ArrowCounterClockwise size={12} /> Recall
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleCompareVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1 text-amber-600 dark:text-amber-400"
+                                                            >
+                                                                <GitDiff size={12} /> Compare
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title={`Delete "${ver.label}"`}
+                                                                onClick={() => setConfirmDeleteId(ver.id)}
+                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-destructive"
+                                                            >
+                                                                <Trash size={12} />
+                                                            </Button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
