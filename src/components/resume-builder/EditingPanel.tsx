@@ -4,7 +4,6 @@ import React, { useState, useMemo, useCallback } from "react";
 import {
     ResumeData,
     ResumeExperience,
-    ResumeCompetencyCategory,
     ResumeEducation,
     ResumeSection,
     detectProfessionType,
@@ -29,7 +28,6 @@ import {
     ListNumbers,
     X,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
 
 interface EditingPanelProps {
     selectedSection: string | null;
@@ -71,6 +69,79 @@ const SECTION_CONFIG: Record<
         icon: GraduationCap,
     },
 };
+
+/**
+ * Everything the section nav bar needs from its parent, in one object so the
+ * five call sites stay `<SectionHeader section="x" nav={nav} />`.
+ */
+type SectionNav = {
+    onBack: () => void;
+    prev: () => void;
+    next: () => void;
+    hasPrev: boolean;
+    hasNext: boolean;
+    index: number;
+    total: number;
+};
+
+/**
+ * Nav bar above the current section. Declared at module scope, NOT inside
+ * `EditingPanel`: a component created during render has a new identity on every
+ * render, so React tears down and rebuilds its entire subtree each time the
+ * parent re-renders — DOM churn, restarted transitions, and any focus or scroll
+ * position inside it lost. eslint react-hooks/static-components catches it.
+ */
+function SectionHeader({ section, nav }: { section: NavigableSection; nav: SectionNav }) {
+    const config = SECTION_CONFIG[section];
+    const Icon = config.icon;
+    return (
+        <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
+            <div className="flex items-center gap-3">
+                <button
+                    type="button"
+                    onClick={nav.onBack}
+                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title="Back to all sections"
+                >
+                    <CaretLeft size={20} weight="bold" />
+                </button>
+                <div className="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+                    <Icon size={18} />
+                </div>
+                <div>
+                    <h2 className="text-sm font-bold uppercase tracking-tight text-foreground sm:text-base">
+                        {config.title}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">{config.subtitle}</p>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+                <button
+                    type="button"
+                    onClick={nav.prev}
+                    disabled={!nav.hasPrev}
+                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                    title="Previous section"
+                >
+                    <CaretLeft size={16} weight="bold" />
+                </button>
+                <span className="text-xs text-muted-foreground">
+                    {nav.index + 1}/{nav.total}
+                </span>
+                <button
+                    type="button"
+                    onClick={nav.next}
+                    disabled={!nav.hasNext}
+                    className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                    title="Next section"
+                >
+                    <CaretRight size={16} weight="bold" />
+                </button>
+            </div>
+        </div>
+    );
+}
 
 export function EditingPanel({
     selectedSection,
@@ -140,57 +211,16 @@ export function EditingPanel({
         });
     };
 
-    // Header / Nav bar above current section
-    const SectionHeader = ({ section }: { section: NavigableSection }) => {
-        const config = SECTION_CONFIG[section];
-        const Icon = config.icon;
-        return (
-            <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => onNavigateSection(null)}
-                        className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        title="Back to all sections"
-                    >
-                        <CaretLeft size={20} weight="bold" />
-                    </button>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
-                        <Icon size={18} />
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-bold uppercase tracking-tight text-foreground sm:text-base">
-                            {config.title}
-                        </h2>
-                        <p className="text-xs text-muted-foreground">{config.subtitle}</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                    <button
-                        type="button"
-                        onClick={navigateToPrev}
-                        disabled={!hasPrevSection}
-                        className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
-                        title="Previous section"
-                    >
-                        <CaretLeft size={16} weight="bold" />
-                    </button>
-                    <span className="font-mono text-xs text-muted-foreground">
-                        {currentSectionIndex + 1}/{getNavigationSections.length}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={navigateToNext}
-                        disabled={!hasNextSection}
-                        className="rounded-none p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
-                        title="Next section"
-                    >
-                        <CaretRight size={16} weight="bold" />
-                    </button>
-                </div>
-            </div>
-        );
+    // Built here rather than closed over: `SectionHeader` lives at module scope
+    // (see its comment) so it can't reach these directly.
+    const nav: SectionNav = {
+        onBack: () => onNavigateSection(null),
+        prev: navigateToPrev,
+        next: navigateToNext,
+        hasPrev: hasPrevSection,
+        hasNext: hasNextSection,
+        index: currentSectionIndex,
+        total: getNavigationSections.length,
     };
 
     // 1. Overview when no section is selected
@@ -244,7 +274,7 @@ export function EditingPanel({
                             <button
                                 type="button"
                                 onClick={resetSectionOrder}
-                                className="font-mono text-xs text-brand hover:underline"
+                                className="text-xs text-brand hover:underline"
                             >
                                 Reset to Auto
                             </button>
@@ -259,7 +289,7 @@ export function EditingPanel({
                                 key={sec}
                                 className="flex items-center justify-between rounded-none border border-border bg-background/50 px-3 py-2 text-xs"
                             >
-                                <span className="font-mono text-xs uppercase text-foreground">{sec}</span>
+                                <span className="text-xs uppercase text-foreground">{sec}</span>
                                 <div className="flex items-center gap-1">
                                     <button
                                         type="button"
@@ -290,7 +320,7 @@ export function EditingPanel({
     if (selectedSection === "header") {
         return (
             <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
-                <SectionHeader section="header" />
+                <SectionHeader section="header" nav={nav} />
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
@@ -371,7 +401,7 @@ export function EditingPanel({
     if (selectedSection === "summary") {
         return (
             <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
-                <SectionHeader section="summary" />
+                <SectionHeader section="summary" nav={nav} />
                 <div className="space-y-2">
                     <Label className="text-xs font-semibold">Summary Content</Label>
                     <Textarea
@@ -440,7 +470,7 @@ export function EditingPanel({
 
         return (
             <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
-                <SectionHeader section="skills" />
+                <SectionHeader section="skills" nav={nav} />
 
                 {/* Add new category */}
                 <div className="flex gap-2">
@@ -481,7 +511,7 @@ export function EditingPanel({
                                     <Input
                                         value={cat.category}
                                         onChange={(e) => updateCategoryName(catIdx, e.target.value)}
-                                        className="h-8 font-semibold text-xs max-w-xs"
+                                        className="h-8 font-semibold text-base md:text-xs max-w-xs"
                                     />
                                     <Button
                                         type="button"
@@ -499,7 +529,7 @@ export function EditingPanel({
                                     {cat.skills.map((skill, skillIdx) => (
                                         <span
                                             key={skillIdx}
-                                            className="inline-flex items-center gap-1 rounded-none border border-border bg-muted/60 px-2 py-0.5 font-mono text-[11px] font-medium text-foreground"
+                                            className="inline-flex items-center gap-1 rounded-none border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground"
                                         >
                                             {skill}
                                             <button
@@ -580,10 +610,10 @@ export function EditingPanel({
 
         return (
             <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
-                <SectionHeader section="experience" />
+                <SectionHeader section="experience" nav={nav} />
 
                 <div className="flex justify-between items-center">
-                    <span className="font-mono text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                         {experience.length} position{experience.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addExperience} className="gap-1 text-xs">
@@ -603,7 +633,7 @@ export function EditingPanel({
                                 className="rounded-none border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
-                                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Role #{idx + 1}
                                     </span>
                                     <Button
@@ -651,7 +681,7 @@ export function EditingPanel({
                                         value={exp.description}
                                         onChange={(e) => updateExpField(exp.id, "description", e.target.value)}
                                         placeholder="• Start each bullet with an action verb (Built, Led, Reduced, Scaled)..."
-                                        className="min-h-[120px] font-mono"
+                                        className="min-h-[120px]"
                                     />
                                 </div>
                             </div>
@@ -690,10 +720,10 @@ export function EditingPanel({
 
         return (
             <div className="h-full space-y-5 overflow-y-auto p-4 sm:p-6">
-                <SectionHeader section="education" />
+                <SectionHeader section="education" nav={nav} />
 
                 <div className="flex justify-between items-center">
-                    <span className="font-mono text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                         {education.length} credential{education.length === 1 ? "" : "s"} listed
                     </span>
                     <Button type="button" size="sm" onClick={addEducation} className="gap-1 text-xs">
@@ -713,7 +743,7 @@ export function EditingPanel({
                                 className="rounded-none border border-border bg-card p-4 space-y-3"
                             >
                                 <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
-                                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Record #{idx + 1}
                                     </span>
                                     <Button

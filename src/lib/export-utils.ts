@@ -1,5 +1,22 @@
 import { StarStory } from "@/types";
 
+/**
+ * Hand the browser a file to save. The object URL is revoked immediately after
+ * the synthetic click — the download is already queued by then, and leaving it
+ * alive pins the blob in memory for the life of the document.
+ */
+export function downloadBlob(content: BlobPart, filename: string, type: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
 export function exportStoriesToText(stories: StarStory[]) {
     if (!stories || stories.length === 0) return;
 
@@ -27,13 +44,5 @@ export function exportStoriesToText(stories: StarStory[]) {
         content += "\n=================================================================\n\n";
     });
 
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob(content, filename, "text/plain");
 }

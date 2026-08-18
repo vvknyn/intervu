@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
+import { downloadBlob } from "@/lib/export-utils";
 import { resumeDataToParsedDocument, parseResumeContent } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import {
@@ -24,7 +25,6 @@ import {
     CircleNotch,
     Check,
     ClockCounterClockwise,
-    GitBranch,
     GitDiff,
     X,
     BookmarkSimple,
@@ -37,18 +37,6 @@ interface ResumeEditorProps {
     onSave: (data: ResumeData) => Promise<boolean | void>;
     onClose: () => void;
     className?: string;
-}
-
-function downloadBlob(content: BlobPart, filename: string, type: string) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
 function parseVersionContentToResumeData(content: string): ResumeData | null {
@@ -100,8 +88,13 @@ function formatDate(iso: string): string {
 
 export function ResumeEditor({ initialData, onSave, onClose, className }: ResumeEditorProps) {
     const [data, setData] = useState<ResumeData>(initialData);
+    // The diff baseline is one value with two sources. `originalBaseline` tracks
+    // the last saved resume and advances on every save, so diffs re-baseline
+    // once your work is persisted instead of flagging saved content as changed.
+    // `compareBaseline` is the explicit override you pick from Version History;
+    // null means "fall back to the saved state", which is the only way back.
     const [originalBaseline, setOriginalBaseline] = useState<ResumeData>(initialData);
-    const [compareBaseline, setCompareBaseline] = useState<ResumeData | null>(initialData);
+    const [compareBaseline, setCompareBaseline] = useState<{ data: ResumeData; label: string } | null>(null);
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
     const [saving, setSaving] = useState(false);
@@ -195,7 +188,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             toast.error("Could not parse comparison data.");
             return;
         }
-        setCompareBaseline(parsed);
+        setCompareBaseline({ data: parsed, label: ver.label });
         setShowDiffs(true);
         toast.success(`Comparing live against: "${ver.label}"`);
         setVersionsOpen(false);
@@ -233,6 +226,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             `${(data.profile?.name || "resume").toLowerCase().replace(/\s+/g, "_")}.json`,
             "application/json",
         );
+        toast.success("JSON downloaded");
     };
 
     return (
@@ -256,15 +250,15 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                     </Button>
                     <div className="hidden sm:block h-4 w-px bg-border" />
                     <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                        <span className="text-xs font-bold uppercase tracking-wider text-foreground">
                             Live Template Editor
                         </span>
                         {hasUnsavedChanges ? (
-                            <span className="rounded-none bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <span className="rounded-none bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                 Unsaved edits
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check size={10} weight="bold" /> Saved
                             </span>
                         )}
@@ -319,6 +313,17 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         className="hidden lg:inline-flex gap-1 text-xs rounded-none shadow-none"
                     >
                         <DownloadSimple size={13} /> .docx
+                    </Button>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadJson}
+                        title="Download the structured resume data"
+                        className="hidden xl:inline-flex gap-1 text-xs rounded-none shadow-none"
+                    >
+                        <DownloadSimple size={13} /> .json
                     </Button>
 
                     <Button
@@ -388,21 +393,34 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 >
                     <div className="w-full max-w-[8.5in] transition-all">
                         <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground px-1">
-                            <span className="font-mono text-[10.5px] uppercase tracking-wider">
+                            <span className="text-[10.5px] uppercase tracking-wider">
                                 Standard US Letter Layout
                             </span>
                             <div className="flex items-center gap-3">
                                 {showDiffs && (
-                                    <span className="font-mono text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                        <GitDiff size={12} /> Diff Mode Active
+                                    <span className="text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                        <GitDiff size={12} />
+                                        <span className="max-w-[13rem] truncate">
+                                            {compareBaseline ? `Comparing to "${compareBaseline.label}"` : "Comparing to last saved"}
+                                        </span>
+                                        {compareBaseline && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompareBaseline(null)}
+                                                className="underline underline-offset-2 hover:no-underline"
+                                                title="Compare against the last saved resume instead"
+                                            >
+                                                reset
+                                            </button>
+                                        )}
                                     </span>
                                 )}
-                                <span className="font-mono text-[10.5px]">Click any section to edit</span>
+                                <span className="text-[10.5px]">Click any section to edit</span>
                             </div>
                         </div>
                         <LiveResumePreview
                             data={data}
-                            originalData={showDiffs ? compareBaseline : null}
+                            originalData={showDiffs ? (compareBaseline?.data ?? originalBaseline) : null}
                             showDiffs={showDiffs}
                             selectedSection={selectedSection}
                             onEdit={(section) => {
@@ -446,7 +464,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         value={newVersionLabel}
                                         onChange={(e) => setNewVersionLabel(e.target.value)}
                                         placeholder="e.g. Tailored for Apple, Post-review v2..."
-                                        className="h-8 text-xs"
+                                        className="h-8 text-base md:text-xs"
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
                                                 e.preventDefault();
@@ -469,11 +487,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             {/* Saved Versions List */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="font-mono uppercase font-semibold">Saved Snapshots ({versions.length})</span>
+                                    <span className="uppercase font-semibold">Saved Snapshots ({versions.length})</span>
                                     <button
                                         type="button"
                                         onClick={loadVersions}
-                                        className="hover:underline font-mono text-[11px]"
+                                        className="hover:underline text-[11px]"
                                     >
                                         Refresh
                                     </button>
@@ -498,7 +516,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                     <span className="font-semibold text-foreground leading-tight">
                                                         {ver.label}
                                                     </span>
-                                                    <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                                                    <span className="text-[10px] text-muted-foreground shrink-0">
                                                         {formatDate(ver.saved_at)}
                                                     </span>
                                                 </div>

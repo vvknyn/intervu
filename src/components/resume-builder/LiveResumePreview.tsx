@@ -15,6 +15,86 @@ interface LiveResumePreviewProps {
     className?: string;
 }
 
+/**
+ * The ambient state every previewed section needs. Passed as one object so the
+ * five call sites don't each thread five props.
+ */
+type PreviewCtx = {
+    selectedSection?: string | null;
+    hoveredSection: string | null;
+    setHoveredSection: (id: string | null) => void;
+    printMode: boolean;
+    onEdit?: (section: string) => void;
+};
+
+/**
+ * Click/hover affordance around one resume section. Declared at module scope,
+ * NOT inside `LiveResumePreview`: a component created during render has a new
+ * identity every render, so React tears down and rebuilds `children` — the
+ * whole rendered résumé — on each parent re-render. eslint
+ * react-hooks/static-components catches it.
+ */
+function SectionWrapper({
+    id,
+    children,
+    className: wrapperClass = "",
+    changeStatus = null,
+    ctx,
+}: {
+    id: string;
+    children: React.ReactNode;
+    className?: string;
+    changeStatus?: "modified" | "new" | "removed" | null;
+    ctx: PreviewCtx;
+}) {
+    const isSelected = ctx.selectedSection === id;
+    const isHovered = ctx.hoveredSection === id;
+
+    if (ctx.printMode || !ctx.onEdit) {
+        return <div className={cn("relative", wrapperClass)}>{children}</div>;
+    }
+
+    const diffBadge =
+        changeStatus === "modified" ? (
+            <span className="absolute -top-1 -right-1 rounded bg-amber-500 text-white px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-xs">
+                ✏️ Diff
+            </span>
+        ) : changeStatus === "new" ? (
+            <span className="absolute -top-1 -right-1 rounded bg-emerald-600 text-white px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-xs">
+                ✨ New
+            </span>
+        ) : null;
+
+    return (
+        <div
+            className={cn(
+                "relative group cursor-pointer transition-all duration-150 rounded-xs p-1 -m-1",
+                isSelected
+                    ? "ring-2 ring-emerald-500/80 bg-emerald-500/5 dark:bg-emerald-500/10"
+                    : isHovered
+                        ? "ring-1 ring-slate-400/60 bg-slate-100/50 dark:bg-slate-800/30"
+                        : changeStatus === "modified"
+                            ? "bg-amber-50/40 ring-1 ring-amber-300/70"
+                            : changeStatus === "new"
+                                ? "bg-emerald-50/40 ring-1 ring-emerald-300/70"
+                                : "",
+                wrapperClass,
+            )}
+            onMouseEnter={() => ctx.setHoveredSection(id)}
+            onMouseLeave={() => ctx.setHoveredSection(null)}
+            onClick={() => ctx.onEdit?.(id)}
+        >
+            {diffBadge}
+            {children}
+            {isHovered && !isSelected && (
+                <span className="absolute top-1 right-1 flex items-center gap-1 rounded bg-slate-900/90 text-white px-1.5 py-0.5 text-[9px] tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+                    <PencilSimple size={10} /> Edit
+                </span>
+            )}
+        </div>
+    );
+}
+
 export function LiveResumePreview({
     data,
     onEdit,
@@ -108,70 +188,15 @@ export function LiveResumePreview({
         );
     }, [data.education, originalData, showDiffs, printMode]);
 
-    const SectionWrapper = ({
-        id,
-        children,
-        className: wrapperClass = "",
-        changeStatus = null,
-    }: {
-        id: string;
-        children: React.ReactNode;
-        className?: string;
-        changeStatus?: "modified" | "new" | "removed" | null;
-    }) => {
-        const isSelected = selectedSection === id;
-        const isHovered = hoveredSection === id;
-
-        if (printMode || !onEdit) {
-            return <div className={cn("relative", wrapperClass)}>{children}</div>;
-        }
-
-        const diffBadge =
-            changeStatus === "modified" ? (
-                <span className="absolute -top-1 -right-1 rounded bg-amber-500 text-white px-1 py-0.2 text-[8px] font-mono font-bold uppercase tracking-wider shadow-xs">
-                    ✏️ Diff
-                </span>
-            ) : changeStatus === "new" ? (
-                <span className="absolute -top-1 -right-1 rounded bg-emerald-600 text-white px-1 py-0.2 text-[8px] font-mono font-bold uppercase tracking-wider shadow-xs">
-                    ✨ New
-                </span>
-            ) : null;
-
-        return (
-            <div
-                className={cn(
-                    "relative group cursor-pointer transition-all duration-150 rounded-xs p-1 -m-1",
-                    isSelected
-                        ? "ring-2 ring-emerald-500/80 bg-emerald-500/5 dark:bg-emerald-500/10"
-                        : isHovered
-                            ? "ring-1 ring-slate-400/60 bg-slate-100/50 dark:bg-slate-800/30"
-                            : changeStatus === "modified"
-                                ? "bg-amber-50/40 ring-1 ring-amber-300/70"
-                                : changeStatus === "new"
-                                    ? "bg-emerald-50/40 ring-1 ring-emerald-300/70"
-                                    : "",
-                    wrapperClass,
-                )}
-                onMouseEnter={() => setHoveredSection(id)}
-                onMouseLeave={() => setHoveredSection(null)}
-                onClick={() => onEdit(id)}
-            >
-                {diffBadge}
-                {children}
-                {isHovered && !isSelected && (
-                    <span className="absolute top-1 right-1 flex items-center gap-1 rounded bg-slate-900/90 text-white px-1.5 py-0.5 text-[9px] font-mono tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
-                        <PencilSimple size={10} /> Edit
-                    </span>
-                )}
-            </div>
-        );
-    };
+    // Gathered here because `SectionWrapper` sits at module scope (see its
+    // comment) and can no longer close over these.
+    const ctx: PreviewCtx = { selectedSection, hoveredSection, setHoveredSection, printMode, onEdit };
 
     const renderSummary = () => {
         if (!data.generatedSummary && !onEdit) return null;
         const changeStatus = getChangeStatus("summary");
         return (
-            <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus}>
+            <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
                 <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
                     Professional Summary
                 </h2>
@@ -193,7 +218,7 @@ export function LiveResumePreview({
         if (!hasSkills && !onEdit) return null;
         const changeStatus = getChangeStatus("skills");
         return (
-            <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus}>
+            <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
                 <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
                     Core Competencies
                 </h2>
@@ -219,7 +244,7 @@ export function LiveResumePreview({
         const hasExp = data.experience && data.experience.length > 0;
         if (!hasExp && !onEdit && removedExperiences.length === 0) return null;
         return (
-            <SectionWrapper id="experience" className="mb-2.5">
+            <SectionWrapper id="experience" className="mb-2.5" ctx={ctx}>
                 <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
                     Professional Experience
                 </h2>
@@ -248,12 +273,12 @@ export function LiveResumePreview({
                                                 </>
                                             )}
                                             {itemStatus === "modified" && (
-                                                <span className="ml-1.5 text-[8px] font-mono text-amber-700 bg-amber-200/60 px-1 py-0.2 rounded font-semibold">
+                                                <span className="ml-1.5 text-[8px] text-amber-700 bg-amber-200/60 px-1 py-0.5 rounded font-semibold">
                                                     Edited
                                                 </span>
                                             )}
                                             {itemStatus === "new" && (
-                                                <span className="ml-1.5 text-[8px] font-mono text-emerald-700 bg-emerald-200/60 px-1 py-0.2 rounded font-semibold">
+                                                <span className="ml-1.5 text-[8px] text-emerald-700 bg-emerald-200/60 px-1 py-0.5 rounded font-semibold">
                                                     New
                                                 </span>
                                             )}
@@ -292,7 +317,7 @@ export function LiveResumePreview({
                                         <span className="font-bold">{exp.role || "Job Title"}</span>
                                         <span className="mx-1">|</span>
                                         <span>{exp.company || "Company"}</span>
-                                        <span className="ml-1.5 text-[8px] font-mono text-rose-700 bg-rose-200/60 px-1 py-0.2 rounded font-semibold not-italic no-underline inline-block">
+                                        <span className="ml-1.5 text-[8px] text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
                                             Removed
                                         </span>
                                     </div>
@@ -316,7 +341,7 @@ export function LiveResumePreview({
         const hasEdu = data.education && data.education.length > 0;
         if (!hasEdu && !onEdit && removedEducations.length === 0) return null;
         return (
-            <SectionWrapper id="education" className="mb-2.5">
+            <SectionWrapper id="education" className="mb-2.5" ctx={ctx}>
                 <h2 className="text-[11px] font-bold text-center border-b border-slate-400 pb-0.5 mb-1 tracking-wider uppercase">
                     Education & Professional Development
                 </h2>
@@ -339,12 +364,12 @@ export function LiveResumePreview({
                                         <span className="font-bold">{edu.degree}</span>
                                         {edu.institution && <span className="text-slate-600"> | {edu.institution}</span>}
                                         {itemStatus === "modified" && (
-                                            <span className="ml-1.5 text-[8px] font-mono text-amber-700 bg-amber-200/60 px-1 py-0.2 rounded font-semibold">
+                                            <span className="ml-1.5 text-[8px] text-amber-700 bg-amber-200/60 px-1 py-0.5 rounded font-semibold">
                                                 Edited
                                             </span>
                                         )}
                                         {itemStatus === "new" && (
-                                            <span className="ml-1.5 text-[8px] font-mono text-emerald-700 bg-emerald-200/60 px-1 py-0.2 rounded font-semibold">
+                                            <span className="ml-1.5 text-[8px] text-emerald-700 bg-emerald-200/60 px-1 py-0.5 rounded font-semibold">
                                                 New
                                             </span>
                                         )}
@@ -362,7 +387,7 @@ export function LiveResumePreview({
                                 <div>
                                     <span className="font-bold">{edu.degree}</span>
                                     {edu.institution && <span> | {edu.institution}</span>}
-                                    <span className="ml-1.5 text-[8px] font-mono text-rose-700 bg-rose-200/60 px-1 py-0.2 rounded font-semibold not-italic no-underline inline-block">
+                                    <span className="ml-1.5 text-[8px] text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded font-semibold not-italic no-underline inline-block">
                                         Removed
                                     </span>
                                 </div>
@@ -408,7 +433,7 @@ export function LiveResumePreview({
         >
             <div className={printMode ? "px-6 py-4 text-slate-950" : "px-7 py-6 min-h-[10.5in] text-slate-950"}>
                 {/* Header Section */}
-                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-slate-400" changeStatus={headerChangeStatus}>
+                <SectionWrapper id="header" className="text-center pb-2 mb-2.5 border-b border-slate-400" changeStatus={headerChangeStatus} ctx={ctx}>
                     <h1 className="text-[19px] font-bold tracking-tight text-slate-950 uppercase mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>

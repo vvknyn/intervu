@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CircleNotch, Upload, Trash, PencilSimple, FileText, Sparkle, ClockCounterClockwise } from "@phosphor-icons/react";
+import { CircleNotch, Upload, Trash, PencilSimple, FileText, ClockCounterClockwise } from "@phosphor-icons/react";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
 import { parseResumeContent, resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { downloadBlob } from "@/lib/export-utils";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import type { ResumeData, ResumeExperience, ResumeEducation } from "@/types/resume";
 
@@ -26,18 +27,6 @@ function formatDate(iso: string | null): string | null {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-}
-
-function downloadBlob(content: BlobPart, filename: string, type: string) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
 function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
@@ -395,17 +384,17 @@ function ResumeSummaryBody({
             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline text-xs rounded-none border border-border bg-card p-4">
                 {profile?.name && (
                     <>
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Name:</span>
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Name:</span>
                         <span className="font-semibold text-foreground">{profile.name}</span>
                     </>
                 )}
                 {profile?.profession && (
                     <>
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Headline:</span>
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Headline:</span>
                         <span className="text-foreground">{profile.profession}</span>
                     </>
                 )}
-                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Experience:</span>
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Experience:</span>
                 <span className="text-foreground">{experienceCount} {experienceCount === 1 ? "entry" : "entries"}</span>
             </div>
             <div className="flex flex-wrap gap-2">
