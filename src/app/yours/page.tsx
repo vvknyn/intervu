@@ -43,7 +43,7 @@ function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
 function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
-            <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:px-7">
+            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
                 <p className="text-[13px] text-muted-foreground">Loading your tracker…</p>
             </div>
         </PageLayout>
@@ -359,7 +359,7 @@ function YoursContent() {
                 />
             }
         >
-            <div className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-6 sm:px-7">
+            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
                 <StatusChips
                     filter={filter}
                     counts={counts}

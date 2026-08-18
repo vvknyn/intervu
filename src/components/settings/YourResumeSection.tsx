@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CircleNotch, Upload, Trash } from "@phosphor-icons/react";
+import { CircleNotch, Upload, Trash, PencilSimple, FileText, Sparkle, ClockCounterClockwise } from "@phosphor-icons/react";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
+import { saveResumeData } from "@/actions/resume";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
 import { parseResumeContent, resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
+import type { ResumeData, ResumeExperience, ResumeEducation } from "@/types/resume";
 
 interface YourResumeSectionProps {
     user: User | null;
@@ -25,10 +28,6 @@ function formatDate(iso: string | null): string | null {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
-/** Same client-side blob-download shape as export-utils.ts's
- *  exportStoriesToText and SettingsContainer's handleExportData — no
- *  download API route needed for a file that already lives in the client's
- *  hands. */
 function downloadBlob(content: BlobPart, filename: string, type: string) {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -41,14 +40,9 @@ function downloadBlob(content: BlobPart, filename: string, type: string) {
     URL.revokeObjectURL(url);
 }
 
-/** Renders + downloads the base résumé as a PDF (R4/R5) — the SAME
- *  renderer the pursuit-variant download and the R5a MCP-chat link use,
- *  via the two adapters into `ParsedResumeDocument` (parse-resume-
- *  content.ts): free text for `resume_text`, a direct field mapping for
- *  structured `resume_data`. */
 function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
     const parsed = summary.source === "resume_text" ? parseResumeContent(summary.resume_text) : resumeDataToParsedDocument(summary.resume_data);
-    const name = summary.source === "resume_data" ? summary.resume_data.profile.name : null;
+    const name = summary.source === "resume_data" ? summary.resume_data.profile?.name : null;
     const filename = deriveResumePdfFilename({
         company: null,
         role: null,
@@ -58,35 +52,134 @@ function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume
     downloadBlob(renderResumePdf(parsed), `${filename}.pdf`, "application/pdf");
 }
 
-/**
- * Read/write surface for the base résumé the agent uses (R1, 2026-08-09
- * user report: the infra existed agent-side only — `set-resume.ts`/`base-
- * resume.ts`/the MCP `get_resume`/`set_resume` tools — with zero upload
- * surface on the web account). Upload/Replace reuse `uploadBaseResumeAction`
- * -> `setBaseResumeForUser`/`planResumeUpload`, the EXACT write seam
- * `set_resume` uses, so a web upload and a chat-filed résumé share one
- * planner. That module never calls an LLM (see its own doc comment) — no
- * "Structure with AI" step is wired here; this ships text-first, mechanical
- * extraction only for PDF/DOCX (unpdf/mammoth, already in package.json —
- * see extract-file-text.ts), matching the binding no-AI-on-this-path rule.
- */
+function defaultResumeData(userEmail?: string, userName?: string): ResumeData {
+    return {
+        profile: {
+            name: userName || "",
+            profession: "",
+            yearsOfExperience: 0,
+            location: "",
+            email: userEmail || "",
+            phone: "",
+            linkedin: "",
+        },
+        generatedSummary: "",
+        competencies: [
+            { category: "Languages & Frameworks", skills: [] },
+            { category: "Tools & Technologies", skills: [] },
+        ],
+        experience: [],
+        education: [],
+    };
+}
+
+function summaryToResumeData(summary: ResumeSummary | null, user?: User | null): ResumeData {
+    if (!summary || summary.source === "none") {
+        return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
+    }
+    if (summary.source === "resume_data") {
+        return summary.resume_data;
+    }
+    if (summary.source === "resume_text") {
+        const parsed = parseResumeContent(summary.resume_text);
+        let summaryText = "";
+        const competencies: { category: string; skills: string[] }[] = [];
+        const experience: ResumeExperience[] = [];
+        const education: ResumeEducation[] = [];
+
+        for (const sec of parsed.sections) {
+            const h = sec.heading.toLowerCase();
+            if (h.includes("summary") || h.includes("profile") || h.includes("about")) {
+                summaryText = sec.blocks
+                    .map((b) => (b.kind === "paragraph" ? b.text : b.kind === "bullets" ? b.items.join("\n") : ""))
+                    .filter(Boolean)
+                    .join("\n\n");
+            } else if (h.includes("skill") || h.includes("competenc") || h.includes("technolog")) {
+                for (const b of sec.blocks) {
+                    if (b.kind === "competency") {
+                        competencies.push({
+                            category: b.category,
+                            skills: b.items.split(",").map((s) => s.trim()).filter(Boolean),
+                        });
+                    } else if (b.kind === "paragraph" || b.kind === "bullets") {
+                        const items = b.kind === "paragraph" ? [b.text] : b.items;
+                        competencies.push({
+                            category: "Skills",
+                            skills: items,
+                        });
+                    }
+                }
+            } else if (h.includes("experience") || h.includes("employment") || h.includes("work") || h.includes("history")) {
+                for (let i = 0; i < sec.blocks.length; i++) {
+                    const b = sec.blocks[i];
+                    if (b.kind === "entry") {
+                        const parts = b.title.split("|").map((p) => p.trim());
+                        experience.push({
+                            id: `exp-${i + 1}`,
+                            role: parts[0] || b.title,
+                            company: parts[1] || "",
+                            dates: b.dateRight || "",
+                            description: b.bullets.map((l) => `• ${l}`).join("\n"),
+                        });
+                    }
+                }
+            } else if (h.includes("education") || h.includes("degree") || h.includes("academic")) {
+                for (let i = 0; i < sec.blocks.length; i++) {
+                    const b = sec.blocks[i];
+                    if (b.kind === "entry") {
+                        const parts = b.title.split("|").map((p) => p.trim());
+                        education.push({
+                            id: `edu-${i + 1}`,
+                            degree: parts[0] || b.title,
+                            institution: parts[1] || "",
+                            year: b.dateRight || "",
+                        });
+                    } else if (b.kind === "paragraph") {
+                        education.push({
+                            id: `edu-${i + 1}`,
+                            degree: b.text,
+                            institution: "",
+                        });
+                    }
+                }
+            }
+        }
+
+        const contactParts = (parsed.contactLine || "").split("|").map((p) => p.trim());
+        const email = contactParts.find((p) => p.includes("@")) || user?.email || "";
+        const phone = contactParts.find((p) => /[\d\-+()]{7,}/.test(p)) || "";
+        const linkedin = contactParts.find((p) => /linkedin/i.test(p)) || "";
+        const location = contactParts.find((p) => p !== email && p !== phone && p !== linkedin) || "";
+
+        return {
+            profile: {
+                name: parsed.name || user?.displayName || "",
+                profession: "",
+                yearsOfExperience: 0,
+                location,
+                email,
+                phone,
+                linkedin,
+            },
+            generatedSummary: summaryText || summary.resume_text.slice(0, 300),
+            competencies: competencies.length > 0 ? competencies : [{ category: "Core Skills", skills: [] }],
+            experience: experience.length > 0 ? experience : [],
+            education: education.length > 0 ? education : [],
+        };
+    }
+    return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
+}
+
 export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [summary, setSummary] = useState<ResumeSummary | null>(null);
-    // Bumped by the "Try again" button AND after a successful upload/delete
-    // — one fetch-with-retry implementation, one re-fetch-after-write path,
-    // instead of hand-constructing the post-write summary shape here.
     const [retryToken, setRetryToken] = useState(0);
-    const [editing, setEditing] = useState(false);
+    const [viewMode, setViewMode] = useState<"summary" | "upload" | "live_editor">("summary");
 
     useEffect(() => {
         if (!user) return;
         let cancelled = false;
         (async () => {
-            // Same cookie-race retry as AgentPreferencesSection.loadPreferences:
-            // right after sign-in the client `user` can flip truthy before the
-            // server session cookie catches up, so an early "Unauthorized" here
-            // almost always means that race, not a real denial.
             setStatus("loading");
             for (let attempt = 0; attempt < 4; attempt++) {
                 const res = await fetchResumeSummaryAction();
@@ -105,6 +198,12 @@ export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSe
         };
     }, [user, retryToken]);
 
+    const handleSaveEditor = async (updatedData: ResumeData) => {
+        const res = await saveResumeData(updatedData, "manual");
+        if (res.error) throw new Error(res.error);
+        setRetryToken((t) => t + 1);
+    };
+
     if (!user) {
         return (
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
@@ -119,12 +218,24 @@ export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSe
         );
     }
 
+    if (viewMode === "live_editor") {
+        return (
+            <section className="space-y-4">
+                <ResumeEditor
+                    initialData={summaryToResumeData(summary, user)}
+                    onSave={handleSaveEditor}
+                    onClose={() => setViewMode("summary")}
+                />
+            </section>
+        );
+    }
+
     return (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Your resume</h2>
             <p className="text-[13px] text-muted-foreground mb-4">
                 {embedded
-                    ? "One base file. Your agent uses this overnight; the tracker links versions per role later if needed."
+                    ? "One base file. Live modify directly in the canonical template or upload a document."
                     : "The resume your agent has on file."}
             </p>
 
@@ -145,17 +256,22 @@ export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSe
             )}
 
             {status === "ready" && summary && (
-                editing ? (
+                viewMode === "upload" ? (
                     <ResumeUploadForm
                         showCancel={summary.source !== "none"}
-                        onCancel={() => setEditing(false)}
+                        onCancel={() => setViewMode("summary")}
                         onSaved={() => {
-                            setEditing(false);
+                            setViewMode("summary");
                             setRetryToken((t) => t + 1);
                         }}
                     />
                 ) : (
-                    <ResumeSummaryBody summary={summary} onReplace={() => setEditing(true)} onDeleted={() => setRetryToken((t) => t + 1)} />
+                    <ResumeSummaryBody
+                        summary={summary}
+                        onReplace={() => setViewMode("upload")}
+                        onOpenEditor={() => setViewMode("live_editor")}
+                        onDeleted={() => setRetryToken((t) => t + 1)}
+                    />
                 )
             )}
         </section>
@@ -165,10 +281,12 @@ export function YourResumeSection({ user, onLoginClick, embedded }: YourResumeSe
 function ResumeSummaryBody({
     summary,
     onReplace,
+    onOpenEditor,
     onDeleted,
 }: {
     summary: ResumeSummary;
     onReplace: () => void;
+    onOpenEditor: () => void;
     onDeleted: () => void;
 }) {
     const updatedLabel = formatDate(summary.updatedAt);
@@ -185,27 +303,48 @@ function ResumeSummaryBody({
 
     if (summary.source === "none") {
         return (
-            <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                    No resume yet — send one to your agent on WhatsApp, upload one below, or your agent can build one with you.
-                </p>
-                <Button variant="outline" size="sm" onClick={onReplace} className="gap-1.5">
-                    <Upload size={14} />
-                    Upload a resume
-                </Button>
+            <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground">
+                    <FileText size={24} />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                    <h3 className="text-sm font-bold uppercase tracking-tight text-foreground">No Resume on File</h3>
+                    <p className="text-xs text-muted-foreground">
+                        Modify a standard template directly in your browser, or upload an existing PDF/Word file.
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <Button size="sm" onClick={onOpenEditor} className="gap-1.5 text-xs font-semibold rounded-none">
+                        <PencilSimple size={14} /> Open Live Template Editor
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={onReplace} className="gap-1.5 text-xs rounded-none">
+                        <Upload size={14} /> Upload File
+                    </Button>
+                </div>
             </div>
         );
     }
 
     const manageRow = (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={onReplace}>
-                Replace
+            <Button
+                type="button"
+                size="sm"
+                onClick={onOpenEditor}
+                className="gap-1.5 text-xs font-semibold rounded-none"
+            >
+                <PencilSimple size={13} /> Modify in Live Editor
+            </Button>
+            <Button variant="outline" size="sm" onClick={onOpenEditor} className="gap-1.5 text-xs rounded-none">
+                <ClockCounterClockwise size={13} /> Versions & Diffs
+            </Button>
+            <Button variant="outline" size="sm" onClick={onReplace} className="gap-1.5 text-xs rounded-none">
+                <Upload size={13} /> Replace / Upload
             </Button>
             {confirmingDelete ? (
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                     Delete this resume?
-                    <Button variant="destructive" size="sm" disabled={deleting} onClick={handleDelete} className="gap-1.5">
+                    <Button variant="destructive" size="sm" disabled={deleting} onClick={handleDelete} className="gap-1.5 rounded-none">
                         {deleting ? <CircleNotch size={12} className="animate-spin" /> : <Trash size={12} />}
                         {deleting ? "Deleting…" : "Confirm"}
                     </Button>
@@ -214,8 +353,8 @@ function ResumeSummaryBody({
                     </button>
                 </span>
             ) : (
-                <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} className="gap-1.5 text-[#8a3a3a] border-[#e2c4c4] hover:text-[#8a3a3a]">
-                    <Trash size={14} />
+                <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(true)} className="gap-1.5 text-xs text-destructive hover:text-destructive rounded-none">
+                    <Trash size={13} />
                     Delete
                 </Button>
             )}
@@ -227,17 +366,18 @@ function ResumeSummaryBody({
         return (
             <div className="space-y-3">
                 {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-                <pre className="text-sm whitespace-pre-wrap font-sans bg-muted/30 border border-slate-300 dark:border-slate-700 rounded-xl p-4 max-h-80 overflow-y-auto shadow-2xs">
+                <pre className="text-xs whitespace-pre-wrap font-sans bg-muted/30 border border-border rounded-none p-4 max-h-80 overflow-y-auto">
                     {preview}
                 </pre>
                 <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)}>
+                    <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)} className="text-xs rounded-none">
                         Download .pdf
                     </Button>
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => downloadBlob(summary.resume_text, "resume.txt", "text/plain")}
+                        className="text-xs rounded-none"
                     >
                         Download .txt
                     </Button>
@@ -248,34 +388,35 @@ function ResumeSummaryBody({
     }
 
     const { profile, experience } = summary.resume_data;
-    const experienceCount = experience.length;
+    const experienceCount = experience?.length || 0;
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-baseline text-sm">
-                {profile.name && (
+            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 items-baseline text-xs rounded-none border border-border bg-card p-4">
+                {profile?.name && (
                     <>
-                        <span className="text-muted-foreground text-right whitespace-nowrap py-1">name:</span>
-                        <span className="py-1">{profile.name}</span>
+                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Name:</span>
+                        <span className="font-semibold text-foreground">{profile.name}</span>
                     </>
                 )}
-                {profile.profession && (
+                {profile?.profession && (
                     <>
-                        <span className="text-muted-foreground text-right whitespace-nowrap py-1">headline:</span>
-                        <span className="py-1">{profile.profession}</span>
+                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Headline:</span>
+                        <span className="text-foreground">{profile.profession}</span>
                     </>
                 )}
-                <span className="text-muted-foreground text-right whitespace-nowrap py-1">experience:</span>
-                <span className="py-1">{experienceCount} {experienceCount === 1 ? "entry" : "entries"}</span>
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Experience:</span>
+                <span className="text-foreground">{experienceCount} {experienceCount === 1 ? "entry" : "entries"}</span>
             </div>
             <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)}>
+                <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)} className="text-xs shadow-2xs">
                     Download .pdf
                 </Button>
                 <Button
                     variant="outline"
                     size="sm"
                     onClick={() => downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")}
+                    className="text-xs shadow-2xs"
                 >
                     Download .json
                 </Button>
@@ -285,12 +426,6 @@ function ResumeSummaryBody({
     );
 }
 
-/** Paste-or-file upload/replace form. Text-first: .txt/.md read directly;
- *  .pdf/.docx go through the SAME mechanical (no-AI) server extractors the
- *  resume builder's import modal uses (extract-file-text.ts). No "Structure
- *  with AI" step — shipping without one is acceptable v1 per the binding
- *  no-AI-on-this-path rule; wiring one in later means an explicit,
- *  reviewed opt-in step, never automatic. */
 function ResumeUploadForm({
     showCancel,
     onCancel,
@@ -361,7 +496,7 @@ function ResumeUploadForm({
                         if (file) void handleFile(file);
                     }}
                 />
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="gap-1.5">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={busy} className="gap-1.5 text-xs shadow-2xs">
                     <Upload size={14} />
                     {extracting ? "Reading…" : "Choose file"}
                 </Button>
@@ -369,11 +504,11 @@ function ResumeUploadForm({
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
             <div className="flex gap-2">
-                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave}>
+                <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="text-xs font-semibold shadow-xs">
                     {pending ? "Saving…" : "Save"}
                 </Button>
                 {showCancel && (
-                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy}>
+                    <Button variant="outline" size="sm" onClick={onCancel} disabled={busy} className="text-xs shadow-2xs">
                         Cancel
                     </Button>
                 )}

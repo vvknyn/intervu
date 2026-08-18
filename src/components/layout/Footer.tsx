@@ -48,7 +48,7 @@ export function FooterContent() {
                 siteChrome.border,
             )}
         >
-            <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 py-6 sm:px-7">
+            <div className="mx-auto flex w-full max-w-6xl xl:max-w-7xl flex-col gap-3 px-4 py-6 sm:px-8 xl:px-10">
                 <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>{FOOTER_PROVENANCE_LINE}</p>
                 <nav
                     aria-label="Company"

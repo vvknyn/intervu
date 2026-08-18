@@ -28,7 +28,7 @@ export default async function PricingPage() {
   const tiers = buildPricingTiers(stats);
 
   return (
-    <main data-testid="pricing-page" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <main data-testid="pricing-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-10 sm:px-8 xl:px-10">
       <header>
         <h1 className="font-display text-display font-extrabold text-foreground">Free while we&apos;re in beta.</h1>
         <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
