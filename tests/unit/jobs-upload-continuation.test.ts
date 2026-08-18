@@ -89,3 +89,65 @@ test("handleImport respects the fitIntentRef guard before applying a queued fit 
     assert.match(body, /queuedAction\?\.kind === "fit"/);
     assert.match(body, /fitIntentRef\.current!\.isCurrent\(queuedAction\.fitToken\)/);
 });
+
+/**
+ * "My résumé" toolbar control (2026-08-15 follow-up) — replaced the old
+ * two-state "Upload résumé" button, which told a RETURNING user with a
+ * résumé already on file to "upload" one because `resume` local state is
+ * never fetched at mount (Task 4). One control, one label; only the STYLE
+ * (`resolveResumeControlState`) changes.
+ *
+ * A 2026-08-15 follow-up fix caught a second-order version of the SAME bug:
+ * an earlier version of `handleMyResumeClick` decided its branch off
+ * `resumeOnFile`'s rendered STYLE hint instead of its truth, which (a)
+ * reopened the "upload" flow for a window of a few hundred ms on every
+ * returning visit (the presence check starts unknown/`null`, which the old
+ * code folded into "no résumé"), and (b) went dead-silent if a résumé
+ * `resumeOnFile` claimed was present failed to actually resolve. The click
+ * decision moved OUT of page.tsx entirely into `runResumeControlClick`
+ * (lib/jobs/result-state.ts, unit-tested there with injected spies) —
+ * this test's job is just to prove page.tsx actually delegates to it
+ * instead of re-implementing (and risking re-diverging) the same branching
+ * inline.
+ */
+test("handleMyResumeClick delegates its whole branch decision to runResumeControlClick — no local if/else re-implementing it", () => {
+    const body = section("const handleMyResumeClick = () => {", "const handleImport = (data: ResumeData");
+    assert.match(
+        body,
+        /runResumeControlClick\(resumeOnFile,\s*resolveAndApplyFit,\s*handleUploadClick\)/,
+        "expected handleMyResumeClick to call runResumeControlClick(resumeOnFile, resolveAndApplyFit, handleUploadClick)",
+    );
+    assert.doesNotMatch(
+        body,
+        /if\s*\(/,
+        "the branch decision must live in runResumeControlClick, not a local if/else in page.tsx",
+    );
+});
+
+test('the "My résumé" control is never disabled — muted state stays clickable/focusable (a11y)', () => {
+    const body = section('data-testid="jobs-my-resume"', "My résumé");
+    assert.doesNotMatch(body, /\bdisabled\b/);
+    assert.match(body, /aria-label=/);
+});
+
+// 2026-08-15 a11y follow-up — measured (headless render, computed colour
+// over the real page backdrop): the muted state's `/60` opacity modifier put
+// this interactive control at 2.25:1, below WCAG AA's 4.5:1 floor for
+// 12px/normal text. The fix carries the muted/active distinction by
+// weight/colour token instead (never opacity, size, or a lighter token), so
+// this guards against the exact regression class: any opacity modifier, a
+// smaller font size, or a `/NN` alpha suffix reappearing on this control.
+test('the "My résumé" control never carries its muted/active state via opacity, a lighter alpha token, or a smaller font size', () => {
+    const body = section('data-testid="jobs-my-resume"', "My résumé");
+    assert.doesNotMatch(body, /text-muted-foreground\/\d+/, "no alpha-suffixed muted-foreground token");
+    assert.doesNotMatch(body, /\bopacity-\d+/, "no opacity utility");
+    assert.doesNotMatch(body, /text-\[1[01]px\]/, "no smaller-than-12px font size");
+});
+
+test('the "My résumé" control wraps its click handler — never handed to onClick bare', () => {
+    assert.doesNotMatch(
+        SOURCE,
+        /onClick=\{handleMyResumeClick\}/,
+        "handleMyResumeClick must never be passed bare — wrap it in `() => handleMyResumeClick()`",
+    );
+});
