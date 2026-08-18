@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 /**
  * Top-level error boundary — only fires when the root layout itself throws.
@@ -44,7 +44,7 @@ export default function GlobalError({
           {BRAND_MARK_BRACKETS.map((d) => (
             <path key={d} d={d} fill="#4F46E5" />
           ))}
-          <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill="#7cb87a" />
+          <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
         </svg>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
           Intervu hit a snag

@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
+import { BRAND_MARK_BRACKETS, BRAND_MARK_DOT, BRAND_MARK_DOT_FILL, BRAND_MARK_VIEWBOX } from "@/components/brand/BrandMark";
 
 // Route segment config + image metadata (Next reads these by convention).
 export const runtime = "edge";
@@ -45,7 +45,7 @@ export default function OpengraphImage() {
             {BRAND_MARK_BRACKETS.map((d) => (
               <path key={d} d={d} fill="#ffffff" />
             ))}
-            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill="#7cb87a" />
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill={BRAND_MARK_DOT_FILL} />
           </svg>
         </div>
         <div

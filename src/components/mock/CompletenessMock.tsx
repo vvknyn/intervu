@@ -380,7 +380,7 @@ function MockJobRow({
                     "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em]",
                     flagged
                         ? "border-border bg-card text-muted-foreground"
-                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                        : "border-live-tint-border bg-live-tint-bg text-verdict-live",
                 )}
             >
                 {flagged ? "review" : "verified"}

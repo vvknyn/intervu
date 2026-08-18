@@ -215,7 +215,7 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
  * (`chipVariants`, components/ui/chip.tsx) — previously a bare 11px text
  * button with a ~15px hit target (measured on prod, below the 24px WCAG
  * floor) and "pressed" conveyed by underline alone. Active/pressed now
- * reuses the SAME green-tint chip state every other active chip in the app
+ * reuses the SAME live-tint chip state every other active chip in the app
  * uses, rather than a one-off text treatment.
  */
 function SortSegment({
@@ -3102,8 +3102,13 @@ function JobsContent() {
         <div
             className="min-h-screen"
             style={{
+                // Was a literal rgba(16, 149, 106, …) — the retired emerald
+                // --brand, frozen into the page wash where no theme could
+                // reach it. Reads the token now, so the wash follows the
+                // accent through light/dark instead of tinting the whole
+                // results page a colour the palette had dropped.
                 background:
-                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgba(16, 149, 106, 0.12), transparent 70%), rgb(var(--background))",
+                    "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
             }}
         >
             <main className="mx-auto flex min-h-screen w-full max-w-[920px] flex-col px-4 pb-20 pt-2 sm:px-5 sm:pt-3 xl:max-w-[1440px]">
