@@ -10,8 +10,14 @@
  * moment a secret key IS set, a missing, empty, or Cloudflare-rejected token
  * is always refused — this never fabricates a pass once configured.
  */
+import { UNKNOWN_CLIENT_IP } from "./client-ip";
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+/** Runs inline in server actions (signup, contact, waitlist) — a hung
+ *  siteverify call must not hang the request it's guarding. `fetch` rejects
+ *  via `AbortSignal.timeout`, landing in the `catch` below, which already
+ *  folds to `apiResponse: null` → reject: fails closed, never a silent pass. */
+const VERIFY_TIMEOUT_MS = 5_000;
 
 export type TurnstileResult =
   | { status: "not-configured" }
@@ -48,8 +54,13 @@ export function decideTurnstileResult(
  * Thin I/O wrapper: reads `TURNSTILE_SECRET_KEY` itself (so callers don't
  * each have to plumb it), POSTs the token to Cloudflare's siteverify
  * endpoint when configured, and folds the result through the pure decision
- * above. A network failure or non-JSON response is treated as `apiResponse:
- * null` — reject, never a silent pass.
+ * above. A network failure, timeout, or non-JSON response is treated as
+ * `apiResponse: null` — reject, never a silent pass.
+ *
+ * `remoteIp` is optional and best-effort: every caller currently passes it
+ * straight from `resolveClientIp`/`getClientIp`, which return the literal
+ * `UNKNOWN_CLIENT_IP` when no header was resolvable — that string is not an
+ * address, so it's never forwarded to Cloudflare as `remoteip`.
  */
 export async function verifyTurnstile(
   token: string | null | undefined,
@@ -61,12 +72,18 @@ export async function verifyTurnstile(
 
   try {
     const body = new URLSearchParams({ secret: secretKey, response: token });
-    if (remoteIp) body.set("remoteip", remoteIp);
-    const res = await fetch(VERIFY_URL, { method: "POST", body });
+    if (remoteIp && remoteIp !== UNKNOWN_CLIENT_IP) body.set("remoteip", remoteIp);
+    const res = await fetch(VERIFY_URL, { method: "POST", body, signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS) });
     const json = (await res.json()) as SiteverifyResponse;
     return decideTurnstileResult(true, token, json);
   } catch (error) {
-    console.error("[Turnstile] siteverify request failed:", error);
+    const isTimeout = error instanceof Error && error.name === "TimeoutError";
+    console.error(
+      isTimeout
+        ? `[Turnstile] siteverify request timed out after ${VERIFY_TIMEOUT_MS}ms:`
+        : "[Turnstile] siteverify request failed:",
+      error,
+    );
     return decideTurnstileResult(true, token, null);
   }
 }

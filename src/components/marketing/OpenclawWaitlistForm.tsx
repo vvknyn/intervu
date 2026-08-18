@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { joinConnectWaitlist } from "@/actions/connect-waitlist";
+import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { resolveWaitlistOutcome } from "./waitlist-outcome";
 
 interface OpenclawWaitlistFormProps {
@@ -26,13 +27,14 @@ export function OpenclawWaitlistForm({
   className,
 }: OpenclawWaitlistFormProps) {
   const [email, setEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const res = await joinConnectWaitlist({ email, client: "openclaw" });
+      const res = await joinConnectWaitlist({ email, client: "openclaw", turnstileToken: turnstileToken ?? undefined });
       setResult(res);
     });
   };
@@ -66,6 +68,7 @@ export function OpenclawWaitlistForm({
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
+          <TurnstileWidget onVerify={setTurnstileToken} />
           {outcome?.kind === "error" ? (
             <p className="mt-2 text-sm text-foreground" data-testid="openclaw-waitlist-error">
               {outcome.message}

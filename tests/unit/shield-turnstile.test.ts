@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decideTurnstileResult, verifyTurnstile } from "../../src/lib/shield/turnstile";
+import { UNKNOWN_CLIENT_IP } from "../../src/lib/shield/client-ip";
 
 test("decideTurnstileResult: unconfigured (no secret key) is inert regardless of token or response", () => {
   assert.deepEqual(decideTurnstileResult(false, "any-token", null), { status: "not-configured" });
@@ -110,6 +111,82 @@ test("verifyTurnstile: configured + fetch throwing (network failure) is rejected
   try {
     const result = await verifyTurnstile("some-token");
     assert.deepEqual(result, { status: "reject", reason: "verify-request-failed" });
+  } finally {
+    if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = original;
+  }
+});
+
+test("verifyTurnstile: never forwards UNKNOWN_CLIENT_IP as remoteip — it's a sentinel, not an address", async (t) => {
+  const original = process.env.TURNSTILE_SECRET_KEY;
+  process.env.TURNSTILE_SECRET_KEY = "test-secret";
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    const body = new URLSearchParams(init.body as string);
+    assert.equal(body.has("remoteip"), false, "remoteip must be entirely absent, not sent as the literal 'unknown'");
+    return { json: async () => ({ success: true }) };
+  });
+  try {
+    const result = await verifyTurnstile("good-token", UNKNOWN_CLIENT_IP);
+    assert.deepEqual(result, { status: "pass" });
+  } finally {
+    if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = original;
+  }
+});
+
+test("verifyTurnstile: forwards a real remoteip when one is given", async (t) => {
+  const original = process.env.TURNSTILE_SECRET_KEY;
+  process.env.TURNSTILE_SECRET_KEY = "test-secret";
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    const body = new URLSearchParams(init.body as string);
+    assert.equal(body.get("remoteip"), "203.0.113.5");
+    return { json: async () => ({ success: true }) };
+  });
+  try {
+    const result = await verifyTurnstile("good-token", "203.0.113.5");
+    assert.deepEqual(result, { status: "pass" });
+  } finally {
+    if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = original;
+  }
+});
+
+test("verifyTurnstile: a siteverify timeout is rejected (fails closed) and logs distinctly from a transport error", async (t) => {
+  const original = process.env.TURNSTILE_SECRET_KEY;
+  process.env.TURNSTILE_SECRET_KEY = "test-secret";
+  t.mock.method(globalThis, "fetch", async () => {
+    throw new DOMException("The operation timed out.", "TimeoutError");
+  });
+  const errorLogs: unknown[][] = [];
+  t.mock.method(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args);
+  });
+  try {
+    const result = await verifyTurnstile("some-token");
+    assert.deepEqual(result, { status: "reject", reason: "verify-request-failed" });
+    assert.equal(errorLogs.length, 1);
+    assert.match(String(errorLogs[0][0]), /timed out/i);
+  } finally {
+    if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = original;
+  }
+});
+
+test("verifyTurnstile: a non-timeout transport failure logs a message that does NOT claim a timeout", async (t) => {
+  const original = process.env.TURNSTILE_SECRET_KEY;
+  process.env.TURNSTILE_SECRET_KEY = "test-secret";
+  t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("network down");
+  });
+  const errorLogs: unknown[][] = [];
+  t.mock.method(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args);
+  });
+  try {
+    const result = await verifyTurnstile("some-token");
+    assert.deepEqual(result, { status: "reject", reason: "verify-request-failed" });
+    assert.equal(errorLogs.length, 1);
+    assert.doesNotMatch(String(errorLogs[0][0]), /timed out/i);
   } finally {
     if (original === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = original;

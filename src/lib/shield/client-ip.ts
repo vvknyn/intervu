@@ -1,5 +1,12 @@
 import { headers } from "next/headers";
 
+/** The shared "no IP could be determined" sentinel every resolver below
+ *  returns — a named export so a caller that needs to tell a real address
+ *  apart from this fallback (e.g. before forwarding it to a third-party API
+ *  as a `remoteip`) checks against one value, not a re-typed `"unknown"`
+ *  string literal. */
+export const UNKNOWN_CLIENT_IP = "unknown";
+
 /**
  * The ONE place in this app that decides what a client's IP is. Every
  * chokepoint (shield rate limiters, the agent OAuth routes) resolves
@@ -44,9 +51,9 @@ export function resolveClientIp(
 ): string {
   const cf = cfConnectingIp?.trim();
   if (cf) return cf;
-  if (!xForwardedFor) return "unknown";
+  if (!xForwardedFor) return UNKNOWN_CLIENT_IP;
   const first = xForwardedFor.split(",")[0]?.trim();
-  return first || "unknown";
+  return first || UNKNOWN_CLIENT_IP;
 }
 
 /** Thin I/O wrapper: `resolveClientIp` wired to the request's real headers,
