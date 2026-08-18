@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 const TITLE = "Terms of Service";
-const DESCRIPTION = "The terms for using intervu, including how we frame ghost-job and risk signals.";
+const DESCRIPTION = "The terms for using intervu, including how we frame posting-check and risk signals.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -37,9 +38,10 @@ export default function TermsPage() {
           charge employers to be included.
         </p>
 
-        <h2>Ghost-job and risk signals are estimates, not facts</h2>
+        <h2>Posting-check and risk signals are estimates, not facts</h2>
         <p>
-          Ghost-job and risk signals — labels like &quot;possible ghost job&quot; or &quot;worth verifying&quot; —
+          Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
+          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; —
           are automated estimates based on posting age, listing freshness, and patterns across an employer&apos;s
           other listings. They are not statements of fact about any specific listing or employer, and we make no
           warranty as to their accuracy. Treat every signal as one input, not a verdict, when you decide where to

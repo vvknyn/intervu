@@ -151,7 +151,7 @@ function MockJobRow({ job, onClick }: { job: PublicJob; onClick: () => void }) {
                 <div className="text-[15px] font-semibold leading-snug tracking-tight">{decodeText(job.title)}</div>
                 <div className="mt-1 text-[13px] text-muted-foreground">{cleanCompany(job.company)}</div>
             </div>
-            <span className="inline-flex h-fit items-center rounded-full border border-green-tint-border bg-green-tint-bg px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-verdict-live">
+            <span className="inline-flex h-fit items-center rounded-full border border-live-tint-border bg-live-tint-bg px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-verdict-live">
                 verified
             </span>
             <div className="col-span-full flex flex-wrap gap-x-3 text-[11px] text-faint">
@@ -359,7 +359,7 @@ export function AuthGateMock() {
                                             setPendingNext("/jobs");
                                             setPhase("bounce");
                                         }}
-                                        className="text-[#7cb87a]"
+                                        className="text-live"
                                     >
                                         Sign in
                                     </button>
@@ -399,7 +399,7 @@ export function AuthGateMock() {
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="mt-8 max-w-md rounded-none border border-green-tint-border bg-green-tint-bg/20 p-6">
+                                <div className="mt-8 max-w-md rounded-none border border-live-tint-border bg-live-tint-bg/20 p-6">
                                     <p className="text-sm font-semibold text-verdict-live">Connected</p>
                                     <p className="mt-3 text-sm leading-relaxed text-[#c4c9d1]">{CONNECT_HEALTH_COPY}</p>
                                 </div>

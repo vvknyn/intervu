@@ -33,7 +33,7 @@ const REASON_OPTIONS: { value: ReportJobReason; label: string }[] = [
     { value: "dead_link", label: "Dead link / can't apply" },
     { value: "filled", label: "Position filled or closed" },
     { value: "misleading", label: "Details are wrong (pay, location, title)" },
-    { value: "ghost_job", label: "Looks like a ghost job" },
+    { value: "ghost_job", label: "They're not really hiring" },
     { value: "spam", label: "Spam / not a real job" },
     { value: "other", label: "Something else" },
 ];

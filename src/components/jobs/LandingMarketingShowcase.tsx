@@ -57,10 +57,10 @@ export function LandingMasthead() {
 
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
           <div className="font-bold text-foreground uppercase tracking-wider">
-            02 / GHOST DETECTION
+            02 / POSTING CHECKS
           </div>
           <p className="text-muted-foreground">
-            Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag phantom or stale roles before you apply.
+            Automated heuristics evaluate posting age, relist cycles, and ATS heartbeat signals to flag roles that aren&apos;t really live before you apply.
           </p>
         </div>
 
@@ -174,8 +174,22 @@ export function LandingMarketingShowcase({
                 <span className="text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
                   {cat.num}
                 </span>
-                <div>
-                  <div className="flex items-center gap-2">
+                {/* `min-w-0` is load-bearing, not tidiness. A flex item's
+                    default `min-width: auto` refuses to shrink below its
+                    content, and the description below sets `truncate` — which
+                    is `white-space: nowrap`, so its min-content width is the
+                    WHOLE line. Without this the column demanded ~380px inside
+                    a ~330px slot, the row pushed the document to 450px at a
+                    390px viewport, and the entire page scrolled sideways:
+                    row numbers and metric chips ran off the left edge while
+                    descriptions ran off the right. `truncate` cannot truncate
+                    anything until an ancestor is allowed to be narrower than
+                    the text. */}
+                <div className="min-w-0 flex-1">
+                  {/* Wraps rather than truncates: the sector name is the
+                      thing being chosen from, so it may take two lines on a
+                      narrow screen. Only the description gets clipped. */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-brand group-hover:text-background">
                       [{cat.domain}]
                     </span>

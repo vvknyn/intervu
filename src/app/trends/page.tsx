@@ -16,6 +16,7 @@ import { MarketPulse } from "@/components/trends/MarketPulse";
 import { WorkArrangementDistribution } from "@/components/trends/WorkArrangementDistribution";
 import { ExperienceSeniorityDistribution } from "@/components/trends/ExperienceSeniorityDistribution";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 /**
  * The daily-snapshot delta/tracking-since lines (P2, daily-snapshot.ts) —
@@ -56,7 +57,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
 export async function generateMetadata(): Promise<Metadata> {
   const asOf = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const title = "Market trends";
-  const description = `Live ghost-job and hiring stats — hiring countries, posting freshness, ghost-job risk. Snapshot as of ${asOf}.`;
+  const description = `Live ${GHOST_JOB_TERM} and hiring stats — hiring countries, posting freshness, ${GHOST_JOB_TERM} risk. Snapshot as of ${asOf}.`;
   return {
     title,
     description,

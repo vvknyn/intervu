@@ -145,7 +145,7 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
           href={companyPagePath(company.name)}
           className="mt-1 inline-block text-[11px] text-[color:var(--elite-faint)] underline underline-offset-2 hover:text-[color:var(--elite-brand)]"
         >
-          Live roles &amp; ghost mix →
+          Live roles &amp; posting checks →
         </Link>
       </td>
       <td className="px-[18px] py-4 text-[13px]">

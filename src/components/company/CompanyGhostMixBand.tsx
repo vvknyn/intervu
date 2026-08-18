@@ -22,9 +22,9 @@ export function CompanyGhostMixBand({
   return (
     <section data-testid="company-ghost-mix" className="mt-8 border-t border-foreground pt-6">
       <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-        Ghost-job mix
+        Posting checks
       </span>
-      <p className="mt-1 text-sm text-muted-foreground">Ghost-risk signal across this company&apos;s live postings.</p>
+      <p className="mt-1 text-sm text-muted-foreground">How this company&apos;s live postings scored on our posting check.</p>
 
       <ol className="mt-4 space-y-2">
         {rows.map(({ badge, count }) => {

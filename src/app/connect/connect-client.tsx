@@ -116,7 +116,7 @@ function CopyBox({ value, label }: { value: string; label?: string }) {
 
 const TRY_THESE_PROMPTS = [
   "Find senior product manager roles in Berlin with verified salary > $120k posted this week",
-  "Is this job posting real, or are there ghost / relisted signals?",
+  "Is this job posting real, or does it look stale or relisted?",
   "Search for remote Staff Frontend Engineer roles and save the top 3 matches to my tracker",
   "Summarize key requirements and interview insights for Stripe and OpenAI openings",
 ];
@@ -186,7 +186,7 @@ export function ConnectClient() {
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
           Query live ATS postings directly inside your favorite AI client with zero hallucinations.
-          Screen for ghost postings, compare true hiring rates, and analyze market trends.
+          Screen out stale postings, compare true hiring rates, and analyze market trends.
         </p>
       </div>
 

@@ -34,7 +34,7 @@ export function TrendsHero({
       indicator: "bg-slate-400 dark:bg-slate-500",
     },
     {
-      label: "Ghost-Risk Flagged",
+      label: "Possibly Stale",
       subtitle: "Flagged by automated integrity heuristic checks",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",

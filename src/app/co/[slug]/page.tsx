@@ -175,8 +175,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             // stops reading as a company-wide audit it never was.
             label={
               ghostPctIsCompanyWide
-                ? "Ghost-flagged"
-                : `Ghost-flagged of ${data.jobs.length} shown`
+                ? "Possibly stale"
+                : `Possibly stale of ${data.jobs.length} shown`
             }
           />
         </div>

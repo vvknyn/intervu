@@ -380,7 +380,7 @@ function MockJobRow({
                     "inline-flex h-fit items-center gap-1 self-start rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em]",
                     flagged
                         ? "border-border bg-card text-muted-foreground"
-                        : "border-green-tint-border bg-green-tint-bg text-verdict-live",
+                        : "border-live-tint-border bg-live-tint-bg text-verdict-live",
                 )}
             >
                 {flagged ? "review" : "verified"}
@@ -725,7 +725,7 @@ export function CompletenessMock() {
                                 >
                                     Filters · 3
                                 </button>
-                                <span className="text-[11px] text-[#8b919a]">Remote · Past month · Hide ghosts</span>
+                                <span className="text-[11px] text-[#8b919a]">Remote · Past month · Hide stale</span>
                             </div>
                             {filtersOpen && (
                                 <div className="panel-enter mt-3 rounded-none border-0 bg-black/40 p-4 text-[13px] text-[#ececec]">

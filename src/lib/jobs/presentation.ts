@@ -37,11 +37,27 @@ import { toValueArray } from "@/lib/jobs/types";
 const ghostPill = (badge: "clear" | "caution" | "likely_ghost") => STATUS_PILL[ghostBadgeTone(badge)];
 
 export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explain: string } | null> = {
+    // "Ghost job" is jobseeker-forum vocabulary. It reads as insider jargon to
+    // anyone who has not met it before — and the corpus is not a tech corpus
+    // (nursing and physical therapy each match as many live postings as
+    // software engineering), so most readers have not. Feedback from the
+    // medical field, 2026-08-17.
+    //
+    // The replacement is not just plainer, it is more honest. "Ghost" asserts
+    // the employer's INTENT — a posting kept up to farm résumés. What the
+    // signals below actually measure is whether a posting still looks live:
+    // freshness, repost history, whether pay is disclosed. "Possibly stale"
+    // is the claim the evidence supports; "possible ghost job" was a claim
+    // about motive we cannot see.
+    //
+    // The term is deliberately KEPT on /research/ghost-jobs and its metadata:
+    // people search for "ghost jobs", so it earns its place as an acquisition
+    // surface. It is the in-product labels that had to change.
     likely_ghost: {
-        label: "Possible ghost job",
+        label: "Possibly stale",
         cls: ghostPill("likely_ghost"),
         explain:
-            "Subspace's signals flag this posting as a possible ghost job — it may be stale, evergreen, or not actively hiring. Worth verifying before you invest time.",
+            "Our signals suggest this posting may no longer be live — it could be old, permanently open, or already filled. Worth verifying before you invest time.",
     },
     caution: {
         label: "Worth verifying",
@@ -49,9 +65,9 @@ export const GHOST_META: Record<GhostBadge, { label: string; cls: string; explai
         explain: "Some signals suggest this posting is worth a quick sanity-check before you apply.",
     },
     clear: {
-        label: "No ghost signals",
+        label: "Actively posted",
         cls: ghostPill("clear"),
-        explain: "No ghost-risk signals — this posting looks active.",
+        explain: "Nothing suggests this posting is stale — it looks active.",
     },
     unscored: null,
 };

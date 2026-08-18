@@ -12,6 +12,26 @@ export const BRAND_MARK_BRACKETS = [
 ] as const;
 export const BRAND_MARK_DOT = { cx: 32, cy: 32, r: 7 } as const;
 
+// The dot's FILL belongs to that same canon, and until now it did not: the
+// comment above centralised geometry only, so the colour was hand-copied into
+// opengraph-image.tsx and lib/og/page-card.tsx and drifted independently in
+// public/mark.svg. Four renderings of one mark carried two different greens
+// (#7cb87a, #6fad6d) — and after the accent moved from emerald to
+// International Klein Blue, neither of them was the brand colour any more.
+//
+// This is `--live` (globals.css `--live: 0 47 167`), not `--brand`, on purpose:
+// the docstring above defines the dot as the live signal the brackets hold, and
+// --live is the token for that. The two happen to share a value today; keying
+// off the meaning means the mark follows the signal if they ever diverge.
+//
+// It is a literal, not rgb(var(--live)), because Satori (next/og) renders these
+// same constants with no CSS custom properties available — an OG card has no
+// theme to follow, so it takes the light-mode value. In-app the component below
+// uses `fill-live` instead, which resolves the SAME token per theme; a frozen
+// #002FA7 dot would all but vanish against dark's #0A0A0A ground. One meaning,
+// two mechanisms, because only one of the two renderers has a cascade.
+export const BRAND_MARK_DOT_FILL = "#002FA7";
+
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (
         <svg
@@ -22,7 +42,7 @@ export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
             {BRAND_MARK_BRACKETS.map((d) => (
                 <path key={d} d={d} fill="currentColor" />
             ))}
-            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} fill="#7cb87a" />
+            <circle cx={BRAND_MARK_DOT.cx} cy={BRAND_MARK_DOT.cy} r={BRAND_MARK_DOT.r} className="fill-live" />
         </svg>
     );
 }

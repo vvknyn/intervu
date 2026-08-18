@@ -271,7 +271,7 @@ export function CompanyRoleSearch({
               Explore all {openCountLabel} open roles at {companyName}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Screened for ghost-job risk, posting freshness, and verified salary transparency.
+              Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.
             </p>
           </div>
           <Button asChild variant="brand" size="lg" className="h-11 px-6 font-semibold shrink-0">

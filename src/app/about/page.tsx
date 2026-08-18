@@ -60,7 +60,7 @@ export default function AboutPage() {
             reposts and staffing-firm duplicates, Intervu syncs directly with verified company career portals.
           </li>
           <li>
-            <strong>Active ghost-job screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
+            <strong>Active stale-posting screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
             when hiring has paused. Intervu monitors employer hiring velocity, ATS update timestamps, and posting age to
             protect you from dead-end applications.
           </li>

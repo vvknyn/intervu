@@ -42,7 +42,7 @@ function welcomeFeatures(siteUrl: string): WelcomeFeature[] {
     },
     {
       href: `${siteUrl}/jobs`,
-      label: "See the ghost-job screening",
+      label: "See the posting checks",
       blurb:
         "Every posting is screened for signs it isn't really open — reposts, stale dates, thin descriptions. Each role shows what we checked and what we couldn't.",
     },
