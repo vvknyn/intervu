@@ -2,6 +2,7 @@
 
 import { getServerUser, clearSessionCookie } from "@/lib/firebase/auth-session";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { runUserDataPlan } from "@/lib/db/user-data";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { usernameEmail } from "@/lib/auth/username-email";
@@ -122,8 +123,20 @@ export async function signOut() {
 }
 
 /**
- * Delete the current user's account and all associated data.
- * localStorage must be cleared client-side before calling this.
+ * Close the account and remove everything it owns.
+ *
+ * WHICH collections comes from `MIGRATION_MANIFEST` via `runUserDataPlan`,
+ * never from a list kept here. The literal list this replaced named nine
+ * collections and reached them only by a `user_id` field or the profile doc
+ * id, so closing an account left behind every saved resume version
+ * (`profiles/<uid>/resume_history`, which Firestore keeps even after the
+ * parent document is deleted), both `users/<uid>` subcollections, and every
+ * agent credential and pairing code. On 2026-08-18 six of the eight uids
+ * owning saved resumes had no Auth account left.
+ *
+ * ORDER MATTERS. Firestore first, Auth last. Deleting the Auth user first —
+ * as this did — means any later failure strands the remaining documents for
+ * good: the account is gone, so nobody can sign in to retry the sweep.
  */
 export async function deleteAccount(): Promise<{ error?: string }> {
     const user = await getServerUser();
@@ -133,56 +146,26 @@ export async function deleteAccount(): Promise<{ error?: string }> {
     }
 
     try {
-        const adminAuth = getAdminAuth();
         const db = getAdminDb();
         const uid = user.uid;
 
-        // Delete user from Firebase Auth
-        await adminAuth.deleteUser(uid);
+        const owned = await runUserDataPlan(uid, db);
+        const paths = Object.values(owned).flatMap((docs) => docs.map((d) => d.path));
 
-        // Delete all user data from Firestore collections
-        const collectionsToDelete = [
-            "profiles",
-            "stories",
-            "sources",
-            "applications",
-            "tailored_resumes",
-            "job_analyses",
-            "favorite_questions",
-            "interview_prep_cache",
-            "feedback",
-        ];
+        // 500 writes is Firestore's hard limit for one commit.
+        for (let i = 0; i < paths.length; i += 500) {
+            const batch = db.batch();
+            for (const path of paths.slice(i, i + 500)) batch.delete(db.doc(path));
+            await batch.commit();
+        }
 
-        const deletePromises = collectionsToDelete.map(async (collectionName) => {
-            if (collectionName === "profiles") {
-                // Profile doc ID is the user uid
-                await db.collection("profiles").doc(uid).delete();
-            } else {
-                // Other collections: query for documents belonging to this user
-                const snapshot = await db
-                    .collection(collectionName)
-                    .where("user_id", "==", uid)
-                    .get();
-
-                const batch = db.batch();
-                snapshot.docs.forEach((doc) => {
-                    batch.delete(doc.ref);
-                });
-                if (!snapshot.empty) {
-                    await batch.commit();
-                }
-            }
-        });
-
-        await Promise.all(deletePromises);
-
-        // Clear session cookie
+        await getAdminAuth().deleteUser(uid);
         await clearSessionCookie();
 
         return {};
-    } catch (error: any) {
+    } catch (error) {
         console.error("[Auth] Delete account error:", error);
-        return { error: error.message };
+        return { error: error instanceof Error ? error.message : "Failed to delete account" };
     }
 }
 
