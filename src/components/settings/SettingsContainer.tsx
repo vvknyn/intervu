@@ -11,7 +11,6 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, sendResetEmail, type User } from "@/lib/firebase/client-auth";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { SecureStorage } from "@/lib/security";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
@@ -99,7 +98,7 @@ export function SettingsContainer() {
 
     const handleSignOut = async () => {
         isSigningOut.current = true;
-        SecureStorage.clear();
+        localStorage.clear();
         await firebaseSignOut();
         window.location.href = "/";
     };

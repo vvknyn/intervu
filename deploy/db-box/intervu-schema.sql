@@ -93,6 +93,16 @@ CREATE INDEX IF NOT EXISTS "tailored_resumes_user_id_idx" ON "intervu"."tailored
 CREATE INDEX IF NOT EXISTS "tailored_resumes_created_at_idx" ON "intervu"."tailored_resumes" ("created_at");
 CREATE INDEX IF NOT EXISTS "tailored_resumes_job_analysis_id_idx" ON "intervu"."tailored_resumes" ("job_analysis_id");
 
+CREATE TABLE IF NOT EXISTS "intervu"."resume_history" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    uid         text GENERATED ALWAYS AS (split_part(path, '/', 2)) STORED,
+    saved_at    text GENERATED ALWAYS AS (doc->>'saved_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "resume_history_uid_idx" ON "intervu"."resume_history" ("uid");
+CREATE INDEX IF NOT EXISTS "resume_history_saved_at_idx" ON "intervu"."resume_history" ("saved_at");
+
 CREATE TABLE IF NOT EXISTS "intervu"."job_analyses" (
     path        text PRIMARY KEY,
     doc         jsonb NOT NULL,
@@ -130,6 +140,70 @@ CREATE TABLE IF NOT EXISTS "intervu"."contact_messages" (
 );
 CREATE INDEX IF NOT EXISTS "contact_messages_email_idx" ON "intervu"."contact_messages" ("email");
 CREATE INDEX IF NOT EXISTS "contact_messages_ts_idx" ON "intervu"."contact_messages" ("ts");
+
+CREATE TABLE IF NOT EXISTS "intervu"."stories" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    user_id     text GENERATED ALWAYS AS (doc->>'user_id') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "stories_user_id_idx" ON "intervu"."stories" ("user_id");
+CREATE INDEX IF NOT EXISTS "stories_created_at_idx" ON "intervu"."stories" ("created_at");
+
+CREATE TABLE IF NOT EXISTS "intervu"."sources" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    user_id     text GENERATED ALWAYS AS (doc->>'user_id') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "sources_user_id_idx" ON "intervu"."sources" ("user_id");
+CREATE INDEX IF NOT EXISTS "sources_created_at_idx" ON "intervu"."sources" ("created_at");
+
+CREATE TABLE IF NOT EXISTS "intervu"."favorite_questions" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    user_id     text GENERATED ALWAYS AS (doc->>'user_id') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "favorite_questions_user_id_idx" ON "intervu"."favorite_questions" ("user_id");
+CREATE INDEX IF NOT EXISTS "favorite_questions_created_at_idx" ON "intervu"."favorite_questions" ("created_at");
+
+CREATE TABLE IF NOT EXISTS "intervu"."interview_questions" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    user_id     text GENERATED ALWAYS AS (doc->>'user_id') STORED,
+    application_id text GENERATED ALWAYS AS (doc->>'application_id') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "interview_questions_user_id_idx" ON "intervu"."interview_questions" ("user_id");
+CREATE INDEX IF NOT EXISTS "interview_questions_application_id_idx" ON "intervu"."interview_questions" ("application_id");
+CREATE INDEX IF NOT EXISTS "interview_questions_created_at_idx" ON "intervu"."interview_questions" ("created_at");
+
+CREATE TABLE IF NOT EXISTS "intervu"."feedback" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    user_id     text GENERATED ALWAYS AS (doc->>'user_id') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "feedback_user_id_idx" ON "intervu"."feedback" ("user_id");
+CREATE INDEX IF NOT EXISTS "feedback_created_at_idx" ON "intervu"."feedback" ("created_at");
+
+CREATE TABLE IF NOT EXISTS "intervu"."connect_waitlist" (
+    path        text PRIMARY KEY,
+    doc         jsonb NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now(),
+    email       text GENERATED ALWAYS AS (doc->>'email') STORED,
+    client      text GENERATED ALWAYS AS (doc->>'client') STORED,
+    created_at  text GENERATED ALWAYS AS (doc->>'created_at') STORED
+);
+CREATE INDEX IF NOT EXISTS "connect_waitlist_email_idx" ON "intervu"."connect_waitlist" ("email");
+CREATE INDEX IF NOT EXISTS "connect_waitlist_client_idx" ON "intervu"."connect_waitlist" ("client");
+CREATE INDEX IF NOT EXISTS "connect_waitlist_created_at_idx" ON "intervu"."connect_waitlist" ("created_at");
 
 CREATE TABLE IF NOT EXISTS "intervu"."saved_searches" (
     path        text PRIMARY KEY,

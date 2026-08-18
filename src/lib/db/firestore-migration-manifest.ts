@@ -59,10 +59,13 @@ export interface CollectionSpec {
   collection: string;
   /** Table name inside `INTERVU_SCHEMA`. */
   table: string;
-  /** Set for `users/<uid>/<collection>` subcollections. The uid lives in
+  /** Set for `<parent>/<uid>/<collection>` subcollections. The uid lives in
    *  the PATH, not in the document, so it becomes a generated column read
-   *  back out of the path rather than something the exporter injects. */
-  subcollectionOf?: "users";
+   *  back out of the path rather than something the exporter injects.
+   *  Both consumers are parent-agnostic — the exporter walks a collection
+   *  GROUP and the DDL reads `split_part(path,'/',2)` — so the parent name
+   *  here is documentation of provenance, not a switch. */
+  subcollectionOf?: "users" | "profiles";
   indexed: readonly IndexedField[];
 }
 
@@ -134,6 +137,16 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
     ],
   },
   {
+    // profiles/<uid>/resume_history/<id> — every saved snapshot in the
+    // resume editor's version history. Added 2026-08-18: the feature landed
+    // one day after this manifest's data census, so a cutover run before
+    // this line would have silently left every saved version behind.
+    collection: "resume_history",
+    table: "resume_history",
+    subcollectionOf: "profiles",
+    indexed: [{ field: "saved_at", type: "text" }],
+  },
+  {
     collection: "job_analyses",
     table: "job_analyses",
     indexed: [
@@ -157,6 +170,64 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
     indexed: [
       { field: "email", type: "text" },
       { field: "ts", type: "text" },
+    ],
+  },
+
+  // --- user-authored content ----------------------------------------------
+  // All six were written by live code and absent from this manifest until
+  // 2026-08-18. `stories` and `sources` are deleted by user_id when an
+  // account is closed (actions/account.ts), which is the clearest proof they
+  // are user-owned data a cutover cannot drop.
+  {
+    collection: "stories",
+    table: "stories",
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "sources",
+    table: "sources",
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "favorite_questions",
+    table: "favorite_questions",
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "interview_questions",
+    table: "interview_questions",
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "application_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "feedback",
+    table: "feedback",
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    // Doc id is the email, so `path` already carries it; the field is
+    // indexed anyway because lookups are by address, not by path.
+    collection: "connect_waitlist",
+    table: "connect_waitlist",
+    indexed: [
+      { field: "email", type: "text" },
+      { field: "client", type: "text" },
+      { field: "created_at", type: "text" },
     ],
   },
 
@@ -220,6 +291,25 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
     ],
   },
 ];
+
+/**
+ * Collection names that appear in `db.collection(...)` calls but are
+ * deliberately NOT migrated, each with the reason. The guard in
+ * `tests/unit/firestore-migration-manifest.test.ts` derives the required set
+ * from the source rather than from a remembered list, so a new collection is
+ * a test failure until it is either migrated or listed here on purpose.
+ *
+ * This list is the only sanctioned way to omit something. It exists because
+ * the previous guard enumerated the five names someone thought to add, and
+ * seven collections written by live code sat outside the manifest for weeks
+ * without failing anything.
+ */
+export const NON_MIGRATED_COLLECTIONS: Readonly<Record<string, string>> = {
+  /** A path segment, not a collection of documents. Only its subcollections
+   *  (`savedSearches`, `followedCompanies`) hold data, and both are
+   *  migrated in their own right with `subcollectionOf: "users"`. */
+  users: "parent path segment; its subcollections are migrated separately",
+};
 
 export function columnNameFor(field: IndexedField): string {
   return field.column ?? field.field.toLowerCase();

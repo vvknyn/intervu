@@ -89,3 +89,33 @@ describe("downloadBlob has one definition", () => {
         }
     });
 });
+
+describe("deleting a saved version", () => {
+    const src = readFileSync(EDITOR, "utf8");
+
+    it("calls the server action rather than mutating local state only", () => {
+        assert.match(src, /deleteResumeVersionAction\(ver\.id\)/, "the delete must go through the server action");
+        assert.match(src, /import \{[\s\S]*?deleteResumeVersionAction/, "action must be imported");
+    });
+
+    it("confirms in-page instead of with a blocking browser dialog", () => {
+        // window.confirm freezes the page, cannot be styled, and in an
+        // automated browser it blocks every subsequent command.
+        assert.doesNotMatch(src, /window\.(confirm|alert|prompt)\s*\(/, "no native modal dialogs");
+        assert.match(src, /confirmDeleteId/, "expected a two-step inline confirm");
+    });
+
+    it("drops a diff baseline whose snapshot was just deleted", () => {
+        // Otherwise the preview keeps diffing against a version that no
+        // longer exists, with no way for the user to tell.
+        assert.match(
+            src,
+            /setCompareBaseline\(\(cur\) => \(cur\?\.id === ver\.id \? null : cur\)\)/,
+            "deleting the compared version must reset the baseline to the last saved resume",
+        );
+    });
+
+    it("removes the row from the list on success", () => {
+        assert.match(src, /setVersions\(\(prev\) => prev\.filter\(\(v\) => v\.id !== ver\.id\)\)/);
+    });
+});

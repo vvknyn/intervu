@@ -1,8 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import {
     MIGRATION_MANIFEST,
+    NON_MIGRATED_COLLECTIONS,
     columnNameFor,
     generatedExpressionFor,
 } from "@/lib/db/firestore-migration-manifest";
@@ -79,19 +83,61 @@ describe("firestore migration manifest", () => {
         assert.equal(columnNameFor({ field: "createdAt", type: "epoch_ms", column: "created_at_ms" }), "created_at_ms");
     });
 
-    // The three collections nothing has written to yet are exactly the ones
-    // a cutover would break on first use, so their absence must be a test
-    // failure rather than something noticed in production.
-    it("covers the collections live code writes but which are still empty", () => {
-        const tables = new Set(MIGRATION_MANIFEST.map((s) => s.table));
-        for (const required of [
-            "email_digest_state",
-            "email_suppressions",
-            "welcome_emails",
-            "saved_searches",
-            "followed_companies",
-        ]) {
-            assert.ok(tables.has(required), `manifest is missing ${required}`);
+    /**
+     * The manifest must cover every collection the code actually writes —
+     * including the ones still empty, which are exactly the ones a cutover
+     * breaks on first use.
+     *
+     * This used to enumerate five table names by hand. That is the failure
+     * mode it now exists to prevent: on 2026-08-18 SEVEN collections written
+     * by live code (`resume_history`, `stories`, `sources`,
+     * `favorite_questions`, `interview_questions`, `feedback`,
+     * `connect_waitlist`) were found outside the manifest, because a guard
+     * that checks remembered names can only ever check remembered names.
+     * The required set is now DERIVED from the source.
+     */
+    const collectionsInSource = (() => {
+        const found = new Set<string>();
+        const rx = /\.(?:collection|collectionGroup)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\)/g;
+        (function walk(dir: string) {
+            for (const entry of readdirSync(dir)) {
+                const full = join(dir, entry);
+                if (statSync(full).isDirectory()) walk(full);
+                else if (/\.tsx?$/.test(entry)) {
+                    const src = readFileSync(full, "utf8");
+                    for (const m of src.matchAll(rx)) found.add(m[1]);
+                }
+            }
+        })(join(process.cwd(), "src"));
+        return found;
+    })();
+
+    it("finds the collection references in src/", () => {
+        assert.ok(
+            collectionsInSource.size >= 15,
+            `only found ${collectionsInSource.size} collection references — the scan is not reaching src/`,
+        );
+    });
+
+    it("migrates every collection the code writes, or excludes it on purpose", () => {
+        const migrated = new Set(MIGRATION_MANIFEST.map((s) => s.collection));
+        const missing = [...collectionsInSource].filter(
+            (c) => !migrated.has(c) && !(c in NON_MIGRATED_COLLECTIONS),
+        );
+        assert.deepEqual(
+            missing,
+            [],
+            `these collections are written by src/ but neither migrated nor excluded: ${missing.join(", ")}. ` +
+                `Add them to MIGRATION_MANIFEST, or to NON_MIGRATED_COLLECTIONS with a reason.`,
+        );
+    });
+
+    it("does not carry exclusions for collections nothing references", () => {
+        for (const name of Object.keys(NON_MIGRATED_COLLECTIONS)) {
+            assert.ok(
+                collectionsInSource.has(name),
+                `${name} is excluded but no longer referenced in src/ — drop the exclusion`,
+            );
         }
     });
 });

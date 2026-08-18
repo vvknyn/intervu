@@ -7,7 +7,6 @@ import { Moon, Sun } from "@phosphor-icons/react";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
-import { SecureStorage } from "@/lib/security";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
@@ -81,7 +80,7 @@ export function TopBar() {
     if (hideNav) return null;
 
     const handleSignOut = async () => {
-        SecureStorage.clear();
+        localStorage.clear();
         await signOut();
         window.location.href = "/";
     };
