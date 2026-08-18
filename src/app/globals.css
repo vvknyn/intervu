@@ -271,13 +271,24 @@
      Tinting mattered too: these were rgba(15,23,42) slate against a purely
      neutral ramp (--foreground 10 10 10), so the app cast blue-grey shadows
      onto neutral surfaces. Moot at `none`, but that is why nothing here is
-     re-tinted instead of zeroed. */
+     re-tinted instead of zeroed.
+
+     The list below is EVERY key Tailwind ships in its default shadow scale
+     (node_modules/tailwindcss/theme.css), not every key this file happened to
+     define. Redefining only the latter is what let `shadow-2xl` keep casting
+     Tailwind's stock 0 25px 50px -12px on seven surfaces — a key nobody here
+     had ever written down was never a key the rule could reach. The guard in
+     tests/unit/design-language.test.ts reads that same framework file, so a
+     Tailwind release that adds a scale step fails the test instead of quietly
+     reintroducing elevation. */
   --shadow-2xs: none;
   --shadow-xs: none;
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
   --shadow-xl: none;
+  --shadow-2xl: none;
+  --shadow-inner: none;
 
   /* Strict 0px Carbon radius scale */
   --radius: 0px;

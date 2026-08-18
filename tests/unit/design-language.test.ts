@@ -72,6 +72,37 @@ test("elevation is none: every --shadow-* key resolves to none", () => {
     );
 });
 
+test("elevation is none: no key in Tailwind's scale is left undeclared", () => {
+    // The assertion above can only speak for keys this repo wrote down, and
+    // `shadow-2xl` was never written down — so Tailwind's stock
+    // `0 25px 50px -12px` kept rendering on seven surfaces while the file above
+    // it said elevation was none. Reading the framework's own theme means the
+    // rule covers keys nobody here has heard of yet, including ones a future
+    // Tailwind release adds.
+    const themeCss = readFileSync(
+        path.join(ROOT, "node_modules/tailwindcss/theme.css"),
+        "utf8",
+    );
+    const shipped = new Set(
+        [...themeCss.matchAll(/^\s*(--shadow-[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+    );
+    assert.ok(shipped.size > 0, "could not read Tailwind's default shadow scale");
+
+    const declared = new Set(
+        declarations(GLOBALS)
+            .filter((d) => d.name.startsWith("--shadow-"))
+            .map((d) => d.name),
+    );
+    const missing = [...shipped].filter((k) => !declared.has(k));
+
+    assert.deepEqual(
+        missing,
+        [],
+        `Tailwind ships ${missing.join(", ")} with a real shadow and globals.css never ` +
+            `overrides it, so those utilities still cast one. Add "<key>: none".`,
+    );
+});
+
 test("no token is named for a hue — names describe the role", () => {
     // `--green-tint-bg` held blue-50 for as long as the accent had been Klein
     // blue. A name that contradicts its value is how a retired colour gets

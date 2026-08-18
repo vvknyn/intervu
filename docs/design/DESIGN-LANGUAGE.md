@@ -80,20 +80,38 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   **Amended 2026-08-17.** The 2026-08-04 pass zeroed `sm/md/lg` in `:root`/`.dark` but left
   `2xs`, `xs` and `xl` at their live slate-tinted values in `@theme inline`, where no `:root`
   override existed to flatten them. `shadow-2xs` is the most-used shadow in the app (33 call
-  sites), so elevation was on the whole time this document said it was off. All six keys now
-  have exactly **one** declaration each, in `@theme inline`, all `none`. That matters beyond
-  tidiness: they had been declared twice with different values, and which one won depended on
-  Tailwind v4 hoisting `@theme` above `:root` — a cascade detail no reader should have to know.
+  sites), so elevation was on the whole time this document said it was off. Every key now has
+  exactly **one** declaration, in `@theme inline`, all `none`. That matters beyond tidiness: they
+  had been declared twice with different values, and which one won depended on Tailwind v4
+  hoisting `@theme` above `:root` — a cascade detail no reader should have to know.
   `--shadow-glow` was deleted outright: defined once, referenced nowhere, and still carrying the
   retired emerald.
 
-  **The one standing exception is `.glass-panel-raised`** (PR #219), the single focal surface per
-  page — currently `/jobs`' search line. It exists because a page whose every surface is
-  separated only by a 1px border gives the reader nothing to enter through, which is the defect
-  #219 was opened to fix ("it is just blending in the page"). It keeps its drop shadow; use it
-  **once per page**. Everything about it is now achromatic: its shadow, border and fill were
-  `rgba(15,23,42)` / slate-200 against a purely neutral ramp, so the focal panel of the app was
-  the bluest thing in it. Elevation is light, and light is grey here.
+  "Every key" means **every key Tailwind ships**, not every key this repo had written down. The
+  first pass zeroed the six that appeared in `globals.css` and missed `--shadow-2xl`, which was
+  never declared here at all — so Tailwind's stock `0 25px 50px -12px` went on rendering on seven
+  surfaces under a document that said elevation was off. `--shadow-2xl` and `--shadow-inner` are
+  now declared `none` too, and the guard derives its list from
+  `node_modules/tailwindcss/theme.css` so a future scale step fails a test rather than silently
+  reintroducing elevation.
+
+  **Two standing exceptions**, both in `globals.css` and both deliberate:
+  - `.glass-panel-raised` (PR #219), the single focal surface per page — currently `/jobs`' search
+    line. It exists because a page whose every surface is separated only by a 1px border gives the
+    reader nothing to enter through, which is the defect #219 was opened to fix ("it is just
+    blending in the page"). Use it **once per page**. Everything about it is now achromatic: its
+    shadow, border and fill were `rgba(15,23,42)` / slate-200 against a purely neutral ramp, so
+    the focal panel of the app was the bluest thing in it. Elevation is light, and light is grey
+    here.
+  - `.glass-panel` / `.glass-card` carry a soft `0 10px 30px` at 7% — glass over a flat fill has
+    no content to refract, so without it the panel degrades to a plain translucent rectangle.
+
+  Anything that floats over page content with **no scrim behind it** has to declare its own edge,
+  because it can no longer borrow one from the shadow scale. `SearchAutocomplete`'s dropdown is
+  the case that proved it: `border-border/50` over `bg-popover/95` was invisible the moment
+  `shadow-xl` went to `none`, and the results list underneath read straight through it. It is now
+  a full-strength `border-border-strong` on an opaque fill. Every other `shadow-2xl` site was
+  already safe — dialogs and sheets have scrims, and the banner is a `.glass-panel`.
 
   The `.glass-tint-*` chips keep hued shadows and are not a violation — theirs are `inset`
   sheens, which paint the surface rather than lift it. The `instrument-breathe` live pulse *was*
