@@ -7,11 +7,84 @@ import { test, expect } from '@playwright/test';
  * across all main pages.
  */
 
+/**
+ * Assert the page does not scroll sideways, and say WHAT is too wide when it
+ * does.
+ *
+ * This replaces a two-line `body.scrollWidth <= innerWidth + 20` that was
+ * copy-pasted per test. Three things were wrong with that shape:
+ *
+ *  - It reported "450 is not <= 410" and nothing else, so a failure told you
+ *    a page was broken but not which element to look at.
+ *  - `document.body.scrollWidth` is the wrong ruler; `documentElement` is what
+ *    actually scrolls.
+ *  - The 20px tolerance is a hole big enough for a real defect to sit in, and
+ *    it existed for no stated reason. 1px covers sub-pixel rounding.
+ *
+ * The offender list deliberately reports every element wider than the
+ * viewport, widest first. Elements that are merely `w-full` inside an
+ * already-widened document (a fixed nav, a full-bleed canvas) show up too —
+ * they are symptoms, and seeing them next to the true cause is what makes the
+ * cause obvious.
+ */
+async function expectNoHorizontalScroll(page: import('@playwright/test').Page, where: string) {
+  const report = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const offenders = [...document.querySelectorAll('*')]
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter(({ box }) => box.width > vw + 1 || box.right > vw + 1)
+      .sort((a, b) => b.box.right - a.box.right)
+      .slice(0, 5)
+      .map(({ el, box }) => ({
+        tag: el.tagName.toLowerCase(),
+        cls: (el.className?.toString?.() || '').slice(0, 70),
+        width: Math.round(box.width),
+        right: Math.round(box.right),
+        text: (el.textContent || '').trim().slice(0, 40),
+      }));
+    return { vw, scrollWidth: document.documentElement.scrollWidth, offenders };
+  });
+
+  expect(
+    report.scrollWidth,
+    `${where} scrolls sideways: document is ${report.scrollWidth}px wide in a ` +
+      `${report.vw}px viewport. Widest elements:\n` +
+      report.offenders
+        .map((o) => `  <${o.tag} class="${o.cls}"> w=${o.width} right=${o.right} — "${o.text}"`)
+        .join('\n'),
+  ).toBeLessThanOrEqual(report.vw + 1);
+}
+
 test.describe('MOBILE - Mobile Responsive Tests', () => {
   // Set mobile viewport for all tests in this group
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 }); // iPhone 13 dimensions
   });
+
+  /**
+   * TC-MOBILE-010: No public page scrolls sideways on a phone
+   *
+   * The regression that prompted this: `/jobs`' sector directory put a
+   * `truncate` (i.e. `white-space: nowrap`) description inside a flex column
+   * with no `min-w-0`, so the column refused to shrink below its full line
+   * width and pushed the document to 450px inside a 390px viewport. Every
+   * page then scrolled sideways — row numbers and metric chips off the left
+   * edge, descriptions off the right.
+   *
+   * TC-MOBILE-001 already asserted this for `/` alone and was failing; one
+   * page's assertion is not a rule. This walks the public surface so the next
+   * unshrinkable flex child is caught wherever it lands, not only where it
+   * landed last time.
+   */
+  for (const route of ['/jobs', '/', '/trends', '/connect', '/pricing']) {
+    test(`TC-MOBILE-010: ${route} does not scroll sideways on mobile`, async ({ page }) => {
+      await page.goto(route);
+      // The board is a client-rendered island; assert against the settled DOM,
+      // not the SSR shell, or this measures a spinner.
+      await page.waitForLoadState('networkidle');
+      await expectNoHorizontalScroll(page, route);
+    });
+  }
 
   /**
    * TC-MOBILE-001: Home page renders correctly on mobile
@@ -33,10 +106,7 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     // The board's own search input, not a waitlist email form.
     await expect(page.getByPlaceholder(/What kind of work/i)).toBeVisible();
 
-    // No horizontal scroll
-    const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
-    const viewportWidth = await page.evaluate(() => window.innerWidth);
-    expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20);
+    await expectNoHorizontalScroll(page, '/');
   });
 
   /**
@@ -192,9 +262,6 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
     await expect(page.getByRole('tab', { name: 'Gemini' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cursor' })).toBeVisible();
 
-    // No horizontal scroll (same pattern as TC-MOBILE-001).
-    const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
-    const viewportWidth = await page.evaluate(() => window.innerWidth);
-    expect(bodyWidth).toBeLessThanOrEqual(viewportWidth + 20);
+    await expectNoHorizontalScroll(page, '/connect');
   });
 });
