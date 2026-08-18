@@ -1,56 +1,180 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
-import { PACKS, ACTION_COSTS, APPLICATION_COST, applicationsPerPack, costPerApplication } from "@/lib/pricing";
+import { PACKS } from "@/lib/pricing";
+import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
+import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { buildPricingTiers, type PricingBullet } from "@/app/pricing/pricing-tiers";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 
-describe("costPerApplication()", () => {
-  it("derives exactly 50¢ from the starter pack's rate", () => {
-    // starter: $5 / 60 credits; APPLICATION_COST = tailor(4) + fit(2) = 6
-    // credits -> 5 * 6 / 60 = $0.50 -> "50¢". This is the number the /pricing
-    // "about fifty cents" line composes around.
-    assert.equal(costPerApplication(), "50¢");
-  });
-
-  it("moves if PACKS' starter rate changes (not a hardcoded literal)", () => {
-    // Sanity-check the derivation formula independently of the live constant,
-    // proving costPerApplication() is a function of PACKS/ACTION_COSTS and not
-    // a re-typed string. A starter pack priced at $10/60 credits would derive
-    // to $1.00 for the same 6-credit application.
-    const hypotheticalRate = 10 / 60;
-    const hypotheticalUsd = hypotheticalRate * APPLICATION_COST;
-    assert.equal(hypotheticalUsd, 1);
-  });
-});
-
-describe("applicationsPerPack()", () => {
-  it("floors to whole applications for the starter pack", () => {
-    // starter: 60 credits / 6 per application = 10 exactly.
-    const starter = PACKS.find((p) => p.id === "starter")!;
-    assert.equal(applicationsPerPack(starter), 10);
-  });
-
-  it("floors a non-exact division for the hunt pack", () => {
-    // hunt: 180 credits / 6 per application = 30 exactly (still checked to
-    // guard against a future ACTION_COSTS change breaking the ratio silently).
-    const hunt = PACKS.find((p) => p.id === "hunt")!;
-    assert.equal(applicationsPerPack(hunt), 30);
-  });
-
-  it("covers every pack with a non-negative integer result", () => {
-    for (const pack of PACKS) {
-      const n = applicationsPerPack(pack);
-      assert.ok(Number.isInteger(n) && n >= 0, `${pack.id} produced ${n}`);
-    }
-  });
-});
-
-describe("PACKS / ACTION_COSTS shape", () => {
+describe("PACKS shape", () => {
   it("every pack id is unique", () => {
     const ids = PACKS.map((p) => p.id);
     assert.equal(new Set(ids).size, ids.length);
   });
 
-  it("APPLICATION_COST is derived from ACTION_COSTS, not a separate literal", () => {
-    assert.equal(APPLICATION_COST, ACTION_COSTS.tailor + ACTION_COSTS.fit);
+  it("every pack has a positive price and credit amount", () => {
+    for (const pack of PACKS) {
+      assert.ok(pack.usd > 0, `${pack.id} has a non-positive usd`);
+      assert.ok(pack.credits > 0, `${pack.id} has a non-positive credit amount`);
+    }
+  });
+});
+
+// Regression coverage for the copy-drift bug: /pricing used to hand-type
+// numbers (free-credit count, apply cap) that could silently disagree with
+// what the app actually enforces. These assert the rendered bullet text is
+// composed FROM the enforcing constants, not a re-typed literal — so a
+// future change to any of the three constants is guaranteed to move the
+// copy, the same class of fix as the coins bullet that motivated this.
+describe("/pricing copy derives from the constants it describes", () => {
+  const bulletTexts = buildPricingTiers(null).flatMap((tier) => tier.bullets.map((b) => b.text));
+
+  it("states the real monthly coin allowance and per-action cost, not a hardcoded pair", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"));
+    assert.ok(coinsBullet, "expected a bullet mentioning coins");
+    assert.match(coinsBullet!, new RegExp(String(MONTHLY_FREE_CREDITS)));
+    assert.match(coinsBullet!, new RegExp(`${CREDITS_PER_ACTION} coin per AI action`));
+  });
+
+  it("states the real daily apply cap, not a hardcoded literal", () => {
+    const capBullet = bulletTexts.find((t) => t.includes("tracked applications a day"));
+    assert.ok(capBullet, "expected the daily-apply-cap bullet");
+    assert.match(capBullet!, new RegExp(String(DAILY_APPLY_CAP)));
+  });
+
+  it("never advertises prep or cover-letter generation as example actions (MCP-only, not coin-billed)", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
+    assert.doesNotMatch(coinsBullet, /\bprep\b/i);
+    assert.doesNotMatch(coinsBullet, /cover letter/i);
+  });
+
+  // Non-motivating case: the "about N actions a month" figure is itself a
+  // derived value (MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION), not a second
+  // hardcoded "40" — this is a different derivation than the coin/action
+  // pair the tests above cover, and would drift independently if someone
+  // retyped it.
+  it("states the free monthly action count as coins divided by cost, not a re-typed figure", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
+    const expectedActions = Math.floor(MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION);
+    assert.match(coinsBullet, new RegExp(`about ${expectedActions} AI actions a month`));
+  });
+
+  // The four real coin-spending actions must read as plain human capability
+  // descriptions, never as the implementation symbols that back them —
+  // leaking function/component names into marketing copy is the kind of
+  // thing a nurse reading this page shouldn't have to parse.
+  it("names the four coin-spending actions in plain language, not implementation symbols", () => {
+    const exampleBullet = bulletTexts.find((t) => t.startsWith("For example:"));
+    assert.ok(exampleBullet, "expected a bullet naming example AI actions");
+    for (const symbol of ["parseResumeWithAI", "parseStoriesFromText", "convertBlobToStar", "addInterviewQuestion"]) {
+      assert.doesNotMatch(exampleBullet!, new RegExp(symbol));
+    }
+    assert.match(exampleBullet!, /résumé/i);
+    assert.match(exampleBullet!, /interview question/i);
+  });
+});
+
+// Guard for the class of bug that shipped "Connect your AI — fit, tailoring,
+// prep run in YOUR AI": a bullet asserting an AI capability that no code
+// path actually reaches. Rather than a blocklist of invented-feature words
+// (which only catches the NEXT bullet if it happens to reuse one of today's
+// words), any bullet claiming a capability declares `backedBy: { module,
+// symbol }`, and this checks that symbol is (a) a real export of that
+// module and (b) actually imported by app/UI code — not merely present in
+// its own file, which is exactly the shape of a dead, unreachable export.
+const REPO_ROOT = join(__dirname, "..", "..");
+
+function sourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...sourceFiles(full));
+      continue;
+    }
+    if (/\.tsx?$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+function exportsSymbol(module: string, symbol: string): boolean {
+  const src = readFileSync(join(REPO_ROOT, module), "utf8");
+  return (
+    new RegExp(`export\\s+(?:async\\s+)?function\\s+${symbol}\\b`).test(src) ||
+    new RegExp(`export\\s+(?:const|class|interface|type)\\s+${symbol}\\b`).test(src) ||
+    new RegExp(`export\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}`).test(src)
+  );
+}
+
+/** Whole-word import of `symbol` from an `import { ... } from ...` list, in
+ * any file under src/app or src/components other than the module itself —
+ * i.e. genuinely wired into the app, not just declared. */
+function isImportedUnderAppOrComponents(module: string, symbol: string): boolean {
+  const modulePath = join(REPO_ROOT, module);
+  const importRe = new RegExp(`import\\s+(?:type\\s+)?\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*from`);
+  for (const dir of ["app", "components"]) {
+    for (const file of sourceFiles(join(REPO_ROOT, "src", dir))) {
+      if (file === modulePath) continue;
+      if (importRe.test(readFileSync(file, "utf8"))) return true;
+    }
+  }
+  return false;
+}
+
+describe("pricing bullets that claim an AI capability point at reachable code", () => {
+  const claims = buildPricingTiers(null)
+    .flatMap((tier) => tier.bullets)
+    .filter((b): b is PricingBullet & { backedBy: NonNullable<PricingBullet["backedBy"]> } => !!b.backedBy);
+
+  it("has at least one bullet declaring backedBy (guard isn't vacuous)", () => {
+    assert.ok(claims.length > 0, "expected the /connect bullet to declare backedBy");
+  });
+
+  it("every backedBy claim in the live pricing copy names a real, reachable export", () => {
+    for (const bullet of claims) {
+      const { module, symbol } = bullet.backedBy;
+      assert.ok(exportsSymbol(module, symbol), `${module} does not export ${symbol} (bullet: "${bullet.text}")`);
+      assert.ok(
+        isImportedUnderAppOrComponents(module, symbol),
+        `${symbol} from ${module} is never imported under src/app or src/components — "${bullet.text}" claims an unreachable capability`,
+      );
+    }
+  });
+
+  // Non-motivating case: a fabricated capability must fail this guard the
+  // same way "fit, tailoring, prep" should have. `generateCoverLetter` is a
+  // real, exported function (src/actions/cover-letter.ts) — it just has zero
+  // importers outside its own file, so nothing in the app can ever reach it.
+  it("rejects a bullet that cites a real but dead export as its backing", () => {
+    const fabricated: PricingBullet["backedBy"] = {
+      module: "src/actions/cover-letter.ts",
+      symbol: "generateCoverLetter",
+    };
+    assert.ok(exportsSymbol(fabricated!.module, fabricated!.symbol), "sanity: generateCoverLetter must actually exist for this case to prove anything");
+    assert.equal(
+      isImportedUnderAppOrComponents(fabricated!.module, fabricated!.symbol),
+      false,
+      "generateCoverLetter is now reachable from the app — this fixture no longer represents a dead export and should be replaced",
+    );
+  });
+});
+
+describe("/pricing corpus-count bullet derives from the same source as the rest of the site", () => {
+  it("renders the live count via formatCorpusCount when stats are available", () => {
+    const stats = { liveJobs: { kind: "exact" as const, value: 2_060_299 } };
+    const bullet = buildPricingTiers(stats).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
+    assert.ok(bullet);
+    assert.equal(bullet!.text, `Search ${formatCorpusCount(stats.liveJobs)} live verified jobs`);
+    assert.match(bullet!.text, /2,060,299/);
+  });
+
+  it("degrades to a count-free claim (never a stale or fabricated number) when stats are unavailable", () => {
+    const bullet = buildPricingTiers(null).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
+    assert.ok(bullet);
+    assert.equal(bullet!.text, "Search live verified jobs");
+    assert.doesNotMatch(bullet!.text, /\d/);
   });
 });
