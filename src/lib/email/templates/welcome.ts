@@ -1,4 +1,5 @@
-import { renderEmailShellHtml, renderEmailShellText } from "./base";
+import { ctaButton, renderEmailShellHtml, renderEmailShellText } from "./base";
+import { EMAIL_COLORS as C } from "./palette";
 
 export interface WelcomeEmailInput {
   /** Absolute site origin (`getSiteUrl()`) — every link below is built from
@@ -94,22 +95,43 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): { subject: string; 
     outroText,
   ].join("\n\n");
 
+  // Each feature is its own bordered row rather than a paragraph: five
+  // stacked <p>s read as one grey wall, and the label is the thing a reader
+  // scans for. The left rule in the brand colour is the only colour in the
+  // block, so the eye lands on the list rather than on the chrome.
   const bodyHtml = [
-    `<p style="margin:0 0 20px;">${intro}</p>`,
+    `<p style="margin:0 0 24px;">${intro}</p>`,
     ...features.map(
       (f) =>
-        `<p style="margin:0 0 16px;">` +
-        `<a href="${f.href}" style="color:#111;font-weight:600;text-decoration:underline;">${f.label}</a><br />` +
-        `<span style="color:#444;">${f.blurb}</span>` +
-        `</p>`,
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;">` +
+        `<tr><td style="border-left:3px solid ${C.brand};padding:2px 0 2px 14px;">` +
+        `<a href="${f.href}" style="font-size:15px;font-weight:600;color:${C.ink};text-decoration:none;">${f.label} &rarr;</a>` +
+        `<div style="margin-top:3px;font-size:14px;line-height:1.55;color:${C.muted};">${f.blurb}</div>` +
+        `</td></tr></table>`,
     ),
-    `<p style="margin:24px 0 0;color:#444;">${outroLead} ` +
-      `<a href="${contactUrl}" style="color:#111;text-decoration:underline;">Tell us</a>.</p>`,
+    ctaButton(`${input.siteUrl}/jobs`, "Start searching"),
+    `<p style="margin:0;font-size:14px;color:${C.muted};">${outroLead} ` +
+      `<a href="${contactUrl}" style="color:${C.brand};text-decoration:underline;">Tell us</a>.</p>`,
   ].join("");
 
   return {
     subject,
-    html: renderEmailShellHtml(bodyHtml, input.unsubscribeUrl),
-    text: renderEmailShellText(bodyText, input.unsubscribeUrl),
+    html: renderEmailShellHtml({
+      siteUrl: input.siteUrl,
+      unsubscribeUrl: input.unsubscribeUrl,
+      // Not a restatement of the subject: the two sit next to each other in
+      // the inbox list, so repeating it wastes the only other line of copy a
+      // reader sees before deciding whether to open.
+      preheader: "Postings straight from employers, screened for the ones that aren't really open.",
+      heading: "Welcome to intervu",
+      bodyHtml,
+    }),
+    text: renderEmailShellText({
+      siteUrl: input.siteUrl,
+      unsubscribeUrl: input.unsubscribeUrl,
+      preheader: "",
+      heading: "Welcome to intervu",
+      bodyText,
+    }),
   };
 }
