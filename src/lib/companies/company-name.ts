@@ -40,7 +40,7 @@
  * tokens, which is the shape "one brand, many qualified entities" makes in
  * any corpus. See that function for the safety argument.
  */
-import { cleanCompany } from "@/lib/jobs/presentation";
+import { cleanCompany, isCompanyPlaceholder } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** Provenance of a resolved name — never "we made this up". */
@@ -195,6 +195,14 @@ export function resolveCompanyName(
   const groups = new Map<string, NameGroup>();
 
   for (const job of jobs) {
+    // A row whose raw `company` is an ATS portal hostname or bare domain
+    // (e.g. "acme.applicantpro.com") isn't the corpus asserting a name — see
+    // `isCompanyPlaceholder`. `cleanCompany` still extracts a best-effort
+    // label from it ("Acme"), but treating that guess as corpus evidence is
+    // what let a placeholder outrank the true domain fallback ("Acme Corp"
+    // from acme-corp.com) and get labelled `corpus-cased` besides. Skipped
+    // here so such rows count for nothing, same as an empty name.
+    if (isCompanyPlaceholder(job.company)) continue;
     const name = cleanCompany(job.company);
     if (!name) continue;
     const key = name.toLowerCase();

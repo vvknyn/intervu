@@ -171,4 +171,18 @@ describe("companies/company-name — brand vs legal entity", () => {
     assert.equal(none.value, "Acme Corp");
     assert.equal(none.source, "domain");
   });
+
+  // Corpus measurement 2026-08-18: 429 live rows carry `company: "Checkout.Com"`
+  // — the employer's real name, styled like a domain, not an ATS-hostname
+  // placeholder. The `isCompanyPlaceholder` gate added above (so an ATS
+  // hostname can't outrank the domain fallback) also matches this shape, so
+  // every row is skipped as non-evidence — but the domain fallback lands on
+  // the SAME value ("Checkout") the pre-existing bare-domain TLD-strip
+  // already produced, so the gate causes no value regression here: only the
+  // (unread) provenance label changes, from a guessed "corpus-cased" to the
+  // more honest "domain".
+  it("resolves a domain-styled real brand name to the same value whether read as corpus evidence or as a domain fallback (checkout.com, live)", () => {
+    const resolved = resolveCompanyName(rows({ "Checkout.Com": 429 }), "checkout.com");
+    assert.equal(resolved.value, "Checkout");
+  });
 });

@@ -190,12 +190,51 @@ function tokenize(s: string): string[] {
  *      doesn't already carry.
  */
 /**
+ * Generic labels a company puts IN FRONT of its own name when it sets up a
+ * careers subdomain — "careers.algoleap.com", "jobs.acme.io" — carrying no
+ * brand information of their own. Stripped as a leading run (possibly
+ * several deep — "careers.jobs.acme" -> "acme") by `humanizeTenantSubdomain`
+ * below, never as a suffix or mid-string match, so a company whose own name
+ * happens to contain one of these words elsewhere is untouched. Exported so
+ * any future subdomain-humanizing code reuses this one list rather than
+ * drifting a second copy.
+ */
+export const GENERIC_SUBDOMAIN_PREFIXES = new Set([
+    "www",
+    "careers", "career",
+    "jobs", "job",
+    "apply",
+    "hire", "hiring",
+    "recruiting", "recruit",
+    "talent",
+    "work", "workforce",
+    "employment",
+    "opportunities",
+]);
+
+/** Drops a leading run of `GENERIC_SUBDOMAIN_PREFIXES` labels from a
+ *  dot-joined token — "careers.jobs.acme" -> "acme". Always leaves at least
+ *  one label standing: a token that is ENTIRELY generic words ("careers.jobs")
+ *  or has only one label to begin with ("careers") comes back unchanged
+ *  rather than stripped to nothing, since an empty/near-empty name is worse
+ *  than an imperfect one. */
+function stripGenericSubdomainPrefixes(token: string): string {
+    const labels = token.split(".");
+    let start = 0;
+    while (start < labels.length - 1 && GENERIC_SUBDOMAIN_PREFIXES.has(labels[start]!.toLowerCase())) {
+        start += 1;
+    }
+    return labels.slice(start).join(".");
+}
+
+/**
  * Extracts clean company brand names from raw ATS tenant domains or domain placeholders:
  * e.g. "zonenetwork.zohorecruit.com" -> "Zone Network"
  *      "sabenzait.zohorecruit.com" -> "Sabenza IT"
  *      "perspire.zohorecruit.com" -> "Perspire"
  *      "acme.workable.com" -> "Acme"
  *      "appmysite.com" -> "Appmysite"
+ *      "careers.algoleap" -> "Algoleap" (generic careers-subdomain prefix stripped)
  */
 export function humanizeTenantSubdomain(raw: string): string {
     const s = raw.trim();
@@ -205,6 +244,10 @@ export function humanizeTenantSubdomain(raw: string): string {
     let token = atsMatch ? atsMatch[1] : s;
 
     token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech)$/i, "");
+    // Runs after the TLD strip above so "careers.com" loses its TLD first
+    // (-> "careers", a single label the prefix-strip leaves alone) rather
+    // than being read as prefix "careers" + bare-TLD remainder "com".
+    token = stripGenericSubdomainPrefixes(token);
 
     if (/[-_]/.test(token)) {
         return token
@@ -227,16 +270,34 @@ export function humanizeTenantSubdomain(raw: string): string {
     return token.charAt(0).toUpperCase() + token.slice(1);
 }
 
+const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i;
+const BARE_DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
+
+/**
+ * True when a raw `company` string isn't real prose asserting a name at
+ * all — it's an ATS portal hostname ("acme.workable.com") or a bare domain
+ * used as a placeholder ("appmysite.com"), the two shapes `cleanCompany`
+ * below routes through `humanizeTenantSubdomain` instead of its normal
+ * cleanup. `cleanCompany` still extracts a best-effort display label from
+ * these (Defect 1's job: something is better than a raw hostname on
+ * screen), but a caller deciding whether the CORPUS actually asserted a name
+ * — `resolveCompanyName`'s tally — needs the sharper answer this gives:
+ * "no", so it can fall back to the domain-derived label honestly (`source:
+ * "domain"`) instead of presenting an extraction guess as corpus evidence.
+ * One predicate, two consumers, so they can't disagree about the shape.
+ */
+export function isCompanyPlaceholder(s: string | null | undefined): boolean {
+    const out = decodeText(s).trim();
+    if (!out) return false;
+    return ATS_PORTAL_HOSTNAME_RE.test(out) || (BARE_DOMAIN_RE.test(out) && !out.includes(" "));
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
 
     // ATS portal hostnames or bare domains -> extract humanized tenant name
-    if (/\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i.test(out)) {
-        return humanizeTenantSubdomain(out);
-    }
-    // Bare domain used as a company placeholder (e.g. "appmysite.com").
-    if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(out) && !out.includes(" ")) {
+    if (isCompanyPlaceholder(out)) {
         return humanizeTenantSubdomain(out);
     }
 
