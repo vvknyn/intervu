@@ -325,14 +325,21 @@ h4 {
 }
 
 /* Complete Tinted Glassmorphic Design System */
+/* The outer edge must be DARKER than the page, the inset sheen lighter.
+   This started as a white 0.6 border, which on our light ground
+   (--background is slate-50) is lighter than the page behind it — so the
+   edge erased itself and every glass surface read as a white rectangle on
+   a white page. Glass only refracts when there is content behind it to
+   refract; over a flat fill it degrades to a plain translucent panel, and
+   then the border and shadow are the only separators left. */
 .glass-panel,
 .glass-card {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 
-    0 10px 30px 0 rgba(0, 0, 0, 0.04),
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow:
+    0 10px 30px 0 rgba(15, 23, 42, 0.07),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
     inset 0 0 12px 0 rgba(255, 255, 255, 0.3);
 }
@@ -347,6 +354,34 @@ h4 {
     0 12px 36px 0 rgba(0, 0, 0, 0.45),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* The focal surface of a page — the one panel that has to read as the
+   primary action rather than merely be visible. Layers elevation on top of
+   the glass instead of replacing it: near-opaque fill so the panel is the
+   brightest thing on screen, a definite edge, and a real drop shadow that
+   lifts it off the ground. Stays achromatic so it does not compete with
+   the accent colours the content itself carries.
+
+   Use it ONCE per page. A spotlight that is everywhere is not a spotlight,
+   it is just a heavier default — which is how .glass-panel ended up
+   edgeless in the first place. */
+.glass-panel-raised {
+  background: rgba(226, 232, 240, 0.85);
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.08),
+    0 20px 44px -14px rgba(15, 23, 42, 0.3),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .glass-panel-raised {
+  background: rgba(24, 29, 39, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.5),
+    0 20px 48px -14px rgba(0, 0, 0, 0.8),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 /* Tinted Color Glass Variants */
