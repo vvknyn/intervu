@@ -33,11 +33,34 @@ test("null/undefined pass through as empty string", () => {
     assert.equal(cleanCompany(undefined), "");
 });
 
-test("strips ATS portal hostnames", () => {
-    assert.equal(cleanCompany("limble.applicantpro.com"), "");
-    assert.equal(cleanCompany("jobs.greenhouse.io"), "");
+// 2026-08-16 (bccde83): cleanCompany stopped blanking ATS-portal hostnames
+// and started extracting a best-effort tenant name instead — a blank name
+// next to a real favicon was the actual complaint (#150), and the module
+// doc above states this branch's job as "extract clean company brand
+// names," not blank them. What must never regress is the RAW ATS-portal
+// hostname leaking onto the screen verbatim.
+test("strips ATS portal hostnames, extracting a humanized tenant name rather than showing the raw hostname", () => {
+    const limble = cleanCompany("limble.applicantpro.com");
+    assert.equal(limble, "Limble");
+    assert.ok(!limble.includes("."), `must not leak the raw hostname, got ${JSON.stringify(limble)}`);
+
+    const greenhouse = cleanCompany("jobs.greenhouse.io");
+    assert.equal(greenhouse, "Jobs");
+    assert.ok(!greenhouse.includes("."), `must not leak the raw hostname, got ${JSON.stringify(greenhouse)}`);
 });
 
+// Unlike an ATS-portal hostname or a single-label brand-styled domain
+// (guard rail 5 below), a bare THREE-OR-MORE-LABEL domain with no
+// recognized ATS provider and no generic subdomain prefix carries no
+// reliable brand signal — "acme.example.com" could mean "Acme" (a
+// subdomain of some portal at example.com) or "Example" (the registrable
+// domain, "acme" an internal product/region label), and there's no way to
+// tell which. Guessing either presents an unverified name as fact, which
+// fails harder than an empty gap. humanizeTenantSubdomain enforces this: an
+// unresolved multi-label remainder returns "" rather than the malformed,
+// still-dotted guess it produced before this fix ("Acme.example") — itself
+// just the raw-hostname leak this whole extraction exists to stop, merely
+// capitalized.
 test("strips bare domain placeholders", () => {
     assert.equal(cleanCompany("acme.example.com"), "");
 });
@@ -54,12 +77,18 @@ test("strips leading C-prefix codes", () => {
     assert.equal(cleanCompany("C0001 Widget Corp"), "Widget Corp");
 });
 
-test("displayCompany falls back to the domain when the name is bare-domain-shaped", () => {
-    assert.equal(displayCompany("Bill.com", "bill.com"), "bill.com");
+// cleanCompany's own placeholder-extraction (bccde83) already resolves a
+// bare-domain-shaped name to a humanized brand — displayCompany's domain
+// argument here is a second signal that happens to agree, not the thing
+// producing the value. What the test guards is unchanged: the label must
+// never fall back to the raw domain string ("bill.com" reads as a URL, not
+// a company name).
+test("displayCompany extracts a humanized brand, not the raw domain string, when the name is bare-domain-shaped", () => {
+    assert.equal(displayCompany("Bill.com", "bill.com"), "Bill");
 });
 
-test("displayCompany falls back to the domain when the name is an ATS portal hostname", () => {
-    assert.equal(displayCompany("acme.applicantpro.com", "acme.com"), "acme.com");
+test("displayCompany extracts a humanized brand, not the raw domain string, when the name is an ATS portal hostname", () => {
+    assert.equal(displayCompany("acme.applicantpro.com", "acme.com"), "Acme");
 });
 
 test("displayCompany passes through a real cleaned name unchanged", () => {
@@ -74,8 +103,19 @@ test("displayCompany returns empty string when both name and domain are absent",
     assert.equal(displayCompany(null, null), "");
 });
 
-test("displayCompany fixes the reported bug: a domain-shaped brand name no longer contradicts the rendered favicon", () => {
-    assert.equal(displayCompany("Super.Com", "super.com"), "super.com");
+// #150's original fix made displayCompany fall back to the raw domain
+// STRING ("super.com") so the label could never visually disagree with
+// itself. Right call at the time — but the favicon it was protecting
+// (CompanyLogo.tsx -> companyLogoUrl, lib/companies/logo.ts) is an <img>
+// fetched from Google's favicon service: an ICON, not rendered text. An
+// icon can't "contradict" a text label the way a blank/"Unknown company"
+// label next to a real logo did (the actual #150 bug — see its commit
+// message). bccde83 (2026-08-16) moved the fallback from the raw domain to
+// a humanized brand for exactly that reason: "super.com" reads as a URL,
+// not a company name, and it's the same domain-styled-brand shape guard
+// rail 5 below already resolves the same way (Checkout.Com -> "Checkout").
+test("displayCompany fixes the reported bug: a blank or raw-domain company name no longer sits next to the rendered favicon", () => {
+    assert.equal(displayCompany("Super.Com", "super.com"), "Super");
 });
 
 // displayCompanyName — /co/[slug]'s display-name suffix strip. Runs on top

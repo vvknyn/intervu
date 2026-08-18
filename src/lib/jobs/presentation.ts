@@ -249,6 +249,16 @@ export function humanizeTenantSubdomain(raw: string): string {
     // than being read as prefix "careers" + bare-TLD remainder "com".
     token = stripGenericSubdomainPrefixes(token);
 
+    // A dot surviving here means none of the three brand-identifying signals
+    // above (ATS-tenant match, recognized TLD suffix, known generic prefix)
+    // resolved this to one label — e.g. "acme.example.com" -> "acme.example":
+    // is "acme" a subdomain-brand, or "example" the registrable-domain
+    // brand? There's no way to tell. Guessing either presents an unverified
+    // name as fact; the raw multi-label remainder itself is just the
+    // hostname noise this function exists to strip, capitalized. Return
+    // empty rather than a still-dotted, still-hostname-shaped guess.
+    if (token.includes(".")) return "";
+
     if (/[-_]/.test(token)) {
         return token
             .split(/[-_]+/)
