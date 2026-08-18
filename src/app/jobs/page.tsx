@@ -11,9 +11,11 @@ import {
     CaretUp,
     FunnelSimple,
     MapPin,
+    X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -81,7 +83,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMarketingShowcase, LandingMasthead } from "@/components/jobs/LandingMarketingShowcase";
+import { LandingMarketingShowcase, LandingMasthead, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     toggleFacetValue,
@@ -3288,17 +3290,19 @@ function JobsContent() {
 
                     {/* Category & Persona Discovery Micro-Pills */}
                     <div className="mt-2 flex flex-wrap items-center gap-1 pt-1.5 border-t border-border/70">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">INDEX:</span>
-                        {[
-                            { label: "Engineering", q: "Software Engineer" },
-                            { label: "AI & ML", q: "Machine Learning AI" },
-                            { label: "Product", q: "Product Manager" },
-                            { label: "Design", q: "Product Designer UI UX" },
-                        ].map((cat) => {
+                        {/* Field chips: REPLACE the query (radio-like), one click = one search.
+                            Sourced from `indexCategories` — the same single source of truth as
+                            the field directory rendered lower on this page in
+                            LandingMarketingShowcase.tsx. Never restate this list here; the
+                            `domain` field is that export's short display tag (already rendered
+                            as `[{cat.domain}]` next to each directory row), reused here for its
+                            brevity — the full `title` prose lives in the directory below, where
+                            there's room for it. */}
+                        {indexCategories.map((cat) => {
                             const isMatch = query.toLowerCase() === cat.q.toLowerCase();
                             return (
                                 <button
-                                    key={cat.label}
+                                    key={cat.num}
                                     type="button"
                                     onClick={() => submitSearch(cat.q)}
                                     className={cn(
@@ -3308,45 +3312,54 @@ function JobsContent() {
                                             : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                                     )}
                                 >
-                                    {cat.label}
+                                    {cat.domain}
                                 </button>
                             );
                         })}
+                        <Separator orientation="vertical" className="h-3" />
+                        {/* Filter toggles: TOGGLE + persist filter state (checkbox-like). The
+                            trailing "x" on the active state is the standard dismiss affordance —
+                            it's what tells these apart from the field chips above, which never
+                            show one because clicking them replaces the query instead of
+                            toggling a filter. */}
                         <button
                             type="button"
                             onClick={() => panelToggleFacet("work_type", "remote")}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 facets.work_type?.includes("remote")
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                             )}
                         >
                             Remote
+                            {facets.work_type?.includes("remote") ? <X size={9} weight="bold" aria-hidden /> : null}
                         </button>
                         <button
                             type="button"
                             onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 salaryMin === 150000
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                             )}
                         >
                             $150k+
+                            {salaryMin === 150000 ? <X size={9} weight="bold" aria-hidden /> : null}
                         </button>
                         <button
                             type="button"
                             onClick={() => onBoardChange(board === "elite" ? null : "elite")}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 board === "elite"
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                             )}
                         >
                             Tier-1 Tech
+                            {board === "elite" ? <X size={9} weight="bold" aria-hidden /> : null}
                         </button>
                     </div>
                 </section>
