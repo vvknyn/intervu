@@ -99,7 +99,11 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
         { text: "Posting check on every role" },
         { text: "Application tracker" },
         {
-          text: `${MONTHLY_FREE_CREDITS} free coins a month — ${CREDITS_PER_ACTION} coin per AI action, like ranking your job list against your résumé`,
+          text: `${MONTHLY_FREE_CREDITS} free coins a month — ${CREDITS_PER_ACTION} coin per AI action, so about ${Math.floor(MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION)} AI actions a month.`,
+        },
+        {
+          text: "For example: rank your job list against your résumé, import your stories from pasted text, turn a rough note into a full story, or draft an interview question.",
+          backedBy: { module: "src/actions/resume.ts", symbol: "parseResumeWithAI" },
         },
         {
           text: "Connect your AI — search and save jobs, track applications, read and update your résumé, right from YOUR AI",

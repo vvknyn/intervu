@@ -50,6 +50,31 @@ describe("/pricing copy derives from the constants it describes", () => {
     assert.doesNotMatch(coinsBullet, /\bprep\b/i);
     assert.doesNotMatch(coinsBullet, /cover letter/i);
   });
+
+  // Non-motivating case: the "about N actions a month" figure is itself a
+  // derived value (MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION), not a second
+  // hardcoded "40" — this is a different derivation than the coin/action
+  // pair the tests above cover, and would drift independently if someone
+  // retyped it.
+  it("states the free monthly action count as coins divided by cost, not a re-typed figure", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
+    const expectedActions = Math.floor(MONTHLY_FREE_CREDITS / CREDITS_PER_ACTION);
+    assert.match(coinsBullet, new RegExp(`about ${expectedActions} AI actions a month`));
+  });
+
+  // The four real coin-spending actions must read as plain human capability
+  // descriptions, never as the implementation symbols that back them —
+  // leaking function/component names into marketing copy is the kind of
+  // thing a nurse reading this page shouldn't have to parse.
+  it("names the four coin-spending actions in plain language, not implementation symbols", () => {
+    const exampleBullet = bulletTexts.find((t) => t.startsWith("For example:"));
+    assert.ok(exampleBullet, "expected a bullet naming example AI actions");
+    for (const symbol of ["parseResumeWithAI", "parseStoriesFromText", "convertBlobToStar", "addInterviewQuestion"]) {
+      assert.doesNotMatch(exampleBullet!, new RegExp(symbol));
+    }
+    assert.match(exampleBullet!, /résumé/i);
+    assert.match(exampleBullet!, /interview question/i);
+  });
 });
 
 // Guard for the class of bug that shipped "Connect your AI — fit, tailoring,
