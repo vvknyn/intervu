@@ -9,7 +9,9 @@ const E2E_CREDITS_COOKIE = "intervu_e2e_credits";
 async function readE2EMockCredits(): Promise<{
     isAdmin: boolean;
     isBYOK: boolean;
-    credits: number;
+    allowance: number;
+    earned: number;
+    total: number;
     monthlyFree: number;
 } | null> {
     if (process.env.NODE_ENV === "production") return null;
@@ -26,14 +28,20 @@ async function readE2EMockCredits(): Promise<{
  * Current user's AI-credit state for the balance indicator.
  *  - isAdmin: unlimited shared-model use (vvk / allowlist).
  *  - isBYOK:  uses their own key → credits don't apply (never charged).
- *  - credits: remaining free generations this month (only meaningful when
- *    !isAdmin && !isBYOK). Infinity (admin) is coerced away so it survives
- *    server-action serialization; the client keys off the flags instead.
+ *  - allowance: remaining free generations this month (resets monthly).
+ *  - earned: permanent credits (referral rewards, welcome grant, future
+ *    purchases) that never reset.
+ *  - total: allowance + earned — what a spend actually draws against.
+ *    (Only meaningful when !isAdmin && !isBYOK. Infinity (admin) is coerced
+ *    away so it survives server-action serialization; the client keys off
+ *    the flags instead.)
  */
 export async function getMyCreditsAction(): Promise<{
     isAdmin: boolean;
     isBYOK: boolean;
-    credits: number;
+    allowance: number;
+    earned: number;
+    total: number;
     monthlyFree: number;
 }> {
     const e2eMock = await readE2EMockCredits();
@@ -43,7 +51,9 @@ export async function getMyCreditsAction(): Promise<{
     return {
         isAdmin: state.isAdmin,
         isBYOK: Boolean(userKey),
-        credits: Number.isFinite(state.credits) ? state.credits : 0,
+        allowance: Number.isFinite(state.allowance) ? state.allowance : 0,
+        earned: state.earned,
+        total: Number.isFinite(state.total) ? state.total : 0,
         monthlyFree: state.monthlyFree,
     };
 }

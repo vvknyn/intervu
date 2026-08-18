@@ -6,7 +6,7 @@ import { Coins, Sparkle, Key } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
 import { cn } from "@/lib/utils";
 
-type CreditState = { isAdmin: boolean; isBYOK: boolean; credits: number; monthlyFree: number };
+type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
 
 /**
  * Sidebar AI-credit indicator. Reads the current user's credit state once on
@@ -28,11 +28,17 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
 
     if (!s) return null;
 
-    // icon + short label + optional tone, per account kind.
+    // icon + short label + optional tone, per account kind. The total is what
+    // a spend actually draws against; the tooltip discloses the allowance/
+    // earned split so a balance that doesn't reset on the 1st isn't a
+    // surprise.
     let Icon = Coins;
-    let label = `${s.credits} credit${s.credits === 1 ? "" : "s"}`;
-    let title = `${s.credits} of ${s.monthlyFree} free AI credits left this month.`;
-    let low = !s.isAdmin && !s.isBYOK && s.credits <= 2;
+    let label = `${s.total} credit${s.total === 1 ? "" : "s"}`;
+    let title = `${s.allowance} of ${s.monthlyFree} free AI credits left this month.`;
+    if (s.earned > 0) {
+        title += ` Plus ${s.earned} earned credit${s.earned === 1 ? "" : "s"} that never expire.`;
+    }
+    let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
 
     if (s.isAdmin) {
         Icon = Sparkle;
