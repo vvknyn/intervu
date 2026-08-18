@@ -109,10 +109,50 @@ test("displayCompanyName strips other comma-form suffixes from the list (LLC, Lt
     assert.equal(displayCompanyName("Muster, GmbH"), "Muster");
 });
 
-test("displayCompanyName strips the bare 'Limited' form but leaves a bare 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
+test("displayCompanyName strips the bare 'Limited' form but leaves a bare, unpunctuated 'Ltd'/'Corp' (not in the bare-word list) intact", () => {
     assert.equal(displayCompanyName("Acme Limited"), "Acme");
     assert.equal(displayCompanyName("Acme Ltd"), "Acme Ltd");
     assert.equal(displayCompanyName("Acme Corp"), "Acme Corp");
+});
+
+// Live production evidence, 2026-08-18: `q=qualys` returned three different-
+// looking company labels on ONE results page — a user reads that as three
+// employers, not one under three legal spellings. All three forms strip to
+// the same brand (or, for the third, to the same NON-brand root the class
+// change is scoped to — see the module doc's note on brand-root unification
+// being explicitly out of scope).
+test("displayCompanyName strips all three real Qualys legal-entity forms", () => {
+    assert.equal(displayCompanyName("Qualys, Inc."), "Qualys");
+    assert.equal(displayCompanyName("Qualys Ltd."), "Qualys");
+    assert.equal(displayCompanyName("Qualys Security TechServices Private Ltd."), "Qualys Security TechServices");
+});
+
+// cleanCompany (the grouping/counting/slug/tally value) must NOT move —
+// only displayCompanyName's presentation layer changed.
+test("cleanCompany keeps the suffixed form for all three Qualys strings — grouping/tally is unaffected", () => {
+    assert.equal(cleanCompany("Qualys, Inc."), "Qualys, Inc.");
+    assert.equal(cleanCompany("Qualys Ltd."), "Qualys Ltd.");
+    assert.equal(cleanCompany("Qualys Security TechServices Private Ltd."), "Qualys Security TechServices Private Ltd.");
+});
+
+// The bare-form vocabulary generalizes past Qualys/Inc./Limited — an Indian
+// "Pvt Ltd" and a German "GmbH", neither hand-picked before this change.
+test("displayCompanyName strips bare legal forms class-wide, not just the two originally hand-picked", () => {
+    assert.equal(displayCompanyName("Nimbus Solutions Pvt Ltd"), "Nimbus Solutions");
+    assert.equal(displayCompanyName("Muster Systeme GmbH"), "Muster Systeme");
+});
+
+// Negatives the growth must not touch.
+test("displayCompanyName negatives survive the widened bare-form vocabulary untouched", () => {
+    // A legal-form word that opens the name, not closes it — end-anchored,
+    // so mere containment is never enough.
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+    assert.equal(displayCompanyName("Limited Brands"), "Limited Brands");
+    // A name that IS only a legal form: stripping the trailing "Ltd." would
+    // leave "Private", which is itself just another legal-form word — the
+    // general remainder-purity rule rejects that, not a hand-picked
+    // exception for this one string.
+    assert.equal(displayCompanyName("Private Ltd."), "Private Ltd.");
 });
 
 test("displayCompanyName matches case-insensitively", () => {
