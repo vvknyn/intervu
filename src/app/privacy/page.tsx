@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How intervu collects, uses, and protects your data.";
@@ -61,11 +62,26 @@ export default function PrivacyPage() {
         </p>
 
         <h2>How we use it</h2>
-        <p>
-          We use your account data to run the product: to show your tracked applications, keep your resumes and
-          prep answers where you left them, and apply your credit balance when you use a paid feature. That&apos;s
-          it — we don&apos;t use your data to train models, and we don&apos;t build advertising profiles.
-        </p>
+        {/* Reads the same switch /terms and /pricing do. While beta is on, no
+            feature draws on a balance and there is nothing to buy, so naming a
+            "paid feature" here would describe a charge the product cannot
+            levy — and a privacy policy is the worst place to be approximately
+            true. The metered wording is kept, not deleted, so it is correct
+            again the day the switch flips. */}
+        {BETA_UNLIMITED_CREDITS ? (
+          <p>
+            We use your account data to run the product: to show your tracked applications and keep your resumes and
+            prep answers where you left them. AI features are free while intervu is in beta, so nothing you do draws
+            on a balance. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
+            advertising profiles.
+          </p>
+        ) : (
+          <p>
+            We use your account data to run the product: to show your tracked applications, keep your resumes and
+            prep answers where you left them, and apply your credit balance when you use a paid feature. That&apos;s
+            it — we don&apos;t use your data to train models, and we don&apos;t build advertising profiles.
+          </p>
+        )}
 
         <h2>AI processing</h2>
         <p>
