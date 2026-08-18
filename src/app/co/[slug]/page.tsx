@@ -94,7 +94,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(companyJsonLd) }}
       />
       <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
-        <nav className="mx-auto max-w-6xl xl:max-w-7xl font-mono text-xs text-muted-foreground">
+        <nav className="mx-auto max-w-6xl xl:max-w-7xl text-xs text-muted-foreground">
           <Link href="/jobs" className="text-brand hover:underline">
             Find jobs
           </Link>
@@ -115,12 +115,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               {isElite && (
-                <span className="rounded border border-brand/20 bg-brand/10 px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-brand">
+                <span className="rounded border border-brand/20 bg-brand/10 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-brand">
                   Elite
                 </span>
               )}
               {data.stage && (
-                <span className="rounded border border-border bg-chip px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="rounded border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {data.stage}
                 </span>
               )}
@@ -145,7 +145,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           data-testid="company-hiring-answer"
           className="mb-6 rounded-2xl border border-border bg-card px-6 py-5 shadow-xs"
         >
-          <h2 className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+          <h2 className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Is {data.name} hiring?
           </h2>
           <p className="mt-2 flex items-center gap-2 font-display text-[20px] sm:text-[22px] font-semibold leading-snug">
@@ -154,11 +154,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             )}
             {hiring.headline}
           </p>
-          <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
             {hiring.trackRecord}
           </p>
           {hiring.freshness && (
-            <p className="mt-1 font-mono text-[12px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
               {hiring.freshness}
             </p>
           )}
@@ -203,7 +203,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             never observed — so it renders only when there is a track record
             for it to describe. */}
         {data.hasTrackRecord && (
-          <p className="mt-6 rounded-2xl bg-chip px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-6 rounded-2xl bg-chip px-4 py-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
             Metrics derived from observed job postings over 90 days — not fundraising data, employee
             reviews, or third-party valuations.
           </p>
@@ -216,10 +216,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
 function Kpi({ value, label }: { value: string; label: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card px-4 py-4 text-center shadow-xs">
-      <span className="inline-block border-b-[3px] border-brand pb-1 font-mono text-[26px] font-medium tracking-tight">
+      <span className="inline-block border-b-[3px] border-brand pb-1 text-[26px] font-medium tracking-tight">
         {value}
       </span>
-      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+      <div className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
     </div>

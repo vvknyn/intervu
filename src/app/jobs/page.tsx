@@ -237,7 +237,7 @@ function SortSegment({
             aria-pressed={pressed}
             onClick={onClick}
             className={cn(
-                "h-7 px-3 rounded-md font-mono text-[11px] font-bold uppercase tracking-wider transition-all duration-150",
+                "h-7 px-3 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all duration-150",
                 pressed
                     ? "bg-white text-slate-950 shadow-xs dark:bg-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
                     : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white"
@@ -319,7 +319,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
             data-testid="browse-seed-row"
             className="mb-4 flex flex-wrap items-center gap-1.5 text-left"
         >
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">Popular searches:</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">Popular searches:</span>
             {seeds.map((seed) => (
                 <button
                     key={seed}
@@ -373,10 +373,10 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /* ----------------------------- ledger row ----------------------------- */
 
 /** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 font-mono text-[10.5px] leading-tight font-medium glass-tint-muted transition-colors";
+const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 text-[10.5px] leading-tight font-medium glass-tint-muted transition-colors";
 
 /** Shared shape of the row's trust chip — only the color and the words differ per state. */
-const TRUST_CHIP_BOX = "leading-none inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.04em]";
+const TRUST_CHIP_BOX = "leading-none inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]";
 
 /**
  * How each `rowTrustChip` state looks and reads — one table instead of one
@@ -573,24 +573,24 @@ function JobCard({
             </span>
             <div className="col-span-full flex flex-wrap items-center gap-1.5 pt-0.5">
                 {salary && (
-                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 font-mono text-[10.5px] overflow-hidden">
+                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-[10.5px] overflow-hidden">
                         <span className="bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
                         <span className="px-1.5 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
                     </span>
                 )}
-                <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
                     <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LOCATION</span>
                     <span className="px-1.5 py-0.5 font-medium text-foreground">{locationLine}</span>
                 </span>
                 {level && (
-                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
                         <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LEVEL</span>
                         <span className="px-1.5 py-0.5 font-medium text-foreground">{level}</span>
                     </span>
                 )}
                 {age && (
                     <span className={cn(
-                        "inline-flex items-center rounded-none border font-mono text-[10.5px] overflow-hidden",
+                        "inline-flex items-center rounded-none border text-[10.5px] overflow-hidden",
                         relisted ? "border-amber-500/40 bg-amber-500/10" : "border-border/80 bg-background/50"
                     )}>
                         <span className={cn(
@@ -605,13 +605,13 @@ function JobCard({
                 {employment &&
                     employment.toLowerCase() !== "full-time" &&
                     employment.toLowerCase() !== "full time" && (
-                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 font-mono text-[10.5px] overflow-hidden">
+                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
                             <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">TYPE</span>
                             <span className="px-1.5 py-0.5 font-medium text-foreground">{employment}</span>
                         </span>
                     )}
                 {!salary && (
-                    <span className="inline-flex items-center rounded-none border border-dashed border-border/80 bg-background/40 font-mono text-[10px] text-muted-foreground px-2 py-0.5">
+                    <span className="inline-flex items-center rounded-none border border-dashed border-border/80 bg-background/40 text-[10px] text-muted-foreground px-2 py-0.5">
                         pay undisclosed
                     </span>
                 )}
@@ -759,7 +759,7 @@ function JobCardSkeleton() {
 function JobsListSplash() {
     return (
         <div>
-            <p className="pt-8 font-mono text-[13px] text-muted-foreground">
+            <p className="pt-8 text-[13px] text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>
             <div className="mt-2">
@@ -850,7 +850,7 @@ function ActiveFilterActions({
     const hasFilters = entries.length > 0;
     if (!hasQuery && !hasFilters && !locationDefault) return null;
     return (
-        <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground", className)}>
+        <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground", className)}>
             {hasFilters && onClearFilters && (
                 <button
                     type="button"
@@ -951,7 +951,7 @@ function EmptyResults({
                 <button
                     type="button"
                     onClick={onRevealGhosts}
-                    className="mt-2 font-mono text-xs text-foreground underline underline-offset-2"
+                    className="mt-2 text-xs text-foreground underline underline-offset-2"
                 >
                     {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
@@ -1007,12 +1007,12 @@ function ListTail({
                 // corpus ran out. Saying "reached the end" here would
                 // print the real, bigger total right next to a claim
                 // that's false for it — see `resolveEndOfListState`.
-                <p className="font-mono text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground/70">
                     Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
                     {formatCorpusCount(totalCount)} — add a search or filter to narrow.
                 </p>
             ) : (
-                <p className="font-mono text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground/70">
                     You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
                     {totalCount.value === 1 ? "role" : "roles"}.
                 </p>
@@ -3219,7 +3219,7 @@ function JobsContent() {
                                     seeds={searchSeeds}
                                     placeholder={searchPlaceholder}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
-                                    className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
+                                    className="h-11 sm:h-[46px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
                                 />
                                 {/* NOT `results-clear-query` — that is the toolbar's
@@ -3236,7 +3236,7 @@ function JobsContent() {
                                             setQueryDraft("");
                                             submitSearch("");
                                         }}
-                                        className="absolute right-2.5 flex h-6 w-6 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground font-mono text-xs z-10"
+                                        className="absolute right-2.5 flex h-6 w-6 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground text-xs z-10"
                                         title="Clear query"
                                     >
                                         ✕
@@ -3265,7 +3265,7 @@ function JobsContent() {
                                             commitLocation();
                                         }
                                     }}
-                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
                                 />
                             </div>
                         </div>
@@ -3273,7 +3273,7 @@ function JobsContent() {
                             <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
-                                className="h-11 sm:h-[46px] w-full rounded-none bg-foreground px-6 text-xs font-mono font-bold uppercase tracking-wider text-background hover:bg-foreground/90 sm:w-auto transition-colors"
+                                className="h-11 sm:h-[46px] w-full rounded-none bg-foreground px-6 text-xs font-bold uppercase tracking-wider text-background hover:bg-foreground/90 sm:w-auto transition-colors"
                             >
                                 Search
                             </Button>
@@ -3288,7 +3288,7 @@ function JobsContent() {
 
                     {/* Category & Persona Discovery Micro-Pills */}
                     <div className="mt-2 flex flex-wrap items-center gap-1 pt-1.5 border-t border-border/70">
-                        <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">INDEX:</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">INDEX:</span>
                         {[
                             { label: "Engineering", q: "Software Engineer" },
                             { label: "AI & ML", q: "Machine Learning AI" },
@@ -3302,7 +3302,7 @@ function JobsContent() {
                                     type="button"
                                     onClick={() => submitSearch(cat.q)}
                                     className={cn(
-                                        "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                        "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                         isMatch
                                             ? "border-foreground bg-foreground text-background font-bold"
                                             : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3316,7 +3316,7 @@ function JobsContent() {
                             type="button"
                             onClick={() => panelToggleFacet("work_type", "remote")}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 facets.work_type?.includes("remote")
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3328,7 +3328,7 @@ function JobsContent() {
                             type="button"
                             onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 salaryMin === 150000
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3340,7 +3340,7 @@ function JobsContent() {
                             type="button"
                             onClick={() => onBoardChange(board === "elite" ? null : "elite")}
                             className={cn(
-                                "inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                                 board === "elite"
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3382,7 +3382,7 @@ function JobsContent() {
                             <span className="lg:hidden">Filters</span>
                             <span className="hidden lg:inline">All filters</span>
                             {activeCount > 0 && (
-                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 font-mono text-[10px] font-bold leading-[16px] text-brand">
+                                <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-[10px] font-bold leading-[16px] text-brand">
                                     {activeCount}
                                 </span>
                             )}
@@ -3397,7 +3397,7 @@ function JobsContent() {
                                 type="button"
                                 data-testid="results-clear-query"
                                 onClick={handleClearSearch}
-                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground transition-colors"
+                                className="text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground transition-colors"
                             >
                                 ✕ clear search
                             </button>
@@ -3426,7 +3426,7 @@ function JobsContent() {
                             <Link
                                 href="/yours"
                                 data-testid="jobs-tracked-count"
-                                className="font-mono text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
+                                className="text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
                             >
                                 {trackedCount} tracked
                             </Link>
@@ -3436,7 +3436,7 @@ function JobsContent() {
                                 type="button"
                                 data-testid="results-clear-filters"
                                 onClick={panelClearAll}
-                                className="font-mono text-[12px] font-bold text-brand underline underline-offset-[3px] hover:text-foreground transition-colors"
+                                className="text-[12px] font-bold text-brand underline underline-offset-[3px] hover:text-foreground transition-colors"
                             >
                                 Clear filters ({activeCount})
                             </button>
@@ -3492,7 +3492,7 @@ function JobsContent() {
                                     // same as the "N tracked" sibling), never by opacity,
                                     // size, or a lighter token, so it can't regress back
                                     // under the floor.
-                                    "font-mono text-[12px] font-medium underline underline-offset-[3px]",
+                                    "text-[12px] font-medium underline underline-offset-[3px]",
                                     resumeControlState === "active"
                                         ? "text-foreground hover:text-foreground"
                                         : "text-muted-foreground hover:text-foreground",
@@ -3591,7 +3591,7 @@ function JobsContent() {
                                     <JobDetailSkeleton />
                                 </div>
                             ) : (
-                                <p className="p-6 font-mono text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
+                                <p className="p-6 text-[13px] text-muted-foreground" data-testid="detail-pane-placeholder">
                                     Select a role to read it here.
                                 </p>
                             )}
@@ -3639,13 +3639,13 @@ function JobsContent() {
                         )}
 
                         {result?.preview && result.note && (
-                            <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 font-mono text-xs text-verdict-caution">
+                            <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 text-xs text-verdict-caution">
                                 {result.note}
                             </div>
                         )}
 
                         {backgroundError && (
-                            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 font-mono text-xs text-verdict-risk">
+                            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
                                 <span>{searchError}</span>
                                 <button
                                     onClick={() => setSearchRetry((n) => n + 1)}
@@ -3695,7 +3695,7 @@ function JobsContent() {
                                    drift from a real search. Styled like SerpFilters'
                                    own `Affordance` grammar — no pills, no buttons. */
                                 <div className="text-left" data-testid="serp-ask">
-                                    <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-faint">
+                                    <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
                                         Suggested roles
                                     </p>
                                     <p className="mt-1 text-[13px] text-muted-foreground">
@@ -3718,13 +3718,13 @@ function JobsContent() {
                                 </div>
                             ) : resultsPanel === "not-connected" ? (
                                 <div className="border-l-2 border-foreground py-6 pl-4 text-left">
-                                    <p className="font-mono text-[13px] text-foreground">Job search is being connected.</p>
+                                    <p className="text-[13px] text-foreground">Job search is being connected.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">
                                         We&apos;re wiring intervu up to Subspace&apos;s live job corpus — including the posting check
                                         that flags roles that aren&apos;t really hiring.
                                     </p>
                                     {result?.note && (
-                                        <p className="mt-1 max-w-md font-mono text-xs text-muted-foreground/70">{result.note}</p>
+                                        <p className="mt-1 max-w-md text-xs text-muted-foreground/70">{result.note}</p>
                                     )}
                                 </div>
                             ) : resultsPanel === "error" ? (
@@ -3737,11 +3737,11 @@ function JobsContent() {
                                 // which itself often already opens with that same
                                 // backend-supplied phrase — this no longer says it twice.
                                 <div role="alert" className="border-l-2 border-verdict-risk py-6 pl-4 text-left">
-                                    <p className="font-mono text-[13px] text-foreground">We can&apos;t load results right now.</p>
+                                    <p className="text-[13px] text-foreground">We can&apos;t load results right now.</p>
                                     <p className="mt-1.5 max-w-md text-[13px] text-muted-foreground">{searchError}</p>
                                     <button
                                         onClick={() => setSearchRetry((n) => n + 1)}
-                                        className="mt-3 font-mono text-xs text-foreground underline underline-offset-2"
+                                        className="mt-3 text-xs text-foreground underline underline-offset-2"
                                     >
                                         Retry
                                     </button>
@@ -3774,7 +3774,7 @@ function JobsContent() {
                                     {!isSerpAsk && (
                                         <>
                                             {/* Consolidated Swiss Glass Status Ribbon */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none glass-panel px-3.5 py-2 font-mono text-[11px]">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none glass-panel px-3.5 py-2 text-[11px]">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
@@ -3808,7 +3808,7 @@ function JobsContent() {
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span
                                                             data-testid="company-scope-chip"
-                                                            className="inline-flex items-center gap-2 rounded-md border border-border bg-chip px-2 py-1 font-mono text-[11.5px]"
+                                                            className="inline-flex items-center gap-2 rounded-md border border-border bg-chip px-2 py-1 text-[11.5px]"
                                                         >
                                                             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                                                                 employer
@@ -3859,7 +3859,7 @@ function JobsContent() {
                                         <div className="mb-3.5 flex items-baseline justify-between gap-3">
                                             <h2 className="font-display text-[19px] font-semibold tracking-tight">
                                                 Elite matches
-                                                <span className="ml-2 font-mono text-[12.5px] font-normal text-[color:var(--elite-muted)]">
+                                                <span className="ml-2 text-[12.5px] font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null
                                                         ? `${result.total.toLocaleString()} roles · board allowlist`
                                                         : "board allowlist"}
@@ -3898,7 +3898,7 @@ function JobsContent() {
                                                 <p
                                                     key="seam"
                                                     data-testid="relevance-seam"
-                                                    className="border-t border-border pt-4 pb-1 mb-1 font-mono text-[11px] text-muted-foreground"
+                                                    className="border-t border-border pt-4 pb-1 mb-1 text-[11px] text-muted-foreground"
                                                 >
                                                     {sortScopedSeam
                                                         ? seamSummarySorted(seamIndex)
@@ -3954,12 +3954,12 @@ function JobsContent() {
                                     {hasMore && (
                                         <div ref={sentinelRef} className="flex items-center justify-center py-5">
                                             {loadingMore ? (
-                                                <span className="font-mono text-xs text-muted-foreground">Loading more roles…</span>
+                                                <span className="text-xs text-muted-foreground">Loading more roles…</span>
                                             ) : (
                                                 <button
                                                     type="button"
                                                     onClick={() => void loadMore()}
-                                                    className="font-mono text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                                    className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                 >
                                                     Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more ↓
                                                 </button>

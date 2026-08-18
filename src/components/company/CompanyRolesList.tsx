@@ -30,7 +30,7 @@ export function CompanyRolesList({
   return (
     <section data-testid="company-roles" className="mt-8 border-t border-foreground pt-6">
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
           Live roles
         </span>
         <Link href={jobsSearchUrl} className="text-xs text-foreground underline underline-offset-2">
@@ -54,10 +54,10 @@ export function CompanyRolesList({
               >
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{decodeText(job.title)}</div>
-                  <div className="mt-0.5 font-mono text-xs text-muted-foreground">{roleMeta(job)}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{roleMeta(job)}</div>
                 </div>
                 {ghost && (
-                  <span className={cn("shrink-0 px-2 py-0.5 font-mono text-[11px]", ghost.cls)}>
+                  <span className={cn("shrink-0 px-2 py-0.5 text-[11px]", ghost.cls)}>
                     {ghost.label}
                   </span>
                 )}

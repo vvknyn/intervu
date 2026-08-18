@@ -165,7 +165,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         value={formData.content || ''}
                                         onChange={e => setFormData({ ...formData, content: e.target.value })}
                                         placeholder="Paste your resume bullet point, or just dump your thoughts here.&#13;&#13;Example:&#13;I led a project to migrate our database... We faced issues with latency... I optimized the queries and reduced load times by 50%..."
-                                        className="min-h-[320px] font-mono text-sm resize-none bg-muted/10 focus:bg-background border-border/60 leading-relaxed p-4 shadow-inner"
+                                        className="min-h-[320px] text-base md:text-sm resize-none bg-muted/10 focus:bg-background border-border/60 leading-relaxed p-4 shadow-inner"
                                     />
                                     <div className="absolute bottom-3 right-3">
                                         {formData.content && formData.content.length > 20 && (
@@ -206,7 +206,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             value={formData.situation || ''}
                                             onChange={e => setFormData({ ...formData, situation: e.target.value })}
                                             placeholder="Context and background..."
-                                            className="h-28 text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -218,7 +218,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             value={formData.task || ''}
                                             onChange={e => setFormData({ ...formData, task: e.target.value })}
                                             placeholder="Your specific role and goal..."
-                                            className="h-28 text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
                                         />
                                     </div>
                                 </div>
@@ -232,7 +232,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         value={formData.action || ''}
                                         onChange={e => setFormData({ ...formData, action: e.target.value })}
                                         placeholder="What you did (use 'I', not 'We')..."
-                                        className="h-32 text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                        className="h-32 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
                                     />
                                 </div>
 
@@ -245,7 +245,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         value={formData.result || ''}
                                         onChange={e => setFormData({ ...formData, result: e.target.value })}
                                         placeholder="Outcome, metrics, and impact..."
-                                        className="h-24 text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
+                                        className="h-24 text-base md:text-sm resize-none bg-muted/20 focus:bg-background transition-colors"
                                     />
                                 </div>
                             </div>

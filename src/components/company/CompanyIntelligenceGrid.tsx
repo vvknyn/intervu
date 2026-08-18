@@ -75,12 +75,12 @@ export function CompanyIntelligenceGrid({
             <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <CurrencyDollar className="h-4 w-4 text-emerald-500" weight="bold" />
                     Capital & Stage
                   </span>
                   {funding.stage && (
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
                       {funding.stage}
                     </span>
                   )}
@@ -98,7 +98,7 @@ export function CompanyIntelligenceGrid({
                   )}
 
                   {funding.valuationText && (
-                    <div className="mt-1.5 font-mono text-[13px] font-medium text-muted-foreground">
+                    <div className="mt-1.5 text-[13px] font-medium text-muted-foreground">
                       {funding.valuationText}
                     </div>
                   )}
@@ -106,14 +106,14 @@ export function CompanyIntelligenceGrid({
 
                 {funding.investors.length > 0 && (
                   <div className="mt-5 border-t border-border pt-4">
-                    <div className="font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
                       Notable Backers
                     </div>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {funding.investors.map((inv) => (
                         <span
                           key={inv}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 font-mono text-[11.5px] text-foreground"
+                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-foreground"
                         >
                           {inv}
                         </span>
@@ -133,7 +133,7 @@ export function CompanyIntelligenceGrid({
           {visa && (
             <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
               <div>
-                <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <GlobeHemisphereWest className="h-4 w-4 text-brand" weight="bold" />
                   Visa & Immigration
                 </span>
@@ -142,7 +142,7 @@ export function CompanyIntelligenceGrid({
                   <div className="font-display text-[24px] sm:text-[26px] font-bold tracking-tight text-foreground">
                     {visa.sponsoredRolesRatioPct}% Roles Sponsored
                   </div>
-                  <div className="mt-1.5 font-mono text-[13px] text-muted-foreground">
+                  <div className="mt-1.5 text-[13px] text-muted-foreground">
                     Flagged as visa-sponsoring on the career page
                   </div>
                 </div>
@@ -159,12 +159,12 @@ export function CompanyIntelligenceGrid({
             <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <Code className="h-4 w-4 text-sky-500" weight="bold" />
                     Tech DNA & Remote %
                   </span>
                   {workModes && workModes.remotePct > 0 && (
-                    <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 font-mono text-[10.5px] font-medium text-sky-600 dark:text-sky-400">
+                    <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-sky-600 dark:text-sky-400">
                       {workModes.remotePct}% Remote
                     </span>
                   )}
@@ -196,7 +196,7 @@ export function CompanyIntelligenceGrid({
                         />
                       )}
                     </div>
-                    <div className="mt-2 flex justify-between font-mono text-[11px] text-muted-foreground">
+                    <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
                       <span>{workModes.remotePct}% Remote</span>
                       <span>{workModes.hybridPct}% Hybrid</span>
                       <span>{workModes.onsitePct}% On-site</span>
@@ -207,14 +207,14 @@ export function CompanyIntelligenceGrid({
                 {/* Tech Stack Chips */}
                 {techStack && (techStack.languages.length > 0 || techStack.infrastructure.length > 0) && (
                   <div className="mt-5 border-t border-border pt-4">
-                    <div className="font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
                       Detected Technology Stack
                     </div>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {techStack.languages.slice(0, 5).map((lang) => (
                         <span
                           key={lang}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 font-mono text-[11.5px] font-medium text-foreground"
+                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
                         >
                           {lang}
                         </span>
@@ -222,7 +222,7 @@ export function CompanyIntelligenceGrid({
                       {techStack.infrastructure.slice(0, 3).map((infra) => (
                         <span
                           key={infra}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 font-mono text-[11.5px] text-muted-foreground"
+                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
                         >
                           {infra}
                         </span>
@@ -243,7 +243,7 @@ export function CompanyIntelligenceGrid({
       {/* COMPANY NEWS FEED — real articles from the Subspace news API */}
       {news.length > 0 && (
         <div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs">
-          <h3 className="mb-4 flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <Newspaper className="h-4 w-4 text-brand" weight="bold" />
             {companyName} in the News
           </h3>
@@ -263,11 +263,11 @@ export function CompanyIntelligenceGrid({
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase text-brand">
+                    <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">
                       {item.publisher}
                     </span>
                     {dateLabel && (
-                      <span className="font-mono text-[10.5px] text-muted-foreground">
+                      <span className="text-[10.5px] text-muted-foreground">
                         {dateLabel}
                       </span>
                     )}
@@ -281,7 +281,7 @@ export function CompanyIntelligenceGrid({
                     </p>
                   )}
                 </div>
-                <div className="mt-3 flex items-center gap-1 font-mono text-[11px] font-medium text-brand">
+                <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-brand">
                   <span>Read article</span>
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </div>

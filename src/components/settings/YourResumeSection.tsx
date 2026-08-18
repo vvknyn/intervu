@@ -347,7 +347,7 @@ function ResumeUploadForm({
                     setFileName(null);
                 }}
                 placeholder="Paste your resume text here, or choose a file below…"
-                className="min-h-[160px] font-sans text-sm"
+                className="min-h-[160px] font-sans text-base md:text-sm"
                 disabled={busy}
             />
             <div className="flex flex-wrap items-center gap-2">

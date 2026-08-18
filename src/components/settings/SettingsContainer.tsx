@@ -194,9 +194,9 @@ export function SettingsContainer() {
                             {user ? (
                                 <>
                                     <dl className="mb-4 grid grid-cols-[120px_1fr] gap-x-3.5 gap-y-2 text-[13px]">
-                                        <dt className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Email</dt>
+                                        <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Email</dt>
                                         <dd>{user.email}</dd>
-                                        <dt className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Username</dt>
+                                        <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Username</dt>
                                         <dd>{user.displayName || user.email?.split("@")[0]}</dd>
                                     </dl>
                                     <div className="flex flex-wrap gap-2">
@@ -270,13 +270,13 @@ export function SettingsContainer() {
                         </DialogHeader>
                         <div className="space-y-3 py-2">
                             <p className="text-sm text-muted-foreground">
-                                Type <span className="font-mono font-semibold text-foreground">DELETE</span> to confirm:
+                                Type <span className="font-semibold text-foreground">DELETE</span> to confirm:
                             </p>
                             <Input
                                 value={deleteConfirmText}
                                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                                 placeholder="Type DELETE to confirm"
-                                className="font-mono"
+                                className=""
                             />
                         </div>
                         <DialogFooter>

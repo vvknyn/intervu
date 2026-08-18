@@ -35,7 +35,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
   return (
     <div className="rounded-none border border-border bg-muted/20 px-3 py-2">
       {delta && (
-        <p data-testid="trends-pulse-delta" className="font-mono text-xs text-foreground">
+        <p data-testid="trends-pulse-delta" className="text-xs text-foreground">
           <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
           <span className="font-bold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
           <span className="text-muted-foreground"> net active · </span>
@@ -43,7 +43,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
           <span className="text-muted-foreground"> newly closed</span>
         </p>
       )}
-      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+      <p data-testid="trends-pulse-tracking-since" className="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
         tracking daily baseline since {firstSnapshotDate}
       </p>
     </div>
@@ -101,7 +101,7 @@ export default async function TrendsPage() {
         title="Market trends"
         description="Live stats from the jobs corpus we track — scraped from companies' own career pages, not curated."
         actions={
-          <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs font-mono">
+          <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-none bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-none bg-emerald-500" />

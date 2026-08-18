@@ -267,7 +267,7 @@ export function SearchAutocomplete({
             {isOpen && suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
                     {suggestions[0]?.type === 'seed' && (
-                        <p className="px-4 pt-2.5 pb-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <p className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Popular searches
                         </p>
                     )}

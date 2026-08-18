@@ -232,7 +232,7 @@ export function PrepSettings({
                                                 <Input
                                                     type="url"
                                                     placeholder="Paste job posting URL..."
-                                                    className="h-9 text-xs pr-8"
+                                                    className="h-9 text-base md:text-xs pr-8"
                                                     value={jobUrl || ""}
                                                     onChange={(e) => {
                                                         onJobUrlChange(e.target.value);
@@ -252,7 +252,7 @@ export function PrepSettings({
                                     ) : (
                                         <Textarea
                                             placeholder="Paste the full job description here..."
-                                            className="min-h-[80px] text-xs resize-y"
+                                            className="min-h-[80px] text-base md:text-xs resize-y"
                                             value={jobContext || ""}
                                             onChange={(e) => {
                                                 onJobContextChange(e.target.value);

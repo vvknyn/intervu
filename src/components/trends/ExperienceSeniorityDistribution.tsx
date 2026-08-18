@@ -35,7 +35,7 @@ export function ExperienceSeniorityDistribution({
             </p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           Career Tiers
         </span>
       </div>
@@ -65,10 +65,10 @@ export function ExperienceSeniorityDistribution({
                     style={{ width: `${(item.count / maxCount) * 100}%` }}
                   />
                 </span>
-                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="w-10 text-right text-[11px] text-muted-foreground tabular-nums">
                   {item.pct}%
                 </span>
-                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
                   {item.count.toLocaleString()}
                 </span>
               </div>
@@ -79,7 +79,7 @@ export function ExperienceSeniorityDistribution({
 
       {employmentTypes.length > 0 && (
         <div className="mt-4 border-t border-border/60 pt-4">
-          <div className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
             <Briefcase size={14} weight="duotone" />
             <span>Employment Contract Types</span>
           </div>
@@ -97,7 +97,7 @@ export function ExperienceSeniorityDistribution({
                   className="inline-flex items-center gap-1.5 rounded-none border border-border bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border-strong hover:bg-muted/50"
                 >
                   <span>{type.label}</span>
-                  <span className="font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">
+                  <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
                     {type.pct}%
                   </span>
                 </Link>

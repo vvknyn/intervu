@@ -30,13 +30,13 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
             <p className="text-xs text-muted-foreground">Geographic distribution of active verified openings</p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           {ranked.length} Jurisdictions
         </span>
       </div>
 
       {/* Carbon-Glass Structured Data Column Header */}
-      <div className="mt-4 flex items-center gap-3 border-b border-border/60 pb-2 px-2 text-[10.5px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="mt-4 flex items-center gap-3 border-b border-border/60 pb-2 px-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
         <span className="w-5 shrink-0">#</span>
         <span className="min-w-0 flex-1">Jurisdiction</span>
         <div className="flex items-center gap-3 shrink-0">
@@ -55,7 +55,7 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
               data-testid="trends-country-row"
               className="group flex items-center gap-3 px-2 py-2 text-xs transition-colors hover:bg-muted/40"
             >
-              <span className="flex h-4 w-5 shrink-0 items-center font-mono text-[11px] text-muted-foreground">
+              <span className="flex h-4 w-5 shrink-0 items-center text-[11px] text-muted-foreground">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <Link
@@ -71,10 +71,10 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
                     style={{ width: `${(row.count / maxCount) * 100}%` }}
                   />
                 </span>
-                <span className="w-11 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="w-11 text-right text-[11px] text-muted-foreground tabular-nums">
                   {pct}%
                 </span>
-                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
                   {row.count.toLocaleString()}
                 </span>
               </div>
@@ -88,7 +88,7 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
           data-testid="trends-country-unclassified"
           className="mt-2 flex items-center gap-3 border-t border-dashed border-border pt-3 px-2 text-xs text-muted-foreground"
         >
-          <span className="w-5 shrink-0 font-mono text-[11px] opacity-40">--</span>
+          <span className="w-5 shrink-0 text-[11px] opacity-40">--</span>
           <span className="min-w-0 flex-1 truncate">{unclassified.country}</span>
           <div className="flex items-center gap-3 shrink-0">
             <span className="hidden sm:inline-block h-1.5 w-36 overflow-hidden rounded-none bg-muted/70">
@@ -97,10 +97,10 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
                 style={{ width: `${(unclassified.count / maxCount) * 100}%` }}
               />
             </span>
-            <span className="w-11 text-right font-mono text-[11px] tabular-nums">
+            <span className="w-11 text-right text-[11px] tabular-nums">
               {totalCount > 0 ? ((unclassified.count / totalCount) * 100).toFixed(1) : 0}%
             </span>
-            <span className="w-16 text-right font-mono text-xs font-semibold tabular-nums">
+            <span className="w-16 text-right text-xs font-semibold tabular-nums">
               {unclassified.count.toLocaleString()}
             </span>
           </div>

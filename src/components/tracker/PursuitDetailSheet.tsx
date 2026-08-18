@@ -170,7 +170,7 @@ function PursuitDetailBody({
                                 disabled={saving}
                                 onClick={() => void onStatusChange(stage)}
                                 className={cn(
-                                    "rounded-full border border-border px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground transition-colors",
+                                    "rounded-full border border-border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.04em] text-muted-foreground transition-colors",
                                     pressed && "border-foreground bg-foreground text-background",
                                 )}
                             >
@@ -182,16 +182,16 @@ function PursuitDetailBody({
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-xl bg-muted p-3.5">
                     <div>
-                        <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">In tracker</dt>
+                        <dt className="mb-1 text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">In tracker</dt>
                         <dd className="text-[13px]">{days}d</dd>
                     </div>
                     <div>
-                        <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Resume</dt>
+                        <dt className="mb-1 text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Resume</dt>
                         <dd className="text-[13px]">{resumeLabel ?? "— none linked"}</dd>
                     </div>
                     {stale && (
                         <div className="col-span-2">
-                            <dt className="mb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Update</dt>
+                            <dt className="mb-1 text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Update</dt>
                             <dd className="text-[13px]">no update in {daysSinceUpdate(pursuit)}d</dd>
                         </div>
                     )}
@@ -199,9 +199,9 @@ function PursuitDetailBody({
 
                 <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                        <Label className="block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
+                        <Label className="block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note</Label>
                         {noteIndicator && (
-                            <span className="font-mono text-xs text-muted-foreground" aria-live="polite">
+                            <span className="text-xs text-muted-foreground" aria-live="polite">
                                 {noteIndicator === "saving" ? "saving…" : "saved"}
                             </span>
                         )}
@@ -218,7 +218,7 @@ function PursuitDetailBody({
                 </div>
 
                 <div>
-                    <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">
+                    <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">
                         Interview date
                     </Label>
                     <div className="flex flex-wrap items-center gap-2">

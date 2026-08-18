@@ -36,7 +36,7 @@ export default function Error({
         it keeps happening, reload the app.
       </p>
       {error?.digest ? (
-        <p className="mt-3 font-mono text-xs text-text-3">
+        <p className="mt-3 text-xs text-text-3">
           Reference: {error.digest}
         </p>
       ) : null}

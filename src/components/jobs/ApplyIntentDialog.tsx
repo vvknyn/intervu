@@ -87,7 +87,7 @@ export function ApplyIntentDialog({
                         <button
                             type="button"
                             onClick={() => handoff(saved)}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-none bg-brand px-4 font-mono text-xs font-bold uppercase tracking-wider text-brand-foreground transition-colors hover:bg-brand-muted"
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-none bg-brand px-4 text-xs font-bold uppercase tracking-wider text-brand-foreground transition-colors hover:bg-brand-muted"
                         >
                             Open in {CLIENT_LABEL[saved]}
                         </button>
@@ -98,7 +98,7 @@ export function ApplyIntentDialog({
                                     key={client}
                                     type="button"
                                     onClick={() => handoff(client)}
-                                    className="inline-flex h-11 items-center justify-center rounded-none bg-brand px-4 font-mono text-xs font-bold uppercase tracking-wider text-brand-foreground transition-colors hover:bg-brand-muted"
+                                    className="inline-flex h-11 items-center justify-center rounded-none bg-brand px-4 text-xs font-bold uppercase tracking-wider text-brand-foreground transition-colors hover:bg-brand-muted"
                                 >
                                     {CLIENT_LABEL[client]}
                                 </button>
@@ -110,7 +110,7 @@ export function ApplyIntentDialog({
                         <button
                             type="button"
                             onClick={() => setChoosing(true)}
-                            className="self-start font-mono text-[11px] uppercase tracking-wider text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            className="self-start text-[11px] uppercase tracking-wider text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
                         >
                             Use a different AI
                         </button>
@@ -127,7 +127,7 @@ export function ApplyIntentDialog({
                             onContinue();
                             onOpenChange(false);
                         }}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-none border border-border-strong px-4 font-mono text-xs font-bold uppercase tracking-wider transition-colors hover:bg-surface-hover"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-none border border-border-strong px-4 text-xs font-bold uppercase tracking-wider transition-colors hover:bg-surface-hover"
                     >
                         <ArrowSquareOut size={16} />
                         Continue to the posting

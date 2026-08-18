@@ -21,7 +21,7 @@ export function CompanyGhostMixBand({
 
   return (
     <section data-testid="company-ghost-mix" className="mt-8 border-t border-foreground pt-6">
-      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
         Posting checks
       </span>
       <p className="mt-1 text-sm text-muted-foreground">How this company&apos;s live postings scored on our posting check.</p>
@@ -49,8 +49,8 @@ export function CompanyGhostMixBand({
               <span className="h-1.5 flex-1 bg-foreground/10">
                 <span className="block h-full bg-foreground/40" style={{ width: `${pct}%` }} />
               </span>
-              <span className="w-12 shrink-0 text-right font-mono text-[12.5px] text-muted-foreground">{pct}%</span>
-              <span className="w-12 shrink-0 text-right font-mono text-[12.5px] text-foreground">{count}</span>
+              <span className="w-12 shrink-0 text-right text-[12.5px] text-muted-foreground">{pct}%</span>
+              <span className="w-12 shrink-0 text-right text-[12.5px] text-foreground">{count}</span>
             </li>
           );
         })}

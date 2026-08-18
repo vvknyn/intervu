@@ -321,7 +321,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                         value={pastedText}
                         onChange={(e) => setPastedText(e.target.value)}
                         placeholder="Copy and paste your resume content here..."
-                        className="min-h-[250px] font-mono text-sm resize-none"
+                        className="min-h-[250px] text-base md:text-sm resize-none"
                     />
                     <p className="text-xs text-muted-foreground">
                         {pastedText.length > 0 && `${pastedText.length} characters`}
@@ -393,7 +393,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.name || ""}
                                         onChange={(e) => updateProfile('name', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -401,7 +401,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.profession}
                                         onChange={(e) => updateProfile('profession', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -410,7 +410,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                         type="number"
                                         value={editedData.profile.yearsOfExperience}
                                         onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -418,7 +418,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.location}
                                         onChange={(e) => updateProfile('location', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -426,7 +426,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.email}
                                         onChange={(e) => updateProfile('email', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -434,7 +434,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.phone}
                                         onChange={(e) => updateProfile('phone', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -442,7 +442,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                     <Input
                                         value={editedData.profile.linkedin || ""}
                                         onChange={(e) => updateProfile('linkedin', e.target.value)}
-                                        className="h-9 text-sm"
+                                        className="h-9 text-base md:text-sm"
                                     />
                                 </div>
                             </div>
@@ -464,26 +464,26 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                                 value={exp.company}
                                                 onChange={(e) => updateExperience(idx, 'company', e.target.value)}
                                                 placeholder="Company"
-                                                className="h-8 text-sm"
+                                                className="h-8 text-base md:text-sm"
                                             />
                                             <Input
                                                 value={exp.role}
                                                 onChange={(e) => updateExperience(idx, 'role', e.target.value)}
                                                 placeholder="Role"
-                                                className="h-8 text-sm"
+                                                className="h-8 text-base md:text-sm"
                                             />
                                         </div>
                                         <Input
                                             value={exp.dates}
                                             onChange={(e) => updateExperience(idx, 'dates', e.target.value)}
                                             placeholder="Dates"
-                                            className="h-8 text-sm"
+                                            className="h-8 text-base md:text-sm"
                                         />
                                         <Textarea
                                             value={exp.description}
                                             onChange={(e) => updateExperience(idx, 'description', e.target.value)}
                                             placeholder="Description"
-                                            className="min-h-[60px] text-xs"
+                                            className="min-h-[60px] text-base md:text-xs"
                                         />
                                     </div>
                                 ))}
@@ -506,7 +506,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                             value={comp.skills.join(', ')}
                                             onChange={(e) => updateCompetency(idx, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                                             placeholder="Skills (comma separated)"
-                                            className="h-9 text-sm"
+                                            className="h-9 text-base md:text-sm"
                                         />
                                     </div>
                                 ))}
@@ -528,20 +528,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
                                             placeholder="Degree"
-                                            className="h-8 text-sm"
+                                            className="h-8 text-base md:text-sm"
                                         />
                                         <div className="grid grid-cols-3 gap-2">
                                             <Input
                                                 value={edu.institution}
                                                 onChange={(e) => updateEducation(idx, 'institution', e.target.value)}
                                                 placeholder="Institution"
-                                                className="h-8 text-sm col-span-2"
+                                                className="h-8 text-base md:text-sm col-span-2"
                                             />
                                             <Input
                                                 value={edu.year || ""}
                                                 onChange={(e) => updateEducation(idx, 'year', e.target.value)}
                                                 placeholder="Year"
-                                                className="h-8 text-sm"
+                                                className="h-8 text-base md:text-sm"
                                             />
                                         </div>
                                     </div>
@@ -561,7 +561,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, configOverride, c
                                 value={editedData.generatedSummary}
                                 onChange={(e) => setEditedData({ ...editedData, generatedSummary: e.target.value })}
                                 placeholder="Professional summary"
-                                className="min-h-[80px] text-sm"
+                                className="min-h-[80px] text-base md:text-sm"
                             />
                         </div>
                     </div>

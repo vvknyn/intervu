@@ -52,7 +52,7 @@ export function MarketPulse({
             </p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           14-Day Velocity
         </span>
       </div>
@@ -66,7 +66,7 @@ export function MarketPulse({
             data-testid={`trends-pulse-day-${date}`}
             className="group flex items-center gap-3 px-2 py-1 text-xs transition-colors hover:bg-muted/40"
           >
-            <span className="w-12 shrink-0 font-mono text-[11px] font-medium text-muted-foreground">
+            <span className="w-12 shrink-0 text-[11px] font-medium text-muted-foreground">
               {shortDayLabel(date)}
             </span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-none bg-muted/80">
@@ -75,7 +75,7 @@ export function MarketPulse({
                 style={{ width: `${(count.value / maxValue) * 100}%` }}
               />
             </span>
-            <span className="w-16 shrink-0 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+            <span className="w-16 shrink-0 text-right text-xs font-bold text-foreground tabular-nums">
               {formatCorpusCount(count)}
             </span>
           </li>
@@ -84,7 +84,7 @@ export function MarketPulse({
 
       {sourceCoverage.length > 0 && (
         <div className="mt-4 rounded-none border border-border bg-muted/20 p-3">
-          <p data-testid="trends-pulse-coverage" className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+          <p data-testid="trends-pulse-coverage" className="text-[11px] leading-relaxed text-muted-foreground">
             <span className="font-bold uppercase tracking-wider text-foreground mr-1">
               ATS Ingestion Feeds:
             </span>

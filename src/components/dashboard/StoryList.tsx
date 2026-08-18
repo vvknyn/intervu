@@ -68,7 +68,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                     )}
                 >
                     {/* Rank / Index */}
-                    <div className="text-muted-foreground/40 font-mono text-sm w-6 text-right shrink-0">
+                    <div className="text-muted-foreground/40 text-sm w-6 text-right shrink-0">
                         {index + 1}.
                     </div>
 

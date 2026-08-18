@@ -31,15 +31,15 @@ const articleJsonLd = buildArticleJsonLd({
 // bottom one so hairlines live inside the table, never floating outside it.
 // Single source of truth for all three tables on this page.
 const RTABLE_TH =
-  "px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
+  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
 const RTABLE_TD = "border-t border-foreground/10 px-4 py-3";
 const RTABLE = {
   table: "w-full border-collapse border border-foreground/10 text-[13.5px]",
   th: RTABLE_TH,
   thNum: `${RTABLE_TH} text-right`,
   td: RTABLE_TD,
-  tdMono: `${RTABLE_TD} font-mono`,
-  tdNum: `${RTABLE_TD} text-right font-mono`,
+  tdMono: `${RTABLE_TD}`,
+  tdNum: `${RTABLE_TD} text-right`,
 };
 
 export default function GhostJobsResearchPage() {
@@ -49,7 +49,7 @@ export default function GhostJobsResearchPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
         From our research · July 2026 snapshot
       </p>
       <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
@@ -82,8 +82,8 @@ export default function GhostJobsResearchPage() {
         </p>
         <p>
           Every listing gets scored on freshness, description quality, salary transparency, employer signals, and
-          role substance. Here&apos;s what <span className="verified-underline font-mono">38,806</span> listings
-          across <span className="verified-underline font-mono">3,128</span> companies look like:
+          role substance. Here&apos;s what <span className="verified-underline">38,806</span> listings
+          across <span className="verified-underline">3,128</span> companies look like:
         </p>
 
         <div className="not-prose my-6 overflow-x-auto">
@@ -126,8 +126,8 @@ export default function GhostJobsResearchPage() {
         </div>
 
         <p>
-          Only <span className="verified-underline font-mono">0.2%</span> of listings are excellent. Half are good
-          enough. And nearly <span className="verified-underline font-mono">48.1%</span> are either ambiguous or
+          Only <span className="verified-underline">0.2%</span> of listings are excellent. Half are good
+          enough. And nearly <span className="verified-underline">48.1%</span> are either ambiguous or
           worse.
         </p>
         <p>
@@ -313,7 +313,7 @@ export default function GhostJobsResearchPage() {
           This page is a static July 2026 snapshot. For live, market-wide numbers, see{" "}
           <Link href="/trends">market trends</Link>.
         </p>
-        <div className="not-prose mt-6 flex items-center gap-2.5 font-mono text-[13px] text-muted-foreground">
+        <div className="not-prose mt-6 flex items-center gap-2.5 text-[13px] text-muted-foreground">
           <span className="h-[9px] w-[9px] bg-brand" aria-hidden />
           data · the Subspace jobs corpus
         </div>

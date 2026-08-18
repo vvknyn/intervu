@@ -111,7 +111,7 @@ export function TopBar() {
                         <Link
                             href="/trends"
                             data-testid="topbar-pulse-ticker"
-                            className="hidden shrink-0 items-center gap-1.5 rounded-none border border-brand/40 bg-brand/10 px-2.5 py-0.5 font-mono text-[10.5px] font-bold uppercase tracking-wider text-brand shadow-none transition-colors hover:bg-brand/20 lg:inline-flex"
+                            className="hidden shrink-0 items-center gap-1.5 rounded-none border border-brand/40 bg-brand/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-brand shadow-none transition-colors hover:bg-brand/20 lg:inline-flex"
                         >
                             <span className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
                             {liveJobsLabel}
@@ -130,7 +130,7 @@ export function TopBar() {
                                     data-testid={tab.testId}
                                     aria-current={active ? "page" : undefined}
                                     className={cn(
-                                        "rounded-none px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-colors",
+                                        "rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
                                         active
                                             ? "border-b-2 border-foreground text-foreground font-bold"
                                             : "text-muted-foreground hover:text-foreground",

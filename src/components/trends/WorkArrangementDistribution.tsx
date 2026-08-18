@@ -45,7 +45,7 @@ export function WorkArrangementDistribution({
             </p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           Work Policies
         </span>
       </div>
@@ -98,10 +98,10 @@ export function WorkArrangementDistribution({
                     style={{ width: `${(item.count / maxCount) * 100}%` }}
                   />
                 </span>
-                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="w-10 text-right text-[11px] text-muted-foreground tabular-nums">
                   {item.pct}%
                 </span>
-                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
                   {item.count.toLocaleString()}
                 </span>
               </div>
@@ -116,7 +116,7 @@ export function WorkArrangementDistribution({
             <GlobeHemisphereWest className="h-4 w-4 text-foreground/70" weight="duotone" />
             <span className="text-xs font-medium text-foreground">Visa Sponsorship Verified</span>
           </div>
-          <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-foreground">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
             <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" weight="fill" />
             <span>{visaSponsorship.sponsoredPct}%</span>
             <span className="text-muted-foreground font-normal">({visaSponsorship.sponsoredCount.toLocaleString()})</span>

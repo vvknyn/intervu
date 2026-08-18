@@ -264,4 +264,50 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
 
     await expectNoHorizontalScroll(page, '/connect');
   });
+
+  /**
+   * TC-MOBILE-011: Focusing a field never zooms the page
+   *
+   * iOS Safari zooms when a focused form control computes under 16px, and it
+   * does not zoom back out — the user is left scrolled sideways mid-form.
+   *
+   * The unit guard for this reads source, and source-reading has a floor: it
+   * has to recognise a control by how it is WRITTEN. Two rounds of that guard
+   * passed while the /jobs search box sat at 14px — first because the tag
+   * regex truncated at the `>` inside `onChange={(e) => …}`, then because the
+   * component is called `SearchAutocomplete` and the matcher was looking for
+   * names containing "Input". This test asks the rendered page instead, so it
+   * cannot be fooled by naming or by JSX shape: whatever ends up as a real
+   * focusable field, at a real phone width, has to be at least 16px.
+   */
+  test('TC-MOBILE-011: no form control is under 16px (iOS focus-zoom)', async ({ page }) => {
+    for (const route of ['/jobs', '/', '/connect', '/pricing']) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle').catch(() => { });
+
+      const tooSmall = await page.evaluate(() => {
+        const controls = Array.from(
+          document.querySelectorAll<HTMLElement>('input, textarea, select'),
+        );
+        return controls
+          .filter((c) => {
+            const type = (c as HTMLInputElement).type;
+            // Hidden / non-text controls never summon a keyboard, so they
+            // cannot trigger the zoom.
+            if (['hidden', 'checkbox', 'radio', 'submit', 'button', 'range', 'color'].includes(type)) return false;
+            return c.offsetParent !== null;
+          })
+          .map((c) => ({
+            px: parseFloat(getComputedStyle(c).fontSize),
+            id: c.getAttribute('data-testid') || (c as HTMLInputElement).placeholder || c.tagName,
+          }))
+          .filter((c) => c.px < 16);
+      });
+
+      expect(
+        tooSmall,
+        `${route}: these zoom the page when focused on iOS — ${JSON.stringify(tooSmall)}`,
+      ).toEqual([]);
+    }
+  });
 });

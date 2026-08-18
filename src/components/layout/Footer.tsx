@@ -22,7 +22,7 @@ export const LEGAL_LINKS: { label: string; href: string }[] = [
 /** Compact 1-line footer links for embedding inside filter drawers and toolbars without chasing infinite scroll. */
 export function CompactFooterLinks({ className }: { className?: string }) {
     return (
-        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-mono text-muted-foreground", className)}>
+        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground", className)}>
             {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                 <Link
                     key={link.href}

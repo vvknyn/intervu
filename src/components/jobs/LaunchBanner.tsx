@@ -17,11 +17,11 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
             data-testid="launch-banner"
             className="mb-2.5 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4 text-left border-l-4 border-l-brand transition-all"
         >
-            <div className="flex h-9 w-9 items-center justify-center rounded-none glass-tint-blue font-mono font-bold text-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-none glass-tint-blue font-bold text-xs">
                 AI
             </div>
             <div className="min-w-0 flex flex-col justify-center">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-brand">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand">
                     AI WORKFLOWS
                 </span>
                 <p className="mt-1 text-[13.5px] font-normal leading-relaxed text-foreground/90">
@@ -30,7 +30,7 @@ export function LaunchBannerContent({ onDismiss }: { onDismiss: () => void }) {
                 <div className="mt-2.5 flex items-center gap-2">
                     <Link
                         href="/connect"
-                        className="inline-flex items-center gap-1.5 rounded-none glass-tint-emerald px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-wider hover:underline"
+                        className="inline-flex items-center gap-1.5 rounded-none glass-tint-emerald px-3 py-1 text-[10.5px] font-bold uppercase tracking-wider hover:underline"
                     >
                         Connect your AI →
                     </Link>

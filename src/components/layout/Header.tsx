@@ -128,7 +128,7 @@ export function Header({
                 <Input
                   data-tour="search-input"
                   type="text"
-                  className="h-10 pl-11 pr-12 text-sm bg-muted/30 focus-visible:bg-muted/50 transition-all duration-150 w-full"
+                  className="h-10 pl-11 pr-12 text-base md:text-sm bg-muted/30 focus-visible:bg-muted/50 transition-all duration-150 w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
                   onKeyDown={handleKeyDown}

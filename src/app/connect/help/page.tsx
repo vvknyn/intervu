@@ -50,7 +50,7 @@ function HelpSection({
  *  this page has no client-side state, so there's no copy button here. */
 function Command({ children }: { children: string }) {
   return (
-    <code className="block overflow-x-auto rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 font-mono text-sm text-foreground dark:border-slate-700 dark:bg-slate-900 shadow-2xs">
+    <code className="block overflow-x-auto rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-foreground dark:border-slate-700 dark:bg-slate-900 shadow-2xs">
       {children}
     </code>
   );
@@ -59,7 +59,7 @@ function Command({ children }: { children: string }) {
 export default function ConnectHelpPage() {
   return (
     <main data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Setup help
       </p>
       <h1 className="mt-2 text-title font-semibold tracking-tight text-foreground">
@@ -174,10 +174,10 @@ export default function ConnectHelpPage() {
           <p>
             This installer no longer asks you to do that. If Node isn&apos;t already on your Mac, it
             downloads its own private copy into a folder that belongs only to you
-            (<code className="font-mono text-[13px]">~/.openclaw/runtime</code>), checks it against
+            (<code className="text-[13px]">~/.openclaw/runtime</code>), checks it against
             the official checksum published by nodejs.org so you know it wasn&apos;t tampered with,
             and adds one line to a personal settings file
-            (<code className="font-mono text-[13px]">~/.zprofile</code>, marked &ldquo;# intervu
+            (<code className="text-[13px]">~/.zprofile</code>, marked &ldquo;# intervu
             installer: local Node runtime&rdquo;) so your Terminal can find it every time you open a
             new window. No admin password, nothing installed system-wide.
           </p>
@@ -302,8 +302,8 @@ export default function ConnectHelpPage() {
           <Command>rm -rf ~/.openclaw ~/.mcporter</Command>
           <p>
             Then open{" "}
-            <code className="font-mono text-[13px]">~/.zprofile</code> in a text editor, find the
-            line that reads <code className="font-mono text-[13px]">
+            <code className="text-[13px]">~/.zprofile</code> in a text editor, find the
+            line that reads <code className="text-[13px]">
               # intervu installer: local Node runtime
             </code>
             , and delete that line and the one right after it. If your Mac already had Node

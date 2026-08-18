@@ -44,7 +44,7 @@ function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
             <div className="mx-auto w-full max-w-[920px] px-5 py-8 sm:px-7">
-                <p className="font-mono text-[13px] text-muted-foreground">Loading your tracker…</p>
+                <p className="text-[13px] text-muted-foreground">Loading your tracker…</p>
             </div>
         </PageLayout>
     );
@@ -78,7 +78,7 @@ function StatusChips({
                             aria-pressed={active}
                             onClick={() => onChange(key)}
                             className={cn(
-                                "flex items-center gap-1.5 rounded-none px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider transition-colors",
+                                "flex items-center gap-1.5 rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
                                 active
                                     ? "bg-foreground text-background font-bold"
                                     : "text-muted-foreground hover:text-foreground",
@@ -94,7 +94,7 @@ function StatusChips({
             </div>
 
             {appliedThisWeek >= 1 && (
-                <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 font-mono text-xs font-bold uppercase tracking-wider text-brand">
+                <span className="inline-flex items-center rounded-none border border-brand/40 bg-brand/10 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-brand">
                     {appliedThisWeek} applied this week
                 </span>
             )}
@@ -136,17 +136,17 @@ function TrackerEmptyState({
             {/* Example preview row */}
             <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 max-w-lg mx-auto text-left">
                 <div className="mb-2 flex items-center justify-between">
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview of a tracked role</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground dark:border-slate-700 dark:bg-slate-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview of a tracked role</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:border-slate-700 dark:bg-slate-800">
                         EXAMPLE
                     </span>
                 </div>
                 <div className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 opacity-80 dark:border-slate-800 dark:bg-slate-900/40">
                     <div>
                         <div className="text-sm font-bold text-foreground">Staff Product Designer</div>
-                        <div className="font-mono text-xs text-muted-foreground">Acme Studio · San Francisco, CA</div>
+                        <div className="text-xs text-muted-foreground">Acme Studio · San Francisco, CA</div>
                     </div>
-                    <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
+                    <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
                         SAVED
                     </span>
                 </div>
@@ -378,7 +378,7 @@ function YoursContent() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search company or role in your tracker..."
-                        className="h-10 pl-9 rounded-xl border-slate-300 bg-card text-xs font-medium shadow-2xs dark:border-slate-700"
+                        className="h-10 pl-9 rounded-xl border-slate-300 bg-card text-base md:text-xs font-medium shadow-2xs dark:border-slate-700"
                     />
                 </div>
 
