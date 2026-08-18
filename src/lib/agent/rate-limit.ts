@@ -52,27 +52,6 @@ export function _resetRateLimits(): void {
     hits.clear();
 }
 
-/**
- * Best-effort caller IP for the rate-limit key on public/unauthenticated
- * endpoints (`/api/oauth/register`, `/api/oauth/token`) that have no
- * credential yet to key on. The app runs behind exactly one reverse proxy
- * (Caddy), which — like every standard reverse proxy — APPENDS its own view
- * of the connecting peer to `X-Forwarded-For` rather than replacing it, so
- * the LAST entry is the one Caddy itself derived from the raw TCP
- * connection and the caller cannot forge. The FIRST entry is whatever the
- * caller chose to send (or omit) — trusting that one would let a single
- * client rotate a fake IP on every request, both defeating the per-IP
- * budget and growing `hits` without bound (a new never-evicted Map key per
- * forged value). A client that omits the header entirely falls back to a
- * shared `"unknown"` bucket — that only means those callers share one
- * budget, never a way to dodge the limit.
- */
-export function clientIpFromRequest(request: Request): string {
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const hops = forwardedFor?.split(',').map((h) => h.trim()).filter(Boolean) ?? [];
-    return hops.length > 0 ? hops[hops.length - 1] : 'unknown';
-}
-
 /** The one shape a 429 from this limiter takes on the wire — every route
  *  that calls `checkRateLimit` and gets `{ ok: false }` back renders it
  *  through this, so the three call sites (`/api/mcp`, `/api/oauth/register`,

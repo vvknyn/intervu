@@ -6,6 +6,7 @@ import { BrandMark } from '@/components/brand/BrandMark'
 import { signInWithUsername, signUpWithUsername, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
+import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -57,6 +58,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
     const [isPending, startTransition] = useTransition()
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
     const handleUsernameLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -109,6 +111,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 const formData = new FormData()
                 formData.append('username', username)
                 formData.append('password', password)
+                formData.append('turnstileToken', turnstileToken ?? '')
                 const result = await signUp(null, formData)
                 if (result?.error) {
                     setMessage(result.error)
@@ -220,6 +223,9 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                                     <p className="text-xs text-muted-foreground">6+ characters</p>
                                 )}
                             </div>
+                            {activeTab === "signup" && (
+                                <TurnstileWidget onVerify={setTurnstileToken} />
+                            )}
                             <Button
                                 disabled={isPending}
                                 className="w-full bg-brand text-brand-foreground hover:bg-brand hover:opacity-90 dark:bg-brand dark:text-brand-foreground dark:hover:bg-brand"

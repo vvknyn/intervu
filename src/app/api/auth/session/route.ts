@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 import { createSessionCookie, setSessionCookie, clearSessionCookie } from "@/lib/firebase/auth-session";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { sendWelcomeEmailOnce } from "@/lib/email/welcome";
+import { getClientIp } from "@/lib/shield/client-ip";
+import { allowAuthSessionRequest } from "@/lib/shield/rate-limit";
 
 /**
  * POST /api/auth/session — Create session cookie from ID token
@@ -21,6 +23,11 @@ import { sendWelcomeEmailOnce } from "@/lib/email/welcome";
  * request it belonged to is finished.
  */
 export async function POST(request: Request) {
+    const ip = await getClientIp();
+    if (!allowAuthSessionRequest(ip)) {
+        return NextResponse.json({ error: "Too many attempts — try again in a few minutes." }, { status: 429 });
+    }
+
     try {
         const { idToken } = await request.json();
 

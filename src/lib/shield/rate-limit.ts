@@ -76,6 +76,8 @@ export function clearRateLimitStateForTests(): void {
   ipLog.clear();
   connectWaitlistIpLog.clear();
   jobsSuggestIpLog.clear();
+  authSessionIpLog.clear();
+  authSignupIpLog.clear();
 }
 
 /**
@@ -128,5 +130,56 @@ export function allowJobsSuggestRequest(ip: string, now: number = Date.now()): b
   const existing = jobsSuggestIpLog.get(ip) ?? [];
   const { allowed, retained } = checkRateLimitWindow(existing, now, JOBS_SUGGEST_WINDOW_MS, JOBS_SUGGEST_MAX_REQUESTS);
   jobsSuggestIpLog.set(ip, retained);
+  return allowed;
+}
+
+/**
+ * Per-IP sliding-window rate limit for `POST /api/auth/session` — mints the
+ * session cookie and fires the welcome email, and had NO rate limit before
+ * this (verified 2026-08-16). Own store, not shared with `allowSearchRequest`
+ * et al. above — same "one chokepoint, one meaning" reasoning as the
+ * waitlist and suggest stores. A real human signs in a handful of times in
+ * ten minutes, even switching devices or retrying a typo'd password — 10 per
+ * 600s is generous against that and tight against a scripted mint loop
+ * (each hit re-verifies a Firebase ID token and can trigger a Resend send).
+ */
+export const AUTH_SESSION_WINDOW_MS = 600_000;
+export const AUTH_SESSION_MAX_REQUESTS = 10;
+const authSessionIpLog = new Map<string, number[]>();
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the session route's own store. */
+export function allowAuthSessionRequest(ip: string, now: number = Date.now()): boolean {
+  if (authSessionIpLog.size > SWEEP_THRESHOLD) {
+    sweepStale(authSessionIpLog, now, AUTH_SESSION_WINDOW_MS);
+  }
+  const existing = authSessionIpLog.get(ip) ?? [];
+  const { allowed, retained } = checkRateLimitWindow(existing, now, AUTH_SESSION_WINDOW_MS, AUTH_SESSION_MAX_REQUESTS);
+  authSessionIpLog.set(ip, retained);
+  return allowed;
+}
+
+/**
+ * Per-IP sliding-window rate limit for `signUp` (actions/auth.ts) — its own
+ * store, not `authSessionIpLog` above: creating a brand-new account and
+ * minting a session for an existing one are different concerns even though
+ * they can come from the same IP (a successful signup calls
+ * `/api/auth/session` right after, client-side). A real visitor creates an
+ * account once; retrying a taken username or a typo a couple times is
+ * normal — 5 per 600s mirrors the connect-waitlist budget's reasoning for a
+ * rare, one-shot action, and stays tight against a scripted account-creation
+ * loop (each hit is a Firebase Auth user plus a Firestore profile write).
+ */
+export const AUTH_SIGNUP_WINDOW_MS = 600_000;
+export const AUTH_SIGNUP_MAX_REQUESTS = 5;
+const authSignupIpLog = new Map<string, number[]>();
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the signup action's own store. */
+export function allowAuthSignupRequest(ip: string, now: number = Date.now()): boolean {
+  if (authSignupIpLog.size > SWEEP_THRESHOLD) {
+    sweepStale(authSignupIpLog, now, AUTH_SIGNUP_WINDOW_MS);
+  }
+  const existing = authSignupIpLog.get(ip) ?? [];
+  const { allowed, retained } = checkRateLimitWindow(existing, now, AUTH_SIGNUP_WINDOW_MS, AUTH_SIGNUP_MAX_REQUESTS);
+  authSignupIpLog.set(ip, retained);
   return allowed;
 }
