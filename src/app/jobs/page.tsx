@@ -89,6 +89,8 @@ import {
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
+import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
@@ -2395,6 +2397,10 @@ function JobsContent() {
     const pursuitsByJobIdRef = useRef(pursuitsByJobId);
     pursuitsByJobIdRef.current = pursuitsByJobId;
     const [applyReturnPrompt, setApplyReturnPrompt] = useState<PublicJob | null>(null);
+    // The job whose apply click is currently held open by the AI hand-off
+    // prompt. Holding the job rather than a boolean keeps the dialog's content
+    // and its "continue" target the same object the click started from.
+    const [applyIntentJob, setApplyIntentJob] = useState<PublicJob | null>(null);
 
     // "Apply with tailored resume" / the fit-check drawer moved to MCP
     // 2026-08-02 — openTailor/handleTailor and the FitDrawer/
@@ -2410,18 +2416,34 @@ function JobsContent() {
     // JobDetail's `onOpenPosting` prop), so gating here covers both by
     // construction. Signed in: unchanged, new-tab `window.open` (safe —
     // this always runs synchronously inside the click's own gesture stack).
+    // The departure itself, split out from the gating above so the apply-intent
+    // dialog's "Continue to the posting" button can reach it. It must stay
+    // callable straight from a click handler: `window.open` outside a user
+    // gesture is what popup blockers exist to stop.
+    const openPostingNow = (job: PublicJob) => {
+        if (!job.apply_url) return;
+        // A1 — only a real, signed-in departure to the employer's site arms the
+        // return prompt; the gated branches return before reaching here, so
+        // guests never do.
+        awayForApplyRef.current = { job, leftAt: Date.now() };
+        window.open(job.apply_url, "_blank", "noopener,noreferrer");
+    };
+
     const handleOpenPosting = (job: PublicJob) => {
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
         }
-        if (job.apply_url) {
-            // A1 — only a real, signed-in departure to the employer's site
-            // (this branch) arms the return prompt; the gated branch above
-            // returns first, so guests never reach here.
-            awayForApplyRef.current = { job, leftAt: Date.now() };
-            window.open(job.apply_url, "_blank", "noopener,noreferrer");
+        // Offer the AI hand-off once, at the only moment it is worth anything.
+        // Ordered after the auth gate on purpose: a signed-out visitor has no
+        // résumé or tracker for an assistant to read, so the offer would be
+        // hollow, and two interruptions stacked on one click is worse than the
+        // problem either solves.
+        if (job.apply_url && shouldPromptApplyIntent()) {
+            setApplyIntentJob(job);
+            return;
         }
+        openPostingNow(job);
     };
 
     const doMarkApplied = async (job: PublicJob) => {
@@ -3971,6 +3993,31 @@ function JobsContent() {
                 offset above the real toast stack's own corner so a
                 concurrent "Marked as applied" success toast never stacks
                 directly on top of it. */}
+            {/* Held-open apply click. `onContinue` fires from a click inside
+                the dialog, which keeps `window.open` inside a user gesture. */}
+            <ApplyIntentDialog
+                job={
+                    applyIntentJob
+                        ? {
+                              // Same mapping JobDetail already uses for
+                              // McpHandoffNote, so both entry points hand the
+                              // assistant an identically shaped role.
+                              id: applyIntentJob.id,
+                              title: decodeText(applyIntentJob.title),
+                              company: applyIntentJob.company || "Unknown company",
+                              location: locationText(applyIntentJob) || null,
+                          }
+                        : null
+                }
+                open={Boolean(applyIntentJob)}
+                onOpenChange={(next) => {
+                    if (!next) setApplyIntentJob(null);
+                }}
+                onContinue={() => {
+                    if (applyIntentJob) openPostingNow(applyIntentJob);
+                }}
+            />
+
             {applyReturnPrompt && (
                 <div
                     data-testid="apply-return-prompt"
