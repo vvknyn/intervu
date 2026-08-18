@@ -156,7 +156,9 @@ export function TopBar() {
                     )}
 
                     {user ? (
-                        <DropdownMenu>
+                        <>
+                            <CreditBalance />
+                            <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
                                     data-testid="topbar-avatar"
@@ -195,6 +197,7 @@ export function TopBar() {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        </>
                     ) : (
                         <button
                             data-testid="topbar-login"

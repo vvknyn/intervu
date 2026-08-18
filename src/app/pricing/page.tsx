@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import { PRICING_TIERS } from "@/app/pricing/pricing-tiers";
+import { buildPricingTiers } from "@/app/pricing/pricing-tiers";
 import { PricingCard } from "@/app/pricing/PricingCard";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { getMarketingStatsAction } from "@/actions/marketing";
 
 const TITLE = "Pricing";
-const DESCRIPTION = "Free while intervu is in beta. No card required — up to 20 tracked applications a day.";
+const DESCRIPTION = `Free while intervu is in beta. No card required — up to ${DAILY_APPLY_CAP} tracked applications a day.`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -12,7 +14,13 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/pricing", TITLE, DESCRIPTION),
 };
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  // Same live count TopBar's ticker renders — sourced once here (this page
+  // is a Server Component, no client round trip needed) so the corpus size
+  // can't go stale or disagree with the rest of the site.
+  const stats = await getMarketingStatsAction();
+  const tiers = buildPricingTiers(stats);
+
   return (
     <main data-testid="pricing-page" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header>
@@ -24,7 +32,7 @@ export default function PricingPage() {
 
       <section className="mt-8 flex justify-center">
         <div className="w-full max-w-sm">
-          {PRICING_TIERS.map((tier) => (
+          {tiers.map((tier) => (
             <PricingCard key={tier.name} tier={tier} />
           ))}
         </div>

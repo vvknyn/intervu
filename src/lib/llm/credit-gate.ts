@@ -38,8 +38,16 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 
-/** Free generations granted per calendar month to non-admin shared-key users. */
-const MONTHLY_FREE_CREDITS = 10;
+/** Free generations granted per calendar month to non-admin shared-key users.
+ *  Exported so `/pricing`'s copy reads the same number this gate enforces —
+ *  a hand-typed figure there would silently drift from this one. */
+export const MONTHLY_FREE_CREDITS = 40;
+
+/** Coins spent per metered AI generation. Every exposed action costs the
+ *  same one credit — `resolveSpend` is the only place this is subtracted,
+ *  and `/pricing`'s "1 coin = 1 action" copy reads this constant rather than
+ *  re-typing the number. */
+export const CREDITS_PER_ACTION = 1;
 
 /** One-time permanent credits granted on a user's first sign-in. The only
  *  place this amount is written — `grantWelcomeCredits` reads it, nothing
@@ -170,7 +178,9 @@ export type SpendDecision = { blocked: true } | { blocked: false; allowance: num
  */
 export function resolveSpend(allowance: number, earned: number): SpendDecision {
     if (allowance <= 0 && earned <= 0) return { blocked: true };
-    return allowance > 0 ? { blocked: false, allowance: allowance - 1, earned } : { blocked: false, allowance, earned: earned - 1 };
+    return allowance > 0
+        ? { blocked: false, allowance: allowance - CREDITS_PER_ACTION, earned }
+        : { blocked: false, allowance, earned: earned - CREDITS_PER_ACTION };
 }
 
 /** Atomically decrement a user's balance (allowance refills at each new

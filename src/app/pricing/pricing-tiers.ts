@@ -7,10 +7,24 @@
  * /pricing's own copy), not a hypothetical.
  *
  * Replaces the v1 "AI-feature credit packs" framing (`src/lib/pricing.ts`,
- * `src/lib/llm/credit-gate.ts` — untouched, still power other surfaces) and
- * the v2 4-tier ladder. All AI actions (fit checks, tailoring, prep) moved to
- * MCP-only (2026-08-02) — the web app is search + truth signals + tracker.
+ * `src/lib/llm/credit-gate.ts` — still power other surfaces) and the v2
+ * 4-tier ladder. Interview prep (recon/match/questions), tailoring, fit
+ * checks, and cover letters moved to MCP-only (2026-08-02, `/prep` now
+ * redirects to `/jobs`) — the user's own AI does those, uncharged. The web
+ * app's own built-in AI (the shared-key credit gate below) currently powers
+ * exactly one reachable action: résumé-based job ranking on `/jobs`
+ * ("Rank my jobs" — `ResumeImportModal` → `parseResumeWithAI`). The coin
+ * count and per-action cost are read from `credit-gate.ts` rather than
+ * retyped, so this copy can't drift from what's actually charged. Same
+ * reasoning for the corpus-size bullet: it reads the live count off the same
+ * `getMarketingStatsAction`/`formatCorpusCount` source the landing page's
+ * ticker uses (`TopBar.tsx`), rather than a hand-typed figure that can go
+ * stale as the corpus grows and disagree with what the rest of the site says.
  */
+import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
+import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import type { MarketingCorpusStats } from "@/lib/marketing-stats";
 
 export interface PricingBullet {
   text: string;
@@ -38,19 +52,36 @@ export interface PricingTier {
   highlight?: string;
 }
 
-export const PRICING_TIERS: PricingTier[] = [
-  {
-    name: "Free",
-    price: "$0",
-    tagline: "everything below — no card required",
-    priceNote: "paid truth tiers come later",
-    bullets: [
-      { text: "Search 1.5M+ live verified jobs" },
-      { text: "Posting check on every role" },
-      { text: "Application tracker" },
-      { text: "Connect your AI — fit, tailoring, prep run in YOUR AI", href: "/connect" },
-      { text: "Up to 20 tracked applications a day" },
-    ],
-    cta: { kind: "link", label: "Start free", href: "/", variant: "brand" },
-  },
-];
+/**
+ * Build the tier ladder for a given corpus reading. `stats` is the same
+ * `MarketingCorpusStats | null` shape `getMarketingStatsAction` returns —
+ * `null` when the count genuinely isn't available (e.g. the index is down),
+ * in which case the bullet drops the number rather than showing a stale or
+ * fabricated one (same degrade rule `marketingClaim` uses for the landing
+ * claim).
+ */
+export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTier[] {
+  return [
+    {
+      name: "Free",
+      price: "$0",
+      tagline: "everything below — no card required",
+      priceNote: "paid truth tiers come later",
+      bullets: [
+        {
+          text: stats
+            ? `Search ${formatCorpusCount(stats.liveJobs)} live verified jobs`
+            : "Search live verified jobs",
+        },
+        { text: "Posting check on every role" },
+        { text: "Application tracker" },
+        {
+          text: `${MONTHLY_FREE_CREDITS} free coins a month — ${CREDITS_PER_ACTION} coin per AI action, like ranking your job list against your résumé`,
+        },
+        { text: "Connect your AI — fit, tailoring, prep run in YOUR AI", href: "/connect" },
+        { text: `Up to ${DAILY_APPLY_CAP} tracked applications a day` },
+      ],
+      cta: { kind: "link", label: "Start free", href: "/", variant: "brand" },
+    },
+  ];
+}

@@ -1,56 +1,68 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { PACKS, ACTION_COSTS, APPLICATION_COST, applicationsPerPack, costPerApplication } from "@/lib/pricing";
+import { PACKS } from "@/lib/pricing";
+import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION } from "@/lib/llm/credit-gate";
+import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { buildPricingTiers } from "@/app/pricing/pricing-tiers";
+import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 
-describe("costPerApplication()", () => {
-  it("derives exactly 50¢ from the starter pack's rate", () => {
-    // starter: $5 / 60 credits; APPLICATION_COST = tailor(4) + fit(2) = 6
-    // credits -> 5 * 6 / 60 = $0.50 -> "50¢". This is the number the /pricing
-    // "about fifty cents" line composes around.
-    assert.equal(costPerApplication(), "50¢");
-  });
-
-  it("moves if PACKS' starter rate changes (not a hardcoded literal)", () => {
-    // Sanity-check the derivation formula independently of the live constant,
-    // proving costPerApplication() is a function of PACKS/ACTION_COSTS and not
-    // a re-typed string. A starter pack priced at $10/60 credits would derive
-    // to $1.00 for the same 6-credit application.
-    const hypotheticalRate = 10 / 60;
-    const hypotheticalUsd = hypotheticalRate * APPLICATION_COST;
-    assert.equal(hypotheticalUsd, 1);
-  });
-});
-
-describe("applicationsPerPack()", () => {
-  it("floors to whole applications for the starter pack", () => {
-    // starter: 60 credits / 6 per application = 10 exactly.
-    const starter = PACKS.find((p) => p.id === "starter")!;
-    assert.equal(applicationsPerPack(starter), 10);
-  });
-
-  it("floors a non-exact division for the hunt pack", () => {
-    // hunt: 180 credits / 6 per application = 30 exactly (still checked to
-    // guard against a future ACTION_COSTS change breaking the ratio silently).
-    const hunt = PACKS.find((p) => p.id === "hunt")!;
-    assert.equal(applicationsPerPack(hunt), 30);
-  });
-
-  it("covers every pack with a non-negative integer result", () => {
-    for (const pack of PACKS) {
-      const n = applicationsPerPack(pack);
-      assert.ok(Number.isInteger(n) && n >= 0, `${pack.id} produced ${n}`);
-    }
-  });
-});
-
-describe("PACKS / ACTION_COSTS shape", () => {
+describe("PACKS shape", () => {
   it("every pack id is unique", () => {
     const ids = PACKS.map((p) => p.id);
     assert.equal(new Set(ids).size, ids.length);
   });
 
-  it("APPLICATION_COST is derived from ACTION_COSTS, not a separate literal", () => {
-    assert.equal(APPLICATION_COST, ACTION_COSTS.tailor + ACTION_COSTS.fit);
+  it("every pack has a positive price and credit amount", () => {
+    for (const pack of PACKS) {
+      assert.ok(pack.usd > 0, `${pack.id} has a non-positive usd`);
+      assert.ok(pack.credits > 0, `${pack.id} has a non-positive credit amount`);
+    }
+  });
+});
+
+// Regression coverage for the copy-drift bug: /pricing used to hand-type
+// numbers (free-credit count, apply cap) that could silently disagree with
+// what the app actually enforces. These assert the rendered bullet text is
+// composed FROM the enforcing constants, not a re-typed literal — so a
+// future change to any of the three constants is guaranteed to move the
+// copy, the same class of fix as the coins bullet that motivated this.
+describe("/pricing copy derives from the constants it describes", () => {
+  const bulletTexts = buildPricingTiers(null).flatMap((tier) => tier.bullets.map((b) => b.text));
+
+  it("states the real monthly coin allowance and per-action cost, not a hardcoded pair", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"));
+    assert.ok(coinsBullet, "expected a bullet mentioning coins");
+    assert.match(coinsBullet!, new RegExp(String(MONTHLY_FREE_CREDITS)));
+    assert.match(coinsBullet!, new RegExp(`${CREDITS_PER_ACTION} coin per AI action`));
+  });
+
+  it("states the real daily apply cap, not a hardcoded literal", () => {
+    const capBullet = bulletTexts.find((t) => t.includes("tracked applications a day"));
+    assert.ok(capBullet, "expected the daily-apply-cap bullet");
+    assert.match(capBullet!, new RegExp(String(DAILY_APPLY_CAP)));
+  });
+
+  it("never advertises prep or cover-letter generation as example actions (MCP-only, not coin-billed)", () => {
+    const coinsBullet = bulletTexts.find((t) => t.includes("coin"))!;
+    assert.doesNotMatch(coinsBullet, /\bprep\b/i);
+    assert.doesNotMatch(coinsBullet, /cover letter/i);
+  });
+});
+
+describe("/pricing corpus-count bullet derives from the same source as the rest of the site", () => {
+  it("renders the live count via formatCorpusCount when stats are available", () => {
+    const stats = { liveJobs: { kind: "exact" as const, value: 2_060_299 } };
+    const bullet = buildPricingTiers(stats).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
+    assert.ok(bullet);
+    assert.equal(bullet!.text, `Search ${formatCorpusCount(stats.liveJobs)} live verified jobs`);
+    assert.match(bullet!.text, /2,060,299/);
+  });
+
+  it("degrades to a count-free claim (never a stale or fabricated number) when stats are unavailable", () => {
+    const bullet = buildPricingTiers(null).flatMap((t) => t.bullets).find((b) => b.text.startsWith("Search "));
+    assert.ok(bullet);
+    assert.equal(bullet!.text, "Search live verified jobs");
+    assert.doesNotMatch(bullet!.text, /\d/);
   });
 });

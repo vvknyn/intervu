@@ -7,6 +7,8 @@ import {
     getCreditState,
     FALLBACK_CREDIT_STATE,
     WELCOME_CREDITS,
+    MONTHLY_FREE_CREDITS,
+    CREDITS_PER_ACTION,
 } from "../../src/lib/llm/credit-gate";
 
 /* --------------------------------- resolveAllowance --------------------------------- */
@@ -16,7 +18,7 @@ import {
 // has no path to touching it.
 
 test("resolveAllowance refills on a new period", () => {
-    assert.equal(resolveAllowance({ credits: 0, credits_period: "2026-07" }, "2026-08"), 10);
+    assert.equal(resolveAllowance({ credits: 0, credits_period: "2026-07" }, "2026-08"), MONTHLY_FREE_CREDITS);
 });
 
 test("resolveAllowance keeps the stored value within the same period", () => {
@@ -24,7 +26,7 @@ test("resolveAllowance keeps the stored value within the same period", () => {
 });
 
 test("resolveAllowance refills when never set", () => {
-    assert.equal(resolveAllowance({}, "2026-08"), 10);
+    assert.equal(resolveAllowance({}, "2026-08"), MONTHLY_FREE_CREDITS);
 });
 
 /* --------------------------------- resolveSpend --------------------------------- */
@@ -55,7 +57,7 @@ test("month rollover preserves earned while resetting the allowance (composed sc
     assert.equal(allowanceBeforeReset, 0);
 
     const allowanceAfterReset = resolveAllowance(stored, period);
-    assert.equal(allowanceAfterReset, 10, "allowance refills on rollover");
+    assert.equal(allowanceAfterReset, MONTHLY_FREE_CREDITS, "allowance refills on rollover");
 
     // resolveSpend never receives credits_earned through the allowance path —
     // the earned figure below comes straight off the stored record,
@@ -63,7 +65,11 @@ test("month rollover preserves earned while resetting the allowance (composed sc
     assert.equal(stored.credits_earned, 15, "earned is untouched by rollover");
 
     const spend = resolveSpend(allowanceAfterReset, stored.credits_earned);
-    assert.deepEqual(spend, { blocked: false, allowance: 9, earned: 15 }, "post-rollover spend drains the fresh allowance, not earned");
+    assert.deepEqual(
+        spend,
+        { blocked: false, allowance: MONTHLY_FREE_CREDITS - CREDITS_PER_ACTION, earned: 15 },
+        "post-rollover spend drains the fresh allowance, not earned",
+    );
 });
 
 /* --------------------------------- resolveGrant --------------------------------- */
