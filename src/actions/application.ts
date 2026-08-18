@@ -11,7 +11,6 @@ import {
     type PursuitStage,
 } from "@/lib/pursuits/types";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
-import { isNewAppliedTransition, assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
@@ -110,12 +109,6 @@ export async function createApplication(application: CreateApplicationData) {
             return { error: "User not authenticated" };
         }
 
-        // A fresh create has no prior stage, so this is always a NEW applied
-        // transition when the caller is creating one directly (free-plan cap).
-        if (isNewAppliedTransition(application.status, undefined)) {
-            await assertUnderDailyApplyCap(user.uid);
-        }
-
         const db = getAdminDb();
         const now = new Date().toISOString();
         const docData = {
@@ -154,13 +147,6 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
 
         if (!doc.exists || doc.data()?.user_id !== user.uid) {
             return { error: "Application not found" };
-        }
-
-        // Free-plan daily apply cap: only consume a slot when this update is
-        // itself the transition into "applied" (idempotent re-marks of an
-        // already-applied-or-further pursuit are free — see isNewAppliedTransition).
-        if (parsed.data.status && isNewAppliedTransition(parsed.data.status, doc.data()?.status as PursuitStage | undefined)) {
-            await assertUnderDailyApplyCap(user.uid);
         }
 
         // The Admin SDK rejects `undefined` field values (ignoreUndefinedProperties

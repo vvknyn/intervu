@@ -3,7 +3,6 @@
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ApplicationDraft } from "@/lib/applications/draft";
-import { assertUnderDailyApplyCap } from "@/lib/pursuits/apply-cap";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
 import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";
 
@@ -21,10 +20,6 @@ export async function createApplicationDraft(draft: ApplicationDraft): Promise<{
         if (!draft.jobAnalysis?.companyName || !draft.jobAnalysis?.positionTitle) {
             return { error: "Company name and position are required" };
         }
-
-        // Brand-new doc, always created with status "applied" below — free-plan
-        // daily apply cap (see lib/pursuits/apply-cap.ts).
-        await assertUnderDailyApplyCap(user.uid);
 
         const db = getAdminDb();
         const now = new Date().toISOString();

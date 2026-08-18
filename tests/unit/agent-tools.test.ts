@@ -17,7 +17,6 @@ import type { LocationVocabulary } from '../../src/lib/jobs/query-understanding'
 import { buildGazetteerIndex, type GazetteerData } from '../../src/lib/geo/gazetteer';
 import type { CorpusValueChecker } from '../../src/lib/geo/corpus-values';
 import type { PlaceFilter } from '../../src/lib/jobs/types';
-import { applyCapMessage } from '../../src/lib/pursuits/apply-cap';
 import type { Pursuit, PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
 import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
@@ -505,17 +504,15 @@ describe('toolMarkApplied', () => {
     assert.deepEqual(out, { error: 'job not found' });
   });
 
-  // The free-plan daily apply cap (lib/pursuits/apply-cap.ts) is enforced
-  // INSIDE the shared upsertPursuitCore chokepoint (deps.upsert here stands
-  // in for it) — not before it, and not separately on this MCP path — so a
-  // cap-exhausted upsert must surface as an honest tool error, never a
-  // fabricated `{ marked: true }`. Mirrors toolSaveJob's identical upsert-
-  // error-propagation test; this is the one case that error can BE the cap
-  // message specifically.
-  it('propagates the free-plan daily apply cap error instead of fabricating success', async () => {
-    const { deps } = stubDeps([makeJob()], { error: applyCapMessage() });
+  // Whatever the shared upsertPursuitCore chokepoint refuses (deps.upsert
+  // here stands in for it), this MCP path must surface as an honest tool
+  // error, never a fabricated `{ marked: true }`. Mirrors toolSaveJob's
+  // identical upsert-error-propagation test.
+  it('propagates an upsert refusal instead of fabricating success', async () => {
+    const refusal = 'could not save that application right now';
+    const { deps } = stubDeps([makeJob()], { error: refusal });
     const out = await toolMarkApplied(deps, { id: 'job-1' });
-    assert.deepEqual(out, { error: applyCapMessage() });
+    assert.deepEqual(out, { error: refusal });
   });
 
   it('propagates backend-unavailable (not a false "not found") and never calls upsert', async () => {

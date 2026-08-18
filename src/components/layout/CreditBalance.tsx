@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, Sparkle, Key } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
+import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { cn } from "@/lib/utils";
 
 type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
@@ -33,10 +34,10 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     // earned split so a balance that doesn't reset on the 1st isn't a
     // surprise.
     let Icon = Coins;
-    let label = `${s.total} credit${s.total === 1 ? "" : "s"}`;
-    let title = `${s.allowance} of ${s.monthlyFree} free AI credits left this month.`;
+    let label = creditCount(s.total);
+    let title = `${s.allowance} of ${s.monthlyFree} free AI ${CREDIT_UNIT.many} left this month.`;
     if (s.earned > 0) {
-        title += ` Plus ${s.earned} earned credit${s.earned === 1 ? "" : "s"} that never expire.`;
+        title += ` Plus ${creditCount(s.earned)} earned that never expire.`;
     }
     let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
 

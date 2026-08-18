@@ -43,10 +43,11 @@ import { getAdminDb } from "@/lib/firebase/admin";
  *  a hand-typed figure there would silently drift from this one. */
 export const MONTHLY_FREE_CREDITS = 40;
 
-/** Coins spent per metered AI generation. Every exposed action costs the
+/** Credits spent per metered AI generation. Every exposed action costs the
  *  same one credit — `resolveSpend` is the only place this is subtracted,
- *  and `/pricing`'s "1 coin = 1 action" copy reads this constant rather than
- *  re-typing the number. */
+ *  and `/pricing`'s "1 credit per AI action" copy reads this constant rather
+ *  than re-typing the number. The noun itself comes from `CREDIT_UNIT`
+ *  (./credit-copy.ts), shared with the sidebar balance. */
 export const CREDITS_PER_ACTION = 1;
 
 /** One-time permanent credits granted on a user's first sign-in. The only

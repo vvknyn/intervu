@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { buildPricingTiers } from "@/app/pricing/pricing-tiers";
 import { PricingCard } from "@/app/pricing/PricingCard";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { DAILY_APPLY_CAP } from "@/lib/pursuits/apply-cap";
+import { MONTHLY_FREE_CREDITS } from "@/lib/llm/credit-gate";
+import { CREDIT_UNIT } from "@/lib/llm/credit-copy";
 import { getMarketingStatsAction } from "@/actions/marketing";
 
 const TITLE = "Pricing";
-const DESCRIPTION = `Free while intervu is in beta. No card required — up to ${DAILY_APPLY_CAP} tracked applications a day.`;
+const DESCRIPTION = `Free while intervu is in beta. No card required — every feature, plus ${MONTHLY_FREE_CREDITS} free AI ${CREDIT_UNIT.many} a month.`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -26,7 +27,7 @@ export default async function PricingPage() {
       <header>
         <h1 className="font-display text-display font-extrabold text-foreground">Free while we&apos;re in beta.</h1>
         <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-          Everything below, no card required. Paid truth tiers come later.
+          Every feature below, for everyone. Paid tiers come later.
         </p>
       </header>
 
