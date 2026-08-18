@@ -7,6 +7,7 @@ import { ProviderFactory } from "@/lib/llm/providers";
 import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
+import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
 import { planHasSessionQuestions } from "@/lib/prep/cache-key";
 import { resolveCacheLookup } from "@/lib/interview-cache";
@@ -145,11 +146,32 @@ const repairJSON = (text: string) => {
     }
 };
 
-export const fetchJSON = async (prompt: string, label: string, configOverride?: Partial<ProviderConfig>) => {
-    // Credit gate — charged ONCE per generation, above the retry loop, and only
-    // when this resolves to the shared key (admins + BYOK are exempt). Throws
-    // OUT_OF_CREDITS when the user's monthly free balance is exhausted.
-    await chargeIfSharedKey(await getConfig(configOverride));
+export const fetchJSON = async (
+    prompt: string,
+    label: string,
+    configOverride?: Partial<ProviderConfig>,
+    /**
+     * Optional free-first model ladder (see lib/llm/model-ladder.ts). Opt-in:
+     * omit it and this behaves exactly as before, on one model. Only résumé
+     * parsing passes one today.
+     */
+    modelLadder?: readonly string[],
+) => {
+    // Resolved ONCE and reused. `getConfig` does a Firestore read for the BYOK
+    // lookup, so re-resolving per attempt cost a round-trip per retry — and a
+    // ladder needs one stable config whose model it can vary per rung anyway.
+    const baseConfig = await getConfig(configOverride);
+
+    // Credit gate — charged ONCE per generation, above the ladder AND the retry
+    // loop, and only when this resolves to the shared key (admins + BYOK are
+    // exempt). Throws OUT_OF_CREDITS when the monthly free balance is spent.
+    // This ordering is the reason the ladder is walked here rather than by the
+    // caller: a caller looping over `generateGenericJSON` would charge one
+    // credit per rung, so a single upload could cost three.
+    await chargeIfSharedKey(baseConfig);
+
+    const rungs = resolveModelLadder(baseConfig, modelLadder, Boolean(configOverride?.model));
+
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
         return Promise.race([
@@ -158,9 +180,9 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
         ]);
     };
 
-    const attemptFetch = async (retryCount: number = 0): Promise<any> => {
+    const attemptFetch = async (rung: LadderRung, retryCount: number = 0): Promise<any> => {
         try {
-            const config = await getConfig(configOverride);
+            const config = { ...baseConfig, model: rung.model };
             const provider = ProviderFactory.getProvider(config.provider, config.apiKey, config.model);
 
             console.log(`[DEBUG] Fetching ${label} with ${config.provider}:${config.model}...`);
@@ -173,14 +195,15 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
             // parsing — do not re-inject a date line at individual call sites.
             const todayLine = `Today's date is ${new Date().toISOString().slice(0, 10)}. Use it as "now" for any date reasoning (e.g. years of experience, or whether a role/date is past, current, or future).`;
 
-            // 60s Global Timeout for Generation (provider handles its own rate limiting)
+            // Per-rung timeout (provider handles its own rate limiting). A free
+            // rung gets less patience than the paid tail — see model-ladder.ts.
             const response = await withTimeout(
                 provider.generate({
                     system: `You are an expert technical interviewer and career coach. Return ONLY valid JSON. ${todayLine}`,
                     prompt: prompt + "\n\nCRITICAL: Return ONLY valid JSON. No markdown formatting.",
                     json: true
                 }),
-                60000,
+                rung.timeoutMs,
                 label
             );
 
@@ -206,8 +229,11 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
                     }
                 }
 
-                if (!parsed && retryCount < 1) {
-                    // Only retry once for JSON parse failure
+                // Only re-prompt the SAME model for a malformed-JSON failure,
+                // and only on the rung that has to answer. On a free rung the
+                // next rung is the better retry — a different model is more
+                // likely to produce valid JSON than the one that just didn't.
+                if (!parsed && retryCount < 1 && rung.isFallback) {
                     await delay(1000);
                     const retryResponse = await withTimeout(
                         provider.generate({
@@ -215,7 +241,7 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
                             prompt: prompt,
                             json: true
                         }),
-                        30000,
+                        Math.min(30000, rung.timeoutMs),
                         `${label} (Correction)`
                     );
                     parsed = repairJSON(retryResponse.text || "{}");
@@ -234,17 +260,27 @@ export const fetchJSON = async (prompt: string, label: string, configOverride?: 
                 throw e;
             }
 
-            // Retry once for other transient errors
-            if (retryCount < 1) {
+            // Retry once for other transient errors — but only on the rung that
+            // has to answer. Waiting 2s to re-ask a rate-limited free model is
+            // pure latency; the ladder's next rung is the real retry.
+            if (retryCount < 1 && rung.isFallback) {
                 console.warn(`[DEBUG] Error fetching ${label}, retrying (${retryCount + 1}/1)...`, e.message);
                 await delay(2000); // Wait 2 seconds before retry
-                return attemptFetch(retryCount + 1);
+                return attemptFetch(rung, retryCount + 1);
             }
             throw e;
         }
     };
 
-    return attemptFetch();
+    return runLadder(
+        rungs,
+        (rung) => attemptFetch(rung),
+        (rung, error) =>
+            console.warn(
+                `[DEBUG] ${label}: rung ${rung.model} failed, falling through —`,
+                error instanceof Error ? error.message : error,
+            ),
+    );
 };
 
 
@@ -634,9 +670,15 @@ export async function generateCodeFeedback(code: string, problem: string): Promi
     }
 }
 
-export async function generateGenericJSON(prompt: string, configOverride?: Partial<ProviderConfig>): Promise<any> {
+export async function generateGenericJSON(
+    prompt: string,
+    configOverride?: Partial<ProviderConfig>,
+    /** Free-first rungs to try before the resolved model. Opt-in — omitting it
+     *  is today's behaviour exactly. See lib/llm/model-ladder.ts. */
+    modelLadder?: readonly string[],
+): Promise<any> {
     try {
-        return await fetchJSON(prompt, "Generic JSON", configOverride);
+        return await fetchJSON(prompt, "Generic JSON", configOverride, modelLadder);
     } catch (e: any) {
         console.error("Generic JSON Error:", e);
         // Propagate the error message so callers can display it to the user
