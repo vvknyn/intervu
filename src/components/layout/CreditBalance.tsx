@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, Sparkle, Key } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
-import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
+import { BETA_UNLIMITED_CREDITS, BETA_UNLIMITED_NOTE, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { cn } from "@/lib/utils";
 
 type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
@@ -41,7 +41,17 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     }
     let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
 
-    if (s.isAdmin) {
+    if (BETA_UNLIMITED_CREDITS) {
+        // Checked before the account-kind branches because it is true for
+        // every account. The balance underneath is real and untouched — the
+        // gate simply never draws on it during beta — so the honest thing to
+        // render is the state, not the number, which would otherwise sit
+        // frozen and read as a stuck counter.
+        Icon = Sparkle;
+        label = "Unlimited";
+        title = BETA_UNLIMITED_NOTE;
+        low = false;
+    } else if (s.isAdmin) {
         Icon = Sparkle;
         label = "Unlimited";
         title = "Admin — unlimited AI use.";

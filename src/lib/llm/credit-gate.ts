@@ -5,6 +5,10 @@
  * Per-user credit gate for the SHARED (app-funded) default model.
  *
  * Policy (2026-06, BYOK entry point removed 2026-08-08):
+ *  - BETA (2026-08-18): `BETA_UNLIMITED_CREDITS` (./credit-copy.ts) is on, so
+ *    nobody is charged. Everything below still applies the moment it is off —
+ *    the ledger is untouched, not deleted, and the same constant drives
+ *    /pricing's copy so the page can never advertise the wrong story.
  *  - vvk / admins: unlimited use of the shared key (no charge).
  *  - Legacy BYOK users (own OpenRouter/Groq key stored before 2026-08-08) or
  *    explicit key overrides: never charged — they pay their own provider.
@@ -35,6 +39,7 @@
  * perishable pool before the permanent one is strictly better for the user
  * (standard use-it-or-lose-it ordering). Blocked only when BOTH are zero.
  */
+import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 
@@ -139,6 +144,12 @@ export async function chargeIfSharedKey(config: { apiKey?: string | null }): Pro
     }
 
     try {
+        // Beta short-circuits ahead of the admin lookup: nothing is metered,
+        // so there is no reason to spend a Firestore read deciding who is
+        // exempt. Sign-in is still required above — that gate exists so the
+        // app-funded key is never spent on anonymous traffic, which is an
+        // abuse control, not a credit policy.
+        if (BETA_UNLIMITED_CREDITS) return;
         if (await isAdminUser(user)) return; // vvk / admins: unlimited
         await consumeCredit(user.uid);
     } catch (e) {
