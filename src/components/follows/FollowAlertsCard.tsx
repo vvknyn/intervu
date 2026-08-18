@@ -126,14 +126,14 @@ export function FollowAlertsCard({
         </div>
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold leading-snug">{title}</h2>
-          <p className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+          <p className="mt-1 text-[11.5px] text-muted-foreground">
             Observed since your last visit · hiring signal
           </p>
         </div>
         <button
           type="button"
           onClick={acknowledge}
-          className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          className="ml-auto shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
           aria-label="Dismiss follow alerts"
         >
           dismiss
@@ -154,11 +154,11 @@ export function FollowAlertsCard({
               >
                 <div className="min-w-0">
                   <div className="truncate font-medium">{job.title}</div>
-                  <div className="mt-0.5 truncate font-mono text-[11.5px] text-muted-foreground">
+                  <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
                     {meta}
                   </div>
                 </div>
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                <span className="shrink-0 text-[11px] text-muted-foreground">
                   {jobAgeLabel(job, nowMs)}
                 </span>
               </Link>

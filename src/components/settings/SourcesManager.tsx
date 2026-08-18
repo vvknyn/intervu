@@ -370,7 +370,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             placeholder="Paste content here..."
                                             value={content}
                                             onChange={(e) => setContent(e.target.value)}
-                                            className="min-h-[200px] font-mono text-sm"
+                                            className="min-h-[200px] text-base md:text-sm"
                                         />
 
                                         {/* Discovered links section */}
@@ -471,7 +471,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         <Trash size={14} />
                                     </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-3 font-mono bg-muted/30 p-2 rounded">
+                                <p className="text-xs text-muted-foreground line-clamp-3 bg-muted/30 p-2 rounded">
                                     {source.content}
                                 </p>
                                 <div className="mt-2 text-[10px] text-muted-foreground flex justify-end">
@@ -541,7 +541,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                             )}
                                         </Button>
                                     </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-3 font-mono bg-muted/30 p-2 rounded">
+                                    <p className="text-xs text-muted-foreground line-clamp-3 bg-muted/30 p-2 rounded">
                                         {source.content}
                                     </p>
                                     <div className="mt-2 text-[10px] text-muted-foreground flex justify-end">

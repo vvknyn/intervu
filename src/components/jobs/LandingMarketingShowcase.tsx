@@ -31,14 +31,14 @@ export function LandingMasthead() {
     <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/80 pb-4">
         <div>
-          <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">
+          <span className="text-xs font-bold uppercase tracking-widest text-brand">
             [ DIRECT ATS INGESTION ENGINE ]
           </span>
           <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
             The Unfiltered Corpus.
           </h1>
         </div>
-        <div className="font-mono text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
+        <div className="text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
           <p className="font-bold text-foreground">EDITION 2026.08</p>
           <p>100% Direct from Employer ATS</p>
         </div>
@@ -47,7 +47,7 @@ export function LandingMasthead() {
       {/* 3-Column Swiss Editorial Statement */}
       <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+          <div className="font-bold text-foreground uppercase tracking-wider">
             01 / DIRECT SCRAPING
           </div>
           <p className="text-muted-foreground">
@@ -56,7 +56,7 @@ export function LandingMasthead() {
         </div>
 
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+          <div className="font-bold text-foreground uppercase tracking-wider">
             02 / GHOST DETECTION
           </div>
           <p className="text-muted-foreground">
@@ -65,7 +65,7 @@ export function LandingMasthead() {
         </div>
 
         <div className="space-y-1.5">
-          <div className="font-mono font-bold text-foreground uppercase tracking-wider">
+          <div className="font-bold text-foreground uppercase tracking-wider">
             03 / RAW COMPENSATION
           </div>
           <p className="text-muted-foreground">
@@ -148,7 +148,7 @@ export function LandingMarketingShowcase({
 
       {/* Swiss Index Ledger Directory */}
       <div>
-        <div className="flex items-center justify-between border-b border-foreground pb-2 text-xs font-mono font-bold uppercase tracking-widest text-foreground">
+        <div className="flex items-center justify-between border-b border-foreground pb-2 text-xs font-bold uppercase tracking-widest text-foreground">
           <span>[ MARKET SECTOR DIRECTORY ]</span>
           <span className="text-muted-foreground hidden sm:inline">SELECT DOMAIN TO QUERY</span>
         </div>
@@ -171,12 +171,12 @@ export function LandingMarketingShowcase({
               className="group flex w-full flex-col gap-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background sm:flex-row sm:items-center sm:justify-between px-3"
             >
               <div className="flex items-start sm:items-center gap-4 min-w-0">
-                <span className="font-mono text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
+                <span className="text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
                   {cat.num}
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-brand group-hover:text-background">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand group-hover:text-background">
                       [{cat.domain}]
                     </span>
                     <h3 className="font-bold text-sm tracking-tight text-foreground group-hover:text-background">
@@ -189,7 +189,7 @@ export function LandingMarketingShowcase({
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+              <div className="flex items-center gap-4 shrink-0 text-xs">
                 <span className="rounded-none border border-border group-hover:border-background/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-background">
                   {cat.metric}
                 </span>
@@ -201,7 +201,7 @@ export function LandingMarketingShowcase({
       </div>
 
       {/* Direct Filter Shortcuts */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 font-mono text-xs">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-xs">
         <button
           type="button"
           onClick={() => onSelectBoard("elite")}

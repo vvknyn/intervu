@@ -18,7 +18,7 @@ export default function PrivacyPage() {
     <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
         <div className="border-b border-border pb-4 mb-6">
-          <span className="font-mono text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & PRIVACY ]</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & PRIVACY ]</span>
           <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Privacy Policy</h1>
         </div>
 

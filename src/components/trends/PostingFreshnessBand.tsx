@@ -39,7 +39,7 @@ export function PostingFreshnessBand({
             <p className="text-xs text-muted-foreground">Distribution of active openings by elapsed time since publication</p>
           </div>
         </div>
-        <span className="hidden font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
+        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
           Age Decay
         </span>
       </div>
@@ -73,10 +73,10 @@ export function PostingFreshnessBand({
                     style={{ width: `${(count.value / maxValue) * 100}%` }}
                   />
                 </span>
-                <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="w-10 text-right text-[11px] text-muted-foreground tabular-nums">
                   {pct}%
                 </span>
-                <span className="w-16 text-right font-mono text-xs font-bold text-foreground tabular-nums">
+                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
                   {formatCorpusCount(count)}
                 </span>
               </div>

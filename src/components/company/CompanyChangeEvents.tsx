@@ -66,7 +66,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
         <dl className="space-y-1.5">
           {evidence.metrics.map((m) => (
             <div key={m.label} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-              <dt className="min-w-[84px] font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+              <dt className="min-w-[84px] text-[10px] uppercase tracking-wide text-muted-foreground">
                 {m.label}
               </dt>
               <dd className="text-[13px] tabular-nums text-foreground">{m.value}</dd>
@@ -78,7 +78,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
       {hasFooter && (
         <p
           className={cn(
-            "font-mono text-[10px] text-muted-foreground",
+            "text-[10px] text-muted-foreground",
             evidence.metrics.length > 0 && "mt-2.5",
           )}
         >
@@ -153,7 +153,7 @@ export function CompanyChangeEvents({
   return (
     <section data-testid="company-change-events" className="mb-8">
       <h2 className="mb-1 font-display text-[20px] font-semibold">Recent changes</h2>
-      <p className="mb-4 font-mono text-[11px] text-muted-foreground">
+      <p className="mb-4 text-[11px] text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
 
@@ -176,14 +176,14 @@ export function CompanyChangeEvents({
                   {label && (
                     <span
                       className={cn(
-                        "rounded border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide",
+                        "rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                         chip,
                       )}
                     >
                       {label}
                     </span>
                   )}
-                  {date && <span className="font-mono text-[11px] text-muted-foreground">{date}</span>}
+                  {date && <span className="text-[11px] text-muted-foreground">{date}</span>}
                 </div>
                 <p className="mt-1.5 text-[15px] leading-snug text-foreground">{event.headline}</p>
                 {event.evidence && <EventEvidence evidence={event.evidence} />}

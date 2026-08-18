@@ -14,7 +14,7 @@ export function CompanyIntelStrip({
 
   if (!elite) {
     return (
-      <p className="font-mono text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         {segs.map((s) => s.text).join(" · ")}
       </p>
     );

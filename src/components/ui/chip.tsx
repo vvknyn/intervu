@@ -7,7 +7,10 @@ import { cn } from "@/lib/utils"
  * frosted backdrop blur and specular top highlight.
  */
 export const chipVariants = cva(
-  "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-none border px-2 text-[11px] font-mono tracking-tight transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50",
+  // A chip carries a label, never code, so it takes the sans — with tabular
+  // figures, since chips routinely hold counts that sit in a row and should
+  // not jitter as the numbers change.
+  "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-none border px-2 text-[11px] tabular-nums tracking-tight transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {

@@ -45,14 +45,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="while-you-slept-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             While you slept
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {WHILE_YOU_SLEPT_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border font-mono text-[12px] font-bold text-foreground">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
                   {i + 1}
                 </span>
                 <div>
@@ -70,7 +70,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="wont-do-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             What it won&apos;t do
           </h2>
@@ -101,7 +101,7 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="runs-local-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             Runs on your machine
           </h2>
@@ -114,14 +114,14 @@ export default function OpenclawPage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <h2
             id="setup-heading"
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+            className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"
           >
             Setup in 3 steps
           </h2>
           <ol className="mt-8 flex flex-col gap-6">
             {SETUP_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border font-mono text-[12px] font-bold text-foreground">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-border text-[12px] font-bold text-foreground">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">

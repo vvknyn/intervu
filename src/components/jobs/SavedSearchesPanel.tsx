@@ -110,13 +110,13 @@ export function SavedSearchesPanel({
     if (!canSave && saved.length === 0) return null;
 
     return (
-        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 font-mono text-[11px]", className)}>
+        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-[11px]", className)}>
             {canSave && !naming && (
                 <button
                     type="button"
                     data-testid="save-search-trigger"
                     onClick={startSave}
-                    className="inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-mono font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors"
+                    className="inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors"
                 >
                     <BookmarkSimple size={14} aria-hidden />
                     Save Search
@@ -132,7 +132,7 @@ export function SavedSearchesPanel({
                             if (e.key === "Enter") void commitSave();
                             if (e.key === "Escape") setNaming(false);
                         }}
-                        className="h-7 min-w-[8rem] rounded-none border border-border bg-background/80 px-2 font-mono text-[11px] text-foreground outline-none focus:border-brand"
+                        className="h-7 min-w-[8rem] rounded-none border border-border bg-background/80 px-2 text-base md:text-[11px] text-foreground outline-none focus:border-brand"
                         aria-label="Saved search name"
                         autoFocus
                     />
@@ -140,7 +140,7 @@ export function SavedSearchesPanel({
                         type="button"
                         data-testid="save-search-commit"
                         onClick={() => void commitSave()}
-                        className="h-7 rounded-none glass-tint-blue px-2.5 font-mono text-[10px] font-bold uppercase"
+                        className="h-7 rounded-none glass-tint-blue px-2.5 text-[10px] font-bold uppercase"
                     >
                         Save
                     </button>
@@ -164,7 +164,7 @@ export function SavedSearchesPanel({
                                     writeVisitCursor(`saved:${savedSearchId(s.href)}`, new Date().toISOString());
                                     onApply(s.href);
                                 }}
-                                className="max-w-[10rem] truncate font-mono text-[11px] font-medium text-foreground hover:underline"
+                                className="max-w-[10rem] truncate text-[11px] font-medium text-foreground hover:underline"
                                 title={s.name}
                             >
                                 {s.name}
@@ -172,7 +172,7 @@ export function SavedSearchesPanel({
                             {(newCounts[s.id] ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
-                                    className="font-mono text-[10px] font-bold text-brand"
+                                    className="text-[10px] font-bold text-brand"
                                 >
                                     +{newCounts[s.id]}
                                 </span>

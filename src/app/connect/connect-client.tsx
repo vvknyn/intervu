@@ -88,11 +88,11 @@ function CopyBox({ value, label }: { value: string; label?: string }) {
     <div className="relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-slate-300 bg-slate-50/80 p-3 shadow-2xs dark:border-slate-700 dark:bg-slate-900/60">
       <div className="min-w-0 flex-1 pl-1">
         {label && (
-          <div className="mb-1 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {label}
           </div>
         )}
-        <code className="block truncate font-mono text-[13px] font-semibold text-foreground">
+        <code className="block truncate text-[13px] font-semibold text-foreground">
           {value}
         </code>
       </div>
@@ -177,7 +177,7 @@ export function ConnectClient() {
     <div className="space-y-8 w-full">
       {/* Header Banner */}
       <div>
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/80 bg-emerald-50 px-3 py-1 font-mono text-[11px] font-semibold text-emerald-800 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/80 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300">
           <Sparkle size={13} weight="fill" className="text-emerald-500" />
           Model Context Protocol (MCP) & Local Agents
         </div>
@@ -264,7 +264,7 @@ export function ConnectClient() {
               <ol className="space-y-1.5 text-xs text-foreground">
                 {currentInstruction.steps.map((step, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white border border-slate-300 font-mono text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-2xs">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white border border-slate-300 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-2xs">
                       {idx + 1}
                     </span>
                     <span className="leading-snug">{step}</span>
@@ -289,7 +289,7 @@ export function ConnectClient() {
               <div className="flex items-center gap-2">
                 <TerminalWindow size={18} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
                 <h2 className="text-sm font-bold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
-                <span className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   Self-Hosted
                 </span>
               </div>
@@ -310,7 +310,7 @@ export function ConnectClient() {
               {platform === "mac" || platform === null ? (
                 <div className="space-y-2">
                   <CopyBox value={OPENCLAW_INSTALL_COMMAND} label="1-Click Mac Terminal Command" />
-                  <p className="text-[11px] text-muted-foreground font-mono">{OPENCLAW_INSTALL_HINT}</p>
+                  <p className="text-[11px] text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
                 </div>
               ) : (
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
@@ -331,7 +331,7 @@ export function ConnectClient() {
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="you@company.com"
                           disabled={pending}
-                          className="h-8 text-xs rounded-lg"
+                          className="h-8 text-base md:text-xs rounded-lg"
                         />
                         <Button type="submit" size="xs" disabled={pending} className="rounded-lg">
                           {pending ? "Joining…" : "Notify me"}
@@ -423,7 +423,7 @@ export function ConnectClient() {
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="relative">
-                  <pre className="overflow-x-auto rounded-lg border border-slate-300 bg-slate-950 p-3 font-mono text-[11px] text-slate-100 dark:border-slate-800 shadow-2xs">
+                  <pre className="overflow-x-auto rounded-lg border border-slate-300 bg-slate-950 p-3 text-[11px] text-slate-100 dark:border-slate-800 shadow-2xs">
                     <code>{jsonConfig}</code>
                   </pre>
                   <Button

@@ -36,7 +36,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
     const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     return (
         <div className="border border-border bg-card p-6">
-            <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
+            <div className="mb-3 text-[11px] uppercase tracking-[0.1em] text-muted-foreground">Resume used</div>
             {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
             ) : (
@@ -45,7 +45,7 @@ function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
                         <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-medium text-foreground">{version.label}</p>
-                                <p className="font-mono text-[11px] text-muted-foreground">
+                                <p className="text-[11px] text-muted-foreground">
                                     {new Date(version.saved_at).toLocaleDateString(undefined, {
                                         year: "numeric",
                                         month: "short",

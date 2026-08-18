@@ -55,7 +55,7 @@ export function TrendsHero({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className={cn("h-1.5 w-1.5 rounded-none", tile.indicator)} aria-hidden />
-                  <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
                     {tile.label}
                   </span>
                 </div>
@@ -71,7 +71,7 @@ export function TrendsHero({
                   )}
                 </div>
               </div>
-              <p className="mt-3 font-mono text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              <p className="mt-3 text-3xl font-bold tracking-tight text-foreground tabular-nums">
                 {formatCorpusCount(tile.value)}
               </p>
             </div>

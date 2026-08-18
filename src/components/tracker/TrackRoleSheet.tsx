@@ -81,19 +81,19 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 </SheetHeader>
                 <div className="space-y-3 px-5 py-4 pb-7">
                     <div>
-                        <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Company</Label>
+                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Company</Label>
                         <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Role</Label>
+                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Role</Label>
                         <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Job URL</Label>
+                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Job URL</Label>
                         <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={fieldClass} />
                     </div>
                     <div>
-                        <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Status</Label>
+                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Status</Label>
                         <Select value={status} onValueChange={(v) => setStatus(v as PursuitStage)}>
                             <SelectTrigger className={fieldClass}>
                                 <SelectValue />
@@ -108,7 +108,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         </Select>
                     </div>
                     <div>
-                        <Label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note (optional)</Label>
+                        <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Note (optional)</Label>
                         <Textarea
                             value={note}
                             onChange={(e) => setNote(e.target.value)}

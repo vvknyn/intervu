@@ -68,7 +68,7 @@ export function ReportJobButton({
         return (
             <span
                 data-testid="report-job-done"
-                className={cn("inline-flex items-center gap-1.5 font-mono text-[12px] text-muted-foreground", className)}
+                className={cn("inline-flex items-center gap-1.5 text-[12px] text-muted-foreground", className)}
             >
                 <FlagIcon size={13} weight="fill" />
                 Reported ✓

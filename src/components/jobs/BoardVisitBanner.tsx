@@ -66,7 +66,7 @@ export function BoardVisitBanner() {
         >
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-none bg-brand" aria-hidden />
-                <p className="font-mono text-xs font-medium text-foreground">
+                <p className="text-xs font-medium text-foreground">
                     <span className="font-bold text-brand tabular-nums">{count}</span> new role{count === 1 ? "" : "s"} posted since your last visit
                 </p>
             </div>

@@ -60,16 +60,16 @@ export function PricingCard({ tier }: { tier: PricingTier }) {
       )}
     >
       {tier.highlight && (
-        <span className="absolute -top-3 left-[18px] rounded-none bg-brand px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase leading-none tracking-widest text-brand-foreground">
+        <span className="absolute -top-3 left-[18px] rounded-none bg-brand px-2.5 py-1.5 text-[10px] font-bold uppercase leading-none tracking-widest text-brand-foreground">
           {tier.highlight}
         </span>
       )}
 
       <div>
-        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           {tier.name}
         </p>
-        <p className="mt-1.5 font-mono text-[32px] font-medium leading-none text-foreground">{tier.price}</p>
+        <p className="mt-1.5 text-[32px] font-medium leading-none text-foreground">{tier.price}</p>
         <p className="mt-2 text-sm text-muted-foreground">{tier.tagline}</p>
       </div>
 

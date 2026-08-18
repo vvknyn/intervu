@@ -14,7 +14,7 @@ export function OpenclawStatusBadge({ className }: { className?: string }) {
   return (
     <p
       className={cn(
-        "inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
+        "inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
         className,
       )}
     >

@@ -6,10 +6,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Minimal, Airy, High-Legibility Typeface Pair — Inter & JetBrains Mono */
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
-  --font-display: var(--font-inter), var(--font-sans);
+  /* Three roles, three faces — see the typeface rationale in app/layout.tsx.
+     The `*-face` variables are supplied by next/font there and are named for
+     the ROLE, not the vendor, so a future swap is one line in layout.tsx and
+     touches nothing here. */
+  --font-sans: var(--font-sans-face), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --font-display: var(--font-display-face), var(--font-sans);
 
   /* Display scale addition (visual-identity pass) — the landing-hero
      wordmark morph (app/page.tsx) and the /trends h1 both size off this one
@@ -669,16 +672,86 @@ textarea::selection {
   border-bottom: 2px solid rgb(var(--brand));
 }
 
-/* Data-string utility (squared design-system pass, docs-mockup.html "THE
-   RULES" #4 — "Mono = every data string: counts, ages, facts, status,
-   verdicts. Sans = prose and titles."). One class for the font-family +
-   tabular-nums pairing every counter/age/fact/verdict chip already reaches
-   for ad hoc (`font-mono text-[Npx] tabular-nums` repeated per call site) —
-   consolidates that repetition into one name so a call site can't drift by
-   forgetting the tabular-nums half of the pair. */
+/* Data-string utility.
+
+   The old rule here was "Mono = every data string: counts, ages, facts,
+   status, verdicts. Sans = prose and titles." The codebase did not actually
+   follow it: of 295 `font-mono` call sites, 110 paired it with `uppercase`
+   (labels) and only 17 with `tabular-nums` (numbers). Mono had become the
+   voice of the site rather than its data face, and real users outside tech
+   read that voice as "this product is not for me" (2026-08-17 feedback from
+   the medical field, which is a corpus where nursing matches as many live
+   postings as software engineering does).
+
+   So the rule is now narrower and honest: **monospace is for content that is
+   literally code** — shell commands, MCP keys (CopyCommand, AgentAccessSection,
+   /connect/help). Everything else, including every number, uses the sans.
+
+   Numbers still need to line up in columns; that is what tabular figures are
+   for, and Source Sans 3 ships them. Alignment never required conscripting an
+   IDE typeface — this utility is the one name that carries the pairing, so a
+   call site cannot drift by remembering the family and forgetting the
+   figures. */
 .mono-data {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+}
+
+/* Mobile zoom: two DIFFERENT iOS Safari behaviours, two different fixes.
+   Neither is solved by `user-scalable=no` / `maximum-scale=1` on the viewport
+   — that is a WCAG 1.4.4 failure (it takes pinch-zoom away from people who
+   need it), and iOS has ignored it since iOS 10 anyway, so it would be an
+   accessibility regression that does not even work.
+
+   1. DOUBLE-TAP ZOOM — handled here. `touch-action: manipulation` drops the
+      double-tap-to-zoom gesture (and the legacy 300ms click delay that comes
+      with waiting to see if a second tap arrives) while still permitting
+      one-finger pan and, crucially, PINCH zoom. Scoped to things a finger is
+      meant to operate: double-tapping a control should activate it twice, not
+      resize the page. Body text is left alone so a double-tap-to-zoom on a
+      paragraph still works for anyone using it to read.
+
+   2. FOCUS ZOOM — not fixable in CSS alone, and handled at the components:
+      iOS zooms when a focused form control computes below 16px. The Input and
+      Textarea primitives already carried `text-base md:text-sm` (16px on
+      mobile, smaller from md up); Select did not, and eight call sites were
+      overriding the primitives back down to text-sm/text-xs — including both
+      auth forms, where the zoom lands on a password field. A unit test now
+      holds that line for every control, since one `text-sm` on a new input
+      silently reintroduces it. */
+button,
+[role="button"],
+a,
+label,
+summary,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+
+/* Monospace is bound to the ELEMENT that means "this is code", not to a
+   utility any call site can sprinkle on prose.
+
+   Every genuinely-monospaced surface in this app was already marked up as
+   <code> — the install command (CopyCommand), the MCP endpoint and keys
+   (AgentAccessSection), the shell paths in /connect/help — and every misuse
+   was a className on a <div> or <span> holding a label, an empty state, or a
+   link. So the semantic element is the honest place for the rule, and it
+   needs no allowlist of blessed files to stay correct as the app grows.
+
+   `font-mono` as a utility is banned in .tsx and a unit test enforces it: if
+   something is code, mark it up as code and get the face for free. Anything
+   that cannot be <code> is, by that fact, not code.
+
+   In @layer base so a deliberate `font-sans` utility on a <code> still wins. */
+@layer base {
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
 }
 
 /* Respect users who ask for less motion (vestibular safety + WCAG 2.3.3).

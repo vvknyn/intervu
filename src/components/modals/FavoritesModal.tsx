@@ -175,7 +175,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                     value={editNotes}
                                                     onChange={(e) => setEditNotes(e.target.value)}
                                                     placeholder="Add your notes, tips, or answer ideas..."
-                                                    className="text-sm min-h-[80px] resize-none"
+                                                    className="text-base md:text-sm min-h-[80px] resize-none"
                                                 />
                                                 <div className="flex gap-2">
                                                     <Button

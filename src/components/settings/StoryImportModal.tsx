@@ -195,7 +195,7 @@ Example:
 • Resolved critical production incident saving $50K
 • Built feature that increased user engagement 25%
 • Mentored 3 junior engineers..."
-                    className="min-h-[280px] text-sm font-mono resize-none"
+                    className="min-h-[280px] text-base md:text-sm resize-none"
                 />
                 <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">
@@ -350,7 +350,7 @@ Example:
                                                             value={story.question || ''}
                                                             onChange={e => updateStory(story.id, { question: e.target.value })}
                                                             placeholder="e.g. Tell me about a time you handled a difficult conflict..."
-                                                            className="h-9 text-sm bg-muted/30 border-transparent focus:border-brand/50 focus:bg-background transition-all hover:bg-muted/50"
+                                                            className="h-9 text-base md:text-sm bg-muted/30 border-transparent focus:border-brand/50 focus:bg-background transition-all hover:bg-muted/50"
                                                         />
                                                         <div className="hidden group-focus-within/question:block absolute z-20 w-full mt-1 bg-popover/95 backdrop-blur-sm border border-border/50 rounded-lg shadow-xl max-h-56 overflow-y-auto p-1">
                                                             {COMMON_QUESTIONS.filter(q =>
@@ -379,7 +379,7 @@ Example:
                                                         value={story.title || ''}
                                                         onChange={e => updateStory(story.id, { title: e.target.value })}
                                                         placeholder="e.g. Critical DB Migration"
-                                                        className={`h-9 text-sm font-semibold bg-background ${!story.title ? 'border-destructive/50 ring-1 ring-destructive/20' : ''}`}
+                                                        className={`h-9 text-base md:text-sm font-semibold bg-background ${!story.title ? 'border-destructive/50 ring-1 ring-destructive/20' : ''}`}
                                                     />
                                                 </div>
                                             </div>
@@ -445,7 +445,7 @@ Example:
                                                 <Textarea
                                                     value={story.situation || ""}
                                                     onChange={(e) => updateStory(story.id, { situation: e.target.value })}
-                                                    className="text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
+                                                    className="text-base md:text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
                                                     placeholder="What was the context or problem?"
                                                 />
                                             </div>
@@ -459,7 +459,7 @@ Example:
                                                 <Textarea
                                                     value={story.task || ""}
                                                     onChange={(e) => updateStory(story.id, { task: e.target.value })}
-                                                    className="text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
+                                                    className="text-base md:text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
                                                     placeholder="What was your specific responsibility?"
                                                 />
                                             </div>
@@ -473,7 +473,7 @@ Example:
                                                 <Textarea
                                                     value={story.action || ""}
                                                     onChange={(e) => updateStory(story.id, { action: e.target.value })}
-                                                    className="text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
+                                                    className="text-base md:text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
                                                     placeholder="What visible actions did you take?"
                                                 />
                                             </div>
@@ -487,7 +487,7 @@ Example:
                                                 <Textarea
                                                     value={story.result || ""}
                                                     onChange={(e) => updateStory(story.id, { result: e.target.value })}
-                                                    className="text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
+                                                    className="text-base md:text-xs h-24 resize-none bg-background focus:bg-background border-border/60 focus:border-brand/50"
                                                     placeholder="What was the measurable outcome?"
                                                 />
                                             </div>

@@ -31,12 +31,12 @@ export function CopyCommand({ command }: { command: string }) {
   return (
     <div className="flex items-stretch border-2 border-foreground">
       <pre className="min-w-0 flex-1 overflow-x-auto px-3 py-2.5">
-        <code className="font-mono text-[13px] text-foreground">{command}</code>
+        <code className="text-[13px] text-foreground">{command}</code>
       </pre>
       <button
         type="button"
         onClick={handleCopy}
-        className="shrink-0 border-l-2 border-foreground px-3 py-2.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-foreground transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="shrink-0 border-l-2 border-foreground px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-foreground transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         {copied ? "Copied" : "Copy"}
       </button>

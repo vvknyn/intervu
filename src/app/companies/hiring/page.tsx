@@ -50,7 +50,7 @@ export async function HotCompaniesPage() {
   return (
     <div className="elite-signal min-h-[calc(100dvh-3.5rem)] bg-[color:var(--elite-page)]">
       <div className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)] px-4 py-3 sm:px-6">
-        <nav className="mx-auto max-w-[960px] font-mono text-xs text-[color:var(--elite-faint)]">
+        <nav className="mx-auto max-w-[960px] text-xs text-[color:var(--elite-faint)]">
           <Link href="/" className="text-[color:var(--elite-brand)] hover:underline">
             Find jobs
           </Link>
@@ -67,7 +67,7 @@ export async function HotCompaniesPage() {
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[color:var(--elite-muted)]">
             Ranked by roles opened in the last 90 days — not fundraising.
           </p>
-          <p className="mt-1 font-mono text-xs text-[color:var(--elite-faint)]">
+          <p className="mt-1 text-xs text-[color:var(--elite-faint)]">
             Metric = observed job postings · updated daily · elite board subset
           </p>
         </header>
@@ -83,16 +83,16 @@ export async function HotCompaniesPage() {
             <table className="w-full border-collapse">
               <thead className="border-b border-[color:var(--elite-border)] bg-[color:var(--elite-surface)]">
                 <tr>
-                  <th className="w-12 px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
+                  <th className="w-12 px-[18px] py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Rank
                   </th>
-                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
+                  <th className="px-[18px] py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Company
                   </th>
-                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
+                  <th className="px-[18px] py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Hiring heat
                   </th>
-                  <th className="px-[18px] py-3.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
+                  <th className="px-[18px] py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--elite-faint)]">
                     Open roles
                   </th>
                   <th className="px-[18px] py-3.5" aria-hidden />
@@ -148,12 +148,12 @@ function HotCompanyTableRow({ company, rank }: { company: HotCompanyRow; rank: n
           Live roles &amp; ghost mix →
         </Link>
       </td>
-      <td className="px-[18px] py-4 font-mono text-[13px]">
+      <td className="px-[18px] py-4 text-[13px]">
         <span className={cn(hot && "font-medium text-[color:var(--elite-brand)]")}>
           {heatLabel(company)}
         </span>
       </td>
-      <td className="px-[18px] py-4 font-mono text-[13px] text-[#3E3B30]">{company.openCount}</td>
+      <td className="px-[18px] py-4 text-[13px] text-[#3E3B30]">{company.openCount}</td>
       <td className="px-[18px] py-4 text-right">
         <FollowButton
           domain={company.domain}

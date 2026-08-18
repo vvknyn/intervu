@@ -151,10 +151,10 @@ function MockJobRow({ job, onClick }: { job: PublicJob; onClick: () => void }) {
                 <div className="text-[15px] font-semibold leading-snug tracking-tight">{decodeText(job.title)}</div>
                 <div className="mt-1 text-[13px] text-muted-foreground">{cleanCompany(job.company)}</div>
             </div>
-            <span className="inline-flex h-fit items-center rounded-full border border-green-tint-border bg-green-tint-bg px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-verdict-live">
+            <span className="inline-flex h-fit items-center rounded-full border border-green-tint-border bg-green-tint-bg px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-verdict-live">
                 verified
             </span>
-            <div className="col-span-full flex flex-wrap gap-x-3 font-mono text-[11px] text-faint">
+            <div className="col-span-full flex flex-wrap gap-x-3 text-[11px] text-faint">
                 <span>{locationText(job)}</span>
                 {age && <span>· {age}</span>}
                 <span>· {salary ? `from ${salary}` : "pay n/a"}</span>
@@ -227,7 +227,7 @@ export function AuthGateMock() {
             }}
         >
             <div className={cn("border-b px-4 py-2 text-center text-xs", siteChrome.border, siteChrome.bar, siteChrome.muted)}>
-                <span className="font-mono uppercase tracking-wider">Auth-gate mock — not live</span>
+                <span className="uppercase tracking-wider">Auth-gate mock — not live</span>
                 {" · "}
                 <button type="button" onClick={reset} className="text-brand underline-offset-2 hover:underline">
                     Reset to signed-out
@@ -297,7 +297,7 @@ export function AuthGateMock() {
                     <p className="mt-3 max-w-md text-[15px] text-[#8b919a]">
                         After sign-in you open Connect to pair {agentLabel(lane === "board" ? "mcp" : lane)}.
                     </p>
-                    <p className="mt-1 font-mono text-xs text-[#5c636e]">next={pendingNext}</p>
+                    <p className="mt-1 text-xs text-[#5c636e]">next={pendingNext}</p>
                     <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                         <Button
                             className="rounded-none bg-[#ececec] text-[#12151a] hover:bg-[#ececec]/90"
@@ -370,7 +370,7 @@ export function AuthGateMock() {
 
                     {panel === "jobs" && (
                         <main className="mx-auto w-full max-w-[720px] px-5 py-8 sm:px-7">
-                            <p className="mb-4 font-mono text-xs uppercase tracking-wider text-[#8b919a]">
+                            <p className="mb-4 text-xs uppercase tracking-wider text-[#8b919a]">
                                 Mock SERP · browse free · detail needs sign-in
                             </p>
                             {MOCK_JOBS.map((job) => (

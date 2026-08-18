@@ -117,7 +117,7 @@ export function ResetPasswordForm() {
                                 required
                                 placeholder="New password"
                                 minLength={6}
-                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-base md:text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
                             />
                             <button
                                 type="button"
@@ -140,7 +140,7 @@ export function ResetPasswordForm() {
                                 required
                                 placeholder="Confirm password"
                                 minLength={6}
-                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
+                                className="block w-full border-b border-slate-300 bg-transparent py-2 pr-12 text-base md:text-sm placeholder:text-slate-400 focus:border-foreground focus:outline-none dark:border-slate-700 dark:text-white"
                             />
                             <button
                                 type="button"

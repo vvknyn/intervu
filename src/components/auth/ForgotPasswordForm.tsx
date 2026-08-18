@@ -98,7 +98,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email"
-                        className="block w-full border-b border-border bg-transparent py-2 text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
+                        className="block w-full border-b border-border bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
                     />
                 </div>
 

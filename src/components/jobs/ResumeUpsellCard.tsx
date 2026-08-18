@@ -34,7 +34,7 @@ export function ResumeUpsellCard({
     onDismiss: () => void;
 }) {
     return (
-        <div className="flex items-center justify-between gap-3 border-b border-border py-2 font-mono text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-3 border-b border-border py-2 text-xs text-muted-foreground">
             <span>
                 {count
                     ? `Match against ${formatCorpusCount(count)} live roles by fit — `
