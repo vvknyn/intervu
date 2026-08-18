@@ -352,6 +352,7 @@ export function JobDetail({
     onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
+    collapseDescription = true,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -384,6 +385,19 @@ export function JobDetail({
     className?: string;
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+    /** Whether a long description clamps behind "Show full description"
+     *  (see the `collapsible` comment below for why the clamp exists at
+     *  all). Defaults to `true` so every existing mount site — the xl+
+     *  sticky pane in particular, which genuinely needs the clamp — keeps
+     *  today's behaviour unchanged. The mobile bottom sheet passes `false`
+     *  (jobs/page.tsx's `renderDetailSurface`): that sheet already owns its
+     *  own `overflow-y-auto` scroller, so JobDetail clamping the
+     *  description a second level deeper just hid nearly every real
+     *  description (>700 chars) behind a click inside an already-scrollable
+     *  surface. This is a prop, not a breakpoint check, because the mount
+     *  site is resolved by `resolveDetailMountSite` (state + breakpoint
+     *  together) — a `sm:`/`xl:` class here could silently disagree with it. */
+    collapseDescription?: boolean;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -411,8 +425,10 @@ export function JobDetail({
     }, [job.id]);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
-    // detail panel doesn't run thousands of pixels tall.
-    const collapsible = (job.description?.length ?? 0) > 700;
+    // detail panel doesn't run thousands of pixels tall. `collapseDescription`
+    // (default true) is the seam that turns this off for mount sites that
+    // already provide their own scroller — see its doc comment above.
+    const collapsible = collapseDescription && (job.description?.length ?? 0) > 700;
     // Structured facts row (Deliverable 1, 2026-08-01) — consolidates what
     // used to be a separate "Posted X · First seen by us Y" prose line plus
     // this chip row into ONE scannable row; see buildFactChips for the
@@ -776,7 +792,10 @@ export function JobDetail({
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (
                         <>
-                            <div className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}>
+                            <div
+                                data-testid="job-detail-description"
+                                className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                            >
                                 <JobDescription blocks={blocks} />
                                 {collapsible && !descExpanded && (
                                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />

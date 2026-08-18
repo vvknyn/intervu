@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 
 /**
  * TEST GROUP: MOBILE - Mobile Responsive Tests
@@ -309,5 +309,101 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
         `${route}: these zoom the page when focused on iOS — ${JSON.stringify(tooSmall)}`,
       ).toEqual([]);
     }
+  });
+});
+
+/**
+ * TC-MOBILE-012: mobile job-detail sheet scroll plumbing (2026-08-18)
+ *
+ * Root cause of the underlying bug: `JobDetail.tsx`'s own `collapsible`
+ * clamp (`(description length) > 700`) fires for nearly every real
+ * description and caps the description container at `max-h-[20rem]`
+ * (320px) behind a "Show full description" click — a SECOND, redundant
+ * height cap one level inside the mobile bottom sheet, which already owns a
+ * real `overflow-y-auto` scroller (`data-testid="mobile-detail-scroller"`,
+ * jobs/page.tsx). On a phone this meant opening a role showed a 320px stub
+ * no matter how long the posting actually was.
+ *
+ * Fix: `JobDetail` takes a `collapseDescription` prop (default `true`, so
+ * the desktop xl+ sticky pane is unchanged); `renderDetailSurface` in
+ * jobs/page.tsx threads it through, and only the mobile sheet's call site
+ * passes `false`.
+ *
+ * EVIDENCE LEVELS — read this before trusting either check below:
+ *  - The actual 320px-clamp -> full-height DELTA is proven at the
+ *    COMPONENT level, not here: `tests/unit/job-detail-description-collapse.test.ts`
+ *    renders the real `JobDetail` via `renderToStaticMarkup` signed IN (the
+ *    only path the clamp applies to) at two description lengths, and
+ *    verifiably fails against the pre-fix logic. That is real, but it is
+ *    not a browser.
+ *  - THIS Playwright test runs at a genuine 390x844 mobile profile
+ *    (`devices['iPhone 13']` — real viewport, touch, isMobile — the repo's
+ *    `playwright.config.ts` only defines a Desktop Chrome project, so a
+ *    spec must opt into a phone profile itself or it isn't testing one) in
+ *    a REAL browser against the dev server. It runs SIGNED OUT deliberately
+ *    — no test account is created (a prior attempt at a signed-in run
+ *    created real accounts in the PRODUCTION Firebase project this repo's
+ *    `.env.local` points `localhost:3000` at; that was wrong and is not
+ *    repeated here). Signed out, `GuestDescriptionPreview` renders instead
+ *    of the clamp this fix touches (JobDetail.tsx:142, its own truncation,
+ *    a deliberate gate — out of scope), so this test cannot observe the
+ *    20rem clamp. What it DOES prove, live, in a browser: the sheet opens,
+ *    its scroller has real overflow (scrollHeight > clientHeight), scrolling
+ *    it actually advances `scrollTop`, and the guest sign-in CTA — off
+ *    screen at load — becomes reachable after that scroll. That is the
+ *    mount-site/scroll-plumbing half of this bug, verified end to end.
+ */
+test.describe('MOBILE - guest job-detail sheet scroll reaches the sign-in CTA', () => {
+  // NOT `{ ...devices['iPhone 13'] }` — that preset's `defaultBrowserType:
+  // 'webkit'` forces a new worker/browser type, which Playwright rejects
+  // inside a `describe` (`test.use` there can only tweak context options,
+  // not switch browsers) and this repo's config only registers a chromium
+  // project anyway. Instead: the same real-phone context options (touch,
+  // mobile UA, device pixel ratio) on top of chromium, at the explicit
+  // 390x844 this file's other MOBILE tests already standardize on.
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: devices['iPhone 13'].deviceScaleFactor,
+    userAgent: devices['iPhone 13'].userAgent,
+  });
+
+  // A real corpus job with a long-enough description/ledger that its
+  // guest sign-in CTA sits below the fold at 390x844 — verified live
+  // 2026-08-18. `posted=any` bypasses the default 30-day window since this
+  // is a real, possibly-old record. Pick a new id via a `q=` search if this
+  // one ever gets removed from the index.
+  const JOB = { id: '51130b30-8920-4e75-b076-86c898f1b091', q: 'Ramsayhealthcare' };
+
+  test('TC-MOBILE-012: signed-out mobile sheet scrolls to reveal the sign-in CTA', async ({ page }) => {
+    await page.goto(`/jobs?q=${encodeURIComponent(JOB.q)}&posted=any&job=${JOB.id}`);
+    await page.waitForLoadState('networkidle');
+
+    const scroller = page.getByTestId('mobile-detail-scroller');
+    await expect(scroller, 'mobile bottom sheet never opened').toBeVisible({ timeout: 15000 });
+
+    const cta = page.getByTestId('job-detail-signin-cta');
+    await expect(cta, 'guest sign-in CTA never rendered').toBeVisible({ timeout: 15000 });
+
+    // The scroller genuinely has more content than fits — this is what the
+    // prior commit on this branch (`overscroll-y-contain`) exists to keep
+    // scoped to this div rather than chaining to the page behind the sheet.
+    const before = await scroller.evaluate((el) => ({ scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(before.scrollHeight, `scroller scrollHeight ${before.scrollHeight} <= clientHeight ${before.clientHeight} — nothing to scroll`).toBeGreaterThan(before.clientHeight);
+    expect(before.scrollTop, 'sheet should start scrolled to the top').toBe(0);
+
+    // Off-screen at load: the CTA sits below the initial viewport.
+    const viewport = page.viewportSize()!;
+    const ctaBoxBefore = await cta.boundingBox();
+    expect(ctaBoxBefore!.y, 'CTA should start below the fold for this to be a meaningful scroll test').toBeGreaterThanOrEqual(viewport.height);
+
+    // Scroll the SHEET's own scroller (not the page) all the way down.
+    await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    const after = await scroller.evaluate((el) => el.scrollTop);
+    expect(after, 'scrollTop did not advance — the scroller did not actually scroll').toBeGreaterThan(before.scrollTop);
+
+    // Reachable: after scrolling, the CTA is inside the visible viewport.
+    await expect(cta, 'guest sign-in CTA not reachable by scrolling').toBeInViewport();
   });
 });
