@@ -27,11 +27,21 @@ import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agen
 /** Built via the REAL `buildGazetteerIndex` (not hand-rolled) so the test
  *  fixture matches production shape exactly — "Toronto"/"Canada" both real
  *  gazetteer entries, and the fake corpus checker below only ever confirms
- *  the exact values a real Meilisearch facet-search would. */
+ *  the exact values a real Meilisearch facet-search would.
+ *
+ *  The Australian Toronto (NSW, pop. 5,386) is REAL and load-bearing, not
+ *  filler: `resolveCity` only ANDs a country scope onto a bare city name
+ *  when that name exists in more than one country, so a fixture holding just
+ *  the Canadian row makes "Toronto" look unique and silently drops the
+ *  `scopedToCountry: Canada` this suite asserts. A fixture that describes
+ *  production in a comment but doesn't model it tests the wrong thing. */
 const TEST_GAZETTEER = buildGazetteerIndex({
-  countries: [["CA", "CAN", "Canada"]],
+  countries: [["CA", "CAN", "Canada"], ["AU", "AUS", "Australia"]],
   admin1: [],
-  cities: [["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356]],
+  cities: [
+    ["Toronto", null, 43.70011, -79.4163, "CA", "ON", 2794356],
+    ["Toronto", null, -33.0167, 151.5833, "AU", "NSW", 5386],
+  ],
 } satisfies GazetteerData);
 
 const TEST_CORPUS_VALUES: PlaceFilter[] = [
