@@ -49,8 +49,7 @@ import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
-    cleanCompany,
-    displayCompany,
+    displayCompanyBrand,
     locationText,
     salaryText,
     postedAgeShort,
@@ -465,7 +464,7 @@ function JobCard({
     expanded?: boolean;
     onToggleExpand?: () => void;
 }) {
-    const accessibleName = `${decodeText(job.title)} at ${displayCompany(job.company, job.company_domain) || "Unknown company"}`;
+    const accessibleName = `${decodeText(job.title)} at ${displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}`;
     const trust = rowTrustChip(job, now);
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
@@ -540,10 +539,10 @@ function JobCard({
                                 onCompany(job);
                             }}
                         >
-                            {displayCompany(job.company, job.company_domain) || "Unknown company"}
+                            {displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}
                         </button>
                     ) : (
-                        displayCompany(job.company, job.company_domain) || "Unknown company"
+                        displayCompanyBrand(job.company, job.company_domain) || "Unknown company"
                     )}
                 </div>
             </div>
@@ -4083,7 +4082,7 @@ function JobsContent() {
                         </span>
                     </button>
                     <SheetTitle className="sr-only">
-                        {detailJob ? `${decodeText(detailJob.title)} at ${cleanCompany(detailJob.company)}` : "Job details"}
+                        {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain)}` : "Job details"}
                     </SheetTitle>
                     {/* G5a: safe-area bottom padding — the sheet already
                         paints OVER the fixed mobile tab bar when open (see

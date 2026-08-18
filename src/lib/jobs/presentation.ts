@@ -340,45 +340,128 @@ export function displayCompany(name: string | null | undefined, domain: string |
  * `.value`, e.g. "Jabil Inc.") depends on the suffix surviving in what's shown.
  * This list DOES render, so it stays deliberately narrow:
  *   - comma-separated forms always strip ("ServiceTitan, Inc." -> "ServiceTitan")
- *   - the bare, no-comma spelling strips ONLY for the two forms unambiguous
- *     enough not to eat a real word ("Apple Inc." -> "Apple", "Acme Limited"
- *     -> "Acme") — never a bare "Ltd"/"Co"/"Corp" that could be the genuine
- *     tail of an unrelated name, and never a word that merely CONTAINS one of
- *     these tokens ("Inc Magazine" is untouched — the match is end-anchored).
+ *     — the comma is an unambiguous separator, so any recognized legal form
+ *     after one is safe to drop.
+ *   - the bare, no-comma spelling is riskier — there's no separator, so a
+ *     token could be the genuine tail of an unrelated name rather than a
+ *     suffix. `stripBareLegalForm` below makes THAT safe as a general
+ *     property (the remainder left after stripping must still carry real
+ *     brand content) instead of hand-picking which individual tokens are
+ *     "safe enough" — so growing `BARE_LEGAL_SUFFIXES` never needs a fresh
+ *     ambiguity argument per addition. What still keeps a token OUT of it is
+ *     the token's OWN shape: an everyday unpunctuated English word/abbreviation
+ *     ("Corp", "Co", "Group") that could plausibly BE a deliberate name
+ *     ending stays excluded — "Acme Corp" must read as a company literally
+ *     named that. A word that merely CONTAINS one of these tokens is never
+ *     touched either way ("Inc Magazine" is untouched — every match here is
+ *     end-anchored).
  */
 const COMMA_LEGAL_SUFFIXES = [
     "Inc.", "Inc", "L.L.C.", "LLC", "Ltd.", "Corporation", "Corp.", "Co.",
     "GmbH", "S.A.", "Pty Ltd", "PLC",
 ];
-const BARE_LEGAL_SUFFIXES = ["Inc.", "Limited"];
+/** Longest phrase first isn't required for correctness (see
+ *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
+ *  documenting as multi-word forms are added. */
+const BARE_LEGAL_SUFFIXES = [
+    "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
+    "Ltd.", "Limited", "L.L.C.", "LLC", "Inc.",
+    "GmbH", "PLC", "S.p.A.", "S.A.", "B.V.", "N.V.", "AG", "AB", "Oy",
+];
+const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const LEGAL_SUFFIX_RE = new RegExp(
-    `(?:,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})` +
-        `|\\s+(?:${BARE_LEGAL_SUFFIXES.map(escapeRegExp).join("|")}))$`,
-    "i",
+/** Lowercase, punctuation-stripped word — the shared normal form
+ *  `BARE_LEGAL_WORDS` and `isOnlyLegalForm` compare on, so "Ltd.", "ltd",
+ *  and a stray "L.L.C" missing its final period all read as the same
+ *  token regardless of exactly how a source string punctuated it. A
+ *  punctuation-only word ("," — what's left of ", Inc." once " Inc." is
+ *  cut) normalizes to "", which both callers below treat as chaff too. */
+function normalizeLegalWord(w: string): string {
+    return w.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` entry
+ *  (multi-word phrases split apart) — the vocabulary `isOnlyLegalForm`
+ *  checks a stripped remainder's words against. */
+const BARE_LEGAL_WORDS = new Set(
+    BARE_LEGAL_SUFFIXES.flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
 );
+
+const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})$`, "i");
+
+/** True when every word of `s` carries no brand identity of its own —
+ *  either a recognized legal-form word (`BARE_LEGAL_WORDS`) or pure
+ *  punctuation left over from a strip (a lone "," when ", Inc." loses
+ *  " Inc."). An empty `s` counts too (nothing real survived). Guards
+ *  `stripBareLegalForm` against hollowing a name down to nothing but
+ *  suffix chaff. */
+function isOnlyLegalForm(s: string): boolean {
+    const words = s.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    return words.every((w) => {
+        const norm = normalizeLegalWord(w);
+        return !norm || BARE_LEGAL_WORDS.has(norm);
+    });
+}
+
+/**
+ * Strips ONE trailing bare (no-comma) legal-form phrase from `s`, trying
+ * `BARE_LEGAL_SUFFIXES_BY_LENGTH` longest-first so a multi-word form
+ * ("Private Ltd.") strips as a whole unit rather than a shorter member of
+ * the same family ("Ltd.") leaving a dangling "...Private" behind. A match
+ * only takes effect when the remainder is real brand content — non-empty
+ * and not itself `isOnlyLegalForm` — which is what keeps a name that IS
+ * just a legal form (or reduces to one after a strip) coming back
+ * untouched, and is the general property that makes growing the vocabulary
+ * safe by construction rather than by re-deriving safety per token.
+ */
+function stripBareLegalForm(s: string): string {
+    for (const suffix of BARE_LEGAL_SUFFIXES_BY_LENGTH) {
+        const re = new RegExp(`\\s+${escapeRegExp(suffix)}$`, "i");
+        if (!re.test(s)) continue;
+        const remainder = s.replace(re, "").trim();
+        if (remainder && !isOnlyLegalForm(remainder)) return remainder;
+    }
+    return s;
+}
 
 /**
  * `cleanCompany`'s output, further stripped of a trailing legal-entity
  * suffix for surfaces that want the brand name alone (`/co/[slug]`'s H1,
  * `<title>`, OG image and JSON-LD — see that page for why they all read from
- * this one function rather than recomputing). A companion rather than a
+ * this one function rather than recomputing; also `/jobs`' results row and
+ * detail panel via `displayCompanyBrand` below). A companion rather than a
  * change to `cleanCompany` itself: `cleanCompany("Acme Inc.")` already has
- * callers (the `/jobs` row + detail panel, `resolveCompanyName`'s corpus
- * tally) that depend on the suffix surviving, so mutating the shared
- * chokepoint would silently change what THEY show. Never strips down to
- * nothing or whitespace — a name that IS just a legal-form word (or empty)
- * is returned as `cleanCompany` left it.
+ * callers (`resolveCompanyName`'s corpus tally, company-page links/slugs
+ * built off a name) that depend on the suffix surviving, so mutating the
+ * shared chokepoint would silently change what THEY key or count by. Never
+ * strips down to nothing or whitespace — a name that IS just a legal-form
+ * word (or empty) is returned as `cleanCompany` left it.
  */
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
-    const stripped = cleaned.replace(LEGAL_SUFFIX_RE, "").trim();
-    return stripped || cleaned;
+    const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
+    return stripBareLegalForm(withoutComma);
+}
+
+/**
+ * `displayCompany`'s domain-fallback pattern (above), but through
+ * `displayCompanyName` so a reader sees a brand name rather than a raw legal
+ * one. `displayCompany`/`cleanCompany` stay untouched for every caller that
+ * needs the un-stripped form — a company-page link/slug built off a name
+ * (no domain to key off) or `resolveCompanyName`'s corpus tally both depend
+ * on the suffix surviving in what they key or count by.
+ */
+export function displayCompanyBrand(name: string | null | undefined, domain: string | null | undefined): string {
+    const brand = displayCompanyName(name);
+    if (brand) return brand;
+    if (domain) return humanizeTenantSubdomain(domain);
+    return "";
 }
 
 /**

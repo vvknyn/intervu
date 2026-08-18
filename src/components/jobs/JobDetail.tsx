@@ -17,7 +17,7 @@ import { buildGuestPreview } from "@/lib/jobs/guest-preview";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -307,7 +307,7 @@ function CopyJobLinkButton({ job }: { job: Pick<PublicJob, "id" | "title" | "com
  * handler) that a 5-row "more like this" list doesn't need, and importing it
  * here would be a circular import (page.tsx is JobDetail's own caller). What
  * IS reused is the single source of truth for each fact's presentation —
- * `displayCompany`/`locationText`/`salaryText`/`postedAgeShort`
+ * `displayCompanyBrand`/`locationText`/`salaryText`/`postedAgeShort`
  * (lib/jobs/presentation.ts) — the exact same helpers `JobCard` itself
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
@@ -329,7 +329,7 @@ function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onC
         >
             <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-brand transition-colors">{decodeText(job.title)}</span>
             <span className="mono-data truncate text-[11px] text-muted-foreground">
-                {displayCompany(job.company, job.company_domain) || "Unknown company"}
+                {displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}
                 {loc ? ` · ${loc}` : ""}
                 {age ? ` · ${age}` : ""}
                 {salary ? ` · from ${salary}` : ""}
@@ -439,7 +439,14 @@ export function JobDetail({
     // appears twice.
     const nonSalaryChips = chips.filter((c) => c.kind !== "salary");
     const salary = salaryText(job);
+    // `cleanedCompany` keeps its legal suffix (e.g. "Qualys, Inc.") — it
+    // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
+    // slug when the job has no `company_domain`, so it can't move to the
+    // brand form without moving the slug too. `companyBrand` is the reader-
+    // facing text (header, hiring-truth heading, MCP handoff copy) — same
+    // split `displayCompanyBrand`'s own doc comment calls out.
     const cleanedCompany = displayCompany(job.company, job.company_domain);
+    const companyBrand = displayCompanyBrand(job.company, job.company_domain);
     // Himalayas-style flag chip (visual-identity pass) — see JobCard's
     // matching comment in app/page.tsx for the null-safety rationale.
     const countryFlag = countryToFlag(job.location_country);
@@ -523,7 +530,7 @@ export function JobDetail({
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
-                                        {cleanedCompany}
+                                        {companyBrand}
                                     </Link>
                                 ) : (
                                     "Unknown company"
@@ -851,7 +858,7 @@ export function JobDetail({
                     job={{
                         id: job.id,
                         title: decodeText(job.title),
-                        company: cleanedCompany || job.company || "Unknown company",
+                        company: companyBrand || job.company || "Unknown company",
                         location: locationText(job) || null,
                     }}
                 />
@@ -860,7 +867,7 @@ export function JobDetail({
                 {hasCompanyIntel && (
                     <div className="rounded-xl border border-slate-300/90 bg-slate-50/80 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 shadow-2xs">
                         <div className="mono-data text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                            {cleanedCompany || "This company"} · hiring truth
+                            {companyBrand || "This company"} · hiring truth
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
                             {(liveOpenCount != null || typeof job.company_open_count === "number") && (
