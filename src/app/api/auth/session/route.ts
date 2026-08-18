@@ -2,25 +2,27 @@ import { NextResponse, after } from "next/server";
 import { createSessionCookie, setSessionCookie, clearSessionCookie } from "@/lib/firebase/auth-session";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { sendWelcomeEmailOnce } from "@/lib/email/welcome";
+import { grantWelcomeCredits } from "@/lib/llm/credit-gate";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSessionRequest } from "@/lib/shield/rate-limit";
 
 /**
  * POST /api/auth/session — Create session cookie from ID token
  *
- * Also the welcome email's trigger, because it is the ONLY server-side point
- * every provider shares: password signup runs through `signUp`
- * (actions/auth.ts), but Google sign-in is entirely client-side
- * (`signInWithPopup`, lib/firebase/client-auth.ts) and touches the server
- * for the first time right here. Hanging the welcome off `signUp` would have
- * silently excluded every Google account — the exact users whose address is
- * real (see `isMintedLoginEmail`).
+ * Also the welcome email's trigger and the welcome-credit grant's trigger,
+ * because it is the ONLY server-side point every provider shares: password
+ * signup runs through `signUp` (actions/auth.ts), but Google sign-in is
+ * entirely client-side (`signInWithPopup`, lib/firebase/client-auth.ts) and
+ * touches the server for the first time right here. Hanging either off
+ * `signUp` would have silently excluded every Google account — the exact
+ * users whose address is real (see `isMintedLoginEmail`).
  *
  * Runs in `after()`, so it executes once the response is already on its way:
- * a person signing in never waits on Resend, and a slow or failing send can
- * never turn a successful sign-in into an error. `sendWelcomeEmailOnce`
- * additionally never throws, since a rejection here would be unhandled — the
- * request it belonged to is finished.
+ * a person signing in never waits on Resend or Firestore, and a slow or
+ * failing call can never turn a successful sign-in into an error.
+ * `sendWelcomeEmailOnce` never throws by contract; `grantWelcomeCredits` is
+ * idempotent (safe to call on every sign-in) but does propagate real
+ * Firestore errors, so its call site is caught explicitly below.
  */
 export async function POST(request: Request) {
     const ip = await getClientIp();
@@ -50,7 +52,12 @@ export async function POST(request: Request) {
                     console.error("[Session] welcome-email token decode failed:", err);
                     return null;
                 });
-            if (decoded) await sendWelcomeEmailOnce(decoded.uid, decoded.email);
+            if (decoded) {
+                await sendWelcomeEmailOnce(decoded.uid, decoded.email);
+                await grantWelcomeCredits(decoded.uid).catch((err) =>
+                    console.error("[Session] welcome credit grant failed:", err),
+                );
+            }
         });
 
         return NextResponse.json({ success: true });

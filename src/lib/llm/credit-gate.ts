@@ -21,12 +21,30 @@
  * FAIL-OPEN: any internal error (Firestore down, etc.) ALLOWS the generation.
  * The only hard block is an explicit out-of-credits balance. A billing bug must
  * never lock users out of the product.
+ *
+ * Balance model (2026-08-17, credits-earned split): a user's spendable total
+ * is TWO pools that must never be conflated —
+ *  - `credits` / `credits_period`: the perishable monthly ALLOWANCE. Resets
+ *    to `MONTHLY_FREE_CREDITS` the moment the stored period no longer
+ *    matches the current one. Nothing here is ever carried forward.
+ *  - `credits_earned`: the permanent EARNED balance (referral rewards, the
+ *    welcome grant, future purchases). Never touched by the period-rollover
+ *    branch, so it survives month boundaries untouched.
+ * A spend drains the allowance first, then the earned balance — the
+ * allowance expires at month-end regardless of use, so spending the
+ * perishable pool before the permanent one is strictly better for the user
+ * (standard use-it-or-lose-it ordering). Blocked only when BOTH are zero.
  */
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /** Free generations granted per calendar month to non-admin shared-key users. */
 const MONTHLY_FREE_CREDITS = 10;
+
+/** One-time permanent credits granted on a user's first sign-in. The only
+ *  place this amount is written — `grantWelcomeCredits` reads it, nothing
+ *  else should re-type "20". */
+export const WELCOME_CREDITS = 20;
 
 /** Prefix on the thrown message so the UI can recognize the out-of-credits block. */
 export const OUT_OF_CREDITS = "OUT_OF_CREDITS";
@@ -44,7 +62,7 @@ export const AUTH_REQUIRED = "AUTH_REQUIRED";
  *  that entry point was removed 2026-08-08 (see profile.ts). */
 export const AUTH_REQUIRED_MESSAGE = "Sign in to use Intervu's built-in AI.";
 export const OUT_OF_CREDITS_MESSAGE =
-    "You've used your free AI credits for this month. More arrive next month, or buy credits (coming soon).";
+    "You're out of AI credits — this month's free credits and any earned credits are both used up. More free credits arrive next month, or buy credits (coming soon).";
 
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {
@@ -119,7 +137,42 @@ export async function chargeIfSharedKey(config: { apiKey?: string | null }): Pro
     }
 }
 
-/** Atomically decrement a user's balance (refilling at each new month). */
+/**
+ * Resolve the current monthly allowance from stored profile fields, applying
+ * the reset-on-new-period rule. Single source of truth for that rule — both
+ * the spend path (`consumeCredit`) and the read-only path (`getCreditState`)
+ * call this instead of each repeating the period-match check. Pure and
+ * parameterized on `period` (not `currentPeriod()` internally) so a month
+ * rollover is directly testable without mocking the clock.
+ */
+export function resolveAllowance(stored: { credits?: number; credits_period?: string }, period: string): number {
+    return stored.credits_period === period && typeof stored.credits === "number"
+        ? stored.credits
+        : MONTHLY_FREE_CREDITS; // new month (or never set) → refill
+}
+
+/** Default a possibly-unset earned balance to 0. Single source of truth for
+ *  that normalization — every reader of `credits_earned` goes through this. */
+function resolveEarned(stored: { credits_earned?: number }): number {
+    return typeof stored.credits_earned === "number" ? stored.credits_earned : 0;
+}
+
+export type SpendDecision = { blocked: true } | { blocked: false; allowance: number; earned: number };
+
+/**
+ * The spend-order decision, pure: given the two pools, decide whether a
+ * charge is possible and, if so, which pool it drains. Allowance drains
+ * first — it expires at month-end regardless of use, so spending the
+ * perishable pool before the permanent one is strictly better for the user
+ * (standard use-it-or-lose-it ordering). Blocked only when both are zero.
+ */
+export function resolveSpend(allowance: number, earned: number): SpendDecision {
+    if (allowance <= 0 && earned <= 0) return { blocked: true };
+    return allowance > 0 ? { blocked: false, allowance: allowance - 1, earned } : { blocked: false, allowance, earned: earned - 1 };
+}
+
+/** Atomically decrement a user's balance (allowance refills at each new
+ *  month; earned never does — see `resolveAllowance`/`resolveSpend`). */
 async function consumeCredit(uid: string): Promise<void> {
     const db = getAdminDb();
     const ref = db.collection("profiles").doc(uid);
@@ -128,42 +181,111 @@ async function consumeCredit(uid: string): Promise<void> {
         const data = (snap.exists ? snap.data() : {}) as {
             credits?: number;
             credits_period?: string;
+            credits_earned?: number;
         };
         const period = currentPeriod();
-        let credits =
-            data.credits_period === period && typeof data.credits === "number"
-                ? data.credits
-                : MONTHLY_FREE_CREDITS; // new month (or never set) → refill
-        if (credits <= 0) {
+        const spend = resolveSpend(resolveAllowance(data, period), resolveEarned(data));
+        if (spend.blocked) {
             throw new Error(`${OUT_OF_CREDITS}: ${OUT_OF_CREDITS_MESSAGE}`);
         }
         tx.set(
             ref,
-            { credits: credits - 1, credits_period: period, credits_updated_at: new Date().toISOString() },
+            {
+                credits: spend.allowance,
+                credits_period: period,
+                credits_earned: spend.earned,
+                credits_updated_at: new Date().toISOString(),
+            },
             { merge: true },
         );
     });
 }
 
+export type CreditState = { isAdmin: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
+
+/** Fallback credit state for signed-out users and infra errors. Deliberately
+ *  reports `earned: 0` rather than guessing — fabricating an earned balance
+ *  the user may not have is worse than showing zero (the allowance side
+ *  falls back to the full monthly grant, which was already this module's
+ *  pre-existing fail-open behavior and is unchanged here). */
+export const FALLBACK_CREDIT_STATE: CreditState = {
+    isAdmin: false,
+    allowance: MONTHLY_FREE_CREDITS,
+    earned: 0,
+    total: MONTHLY_FREE_CREDITS,
+    monthlyFree: MONTHLY_FREE_CREDITS,
+};
+
 /** Read-only credit state for the current user, for UI display. */
-export async function getCreditState(): Promise<{
-    isAdmin: boolean;
-    credits: number;
-    monthlyFree: number;
-}> {
-    const fallback = { isAdmin: false, credits: MONTHLY_FREE_CREDITS, monthlyFree: MONTHLY_FREE_CREDITS };
+export async function getCreditState(): Promise<CreditState> {
     try {
         const user = await getServerUser();
-        if (!user) return fallback;
-        if (await isAdminUser(user)) return { isAdmin: true, credits: Infinity, monthlyFree: MONTHLY_FREE_CREDITS };
+        if (!user) return FALLBACK_CREDIT_STATE;
+        if (await isAdminUser(user)) {
+            return { isAdmin: true, allowance: Infinity, earned: 0, total: Infinity, monthlyFree: MONTHLY_FREE_CREDITS };
+        }
         const snap = await getAdminDb().collection("profiles").doc(user.uid).get();
-        const data = (snap.exists ? snap.data() : {}) as { credits?: number; credits_period?: string };
-        const credits =
-            data.credits_period === currentPeriod() && typeof data.credits === "number"
-                ? data.credits
-                : MONTHLY_FREE_CREDITS;
-        return { isAdmin: false, credits, monthlyFree: MONTHLY_FREE_CREDITS };
+        const data = (snap.exists ? snap.data() : {}) as {
+            credits?: number;
+            credits_period?: string;
+            credits_earned?: number;
+        };
+        const allowance = resolveAllowance(data, currentPeriod());
+        const earned = resolveEarned(data);
+        return { isAdmin: false, allowance, earned, total: allowance + earned, monthlyFree: MONTHLY_FREE_CREDITS };
     } catch {
-        return fallback;
+        return FALLBACK_CREDIT_STATE;
     }
+}
+
+export type GrantDecision = { write: false } | { write: true; earned: number };
+
+/**
+ * The grant decision, pure: given whether this idempotency key has already
+ * been recorded and the current earned balance, decide the new balance (or
+ * that nothing should be written). A key seen before is a no-op — additive
+ * only under a key that hasn't been used.
+ */
+export function resolveGrant(alreadyGranted: boolean, currentEarned: number, amount: number): GrantDecision {
+    if (alreadyGranted) return { write: false };
+    return { write: true, earned: currentEarned + amount };
+}
+
+const GRANTS_COLLECTION = "credit_grants";
+
+/**
+ * Additively credit a user's permanent earned balance. Idempotent on
+ * `idempotencyKey`: a grant whose key has already been recorded is a no-op,
+ * so a user signing in repeatedly (or a retried request) can never farm the
+ * same reward twice. Different keys are independent and additive.
+ *
+ * Transactional: the grant record and the earned-balance increment are
+ * written in the same Firestore transaction, so a crash between "checked
+ * the key" and "credited the balance" cannot happen — the key is either
+ * fully applied or not applied at all. Errors propagate (no fail-open here):
+ * unlike spending, a silently-dropped grant would be a lying fallback for
+ * whatever paid it (a referral reward, a purchase).
+ */
+export async function grantCredits(uid: string, amount: number, reason: string, idempotencyKey: string): Promise<void> {
+    const db = getAdminDb();
+    const profileRef = db.collection("profiles").doc(uid);
+    const grantRef = db.collection(GRANTS_COLLECTION).doc(idempotencyKey);
+    await db.runTransaction(async (tx) => {
+        const grantSnap = await tx.get(grantRef);
+        const profileSnap = await tx.get(profileRef);
+        const data = (profileSnap.exists ? profileSnap.data() : {}) as { credits_earned?: number };
+        const decision = resolveGrant(grantSnap.exists, resolveEarned(data), amount);
+        if (!decision.write) return; // already granted under this key
+        tx.set(profileRef, { credits_earned: decision.earned, credits_updated_at: new Date().toISOString() }, { merge: true });
+        tx.set(grantRef, { uid, amount, reason, granted_at: new Date().toISOString() });
+    });
+}
+
+/**
+ * The first-sign-in welcome bonus. Credited via `grantCredits`'s own
+ * idempotency (key = `welcome:<uid>`) rather than a second "is this a new
+ * user" check — safe to call on every sign-in; a no-op after the first.
+ */
+export async function grantWelcomeCredits(uid: string): Promise<void> {
+    await grantCredits(uid, WELCOME_CREDITS, "welcome", `welcome:${uid}`);
 }
