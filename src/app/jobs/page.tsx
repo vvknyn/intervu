@@ -3046,7 +3046,15 @@ function JobsContent() {
     // code rule 2, single source of truth). `onClose` is passed explicitly
     // by each call site (both currently `() => router.back()`) rather than
     // hardcoded here, keeping this decoupled from the router.
-    const renderDetailSurface = (onClose: (() => void) | undefined) =>
+    //
+    // `collapseDescription` defaults true (JobDetail's own default, unchanged
+    // desktop behaviour) — the mobile bottom sheet call site below passes
+    // `false`: that Sheet already owns an `overflow-y-auto` scroller
+    // (:4107-ish, `overscroll-y-contain`), so JobDetail's own 20rem clamp was
+    // hiding nearly every real description behind a click one scroller
+    // *inside* an already-scrollable sheet (2026-08-18, mobile detail-scroll
+    // fix part 2).
+    const renderDetailSurface = (onClose: (() => void) | undefined, collapseDescription = true) =>
         detailJob ? (
             <>
                 <JobDetail
@@ -3066,6 +3074,7 @@ function JobsContent() {
                     goingAfter={goingAfterId === detailJob.id}
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
+                    collapseDescription={collapseDescription}
                     className="border-0 bg-transparent shadow-none"
                 />
                 {/* Rendered for guests too (founder call, 2026-08-15). /jobs is the
@@ -4083,7 +4092,31 @@ function JobsContent() {
                         safe area (home-indicator gesture strip), so the
                         sticky action bar / last content could sit flush
                         against it. Same env() token MobileTabBar.tsx uses. */}
-                    <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
+                    {/* `min-h-0 flex-1 overflow-y-auto` is what makes THIS
+                        div (not its parent, not JobDetail) the actual
+                        scroll container — same mechanism as the min-WIDTH
+                        version documented in LandingMarketingShowcase.tsx:
+                        a flex child's default `min-height: auto` refuses
+                        to shrink below its content, so without `min-h-0`
+                        the `overflow-y-auto` here would never have room to
+                        engage and the sheet would grow past its
+                        `max-h-[min(88dvh,760px)]` ancestor instead of
+                        scrolling. `overscroll-y-contain` is the other half
+                        (mobile detail-scroll fix, 2026-08-18): without it,
+                        a touch-drag that reaches this div's top/bottom
+                        edge and keeps going CHAINS the scroll gesture to
+                        the next scrollable ancestor — the page behind the
+                        sheet — on iOS Safari, even though `body` is
+                        `overflow: hidden` (overflow:hidden alone doesn't
+                        stop scroll-chaining out of a fixed-position
+                        overlay's own inner scroller). `contain` stops the
+                        chain at this div's boundary instead of letting it
+                        escape to the page, which is what "the page behind
+                        must not scroll while the sheet is open" requires. */}
+                    <div
+                        data-testid="mobile-detail-scroller"
+                        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
+                    >
                         {/* `undefined`, not `() => router.back()` — the sheet chrome
                             above already renders its own × wired to the identical
                             `router.back()` (the button ~30 lines up). Passing a
@@ -4092,8 +4125,14 @@ function JobsContent() {
                             the close control ~150px away from the first. Do not
                             "fix" this back — the desktop pane at :3223 is a
                             different mount site with no chrome × of its own, which
-                            is why it still passes a real handler. */}
-                        {renderDetailSurface(undefined)}
+                            is why it still passes a real handler.
+
+                            `collapseDescription={false}` — this Sheet IS the
+                            scroller (see the div's own doc comment above); a
+                            description-length-based inner clamp is a second,
+                            redundant height cap one level deeper (mobile
+                            detail-scroll fix part 2, 2026-08-18). */}
+                        {renderDetailSurface(undefined, false)}
                     </div>
                 </SheetContent>
             </Sheet>
