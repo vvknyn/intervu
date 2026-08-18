@@ -13,6 +13,7 @@ import {
 import { resolveWaitlistOutcome } from "@/components/marketing/waitlist-outcome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import {
   Accordion,
   AccordionContent,
@@ -128,6 +129,7 @@ export function ConnectClient() {
 
   // OpenClaw Waitlist state for non-mac
   const [email, setEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
   const outcome = result ? resolveWaitlistOutcome(result) : null;
@@ -155,7 +157,7 @@ export function ConnectClient() {
   const handleWaitlistSubmit = (e: FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      setResult(await joinConnectWaitlist({ email, client: "openclaw" }));
+      setResult(await joinConnectWaitlist({ email, client: "openclaw", turnstileToken: turnstileToken ?? undefined }));
     });
   };
 
@@ -320,19 +322,22 @@ export function ConnectClient() {
                       ✓ You&apos;re on the list!
                     </p>
                   ) : (
-                    <form onSubmit={handleWaitlistSubmit} className="flex gap-2">
-                      <Input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@company.com"
-                        disabled={pending}
-                        className="h-8 text-xs rounded-lg"
-                      />
-                      <Button type="submit" size="xs" disabled={pending} className="rounded-lg">
-                        {pending ? "Joining…" : "Notify me"}
-                      </Button>
+                    <form onSubmit={handleWaitlistSubmit} className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@company.com"
+                          disabled={pending}
+                          className="h-8 text-xs rounded-lg"
+                        />
+                        <Button type="submit" size="xs" disabled={pending} className="rounded-lg">
+                          {pending ? "Joining…" : "Notify me"}
+                        </Button>
+                      </div>
+                      <TurnstileWidget onVerify={setTurnstileToken} />
                     </form>
                   )}
                 </div>

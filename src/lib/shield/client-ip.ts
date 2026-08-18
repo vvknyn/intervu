@@ -1,34 +1,72 @@
 import { headers } from "next/headers";
 
+/** The shared "no IP could be determined" sentinel every resolver below
+ *  returns — a named export so a caller that needs to tell a real address
+ *  apart from this fallback (e.g. before forwarding it to a third-party API
+ *  as a `remoteip`) checks against one value, not a re-typed `"unknown"`
+ *  string literal. */
+export const UNKNOWN_CLIENT_IP = "unknown";
+
 /**
- * Client IP resolution behind Caddy (deploy/Caddyfile — no `trusted_proxies`
- * block configured). Caddy's default `reverse_proxy` behavior IGNORES any
- * X-Forwarded-For value a client sends and sets the header itself from the
- * actual TCP peer it saw
- * (https://caddyserver.com/docs/caddyfile/directives/reverse_proxy —
- * "by default, the proxy will ignore [incoming XFF] values... to prevent
- * spoofing"). So in THIS deployment the header reaching Next.js is Caddy's
- * own unspoofable determination, normally a single IP.
+ * The ONE place in this app that decides what a client's IP is. Every
+ * chokepoint (shield rate limiters, the agent OAuth routes) resolves
+ * through here — a second resolver is how `agent/rate-limit.ts` and this
+ * file used to quietly disagree (fixed 2026-08-16, see git history).
  *
- * We still take the LEFTMOST comma-separated entry rather than assuming
- * there's only one, so this keeps working unchanged if a CDN or load
- * balancer is ever added in front of Caddy with `trusted_proxies`
- * configured (standard `client, proxy1, proxy2…` convention — the original
- * client is always leftmost, each hop appends itself to the right).
+ * Deploy topology: Cloudflare (DNS-proxied in front of intervuhq.com) →
+ * Caddy → this container. `CF-Connecting-IP` wins whenever present —
+ * Cloudflare terminates the internet-facing connection and sets that header
+ * itself from the real TCP peer it saw, overwriting anything a client sent;
+ * it cannot be forged by a request that actually passed through Cloudflare's
+ * edge.
  *
- * Load-bearing assumption to revisit if the deploy topology changes: Caddy
- * must remain the ONLY reverse proxy between the internet and this
- * container. If another trusted hop is added without also configuring
- * Caddy's `trusted_proxies`, this stops being the trustworthy value.
+ * X-Forwarded-For is the fallback, for traffic that reaches Caddy without
+ * going through Cloudflare (topology not yet cut over, or a direct hit on
+ * the origin). Caddy is not configured to preserve an inbound XFF — verified
+ * empirically 2026-08-16: 100 requests to /api/jobs/suggest, each carrying a
+ * different forged XFF, still tripped the 90/60s limit at exactly 90
+ * admitted / 10 denied, proof only Caddy's own single value reached the app,
+ * never the forged one. (No in-repo Caddyfile documents this for
+ * intervuhq.com — the live vhost exists only in Caddy's in-memory config on
+ * the box — so the experiment is the evidence, not a config file.) So the
+ * LEFTMOST (and, today, only) entry is safe to trust here, not a
+ * caller-controlled hop.
+ *
+ * Load-bearing assumptions to revisit if the topology changes again: (1)
+ * Cloudflare must remain the outermost edge for CF-Connecting-IP to mean
+ * anything — a request that never touched Cloudflare could set that header
+ * itself; (2) Caddy must remain the ONLY reverse proxy between Cloudflare
+ * and this container for the XFF fallback to stay trustworthy; (3) THIS
+ * FUNCTION CANNOT CLOSE the direct-to-origin hole by itself — the origin IP
+ * (194.163.147.154) is publicly reachable, so a request sent straight to it,
+ * bypassing Cloudflare, can set CF-Connecting-IP to anything and this
+ * resolver will believe it, letting a rotating header walk straight past
+ * every per-IP limit. Closing that requires the edge (Caddy dropping
+ * CF-Connecting-IP from non-Cloudflare peers, or firewalling the origin to
+ * Cloudflare's IP ranges), not app code — not implemented here.
  */
-export function resolveClientIp(xForwardedFor: string | null | undefined): string {
-  if (!xForwardedFor) return "unknown";
+export function resolveClientIp(
+  xForwardedFor: string | null | undefined,
+  cfConnectingIp?: string | null | undefined,
+): string {
+  const cf = cfConnectingIp?.trim();
+  if (cf) return cf;
+  if (!xForwardedFor) return UNKNOWN_CLIENT_IP;
   const first = xForwardedFor.split(",")[0]?.trim();
-  return first || "unknown";
+  return first || UNKNOWN_CLIENT_IP;
 }
 
-/** Thin I/O wrapper: `resolveClientIp` wired to the request's real headers. */
+/** Thin I/O wrapper: `resolveClientIp` wired to the request's real headers,
+ *  for Server Components / Server Actions (reads `next/headers()`). */
 export async function getClientIp(): Promise<string> {
   const headersList = await headers();
-  return resolveClientIp(headersList.get("x-forwarded-for"));
+  return resolveClientIp(headersList.get("x-forwarded-for"), headersList.get("cf-connecting-ip"));
+}
+
+/** Same resolution, for callers holding a raw `Headers` object (route
+ *  handlers with a `Request`, rather than going through `next/headers()`) —
+ *  the seam `agent/rate-limit.ts`'s OAuth routes use instead of keeping
+ *  their own resolver. */
+export function resolveClientIpFromHeaders(h: Headers): string {
+  return resolveClientIp(h.get("x-forwarded-for"), h.get("cf-connecting-ip"));
 }

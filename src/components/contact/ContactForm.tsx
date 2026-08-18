@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 
 export function ContactForm() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
     const [honeypot, setHoneypot] = useState("");
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export function ContactForm() {
                 email,
                 message,
                 honeypot,
+                turnstileToken: turnstileToken ?? undefined,
                 path: pathname || window.location.pathname,
             });
 
@@ -113,6 +116,8 @@ export function ContactForm() {
                         onChange={(e) => setHoneypot(e.target.value)}
                     />
                 </div>
+
+                <TurnstileWidget onVerify={setTurnstileToken} />
 
                 {status === "error" && error && (
                     <p className="font-mono text-xs text-destructive">{error}</p>

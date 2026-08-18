@@ -1,9 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  allowAuthSessionRequest,
+  allowAuthSignupRequest,
   allowConnectWaitlistRequest,
   allowJobsSuggestRequest,
   allowSearchRequest,
+  AUTH_SESSION_MAX_REQUESTS,
+  AUTH_SESSION_WINDOW_MS,
+  AUTH_SIGNUP_MAX_REQUESTS,
   checkRateLimitWindow,
   clearRateLimitStateForTests,
   CONNECT_WAITLIST_MAX_REQUESTS,
@@ -117,5 +122,57 @@ test("allowJobsSuggestRequest: a different IP starts with a fresh window", () =>
   }
   assert.equal(allowJobsSuggestRequest("4.4.4.4", now), false);
   assert.equal(allowJobsSuggestRequest("5.5.5.5", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowAuthSessionRequest: keeps its own per-IP window, separate from the other chokepoints'", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < AUTH_SESSION_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthSessionRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowAuthSessionRequest("1.2.3.4", now), false);
+  // ...without touching that same IP's search, waitlist, or suggest allowance.
+  assert.equal(allowSearchRequest("1.2.3.4", now), true);
+  assert.equal(allowConnectWaitlistRequest("1.2.3.4", now), true);
+  assert.equal(allowJobsSuggestRequest("1.2.3.4", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowAuthSessionRequest: window boundary — one ms before AUTH_SESSION_WINDOW_MS still exhausted, exactly at it the oldest hits have aged out (strict `t > cutoff`)", () => {
+  clearRateLimitStateForTests();
+  const start = 1_000;
+  for (let i = 0; i < AUTH_SESSION_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthSessionRequest("6.6.6.6", start), true);
+  }
+  // One ms short of the window: cutoff = start - 1, so the original hits
+  // (t === start) are still `t > cutoff` and still counted — still exhausted.
+  assert.equal(allowAuthSessionRequest("6.6.6.6", start + AUTH_SESSION_WINDOW_MS - 1), false);
+  // Exactly at the window: cutoff === start, so `t > cutoff` is now false for
+  // those same hits — they've aged out and a slot opens.
+  assert.equal(allowAuthSessionRequest("6.6.6.6", start + AUTH_SESSION_WINDOW_MS), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowAuthSessionRequest: a different IP starts with a fresh window", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < AUTH_SESSION_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthSessionRequest("7.7.7.7", now), true);
+  }
+  assert.equal(allowAuthSessionRequest("7.7.7.7", now), false);
+  assert.equal(allowAuthSessionRequest("8.8.8.8", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowAuthSignupRequest: its own store, separate from the session limiter's even for the same IP", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < AUTH_SIGNUP_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthSignupRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowAuthSignupRequest("1.2.3.4", now), false);
+  // Signup is exhausted, but the SAME ip's session budget is untouched.
+  assert.equal(allowAuthSessionRequest("1.2.3.4", now), true);
   clearRateLimitStateForTests();
 });
