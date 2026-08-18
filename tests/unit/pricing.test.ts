@@ -322,3 +322,40 @@ describe("the beta switch drives enforcement and disclosure together", () => {
     assert.ok(balance.indexOf(SWITCH) < balance.indexOf("s.isAdmin)"), "the beta branch must precede the account-kind branches");
   });
 });
+
+describe("every page that talks about credits reads the beta switch", () => {
+  // The amount-quoting guard above misses prose that describes *metering*
+  // without naming a number — which is exactly how /privacy kept promising to
+  // "apply your credit balance when you use a paid feature" for a whole
+  // release after /terms stopped saying anything was metered. Keying on the
+  // word itself rather than on a list of phrases means a new page describing
+  // a charge is covered the day it is written.
+  const pages: string[] = [];
+  (function walk(dir: string) {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (entry === "page.tsx") pages.push(full);
+    }
+  })(join(process.cwd(), "src/app"));
+
+  const mentionsCredits = pages.filter((f) => /credit/i.test(readFileSync(f, "utf8")));
+
+  it("finds the pages that mention credits", () => {
+    assert.ok(
+      mentionsCredits.length >= 3,
+      `only ${mentionsCredits.length} pages mention credits — the walk is not reaching src/app`,
+    );
+  });
+
+  it("each of them imports BETA_UNLIMITED_CREDITS", () => {
+    for (const f of mentionsCredits) {
+      const rel = f.slice(f.indexOf("src/app"));
+      assert.ok(
+        readFileSync(f, "utf8").includes("BETA_UNLIMITED_CREDITS"),
+        `${rel} describes credits but never reads the beta switch — it will keep ` +
+          `describing a charge the product cannot levy once beta is on`,
+      );
+    }
+  });
+});
