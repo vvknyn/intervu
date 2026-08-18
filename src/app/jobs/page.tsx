@@ -4083,7 +4083,28 @@ function JobsContent() {
                         safe area (home-indicator gesture strip), so the
                         sticky action bar / last content could sit flush
                         against it. Same env() token MobileTabBar.tsx uses. */}
-                    <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
+                    {/* `min-h-0 flex-1 overflow-y-auto` is what makes THIS
+                        div (not its parent, not JobDetail) the actual
+                        scroll container — same mechanism as the min-WIDTH
+                        version documented in LandingMarketingShowcase.tsx:
+                        a flex child's default `min-height: auto` refuses
+                        to shrink below its content, so without `min-h-0`
+                        the `overflow-y-auto` here would never have room to
+                        engage and the sheet would grow past its
+                        `max-h-[min(88dvh,760px)]` ancestor instead of
+                        scrolling. `overscroll-y-contain` is the other half
+                        (mobile detail-scroll fix, 2026-08-18): without it,
+                        a touch-drag that reaches this div's top/bottom
+                        edge and keeps going CHAINS the scroll gesture to
+                        the next scrollable ancestor — the page behind the
+                        sheet — on iOS Safari, even though `body` is
+                        `overflow: hidden` (overflow:hidden alone doesn't
+                        stop scroll-chaining out of a fixed-position
+                        overlay's own inner scroller). `contain` stops the
+                        chain at this div's boundary instead of letting it
+                        escape to the page, which is what "the page behind
+                        must not scroll while the sheet is open" requires. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar">
                         {/* `undefined`, not `() => router.back()` — the sheet chrome
                             above already renders its own × wired to the identical
                             `router.back()` (the button ~30 lines up). Passing a
