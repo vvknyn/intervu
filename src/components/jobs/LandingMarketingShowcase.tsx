@@ -10,6 +10,16 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
+interface LandingMastheadProps {
+  /**
+   * The honest-market claim sentence (`marketingClaim()` in
+   * lib/marketing-stats.ts — the sole owner of its wording). `null` while
+   * the stats fetch is in flight or has failed; render nothing in that case
+   * rather than a placeholder, per that function's own degrade contract.
+   */
+  claim?: string | null;
+}
+
 /**
  * The marketing statement alone — no controls, nothing focusable.
  *
@@ -17,7 +27,10 @@ import { cn } from "@/lib/utils";
  * now live on opposite sides of the search line: this states what the corpus
  * IS and sits ABOVE the search box on the pristine landing, while the
  * directory and shortcuts below are search entry points and stay next to the
- * results they seed.
+ * results they seed. Reduced to eyebrow + h1 + one-line claim (2026-08-18):
+ * the two-line "Updated every day / No recruiters, no reposts" rail is gone,
+ * and the 3-column USP grid moved into `LandingMarketingShowcase` below the
+ * directory and shortcuts — action before explanation.
  *
  * Deliberately free of buttons and links. `/jobs` keeps it MOUNTED and
  * collapses it once a search runs (see the `grid-rows-[0fr]` wrapper in
@@ -25,54 +38,21 @@ import { cn } from "@/lib/utils";
  * contained a tab stop would leave focus stranded in zero-height content.
  * Keep it non-interactive, or that wrapper needs `inert` instead.
  */
-export function LandingMasthead() {
+export function LandingMasthead({ claim }: LandingMastheadProps) {
   return (
     <div className="pb-4 sm:pb-6">
     <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-border/80 pb-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">
-            Jobs posted by the companies themselves
-          </span>
-          <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
-            Every job, straight from the employer.
-          </h1>
-        </div>
-        <div className="text-xs text-muted-foreground sm:text-right uppercase tracking-wider space-y-0.5">
-          <p className="font-bold text-foreground">Updated every day</p>
-          <p>No recruiters, no reposts</p>
-        </div>
-      </div>
-
-      {/* 3-Column Swiss Editorial Statement */}
-      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
-        <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-          <div className="font-bold text-foreground uppercase tracking-wider">
-            Straight from the company
-          </div>
-          <p className="text-muted-foreground">
-            We read openings from each company&apos;s own careers page and hiring system. Nothing here comes from a recruiter, an agency, or a job board reselling someone else&apos;s listing.
-          </p>
-        </div>
-
-        <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
-          <div className="font-bold text-foreground uppercase tracking-wider">
-            Checked before you apply
-          </div>
-          <p className="text-muted-foreground">
-            We look at how old a posting is, how often it has been relisted, and whether the company&apos;s system still shows it open — so you can tell an active job from one that has probably already gone.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="font-bold text-foreground uppercase tracking-wider">
-            Real pay, not estimates
-          </div>
-          <p className="text-muted-foreground">
-            When a company publishes a salary range, that range is what you see. We never guess a number or borrow a crowd-sourced one.
-          </p>
-        </div>
-      </div>
+      <span className="text-xs font-bold uppercase tracking-widest text-brand">
+        Jobs posted by the companies themselves
+      </span>
+      <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
+        Every job, straight from the employer.
+      </h1>
+      {claim ? (
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          {claim}
+        </p>
+      ) : null}
     </div>
     </div>
   );
@@ -245,6 +225,45 @@ export function LandingMarketingShowcase({
             </div>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </button>
+        </div>
+      </div>
+
+      {/* 3-Column Swiss Editorial Statement — moved out of LandingMasthead
+          (2026-08-18) so it reads as explanation AFTER the search box and
+          the directory/shortcuts above it, not before them. Markup and copy
+          unchanged from its prior location. */}
+      <div>
+        <div className="border-b border-foreground pb-2 text-xs font-bold uppercase tracking-widest text-foreground">
+          <span>Why these listings are different</span>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
+          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+            <div className="font-bold text-foreground uppercase tracking-wider">
+              Straight from the company
+            </div>
+            <p className="text-muted-foreground">
+              We read openings from each company&apos;s own careers page and hiring system. Nothing here comes from a recruiter, an agency, or a job board reselling someone else&apos;s listing.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
+            <div className="font-bold text-foreground uppercase tracking-wider">
+              Checked before you apply
+            </div>
+            <p className="text-muted-foreground">
+              We look at how old a posting is, how often it has been relisted, and whether the company&apos;s system still shows it open — so you can tell an active job from one that has probably already gone.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="font-bold text-foreground uppercase tracking-wider">
+              Real pay, not estimates
+            </div>
+            <p className="text-muted-foreground">
+              When a company publishes a salary range, that range is what you see. We never guess a number or borrow a crowd-sourced one.
+            </p>
+          </div>
         </div>
       </div>
     </div>

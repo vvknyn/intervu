@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { indexCategories } from '../../src/components/jobs/LandingMarketingShowcase';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { indexCategories, LandingMasthead } from '../../src/components/jobs/LandingMarketingShowcase';
 
 /**
  * Guards the landing-page copy rewrite (2026-08-18): the page used to talk
@@ -109,5 +110,30 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
         for (const cat of indexCategories) {
             assert.ok(!('metric' in cat), `${cat.domain} card still carries a metric badge`);
         }
+    });
+});
+
+/**
+ * Guards the live-count USP sentence (2026-08-18): `marketClaim` in
+ * app/jobs/page.tsx was computed from `marketingClaim()` but never passed to
+ * anything that rendered it — a dead-state bug where the state existed and
+ * updated correctly but no JSX ever read it. This asserts the render side
+ * directly: a non-null `claim` prop must reach the page, and `null` must
+ * render nothing claim-shaped, never an invented placeholder sentence.
+ */
+describe('LandingMasthead: renders the live-count claim (or nothing)', () => {
+    it('renders the claim sentence when passed a non-null claim', () => {
+        const claim = "1,234 live roles, scraped from company career pages — before you spend an hour on any of them.";
+        const html = renderToStaticMarkup(LandingMasthead({ claim }));
+        assert.ok(html.includes(claim), 'claim sentence missing from rendered masthead');
+    });
+
+    it('renders nothing claim-shaped when claim is null', () => {
+        const claim = "1,234 live roles, scraped from company career pages — before you spend an hour on any of them.";
+        const html = renderToStaticMarkup(LandingMasthead({ claim: null }));
+        assert.ok(!html.includes(claim), 'a claim string leaked through despite a null claim prop');
+        // The h1/eyebrow still render — only the third element (the claim
+        // paragraph) is conditional, so this isn't just an empty masthead.
+        assert.match(html, /Every job, straight from the employer\./);
     });
 });
