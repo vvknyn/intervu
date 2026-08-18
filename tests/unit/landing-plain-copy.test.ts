@@ -114,6 +114,45 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
 });
 
 /**
+ * Guards the chip-row/directory field-list agreement (2026-08-18): the jobs
+ * toolbar's field chips used to be a second, hand-typed, all-tech list
+ * (Engineering / AI & ML / Product / Design) that contradicted the field
+ * directory rendered lower on the same page — and the corpus is dominated by
+ * non-tech roles, so the tech-only framing was actively wrong. The fix makes
+ * the chip row derive its field chips from `indexCategories`, the directory's
+ * own exported single source of truth, instead of restating the list a
+ * fourth time. This can't render `app/jobs/page.tsx` directly (client hooks,
+ * router/search-param context, no test harness for it exists), so it checks
+ * the one thing that actually distinguishes "derives from the export" from
+ * "hardcodes a lookalike list": a hardcoded chip literal writes
+ * `label: "some string"` (a quoted value right after the key); a derived one
+ * writes `{cat.domain}`/`cat.q` — a property access, never a quote. Scoped to
+ * just the chip-row block (between its own comment and the next section's
+ * `data-testid`) so it can't false-positive on the unrelated `label:` object
+ * literals that exist elsewhere in this 4,000+ line file.
+ */
+describe('jobs toolbar chip row: field chips derive from indexCategories, not a parallel list', () => {
+    const PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'page.tsx');
+
+    function chipRowSource(): string {
+        const src = readFileSync(PAGE, 'utf8');
+        const start = src.indexOf('Category & Persona Discovery Micro-Pills');
+        const end = src.indexOf('data-testid="jobs-toolbar"');
+        assert.ok(start !== -1 && end !== -1 && end > start, 'chip-row anchors moved — update this test\'s markers');
+        return src.slice(start, end);
+    }
+
+    it('references the shared indexCategories export', () => {
+        assert.match(chipRowSource(), /indexCategories/, 'chip row no longer derives from indexCategories');
+    });
+
+    it('does not hardcode a quoted label (a parallel list literal)', () => {
+        const offenders = chipRowSource().match(/label:\s*["'`]/g) ?? [];
+        assert.deepEqual(offenders, [], 'chip row hardcodes a quoted label — restate via indexCategories instead of a parallel list');
+    });
+});
+
+/**
  * Guards the live-count USP sentence (2026-08-18): `marketClaim` in
  * app/jobs/page.tsx was computed from `marketingClaim()` but never passed to
  * anything that rendered it — a dead-state bug where the state existed and
