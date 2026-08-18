@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { PACKS } from "@/lib/pricing";
 import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION, WELCOME_CREDITS } from "@/lib/llm/credit-gate";
-import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
+import { BETA_UNLIMITED_CREDITS, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { buildPricingTiers, type PricingBullet } from "@/app/pricing/pricing-tiers";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 
@@ -32,27 +32,58 @@ describe("PACKS shape", () => {
 describe("/pricing copy derives from the constants it describes", () => {
   const bulletTexts = buildPricingTiers(null).flatMap((tier) => tier.bullets.map((b) => b.text));
 
-  const creditsBullet = bulletTexts.find((t) => t.includes("every month"));
+  // Whichever arm is live, exactly one bullet describes what an AI action
+  // costs. Found by what it is ABOUT, not by a phrase unique to one arm, so
+  // the same assertions keep pointing at the right line across the flip.
+  const aiBullet = bulletTexts.find((t) => /AI action/i.test(t));
 
-  it("states the real monthly allowance and per-action cost, not a hardcoded pair", () => {
-    assert.ok(creditsBullet, "expected a bullet stating the monthly allowance");
-    assert.ok(creditsBullet!.includes(`${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many}`), creditsBullet);
-    assert.ok(creditsBullet!.includes(creditCount(CREDITS_PER_ACTION)), creditsBullet);
+  it("has exactly one bullet describing the AI allowance", () => {
+    assert.equal(bulletTexts.filter((t) => /AI action/i.test(t)).length, 1, bulletTexts.join("\n"));
   });
 
   it("never advertises prep or cover-letter generation as example actions (MCP-only, not credit-billed)", () => {
-    assert.doesNotMatch(creditsBullet!, /\bprep\b/i);
-    assert.doesNotMatch(creditsBullet!, /cover letter/i);
+    assert.doesNotMatch(aiBullet!, /\bprep\b/i);
+    assert.doesNotMatch(aiBullet!, /cover letter/i);
   });
 
-  // Non-motivating case: the one-time sign-up grant is a THIRD constant
-  // (WELCOME_CREDITS, granted by `grantWelcomeCredits` on first sign-in) that
-  // would drift independently of the monthly pair the test above covers.
-  it("states the sign-up grant from WELCOME_CREDITS, not a re-typed figure", () => {
-    const grantBullet = bulletTexts.find((t) => t.startsWith("Plus "));
-    assert.ok(grantBullet, "expected a bullet naming the sign-up grant");
-    assert.ok(grantBullet!.includes(creditCount(WELCOME_CREDITS)), grantBullet);
-  });
+  if (BETA_UNLIMITED_CREDITS) {
+    // Beta (2026-08-18): `chargeIfSharedKey` short-circuits above
+    // `consumeCredit`, so ANY quantity on this page describes an economy
+    // nothing is running. The monthly figure and the sign-up grant are the
+    // two that were live here the morning the switch went in.
+    it("says AI is unlimited during the beta the gate is actually in", () => {
+      assert.ok(aiBullet, "expected a bullet describing the AI allowance");
+      assert.match(aiBullet!, /unlimited/i);
+      assert.match(aiBullet!, /beta/i);
+    });
+
+    it("quotes no credit quantity anywhere while nothing is metered", () => {
+      for (const text of bulletTexts) {
+        assert.doesNotMatch(text, /\d+\s+credits?\b/i, text);
+        assert.doesNotMatch(text, new RegExp(`\\b${MONTHLY_FREE_CREDITS}\\b`), text);
+        assert.doesNotMatch(text, new RegExp(`\\b${WELCOME_CREDITS}\\b`), text);
+      }
+    });
+  } else {
+    it("states the real monthly allowance and per-action cost, not a hardcoded pair", () => {
+      assert.ok(aiBullet, "expected a bullet stating the monthly allowance");
+      assert.ok(aiBullet!.includes(`${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many}`), aiBullet);
+      assert.ok(aiBullet!.includes(creditCount(CREDITS_PER_ACTION)), aiBullet);
+    });
+
+    // Non-motivating case: the one-time sign-up grant is a THIRD constant
+    // (WELCOME_CREDITS, granted by `grantWelcomeCredits` on first sign-in) that
+    // would drift independently of the monthly pair the test above covers.
+    it("states the sign-up grant from WELCOME_CREDITS, not a re-typed figure", () => {
+      const grantBullet = bulletTexts.find((t) => t.startsWith("Plus "));
+      assert.ok(grantBullet, "expected a bullet naming the sign-up grant");
+      assert.ok(grantBullet!.includes(creditCount(WELCOME_CREDITS)), grantBullet);
+    });
+
+    it("does not still advertise the beta's unlimited AI once metering is back on", () => {
+      for (const text of bulletTexts) assert.doesNotMatch(text, /unlimited/i, text);
+    });
+  }
 
   // The four real coin-spending actions must read as plain human capability
   // descriptions, never as the implementation symbols that back them —
@@ -220,5 +251,74 @@ describe("no daily application limit is advertised or enforced", () => {
       /DAILY_APPLY_CAP|assertUnderDailyApplyCap|pursuits\/apply-cap/.test(readFileSync(f, "utf8")),
     );
     assert.deepEqual(offenders, [], "daily apply cap enforcement is back but /pricing does not disclose it");
+  });
+});
+
+// Metering and the copy describing it are two halves of one promise, and the
+// dangerous states are the mismatched ones — charging while /pricing says
+// "unlimited" is a lie, and advertising credits nothing spends is the bug
+// this file's whole history is made of (the coins/credits split, the daily
+// apply cap). `BETA_UNLIMITED_CREDITS` exists so one edit moves both halves.
+// These fail if a surface starts quoting the economy without reading it.
+describe("the beta switch drives enforcement and disclosure together", () => {
+  const read = (module: string) => readFileSync(join(REPO_ROOT, module), "utf8");
+  const SWITCH = "BETA_UNLIMITED_CREDITS";
+
+  it("the charge path reads the same switch the copy does", () => {
+    const gate = read("src/lib/llm/credit-gate.ts");
+    assert.match(gate, new RegExp(`import\\s*\\{[^}]*\\b${SWITCH}\\b[^}]*\\}\\s*from\\s*"@/lib/llm/credit-copy"`));
+    // Non-vacuous: importing it isn't enough — it has to gate the spend.
+    const charge = gate.slice(gate.indexOf("export async function chargeIfSharedKey"));
+    assert.ok(charge.includes(SWITCH), "chargeIfSharedKey does not consult the switch");
+    assert.ok(charge.indexOf(SWITCH) < charge.indexOf("consumeCredit("), "the switch must be read BEFORE the spend");
+  });
+
+  // Class-wide rather than a list of today's pages: any RENDERING file that
+  // quotes a credit figure has to acknowledge whether that figure is
+  // currently being charged. A new surface reaching for
+  // `MONTHLY_FREE_CREDITS` without reading the switch is exactly the drift
+  // this catches.
+  //
+  // Scoped to src/app + src/components — the layers that put words in front
+  // of a user — for the same reason `isImportedUnderAppOrComponents` above
+  // is. Whole-src caught `src/lib/pricing.ts`, which names
+  // `CREDITS_PER_ACTION` only in a doc comment explaining where per-action
+  // cost does NOT live: a data table, not a surface, and exempting it by
+  // path would have been the enumeration this guard exists to avoid.
+  it("every rendering file quoting a credit amount also reads the switch", () => {
+    const offenders = ["app", "components"]
+      .flatMap((dir) => sourceFiles(join(REPO_ROOT, "src", dir)))
+      .filter((f) => {
+        const src = readFileSync(f, "utf8");
+        return /MONTHLY_FREE_CREDITS|WELCOME_CREDITS|CREDITS_PER_ACTION/.test(src) && !src.includes(SWITCH);
+      })
+      .map((f) => f.slice(REPO_ROOT.length + 1));
+    assert.deepEqual(offenders, [], "these render a credit amount without saying whether it is charged");
+  });
+
+  // Non-vacuous: the scan must actually be looking at files that mention the
+  // constants, or an empty offender list proves nothing. /pricing is the page
+  // the switch was introduced for, so it is the honest canary.
+  it("the scan reaches at least one file that quotes a credit amount", () => {
+    const scanned = ["app", "components"]
+      .flatMap((dir) => sourceFiles(join(REPO_ROOT, "src", dir)))
+      .filter((f) => /MONTHLY_FREE_CREDITS|WELCOME_CREDITS|CREDITS_PER_ACTION/.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(REPO_ROOT.length + 1));
+    assert.ok(scanned.includes("src/app/pricing/pricing-tiers.ts"), scanned.join(", "));
+  });
+
+  it("/terms does not describe a prepaid economy while nothing is metered", () => {
+    const terms = read("src/app/terms/page.tsx");
+    assert.ok(terms.includes(SWITCH), "/terms states what credits cost — it must read the switch");
+    if (BETA_UNLIMITED_CREDITS) {
+      const beta = terms.slice(terms.indexOf(`{${SWITCH} ? (`), terms.indexOf(") : ("));
+      assert.doesNotMatch(beta, /prepaid|non-refundable|packs?\b/i, beta);
+    }
+  });
+
+  it("the sidebar indicator shows a state, not a balance that never moves", () => {
+    const balance = read("src/components/layout/CreditBalance.tsx");
+    assert.ok(balance.includes(SWITCH), "CreditBalance renders a credit total — it must read the switch");
+    assert.ok(balance.indexOf(SWITCH) < balance.indexOf("s.isAdmin)"), "the beta branch must precede the account-kind branches");
   });
 });

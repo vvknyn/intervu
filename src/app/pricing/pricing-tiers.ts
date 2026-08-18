@@ -38,7 +38,7 @@
  * would have caught the "fit, tailoring, prep" bullet this file used to ship.
  */
 import { MONTHLY_FREE_CREDITS, CREDITS_PER_ACTION, WELCOME_CREDITS } from "@/lib/llm/credit-gate";
-import { CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
+import { BETA_UNLIMITED_CREDITS, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 import type { MarketingCorpusStats } from "@/lib/marketing-stats";
 
@@ -100,12 +100,21 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
         },
         { text: "A posting check on every role — actively posted, worth verifying, or possibly stale" },
         { text: "Track every application in one place, from interested to offer" },
-        {
-          text: `${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many} every month for AI actions — ${creditCount(CREDITS_PER_ACTION)} per action, refilled on the 1st`,
-        },
-        {
-          text: `Plus ${creditCount(WELCOME_CREDITS)} when you sign up, which never expire`,
-        },
+        // The AI-allowance line is chosen by the same constant the gate reads
+        // (`BETA_UNLIMITED_CREDITS`, ./credit-copy.ts), never written by hand:
+        // during beta `chargeIfSharedKey` short-circuits above `consumeCredit`,
+        // so quoting a monthly figure or a sign-up grant here would describe an
+        // economy nothing is running. Both arms stay so the flip is one commit.
+        ...(BETA_UNLIMITED_CREDITS
+          ? [{ text: "Unlimited AI actions while we're in beta — no limit to run into" }]
+          : [
+              {
+                text: `${MONTHLY_FREE_CREDITS} free ${CREDIT_UNIT.many} every month for AI actions — ${creditCount(CREDITS_PER_ACTION)} per action, refilled on the 1st`,
+              },
+              {
+                text: `Plus ${creditCount(WELCOME_CREDITS)} when you sign up, which never expire`,
+              },
+            ]),
         {
           text: "For example: rank your job list against your résumé, import your stories from pasted text, turn a rough note into a full story, or draft an interview question",
           backedBy: { module: "src/actions/resume.ts", symbol: "parseResumeWithAI" },
