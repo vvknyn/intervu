@@ -25,9 +25,11 @@ interface AuthPopoverProps {
      * to render its own separate overlay above this dialog.
      */
     valueLine?: React.ReactNode;
+    /** Initial login-form tab — signup for apply gates, login otherwise. */
+    defaultTab?: "login" | "signup";
 }
 
-export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine }: AuthPopoverProps) {
+export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, valueLine, defaultTab = "login" }: AuthPopoverProps) {
     const handleSuccess = () => {
         onAuthed?.();
         onOpenChange(false);
@@ -44,7 +46,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
                 <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-2xl border border-border bg-card shadow-2xl">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
-                    <LoginForm onSuccess={handleSuccess} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
                 </DialogContent>
             </Dialog>
         );
@@ -60,7 +62,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
             <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-2xl border border-border bg-card shadow-2xl">
                 <div>
                     {valueLineNode}
-                    <LoginForm onSuccess={handleSuccess} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
                 </div>
             </PopoverContent>
         </Popover>

@@ -1401,7 +1401,7 @@ function JobsContent() {
         emptyPending<PublicJob, PublicJob>(),
     );
     const authedRef = useRef(false);
-    // Which auth value-line reason class to show (apply / read / generic).
+    // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
 
@@ -3068,7 +3068,7 @@ function JobsContent() {
                     job={detailJob}
                     now={nowMs}
                     signedIn={Boolean(user)}
-                    onRequestSignIn={() => openAuth("read")}
+                    onRequestSignIn={() => openAuth("generic")}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
@@ -4044,6 +4044,7 @@ function JobsContent() {
                         ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
                         : undefined
                 }
+                defaultTab={authGateReason === "apply" ? "signup" : "login"}
             />
             <ResumeImportModal
                 isOpen={importOpen}

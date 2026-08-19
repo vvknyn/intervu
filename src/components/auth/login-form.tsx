@@ -13,11 +13,14 @@ import { Label } from '@/components/ui/label'
 import { CircleNotch } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
+import { SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface LoginFormProps {
     onSuccess?: () => void;
     onGuestAccess?: () => void;
+    /** Initial tab when the form mounts — signup for apply gates, login otherwise. */
+    defaultTab?: "login" | "signup";
 }
 
 const authFieldClass =
@@ -49,9 +52,9 @@ function GoogleGlyph() {
     );
 }
 
-export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
+export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: LoginFormProps = {}) {
     const router = useRouter()
-    const [activeTab, setActiveTab] = useState<"login" | "signup">("login")
+    const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -153,7 +156,7 @@ export function LoginForm({ onSuccess, onGuestAccess }: LoginFormProps = {}) {
                 <p className="text-xs text-muted-foreground">
                     {activeTab === "login"
                         ? "Enter your credentials to access your account"
-                        : "Start tracking real openings and syncing with your AI"}
+                        : SIGNUP_SUBCOPY}
                 </p>
             </div>
 

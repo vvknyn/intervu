@@ -1,16 +1,17 @@
 /**
- * Auth popover value lines — one helper keyed by reason class (apply | read |
+ * Auth popover value lines — one helper keyed by reason class (apply |
  * generic), not by button name. When the guest pursuit store has a real count,
  * prepends an honest keep-line; never fabricates a count.
  */
 
-export type AuthGateReason = "apply" | "read" | "generic";
+export type AuthGateReason = "apply" | "generic";
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
+export const SIGNUP_SUBCOPY = "Save roles and track where you've applied — on any device.";
+
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",
-    read: "Sign in to read the full posting.",
     generic: "Sign in to sync your tracker across devices.",
 };
 
@@ -32,10 +33,10 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
 /** Exported guest-surface strings for jargon guard tests. */
 export const GUEST_AUTH_STRINGS: Record<string, string> = {
     SAVE_TOAST: GUEST_SAVE_TOAST,
+    SIGNUP_SUBCOPY,
     KEEP_ONE: guestKeepLine(1)!,
     KEEP_TWO: guestKeepLine(2)!,
     APPLY_LINE: formatAuthGateValueLine("apply", 0),
-    READ_LINE: formatAuthGateValueLine("read", 0),
     GENERIC_LINE: formatAuthGateValueLine("generic", 0),
     APPLY_WITH_KEEP: formatAuthGateValueLine("apply", 2),
 };

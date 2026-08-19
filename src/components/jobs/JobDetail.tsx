@@ -13,7 +13,6 @@ import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhost
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
-import { buildGuestPreview } from "@/lib/jobs/guest-preview";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
@@ -110,57 +109,6 @@ function JobDescription({ blocks }: { blocks: DescBlock[] }) {
                     </p>
                 );
             })}
-        </div>
-    );
-}
-
-/**
- * Guest gate (G4, Grok UX wave) — the ONE place a signed-out visitor's
- * detail body renders, replacing the old blur-as-paywall overlay. Shows a
- * real, truncated preview of the description (`buildGuestPreview`,
- * lib/jobs/guest-preview.ts — the same HTML/Markdown sanitization
- * `formatDescription` runs for signed-in readers) with a bottom fade and
- * one sign-in CTA line, rather than an opaque "sign in to view this role"
- * promise. Apply/Save stay real, clickable buttons elsewhere in this panel
- * (they already gate at the click handler — see `resolveApplyGateDecision`,
- * jobs/page.tsx) — this component only arbitrates the DESCRIPTION body, so
- * there is exactly one preview-vs-full decision for a guest's detail view,
- * not scattered per-section `!signedIn` checks.
- */
-function GuestDescriptionPreview({
-    description,
-    onRequestSignIn,
-}: {
-    description: string | null | undefined;
-    onRequestSignIn?: () => void;
-}) {
-    const preview = buildGuestPreview(description);
-    return (
-        <div className="mb-5">
-            <div className="mb-2 text-[13px] font-semibold">About this role</div>
-            {preview.text ? (
-                <div className={cn("relative", preview.truncated && "max-h-[14rem] overflow-hidden")}>
-                    <p className="whitespace-pre-line text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
-                        {preview.text}
-                        {preview.truncated && "…"}
-                    </p>
-                    {preview.truncated && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
-                    )}
-                </div>
-            ) : (
-                <div className="border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
-                    No description was captured for this role.
-                </div>
-            )}
-            <button
-                type="button"
-                data-testid="job-detail-signin-cta"
-                onClick={() => onRequestSignIn?.()}
-                className="mt-2.5 text-xs font-medium text-brand hover:underline"
-            >
-                Sign in to read the full posting
-            </button>
         </div>
     );
 }
@@ -358,12 +306,10 @@ export function JobDetail({
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
     onOpenPosting: () => void;
-    /** When false, the description preview is truncated and Apply/Save gate at click (G4, Grok UX wave). */
+    /** When false, Apply/Save gate at click; description body stays public. */
     signedIn?: boolean;
-    /** Opens auth when the guest preview's sign-in CTA is pressed — also the
-     *  "Report listing" button's gate (ITEM O-FE), same underlying flow
-     *  (AuthPopover on the board, a `/login` redirect on `/jobs/[slug]`),
-     *  not a second gate callback for the same job. */
+    /** Opens auth for gated actions (e.g. "Report listing") — AuthPopover on
+     *  the board, a `/login` redirect on `/jobs/[slug]`, not a second gate. */
     onRequestSignIn?: () => void;
     /** ITEM O-FE (2026-08-15) — probed once by the caller via
      *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
@@ -787,14 +733,8 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* The ghost-check ledger above renders for EVERYONE — it is
-                    public, derived, and the product's differentiator
-                    (2026-08-14 investor-polish); only the description body
-                    and below stay behind the sign-in gate. */}
-                {!signedIn ? (
-                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
-                ) : (
-                <>
+                {/* The ghost-check ledger and description body render for
+                    everyone — posting text is public; Apply stays gated. */}
                 <div className="mb-5">
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (
@@ -929,8 +869,6 @@ export function JobDetail({
                             ))}
                         </div>
                     </div>
-                )}
-                </>
                 )}
             </div>
         </div>

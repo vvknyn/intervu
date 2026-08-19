@@ -19,11 +19,10 @@ test("guestKeepLine uses plural copy for multiple pursuits", () => {
 
 test("formatAuthGateValueLine varies by reason class", () => {
     assert.match(formatAuthGateValueLine("apply", 0), /posting/);
-    assert.match(formatAuthGateValueLine("read", 0), /full posting/);
     assert.match(formatAuthGateValueLine("generic", 0), /sync/);
 });
 
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
-    assert.doesNotMatch(formatAuthGateValueLine("read", 0), /keep/i);
-    assert.match(formatAuthGateValueLine("read", 2), /keep the 2 roles/);
+    assert.doesNotMatch(formatAuthGateValueLine("generic", 0), /keep/i);
+    assert.match(formatAuthGateValueLine("generic", 2), /keep the 2 roles/);
 });
