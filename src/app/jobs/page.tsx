@@ -70,6 +70,12 @@ import {
     recordRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
+import {
+    subscribeRecentlyViewed,
+    getRecentlyViewedSnapshot,
+    getRecentlyViewedServerSnapshot,
+    recordRecentlyViewedJob,
+} from "@/lib/jobs/recently-viewed";
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
@@ -77,6 +83,7 @@ import {
     getSuppressLocationDefaultSnapshot,
     getSuppressLocationDefaultServerSnapshot,
     suppressLocationDefault,
+    restoreLocationDefault,
     shouldShowLocationDefaultChip,
 } from "@/lib/jobs/location-default-preference";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -89,8 +96,13 @@ import {
     chipLabelForEntry,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
+    applyLocationSheetDraft,
+    locationTriggerLabel,
     type FilterState,
+    type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
+import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
+import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
@@ -120,7 +132,12 @@ import {
     resolveEndOfListState,
     resolveResumeControlState,
     runResumeControlClick,
+    hasSearchPrefs,
+    shouldPromptSearchPrefsInsteadOfResume,
 } from "@/lib/jobs/result-state";
+import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
+import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
+import { SearchPrefsSetup, type SearchPrefsValues } from "@/components/jobs/SearchPrefsSetup";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
@@ -230,6 +247,10 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
  * reuses the SAME live-tint chip state every other active chip in the app
  * uses, rather than a one-off text treatment.
  */
+/** Peers of the Filters control — h-11 on mobile, chip-primitive density on lg. */
+const toolbarChipClass =
+    "inline-flex items-center justify-center h-11 px-3 text-[13px] font-medium rounded-none lg:h-7 lg:px-2 lg:text-[11px]";
+
 function SortSegment({
     label,
     pressed,
@@ -1112,6 +1133,9 @@ function JobsContent() {
     // `lg` and up.
     const isLgUp = useMediaQuery("(min-width: 1024px)");
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
+    const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+    const [mobileResultsEngaged, setMobileResultsEngaged] = useState(false);
+    const [detectedOptedIn, setDetectedOptedIn] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -1119,6 +1143,11 @@ function JobsContent() {
         subscribeRecentSearches,
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
+    );
+    const recentlyViewed = useSyncExternalStore(
+        subscribeRecentlyViewed,
+        getRecentlyViewedSnapshot,
+        getRecentlyViewedServerSnapshot,
     );
     const { saved: savedSearches } = useSavedSearches();
     // Persistent "don't default my location" override (default-location
@@ -1195,9 +1224,24 @@ function JobsContent() {
     const submitSearch = (q: string) => {
         setQueryDraft(q);
         setQuery(q);
+        setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
+        if (user) {
+            void saveAgentPreferencesAction({
+                search: {
+                    query: q.trim() || undefined,
+                    location: locationDraft.trim() || undefined,
+                },
+            }).catch(() => {});
+        }
     };
+
+    /** Commits a typed-but-unsubmitted query when a filter/location chip fires search. */
+    const flushSearchIntent = useCallback(() => {
+        const draft = queryDraft.trim();
+        if (draft !== query.trim()) submitSearch(queryDraft);
+    }, [queryDraft, query, submitSearch]);
 
     const [result, setResult] = useState<JobsSearchActionResult | null>(null);
     const resultRef = useRef<JobsSearchActionResult | null>(null);
@@ -1331,6 +1375,8 @@ function JobsContent() {
     if (!paginationRef.current) paginationRef.current = new JobsPaginationGeneration();
 
     const [user, setUser] = useState<User | null>(null);
+    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
+    const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Honest-market claim shown alongside the guest SERP tip (front-door
@@ -1411,6 +1457,20 @@ function JobsContent() {
         const unsub = onAuthChange((u) => setUser(u));
         return () => unsub();
     }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setAgentPrefs(null);
+            return;
+        }
+        let cancelled = false;
+        void fetchAgentPreferencesAction().then((res) => {
+            if (!cancelled && res.data) setAgentPrefs(res.data);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.uid]);
 
     // Refetch rule: only the search-affecting subset should trigger a fetch.
     // `jobId` is deliberately omitted here, so opening/closing a job (a `job`-
@@ -1522,6 +1582,8 @@ function JobsContent() {
         hasCorpusScope: Boolean(scope.board || scope.companyDomain),
     });
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain;
+    const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
+    const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -1882,6 +1944,13 @@ function JobsContent() {
         void recordJobOpenedAction(lastSearchId, id, rank);
         setOpensThisSession((n) => n + 1);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+        const hit = resultRef.current?.hits.find((h) => h.id === id);
+        if (hit) {
+            recordRecentlyViewedJob({ id, title: hit.title, company: hit.company ?? "" });
+        } else {
+            const cached = getRecentlyViewedSnapshot().find((v) => v.id === id);
+            if (cached) recordRecentlyViewedJob(cached);
+        }
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
@@ -2312,7 +2381,9 @@ function JobsContent() {
 
     const onBoardChange = (next: BoardId | null) => {
         setBoard(next);
+        setMobileResultsEngaged(true);
         applyUrlState(buildUrlState({ board: next }), "replace");
+        flushSearchIntent();
     };
 
     /**
@@ -2356,13 +2427,53 @@ function JobsContent() {
         );
     };
 
+    const applyFilterStateWithIntent = useCallback(
+        (next: FilterState) => {
+            setMobileResultsEngaged(true);
+            applyFilterState(next);
+            flushSearchIntent();
+        },
+        [flushSearchIntent],
+    );
+
     const commitLocation = useCallback(() => {
         const trimmed = locationDraft.trim();
         const nextFacets = { ...filterState.facets };
         if (trimmed) nextFacets.location_country = [trimmed];
         else delete nextFacets.location_country;
-        applyFilterState({ ...filterState, facets: nextFacets });
-    }, [locationDraft, filterState]);
+        applyFilterStateWithIntent({ ...filterState, facets: nextFacets });
+        if (user && query.trim()) {
+            void saveAgentPreferencesAction({
+                search: {
+                    query: query.trim(),
+                    location: trimmed || undefined,
+                },
+            }).catch(() => {});
+        }
+    }, [locationDraft, filterState, user, query, applyFilterStateWithIntent]);
+
+    const handleLocationSheetContinue = useCallback(
+        (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
+            if (opts.suppressDefault) suppressLocationDefault();
+            else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
+            const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
+            const next = applyLocationSheetDraft(draft, filterState, remoteValue);
+            const loc =
+                draft.useDetected ? "" : draft.showOther ? draft.otherText.trim() : draft.country ?? "";
+            setLocationDraft(loc);
+            applyFilterStateWithIntent(next);
+            setLocationSheetOpen(false);
+            if (user && query.trim()) {
+                void saveAgentPreferencesAction({
+                    search: {
+                        query: query.trim(),
+                        location: loc || undefined,
+                    },
+                }).catch(() => {});
+            }
+        },
+        [filterState, result?.facetDistribution, applyFilterStateWithIntent, user, query, locationDefaultSuppressed],
+    );
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
     // active" — the "All filters (N)" pill's count, the empty state's
@@ -2379,12 +2490,48 @@ function JobsContent() {
      */
     const [filtersOpen, setFiltersOpen] = useState(false);
     const panelToggleFacet = (key: FacetKey, value: string) =>
-        applyFilterState({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
-    const panelSalaryMin = (v: number) => applyFilterState({ ...filterState, salaryMin: v });
-    const panelVisaOnly = (v: boolean) => applyFilterState({ ...filterState, visaOnly: v });
+        applyFilterStateWithIntent({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
+    const panelSalaryMin = (v: number) => applyFilterStateWithIntent({ ...filterState, salaryMin: v });
+    const panelVisaOnly = (v: boolean) => applyFilterStateWithIntent({ ...filterState, visaOnly: v });
     const panelPostedBucket = (v: PostedBucket | undefined) =>
-        applyFilterState({ ...filterState, postedBucket: v });
-    const panelClearAll = () => applyFilterState(PRISTINE_FILTER_STATE);
+        applyFilterStateWithIntent({ ...filterState, postedBucket: v });
+    const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);
+
+    const applySavedSearchPrefs = useCallback(
+        (prefs: SearchPrefsValues) => {
+            const rawQ = prefs.query.trim();
+            const { residualQ, workTypes } = parseWorkTypeTokens(rawQ);
+            const q = residualQ || rawQ;
+            const loc = prefs.location.trim();
+            const nextFacets = { ...filterState.facets };
+            if (loc) nextFacets.location_country = [loc];
+            else delete nextFacets.location_country;
+            const types = [...workTypes];
+            if (prefs.remoteOnly && !types.includes("remote")) types.push("remote");
+            if (types.length > 0) nextFacets.work_type = types;
+            else delete nextFacets.work_type;
+            const nextSalary = prefs.salaryMin > 0 ? prefs.salaryMin : 0;
+            setQueryDraft(q);
+            setQuery(q);
+            setFacets(nextFacets);
+            setSalaryMin(nextSalary);
+            setLocationDraft(loc);
+            recordRecentSearch(q);
+            setAgentPrefs((prev) => ({
+                configured: true,
+                search: {
+                    query: rawQ,
+                    location: loc || undefined,
+                    remoteOnly: prefs.remoteOnly || undefined,
+                    salaryMin: nextSalary || undefined,
+                },
+                answers: prev?.answers ?? { custom: {} },
+                updated_at: new Date().toISOString(),
+            }));
+            applyUrlState(buildUrlState({ q, facets: nextFacets, salaryMin: nextSalary }), "push");
+        },
+        [filterState.facets, buildUrlState, applyUrlState],
+    );
 
     // Task 11 — empty state's ghost-reveal line. Pure gate (lib/jobs/
     // result-state.ts, unit-tested there) so it can't drift from the same
@@ -2892,6 +3039,10 @@ function JobsContent() {
     // get silently clobbered once the upload finally completes, minutes
     // later.
     const handleUploadClick = () => {
+        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
+            setSearchPrefsDialogOpen(true);
+            return;
+        }
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
@@ -2899,6 +3050,16 @@ function JobsContent() {
             openAuth("generic");
             return;
         }
+        setImportOpen(true);
+    };
+
+    const handleSearchPrefsComplete = (values: SearchPrefsValues) => {
+        applySavedSearchPrefs(values);
+    };
+
+    const handleSearchPrefsAddResume = () => {
+        clearPendingGate();
+        resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         setImportOpen(true);
     };
 
@@ -2959,6 +3120,24 @@ function JobsContent() {
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
     const searchPlaceholder = "What kind of work are you looking for?";
+
+    const mobileLocationLabel = locationTriggerLabel(filterState, {
+        defaultedIso2: result?.defaultedLocation,
+        locationDefaultSuppressed,
+        detectedName: result?.defaultedLocation ? regionDisplayName(result.defaultedLocation) : undefined,
+        detectedOptedIn,
+    });
+    const remoteFacetValue = pickRemoteFacetValue(result?.facetDistribution) ?? "remote";
+    const remoteChipActive = (facets.work_type ?? []).includes(remoteFacetValue);
+    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
+
+    const handleMobilePrimaryCta = () => {
+        if (showLandingMarketing && !queryDraft.trim()) {
+            setMobileResultsEngaged(true);
+            return;
+        }
+        submitSearch(queryDraft);
+    };
 
     // The one grey line under the pinned box. It states the posted-date window
     // out loud because the redesigned route offers no control that reveals it
@@ -3198,11 +3377,11 @@ function JobsContent() {
                     Safe to leave in the tree while collapsed only because
                     `LandingMasthead` holds no focusable node — see its doc. */}
                 <div
-                    aria-hidden={!isPristineLanding}
-                    data-landing-masthead={isPristineLanding ? "open" : "collapsed"}
+                    aria-hidden={!showLandingMarketing}
+                    data-landing-masthead={showLandingMarketing ? "open" : "collapsed"}
                     className={cn(
                         "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
-                        isPristineLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                        showLandingMarketing ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
@@ -3250,7 +3429,7 @@ function JobsContent() {
                                             setQueryDraft("");
                                             submitSearch("");
                                         }}
-                                        className="absolute right-2.5 flex h-6 w-6 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground text-xs z-10"
+                                        className="absolute right-1.5 flex h-10 w-10 items-center justify-center rounded-none glass-tint-muted text-muted-foreground hover:text-foreground text-xs z-10 lg:right-2.5 lg:h-6 lg:w-6"
                                         title="Clear query"
                                     >
                                         ✕
@@ -3266,6 +3445,16 @@ function JobsContent() {
                                 <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
                                     <MapPin size={16} weight="bold" />
                                 </span>
+                                <button
+                                    type="button"
+                                    data-testid="location-picker-trigger"
+                                    onClick={() => setLocationSheetOpen(true)}
+                                    className="flex h-11 min-w-0 flex-1 items-center truncate rounded-none border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
+                                >
+                                    <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground/70")}>
+                                        {mobileLocationLabel}
+                                    </span>
+                                </button>
                                 <Input
                                     data-testid="location-input"
                                     type="text"
@@ -3279,11 +3468,11 @@ function JobsContent() {
                                             commitLocation();
                                         }
                                     }}
-                                    className="h-11 sm:h-[46px] min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0"
+                                    className="hidden h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0 lg:flex sm:h-[46px] md:text-sm"
                                 />
                             </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="hidden flex-wrap items-center gap-2 sm:flex">
                             <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
@@ -3301,7 +3490,7 @@ function JobsContent() {
                     </div>
 
                     {/* Category & Persona Discovery Micro-Pills */}
-                    <div className="mt-2 flex flex-wrap items-center gap-1 pt-1.5 border-t border-border/70">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 lg:mt-2 lg:gap-1 lg:pt-1.5">
                         {/* Field chips: REPLACE the query (radio-like), one click = one search.
                             Sourced from `indexCategories` — the same single source of truth as
                             the field directory rendered lower on this page in
@@ -3318,7 +3507,7 @@ function JobsContent() {
                                     type="button"
                                     onClick={() => submitSearch(cat.q)}
                                     className={cn(
-                                        "inline-flex items-center rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                        "inline-flex h-11 items-center rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
                                         isMatch
                                             ? "border-foreground bg-foreground text-background font-bold"
                                             : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3336,22 +3525,22 @@ function JobsContent() {
                             toggling a filter. */}
                         <button
                             type="button"
-                            onClick={() => panelToggleFacet("work_type", "remote")}
+                            onClick={() => panelToggleFacet("work_type", remoteFacetValue)}
                             className={cn(
-                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
-                                facets.work_type?.includes("remote")
+                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
+                                remoteChipActive
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                             )}
                         >
                             Remote
-                            {facets.work_type?.includes("remote") ? <X size={9} weight="bold" aria-hidden /> : null}
+                            {remoteChipActive ? <X size={9} weight="bold" aria-hidden /> : null}
                         </button>
                         <button
                             type="button"
                             onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
                             className={cn(
-                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
                                 salaryMin === 150000
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3364,7 +3553,7 @@ function JobsContent() {
                             type="button"
                             onClick={() => onBoardChange(board === "elite" ? null : "elite")}
                             className={cn(
-                                "inline-flex items-center gap-1 rounded-none border px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
                                 board === "elite"
                                     ? "border-foreground bg-foreground text-background font-bold"
                                     : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -3376,11 +3565,22 @@ function JobsContent() {
                     </div>
                 </section>
 
+                <FilterChipsRow
+                    state={filterState}
+                    distribution={result?.facetDistribution}
+                    activeCount={activeCount}
+                    onPostedBucket={panelPostedBucket}
+                    onToggleFacet={panelToggleFacet}
+                    onSalaryMin={panelSalaryMin}
+                    onOpenSheet={() => setFiltersOpen(true)}
+                    postedDateSupported={postedDateSupported}
+                />
+
                 <section
                     data-testid="jobs-toolbar"
-                    className="mt-3 px-0.5 py-1"
+                    className="mt-3 py-2 lg:px-0.5 lg:py-1"
                 >
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 lg:gap-x-3 lg:gap-y-2">
                         <FacetBar
                             distribution={result?.facetDistribution}
                             state={filterState}
@@ -3398,7 +3598,7 @@ function JobsContent() {
                             onClick={() => setFiltersOpen((v) => !v)}
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
-                                "h-11 px-3 rounded-none font-semibold text-foreground inline-flex items-center gap-1.5 transition-colors sm:h-9",
+                                "h-11 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center gap-1.5 text-[13px] transition-colors lg:h-9 lg:px-3 lg:text-[11px]",
                                 filtersOpen && "border-foreground bg-foreground text-background ring-1 ring-foreground hover:border-foreground hover:bg-foreground",
                                 activeCount > 0 && "has-active",
                             )}
@@ -3413,18 +3613,31 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
-                        {/* Sits next to "All filters" because it undoes the same
-                            thing that row sets — the query is what the toolbar
-                            filters narrow. It used to live in the results-count
-                            box, which is a reporting surface, not a control one. */}
-                        {query.trim() && (
+                        {/* Persistent résumé control — sits next to Filters. Label
+                            is always "My résumé"; only STATE changes. Hidden once
+                            fit is active (the "ranked by your résumé ✕" chip owns
+                            that role). */}
+                        {resumeControlState !== "hidden" && (
                             <button
                                 type="button"
-                                data-testid="results-clear-query"
-                                onClick={handleClearSearch}
-                                className="text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground transition-colors"
+                                onClick={() => handleMyResumeClick()}
+                                data-testid="jobs-my-resume"
+                                title={
+                                    resumeControlState === "active"
+                                        ? "Rank jobs by your résumé"
+                                        : "No résumé on file yet — click to upload one"
+                                }
+                                aria-label={
+                                    resumeControlState === "active"
+                                        ? "My résumé — rank jobs by fit"
+                                        : "My résumé — no résumé on file, click to upload one"
+                                }
+                                className={cn(
+                                    chipVariants({ active: resumeControlState === "active" }),
+                                    toolbarChipClass,
+                                )}
                             >
-                                ✕ clear search
+                                My résumé
                             </button>
                         )}
                         {/* ITEM I (2026-08-15): moved here from the search row (was a
@@ -3442,7 +3655,7 @@ function JobsContent() {
                             <button
                                 type="button"
                                 onClick={clearFit}
-                                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                className={cn(chipVariants({ active: true }), toolbarChipClass)}
                             >
                                 ranked by your résumé ✕
                             </button>
@@ -3451,7 +3664,7 @@ function JobsContent() {
                             <Link
                                 href="/yours"
                                 data-testid="jobs-tracked-count"
-                                className="text-[12px] font-medium text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
+                                className={cn(chipVariants({ active: false }), toolbarChipClass)}
                             >
                                 {trackedCount} tracked
                             </Link>
@@ -3460,7 +3673,7 @@ function JobsContent() {
                             <span
                                 key={entry.key}
                                 data-testid="active-filter-chip"
-                                className={cn(chipVariants({ active: false }), "mono-data h-7 gap-1.5 text-[12px]")}
+                                className={cn(chipVariants({ active: false }), "mono-data h-11 gap-1.5 px-3 text-[12px] lg:h-7 lg:px-2")}
                             >
                                 {chipLabelForEntry(entry)}
                                 <ChipDismiss
@@ -3474,69 +3687,23 @@ function JobsContent() {
                                 type="button"
                                 data-testid="results-clear-filters"
                                 onClick={panelClearAll}
-                                className="text-[12px] font-bold text-brand underline underline-offset-[3px] hover:text-foreground transition-colors"
+                                className={cn(
+                                    chipVariants({ active: false }),
+                                    toolbarChipClass,
+                                    "font-bold text-brand hover:text-brand",
+                                )}
                             >
                                 Clear filters ({activeCount})
                             </button>
                         )}
-                        {/* ITEM J (2026-08-15), revised: one persistent control, label
-                            always "My résumé" — only its STATE changes. Previously the
-                            only ways in were the "best match" sort tab (pops the
-                            importer with zero context) and a session-gated upsell card;
-                            that was extended to a two-state "Upload résumé" button, but
-                            it kept telling a RETURNING user with a résumé already on
-                            file to "upload" one — `resumeOnFile` (local state OR the
-                            tri-state `useResumePresence` server check) now distinguishes
-                            that case from a genuinely resume-less visitor.
-
-                            TWO SEPARATE decisions read `resumeOnFile`, deliberately not
-                            one: `resolveResumeControlState` (below) is a STYLE-only
-                            call — "hidden" once fit IS active (the "ranked by your
-                            résumé ✕" chip above already owns that role), else "muted"
-                            for `false` OR `null` alike, "active" only for a `true`-known
-                            résumé. Never `disabled` — "muted" stays clickable/focusable,
-                            per the a11y hint below, just visually quiet about it.
-                            `handleMyResumeClick` does NOT reuse that same verdict for
-                            behavior — `runResumeControlClick` (lib/jobs/result-state.ts)
-                            re-decides on `resumeOnFile`'s TRUTH: only a KNOWN-absent
-                            résumé goes straight through `handleUploadClick` — the
-                            documented single entry point, same queued-rerank contract
-                            every other upload trigger gets; `true` OR `null` always
-                            tries `resolveUsableResume`/`applyFit` first, falling back to
-                            the uploader only if that resolve genuinely comes back empty. */}
-                        {resumeControlState !== "hidden" && (
+                        {query.trim() && (
                             <button
                                 type="button"
-                                onClick={() => handleMyResumeClick()}
-                                data-testid="jobs-my-resume"
-                                title={
-                                    resumeControlState === "active"
-                                        ? "Rank jobs by your résumé"
-                                        : "No résumé on file yet — click to upload one"
-                                }
-                                aria-label={
-                                    resumeControlState === "active"
-                                        ? "My résumé — rank jobs by fit"
-                                        : "My résumé — no résumé on file, click to upload one"
-                                }
-                                className={cn(
-                                    // Measured (headless render, computed colour over the
-                                    // real (248,250,252) backdrop): `/60` opacity put this
-                                    // interactive control at 2.25:1 — fails WCAG AA (needs
-                                    // 4.5:1 at 12px; not "large text", so the 3:1 allowance
-                                    // doesn't apply). Full-alpha `text-muted-foreground`
-                                    // measures 4.55:1 — the state distinction below is
-                                    // carried by weight/color choice (muted vs foreground,
-                                    // same as the "N tracked" sibling), never by opacity,
-                                    // size, or a lighter token, so it can't regress back
-                                    // under the floor.
-                                    "text-[12px] font-medium underline underline-offset-[3px]",
-                                    resumeControlState === "active"
-                                        ? "text-foreground hover:text-foreground"
-                                        : "text-muted-foreground hover:text-foreground",
-                                )}
+                                data-testid="results-clear-query"
+                                onClick={handleClearSearch}
+                                className={cn(chipVariants({ active: false }), toolbarChipClass)}
                             >
-                                My résumé
+                                ✕ clear search
                             </button>
                         )}
                         {result?.configured && (
@@ -3637,14 +3804,115 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        {isPristineLanding ? (
-                            <LandingMarketingShowcase
-                                onSelectQuery={(q) => submitSearch(q)}
-                                onSelectRemote={() => panelToggleFacet("work_type", "remote")}
-                                onSelectSalaryMin={(min) => panelSalaryMin(min)}
-                                onSelectBoard={(b) => onBoardChange(b)}
-                            />
-                        ) : (
+                        {showLandingMarketing && (
+                            <>
+                                {user && !agentSearchPrefsSet && (
+                                    <SearchPrefsSetup
+                                        variant="inline"
+                                        onComplete={handleSearchPrefsComplete}
+                                        onAddResume={handleSearchPrefsAddResume}
+                                    />
+                                )}
+                                {user && agentSearchPrefsSet && agentPrefs?.search.query && (
+                                    <p className="mb-3 text-left" data-testid="continue-saved-search">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                applySavedSearchPrefs({
+                                                    query: agentPrefs.search.query!,
+                                                    location: agentPrefs.search.location ?? "",
+                                                    remoteOnly: agentPrefs.search.remoteOnly ?? false,
+                                                    salaryMin: agentPrefs.search.salaryMin ?? 0,
+                                                })
+                                            }
+                                            className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                        >
+                                            Continue: {agentPrefs.search.query}
+                                        </button>
+                                    </p>
+                                )}
+                                {user && recentSearches[0] && (
+                                    <p className="mb-3 text-left" data-testid="continue-recent-search">
+                                        <button
+                                            type="button"
+                                            onClick={() => submitSearch(recentSearches[0]!)}
+                                            className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                        >
+                                            Continue: {recentSearches[0]}
+                                        </button>
+                                    </p>
+                                )}
+                                {user && recentlyViewed.length > 0 && (
+                                    <div className="mb-4 text-left" data-testid="recently-viewed">
+                                        <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
+                                            Recently viewed
+                                        </p>
+                                        <div className="mt-2 flex flex-col gap-1" role="list" aria-label="Recently viewed">
+                                            {recentlyViewed.map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    data-testid="recently-viewed-row"
+                                                    onClick={() => openJob(item.id)}
+                                                    className="max-w-full truncate text-left text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                >
+                                                    {decodeText(item.title)} · {item.company}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {user && agentSearchPrefsSet && (
+                                    <div className="mb-6" data-testid="signed-in-home-tiles">
+                                        <div className="border-b border-foreground pb-2 text-xs font-bold uppercase tracking-widest text-foreground">
+                                            <span>Quick filters</span>
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => panelPostedBucket("7d")}
+                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+                                            >
+                                                <div>
+                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Freshness</div>
+                                                    <div className="mt-1 font-bold text-foreground">New this week</div>
+                                                </div>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => panelToggleFacet("work_type", "remote")}
+                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+                                            >
+                                                <div>
+                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Location</div>
+                                                    <div className="mt-1 font-bold text-foreground">Remote jobs only</div>
+                                                </div>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => panelSalaryMin(150000)}
+                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
+                                            >
+                                                <div>
+                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Pay</div>
+                                                    <div className="mt-1 font-bold text-foreground">Pays $150k or more</div>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                <LandingMarketingShowcase
+                                    onSelectQuery={(q) => submitSearch(q)}
+                                    onSelectRemote={() => panelToggleFacet("work_type", "remote")}
+                                    onSelectSalaryMin={(min) => panelSalaryMin(min)}
+                                    onSelectBoard={(b) => onBoardChange(b)}
+                                />
+                            </>
+                        )}
+                        <div
+                            className={cn("flex min-h-0 flex-1 flex-col", showLandingMarketing && "hidden")}
+                            aria-hidden={showLandingMarketing}
+                        >
                             <>
                                 <BoardVisitBanner />
 
@@ -4019,11 +4287,45 @@ function JobsContent() {
                                 </>
                             )}
                         </div>
-                        </>
-                        )}
+                            </>
+                        </div>
                     </div>
                 </div>
             </main>
+
+            <LocationPickerSheet
+                open={locationSheetOpen}
+                onOpenChange={setLocationSheetOpen}
+                state={filterState}
+                distribution={result?.facetDistribution}
+                defaultedIso2={result?.defaultedLocation}
+                detectedLabel={
+                    result?.defaultedLocation
+                        ? `Near ${regionDisplayName(result.defaultedLocation)} (detected)`
+                        : undefined
+                }
+                locationDefaultSuppressed={locationDefaultSuppressed}
+                onRestoreDetected={() => {
+                    restoreLocationDefault();
+                    setDetectedOptedIn(true);
+                }}
+                onContinue={handleLocationSheetContinue}
+            />
+
+            {!isLgUp && !detailSheetOpen && !locationSheetOpen && (
+                <div
+                    data-testid="mobile-search-cta"
+                    className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border/80 bg-card/95 px-4 py-2.5 shadow-none backdrop-blur-xl lg:hidden"
+                >
+                    <Button
+                        type="button"
+                        onClick={handleMobilePrimaryCta}
+                        className="h-11 w-full rounded-none bg-foreground text-xs font-bold uppercase tracking-wider text-background hover:bg-foreground/90"
+                    >
+                        {mobilePrimaryCtaLabel}
+                    </Button>
+                </div>
+            )}
 
             <AuthPopover
                 open={authOpen}
@@ -4076,27 +4378,35 @@ function JobsContent() {
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
                     className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[0_-18px_50px_rgba(18,21,26,0.18)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
-                    {/* Was a decorative drag-handle bar with zero handlers — a
-                        visual affordance that did nothing. Now a real close
-                        button (≥44px touch height via padding, not a bigger
-                        glyph) that closes the sheet the same way JobDetail's
-                        own × does, below. G5a (Grok UX wave): the drag-pill
-                        alone still reads as purely decorative to a sighted
-                        first-time visitor — an explicit "×" glyph sits beside
-                        it (same button, same single tap target) so the close
-                        affordance is obvious without relying on the pill
-                        shape to imply it. */}
-                    <button
-                        type="button"
-                        aria-label="Close"
-                        onClick={() => router.back()}
-                        className="relative flex h-11 w-full shrink-0 items-center justify-center transition-opacity hover:opacity-80"
-                    >
-                        <span aria-hidden="true" className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
-                        <span aria-hidden="true" className="absolute right-3 text-lg leading-none text-faint">
-                            ×
-                        </span>
-                    </button>
+                    <div className="shrink-0 border-b border-border">
+                        <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
+                            <span className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
+                        </div>
+                        <div className="flex items-center gap-2 px-4 pb-3">
+                            <div className="min-w-0 flex-1">
+                                {detailJob ? (
+                                    <>
+                                        <p className="truncate text-base font-semibold tracking-[-0.03em] text-foreground">
+                                            {decodeText(detailJob.title)}
+                                        </p>
+                                        <p className="truncate text-[13px] text-muted-foreground">
+                                            {displayCompanyBrand(detailJob.company, detailJob.company_domain)}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="truncate text-base font-semibold text-foreground">Job details</p>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="Close"
+                                onClick={() => router.back()}
+                                className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain)}` : "Job details"}
                     </SheetTitle>
@@ -4181,6 +4491,14 @@ function JobsContent() {
                 onContinue={() => {
                     if (applyIntentJob) openPostingNow(applyIntentJob);
                 }}
+            />
+
+            <SearchPrefsSetup
+                variant="dialog"
+                open={searchPrefsDialogOpen}
+                onOpenChange={setSearchPrefsDialogOpen}
+                onComplete={handleSearchPrefsComplete}
+                onAddResume={handleSearchPrefsAddResume}
             />
 
             {applyReturnPrompt && (

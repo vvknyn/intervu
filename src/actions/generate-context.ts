@@ -170,7 +170,14 @@ export const fetchJSON = async (
     // credit per rung, so a single upload could cost three.
     await chargeIfSharedKey(baseConfig);
 
-    const rungs = resolveModelLadder(baseConfig, modelLadder, Boolean(configOverride?.model));
+    // Résumé parse passes a ladder even when configOverride.model is set (BYOK
+    // users pick a paid tail, not "skip the free rungs"). Only Groq skips —
+    // handled inside resolveModelLadder by provider !== openrouter.
+    const rungs = resolveModelLadder(
+        baseConfig,
+        modelLadder,
+        Boolean(configOverride?.model) && !modelLadder?.length,
+    );
 
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
@@ -201,7 +208,9 @@ export const fetchJSON = async (
                 provider.generate({
                     system: `You are an expert technical interviewer and career coach. Return ONLY valid JSON. ${todayLine}`,
                     prompt: prompt + "\n\nCRITICAL: Return ONLY valid JSON. No markdown formatting.",
-                    json: true
+                    json: true,
+                    timeoutMs: rung.timeoutMs,
+                    maxRetries: 1,
                 }),
                 rung.timeoutMs,
                 label
@@ -239,9 +248,11 @@ export const fetchJSON = async (
                         provider.generate({
                             system: `You output invalid JSON last time. Output purely raw JSON key-value pairs. ${todayLine}`,
                             prompt: prompt,
-                            json: true
+                            json: true,
+                            timeoutMs: Math.min(30_000, rung.timeoutMs),
+                            maxRetries: 1,
                         }),
-                        Math.min(30000, rung.timeoutMs),
+                        Math.min(30_000, rung.timeoutMs),
                         `${label} (Correction)`
                     );
                     parsed = repairJSON(retryResponse.text || "{}");

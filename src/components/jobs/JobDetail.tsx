@@ -24,7 +24,7 @@ import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction } from "@/actions/jobs";
 import type { OpenCount } from "@/lib/companies/open-count";
-import { openCountText } from "@/lib/companies/presentation";
+import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -331,18 +331,16 @@ export function JobDetail({
     className?: string;
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
-    /** Whether a long description clamps behind "Show full description"
-     *  (see the `collapsible` comment below for why the clamp exists at
-     *  all). Defaults to `true` so every existing mount site — the xl+
-     *  sticky pane in particular, which genuinely needs the clamp — keeps
-     *  today's behaviour unchanged. The mobile bottom sheet passes `false`
-     *  (jobs/page.tsx's `renderDetailSurface`): that sheet already owns its
-     *  own `overflow-y-auto` scroller, so JobDetail clamping the
-     *  description a second level deeper just hid nearly every real
-     *  description (>700 chars) behind a click inside an already-scrollable
-     *  surface. This is a prop, not a breakpoint check, because the mount
-     *  site is resolved by `resolveDetailMountSite` (state + breakpoint
-     *  together) — a `sm:`/`xl:` class here could silently disagree with it. */
+    /** Parent-is-the-scroller contract. When `false`, the mount site already
+     *  owns `overflow-y-auto` (jobs/page.tsx mobile sheet's
+     *  `mobile-detail-scroller`) — so JobDetail must not add a second scroll
+     *  layer: no description clamp (see `collapsible` below) AND no pinned
+     *  identity header (`sticky top-0` on title/chips/Apply/Save). When
+     *  `true` (default), this panel is the scroller (xl+ sticky pane) and
+     *  keeps both the clamp and the pinned header. Prop, not a breakpoint
+     *  check — mount site is resolved by `resolveDetailMountSite` (state +
+     *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
+     *  with it. */
     collapseDescription?: boolean;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
@@ -465,8 +463,13 @@ export function JobDetail({
 
     return (
         <div className={cn("relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]", className)}>
-            {/* Sticky Header Portion — pins to top while description scrolls beneath */}
-            <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs">
+            {/* Identity block — sticky only when this panel owns scrolling. */}
+            <div
+                className={cn(
+                    "border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs",
+                    collapseDescription && "sticky top-0 z-30",
+                )}
+            >
                 {/* Identity header */}
                 <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
                     <div className="flex items-start gap-3 sm:gap-3.5">
@@ -834,18 +837,30 @@ export function JobDetail({
                             )}
                         </div>
                         {cleanedCompany && (
-                            <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
+                            <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <Link
+                                    href={
+                                        job.company_domain?.trim()
+                                            ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
+                                            : jobCompanyHref(cleanedCompany, job.company_domain)
+                                    }
+                                    onClick={() => {
+                                        if (onClose) onClose();
+                                    }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                >
+                                    All jobs at {companyBrand || cleanedCompany}
+                                </Link>
                                 <Link
                                     href={jobCompanyHref(cleanedCompany, job.company_domain)}
                                     onClick={() => {
-                                        if (onClose) {
-                                            onClose();
-                                        }
+                                        if (onClose) onClose();
                                     }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                 >
-                                    Company page →
+                                    {companyBrand || cleanedCompany}
                                 </Link>
-                            </Button>
+                            </div>
                         )}
                     </div>
                 )}

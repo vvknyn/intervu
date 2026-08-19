@@ -406,6 +406,24 @@ h4 {
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.26);
 }
 
+/* Mobile polish: keep separation, but avoid a deep cast shadow that visually
+   overpowers the controls immediately below the raised search surface. */
+@media (max-width: 767px) {
+  .glass-panel-raised {
+    box-shadow:
+      0 1px 1px 0 rgba(10, 10, 10, 0.05),
+      0 4px 10px -8px rgba(10, 10, 10, 0.1),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .dark .glass-panel-raised {
+    box-shadow:
+      0 1px 1px 0 rgba(0, 0, 0, 0.35),
+      0 4px 12px -8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.24);
+  }
+}
+
 /* Tinted Color Glass Variants */
 .glass-tint-blue {
   background: rgba(45, 104, 255, 0.12) !important;
