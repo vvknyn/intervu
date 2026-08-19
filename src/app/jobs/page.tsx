@@ -1904,8 +1904,6 @@ function JobsContent() {
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
-    const isSignedInHome = Boolean(user) && isPristineLanding && hits.length > 0 && !loading;
-    const showGuestLanding = isPristineLanding && !isSignedInHome;
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -3218,11 +3216,11 @@ function JobsContent() {
                     Safe to leave in the tree while collapsed only because
                     `LandingMasthead` holds no focusable node — see its doc. */}
                 <div
-                    aria-hidden={!showGuestLanding}
-                    data-landing-masthead={showGuestLanding ? "open" : "collapsed"}
+                    aria-hidden={!isPristineLanding}
+                    data-landing-masthead={isPristineLanding ? "open" : "collapsed"}
                     className={cn(
                         "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
-                        showGuestLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                        isPristineLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
@@ -3621,7 +3619,7 @@ function JobsContent() {
 
                 <div className={cn(
                     "mt-4 flex min-h-0 flex-1 flex-col",
-                    !showGuestLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    !isPristineLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -3637,7 +3635,7 @@ function JobsContent() {
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
                         isn't in the layout at all under 1280px. */}
-                    {!showGuestLanding && (
+                    {!isPristineLanding && (
                         <div
                             data-testid="detail-pane"
                             className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border/80 xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] custom-scrollbar"
@@ -3657,16 +3655,9 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        {showGuestLanding ? (
-                            <LandingMarketingShowcase
-                                onSelectQuery={(q) => submitSearch(q)}
-                                onSelectRemote={() => panelToggleFacet("work_type", "remote")}
-                                onSelectSalaryMin={(min) => panelSalaryMin(min)}
-                                onSelectBoard={(b) => onBoardChange(b)}
-                            />
-                        ) : (
+                        {isPristineLanding ? (
                             <>
-                                {isSignedInHome && recentSearches[0] && (
+                                {user && recentSearches[0] && (
                                     <p className="mb-3 text-left" data-testid="continue-recent-search">
                                         <button
                                             type="button"
@@ -3677,7 +3668,7 @@ function JobsContent() {
                                         </button>
                                     </p>
                                 )}
-                                {isSignedInHome && recentlyViewed.length > 0 && (
+                                {user && recentlyViewed.length > 0 && (
                                     <div className="mb-4 text-left" data-testid="recently-viewed">
                                         <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
                                             Recently viewed
@@ -3697,6 +3688,15 @@ function JobsContent() {
                                         </div>
                                     </div>
                                 )}
+                                <LandingMarketingShowcase
+                                    onSelectQuery={(q) => submitSearch(q)}
+                                    onSelectRemote={() => panelToggleFacet("work_type", "remote")}
+                                    onSelectSalaryMin={(min) => panelSalaryMin(min)}
+                                    onSelectBoard={(b) => onBoardChange(b)}
+                                />
+                            </>
+                        ) : (
+                            <>
                                 <BoardVisitBanner />
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
