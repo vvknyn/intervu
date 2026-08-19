@@ -107,8 +107,7 @@ import {
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
-import { FilterChipsRow } from "@/components/jobs/FilterChipsRow";
-import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
@@ -3208,8 +3207,7 @@ function JobsContent() {
                     c.q.toLowerCase() === queryDraft.toLowerCase(),
             ) ?? null,
         [query, queryDraft],
-    );
-    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
+    );    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
 
     const handleMobilePrimaryCta = () => {
         if (showLandingMarketing && !queryDraft.trim()) {
@@ -3557,8 +3555,7 @@ function JobsContent() {
                             // lg — pristine landing, mid-search, and post-results states.
                             // Show inline Search only at lg+ so the two CTAs never coexist.
                             "lg:flex",
-                        )}>
-                            <Button
+                        )}>                            <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
                                 className="h-11 sm:h-[46px] w-full rounded-none bg-foreground px-6 text-xs font-bold uppercase tracking-wider text-background hover:bg-foreground/90 sm:w-auto transition-colors"
@@ -3646,8 +3643,7 @@ function JobsContent() {
                                     onApply={applySavedSearch}
                                     onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
                                     compact
-                                />
-                            )}
+                                />                            )}
                         </div>
                     )}
                 </section>
@@ -3664,7 +3660,6 @@ function JobsContent() {
                         postedDateSupported={postedDateSupported}
                     />
                 )}
-
                 <section
                     data-testid="jobs-toolbar"
                     className="mt-3 py-2 lg:px-0.5 lg:py-1"
@@ -3679,8 +3674,7 @@ function JobsContent() {
                                 onSalaryMin={panelSalaryMin}
                                 onPostedBucket={panelPostedBucket}
                             />
-                        )}
-                        <button
+                        )}                        <button
                             type="button"
                             data-testid="filters-toggle"
                             aria-expanded={filtersOpen}
@@ -3708,8 +3702,7 @@ function JobsContent() {
                             Label is context-aware: "Add résumé" when `resumeOnFile` is false
                             or null (uploader on click); "My résumé" when it is true (rank-by-fit
                             on click). Hidden once fit is already active — the
-                            "ranked by your résumé ✕" chip owns that role. */}
-                        {resumeControlState !== "hidden" && (
+                            "ranked by your résumé ✕" chip owns that role. */}                        {resumeControlState !== "hidden" && (
                             <button
                                 type="button"
                                 onClick={() => handleMyResumeClick()}
@@ -3717,20 +3710,17 @@ function JobsContent() {
                                 title={
                                     resumeControlState === "active"
                                         ? "Rank jobs by your résumé"
-                                        : "Upload a résumé to personalize results"
-                                }
+                                        : "Upload a résumé to personalize results"                                }
                                 aria-label={
                                     resumeControlState === "active"
                                         ? "My résumé — rank jobs by fit"
-                                        : "Add résumé — upload one to personalize results"
-                                }
+                                        : "Add résumé — upload one to personalize results"                                }
                                 className={cn(
                                     chipVariants({ active: resumeControlState === "active" }),
                                     toolbarChipClass,
                                 )}
                             >
-                                {resumeControlState === "active" ? "My résumé" : "Add résumé"}
-                            </button>
+                                {resumeControlState === "active" ? "My résumé" : "Add résumé"}                            </button>
                         )}
                         {!showLandingMarketing && (
                         <>
@@ -3917,8 +3907,7 @@ function JobsContent() {
                                 "flex min-h-0 flex-1 flex-col",
                                 showLandingMarketing && !isLgUp && "hidden",
                             )}
-                            aria-hidden={showLandingMarketing && !isLgUp}
-                        >
+                            aria-hidden={showLandingMarketing && !isLgUp}                        >
                             <>
                                 <BoardVisitBanner />
 
