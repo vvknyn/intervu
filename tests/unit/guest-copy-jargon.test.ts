@@ -10,6 +10,7 @@ import {
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
 import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
+import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 
 /**
  * Class guard for the guest-surface rule
@@ -41,6 +42,7 @@ const GUEST_STRINGS: Record<string, string> = {
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({
     liveJobs: { kind: "exact", value: 12345 },
   }),
+  ...GUEST_AUTH_STRINGS,
 };
 
 test("guest-surface strings carry no machinery jargon", () => {

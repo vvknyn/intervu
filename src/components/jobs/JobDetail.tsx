@@ -648,7 +648,7 @@ export function JobDetail({
                         ) : (
                             <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted text-xs font-bold uppercase tracking-wider transition-colors">
                                 <Check size={16} />
-                                {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
+                                {goingAfter ? "Saving…" : "Save"}
                             </Button>
                         )}
                         {reportJobEnabled && job.apply_url && (

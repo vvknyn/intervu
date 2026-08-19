@@ -36,7 +36,7 @@ import {
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
-import { listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
@@ -160,6 +160,11 @@ import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
+import {
+    formatAuthGateValueLine,
+    GUEST_SAVE_TOAST,
+    type AuthGateReason,
+} from "@/lib/auth/auth-gate-copy";
 
 /**
  * Every search-action call on this page goes through this one
@@ -1396,14 +1401,9 @@ function JobsContent() {
         emptyPending<PublicJob, PublicJob>(),
     );
     const authedRef = useRef(false);
-    // True only while the currently-open auth dialog was opened by
-    // `handleApplyGate` below — the ONLY path that promises "we'll take you
-    // to the posting and start tracking this application" (the value line
-    // rendered above the dialog). `openAuth` resets it to false on every
-    // open; `handleApplyGate` is the one call site that then flips it back
-    // on, so a "Mark as applied" gate or a session-expiry re-auth never
-    // show it.
-    const [authGateValueLine, setAuthGateValueLine] = useState(false);
+    // Which auth value-line reason class to show (apply / read / generic).
+    // Set by the call site that opened the popover; null = no value line.
+    const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
 
     useEffect(() => {
         const current = getCurrentUser();
@@ -2559,18 +2559,15 @@ function JobsContent() {
     // adding another branch here or another case in `maybeReplay` below.
     const handleApplyGate = (job: PublicJob) => {
         pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: job });
-        openAuth();
-        setAuthGateValueLine(true);
+        openAuth("apply");
     };
 
-    // "Go after this job" (spec §3) — used to write straight to the guest
-    // store with no auth wall at all; Job 2 (2026-08-01) overrides that for
-    // THIS button specifically (account creation before applying), so
-    // signed out it now gates like the other three apply-adjacent CTAs.
-    // Signed in: unchanged, still the server chokepoint below.
+    // "Save" — signed out writes to the guest store immediately (spec §3);
+    // apply-adjacent CTAs still gate via `handleApplyGate` above.
     const handleGoAfter = (job: PublicJob) => {
-        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
-            handleApplyGate(job);
+        if (!user) {
+            addGuestPursuit(job);
+            toast.success(GUEST_SAVE_TOAST);
             return;
         }
         void (async () => {
@@ -2635,9 +2632,9 @@ function JobsContent() {
     // line flag — `handleApplyGate` (the only caller that wants it shown)
     // flips it back on immediately after calling this, synchronously in the
     // same handler, so the two writes land as one state update.
-    const openAuth = () => {
+    const openAuth = (reason: AuthGateReason | null = null) => {
         authedRef.current = false;
-        setAuthGateValueLine(false);
+        setAuthGateReason(reason);
         setAuthOpen(true);
     };
 
@@ -2899,7 +2896,7 @@ function JobsContent() {
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
             pendingRef.current = queuePending(pendingRef.current, { kind: "upload", payload: true });
-            openAuth();
+            openAuth("generic");
             return;
         }
         setImportOpen(true);
@@ -3071,10 +3068,7 @@ function JobsContent() {
                     job={detailJob}
                     now={nowMs}
                     signedIn={Boolean(user)}
-                    onRequestSignIn={() => {
-                        setAuthGateValueLine(true);
-                        setAuthOpen(true);
-                    }}
+                    onRequestSignIn={() => openAuth("read")}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
@@ -4040,17 +4034,15 @@ function JobsContent() {
                     // unrelated sign-in. Race-free: this reads authedRef, never
                     // the relative timing of setUser / setAuthOpen.
                     if (!open && !authedRef.current) clearPendingGate();
+                    if (!open) setAuthGateReason(null);
                     setAuthOpen(open);
                 }}
                 onAuthed={handleAuthed}
                 showTrigger={false}
                 valueLine={
-                    authGateValueLine && (
-                        <>
-                            <b className="text-foreground">Create a free account</b> — we&apos;ll take you straight
-                            to the posting and start tracking this application.
-                        </>
-                    )
+                    authGateReason
+                        ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
+                        : undefined
                 }
             />
             <ResumeImportModal
