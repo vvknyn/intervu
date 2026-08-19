@@ -77,4 +77,50 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         const cleared = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
         expect(cleared === '[]' || cleared === null).toBeTruthy();
     });
+
+    test('guest follow shows persist CTA without gating browse', async ({ page }) => {
+        await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
+
+        const companyPage = page.getByTestId('company-page');
+        await expect(companyPage.or(page.getByText('Page not found')).first()).toBeVisible({
+            timeout: 30_000,
+        });
+        if (!(await companyPage.isVisible())) {
+            test.skip(true, 'Company page unavailable — allowlist missing in this build');
+        }
+
+        const btn = page.getByTestId('follow-company');
+        const prompt = page.getByTestId('follow-persist-prompt');
+        const persistCta = page.getByTestId('follow-persist-cta');
+        const heading = page.getByRole('heading', { level: 1 });
+        const companyName = (await heading.textContent())?.trim() ?? '';
+
+        await expect(prompt).not.toBeVisible();
+        await expect(persistCta).not.toBeVisible();
+
+        await btn.click();
+        await expect(page).not.toHaveURL(/\/login/);
+        await expect(btn).toHaveAttribute('data-following', 'true');
+
+        await expect(prompt).toBeVisible();
+        await expect(prompt).toContainText(companyName);
+        await expect(prompt).toContainText('Get a weekly note when they post');
+        await expect(persistCta).toBeVisible();
+
+        await persistCta.click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible();
+
+        await page.getByRole('button', { name: 'Close' }).click();
+        await expect(dialog).not.toBeVisible();
+
+        await expect(btn).toHaveAttribute('data-following', 'true');
+        const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
+        expect(stored).toContain(ELITE_COMPANY_DOMAIN);
+        await expect(prompt).toBeVisible();
+
+        await btn.click();
+        await expect(btn).toHaveAttribute('data-following', 'false');
+        await expect(prompt).not.toBeVisible();
+    });
 });

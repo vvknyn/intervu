@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { CircleNotch } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
+import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -71,6 +72,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
             try {
                 await signInWithUsername(username, password)
                 router.refresh()
+                await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
             } catch (err: any) {
                 setMessage(friendlyAuthMessage(err, 'Sign-in failed — try again in a moment.'))
@@ -89,6 +91,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                 // there's nothing left for this component to do.
                 if (!user) return
                 router.refresh()
+                await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
             } catch (err) {
                 if (isPopupCancelled(err)) {
@@ -122,6 +125,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                 }
                 await signInWithUsername(username, password)
                 router.refresh()
+                await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
             } catch (err: any) {
                 setMessage(friendlyAuthMessage(err, 'Sign up failed — try again in a moment.'))

@@ -10,6 +10,11 @@ import {
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
 import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
+import {
+  followPersistCta,
+  followPersistLine,
+  followPersistValueLine,
+} from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 
 /**
@@ -42,6 +47,9 @@ const GUEST_STRINGS: Record<string, string> = {
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({
     liveJobs: { kind: "exact", value: 12345 },
   }),
+  FOLLOW_PERSIST_LINE: followPersistLine("Example Co"),
+  FOLLOW_PERSIST_CTA: followPersistCta(),
+  FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
   ...GUEST_AUTH_STRINGS,
 };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FollowButton } from "@/components/companies/FollowButton";
+import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
@@ -116,7 +116,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               )}
             </div>
           </div>
-          <FollowButton
+          <CompanyFollowControl
             key={data.domain}
             domain={data.domain}
             slug={data.slug}
