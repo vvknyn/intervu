@@ -774,10 +774,10 @@ function JobCardSkeleton() {
     return (
         <div
             aria-hidden="true"
-            className="mb-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-[14px] border border-border bg-card p-4"
+            className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4"
         >
             <div className="row-span-2 self-start">
-                <div className="skeleton-bar h-12 w-12 rounded-[10px]" />
+                <div className="skeleton-bar h-12 w-12 rounded-xl" />
             </div>
             <div className="min-w-0 space-y-2">
                 <div className="skeleton-bar h-4 w-3/4" />
