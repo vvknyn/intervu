@@ -3,6 +3,10 @@ export interface LLMRequest {
     system?: string;
     prompt: string;
     json?: boolean;
+    /** Per-call timeout; defaults to 60s in the provider. */
+    timeoutMs?: number;
+    /** Provider-level retries; defaults to 3. Ladder callers pass 1. */
+    maxRetries?: number;
 }
 
 export interface LLMResponse {

@@ -68,6 +68,82 @@ export function postedBucketLabel(v: PostedBucket): string {
  *  with SerpFilters.tsx's country/experience/employment groups. */
 export const TOP_N = 6;
 
+/** Mobile location sheet — popular countries first; remote is a separate row. */
+export const POPULAR_LOCATION_COUNTRIES = [
+    "United States",
+    "United Kingdom",
+    "Canada",
+    "India",
+    "Germany",
+    "Australia",
+    "France",
+    "Netherlands",
+    "Singapore",
+    "Ireland",
+] as const;
+
+export type LocationSheetDraft = {
+    useDetected: boolean;
+    country: string | null;
+    otherText: string;
+    showOther: boolean;
+    remote: boolean;
+};
+
+/** Applies a location-sheet draft onto filter state — pure, unit-testable. */
+export function applyLocationSheetDraft(
+    draft: LocationSheetDraft,
+    state: FilterState,
+    remoteValue: string | undefined,
+): FilterState {
+    const facets = { ...state.facets };
+    if (draft.useDetected) {
+        delete facets.location_country;
+    } else if (draft.showOther && draft.otherText.trim()) {
+        facets.location_country = [draft.otherText.trim()];
+    } else if (draft.country) {
+        facets.location_country = [draft.country];
+    } else {
+        delete facets.location_country;
+    }
+
+    if (remoteValue) {
+        const cur = facets.work_type ?? [];
+        const has = cur.includes(remoteValue);
+        if (draft.remote && !has) facets.work_type = [...cur, remoteValue];
+        else if (!draft.remote && has) {
+            const next = cur.filter((x) => x !== remoteValue);
+            if (next.length) facets.work_type = next;
+            else delete facets.work_type;
+        }
+    }
+
+    return { ...state, facets };
+}
+
+/** Label for the mobile location trigger from committed filter state. */
+export function locationTriggerLabel(
+    state: FilterState,
+    opts: {
+        defaultedIso2?: string | null;
+        locationDefaultSuppressed: boolean;
+        detectedName?: string;
+        /** True once the searcher explicitly re-enabled the IP default via the
+         *  sheet ("Use detected location"). The server only stamps
+         *  `defaultedLocation` on the NEXT response after the suppress flag
+         *  clears, so the trigger would otherwise read "City, state, or remote"
+         *  for one render after the opt back in — this covers that gap. */
+        detectedOptedIn?: boolean;
+    },
+): string {
+    const explicit = state.facets.location_country?.[0]?.trim();
+    if (explicit) return explicit;
+    if ((opts.defaultedIso2 && !opts.locationDefaultSuppressed) || (opts.detectedOptedIn && opts.detectedName)) {
+        return opts.detectedName ? `Near ${opts.detectedName}` : "Detected location";
+    }
+    return "City, state, or remote";
+}
+
 /** Static facet option ladders — always shown in SerpFilters even when the
  *  current result set's distribution is empty (selected values still merge in). */
 export const STATIC_FACET_LADDERS: Partial<Record<FacetKey, readonly string[]>> = {

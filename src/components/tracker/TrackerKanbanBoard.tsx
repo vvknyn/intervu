@@ -34,13 +34,18 @@ export function TrackerKanbanBoard({
     onRowClick,
 }: TrackerKanbanBoardProps) {
     const visibleColumns = visibleTrackerBoardColumns(filter);
+    const singleColumn = visibleColumns.length === 1;
     const groups = groupPursuitsByBoardColumn(pursuits);
     const labels = Object.fromEntries(TRACKER_BOARD_COLUMNS.map(({ column, label }) => [column, label]));
 
     return (
         <div
             data-testid="tracker-kanban"
-            className={cn("hidden gap-3 md:grid", GRID_COLS[visibleColumns.length] ?? "md:grid-cols-5")}
+            className={cn(
+                "flex gap-3 overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                "md:grid md:overflow-visible md:snap-none",
+                GRID_COLS[visibleColumns.length] ?? "md:grid-cols-5",
+            )}
         >
             {visibleColumns.map((column) => {
                 const items = groups[column];
@@ -48,7 +53,11 @@ export function TrackerKanbanBoard({
                     <section
                         key={column}
                         aria-label={labels[column]}
-                        className="flex min-w-0 flex-col rounded-none border border-border bg-muted/20"
+                        className={cn(
+                            "flex shrink-0 snap-start flex-col rounded-none border border-border bg-muted/20",
+                            singleColumn ? "w-full" : "w-[min(85vw,20rem)]",
+                            "md:w-auto md:min-w-0",
+                        )}
                     >
                         <header className="border-b border-border px-3 py-2">
                             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

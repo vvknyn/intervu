@@ -535,3 +535,16 @@ export async function runResumeControlClick(
     const applied = await resolve();
     if (!applied) upload();
 }
+
+/** Whether saved agent search prefs count as "set" — non-empty query only. */
+export function hasSearchPrefs(search: { query?: string } | undefined | null): boolean {
+    return Boolean(search?.query?.trim());
+}
+
+/** Prefs-first onboarding: no résumé on file and no saved search prefs yet. */
+export function shouldPromptSearchPrefsInsteadOfResume(
+    resumeOnFile: boolean | null,
+    prefsSet: boolean,
+): boolean {
+    return resumeOnFile === false && !prefsSet;
+}

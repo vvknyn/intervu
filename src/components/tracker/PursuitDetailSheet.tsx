@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,13 +148,21 @@ function PursuitDetailBody({
 
     return (
         <>
-            <div className="flex justify-center pb-1 pt-2.5">
-                <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+            <div className="shrink-0 border-b border-border">
+                <div className="flex justify-center pb-1 pt-2.5">
+                    <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                </div>
+                <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
+                    <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
+                        <SheetTitle className="truncate text-lg font-semibold tracking-[-0.03em]">{pursuit.position}</SheetTitle>
+                        <SheetDescription className="truncate text-[13px]">{pursuit.company_name}</SheetDescription>
+                    </SheetHeader>
+                    <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
+                        <span aria-hidden="true">×</span>
+                        <span className="sr-only">Close</span>
+                    </SheetClose>
+                </div>
             </div>
-            <SheetHeader className="space-y-0 border-b border-border px-5 pb-3.5 pt-1 text-left">
-                <SheetTitle className="text-lg font-semibold tracking-[-0.03em]">{pursuit.position}</SheetTitle>
-                <SheetDescription className="text-[13px]">{pursuit.company_name}</SheetDescription>
-            </SheetHeader>
             <div className="space-y-4 px-5 py-4 pb-7">
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
                     {TRACKER_DETAIL_STAGES.map(({ stage, label }) => {

@@ -331,18 +331,16 @@ export function JobDetail({
     className?: string;
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
-    /** Whether a long description clamps behind "Show full description"
-     *  (see the `collapsible` comment below for why the clamp exists at
-     *  all). Defaults to `true` so every existing mount site — the xl+
-     *  sticky pane in particular, which genuinely needs the clamp — keeps
-     *  today's behaviour unchanged. The mobile bottom sheet passes `false`
-     *  (jobs/page.tsx's `renderDetailSurface`): that sheet already owns its
-     *  own `overflow-y-auto` scroller, so JobDetail clamping the
-     *  description a second level deeper just hid nearly every real
-     *  description (>700 chars) behind a click inside an already-scrollable
-     *  surface. This is a prop, not a breakpoint check, because the mount
-     *  site is resolved by `resolveDetailMountSite` (state + breakpoint
-     *  together) — a `sm:`/`xl:` class here could silently disagree with it. */
+    /** Parent-is-the-scroller contract. When `false`, the mount site already
+     *  owns `overflow-y-auto` (jobs/page.tsx mobile sheet's
+     *  `mobile-detail-scroller`) — so JobDetail must not add a second scroll
+     *  layer: no description clamp (see `collapsible` below) AND no pinned
+     *  identity header (`sticky top-0` on title/chips/Apply/Save). When
+     *  `true` (default), this panel is the scroller (xl+ sticky pane) and
+     *  keeps both the clamp and the pinned header. Prop, not a breakpoint
+     *  check — mount site is resolved by `resolveDetailMountSite` (state +
+     *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
+     *  with it. */
     collapseDescription?: boolean;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
@@ -465,8 +463,13 @@ export function JobDetail({
 
     return (
         <div className={cn("relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]", className)}>
-            {/* Sticky Header Portion — pins to top while description scrolls beneath */}
-            <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs">
+            {/* Identity block — sticky only when this panel owns scrolling. */}
+            <div
+                className={cn(
+                    "border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs",
+                    collapseDescription && "sticky top-0 z-30",
+                )}
+            >
                 {/* Identity header */}
                 <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
                     <div className="flex items-start gap-3 sm:gap-3.5">

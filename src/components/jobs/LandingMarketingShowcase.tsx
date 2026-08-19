@@ -140,7 +140,7 @@ export function LandingMarketingShowcase({
               key={cat.num}
               type="button"
               onClick={() => onSelectQuery(cat.q)}
-              className="group flex w-full flex-col gap-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background sm:flex-row sm:items-center sm:justify-between px-3"
+              className="group grid w-full grid-cols-[1fr_auto] items-center gap-3 px-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background"
             >
               <div className="flex items-start sm:items-center gap-4 min-w-0">
                 <span className="text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
@@ -175,7 +175,7 @@ export function LandingMarketingShowcase({
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 shrink-0 text-xs">
+              <div className="flex items-center gap-4 self-center shrink-0 text-xs">
                 <ArrowRight className="h-4 w-4 text-foreground group-hover:text-background transition-transform group-hover:translate-x-1" />
               </div>
             </button>

@@ -26,7 +26,6 @@ import {
     matchesTrackerSearch,
     type TrackerFilter,
 } from "@/lib/pursuits/tracker-display";
-import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
@@ -79,7 +78,7 @@ function StatusChips({
                             aria-pressed={active}
                             onClick={() => onChange(key)}
                             className={cn(
-                                "flex items-center gap-1.5 rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
+                                "flex h-11 min-h-11 items-center gap-1.5 rounded-none px-3 text-xs font-semibold uppercase tracking-wider transition-colors md:h-auto md:min-h-0 md:py-1",
                                 active
                                     ? "bg-foreground text-background font-bold"
                                     : "text-muted-foreground hover:text-foreground",
@@ -374,25 +373,13 @@ function YoursContent() {
                         </div>
                     )
                 ) : (
-                    <>
-                        <TrackerKanbanBoard
-                            pursuits={filtered}
-                            filter={filter}
-                            selectedId={selectedId}
-                            detailOpen={detailOpen}
-                            onRowClick={openDetail}
-                        />
-                        <div className="flex flex-col gap-2 md:hidden">
-                            {filtered.map((p) => (
-                                <PursuitListRow
-                                    key={p.id}
-                                    pursuit={p}
-                                    active={selectedId === p.id && detailOpen}
-                                    onClick={() => openDetail(p.id)}
-                                />
-                            ))}
-                        </div>
-                    </>
+                    <TrackerKanbanBoard
+                        pursuits={filtered}
+                        filter={filter}
+                        selectedId={selectedId}
+                        detailOpen={detailOpen}
+                        onRowClick={openDetail}
+                    />
                 )}
             </div>
 
