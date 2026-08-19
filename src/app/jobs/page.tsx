@@ -107,7 +107,8 @@ import {
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
-import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
+import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
