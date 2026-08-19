@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
     formatAuthGateValueLine,
     guestKeepLine,
-    guestTrackerSyncSuffix,
 } from "../../src/lib/auth/auth-gate-copy";
 
 test("guestKeepLine is null for zero count", () => {
@@ -27,9 +26,4 @@ test("formatAuthGateValueLine varies by reason class", () => {
 test("formatAuthGateValueLine prepends keep-line only when count is real", () => {
     assert.doesNotMatch(formatAuthGateValueLine("read", 0), /keep/i);
     assert.match(formatAuthGateValueLine("read", 2), /keep the 2 roles/);
-});
-
-test("guestTrackerSyncSuffix never fabricates a count", () => {
-    assert.doesNotMatch(guestTrackerSyncSuffix(0), /\d/);
-    assert.match(guestTrackerSyncSuffix(2), /2 roles/);
 });

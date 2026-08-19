@@ -29,13 +29,6 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
     return keep ? `${keep} ${lead}` : lead;
 }
 
-/** Tracker empty-state suffix after the "Sign in" link. */
-export function guestTrackerSyncSuffix(guestPursuitCount: number): string {
-    const keep = guestKeepLine(guestPursuitCount);
-    if (keep) return `${keep} Sign in to sync across devices.`;
-    return "to sync your tracked roles across devices.";
-}
-
 /** Exported guest-surface strings for jargon guard tests. */
 export const GUEST_AUTH_STRINGS: Record<string, string> = {
     SAVE_TOAST: GUEST_SAVE_TOAST,
@@ -45,6 +38,4 @@ export const GUEST_AUTH_STRINGS: Record<string, string> = {
     READ_LINE: formatAuthGateValueLine("read", 0),
     GENERIC_LINE: formatAuthGateValueLine("generic", 0),
     APPLY_WITH_KEEP: formatAuthGateValueLine("apply", 2),
-    SYNC_EMPTY: guestTrackerSyncSuffix(0),
-    SYNC_WITH_KEEP: guestTrackerSyncSuffix(1),
 };

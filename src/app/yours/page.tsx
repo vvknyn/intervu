@@ -30,7 +30,7 @@ import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
-import { formatAuthGateValueLine, guestTrackerSyncSuffix } from "@/lib/auth/auth-gate-copy";
+import { formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
 
@@ -50,7 +50,7 @@ function YoursLoading() {
     );
 }
 
-import { BookmarkSimple, MagnifyingGlass, Plus, ArrowSquareOut } from "@phosphor-icons/react";
+import { BookmarkSimple, MagnifyingGlass, ArrowSquareOut } from "@phosphor-icons/react";
 
 function StatusChips({
     filter,
@@ -129,6 +129,7 @@ function TrackerEmptyState({
 
             {!user && (
                 <p className="text-xs text-muted-foreground pt-1">
+                    {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
                     <button
                         type="button"
                         onClick={onLoginClick}
@@ -136,7 +137,7 @@ function TrackerEmptyState({
                     >
                         Sign in
                     </button>{" "}
-                    {guestTrackerSyncSuffix(guestCount)}
+                    to sync across devices.
                 </p>
             )}
         </div>

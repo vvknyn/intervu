@@ -2584,7 +2584,7 @@ function JobsContent() {
                     return;
                 }
                 invalidatePursuitsCache();
-                toast.success("Saved — find it in your Tracker");
+                toast.success(GUEST_SAVE_TOAST);
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
