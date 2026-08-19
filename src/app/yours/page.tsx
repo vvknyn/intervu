@@ -31,7 +31,6 @@ import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackR
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { formatAuthGateValueLine, guestTrackerSyncSuffix } from "@/lib/auth/auth-gate-copy";
-import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
 
