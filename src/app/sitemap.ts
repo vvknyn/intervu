@@ -64,18 +64,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // SUBSET of what the page considers indexable, never a superset.
   // Under-listing a page that a crawler can still reach through `/jobs` is
   // recoverable; over-listing empty pages is the thing #171 fixed.
-  let companyEntries: MetadataRoute.Sitemap = [];
-  try {
-    const indexableDomains = await fetchIndexableCompanyDomains();
-    companyEntries = indexableDomains.map(({ domain, computedAt }) => ({
-      url: `${siteUrl}${companyBoardPath(domain)}`,
-      ...(computedAt ? { lastModified: new Date(computedAt) } : {}),
-      changeFrequency: "weekly",
-      priority: 0.6,
-    }));
-  } catch {
-    companyEntries = [];
-  }
+  const indexableDomains = await fetchIndexableCompanyDomains();
+  const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain, computedAt }) => ({
+    url: `${siteUrl}${companyBoardPath(domain)}`,
+    ...(computedAt ? { lastModified: new Date(computedAt) } : {}),
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
 
   // Static pages have no per-page "last changed" signal available to this
   // route, so `lastModified` is omitted rather than stamped with the request

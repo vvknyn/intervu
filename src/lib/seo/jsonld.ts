@@ -214,7 +214,7 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): ArticleJsonLd {
 }
 
 /** Site-wide WebSite graph with a SearchAction pointed at the jobs search
- *  root (`/?q=`) — the query intervu's own search box already runs. */
+ *  root (`/jobs?q=`) — the query intervu's own search box already runs. */
 export function buildWebsiteJsonLd(): WebsiteJsonLd {
   const siteUrl = getSiteUrl();
   return {
@@ -236,7 +236,7 @@ export function buildWebsiteJsonLd(): WebsiteJsonLd {
     inLanguage: "en-US",
     potentialAction: {
       "@type": "SearchAction",
-      target: `${siteUrl}/?q={search_term_string}`,
+      target: `${siteUrl}/jobs?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   };
