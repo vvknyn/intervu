@@ -37,7 +37,7 @@ async function firstJobRow(page: import('@playwright/test').Page) {
 test.describe('G4 — guest detail preview (real text, not a blur)', () => {
     test.use({ viewport: { width: 1024, height: 768 } });
 
-    test('a signed-out visitor sees real description text ending in a fade + sign-in CTA', async ({ page }) => {
+    test('a signed-out visitor sees the full description and can save without an account', async ({ page }) => {
         await page.addInitScript(() => {
             try {
                 window.localStorage.clear();
@@ -54,16 +54,12 @@ test.describe('G4 — guest detail preview (real text, not a blur)', () => {
         // Old blur-as-paywall overlay must be gone.
         await expect(page.getByTestId('job-detail-signin-gate')).toHaveCount(0);
         await expect(dialog.getByText('Sign in to view this role')).toHaveCount(0);
+        await expect(dialog.getByTestId('job-detail-signin-cta')).toHaveCount(0);
 
-        // The new preview: a real "About this role" section with the
-        // sign-in CTA line, not an opaque promise.
         await expect(dialog.getByText('About this role')).toBeVisible();
-        const cta = dialog.getByTestId('job-detail-signin-cta');
-        await expect(cta).toBeVisible();
-        await expect(cta).toHaveText('Sign in to read the full posting');
+        await expect(dialog.getByTestId('job-detail-description')).toBeVisible();
 
-        // Apply/Save render (un-blurred) and read as gated, not absent.
-        await expect(dialog.getByRole('button', { name: /sign in to save/i })).toBeVisible();
+        await expect(dialog.getByRole('button', { name: /^save$/i })).toBeVisible();
     });
 });
 

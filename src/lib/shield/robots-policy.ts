@@ -66,6 +66,6 @@ export function buildRobotsRules(): RobotsRule[] {
   const crawlableBots: string[] = [...SEARCH_ENGINE_BOTS, ...AI_ANSWER_ENGINE_BOTS];
   return [
     { userAgent: "*", allow: "/", disallow: [...PRIVATE_PATHS, DEEP_SEARCH_DISALLOW_PATTERN] },
-    { userAgent: crawlableBots, allow: "/", disallow: ["/api/", DEEP_SEARCH_DISALLOW_PATTERN] },
+    { userAgent: crawlableBots, allow: "/", disallow: [...PRIVATE_PATHS, DEEP_SEARCH_DISALLOW_PATTERN] },
   ];
 }

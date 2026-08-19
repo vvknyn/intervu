@@ -5,13 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { JobDetail } from "@/components/jobs/JobDetail";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
-import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
+import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { decodeText, locationText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
+import { addGuestPursuit } from "@/lib/pursuits/guest-store";
+import { usePursuits } from "@/lib/pursuits/use-pursuits";
+import { GUEST_SAVE_TOAST } from "@/lib/auth/auth-gate-copy";
 
 export interface PublicJobDetailProps {
     job: PublicJob;
@@ -26,8 +28,12 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
+    const [user, setUser] = useState<User | null>(() => getCurrentUser());
     const pathname = usePathname();
     const router = useRouter();
+    const { byJobId } = usePursuits();
+
+    useEffect(() => onAuthChange(setUser), []);
 
     const requireAuth = () => {
         router.push(`/login?next=${encodeURIComponent(pathname)}`);
@@ -76,8 +82,8 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
         <JobDetail
             job={job}
             now={nowMs}
-            signedIn
-            pursuit={undefined}
+            signedIn={Boolean(user)}
+            pursuit={byJobId.get(job.id)}
             goingAfter={goingAfter}
             reportJobEnabled={reportJobEnabled}
             onClose={onClose}
@@ -85,9 +91,10 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
             onRequestSignIn={requireAuth}
             onOpenPosting={() => {
                 if (!job.apply_url) return;
-                // Second entry point into the same departure. /jobs' own
-                // handler gates here too; this one has to as well or the
-                // prompt silently depends on which surface you applied from.
+                if (!user) {
+                    requireAuth();
+                    return;
+                }
                 if (shouldPromptApplyIntent()) {
                     setApplyIntentOpen(true);
                     return;
@@ -95,8 +102,9 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
                 window.open(job.apply_url, "_blank", "noopener,noreferrer");
             }}
             onGoAfter={() => {
-                if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
-                    requireAuth();
+                if (!user) {
+                    addGuestPursuit(job);
+                    toast.success(GUEST_SAVE_TOAST);
                     return;
                 }
                 void (async () => {
@@ -107,7 +115,7 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
                             toast.error(`Could not save: ${res.error}`);
                             return;
                         }
-                        toast.success("Saved — find it in your Tracker");
+                        toast.success(GUEST_SAVE_TOAST);
                     } catch (e) {
                         toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
                     } finally {

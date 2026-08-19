@@ -116,7 +116,7 @@ describe("seo/jsonld", () => {
 
   it("buildWebsiteJsonLd points its SearchAction at the jobs search root", () => {
     const jsonLd = buildWebsiteJsonLd();
-    assert.equal(jsonLd.potentialAction.target, `${ORIGIN}/?q={search_term_string}`);
+    assert.equal(jsonLd.potentialAction.target, `${ORIGIN}/jobs?q={search_term_string}`);
     assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");
     assert.ok(Array.isArray(jsonLd.alternateName));
   });

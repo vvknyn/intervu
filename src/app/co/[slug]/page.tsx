@@ -14,7 +14,6 @@ import {
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
-import type { CompanyPageData } from "@/lib/companies/types";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 
 function formatKpi(value: number | null): string {
@@ -26,24 +25,15 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  try {
-    const { slug } = await params;
-    const data = await getCompanyPageData(slug);
-    if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
-    return buildCompanyPageMetadata(data);
-  } catch {
-    return { title: "Company not found", robots: { index: false, follow: false } };
-  }
+  const { slug } = await params;
+  const data = await getCompanyPageData(slug);
+  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+  return buildCompanyPageMetadata(data);
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  let data: CompanyPageData | null = null;
-  try {
-    data = await getCompanyPageData(slug);
-  } catch {
-    data = null;
-  }
+  const data = await getCompanyPageData(slug);
   if (!data) notFound();
   // One clock read for the whole page, taken here rather than inside JSX so
   // every staleness decision below is measured against a single instant.

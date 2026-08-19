@@ -344,16 +344,14 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
  *    — no test account is created (a prior attempt at a signed-in run
  *    created real accounts in the PRODUCTION Firebase project this repo's
  *    `.env.local` points `localhost:3000` at; that was wrong and is not
- *    repeated here). Signed out, `GuestDescriptionPreview` renders instead
- *    of the clamp this fix touches (JobDetail.tsx:142, its own truncation,
- *    a deliberate gate — out of scope), so this test cannot observe the
- *    20rem clamp. What it DOES prove, live, in a browser: the sheet opens,
- *    its scroller has real overflow (scrollHeight > clientHeight), scrolling
- *    it actually advances `scrollTop`, and the guest sign-in CTA — off
- *    screen at load — becomes reachable after that scroll. That is the
- *    mount-site/scroll-plumbing half of this bug, verified end to end.
+ *    repeated here). Guests now get the same description body as signed-in
+ *    readers (`job-detail-description`). What this test proves, live, in a
+ *    browser: the sheet opens, its scroller has real overflow
+ *    (scrollHeight > clientHeight), scrolling it actually advances
+ *    `scrollTop`, and the description — taller than the sheet — stays in
+ *    the sheet's own scroller rather than chaining to the page behind it.
  */
-test.describe('MOBILE - guest job-detail sheet scroll reaches the sign-in CTA', () => {
+test.describe('MOBILE - guest job-detail sheet scrolls the full posting', () => {
   // NOT `{ ...devices['iPhone 13'] }` — that preset's `defaultBrowserType:
   // 'webkit'` forces a new worker/browser type, which Playwright rejects
   // inside a `describe` (`test.use` there can only tweak context options,
@@ -376,34 +374,22 @@ test.describe('MOBILE - guest job-detail sheet scroll reaches the sign-in CTA', 
   // one ever gets removed from the index.
   const JOB = { id: '51130b30-8920-4e75-b076-86c898f1b091', q: 'Ramsayhealthcare' };
 
-  test('TC-MOBILE-012: signed-out mobile sheet scrolls to reveal the sign-in CTA', async ({ page }) => {
+  test('TC-MOBILE-012: signed-out mobile sheet scrolls the full posting', async ({ page }) => {
     await page.goto(`/jobs?q=${encodeURIComponent(JOB.q)}&posted=any&job=${JOB.id}`);
     await page.waitForLoadState('networkidle');
 
     const scroller = page.getByTestId('mobile-detail-scroller');
     await expect(scroller, 'mobile bottom sheet never opened').toBeVisible({ timeout: 15000 });
 
-    const cta = page.getByTestId('job-detail-signin-cta');
-    await expect(cta, 'guest sign-in CTA never rendered').toBeVisible({ timeout: 15000 });
+    const desc = page.getByTestId('job-detail-description');
+    await expect(desc, 'full posting never rendered for a guest').toBeVisible({ timeout: 15000 });
 
-    // The scroller genuinely has more content than fits — this is what the
-    // prior commit on this branch (`overscroll-y-contain`) exists to keep
-    // scoped to this div rather than chaining to the page behind the sheet.
     const before = await scroller.evaluate((el) => ({ scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
     expect(before.scrollHeight, `scroller scrollHeight ${before.scrollHeight} <= clientHeight ${before.clientHeight} — nothing to scroll`).toBeGreaterThan(before.clientHeight);
     expect(before.scrollTop, 'sheet should start scrolled to the top').toBe(0);
 
-    // Off-screen at load: the CTA sits below the initial viewport.
-    const viewport = page.viewportSize()!;
-    const ctaBoxBefore = await cta.boundingBox();
-    expect(ctaBoxBefore!.y, 'CTA should start below the fold for this to be a meaningful scroll test').toBeGreaterThanOrEqual(viewport.height);
-
-    // Scroll the SHEET's own scroller (not the page) all the way down.
     await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const after = await scroller.evaluate((el) => el.scrollTop);
     expect(after, 'scrollTop did not advance — the scroller did not actually scroll').toBeGreaterThan(before.scrollTop);
-
-    // Reachable: after scrolling, the CTA is inside the visible viewport.
-    await expect(cta, 'guest sign-in CTA not reachable by scrolling').toBeInViewport();
   });
 });

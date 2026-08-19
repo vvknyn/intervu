@@ -14,10 +14,9 @@ import { createApplication, deleteApplication, updateApplication } from "@/actio
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { usePursuits, syncGuestPursuitsToServer, invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
-import { listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { addManualGuestPursuit, listGuestPursuits, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
-import { addManualGuestPursuit, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 import {
     TRACKER_CHIP_FILTERS,
@@ -31,6 +30,7 @@ import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
+import { formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 
 const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
 
@@ -50,7 +50,7 @@ function YoursLoading() {
     );
 }
 
-import { BookmarkSimple, MagnifyingGlass, Plus, ArrowSquareOut } from "@phosphor-icons/react";
+import { BookmarkSimple, MagnifyingGlass, ArrowSquareOut } from "@phosphor-icons/react";
 
 function StatusChips({
     filter,
@@ -104,56 +104,32 @@ function StatusChips({
 
 function TrackerEmptyState({
     user,
-    onAdd,
     onLoginClick,
 }: {
     user: boolean;
-    onAdd: () => void;
     onLoginClick: () => void;
 }) {
+    const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-2xl border border-slate-300/80 bg-card p-8 shadow-xs dark:border-slate-700 text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-slate-300/80 bg-card p-8 shadow-xs dark:border-slate-700 text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
                 <BookmarkSimple size={24} weight="duotone" />
             </div>
 
             <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold text-foreground tracking-tight">Your Tracker is Empty</h3>
+                <h3 className="text-lg font-bold text-foreground tracking-tight">Your tracker is empty</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                    Save verified jobs with 1-click while browsing, or log outside applications manually to keep your pipeline organized.
+                    Save roles while browsing verified jobs, then pick up where you left off here.
                 </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
-                <Button asChild className="rounded-lg font-semibold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 shadow-xs">
-                    <Link href="/jobs">Browse Verified Roles</Link>
-                </Button>
-                <Button variant="outline" onClick={onAdd} className="rounded-lg font-semibold shadow-2xs">
-                    <Plus size={15} /> Track a Role
-                </Button>
-            </div>
-
-            {/* Example preview row */}
-            <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 max-w-lg mx-auto text-left">
-                <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview of a tracked role</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:border-slate-700 dark:bg-slate-800">
-                        EXAMPLE
-                    </span>
-                </div>
-                <div className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 opacity-80 dark:border-slate-800 dark:bg-slate-900/40">
-                    <div>
-                        <div className="text-sm font-bold text-foreground">Staff Product Designer</div>
-                        <div className="text-xs text-muted-foreground">Acme Studio · San Francisco, CA</div>
-                    </div>
-                    <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shadow-2xs">
-                        SAVED
-                    </span>
-                </div>
-            </div>
+            <Button asChild className="rounded-none font-semibold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 shadow-xs">
+                <Link href="/jobs">Browse verified roles</Link>
+            </Button>
 
             {!user && (
                 <p className="text-xs text-muted-foreground pt-1">
+                    {guestCount > 0 && <>{guestKeepLine(guestCount)} </>}
                     <button
                         type="button"
                         onClick={onLoginClick}
@@ -161,7 +137,7 @@ function TrackerEmptyState({
                     >
                         Sign in
                     </button>{" "}
-                    to sync your tracked roles across devices.
+                    to sync across devices.
                 </p>
             )}
         </div>
@@ -386,7 +362,6 @@ function YoursContent() {
                     pursuits.length === 0 ? (
                         <TrackerEmptyState
                             user={!!user}
-                            onAdd={openAdd}
                             onLoginClick={() => setAuthPopoverOpen(true)}
                         />
                     ) : (
@@ -449,7 +424,16 @@ function YoursContent() {
                 }}
             />
 
-            <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+            <AuthPopover
+                open={authPopoverOpen}
+                onOpenChange={setAuthPopoverOpen}
+                showTrigger={false}
+                valueLine={
+                    !user
+                        ? formatAuthGateValueLine("generic", listGuestPursuits().length)
+                        : undefined
+                }
+            />
         </PageLayout>
     );
 }

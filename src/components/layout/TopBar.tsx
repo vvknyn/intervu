@@ -201,9 +201,9 @@ export function TopBar() {
                         <button
                             data-testid="topbar-login"
                             onClick={() => setAuthPopoverOpen(true)}
-                            className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-2xs transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                            className="rounded-none border border-border/80 bg-card/60 px-3.5 py-1.5 text-[13px] font-medium text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] backdrop-blur-md transition-all hover:bg-card/90 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
                         >
-                            Sign in
+                            Log in
                         </button>
                     )}
                 </div>

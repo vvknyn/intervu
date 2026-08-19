@@ -15,6 +15,7 @@ import {
   followPersistLine,
   followPersistValueLine,
 } from "../../src/lib/follows/persist-copy";
+import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 
 /**
  * Class guard for the guest-surface rule
@@ -49,6 +50,7 @@ const GUEST_STRINGS: Record<string, string> = {
   FOLLOW_PERSIST_LINE: followPersistLine("Example Co"),
   FOLLOW_PERSIST_CTA: followPersistCta(),
   FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
+  ...GUEST_AUTH_STRINGS,
 };
 
 test("guest-surface strings carry no machinery jargon", () => {
