@@ -24,7 +24,7 @@ import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction } from "@/actions/jobs";
 import type { OpenCount } from "@/lib/companies/open-count";
-import { openCountText } from "@/lib/companies/presentation";
+import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -834,18 +834,30 @@ export function JobDetail({
                             )}
                         </div>
                         {cleanedCompany && (
-                            <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
+                            <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <Link
+                                    href={
+                                        job.company_domain?.trim()
+                                            ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
+                                            : jobCompanyHref(cleanedCompany, job.company_domain)
+                                    }
+                                    onClick={() => {
+                                        if (onClose) onClose();
+                                    }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                >
+                                    All jobs at {companyBrand || cleanedCompany}
+                                </Link>
                                 <Link
                                     href={jobCompanyHref(cleanedCompany, job.company_domain)}
                                     onClick={() => {
-                                        if (onClose) {
-                                            onClose();
-                                        }
+                                        if (onClose) onClose();
                                     }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                 >
-                                    Company page →
+                                    {companyBrand || cleanedCompany}
                                 </Link>
-                            </Button>
+                            </div>
                         )}
                     </div>
                 )}

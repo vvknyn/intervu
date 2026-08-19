@@ -70,6 +70,12 @@ import {
     recordRecentSearch,
     resolveSearchSeeds,
 } from "@/lib/jobs/recent-searches";
+import {
+    subscribeRecentlyViewed,
+    getRecentlyViewedSnapshot,
+    getRecentlyViewedServerSnapshot,
+    recordRecentlyViewedJob,
+} from "@/lib/jobs/recently-viewed";
 import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
@@ -1120,6 +1126,11 @@ function JobsContent() {
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
+    const recentlyViewed = useSyncExternalStore(
+        subscribeRecentlyViewed,
+        getRecentlyViewedSnapshot,
+        getRecentlyViewedServerSnapshot,
+    );
     const { saved: savedSearches } = useSavedSearches();
     // Persistent "don't default my location" override (default-location
     // chip's "×") — see location-default-preference.ts. Part of the search
@@ -1882,10 +1893,19 @@ function JobsContent() {
         void recordJobOpenedAction(lastSearchId, id, rank);
         setOpensThisSession((n) => n + 1);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+        const hit = resultRef.current?.hits.find((h) => h.id === id);
+        if (hit) {
+            recordRecentlyViewedJob({ id, title: hit.title, company: hit.company ?? "" });
+        } else {
+            const cached = getRecentlyViewedSnapshot().find((v) => v.id === id);
+            if (cached) recordRecentlyViewedJob(cached);
+        }
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
 
     const hits = useMemo(() => result?.hits ?? [], [result?.hits]);
+    const isSignedInHome = Boolean(user) && isPristineLanding && hits.length > 0 && !loading;
+    const showGuestLanding = isPristineLanding && !isSignedInHome;
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -3198,11 +3218,11 @@ function JobsContent() {
                     Safe to leave in the tree while collapsed only because
                     `LandingMasthead` holds no focusable node — see its doc. */}
                 <div
-                    aria-hidden={!isPristineLanding}
-                    data-landing-masthead={isPristineLanding ? "open" : "collapsed"}
+                    aria-hidden={!showGuestLanding}
+                    data-landing-masthead={showGuestLanding ? "open" : "collapsed"}
                     className={cn(
                         "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
-                        isPristineLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                        showGuestLanding ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
@@ -3601,7 +3621,7 @@ function JobsContent() {
 
                 <div className={cn(
                     "mt-4 flex min-h-0 flex-1 flex-col",
-                    !isPristineLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    !showGuestLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -3617,7 +3637,7 @@ function JobsContent() {
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
                         isn't in the layout at all under 1280px. */}
-                    {!isPristineLanding && (
+                    {!showGuestLanding && (
                         <div
                             data-testid="detail-pane"
                             className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border/80 xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] custom-scrollbar"
@@ -3637,7 +3657,7 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        {isPristineLanding ? (
+                        {showGuestLanding ? (
                             <LandingMarketingShowcase
                                 onSelectQuery={(q) => submitSearch(q)}
                                 onSelectRemote={() => panelToggleFacet("work_type", "remote")}
@@ -3646,6 +3666,37 @@ function JobsContent() {
                             />
                         ) : (
                             <>
+                                {isSignedInHome && recentSearches[0] && (
+                                    <p className="mb-3 text-left" data-testid="continue-recent-search">
+                                        <button
+                                            type="button"
+                                            onClick={() => submitSearch(recentSearches[0]!)}
+                                            className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                        >
+                                            Continue: {recentSearches[0]}
+                                        </button>
+                                    </p>
+                                )}
+                                {isSignedInHome && recentlyViewed.length > 0 && (
+                                    <div className="mb-4 text-left" data-testid="recently-viewed">
+                                        <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
+                                            Recently viewed
+                                        </p>
+                                        <div className="mt-2 flex flex-col gap-1" role="list" aria-label="Recently viewed">
+                                            {recentlyViewed.map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    data-testid="recently-viewed-row"
+                                                    onClick={() => openJob(item.id)}
+                                                    className="max-w-full truncate text-left text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                >
+                                                    {decodeText(item.title)} · {item.company}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <BoardVisitBanner />
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
