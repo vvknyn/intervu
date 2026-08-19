@@ -35,43 +35,34 @@ export async function generateMetadata({
 }: {
     params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-    try {
-        const { slug } = await params;
-        const found = await load(slug);
-        if (!found) return { title: "Job not found", robots: { index: false, follow: false } };
+    const { slug } = await params;
+    const found = await load(slug);
+    if (!found) return { title: "Job not found", robots: { index: false, follow: false } };
 
-        const { job, path } = found;
-        const company = displayCompanyFor(job);
-        const where = titleCaseDisplay(locationText(job));
-        const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | Intervu`;
-        const description =
-            job.company_opened_90d != null && job.company_closed_90d != null && company
-                ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
-                : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
+    const { job, path } = found;
+    const company = displayCompanyFor(job);
+    const where = titleCaseDisplay(locationText(job));
+    const title = `${job.title}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | Intervu`;
+    const description =
+        job.company_opened_90d != null && job.company_closed_90d != null && company
+            ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
+            : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
-        // Same policy Task 6 later exposes as `isJobIndexable` (job-slug.ts) —
-        // inlined here since that shared gate doesn't exist yet in this task.
-        const indexable = job.vacancy_status !== "closed" && job.ghost_badge !== "likely_ghost" && job.ghost_badge !== "unscored";
+    // Same policy Task 6 later exposes as `isJobIndexable` (job-slug.ts) —
+    // inlined here since that shared gate doesn't exist yet in this task.
+    const indexable = job.vacancy_status !== "closed" && job.ghost_badge !== "likely_ghost" && job.ghost_badge !== "unscored";
 
-        return {
-            title,
-            description,
-            ...canonicalMetadata(path, title, description),
-            ...(indexable ? {} : { robots: { index: false, follow: true } }),
-        };
-    } catch {
-        return { title: "Job not found", robots: { index: false, follow: false } };
-    }
+    return {
+        title,
+        description,
+        ...canonicalMetadata(path, title, description),
+        ...(indexable ? {} : { robots: { index: false, follow: true } }),
+    };
 }
 
 export default async function JobPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
-    let found = null;
-    try {
-        found = await load(slug);
-    } catch {
-        found = null;
-    }
+    const found = await load(slug);
     if (!found) notFound();
 
     const { job, path } = found;
