@@ -3,7 +3,7 @@
  * for chip filters, search, and row meta so the page and sheets stay aligned.
  */
 
-import { boardColumn, type Pursuit, type PursuitStage } from "./types";
+import { boardColumn, type BoardColumn, type Pursuit, type PursuitStage } from "./types";
 
 export type TrackerFilter = "all" | "saved" | "applied" | "interviewing" | "offer";
 
@@ -14,6 +14,36 @@ export const TRACKER_CHIP_FILTERS: { key: TrackerFilter; label: string }[] = [
     { key: "interviewing", label: "interviewing" },
     { key: "offer", label: "offers" },
 ];
+
+/** /yours Kanban columns — same buckets as `boardColumn`, exhaustive open + closed. */
+export const TRACKER_BOARD_COLUMNS: { column: BoardColumn; label: string }[] = [
+    { column: "saved", label: "Saved" },
+    { column: "applied", label: "Applied" },
+    { column: "interviewing", label: "Interviewing" },
+    { column: "offer", label: "Offer" },
+    { column: "closed", label: "Closed" },
+];
+
+/** Which board columns to render for the active chip filter. */
+export function visibleTrackerBoardColumns(filter: TrackerFilter): BoardColumn[] {
+    if (filter === "all") return TRACKER_BOARD_COLUMNS.map(({ column }) => column);
+    return [filter];
+}
+
+/** Group pursuits into `boardColumn` buckets, preserving input order within each column. */
+export function groupPursuitsByBoardColumn(pursuits: Pursuit[]): Record<BoardColumn, Pursuit[]> {
+    const groups: Record<BoardColumn, Pursuit[]> = {
+        saved: [],
+        applied: [],
+        interviewing: [],
+        offer: [],
+        closed: [],
+    };
+    for (const p of pursuits) {
+        groups[boardColumn(p)].push(p);
+    }
+    return groups;
+}
 
 /** Detail sheet + add form — maps UI "saved" to pursuit stage. */
 export const TRACKER_DETAIL_STAGES: { stage: PursuitStage; label: string }[] = [

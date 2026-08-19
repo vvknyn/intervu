@@ -27,6 +27,7 @@ import {
     type TrackerFilter,
 } from "@/lib/pursuits/tracker-display";
 import { PursuitListRow } from "@/components/tracker/PursuitListRow";
+import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
@@ -373,16 +374,25 @@ function YoursContent() {
                         </div>
                     )
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        {filtered.map((p) => (
-                            <PursuitListRow
-                                key={p.id}
-                                pursuit={p}
-                                active={selectedId === p.id && detailOpen}
-                                onClick={() => openDetail(p.id)}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        <TrackerKanbanBoard
+                            pursuits={filtered}
+                            filter={filter}
+                            selectedId={selectedId}
+                            detailOpen={detailOpen}
+                            onRowClick={openDetail}
+                        />
+                        <div className="flex flex-col gap-2 md:hidden">
+                            {filtered.map((p) => (
+                                <PursuitListRow
+                                    key={p.id}
+                                    pursuit={p}
+                                    active={selectedId === p.id && detailOpen}
+                                    onClick={() => openDetail(p.id)}
+                                />
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
 
