@@ -3663,7 +3663,7 @@ function JobsContent() {
                 )}
                 <section
                     data-testid="jobs-toolbar"
-                    className="mt-3 py-2 lg:px-0.5 lg:py-1"
+                    className="mt-3 border-y border-border/50 bg-muted/[0.14] py-2 lg:px-0.5 lg:py-1.5"
                 >
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 lg:gap-x-3 lg:gap-y-2">
                         {!showLandingMarketing && (
@@ -3874,7 +3874,7 @@ function JobsContent() {
                     {!isPristineLanding && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border/80 xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:xl:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] custom-scrollbar"
+                            className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 detail-pane-raised custom-scrollbar"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
@@ -4105,7 +4105,7 @@ function JobsContent() {
                                     {!isSerpAsk && (
                                         <>
                                             {/* Consolidated Swiss Glass Status Ribbon */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none glass-panel px-3.5 py-2 text-[11px]">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-none border-b border-border/50 bg-muted/[0.18] px-3.5 py-2 text-[11px]">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"

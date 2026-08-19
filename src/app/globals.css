@@ -378,6 +378,51 @@ h4 {
     inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
 }
 
+/* Interactive glass cards (job rows, LaunchBanner) lift on hover to signal
+   depth and separate from the surface beneath them. The base .glass-card
+   `box-shadow` is replaced — not layered — so the inset sheen stays
+   consistent and the outer shadow doesn't double-stack. The transition on
+   the element (transition-all duration-150) animates both properties for
+   free. The active-row `.glass-tint-blue` rule uses `!important`, so it
+   always wins over this hover state — an open row never lifts. */
+.glass-card:hover {
+  box-shadow:
+    0 2px 8px 0 rgba(10, 10, 10, 0.07),
+    0 6px 20px -4px rgba(10, 10, 10, 0.12),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 12px 0 rgba(255, 255, 255, 0.35);
+  border-color: rgba(10, 10, 10, 0.18);
+  transform: translateY(-1px);
+}
+
+.dark .glass-card:hover {
+  box-shadow:
+    0 2px 8px 0 rgba(0, 0, 0, 0.4),
+    0 6px 24px -4px rgba(0, 0, 0, 0.55),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 20px 0 rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.20);
+  transform: translateY(-1px);
+}
+
+/* Detail pane at xl+ — outer drop shadow that lifts it above the list
+   column beside it, so the two columns read as foreground vs. tray rather
+   than two equal sheets. Inset top highlight from the old inline shadow
+   is preserved and strengthened. */
+.detail-pane-raised {
+  box-shadow:
+    0 0 0 1px rgba(10, 10, 10, 0.06),
+    0 4px 28px -6px rgba(10, 10, 10, 0.18),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.60);
+}
+
+.dark .detail-pane-raised {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 4px 32px -6px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
+}
+
 /* The focal surface of a page — the one panel that has to read as the
    primary action rather than merely be visible. Layers elevation on top of
    the glass instead of replacing it: near-opaque fill so the panel is the
