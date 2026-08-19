@@ -564,9 +564,9 @@ describe('resolveJobsResultsPanel', () => {
         assert.equal(panel({ hitCount: 24 }), 'list');
     });
 
-    it('loading with zero hits so far resolves to the loading panel; a background refresh over existing hits keeps the list up', () => {
+    it('loading resolves to the loading panel regardless of prior hits — stale rows are hidden during any refresh', () => {
         assert.equal(panel({ loading: true }), 'loading');
-        assert.equal(panel({ loading: true, hitCount: 5 }), 'list');
+        assert.equal(panel({ loading: true, hitCount: 5 }), 'loading');
     });
 
     it('panel precedence matches the ternary it replaced: ask beats backend states, which beat loading, which beats empty', () => {

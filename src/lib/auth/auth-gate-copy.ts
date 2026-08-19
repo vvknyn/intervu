@@ -4,7 +4,7 @@
  * prepends an honest keep-line; never fabricates a count.
  */
 
-export type AuthGateReason = "apply" | "generic";
+export type AuthGateReason = "apply" | "generic" | "save";
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
@@ -13,6 +13,7 @@ export const SIGNUP_SUBCOPY = "Save roles and track where you've applied — on 
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",
     generic: "Sign in to sync your tracker across devices.",
+    save: "Sign in to keep your list across devices and get alerts when new roles match.",
 };
 
 /** Honest keep-line when guest pursuits exist; null when count is zero. */

@@ -12,10 +12,16 @@ import {
     FunnelSimple,
     MapPin,
     X,
+    Check,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -89,7 +95,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMarketingShowcase, LandingMasthead, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { LandingMasthead, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
@@ -101,8 +107,7 @@ import {
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
-import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
-import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
@@ -182,6 +187,12 @@ import {
     GUEST_SAVE_TOAST,
     type AuthGateReason,
 } from "@/lib/auth/auth-gate-copy";
+import {
+    getGuestSaveCount,
+    recordGuestSave,
+    isGuestSaveBannerDismissed,
+    dismissGuestSaveBanner,
+} from "@/lib/auth/guest-save-gate";
 
 /**
  * Every search-action call on this page goes through this one
@@ -1379,6 +1390,15 @@ function JobsContent() {
     const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
+    // Progressive guest save gating — initialized post-mount (localStorage
+    // is not available during SSR). `guestSaveCount` drives both the banner
+    // (≥ 1) and the gate (≥ 1 → require sign-in on the next save).
+    const [guestSaveCount, setGuestSaveCount] = useState(0);
+    const [guestSaveBannerDismissed, setGuestSaveBannerDismissed] = useState(true);
+    useEffect(() => {
+        setGuestSaveCount(getGuestSaveCount());
+        setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
+    }, []);
     // Honest-market claim shown alongside the guest SERP tip (front-door
     // spec, Task 2). Fetched once on mount, same cancelled-flag idiom as
     // `lastUpdated`/`postedDateSupported` above; `marketingClaim` degrades to
@@ -2557,6 +2577,27 @@ function JobsContent() {
     const showResumeMoment =
         !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
 
+    // Personalization invite — the quiet bottom-of-list nudge that precedes
+    // the résumé moment. Appears from the first search result (no opens gate),
+    // disappears once a résumé exists, fit is active, or the user dismisses.
+    // Never shown alongside `showResumeMoment` (which fires at 3 opens and
+    // is more specific) — mutually exclusive by the `!showResumeMoment` guard.
+    const showPersonalizationInvite =
+        !upsellDismissed &&
+        !fitActive &&
+        !hasUsableResume &&
+        !showResumeMoment;
+
+    // Guest save upsell banner — shown after the first anonymous save (either
+    // "Go after" or a saved search) until dismissed. Signed-in users never see
+    // it; the `guestSaveCount` and `guestSaveBannerDismissed` states are
+    // seeded from localStorage post-mount so there's no SSR mismatch.
+    const showGuestSaveBanner = !user && guestSaveCount >= 1 && !guestSaveBannerDismissed;
+    const handleDismissGuestSaveBanner = () => {
+        dismissGuestSaveBanner();
+        setGuestSaveBannerDismissed(true);
+    };
+
     // A1 — apply-return capture (Zeigarnik Effect). `handleOpenPosting`
     // below stamps this the moment a signed-in visitor leaves for the
     // employer's site; the visibilitychange effect further down reads it
@@ -2709,11 +2750,19 @@ function JobsContent() {
         openAuth("apply");
     };
 
-    // "Save" — signed out writes to the guest store immediately (spec §3);
-    // apply-adjacent CTAs still gate via `handleApplyGate` above.
+    // "Save" — signed out writes to the guest store immediately for the FIRST
+    // save; on the second+ guest save, require sign-in so the list isn't
+    // silently lost (progressive gating spec). Apply-adjacent CTAs still gate
+    // via `handleApplyGate` above.
     const handleGoAfter = (job: PublicJob) => {
         if (!user) {
+            if (getGuestSaveCount() >= 1) {
+                openAuth("save");
+                return;
+            }
             addGuestPursuit(job);
+            const newCount = recordGuestSave();
+            setGuestSaveCount(newCount);
             toast.success(GUEST_SAVE_TOAST);
             return;
         }
@@ -2742,6 +2791,19 @@ function JobsContent() {
                 setGoingAfterId(null);
             }
         })();
+    };
+
+    // Gate callback for SavedSearchesPanel's guest save path — mirrors
+    // `handleGoAfter`'s own guest-save gate so both save types share the same
+    // "first save free, second requires sign-in" rule with one counter.
+    const handleBeforeGuestSavedSearch = (): "proceed" | "block" => {
+        if (getGuestSaveCount() >= 1) {
+            openAuth("save");
+            return "block";
+        }
+        const newCount = recordGuestSave();
+        setGuestSaveCount(newCount);
+        return "proceed";
     };
 
     // Run whatever the user queued before signing in — exactly once, and ONLY
@@ -3127,9 +3189,25 @@ function JobsContent() {
         detectedName: result?.defaultedLocation ? regionDisplayName(result.defaultedLocation) : undefined,
         detectedOptedIn,
     });
-    const remoteFacetValue = pickRemoteFacetValue(result?.facetDistribution) ?? "remote";
-    const remoteChipActive = (facets.work_type ?? []).includes(remoteFacetValue);
-    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
+    // The category chip whose search query matches the current COMMITTED query
+    // (case-insensitive) AND whose text also matches the draft (i.e. the user
+    // has not yet typed something different in the search box without
+    // submitting). Both guards are necessary: `query` alone would leave the
+    // chip highlighted while the user is mid-edit typing an unrelated term,
+    // which is the exact ambiguity the "active chip only when committed query
+    // matches" rule exists to prevent (req 4). When non-null, "Searching:
+    // [title]" renders near the chips row to bridge the gap between the short
+    // domain label (e.g. "HEALTHCARE") and the underlying search query (e.g.
+    // "Registered Nurse").
+    const activeCategory = useMemo(
+        () =>
+            indexCategories.find(
+                (c) =>
+                    c.q.toLowerCase() === query.toLowerCase() &&
+                    c.q.toLowerCase() === queryDraft.toLowerCase(),
+            ) ?? null,
+        [query, queryDraft],
+    );    const mobilePrimaryCtaLabel = showLandingMarketing && !query.trim() ? "Show jobs" : "Search";
 
     const handleMobilePrimaryCta = () => {
         if (showLandingMarketing && !queryDraft.trim()) {
@@ -3222,8 +3300,7 @@ function JobsContent() {
         }
     };
 
-    const resultsCountLabel =
-        loading && hits.length > 0 ? "updating…" : resultCountLine;
+    const resultsCountLabel = resultCountLine;
 
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
@@ -3472,124 +3549,132 @@ function JobsContent() {
                                 />
                             </div>
                         </div>
-                        <div className="hidden flex-wrap items-center gap-2 sm:flex">
-                            <Button
+                        <div className={cn(
+                            "hidden flex-wrap items-center gap-2",
+                            // The sticky mobile-search-cta handles all search actions below
+                            // lg — pristine landing, mid-search, and post-results states.
+                            // Show inline Search only at lg+ so the two CTAs never coexist.
+                            "lg:flex",
+                        )}>                            <Button
                                 type="button"
                                 onClick={() => submitSearch(queryDraft)}
                                 className="h-11 sm:h-[46px] w-full rounded-none bg-foreground px-6 text-xs font-bold uppercase tracking-wider text-background hover:bg-foreground/90 sm:w-auto transition-colors"
                             >
                                 Search
                             </Button>
-                            <SavedSearchesPanel
-                                saved={savedSearches}
-                                urlState={buildUrlState()}
-                                canSave={canSaveSearch}
-                                onApply={applySavedSearch}
-                            />
                         </div>
                     </div>
 
-                    {/* Category & Persona Discovery Micro-Pills */}
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 lg:mt-2 lg:gap-1 lg:pt-1.5">
-                        {/* Field chips: REPLACE the query (radio-like), one click = one search.
-                            Sourced from `indexCategories` — the same single source of truth as
-                            the field directory rendered lower on this page in
-                            LandingMarketingShowcase.tsx. Never restate this list here; the
-                            `domain` field is that export's short display tag (already rendered
-                            as `[{cat.domain}]` next to each directory row), reused here for its
-                            brevity — the full `title` prose lives in the directory below, where
-                            there's room for it. */}
-                        {indexCategories.map((cat) => {
-                            const isMatch = query.toLowerCase() === cat.q.toLowerCase();
-                            return (
-                                <button
-                                    key={cat.num}
-                                    type="button"
-                                    onClick={() => submitSearch(cat.q)}
-                                    className={cn(
-                                        "inline-flex h-11 items-center rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
-                                        isMatch
-                                            ? "border-foreground bg-foreground text-background font-bold"
-                                            : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    {cat.domain}
-                                </button>
-                            );
-                        })}
-                        <Separator orientation="vertical" className="h-3" />
-                        {/* Filter toggles: TOGGLE + persist filter state (checkbox-like). The
-                            trailing "x" on the active state is the standard dismiss affordance —
-                            it's what tells these apart from the field chips above, which never
-                            show one because clicking them replaces the query instead of
-                            toggling a filter. */}
-                        <button
-                            type="button"
-                            onClick={() => panelToggleFacet("work_type", remoteFacetValue)}
-                            className={cn(
-                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
-                                remoteChipActive
-                                    ? "border-foreground bg-foreground text-background font-bold"
-                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
-                            )}
+                    {/* Category & Filter Dropdowns */}
+                    {!showLandingMarketing && (
+                        <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2 lg:mt-2 lg:pt-1.5">
+                            {/* Field dropdown — radio-like, REPLACE query on click */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            "inline-flex h-9 items-center gap-1.5 rounded-none border px-3 text-[12px] uppercase tracking-wide transition-colors",
+                                            activeCategory
+                                                ? "border-foreground bg-foreground text-background font-bold"
+                                                : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        {activeCategory ? activeCategory.domain : "Browse by field"}
+                                        <CaretDown size={10} weight="bold" aria-hidden />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="min-w-[180px]">
+                                    {indexCategories.map((cat) => {
+                                        const isMatch =
+                                            query.toLowerCase() === cat.q.toLowerCase() &&
+                                            queryDraft.toLowerCase() === cat.q.toLowerCase();
+                                        return (
+                                            <DropdownMenuItem
+                                                key={cat.num}
+                                                onSelect={() => submitSearch(cat.q)}
+                                                className="flex items-center justify-between gap-3 text-[12px] uppercase tracking-wide"
+                                            >
+                                                <span>{cat.domain}</span>
+                                                {isMatch && <Check size={12} weight="bold" aria-hidden />}
+                                            </DropdownMenuItem>
+                                        );
+                                    })}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                        </div>
+                    )}
+                    {/* Active-category indicator: the chip label (e.g. "HEALTHCARE")
+                        is a short domain tag; the query it runs (e.g. "Registered Nurse")
+                        is what actually appears in the search box. Without this, the
+                        connection between the highlighted chip and the search bar text is
+                        opaque. Clicking a category REPLACES the query (radio-like), unlike
+                        the filter toggles to its right which AND onto existing results.
+                        `handleClearSearch` is the same path the "✕ clear search" toolbar
+                        button uses — reused, not a third clear path. */}
+                    {!showLandingMarketing && (activeCategory || canSaveSearch) && (
+                        <div
+                            data-testid="active-category-indicator"
+                            className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-[13px] text-muted-foreground sm:min-h-0"
                         >
-                            Remote
-                            {remoteChipActive ? <X size={9} weight="bold" aria-hidden /> : null}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => panelSalaryMin(salaryMin === 150000 ? 0 : 150000)}
-                            className={cn(
-                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
-                                salaryMin === 150000
-                                    ? "border-foreground bg-foreground text-background font-bold"
-                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                            {activeCategory && (
+                                <>
+                                    <span className="font-semibold uppercase tracking-wider text-foreground">
+                                        Searching:
+                                    </span>
+                                    <span>{activeCategory.title}</span>
+                                    <span aria-hidden className="text-border">·</span>
+                                    <button
+                                        type="button"
+                                        onClick={handleClearSearch}
+                                        className="-my-1.5 py-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                    >
+                                        clear ✕
+                                    </button>
+                                    {canSaveSearch && <span aria-hidden className="text-border">·</span>}
+                                </>
                             )}
-                        >
-                            $150k+
-                            {salaryMin === 150000 ? <X size={9} weight="bold" aria-hidden /> : null}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => onBoardChange(board === "elite" ? null : "elite")}
-                            className={cn(
-                                "inline-flex h-11 items-center gap-1 rounded-none border px-3.5 text-[12px] uppercase tracking-wide transition-colors lg:h-10 lg:px-3",
-                                board === "elite"
-                                    ? "border-foreground bg-foreground text-background font-bold"
-                                    : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
-                            )}
-                        >
-                            Tier-1 Tech
-                            {board === "elite" ? <X size={9} weight="bold" aria-hidden /> : null}
-                        </button>
-                    </div>
+                            {canSaveSearch && (
+                                <SavedSearchesPanel
+                                    saved={savedSearches}
+                                    urlState={buildUrlState()}
+                                    canSave={canSaveSearch}
+                                    onApply={applySavedSearch}
+                                    onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
+                                    compact
+                                />                            )}
+                        </div>
+                    )}
                 </section>
 
-                <FilterChipsRow
-                    state={filterState}
-                    distribution={result?.facetDistribution}
-                    activeCount={activeCount}
-                    onPostedBucket={panelPostedBucket}
-                    onToggleFacet={panelToggleFacet}
-                    onSalaryMin={panelSalaryMin}
-                    onOpenSheet={() => setFiltersOpen(true)}
-                    postedDateSupported={postedDateSupported}
-                />
-
+                {!showLandingMarketing && (
+                    <FilterChipsRow
+                        state={filterState}
+                        distribution={result?.facetDistribution}
+                        activeCount={activeCount}
+                        onPostedBucket={panelPostedBucket}
+                        onToggleFacet={panelToggleFacet}
+                        onSalaryMin={panelSalaryMin}
+                        onOpenSheet={() => setFiltersOpen(true)}
+                        postedDateSupported={postedDateSupported}
+                    />
+                )}
                 <section
                     data-testid="jobs-toolbar"
                     className="mt-3 py-2 lg:px-0.5 lg:py-1"
                 >
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 lg:gap-x-3 lg:gap-y-2">
-                        <FacetBar
-                            distribution={result?.facetDistribution}
-                            state={filterState}
-                            postedDateSupported={postedDateSupported}
-                            onToggleFacet={panelToggleFacet}
-                            onSalaryMin={panelSalaryMin}
-                            onPostedBucket={panelPostedBucket}
-                        />
-                        <button
+                        {!showLandingMarketing && (
+                            <FacetBar
+                                distribution={result?.facetDistribution}
+                                state={filterState}
+                                postedDateSupported={postedDateSupported}
+                                onToggleFacet={panelToggleFacet}
+                                onSalaryMin={panelSalaryMin}
+                                onPostedBucket={panelPostedBucket}
+                            />
+                        )}                        <button
                             type="button"
                             data-testid="filters-toggle"
                             aria-expanded={filtersOpen}
@@ -3613,11 +3698,11 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
-                        {/* Persistent résumé control — sits next to Filters. Label
-                            is always "My résumé"; only STATE changes. Hidden once
-                            fit is active (the "ranked by your résumé ✕" chip owns
-                            that role). */}
-                        {resumeControlState !== "hidden" && (
+                        {/* Résumé toolbar control — sits next to Filters.
+                            Label is context-aware: "Add résumé" when `resumeOnFile` is false
+                            or null (uploader on click); "My résumé" when it is true (rank-by-fit
+                            on click). Hidden once fit is already active — the
+                            "ranked by your résumé ✕" chip owns that role. */}                        {resumeControlState !== "hidden" && (
                             <button
                                 type="button"
                                 onClick={() => handleMyResumeClick()}
@@ -3625,21 +3710,20 @@ function JobsContent() {
                                 title={
                                     resumeControlState === "active"
                                         ? "Rank jobs by your résumé"
-                                        : "No résumé on file yet — click to upload one"
-                                }
+                                        : "Upload a résumé to personalize results"                                }
                                 aria-label={
                                     resumeControlState === "active"
                                         ? "My résumé — rank jobs by fit"
-                                        : "My résumé — no résumé on file, click to upload one"
-                                }
+                                        : "Add résumé — upload one to personalize results"                                }
                                 className={cn(
                                     chipVariants({ active: resumeControlState === "active" }),
                                     toolbarChipClass,
                                 )}
                             >
-                                My résumé
-                            </button>
+                                {resumeControlState === "active" ? "My résumé" : "Add résumé"}                            </button>
                         )}
+                        {!showLandingMarketing && (
+                        <>
                         {/* ITEM I (2026-08-15): moved here from the search row (was a
                             flex sibling between the location input and Search button).
                             It's filter state (suppressible, affects the fetched set),
@@ -3705,6 +3789,8 @@ function JobsContent() {
                             >
                                 ✕ clear search
                             </button>
+                        )}
+                        </>
                         )}
                         {result?.configured && (
                             <div
@@ -3804,117 +3890,55 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        {showLandingMarketing && (
-                            <>
-                                {user && !agentSearchPrefsSet && (
-                                    <SearchPrefsSetup
-                                        variant="inline"
-                                        onComplete={handleSearchPrefsComplete}
-                                        onAddResume={handleSearchPrefsAddResume}
-                                    />
-                                )}
-                                {user && agentSearchPrefsSet && agentPrefs?.search.query && (
-                                    <p className="mb-3 text-left" data-testid="continue-saved-search">
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                applySavedSearchPrefs({
-                                                    query: agentPrefs.search.query!,
-                                                    location: agentPrefs.search.location ?? "",
-                                                    remoteOnly: agentPrefs.search.remoteOnly ?? false,
-                                                    salaryMin: agentPrefs.search.salaryMin ?? 0,
-                                                })
-                                            }
-                                            className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
-                                        >
-                                            Continue: {agentPrefs.search.query}
-                                        </button>
-                                    </p>
-                                )}
-                                {user && recentSearches[0] && (
-                                    <p className="mb-3 text-left" data-testid="continue-recent-search">
-                                        <button
-                                            type="button"
-                                            onClick={() => submitSearch(recentSearches[0]!)}
-                                            className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
-                                        >
-                                            Continue: {recentSearches[0]}
-                                        </button>
-                                    </p>
-                                )}
-                                {user && recentlyViewed.length > 0 && (
-                                    <div className="mb-4 text-left" data-testid="recently-viewed">
-                                        <p className="text-[11px] uppercase tracking-[0.06em] text-faint">
-                                            Recently viewed
-                                        </p>
-                                        <div className="mt-2 flex flex-col gap-1" role="list" aria-label="Recently viewed">
-                                            {recentlyViewed.map((item) => (
-                                                <button
-                                                    key={item.id}
-                                                    type="button"
-                                                    data-testid="recently-viewed-row"
-                                                    onClick={() => openJob(item.id)}
-                                                    className="max-w-full truncate text-left text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
-                                                >
-                                                    {decodeText(item.title)} · {item.company}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {user && agentSearchPrefsSet && (
-                                    <div className="mb-6" data-testid="signed-in-home-tiles">
-                                        <div className="border-b border-foreground pb-2 text-xs font-bold uppercase tracking-widest text-foreground">
-                                            <span>Quick filters</span>
-                                        </div>
-                                        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 text-xs">
-                                            <button
-                                                type="button"
-                                                onClick={() => panelPostedBucket("7d")}
-                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
-                                            >
-                                                <div>
-                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Freshness</div>
-                                                    <div className="mt-1 font-bold text-foreground">New this week</div>
-                                                </div>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => panelToggleFacet("work_type", "remote")}
-                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
-                                            >
-                                                <div>
-                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Location</div>
-                                                    <div className="mt-1 font-bold text-foreground">Remote jobs only</div>
-                                                </div>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => panelSalaryMin(150000)}
-                                                className="flex items-center justify-between border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/30"
-                                            >
-                                                <div>
-                                                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">Pay</div>
-                                                    <div className="mt-1 font-bold text-foreground">Pays $150k or more</div>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                                <LandingMarketingShowcase
-                                    onSelectQuery={(q) => submitSearch(q)}
-                                    onSelectRemote={() => panelToggleFacet("work_type", "remote")}
-                                    onSelectSalaryMin={(min) => panelSalaryMin(min)}
-                                    onSelectBoard={(b) => onBoardChange(b)}
-                                />
-                            </>
+                        {showLandingMarketing && user && !agentSearchPrefsSet && (
+                            <div className="mb-6">
+                                <Button
+                                    variant="outline"
+                                    type="button"
+                                    onClick={() => setSearchPrefsDialogOpen(true)}
+                                    className="rounded-none border-border/80 text-[13px] font-medium"
+                                >
+                                    Set up search preferences
+                                </Button>
+                            </div>
                         )}
                         <div
-                            className={cn("flex min-h-0 flex-1 flex-col", showLandingMarketing && "hidden")}
-                            aria-hidden={showLandingMarketing}
-                        >
+                            className={cn(
+                                "flex min-h-0 flex-1 flex-col",
+                                showLandingMarketing && !isLgUp && "hidden",
+                            )}
+                            aria-hidden={showLandingMarketing && !isLgUp}                        >
                             <>
                                 <BoardVisitBanner />
+
+                                {/* Post-first-save upsell — appears once the anonymous visitor
+                                    has made their first save (Go after or saved search). Calm
+                                    inline style matching `showPersonalizationInvite`. Dismissed
+                                    state is persisted so the banner doesn't reappear on reload.
+                                    Signed-in users never see it (`showGuestSaveBanner` is false
+                                    whenever `user` is truthy). */}
+                                {showGuestSaveBanner && (
+                                    <div
+                                        data-testid="guest-save-banner"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-[13.5px] text-muted-foreground"
+                                    >
+                                        <span>Sign in to keep this list across devices and get alerts when new roles match —</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => openAuth("save")}
+                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                        >
+                                            sign in
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDismissGuestSaveBanner}
+                                            className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                        >
+                                            not now
+                                        </button>
+                                    </div>
+                                )}
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
                             whole-document pass matched nothing and the engine fell back
@@ -4227,6 +4251,28 @@ function JobsContent() {
                                         ever arrives at, so anchoring it there meant it would
                                         never render. The foot of what has actually been READ
                                         is the reachable equivalent. */}
+                                    {showPersonalizationInvite && (
+                                        <div
+                                            data-testid="resume-personalize-invite"
+                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-[13.5px] text-muted-foreground"
+                                        >
+                                            <span>See which of these roles actually fit your background —</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleUploadClick}
+                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            >
+                                                add your résumé to rank by fit
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={dismissUpsell}
+                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                            >
+                                                not now
+                                            </button>
+                                        </div>
+                                    )}
                                     {showResumeMoment && (
                                         <div
                                             data-testid="resume-moment"
