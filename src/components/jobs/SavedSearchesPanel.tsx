@@ -32,6 +32,8 @@ export function SavedSearchesPanel({
     urlState,
     canSave,
     onApply,
+    onBeforeGuestSave,
+    compact = false,
     className,
 }: {
     saved: SavedSearch[];
@@ -39,6 +41,15 @@ export function SavedSearchesPanel({
     /** Parent decides when the current URL state is worth persisting. */
     canSave: boolean;
     onApply: (href: string) => void;
+    /**
+     * Called BEFORE a guest (signed-out) save is committed. Return `"block"`
+     * to cancel the save (e.g. because the parent has opened an auth gate);
+     * return `"proceed"` to let the save go through. Omit for signed-in-only
+     * contexts where guest saves cannot occur.
+     */
+    onBeforeGuestSave?: () => "proceed" | "block";
+    /** Inline/text-scale variant — matches the 11px indicator row rather than the h-11 toolbar. */
+    compact?: boolean;
     className?: string;
 }) {
     const [naming, setNaming] = useState(false);
@@ -58,6 +69,11 @@ export function SavedSearchesPanel({
             const res = await saveSavedSearchAction({ name, href });
             if (!res.error) invalidateSavedSearchesCache();
         } else {
+            if (onBeforeGuestSave?.() === "block") {
+                setNaming(false);
+                setNameDraft("");
+                return;
+            }
             persistSavedSearch({ name, href });
         }
         setNaming(false);
@@ -110,20 +126,28 @@ export function SavedSearchesPanel({
     if (!canSave && saved.length === 0) return null;
 
     return (
-        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-[11px]", className)}>
+        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-[13px]", className)}>
             {canSave && !naming && (
                 <button
                     type="button"
                     data-testid="save-search-trigger"
                     onClick={startSave}
-                    className="inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors"
+                    className={cn(
+                        compact
+                            ? "-my-1.5 inline-flex items-center gap-1 py-1.5 text-[13px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                            : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors",
+                    )}
                 >
-                    <BookmarkSimple size={14} aria-hidden />
-                    Save Search
+                    <BookmarkSimple size={compact ? 12 : 14} aria-hidden />
+                    Save search
                 </button>
             )}
             {naming && (
-                <div className="flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-panel px-2">
+                <div className={cn(
+                    compact
+                        ? "flex items-center gap-1"
+                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-panel px-2",
+                )}>
                     <input
                         data-testid="save-search-name"
                         value={nameDraft}
@@ -132,7 +156,11 @@ export function SavedSearchesPanel({
                             if (e.key === "Enter") void commitSave();
                             if (e.key === "Escape") setNaming(false);
                         }}
-                        className="h-7 min-w-[8rem] rounded-none border border-border bg-background/80 px-2 text-base md:text-[11px] text-foreground outline-none focus:border-brand"
+                        className={cn(
+                            compact
+                                ? "h-6 min-w-[6rem] rounded border border-border bg-background/80 px-1.5 text-[13px] text-foreground outline-none focus:border-brand"
+                                : "h-7 min-w-[8rem] rounded-none border border-border bg-background/80 px-2 text-base md:text-[13px] text-foreground outline-none focus:border-brand",
+                        )}
                         aria-label="Saved search name"
                         autoFocus
                     />
@@ -140,14 +168,22 @@ export function SavedSearchesPanel({
                         type="button"
                         data-testid="save-search-commit"
                         onClick={() => void commitSave()}
-                        className="h-7 rounded-none glass-tint-blue px-2.5 text-[10px] font-bold uppercase"
+                        className={cn(
+                            compact
+                                ? "text-[13px] font-medium text-foreground underline underline-offset-2 hover:no-underline"
+                                : "h-7 rounded-none glass-tint-blue px-2.5 text-[10px] font-bold uppercase",
+                        )}
                     >
                         Save
                     </button>
                     <button
                         type="button"
                         onClick={() => setNaming(false)}
-                        className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 px-1"
+                        className={cn(
+                            compact
+                                ? "text-[13px] text-muted-foreground hover:text-foreground"
+                                : "text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 px-1",
+                        )}
                     >
                         ✕
                     </button>
@@ -156,7 +192,11 @@ export function SavedSearchesPanel({
             {saved.length > 0 && (
                 <ul className="flex flex-wrap items-center gap-1.5">
                     {saved.map((s) => (
-                        <li key={s.id} className="inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-none glass-tint-muted px-2.5 py-0.5">
+                        <li key={s.id} className={cn(
+                            compact
+                                ? "inline-flex items-center gap-1"
+                                : "inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-none glass-tint-muted px-2.5 py-0.5",
+                        )}>
                             <button
                                 type="button"
                                 data-testid="saved-search-item"
@@ -164,7 +204,11 @@ export function SavedSearchesPanel({
                                     writeVisitCursor(`saved:${savedSearchId(s.href)}`, new Date().toISOString());
                                     onApply(s.href);
                                 }}
-                                className="max-w-[10rem] truncate text-[11px] font-medium text-foreground hover:underline"
+                                className={cn(
+                                    compact
+                                        ? "max-w-[8rem] truncate text-[13px] text-foreground underline underline-offset-2 hover:no-underline"
+                                        : "max-w-[10rem] truncate text-[13px] font-medium text-foreground hover:underline",
+                                )}
                                 title={s.name}
                             >
                                 {s.name}

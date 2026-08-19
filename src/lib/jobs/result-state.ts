@@ -417,6 +417,13 @@ export function resolveJobsRenderMode(
  *
  * Order is the ternary's own precedence, unchanged: the ask state, then
  * hard backend states, then loading, then empty, then the list.
+ *
+ * `loading` returns "loading" even when `hitCount > 0` (stale results from
+ * the previous search are present). Showing irrelevant old rows during a new
+ * query/filter/sort/location refresh confuses more than it helps: the rows
+ * belong to a different search the user just changed. `blockingError` and
+ * `notConnected` are only ever true at their declaration sites when
+ * `hits.length === 0`, so the guard ordering already handles any overlap.
  */
 export type JobsResultsPanel = "serp-ask" | "not-connected" | "error" | "loading" | "empty" | "list";
 
@@ -430,7 +437,7 @@ export function resolveJobsResultsPanel(input: {
     if (input.isSerpAsk) return "serp-ask";
     if (input.notConnected) return "not-connected";
     if (input.blockingError) return "error";
-    if (input.loading && input.hitCount === 0) return "loading";
+    if (input.loading) return "loading";
     return input.hitCount === 0 ? "empty" : "list";
 }
 
