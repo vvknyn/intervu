@@ -34,6 +34,7 @@ export const SAFE_POST_AUTH_PREFIXES = [
     "/jobs",
     "/yours",
     "/connect",
+    "/co",
     "/oauth/authorize",
     ...AUTH_GATED_PRODUCT_PREFIXES,
 ] as const;
