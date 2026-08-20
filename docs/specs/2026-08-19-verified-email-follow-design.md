@@ -13,9 +13,9 @@ itself refuses.
 
 This design finishes that ladder: **"Email me when they post" becomes a
 one-field verified-email step.** No password, no username, no account. The
-identity lives in **our Postgres on the DB box**, shaped as the first bricks of
-the Firebase exit (Vivek, 2026-08-19: auth should become email+Google served
-from our own box).
+identity lives in **Supabase Postgres**, shaped as the first bricks of
+the Firebase exit (Vivek, 2026-08-19: auth should become email+Google,
+served by Supabase Auth).
 
 Locked constraints carried in:
 - **Success metric: durable contact** — a verified, deliverable email counts;
@@ -82,18 +82,18 @@ Locked constraints carried in:
    (box-side, outside the tree), new least-privilege `intervu_web` role (DML
    on the four tables below only). All statements use
    `SET LOCAL statement_timeout` inside transactions (pooler lesson).
-3. **DDL** (applied as postgres via root SSH to the DB box — the `pipeline`
-   role cannot CREATE; same lane as the Aug-18 21→28 expansion):
+3. **DDL** (applied via the Supabase SQL editor as `postgres`):
    - `intervu.identities` — `id` uuid PK, `email` unique (citext if the
-     extension is available on the box — **verify during planning**; else
+     extension is available on the project — **verify during planning**; else
      lowercased text + unique functional index), `email_verified_at`,
      `firebase_uid` NULL unique, `google_sub` NULL unique (reserved for the
      auth exit), `created_at`, `last_seen_at`.
    - `intervu.auth_tokens` — `token_hash` (sha256 of 32 random bytes) PK,
      `identity_id` FK, `purpose` (`'verify_email'` now; `'login'` reserved),
      `redirect_path`, `expires_at` (30 min), `consumed_at`, `created_at`.
-   - `intervu.sessions` — created now, **written by nothing in this phase**;
-     reserved for the auth exit.
+   - ~~`intervu.sessions` — created now, written by nothing in this phase;
+     reserved for the auth exit.~~ (removed by the 2026-08-19 amendment —
+     Supabase Auth owns sessions.)
    - `intervu.email_follows` — `(identity_id, company_domain)` PK,
      `created_at`, `unsubscribed_at`.
 4. **API routes** — POST submit (Turnstile-verified, rate-limited, identical
@@ -131,8 +131,8 @@ Locked constraints carried in:
 
 - **No second auth source of truth** (the #2655 incident class): this phase
   mints no login sessions; the contact cookie cannot unlock anything
-  account-scoped. The `sessions` table stays empty until the auth-exit
-  project owns login.
+  account-scoped. Supabase Auth will own sessions when the auth-exit
+  project lands; this phase mints no login state.
 - **No lying fallbacks:** `INTERVU_PG_URL` absent → the CTA keeps today's
   account-dialog behavior; PG errors surface as honest failure states, never
   fake success.
@@ -167,10 +167,22 @@ from any email.
 
 ## Open items carried into planning
 
-- citext / pgcrypto (`gen_random_uuid`) availability on the DB box —
-  verify before DDL.
+- citext / pgcrypto (`gen_random_uuid`) availability on the Supabase
+  project — verify before DDL.
 - Exact telemetry module for /admin counters.
 - Exact Turnstile verification helper reuse (signup path already has one).
 - Confirm #250 deploy status (one browser visit to `/yours`).
 - Digest preview endpoint coverage for the PG lane (manual live probe with a
   Vivek-controlled mailbox before announcing).
+
+## Amendment (2026-08-19, evening)
+
+Per Vivek: the identity/auth tables live in **Supabase Postgres**, not the
+Contabo DB box. The future auth exit lands on **Supabase Auth** (email +
+Google via GoTrue) rather than hand-rolled auth on the box, so the reserved
+`sessions` table is dropped from the DDL — GoTrue owns session storage, and
+this project should not carry a second, unused sessions table alongside it.
+DDL now applies via the Supabase SQL editor rather than root SSH to the DB
+box. The heavy-table Supabase exit (listings/observations/health_history) is
+unaffected by this change — identity tables are small and were never part of
+that migration's scope.

@@ -1,6 +1,8 @@
--- Apply manually as postgres on the DB box — see
--- deploy/db-box/load-firestore-export.sh for the lane. Requires PG13+
--- (gen_random_uuid). NEVER applied by CI or app code.
+-- Apply via the Supabase SQL editor (or psql against the project's direct
+-- connection) as `postgres`. Requires PG13+ (gen_random_uuid, available by
+-- default on Supabase). NEVER applied by CI or app code. Tables are
+-- namespaced under the `intervu` schema, so this DDL is safe to run in an
+-- existing Supabase project alongside its own tables.
 
 CREATE SCHEMA IF NOT EXISTS intervu;
 
@@ -31,15 +33,6 @@ CREATE TABLE IF NOT EXISTS intervu.auth_tokens (
 );
 CREATE INDEX IF NOT EXISTS auth_tokens_identity_created_idx ON intervu.auth_tokens (identity_id, created_at DESC);
 
--- Reserved for the auth-exit project. Nothing in this phase writes it.
-CREATE TABLE IF NOT EXISTS intervu.sessions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  identity_id uuid NOT NULL REFERENCES intervu.identities(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL,
-  revoked_at timestamptz
-);
-
 CREATE TABLE IF NOT EXISTS intervu.email_follows (
   identity_id uuid NOT NULL REFERENCES intervu.identities(id) ON DELETE CASCADE,
   company_domain text NOT NULL,
@@ -53,4 +46,20 @@ CREATE TABLE IF NOT EXISTS intervu.email_follows (
 --   CREATE ROLE intervu_web LOGIN PASSWORD '<set interactively>';
 --   GRANT USAGE ON SCHEMA intervu TO intervu_web;
 --   GRANT SELECT, INSERT, UPDATE, DELETE ON intervu.identities, intervu.auth_tokens,
---     intervu.sessions, intervu.email_follows TO intervu_web;
+--     intervu.email_follows TO intervu_web;
+--
+-- Through the Supavisor transaction pooler (port 6543) the connection
+-- username is `intervu_web.<project-ref>`, not the bare role name. The app
+-- is txn-pooler-safe because every transaction opens with
+-- `SET LOCAL statement_timeout` (see src/lib/pg/pool.ts) rather than a
+-- session-level SET, which would otherwise leak onto a pooled connection
+-- reused by an unrelated request.
+--
+-- INTERVU_PG_URL should point at the pooled connection string with
+-- `?sslmode=require` appended. If node-postgres rejects the certificate
+-- chain, fall back to `?sslmode=no-verify` or supply the project's CA
+-- certificate explicitly.
+--
+-- Default-deny: do NOT add the `intervu` schema to PostgREST "Exposed
+-- schemas" in the Supabase dashboard. These tables are reached only through
+-- the app's own pg pool, never through the Supabase REST/GraphQL surface.
