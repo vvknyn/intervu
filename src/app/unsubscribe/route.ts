@@ -24,6 +24,11 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // error here rather than an empty sentence on the confirmation page.
     welcome: "introduction emails",
     transactional: "account emails",
+    // Also unreachable in practice today (verify_follow is non-suppressible,
+    // see EMAIL_KIND_POLICY in email/types.ts) — kept for the same reason
+    // `welcome` is: a future caller signing a verify_follow-scoped token
+    // must not land on an empty sentence here.
+    verify_follow: "follow confirmation emails",
     all: "all intervu emails",
 };
 

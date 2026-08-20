@@ -1,15 +1,6 @@
-import { ctaButton, renderEmailShellHtml, renderEmailShellText } from "./base";
+import { ctaButton, escapeHtml, renderEmailShellHtml, renderEmailShellText } from "./base";
 import { EMAIL_COLORS as C } from "./palette";
 import type { DigestModel, DigestSection, DigestSectionKind } from "../digest/assemble";
-
-/** Job titles/companies are employer-supplied, external data — unlike the
- *  waitlist template's internal enum labels, this needs real escaping. */
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
-  );
-}
 
 /** "5 new roles" vs "5+ new roles" — the "+" is the honest signal that the
  *  upstream fetch hit its own cap, so this is a floor, not an exact count
