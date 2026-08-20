@@ -17,6 +17,7 @@ import { getIntervuPg } from "@/lib/pg/pool";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { consumeAndFollow, setContactCookie } from "@/lib/identity/contact-cookie";
 import { recordFollowFunnelStep } from "@/lib/follows/funnel-log";
+import { relativeRedirect } from "@/lib/http/relative-redirect";
 
 const FAILURE_PATH = "/jobs?followed=0";
 const FALLBACK_PATH = "/jobs";
@@ -29,18 +30,18 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const q = getIntervuPg();
   if (!token || !q) {
-    return NextResponse.redirect(new URL(FAILURE_PATH, url));
+    return relativeRedirect(FAILURE_PATH);
   }
 
   const follow = domain && name ? { companyDomain: domain, displayName: name } : null;
   const consumed = await consumeAndFollow(q, token, follow);
   if (!consumed) {
-    return NextResponse.redirect(new URL(FAILURE_PATH, url));
+    return relativeRedirect(FAILURE_PATH);
   }
 
   await setContactCookie(consumed.contactToken);
   after(() => recordFollowFunnelStep({ step: "email_verified", companyDomain: domain ?? undefined }));
   const safePath = validateNextParam(consumed.redirectPath) ?? FALLBACK_PATH;
   const separator = safePath.includes("?") ? "&" : "?";
-  return NextResponse.redirect(new URL(`${safePath}${separator}followed=1`, url));
+  return relativeRedirect(`${safePath}${separator}followed=1`);
 }

@@ -60,17 +60,16 @@ describe("GET /api/follow-email/verify — honest failure paths (no request-scop
   it("redirects to the failure path when no token is present", async () => {
     const res = await GET(new Request("http://x/api/follow-email/verify"));
     assert.equal(res.status, 307);
-    const location = new URL(res.headers.get("location")!);
-    assert.equal(location.pathname, "/jobs");
-    assert.equal(location.searchParams.get("followed"), "0");
+    // Location must be app-relative, not resolved against request.url — behind
+    // the reverse proxy that origin is the container's own bind address, not
+    // the public host (see src/lib/http/relative-redirect.ts).
+    assert.equal(res.headers.get("location"), "/jobs?followed=0");
   });
 
   it("redirects to the failure path when INTERVU_PG_URL is unset (this test process never sets it)", async () => {
     const res = await GET(new Request("http://x/api/follow-email/verify?token=abc&domain=acme.com&name=Acme"));
     assert.equal(res.status, 307);
-    const location = new URL(res.headers.get("location")!);
-    assert.equal(location.pathname, "/jobs");
-    assert.equal(location.searchParams.get("followed"), "0");
+    assert.equal(res.headers.get("location"), "/jobs?followed=0");
   });
 });
 
