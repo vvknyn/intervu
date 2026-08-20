@@ -124,10 +124,24 @@ function isStrictTokenPrefix(root: readonly string[], full: readonly string[]): 
  */
 const MIN_BRANDED_SIBLINGS = 2;
 
-/** Last-resort label from the domain: "acme-corp.com" -> "Acme Corp". */
+/**
+ * Last-resort label from the domain: "acme-corp.com" -> "Acme Corp".
+ *
+ * Capitalizes after any non-letter, not just `\b` word boundaries — `\b\w`
+ * alone leaves a domain label untouched wherever a digit sits directly
+ * against a letter ("23andme.com", "1password.com"), because `\d` and `\w`
+ * letters are both `\b`-equivalent so no boundary exists between them. That
+ * silently reproduced the exact raw-lowercase-domain string this fallback
+ * exists to avoid ("23andme", not "23Andme"). Digits themselves are still
+ * left as-is (there is no case to fix on "2" or "3") — only the run of
+ * letters immediately after one now starts a new capitalized "word", same as
+ * a hyphen already does.
+ */
 export function displayNameFromDomain(domain: string): string {
   const label = domain.split(".")[0] ?? domain;
-  return label.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return label
+    .replace(/-/g, " ")
+    .replace(/(^|[^a-zA-Z])([a-z])/g, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
 }
 
 type NameGroup = {
