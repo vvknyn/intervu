@@ -27,6 +27,22 @@ import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
  * renders as `N+`. One helper, so the KPI tile, the roles-list caption and
  * the footer CTA cannot end up disagreeing about how exact the same number is.
  */
+/**
+ * Does the KPI tile row have anything to show?
+ *
+ * All four tiles (open roles, opened/closed 90d, possibly-stale share) read
+ * as a literal "0" beside three "—" placeholders when an employer has no
+ * live roles and no 90-day track record — a row of dead placeholders next to
+ * a real zero, not information a visitor can act on. Gates the whole row
+ * rather than each tile individually, since a partial row would still make
+ * the same "nothing to see" claim once the rest render blank.
+ */
+export function hasCompanyKpiContent(
+  data: Pick<CompanyPageData, "openCount" | "hasTrackRecord">,
+): boolean {
+  return data.openCount > 0 || data.hasTrackRecord;
+}
+
 export function openCountText(
   data: Pick<CompanyPageData, "openCount" | "openCountIsLowerBound">,
 ): string {

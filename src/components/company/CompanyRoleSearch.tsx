@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { X } from "@phosphor-icons/react";
 import { getJobByIdAction } from "@/actions/jobs";
+import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ function roleCountLabel(
 export function CompanyRoleSearch({
   jobs,
   companyDomain,
+  companySlug,
   companyName,
   openCountLabel,
   searchesPartialWindow,
@@ -95,6 +97,8 @@ export function CompanyRoleSearch({
 }: {
   jobs: PublicJob[];
   companyDomain: string;
+  /** For the zero-roles empty state's follow CTA (`CompanyFollowControl`). */
+  companySlug: string;
   companyName: string;
   /** Pre-formatted company-wide open-role count (`openCountText(data)`) —
    *  one string, shared with the KPI tile above so the two can't disagree. */
@@ -219,7 +223,18 @@ export function CompanyRoleSearch({
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
+          // No live roles at all (not just no search matches) — a dead-end
+          // sentence with nothing to do next is strictly worse than turning
+          // the visitor into a follower, since that's the one action this
+          // page can actually offer them right now.
+          <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
+            </p>
+            <div className="mt-4 flex justify-center">
+              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="brand" />
+            </div>
+          </div>
         )
       ) : (
         <ul className="space-y-2.5">

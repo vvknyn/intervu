@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildCompanyHiringAnswer, buildCompanyJobsUrl } from "@/lib/companies/presentation";
+import { buildCompanyHiringAnswer, buildCompanyJobsUrl, hasCompanyKpiContent } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { parseJobsUrl } from "@/lib/jobs/url-state";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -285,5 +285,31 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
         `facet ${field} carries a narrowing value`,
       );
     }
+  });
+});
+
+describe("companies/presentation — hasCompanyKpiContent", () => {
+  it("hides the KPI row when there are zero open roles and no 90-day track record", () => {
+    assert.equal(
+      hasCompanyKpiContent(company({ openCount: 0, hasTrackRecord: false })),
+      false,
+    );
+  });
+
+  it("shows the row when there are open roles, even with no track record", () => {
+    assert.equal(
+      hasCompanyKpiContent(company({ openCount: 5, hasTrackRecord: false })),
+      true,
+    );
+  });
+
+  // A different employer shape than the one that motivated the fix: zero
+  // roles TODAY but a real 90-day history is still something to show, not a
+  // dead row — the gate is an OR, not "roles only".
+  it("shows the row when there are zero open roles but a real 90-day track record exists", () => {
+    assert.equal(
+      hasCompanyKpiContent(company({ openCount: 0, hasTrackRecord: true })),
+      true,
+    );
   });
 });
