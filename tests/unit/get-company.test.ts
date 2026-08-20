@@ -403,3 +403,45 @@ describe("getCompanyPageData — aggregates come from whichever hit carries them
         assert.equal(result?.stage, "Seed");
     });
 });
+
+describe("getCompanyPageData — internal-only postings never reach the public page", () => {
+    it("drops a bracket-tagged internal posting from the roles list", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", title: "Senior Backend Engineer" }),
+                job({ id: "2", title: "[Internal] Developer, Rust" }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.jobs.length, 1);
+        assert.equal(result?.jobs[0]!.id, "1");
+    });
+
+    // A differently-worded tag, covering the wiring for the class the
+    // predicate matches, not just the one instance that motivated the fix.
+    it("drops a second internal-tag phrasing the same way", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", title: "Product Manager" }),
+                job({ id: "2", title: "[INTERNAL ONLY] Staff Engineer" }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.jobs.length, 1);
+        assert.equal(result?.jobs[0]!.id, "1");
+    });
+
+    it("returns null (never a page of nothing) when every posting is internal-only and no board is tracked", async () => {
+        const search = ok({
+            hits: [job({ id: "1", title: "[Internal] Developer, Rust" })],
+            total: 1,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result, null);
+    });
+});

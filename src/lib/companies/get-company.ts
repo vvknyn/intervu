@@ -6,7 +6,7 @@ import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyPageData } from "@/lib/companies/types";
-import { displayCompanyName } from "@/lib/jobs/presentation";
+import { displayCompanyName, isInternalPosting } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -60,7 +60,12 @@ export async function getCompanyPageData(
   if (isUnavailableJobsResult(result)) {
     throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);
   }
-  const jobs = result.hits;
+  // Internal-only postings ("[Internal] ...") are staffing noise, never a
+  // role this public page should list, count, or name the company from —
+  // filtered once, here, so every downstream reader (the roles list, the
+  // open-role count, the ghost-flagged share, the name resolver) sees the
+  // same public set instead of each re-deriving its own view of it.
+  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
   const boards = getBoardsForDomain(domain);
 
   if (jobs.length === 0 && boards.length === 0) return null;
