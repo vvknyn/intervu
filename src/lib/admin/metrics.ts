@@ -39,6 +39,7 @@ import type { Firestore, Query } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { currentPeriod } from "@/lib/llm/credit-gate";
 import { SEARCH_LOG_TTL_DAYS } from "@/lib/jobs/search-log";
+import { FOLLOW_FUNNEL_STEPS, type FollowFunnelStep } from "@/lib/follows/funnel-log";
 import {
     WINDOWS,
     isoAgo,
@@ -151,6 +152,27 @@ function totalCount(meta: MetricMeta, source: SourceRef): MetricSpec {
     return { ...meta, read: async (ctx) => ({ value: await countOf(queryFor(ctx, source)) }) };
 }
 
+/**
+ * Total rows matching one equality filter, as a raw count — the filtered
+ * sibling of `totalCount` (which cannot filter) and `timedCount` (whose
+ * spec has no filter param either). Deliberately no window breakdown:
+ * pairing this filter with a time range would need a composite index (two
+ * fields on one query), and every query in this registry stays inside
+ * Firestore's automatic single-field indexes on purpose (see the COUNTING
+ * note at the top of this file). Takes a `CollectionRef`, not a
+ * `SourceRef`, for the same reason `timedCount` does — a collectionGroup
+ * filter isn't covered by an automatic index either.
+ */
+function filteredCount(meta: MetricMeta, source: CollectionRef, filter: readonly [string, unknown]): MetricSpec {
+    const [field, value] = filter;
+    return {
+        ...meta,
+        async read(ctx) {
+            return { value: await countOf(queryFor(ctx, source).where(field, "==", value)) };
+        },
+    };
+}
+
 /** Share of a collection matching one equality filter, as a percent. */
 function equalityShare(meta: MetricMeta, source: SourceRef, field: string, equals: unknown): MetricSpec {
     return {
@@ -180,6 +202,21 @@ function authMetric(meta: MetricMeta, pick: (census: AuthCensus) => MetricValue)
 // --- the registry ----------------------------------------------------------
 
 const RETAINED = `trailing ${SEARCH_LOG_TTL_DAYS} days (TTL)`;
+
+/** Exhaustive over `FollowFunnelStep` — TypeScript rejects this object the
+ *  moment `FOLLOW_FUNNEL_STEPS` grows a step with no label here, so a new
+ *  step can't silently ship as an unlabeled tile. Every label is prefixed
+ *  "Follow funnel:" so `unsubscribed`'s tile can never collide with the
+ *  existing all-time "Unsubscribed" (Email group) tile — same event
+ *  logically, but a different chokepoint (this is per-funnel-step, that one
+ *  reads `email_suppressions`) and metric labels must stay unique. */
+const FUNNEL_STEP_LABEL: Record<FollowFunnelStep, string> = {
+    follow_click: "Follow funnel: follow clicked",
+    cta_click: "Follow funnel: “email me” clicked",
+    email_submitted: "Follow funnel: email submitted",
+    email_verified: "Follow funnel: email verified",
+    unsubscribed: "Follow funnel: unsubscribed",
+};
 
 export const METRICS: readonly MetricSpec[] = [
     // --- People -----------------------------------------------------------
@@ -337,6 +374,20 @@ export const METRICS: readonly MetricSpec[] = [
     totalCount(
         { id: "suppressions", label: "Unsubscribed", group: "Email", note: "Addresses suppressed via the unsubscribe link or a Resend bounce. Read this against welcome emails sent." },
         { collection: "email_suppressions" },
+    ),
+
+    // --- Follow funnel ------------------------------------------------------
+    // The verified-email-follow ladder (docs/specs/2026-08-19-verified-email-
+    // follow-design.md), from the first click to unsubscribing. One counter
+    // per step in `FOLLOW_FUNNEL_STEPS` (funnel-log.ts) — that array, not a
+    // list re-typed here, is what makes a new step a compile error in
+    // `FUNNEL_STEP_LABEL` below rather than a metric nobody remembered to add.
+    ...FOLLOW_FUNNEL_STEPS.map((step) =>
+        filteredCount(
+            { id: `follow_funnel_${step}`, label: FUNNEL_STEP_LABEL[step], group: "Follow funnel", note: "Counted since events started recording — no TTL on this collection." },
+            { collection: "follow_funnel_events" },
+            ["step", step],
+        ),
     ),
 
     // --- Inbound ----------------------------------------------------------

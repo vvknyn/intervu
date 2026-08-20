@@ -19,6 +19,7 @@ export const METRIC_GROUPS = [
     "Saved intent",
     "Credits",
     "Email",
+    "Follow funnel",
     "Inbound",
     "Agents",
     "Corpus",

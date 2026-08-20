@@ -12,10 +12,11 @@
  * (auth/product-routes.ts) is the SAME same-origin-path guard the sign-in
  * flow already trusts, reused rather than re-implemented.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { consumeAndFollow, setContactCookie } from "@/lib/identity/contact-cookie";
+import { recordFollowFunnelStep } from "@/lib/follows/funnel-log";
 
 const FAILURE_PATH = "/jobs?followed=0";
 const FALLBACK_PATH = "/jobs";
@@ -38,6 +39,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   await setContactCookie(consumed.contactToken);
+  after(() => recordFollowFunnelStep({ step: "email_verified", companyDomain: domain ?? undefined }));
   const safePath = validateNextParam(consumed.redirectPath) ?? FALLBACK_PATH;
   const separator = safePath.includes("?") ? "&" : "?";
   return NextResponse.redirect(new URL(`${safePath}${separator}followed=1`, url));

@@ -13,10 +13,11 @@
  * suppresses, so it never offers the "wasn't me" undo a plain unsubscribe
  * does.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { processUnsubscribeAction, processForgetAction } from "@/actions/unsubscribe";
 import { renderUnsubscribeStatusPage, htmlPageResponse } from "@/lib/email/unsubscribe-page-html";
 import type { UnsubscribeScope } from "@/lib/email/unsubscribe-token";
+import { recordFollowFunnelStep } from "@/lib/follows/funnel-log";
 
 const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     digest: "the weekly digest",
@@ -54,6 +55,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     if (!result.ok) {
         return htmlPageResponse(renderUnsubscribeStatusPage({ title: "Unsubscribe", message: result.error }));
     }
+    after(() => recordFollowFunnelStep({ step: "unsubscribed" }));
 
     if (forget) {
         return htmlPageResponse(
@@ -85,6 +87,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
     }
+    after(() => recordFollowFunnelStep({ step: "unsubscribed" }));
 
     return NextResponse.json(forget ? { forgotten: true } : { unsubscribed: true });
 }

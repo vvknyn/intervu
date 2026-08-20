@@ -9,11 +9,12 @@
  * this component only tracks idle/submitting/sent/error and renders the
  * matching copy from persist-copy.ts.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { followEmailPrompt, followEmailSentLine } from "@/lib/follows/persist-copy";
+import { recordFollowFunnelAction } from "@/actions/follow-funnel";
 
 export interface FollowEmailStepProps {
   companyDomain: string;
@@ -28,10 +29,20 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
 
+  // This component only ever mounts once the persist CTA ("Email me when
+  // they post") has been clicked (CompanyFollowControl renders it behind
+  // `emailStepOpen`), so mount IS the cta_click funnel event — recorded
+  // once per mount, not per render.
+  useEffect(() => {
+    void recordFollowFunnelAction("cta_click", companyDomain);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (status === "submitting") return;
     setStatus("submitting");
+    void recordFollowFunnelAction("email_submitted", companyDomain);
 
     try {
       const res = await fetch("/api/follow-email", {
