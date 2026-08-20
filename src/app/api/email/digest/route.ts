@@ -11,12 +11,26 @@
  * suppression state is still the final gate — `sendEmail` (send.ts) checks
  * it before ever calling Resend, so a "digest off" toggle (E5) or an
  * unsubscribe always wins regardless of what this endpoint is told to run.
+ *
+ * When the identity store is configured, a second recipient lane runs
+ * after the account-uid loop: verified email-only follows (no Firebase
+ * account) from `sendEmailFollowDigests`. Its `sinceIso` boundary is
+ * derived the same "no cursor yet" way `getDigestCursor` falls back for a
+ * brand-new account, because the PG schema carries no per-identity digest
+ * cursor (see pg-lane.ts). `excludeEmails` is every account-lane uid's own
+ * email (via the same `digestEmailForUid` lookup `previewDigestForUser`
+ * uses) — an address with a Firebase account never also gets the
+ * email-only lane's send, so nobody is double-mailed.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { validate } from "@/lib/validation";
 import { listDigestEligibleUids } from "@/lib/email/digest/eligible-users";
-import { sendDigestForUser } from "@/lib/email/digest/send";
+import { sendDigestForUser, digestEmailForUid } from "@/lib/email/digest/send";
+import { sendEmailFollowDigests } from "@/lib/email/digest/pg-lane";
+import { normalizeEmail } from "@/lib/email/normalize-email";
+import { getIntervuPg, isIdentityStoreEnabled } from "@/lib/pg/pool";
+import { defaultVisitCursor } from "@/lib/jobs/visit-cursor";
 
 const bodySchema = z.object({ uid: z.string().trim().min(1).optional() });
 
@@ -43,5 +57,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   );
   const sent = results.filter((r) => r.result.sent).length;
 
-  return NextResponse.json({ eligible: uids.length, sent, results });
+  let pgLane: Awaited<ReturnType<typeof sendEmailFollowDigests>> | undefined;
+  const q = getIntervuPg();
+  if (isIdentityStoreEnabled() && q) {
+    const accountEmails = await Promise.all(uids.map(digestEmailForUid));
+    const excludeEmails = new Set(
+      accountEmails.filter((email): email is string => email !== null).map(normalizeEmail),
+    );
+    pgLane = await sendEmailFollowDigests({ q, sinceIso: defaultVisitCursor(), excludeEmails });
+  }
+
+  return NextResponse.json({ eligible: uids.length, sent, results, ...(pgLane ? { pgLane } : {}) });
 }

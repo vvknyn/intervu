@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildWelcomeEmail } from "@/lib/email/templates/welcome";
 import { buildWaitlistConfirmEmail } from "@/lib/email/templates/waitlist-confirm";
 import { buildDigestEmail } from "@/lib/email/templates/digest";
+import { verifyFollowEmailContent } from "@/lib/email/verify-follow";
 
 /**
  * `intervuhq.com` publishes NO MX record (verified 2026-08-17 —
@@ -46,6 +47,11 @@ const TEMPLATES: Record<string, () => { html: string; text: string }> = {
                     seeAllHref: "https://intervuhq.com/jobs?q=staff+engineer",
                 },
             ],
+        }),
+    "verify-follow": () =>
+        verifyFollowEmailContent({
+            companyName: "Acme",
+            verifyUrl: "https://intervuhq.com/api/follow-email/verify?token=x",
         }),
 };
 

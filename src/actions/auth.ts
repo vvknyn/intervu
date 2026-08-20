@@ -5,10 +5,12 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { runUserDataPlan } from "@/lib/db/user-data";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { usernameEmail } from "@/lib/auth/username-email";
+import { usernameEmail, isMintedLoginEmail } from "@/lib/auth/username-email";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { forgetIdentity } from "@/lib/identity/forget";
+import { getIntervuPg } from "@/lib/pg/pool";
 
 export async function checkUsernameAvailability(username: string) {
     try {
@@ -137,6 +139,13 @@ export async function signOut() {
  * ORDER MATTERS. Firestore first, Auth last. Deleting the Auth user first —
  * as this did — means any later failure strands the remaining documents for
  * good: the account is gone, so nobody can sign in to retry the sweep.
+ *
+ * Also sweeps the PG identity store (verified-email-follow's `forgetIdentity`,
+ * see `docs/specs/2026-08-19-verified-email-follow-design.md` item 7) when
+ * the account's email is a real address rather than the synthetic
+ * `<username>@intervu.cc` a password signup mints — a minted address was
+ * never entered into the email-follow flow, so there is nothing there to
+ * find, and running the lookup anyway would just be wasted PG round trips.
  */
 export async function deleteAccount(): Promise<{ error?: string }> {
     const user = await getServerUser();
@@ -160,6 +169,11 @@ export async function deleteAccount(): Promise<{ error?: string }> {
         }
 
         await getAdminAuth().deleteUser(uid);
+
+        if (user.email && !isMintedLoginEmail(user.email)) {
+            await forgetIdentity(getIntervuPg(), user.email);
+        }
+
         await clearSessionCookie();
 
         return {};

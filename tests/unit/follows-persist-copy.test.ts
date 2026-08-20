@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  followEmailPrompt,
+  followEmailSentLine,
+  followEmailVerifiedLine,
   followPersistCta,
   followPersistLine,
   followPersistValueLine,
@@ -21,5 +24,23 @@ test("followPersistValueLine explains account creation benefit", () => {
   assert.equal(
     followPersistValueLine("Anthropic"),
     "Create a free account — we'll email you when Anthropic posts.",
+  );
+});
+
+test("followEmailPrompt names the company and scopes the promise", () => {
+  assert.equal(
+    followEmailPrompt("Anthropic"),
+    "Get an email when Anthropic posts or closes roles. Nothing else.",
+  );
+});
+
+test("followEmailSentLine tells the visitor to check their inbox", () => {
+  assert.equal(followEmailSentLine(), "Check your inbox — click the link to confirm.");
+});
+
+test("followEmailVerifiedLine confirms the watch is live", () => {
+  assert.equal(
+    followEmailVerifiedLine("Anthropic"),
+    "You're watching Anthropic. We'll email you when something changes.",
   );
 });

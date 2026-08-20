@@ -26,11 +26,21 @@ export interface DigestPreview {
 
 export type DigestPreviewResult = DigestPreview | { skipped: DigestSkipReason };
 
-export async function previewDigestForUser(uid: string): Promise<DigestPreviewResult> {
+/**
+ * Firebase Auth's email for a digest-eligible uid, or null when the account
+ * has none. Shared by `previewDigestForUser` and the route's PG-lane dedupe
+ * set (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so the two
+ * lanes can't drift on how "this account's email" is defined.
+ */
+export async function digestEmailForUid(uid: string): Promise<string | null> {
   const user = await getAdminAuth()
     .getUser(uid)
     .catch(() => null);
-  const email = user?.email;
+  return user?.email ?? null;
+}
+
+export async function previewDigestForUser(uid: string): Promise<DigestPreviewResult> {
+  const email = await digestEmailForUid(uid);
   if (!email) return { skipped: "no-email" };
   // `sendEmail` refuses these anyway (`resolveSendPreflight` -> "no-mailbox"),
   // so this is cost, not correctness: collecting a digest is a Meilisearch

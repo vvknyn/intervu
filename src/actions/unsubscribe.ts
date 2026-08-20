@@ -2,6 +2,8 @@
 
 import { verifyUnsubscribeToken, type UnsubscribeScope } from "@/lib/email/unsubscribe-token";
 import { suppress, unsuppress } from "@/lib/email/suppression";
+import { forgetIdentity } from "@/lib/identity/forget";
+import { getIntervuPg } from "@/lib/pg/pool";
 
 export type UnsubscribeActionResult =
   | { ok: true; email: string; kind: UnsubscribeScope }
@@ -32,4 +34,22 @@ export async function undoUnsubscribeAction(token: string): Promise<UnsubscribeA
 
     await unsuppress(payload.email, payload.kind);
     return { ok: true, email: payload.email, kind: payload.kind };
+}
+
+/**
+ * The `/unsubscribe?...&forget=1` variant — same signed token as a normal
+ * unsubscribe (no new auth surface: the token already proves control of
+ * the address), but routes through `forgetIdentity` instead of a
+ * kind-scoped `suppress`. That always suppresses globally ("all", not
+ * whatever kind the token happened to be signed for) and deletes any PG
+ * identity for the address — deletion is not undoable, unlike a plain
+ * unsubscribe, so the result is always reported under the "all" scope
+ * regardless of the token's own kind.
+ */
+export async function processForgetAction(token: string): Promise<UnsubscribeActionResult> {
+    const payload = verifyUnsubscribeToken(token);
+    if (!payload) return { ok: false, error: INVALID_TOKEN_ERROR };
+
+    await forgetIdentity(getIntervuPg(), payload.email);
+    return { ok: true, email: payload.email, kind: "all" };
 }

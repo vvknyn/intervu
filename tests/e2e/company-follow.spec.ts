@@ -107,9 +107,18 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(prompt).toContainText('Get a weekly note when they post');
         await expect(persistCta).toBeVisible();
 
+        // Persist CTA now opens the one-field email step inline (Milestone
+        // 3) instead of the account dialog directly — sign-in is a fallback
+        // reached from inside that step.
         await persistCta.click();
+        const emailStep = page.getByTestId('follow-email-step');
+        await expect(emailStep).toBeVisible();
+        await expect(prompt).not.toBeVisible();
+
+        await page.getByTestId('follow-email-signin').click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
+        await expect(emailStep).not.toBeVisible();
 
         await page.getByRole('button', { name: 'Close' }).click();
         await expect(dialog).not.toBeVisible();
@@ -122,5 +131,35 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await btn.click();
         await expect(btn).toHaveAttribute('data-following', 'false');
         await expect(prompt).not.toBeVisible();
+    });
+
+    test('persist CTA opens email step, sign-in link falls back to auth dialog', async ({ page }) => {
+        await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
+
+        const companyPage = page.getByTestId('company-page');
+        await expect(companyPage.or(page.getByText('Page not found')).first()).toBeVisible({
+            timeout: 30_000,
+        });
+        if (!(await companyPage.isVisible())) {
+            test.skip(true, 'Company page unavailable — allowlist missing in this build');
+        }
+
+        await page.getByTestId('follow-company').click();
+
+        const persistCta = page.getByTestId('follow-persist-cta');
+        await expect(persistCta).toBeVisible();
+        await persistCta.click();
+
+        const emailStep = page.getByTestId('follow-email-step');
+        await expect(emailStep).toBeVisible();
+
+        // Focusable, not submitted — live Turnstile means no e2e submission.
+        const emailInput = page.getByTestId('follow-email-input');
+        await emailInput.focus();
+        await expect(emailInput).toBeFocused();
+
+        await page.getByTestId('follow-email-signin').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await expect(emailStep).not.toBeVisible();
     });
 });

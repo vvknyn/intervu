@@ -33,7 +33,7 @@ import {
   type RawDigestSection,
 } from "./assemble";
 
-function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
+export function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
   return {
     title: job.title,
     company: job.company ?? "Unknown company",
@@ -51,8 +51,12 @@ function toSectionItem(job: PublicJob, siteUrl: string): DigestSectionItem {
  * group identically — they differ only in why the company is here and in
  * where the slug for its /co link comes from. Kept as one function so the
  * two can never drift on item mapping or on the `mayHaveMore` floor.
+ *
+ * Exported: the PG-backed email-only follower lane (`pg-lane.ts`) builds
+ * the exact same "followed-company" section shape for its recipients and
+ * reuses this rather than re-deriving the mapping a third time.
  */
-function companyGroupsToSections(input: {
+export function companyGroupsToSections(input: {
   groups: FollowAlertGroup[];
   kind: Extract<DigestSectionKind, "followed-company" | "tracked-company">;
   slugForDomain: (domain: string) => string;

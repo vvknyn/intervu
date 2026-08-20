@@ -11,6 +11,9 @@ import {
 } from "../../src/components/marketing/openclaw-content";
 import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
 import {
+  followEmailPrompt,
+  followEmailSentLine,
+  followEmailVerifiedLine,
   followPersistCta,
   followPersistLine,
   followPersistValueLine,
@@ -50,6 +53,9 @@ const GUEST_STRINGS: Record<string, string> = {
   FOLLOW_PERSIST_LINE: followPersistLine("Example Co"),
   FOLLOW_PERSIST_CTA: followPersistCta(),
   FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
+  FOLLOW_EMAIL_PROMPT: followEmailPrompt("Example Co"),
+  FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
+  FOLLOW_EMAIL_VERIFIED_LINE: followEmailVerifiedLine("Example Co"),
   ...GUEST_AUTH_STRINGS,
 };
 

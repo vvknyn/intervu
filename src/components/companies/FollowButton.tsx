@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { followCompanyAction, unfollowCompanyAction } from "@/actions/follows";
+import { recordFollowFunnelAction } from "@/actions/follow-funnel";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
@@ -47,6 +48,10 @@ export function FollowButton({
     const next = !following;
     setOptimistic(next);
     setBusy(true);
+    // "follow_click" is the funnel's entry event — the one-directional
+    // watch-a-company ladder starts here, so only the follow direction
+    // (not unfollow) is recorded.
+    if (next) void recordFollowFunnelAction("follow_click", normalizedDomain);
 
     try {
       const user = getCurrentUser();
