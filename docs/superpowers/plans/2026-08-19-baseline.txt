@@ -1,0 +1,19 @@
+# Baseline capture — 2026-08-19, feat/email-follow @ 9e0b1d5
+
+## npx tsx --test tests/unit/*.test.ts
+1..1236
+# tests 2213
+# suites 289
+# pass 2202
+# fail 11
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18503.936958
+
+## npx tsc --noEmit
+(no output — clean, 0 errors)
+
+## npm run lint
+✖ 272 problems (179 errors, 93 warnings)
+  1 error and 2 warnings potentially fixable with the `--fix` option.
