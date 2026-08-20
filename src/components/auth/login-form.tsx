@@ -180,6 +180,36 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     </TabsTrigger>
                 </TabsList>
 
+                {/* Email-first ordering (2026-08-20 signup-ladder audit): Google is
+                    the only sign-in path that hands us a real, mail-deliverable
+                    address — a username/password account is registered under a
+                    synthesized `<username>@intervu.cc` the send layer refuses
+                    (see lib/auth/username-email.ts), so it can't actually receive
+                    the alerts/digest this form is now selling. That path stays
+                    above username/password on both tabs rather than below it. */}
+                <div className="grid gap-2 mb-4">
+                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
+                        <GoogleGlyph />
+                        Continue with Google
+                    </Button>
+                    {onGuestAccess && (
+                        <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                            Continue as Guest
+                        </Button>
+                    )}
+                </div>
+
+                <div className="relative mb-4">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                            Or
+                        </span>
+                    </div>
+                </div>
+
                 <div className="grid gap-4">
                     <form onSubmit={activeTab === "login" ? handleUsernameLogin : handleSignUp}>
                         <div className="grid gap-4">
@@ -258,29 +288,6 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     )}
                 </div>
             </Tabs>
-
-            <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                        Or
-                    </span>
-                </div>
-            </div>
-
-            <div className="grid gap-2">
-                <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
-                    <GoogleGlyph />
-                    Continue with Google
-                </Button>
-                {onGuestAccess && (
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
-                        Continue as Guest
-                    </Button>
-                )}
-            </div>
 
             {message && (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">

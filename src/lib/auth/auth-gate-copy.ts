@@ -8,7 +8,13 @@ export type AuthGateReason = "apply" | "generic" | "save";
 
 export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 
-export const SIGNUP_SUBCOPY = "Save roles and track where you've applied — on any device.";
+/** Shown on LoginForm's own signup-tab header, on every AuthPopover surface
+ *  site-wide (header CTA, apply-gate, follow flow, /login) — one string, not
+ *  a per-surface fork, so the value promise can't drift between them
+ *  (wave-2 value-first signup ladder, 2026-08-20: was "Save roles and track
+ *  where you've applied", broadened to name the alerts/tracker triad the
+ *  header's new "Get job alerts" CTA is selling). */
+export const SIGNUP_SUBCOPY = "Get job alerts, saved searches, and an application tracker — on any device.";
 
 const AUTH_GATE_LEAD: Record<AuthGateReason, string> = {
     apply: "Create a free account — we'll take you straight to the posting and start tracking this application.",

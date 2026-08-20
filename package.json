@@ -27,6 +27,7 @@
         "test:banner": "playwright test tests/e2e/motivational-banner.spec.ts",
         "test:wizard": "playwright test tests/e2e/setup-wizard-fix.spec.ts",
         "test:copy": "playwright test tests/e2e/quirky-messages.spec.ts",
+        "test:signup-ladder": "playwright test tests/e2e/signup-ladder.spec.ts",
         "test:report": "playwright show-report playwright-report",
         "build:test": "npm run build && npm run test",
         "promote": "./scripts/promote-to-prod.sh",
