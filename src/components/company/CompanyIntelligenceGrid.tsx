@@ -276,7 +276,7 @@ export function CompanyIntelligenceGrid({
                     {item.title}
                   </h4>
                   {item.summary && (
-                    <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+                    <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
                       {item.summary}
                     </p>
                   )}
