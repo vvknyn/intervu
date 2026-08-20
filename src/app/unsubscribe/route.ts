@@ -7,9 +7,14 @@
  * `List-Unsubscribe-Post` header (send.ts) promises — mail clients with an
  * automated one-click "Unsubscribe" button (Gmail, most others) POST here
  * directly, same URL, no page render, no human in the loop.
+ *
+ * `?forget=1` is the forget-me variant on this SAME token flow (no new
+ * auth surface) — see `processForgetAction`. It deletes rather than just
+ * suppresses, so it never offers the "wasn't me" undo a plain unsubscribe
+ * does.
  */
 import { NextResponse } from "next/server";
-import { processUnsubscribeAction } from "@/actions/unsubscribe";
+import { processUnsubscribeAction, processForgetAction } from "@/actions/unsubscribe";
 import { renderUnsubscribeStatusPage, htmlPageResponse } from "@/lib/email/unsubscribe-page-html";
 import type { UnsubscribeScope } from "@/lib/email/unsubscribe-token";
 
@@ -33,7 +38,9 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
 };
 
 export async function GET(request: Request): Promise<NextResponse> {
-    const token = new URL(request.url).searchParams.get("token");
+    const url = new URL(request.url);
+    const token = url.searchParams.get("token");
+    const forget = url.searchParams.get("forget") === "1";
     if (!token) {
         return htmlPageResponse(
             renderUnsubscribeStatusPage({
@@ -43,9 +50,18 @@ export async function GET(request: Request): Promise<NextResponse> {
         );
     }
 
-    const result = await processUnsubscribeAction(token);
+    const result = forget ? await processForgetAction(token) : await processUnsubscribeAction(token);
     if (!result.ok) {
         return htmlPageResponse(renderUnsubscribeStatusPage({ title: "Unsubscribe", message: result.error }));
+    }
+
+    if (forget) {
+        return htmlPageResponse(
+            renderUnsubscribeStatusPage({
+                title: "Your data has been deleted",
+                message: `${result.email} and everything tied to it has been deleted. It took effect immediately.`,
+            }),
+        );
     }
 
     return htmlPageResponse(
@@ -58,15 +74,17 @@ export async function GET(request: Request): Promise<NextResponse> {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
-    const token = new URL(request.url).searchParams.get("token");
+    const url = new URL(request.url);
+    const token = url.searchParams.get("token");
+    const forget = url.searchParams.get("forget") === "1";
     if (!token) {
         return NextResponse.json({ error: "missing token" }, { status: 400 });
     }
 
-    const result = await processUnsubscribeAction(token);
+    const result = forget ? await processForgetAction(token) : await processUnsubscribeAction(token);
     if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    return NextResponse.json({ unsubscribed: true });
+    return NextResponse.json(forget ? { forgotten: true } : { unsubscribed: true });
 }
