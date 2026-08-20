@@ -24,9 +24,14 @@ import { stripResidualHtml } from "@/lib/jobs/format-description";
  * "Job Requisition ID #26WD99545", "Req ID: R123456", "Requisition Number
  * 98765" alike — the shape is "a req-shaped label followed by a code", not
  * any one literal header string.
+ *
+ * The code token requires at least one digit (lookahead below) — a real
+ * requisition code always has one, and without this a pure-alphabetic word
+ * following "Requisition" (e.g. "Requisition Specialist") would match as if
+ * it were the code and get stripped as boilerplate.
  */
 const REQUISITION_HEADER_RE =
-  /^\s*(job\s+)?req(?:uisition)?\.?\s*(?:id|no\.?|number|#)?\s*[:#]?\s*[a-z0-9][a-z0-9-]{2,}\.?\s*/i;
+  /^\s*(job\s+)?req(?:uisition)?\.?\s*(?:id|no\.?|number|#)?\s*[:#]?\s*(?=[a-z0-9-]*\d)[a-z0-9][a-z0-9-]{2,}\.?\s*/i;
 
 /**
  * A bilingual-posting marker sentence: "<word> posting/version/text
@@ -34,8 +39,14 @@ const REQUISITION_HEADER_RE =
  * hardcoded language list) so this covers "English posting follows.",
  * "French version follows.", or any other language an ATS names, by shape
  * alone.
+ *
+ * Terminal punctuation (`[.:]`) is REQUIRED, not optional — the genuine
+ * marker is always its own complete sentence. Without this, ordinary prose
+ * that happens to continue past the verb phrase (e.g. "This posting follows
+ * our standard hiring process...") would match up through "follows" and lose
+ * its opening clause.
  */
-const LOCALE_MARKER_RE = /^\s*(the\s+)?[a-z]+\s+(posting|version|text)\s+(follows|is\s+below|appears\s+below)\.?\s*/i;
+const LOCALE_MARKER_RE = /^\s*(the\s+)?[a-z]+\s+(posting|version|text)\s+(follows|is\s+below|appears\s+below)[.:]\s*/i;
 
 const MAX_LEDE_LEN = 200;
 

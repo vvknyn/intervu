@@ -72,11 +72,48 @@ function dedupeRepeats(segments: string[]): string[] {
 /** "Remote - AZ; Remote - AR; …" — a semicolon-joined list of otherwise
  *  identical "Remote - <2-letter code>" entries. Matched by the SHAPE of the
  *  entry (a 2-letter code, not a specific enumerated list of state
- *  abbreviations), so it collapses whether the corpus lists 3 states or 40. */
-const REMOTE_STATE_ENTRY_RE = /^remote\s*-\s*[A-Za-z]{2}$/i;
+ *  abbreviations), so it collapses whether the corpus lists 3 states or 40.
+ *  The shape alone doesn't say WHICH country the codes belong to — see
+ *  `remoteLabel` below, which decides that from two closed code tables. */
+const REMOTE_STATE_ENTRY_RE = /^remote\s*-\s*([A-Za-z]{2})$/i;
+
+/**
+ * ANSI/USPS 2-letter codes for the 50 US states + DC + the 5 populated
+ * territories. This is a fixed national standard (last changed when a
+ * territory is added/removed, which is rare and would be a deliberate code
+ * update, not open-ended data growth) — not a data enumeration the shape
+ * regex above should have to guess at.
+ */
+const US_STATE_CODES: ReadonlySet<string> = new Set([
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+  "DC", "AS", "GU", "MP", "PR", "VI",
+]);
+
+/** Canada Post's 2-letter codes for the 10 provinces + 3 territories — the
+ *  other fixed standard `REMOTE_STATE_ENTRY_RE`'s shape can match. */
+const CANADA_PROVINCE_CODES: ReadonlySet<string> = new Set([
+  "ON", "BC", "AB", "QC", "MB", "SK", "NS", "NB", "NL", "PE", "NT", "YT", "NU",
+]);
 
 function isAllRemoteStateEntries(parts: string[]): boolean {
   return parts.length > 1 && parts.every((p) => REMOTE_STATE_ENTRY_RE.test(p));
+}
+
+/** Decides the "Remote (<country>)" label from the actual set of codes in the
+ *  list — never from the shape match alone. All-US codes -> "Remote (US)";
+ *  all-Canada codes -> "Remote (Canada)"; anything else (a non-standard code,
+ *  or a mix of the two tables) -> plain "Remote", since guessing a country
+ *  from a shape that doesn't uniquely belong to one would just move the
+ *  false-positive from "US" to whichever country was guessed. */
+function remoteLabel(parts: string[]): string {
+  const codes = parts.map((p) => REMOTE_STATE_ENTRY_RE.exec(p)![1]!.toUpperCase());
+  if (codes.every((c) => US_STATE_CODES.has(c))) return "Remote (US)";
+  if (codes.every((c) => CANADA_PROVINCE_CODES.has(c))) return "Remote (Canada)";
+  return "Remote";
 }
 
 const MAX_SEGMENTS_BEFORE_SUMMARY = 3;
@@ -93,7 +130,7 @@ export function locationSummary(raw: string | null | undefined): string {
   if (!s) return "";
 
   const semicolonParts = s.split(";").map((p) => p.trim()).filter(Boolean);
-  if (isAllRemoteStateEntries(semicolonParts)) return "Remote (US)";
+  if (isAllRemoteStateEntries(semicolonParts)) return remoteLabel(semicolonParts);
   // A single "Remote - XX" entry (no list) is already the compact shape this
   // rule exists to PRODUCE — left alone rather than run through the generic
   // dash-breadcrumb splitter below, which would reformat it to "Remote, XX".

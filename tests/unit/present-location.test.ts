@@ -63,6 +63,14 @@ test("does not collapse a single 'Remote - XX' entry (no list to summarize)", ()
   assert.equal(locationSummary("Remote - AZ"), "Remote - AZ");
 });
 
+test("collapses an all-Canadian-province remote list to 'Remote (Canada)', not 'Remote (US)' (false-positive survivor)", () => {
+  assert.equal(locationSummary("Remote - ON; Remote - BC"), "Remote (Canada)");
+});
+
+test("does not guess a country for a non-standard or mixed code pair", () => {
+  assert.equal(locationSummary("Remote - ZZ; Remote - QQ"), "Remote");
+});
+
 // --- Passthrough / edge cases ----------------------------------------------
 
 test("returns empty string for null/empty input", () => {

@@ -22,6 +22,18 @@ test("strips a differently-shaped 'Req ID:' header + 'French version follows' ma
   );
 });
 
+// --- False-positive survivors (shape regex must not eat real prose) --------
+
+test("does not strip 'Requisition Specialist' as a req-ID header — no digit in the code token (false-positive survivor)", () => {
+  const raw = "Requisition Specialist needed for our Toronto office. We are hiring an experienced recruiter.";
+  assert.equal(descriptionLede(raw), raw);
+});
+
+test("does not strip 'This posting follows our standard process' — no terminal punctuation after the verb phrase (false-positive survivor)", () => {
+  const raw = "This posting follows our standard hiring process and typically takes two weeks to complete.";
+  assert.equal(descriptionLede(raw), raw);
+});
+
 // --- Other behavior ---------------------------------------------------------
 
 test("leaves ordinary prose with no boilerplate opener untouched", () => {
