@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useSyncExternalStore, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
@@ -44,7 +44,19 @@ interface SearchAutocompleteProps {
     seeds?: string[];
 }
 
-export function SearchAutocomplete({
+export interface SearchAutocompleteHandle {
+    /** Dismiss the suggestion dropdown without touching `value`. A submit
+     *  that happens OUTSIDE this component — an external "Search" button
+     *  click, a category/seed pick — never runs this component's own
+     *  Enter-key handler (which already closes the dropdown), so it left the
+     *  dropdown floating over freshly-loaded results. One imperative method
+     *  here, called from the caller's own submit chokepoint, instead of an
+     *  `open`/`onOpenChange` prop pair the parent would have to thread
+     *  through every keystroke. */
+    close: () => void;
+}
+
+export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
     onChange,
     onSearch,
@@ -56,7 +68,7 @@ export function SearchAutocomplete({
     leadingIcon,
     suggest,
     seeds
-}: SearchAutocompleteProps) {
+}, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
@@ -112,6 +124,8 @@ export function SearchAutocomplete({
     // response still matched the (unbumped) generation and repopulated the
     // now-empty box with "engineer" suggestions.
     const suggestGenRef = useRef(0);
+
+    useImperativeHandle(ref, () => ({ close: () => setIsOpen(false) }), []);
 
     // Update suggestions
     useEffect(() => {
@@ -304,4 +318,4 @@ export function SearchAutocomplete({
             )}
         </div>
     );
-}
+});

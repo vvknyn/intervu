@@ -401,34 +401,26 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     // surface on this page today is the later, still-live "résumé moment"
     // (`resume-moment` testid, shown after the 3rd job open this session).
 
-    // `verdictFor` (page.tsx) still computes the full age-bearing code
-    // ("LIVE · 2H" etc.) this test used to assert, but `JobCard`'s row badge
-    // only ever renders the binary `flagged ? "review" : "✓ verified"`
-    // literal off `verdict.tone` — `verdict.code` and `VERDICT_TONE_CLASS`
-    // have no render call site left (grep confirms), since the "frozen
-    // instrument aesthetic" pass (#121). The rich, age-bearing freshness
-    // disclosure lives in JobDetail's ghost module (`ghostCheckedText`) now,
-    // not the SERP row — this asserts the row badge that's actually there
-    // instead. The squared design-system pass (Task 4) dropped the tinted
-    // pill for a quiet text pair; the word itself changed from "verified" to
-    // `GHOST_META.clear.label` on 2026-08-16 (see `rowTrustChip`'s doc
-    // comment — the row was claiming verification for a screen that only
-    // reports the absence of ghost signals).
-    // Asserted through the chip's own testid rather than a free-text match:
-    // the ladder gained a fourth state on 2026-08-17 (`ghost`, split out of
-    // `review` — see `rowTrustChip`), and a text-only assertion silently keeps
-    // passing on the OTHER rows while saying nothing about the new one. This
-    // pins the whole rendered vocabulary instead, so a fifth state or a
-    // reworded label has to come here.
-    test("rows carry a trust verdict chip, and every rendered chip is one of the honest states", async ({ page }) => {
+    // Badge inversion (audit package C, 2026-08-20, Vivek: "why is [the
+    // verified chip] on ~every row"): the old full-text chip (`row-trust-chip`,
+    // `TRUST_CHIP_BOX`) rendered on every scored row, including the "clear"/
+    // "checked" non-exception states — the "✓ ACTIVELY POSTED" wallpaper.
+    // It's replaced by a small icon beside the job title (`row-trust-icon`)
+    // that renders ONLY for the two actual exceptions (`ghost`, `review`);
+    // `clear`/`checked` render no mark at all (docs/design/ATTENTION.md
+    // channel 4: semantic color for exceptions only, default is unmarked).
+    // Environment-tolerant like the rest of this suite: a live corpus may or
+    // may not have a review/ghost row on page 1, so this doesn't require one
+    // to exist — it pins the INVARIANT (the old wallpaper chip is gone; any
+    // icon that DOES render is one of the two honest exception states), not
+    // a specific row's verdict.
+    test("the old wallpaper trust chip is gone, and any rendered trust icon is an actual exception", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        const chips = page.locator('[data-testid="row-trust-chip"]');
-        await expect(chips.first()).toBeVisible();
-        // innerText, not textContent — the chip is `uppercase` in CSS.
-        for (const text of await chips.allInnerTexts()) {
-            expect(text.trim().toLowerCase()).toMatch(
-                /^(✕ possible ghost job|review|✓ no ghost signals|checked)$/,
-            );
+        await expect(page.getByTestId('job-row').first()).toBeVisible();
+        await expect(page.locator('[data-testid="row-trust-chip"]')).toHaveCount(0);
+        const icons = page.locator('[data-testid="row-trust-icon"]');
+        for (const trust of await icons.evaluateAll((els) => els.map((el) => el.getAttribute('data-trust')))) {
+            expect(trust).toMatch(/^(ghost|review)$/);
         }
     });
 
