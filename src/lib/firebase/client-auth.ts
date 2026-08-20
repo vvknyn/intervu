@@ -5,7 +5,6 @@
 
 import {
     signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
     signOut as firebaseSignOut,
     onAuthStateChanged,
     sendPasswordResetEmail,
@@ -69,26 +68,58 @@ async function clearSessionCookie() {
     await fetch("/api/auth/session", { method: "DELETE" });
 }
 
-/**
- * Sign in with username (converted to email) and password.
- */
-export async function signInWithUsername(username: string, password: string): Promise<User> {
+/** Shared by every password sign-in path: authenticate, then exchange the
+ *  ID token for the server-side session cookie. `signInWithUsername` and
+ *  `signInWithEmail` differ only in how they get to an email address. */
+async function signInWithCredentials(email: string, password: string): Promise<User> {
     const auth = getFirebaseAuth();
-    const email = usernameEmail(username);
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await syncSessionCookie(user);
     return user;
 }
 
 /**
- * Sign up with username and password.
+ * Sign in with username (converted to email) and password. Legacy path for
+ * accounts created before the signup-ladder audit (2026-08-20), which are
+ * still registered under the synthesized `<username>@intervu.cc` address —
+ * see lib/auth/username-email.ts. Signup no longer mints these; this stays
+ * only so those existing accounts keep logging in with a bare username.
  */
-export async function signUpWithUsername(username: string, password: string): Promise<User> {
-    const auth = getFirebaseAuth();
-    const email = usernameEmail(username);
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await syncSessionCookie(user);
-    return user;
+export async function signInWithUsername(username: string, password: string): Promise<User> {
+    return signInWithCredentials(usernameEmail(username), password);
+}
+
+/**
+ * Sign in with a real, user-supplied email and password — the path every
+ * account created after the signup-ladder audit uses (both the "@"-bearing
+ * branch of the login identifier field, and post-signup auto-login).
+ */
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+    return signInWithCredentials(email, password);
+}
+
+/** True when a typed login identifier is a real email rather than a bare
+ *  username — the shape decides, not an enumerated list of who is legacy.
+ *  Exported (rather than left inline) so the routing decision is
+ *  unit-testable without React or Firebase, and so it can't drift into two
+ *  different rules across the login surfaces that use it. */
+export function isEmailIdentifier(identifier: string): boolean {
+    return identifier.trim().includes("@");
+}
+
+/**
+ * Sign in with whatever was typed into the single "Email or username"
+ * field. An email takes `signInWithEmail` directly (every account created
+ * after the 2026-08-20 signup-ladder audit); a bare username takes the
+ * legacy `signInWithUsername` re-derivation (accounts that predate it — see
+ * that function's doc). One chokepoint so login-form.tsx and
+ * SimpleAuthForm.tsx share the same routing rule instead of two copies.
+ */
+export async function signInWithIdentifier(identifier: string, password: string): Promise<User> {
+    const trimmed = identifier.trim();
+    return isEmailIdentifier(trimmed)
+        ? signInWithEmail(trimmed, password)
+        : signInWithUsername(trimmed, password);
 }
 
 /** True when the user backed out of the Google popup themselves (closed it,
