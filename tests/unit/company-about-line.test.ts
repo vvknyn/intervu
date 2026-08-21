@@ -178,6 +178,45 @@ test("an 'About {Company}' heading block (blank-line separated) attaches its sco
   assert.equal(resultWithoutHeading, null);
 });
 
+/*
+ * Fixtures below cover the display-name-vs-prose-name gap (ground-truth
+ * audit, 2026-08-21): prod's H1 is `displayCompanyName`'s output — often a
+ * legal/long form ("Greystar Management Services") — while the company's
+ * own posting prose uses the stem ("Greystar"). Every name check in this
+ * module now tries the full display name AND each shorter token-prefix, not
+ * just the full name.
+ */
+
+test("display-name-vs-prose-name gap (Greystar shape): the PROD display name 'Greystar Management Services' still extracts, even though the posting prose only ever says 'Greystar Management'", () => {
+  const heading = "ABOUT GREYSTAR MANAGEMENT SERVICES";
+  const body =
+    "Greystar Management is a leading, fully integrated real estate platform offering property management and investment services across North America.";
+  const jobs = [1, 2].map((n) => makeTestJob(`gms-${n}`, `${heading}\n\n${body}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "Greystar Management Services");
+  assert.equal(result, body);
+});
+
+test("single-token name-form guard: a lowercase mid-sentence collision on a common-word company stem does NOT satisfy rule 4", () => {
+  // "United" is the risky bare stem of "United Something Logistics" — a
+  // common capitalized English word. The paragraph below repeats across 2
+  // postings (would otherwise win outright) and contains "united" only in
+  // incidental lowercase running prose, never Title-cased or ALL-CAPS as
+  // the company's own name would actually render.
+  const body =
+    "Our teams operate with a united approach to logistics across every region we serve, and we take pride in reliable, on-time delivery for every customer we work with.";
+  const jobs = [1, 2].map((n) => makeTestJob(`unitedco-${n}`, `${body}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "United Something Logistics");
+  assert.equal(result, null);
+});
+
+test("a legal-suffix display name ('Acme Inc' style) extracts using the stem the company's own prose actually uses — class-wide, not Greystar-specific", () => {
+  const body =
+    "Acme builds route-optimization software that helps regional carriers cut fuel costs and delivery times across the Midwest.";
+  const jobs = [1, 2].map((n) => makeTestJob(`acmeinc-${n}`, `${body}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "Acme Inc");
+  assert.equal(result, body);
+});
+
 test("perf: a single pass over a ~70-description synthetic corpus completes quickly", () => {
   const filler =
     "This role partners with design and product to ship customer-facing features end to end, from spec through rollout, on a small autonomous team.";

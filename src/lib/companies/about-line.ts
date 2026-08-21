@@ -62,24 +62,102 @@ function escapeForRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Company-name "forms" this posting's prose might refer to the company by:
+ *  the full display name, then each further-truncated prefix formed by
+ *  dropping trailing whitespace-delimited tokens one at a time — e.g.
+ *  "Greystar Management Services" → ["Greystar Management Services",
+ *  "Greystar Management", "Greystar"]. intervu's displayed company name is
+ *  often a legal/long form (`displayCompanyName` in get-company.ts — "X
+ *  Management Services", "X Inc", "X Holdings") while a company's OWN
+ *  posting prose almost always uses the stem ("X") — 1Password only
+ *  survived the previous version of this module because its display name
+ *  happens to be one token; every multi-token display name nulled out.
+ *  Prefix-derivation needs no corporate-suffix vocabulary ("Inc" / "LLC" /
+ *  "Holdings" / "Management Services" / …) — every suffix, known or not,
+ *  drops off the same way. */
+function nameForms(companyName: string): string[] {
+  const tokens = companyName.trim().split(/\s+/).filter(Boolean);
+  const forms: string[] = [];
+  for (let end = tokens.length; end >= 1; end--) forms.push(tokens.slice(0, end).join(" "));
+  return forms;
+}
+
+/** One name form's regex alternative, or `null` to drop it entirely. A bare
+ *  single-token form ("Greystar" — or, worse, "United" stemmed from "United
+ *  Something Logistics") is the risky end: a common capitalized English
+ *  word must not let a company-name check pass on incidental lowercase
+ *  prose ("the united front of our teams"). Guarded two ways: dropped
+ *  outright below 3 characters, and — instead of a blanket case-insensitive
+ *  flag — only its Title-cased-as-given or ALL-CAPS spelling is accepted
+ *  (an ALL-CAPS heading is a real shape this module already handles, see
+ *  format-description.ts's glued-heading fix; an all-lowercase mid-sentence
+ *  spelling is not). A multi-token form is unambiguous enough on its own to
+ *  accept any casing. */
+function formPattern(form: string): string | null {
+  const isSingleToken = !form.includes(" ");
+  if (isSingleToken && form.length < 3) return null;
+  const variants = isSingleToken ? [form, form.toUpperCase()] : [form, form.toLowerCase(), form.toUpperCase()];
+  return variants.map(escapeForRegex).join("|");
+}
+
+/** Raw prefix alternation for the ANCHORED checks below (`aboutHeadingRegex`,
+ *  `openingCueRegexes`) — single source of truth for "which forms" (via
+ *  `nameForms`), compiled by the caller WITH the `i` flag so "About" /
+ *  "about" / "ABOUT" and "Greystar" / "GREYSTAR" all still match exactly as
+ *  before this fix. Safe to stay case-insensitive even for a bare
+ *  single-token stem here: unlike an unanchored substring scan, these
+ *  patterns require the form to sit directly after "about " or directly
+ *  before "is/builds/provides/makes/helps/offers" — a sentence literally
+ *  starting "united is…" or "about united…" is already a strong,
+ *  structurally-anchored signal regardless of case. The collision risk
+ *  (a common word matching incidentally) only lives in the UNANCHORED
+ *  "mentions the company ANYWHERE" scan, guarded separately below. */
+function formAlternation(companyName: string): string {
+  return nameForms(companyName).map(escapeForRegex).join("|");
+}
+
 /** "About {Company}" — the strongest possible cue a posting can carry, both
  *  as a standalone heading block (see `buildCandidates`' heading walk) and
  *  as literal opening text on a single-posting company's only candidate
  *  paragraph. Single source of truth for that pattern — reused by
  *  `openingCueRegexes` below rather than re-declared. */
 function aboutHeadingRegex(companyName: string): RegExp {
-  return new RegExp(`^about\\s+${escapeForRegex(companyName)}\\b`, "i");
+  return new RegExp(`^about\\s+(?:${formAlternation(companyName)})\\b`, "i");
 }
 
 /** "About {Company}" or "{Company} is/builds/provides/makes/helps/offers" —
  *  the only signal a SINGLE-posting company gets (there's no second posting
  *  to repeat against), and a scoring bonus for every company. */
 function openingCueRegexes(companyName: string): RegExp[] {
-  const name = escapeForRegex(companyName);
   return [
     aboutHeadingRegex(companyName),
-    new RegExp(`^${name}\\s+(?:is|builds|provides|makes|helps|offers)\\b`, "i"),
+    new RegExp(`^(?:${formAlternation(companyName)})\\s+(?:is|builds|provides|makes|helps|offers)\\b`, "i"),
   ];
+}
+
+/** The guarded alternation for the UNANCHORED "does this text mention the
+ *  company ANYWHERE" scan — `mentionRegex` below, itself reused by the
+ *  score bonus, rule 4, and `selectSentence`'s name check. This is where
+ *  the single-token collision risk (`formPattern`'s guard) actually lives:
+ *  no surrounding keyword narrows the match, so a bare word-boundary scan
+ *  over arbitrary prose needs the stricter per-form case handling.
+ *  `(?!)` — a negative lookahead with nothing to assert against, so it
+ *  never matches — is the honest fallback for the degenerate case where
+ *  every form was filtered out (e.g. a 1-2 char company name): no match is
+ *  correct there, not "matches anything". */
+function nameAlternation(companyName: string): string {
+  const patterns = nameForms(companyName)
+    .map(formPattern)
+    .filter((p): p is string => p !== null);
+  return patterns.length ? patterns.join("|") : "(?!)";
+}
+
+/** Whole-word "does this text mention the company", under ANY name form —
+ *  see `nameAlternation`. Reused by the score bonus, rule 4, and
+ *  `selectSentence` — compiled once per `extractCompanyAboutLine` call and
+ *  threaded through rather than rebuilt per candidate/sentence. */
+function mentionRegex(companyName: string): RegExp {
+  return new RegExp(`\\b(?:${nameAlternation(companyName)})\\b`);
 }
 
 /**
@@ -171,9 +249,9 @@ function buildCandidates(jobs: PublicJob[], aboutHeadingRe: RegExp): Map<string,
   return byKey;
 }
 
-function scoreCandidate(c: Candidate, companyName: string, cueRes: RegExp[]): number {
+function scoreCandidate(c: Candidate, mentionRe: RegExp, cueRes: RegExp[]): number {
   let score = c.jobIndices.size; // occurrence count across distinct postings
-  if (c.text.slice(0, 80).toLowerCase().includes(companyName.toLowerCase())) score += 1;
+  if (mentionRe.test(c.text.slice(0, 80))) score += 1;
   if (cueRes.some((re) => re.test(c.text))) score += 1;
   if (c.afterAboutHeading) score += 2; // strongest cue — structural, not textual
   for (const noiseRe of NOISE_CUE_RES) {
@@ -184,12 +262,12 @@ function scoreCandidate(c: Candidate, companyName: string, cueRes: RegExp[]): nu
 
 /** Max score wins; ties broken by more distinct-posting occurrences, then
  *  earliest average paragraph position across the postings it appears in. */
-function pickWinner(candidates: Candidate[], companyName: string, cueRes: RegExp[]): Candidate | null {
+function pickWinner(candidates: Candidate[], mentionRe: RegExp, cueRes: RegExp[]): Candidate | null {
   if (candidates.length === 0) return null;
   const ranked = candidates
     .map((c) => ({
       c,
-      score: scoreCandidate(c, companyName, cueRes),
+      score: scoreCandidate(c, mentionRe, cueRes),
       avgPos: c.positions.reduce((sum, p) => sum + p, 0) / c.positions.length,
     }))
     .sort((a, b) => b.score - a.score || b.c.jobIndices.size - a.c.jobIndices.size || a.avgPos - b.avgPos);
@@ -216,10 +294,9 @@ function splitSentences(paragraph: string): string[] {
  * satisfies both cues. Never truncates — a candidate over MAX_SENTENCE_LEN
  * is skipped entirely rather than cut mid-sentence.
  */
-function selectSentence(paragraph: string, companyName: string): string | null {
+function selectSentence(paragraph: string, mentionRe: RegExp): string | null {
   const sentences = splitSentences(paragraph).filter((s) => s.length <= MAX_SENTENCE_LEN);
-  const nameLower = companyName.toLowerCase();
-  const namesAndDescribes = (s: string) => s.toLowerCase().includes(nameLower) && DESCRIPTIVE_CUE_RE.test(s);
+  const namesAndDescribes = (s: string) => mentionRe.test(s) && DESCRIPTIVE_CUE_RE.test(s);
 
   for (const s of sentences) {
     if (namesAndDescribes(s) && s.length >= MIN_SENTENCE_LEN) return s;
@@ -246,6 +323,7 @@ export function extractCompanyAboutLine(jobs: PublicJob[], companyName: string):
 
   const cueRes = openingCueRegexes(name);
   const aboutHeadingRe = aboutHeadingRegex(name);
+  const mentionRe = mentionRegex(name);
   const singlePostingCorpus = postings.length === 1;
   const candidates = [...buildCandidates(postings, aboutHeadingRe).values()].filter(
     (c) =>
@@ -254,8 +332,8 @@ export function extractCompanyAboutLine(jobs: PublicJob[], companyName: string):
   );
   if (candidates.length === 0) return null;
 
-  const winner = pickWinner(candidates, name, cueRes);
-  if (!winner || !winner.text.toLowerCase().includes(name.toLowerCase())) return null;
+  const winner = pickWinner(candidates, mentionRe, cueRes);
+  if (!winner || !mentionRe.test(winner.text)) return null;
 
-  return selectSentence(winner.text, name);
+  return selectSentence(winner.text, mentionRe);
 }
