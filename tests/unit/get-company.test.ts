@@ -204,15 +204,18 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
         assert.equal(result?.nameSource, "corpus-cased");
     });
 
-    it("exposes uncertainty instead of guessing when NO row carries case", async () => {
+    it("recovers casing on a corpus-flat name the same way a domain fallback would, when NO row carries case", async () => {
         const search = ok({
             hits: hits(3, { company: "10xgenomics", company_domain: "10xgenomics.com" }),
             total: 3,
         });
 
         const result = await getCompanyPageData("10xgenomics--com", search);
-        // Verbatim corpus string — NOT a reconstructed "10x Genomics".
-        assert.equal(result?.name, "10xgenomics");
+        // A winning group with no cased witness carries zero casing
+        // information — exactly as caseless as a domain label — so it gets
+        // the same capitalize-after-non-letter recovery, not a fabricated
+        // "10x Genomics", and not the raw lowercase string either.
+        assert.equal(result?.name, "10Xgenomics");
         assert.equal(result?.nameSource, "corpus-flat");
     });
 
