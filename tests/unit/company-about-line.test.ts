@@ -122,6 +122,62 @@ test("pure and deterministic: same inputs produce the same output across repeate
   assert.equal(first, second);
 });
 
+/*
+ * Fixtures below are minimal excerpts derived from the two real-index
+ * description shapes that motivated this fix (ground-truth audit,
+ * 2026-08-21) — 1Password's zero-newline markdown-marker style and
+ * Greystar's glued-ALL-CAPS-heading style — plus a blank-line-style
+ * regression exercising the new heading-adjacency scoring bonus. Not the
+ * real descriptions themselves (those aren't committed): short, hand-built
+ * excerpts under ~600 chars that reproduce the SHAPE, not the content.
+ */
+
+test("zero-newline, markdown-marker-style description (1Password shape) yields a clean sentence instead of null — the bug this PR fixes", () => {
+  // Single unbroken block: no blank lines anywhere, `**bold**`/`*italic*`
+  // markers used as de-facto headings mid-prose. Before this fix,
+  // paragraphsOf's `\n{2,}` split saw one block and produced zero
+  // candidates for every company shaped like this.
+  const raw =
+    "**Acme Robotics is growing.** We've surpassed $50M in bookings and keep shipping new features every quarter for our logistics customers. * **About Acme Robotics** *At Acme Robotics, we help enterprises automate warehouse operations.*";
+  const jobs = [1, 2].map((n) => makeTestJob(`mmstyle-${n}`, raw));
+  const result = extractCompanyAboutLine(jobs, "Acme Robotics");
+  assert.notEqual(result, null);
+  assert.doesNotMatch(result as string, /\*\*/);
+  assert.doesNotMatch(result as string, /\*/);
+});
+
+test("glued ALL-CAPS heading description (Greystar shape) never leaks the heading into the output, and extracts the clean body sentence", () => {
+  // No separator at all between the ALL-CAPS heading and its Titlecase
+  // body — the exact shape the module doc warns about: formatDescription
+  // must separate "ABOUT ACME LOGISTICS" from "Acme Logistics is..." before
+  // this module ever sees it as a candidate paragraph.
+  const body =
+    "Acme Logistics is a leading warehouse-automation platform helping mid-market retailers cut fulfillment costs across North America.";
+  const raw = `ABOUT ACME LOGISTICS${body}`;
+  const jobs = [1, 2].map((n) => makeTestJob(`gluedcaps-${n}`, raw));
+  const result = extractCompanyAboutLine(jobs, "Acme Logistics");
+  assert.equal(result, body);
+  assert.doesNotMatch(result as string, /^ABOUT ACME LOGISTICS/);
+});
+
+test("an 'About {Company}' heading block (blank-line separated) attaches its scoring bonus to the paragraph that follows it — single-posting company with no textual opening cue on the body itself", () => {
+  const heading = "ABOUT ACME FREIGHT";
+  const body =
+    "Acme Freight operates a nationwide fleet of electric delivery trucks that helps retailers move last-mile packages faster while cutting emissions across every major metro area.";
+  const withHeading = [makeTestJob("heading-bonus-1", `${heading}\n\n${body}\n\n${ROLE_BLURB}`)];
+  const result = extractCompanyAboutLine(withHeading, "Acme Freight");
+  assert.equal(result, body);
+
+  // Control: the identical body paragraph with no heading above it. The
+  // body itself starts with "Acme Freight operates" — not an
+  // openingCueRegexes match (only is/builds/provides/makes/helps/offers) —
+  // so without the heading-adjacency bonus this single-posting company has
+  // no qualifying candidate at all.
+  const withoutHeading = [makeTestJob("heading-bonus-2", `${body}\n\n${ROLE_BLURB}`)];
+  const resultWithoutHeading = extractCompanyAboutLine(withoutHeading, "Acme Freight");
+  assert.equal(resultWithoutHeading, null);
+});
+
 test("perf: a single pass over a ~70-description synthetic corpus completes quickly", () => {
   const filler =
     "This role partners with design and product to ship customer-facing features end to end, from spec through rollout, on a small autonomous team.";
