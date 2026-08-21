@@ -57,6 +57,14 @@ export interface FollowButtonProps {
    * Ignored once signed in, where `byDomain` (Firestore) is authoritative.
    */
   emailVerified?: boolean;
+  /**
+   * Idle (not-following) label override — default "Follow". `/co`'s hero
+   * wants the promise stated up front ("Follow — new roles by email"); every
+   * other surface (SERP row pill, hot-table) leaves this unset so its
+   * compact "Follow" is unchanged. Following/verified-state labels are a
+   * separate branch below and are never affected by this.
+   */
+  idleLabel?: string;
   /** Fired once a guest's real (contact-cookie) follow is actually removed,
    *  so a richer wrapper tracking its own verified state (e.g.
    *  `CompanyFollowControl`) can stop showing it too. */
@@ -74,6 +82,7 @@ export function FollowButton({
   variant = "outline",
   className,
   emailVerified = false,
+  idleLabel = "Follow",
   onGuestUnfollow,
   onSignInInstead,
 }: FollowButtonProps) {
@@ -165,7 +174,7 @@ export function FollowButton({
       ? variant === "elite" || variant === "primary"
         ? "Following ✓"
         : "Following"
-      : "Follow";
+      : idleLabel;
 
   const buttonNode =
     variant === "elite" || variant === "pill" ? (

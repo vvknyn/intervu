@@ -13,7 +13,8 @@ import { isCompanyIndexable } from "./indexable";
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import type { PublicJob } from "@/lib/jobs/types";
+import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
+import { toValueArray, type PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
@@ -351,4 +352,81 @@ export function buildCompanyPageMetadata(data: CompanyPageData): Metadata {
     ...canonicalMetadata(companyBoardPath(data.domain), title, description),
     ...(isCompanyIndexable(data) ? {} : { robots: { index: false, follow: true } }),
   };
+}
+
+/**
+ * Raw `location_country` value -> doc count across `jobs`, the same shape
+ * `rollupCountryDistribution` normally reads off a live Meilisearch facet
+ * response (see /trends' `TopCountriesList` and the /jobs location filter,
+ * both fed from a real `facetDistribution`). `/co` has no separate facet
+ * call, so this builds the same shape from the page's own fetched `jobs`
+ * window instead. A multi-country posting (`location_country` as an array —
+ * see `PublicJob`'s own doc) increments each of its values once, the same
+ * way a real facet distribution counts a multi-valued attribute. Blank
+ * tokens are dropped before counting, not after.
+ */
+function countryDistribution(jobs: PublicJob[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const job of jobs) {
+    for (const raw of toValueArray(job.location_country)) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      counts[trimmed] = (counts[trimmed] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/**
+ * "hiring in {A}, {B}, {C} +N more" — top 3 hiring countries by role count.
+ * Reuses `rollupCountryDistribution` (country-classification.ts), the SAME
+ * rollup /trends' "Top Hiring Countries" table and the /jobs location filter
+ * already render country names from, so this never invents a second raw-
+ * value-to-display-name mapping for the same polluted field (that module's
+ * own doc: raw `location_country` carries city/region/remote-sentinel junk
+ * alongside real countries). The `UNCLASSIFIED_LABEL` bucket that rollup
+ * produces for everything that isn't a recognized country is dropped here —
+ * it is exactly that junk, not a hiring geography, so it counts toward
+ * neither the shown names nor "+N more". `null` when nothing in `jobs`
+ * resolved to a real country (a genuinely fully-remote employer, or a corpus
+ * window with no usable location data).
+ */
+function hiringGeosClause(jobs: PublicJob[]): string | null {
+  const countries = rollupCountryDistribution(countryDistribution(jobs)).filter(
+    (row) => row.country !== UNCLASSIFIED_LABEL,
+  );
+  if (countries.length === 0) return null;
+  const shown = countries.slice(0, 3).map((row) => row.country);
+  const remaining = countries.length - shown.length;
+  return `hiring in ${shown.join(", ")}${remaining > 0 ? ` +${remaining} more` : ""}`;
+}
+
+/**
+ * "NN% of roles remote" — the exact `deriveWorkModeDistribution` figure the
+ * retired "How they work" progress-bar card (`CompanyIntelligenceGrid`) used
+ * to draw its bar from (lib/companies/enrichment.ts), read here off the
+ * already-resolved `intelligence` rather than recomputed, so the hero can
+ * never disagree with that computation. `null` when there's no intelligence
+ * to read (no fetched jobs — `deriveWorkModeDistribution` itself returns
+ * null on an empty roster).
+ */
+function remoteShareClause(intelligence: CompanyPageData["intelligence"]): string | null {
+  const pct = intelligence?.workModes?.remotePct;
+  return pct == null ? null : `${pct}% of roles remote`;
+}
+
+/**
+ * The hero's quiet "derived facts" line under the hiring-answer sentence:
+ * domain, where this employer is hiring, what share of roles are remote.
+ * Absence is silence throughout — a clause with nothing usable behind it is
+ * omitted, never a placeholder, and `domain` is the only part guaranteed to
+ * ever be there (see `CompanyPageData.domain` / `getCompanyPageData`, which
+ * never returns a page with an empty one).
+ */
+export function buildCompanyFactsLine(
+  data: Pick<CompanyPageData, "domain" | "jobs" | "intelligence">,
+): string {
+  return [data.domain, hiringGeosClause(data.jobs), remoteShareClause(data.intelligence)]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
 }

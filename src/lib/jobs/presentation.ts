@@ -127,6 +127,27 @@ function lastCheckedClause(checkedAt: string | null | undefined, nowMs: number):
 }
 
 /**
+ * Exception-only status mark for a role row: `null` for the default,
+ * nothing-to-flag state (clear AND currently-checked), otherwise identical
+ * to `ghostMetaFor`. Same "the routine state carries no mark" rule the SERP
+ * row's `TRUST_CHIP` table already applies to its own `clear`/`checked`
+ * icon (app/jobs/page.tsx — a green "no ghost signals" wallpaper on every
+ * row was the exact wallpaper that table was built to remove), reused here
+ * as a value-level check instead of a second table because /co's two role
+ * renderers (CompanyRoleSearch, CompanyRolesList) speak `ghostMetaFor`'s
+ * label vocabulary directly, not `RowTrustChip`'s glyph vocabulary.
+ *
+ * `ghostMetaFor` returns the SAME `GHOST_META.clear` object reference
+ * whenever the check is current (no spread/clone happens on that branch —
+ * see its own doc), so identity comparison is exactly "clear and fresh"
+ * without re-deriving `checkFreshness` a second time here.
+ */
+export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
+    const meta = ghostMetaFor(job, nowMs);
+    return meta === GHOST_META.clear ? null : meta;
+}
+
+/**
  * Repairs scraped ALL-CAPS / all-lowercase company/location text for public
  * display on the indexable `/jobs/[slug]` page (spec §6.1) — live samples
  * returned `company: "orange"` and `location: "WARSZAWA, POLAND"`, which

@@ -14,9 +14,16 @@ import type { CompanyPageData } from "@/lib/companies/types";
 
 /**
  * The ghost-flagged share as a plain sentence, e.g.
- * "9 of the 68 shown may no longer be live." — the old KPI tile rendered
- * this same share as a bare "13%"; this restates it as the count it was
- * always computed from, never a second, independently-drifting count.
+ * "9 of the 68 roles tracked here may no longer be live." — the old KPI
+ * tile rendered this same share as a bare "13%"; this restates it as the
+ * count it was always computed from, never a second, independently-drifting
+ * count.
+ *
+ * "roles tracked here", not "shown": only `ROLES_PREVIEW` (10) rows actually
+ * render on the page (CompanyRoleSearch), so "shown" overclaimed the M side
+ * of the ratio for any employer with more than 10 fetched roles — the
+ * fetched `jobs` window (up to `COMPANY_JOBS_FETCH_LIMIT`) this page
+ * tracked, not what rendered on screen.
  *
  * `ghostFlaggedPct` (get-company.ts's `ghostFlaggedPct(jobs)`) is always
  * `round(flagged / jobs.length * 100)` over the SAME fetched `jobs` window
@@ -32,5 +39,5 @@ export function staleShareText(
 ): string | null {
   if (data.ghostFlaggedPct == null || data.jobs.length === 0) return null;
   const count = Math.round((data.ghostFlaggedPct / 100) * data.jobs.length);
-  return `${count} of the ${data.jobs.length} shown may no longer be live.`;
+  return `${count} of the ${data.jobs.length} roles tracked here may no longer be live.`;
 }

@@ -9,6 +9,7 @@ import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
+  buildCompanyFactsLine,
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
   buildCompanyPageMetadata,
@@ -47,7 +48,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const jobsSearchUrl = buildCompanyJobsUrl(data);
   const ghostPctIsCompanyWide = sampleCoversAllRoles(data);
   const hiring = buildCompanyHiringAnswer(data, data.nowMs);
-  // "9 of the 68 shown may no longer be live" — see company-page-copy.ts for
+  // Quiet mono fact line under the hiring answer — domain, hiring geos,
+  // remote share. See `buildCompanyFactsLine`'s own doc for why each clause
+  // can silently drop out.
+  const factsLine = buildCompanyFactsLine(data);
+  // "9 of the 68 roles tracked here may no longer be live" — see company-page-copy.ts for
   // why the count is always derivable from `ghostFlaggedPct` and doesn't
   // need the company-wide/sample split above.
   const staleShare = staleShareText(data);
@@ -116,6 +121,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 )}
                 {hiring.headline}
               </p>
+              {factsLine && (
+                <p className="mono-data mt-2 text-[11.5px] tracking-wide text-muted-foreground">
+                  {factsLine}
+                </p>
+              )}
               {data.stage && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="rounded border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -131,6 +141,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             slug={data.slug}
             displayName={data.name}
             variant="primary"
+            idleLabel="Follow — new roles by email"
             className="shrink-0 sm:self-start"
           />
         </header>

@@ -25,13 +25,13 @@ once those land.
   `formatDescription` (format-description.ts) for the full structured render;
   `descriptionLede` is for previews only, not this surface.
 
-- **`/co/[slug]` page.** Any role-list row rendering a `PublicJob` (the
-  preview list under the KPI tiles) should read `presentJob(job).location`
-  and `.descriptionLede` instead of calling `locationText`/raw
-  `job.description` directly, for the same postal/breadcrumb/boilerplate
-  reasons as the SERP row. The page's OWN name (`CompanyPageData.name`) is
-  already resolved server-side via `resolveCompanyName` before this module
-  would see it — no change needed there.
+- **`/co/[slug]` page — DONE.** Both role-row renderers (`CompanyRoleSearch`
+  on `/co`, `CompanyRolesList` on `/companies/[slug]`) now call
+  `companyRowMetaSegments` (`job.ts`, wraps `presentJob(job).location`) for
+  their meta line instead of raw `locationText`. `.descriptionLede` is still
+  unused on this page — there is no role-row description preview today.
+
+
 
 - **Email digest (wherever the next digest-send job renders a `PublicJob`
   into copy — not yet built as of this PR).** Use `presentJob(job)` directly
