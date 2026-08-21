@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, titleMatchesQuery } from "./presentation";
+import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery } from "./presentation";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -1086,18 +1086,33 @@ export function stripGenderSuffixArtifact(text: string): string {
 }
 
 /**
- * Pure: fold raw `{ title, company }` hits into deduped, capped suggestion
- * lists. Extracted from `fetchJobSuggestions` so the dedupe logic is
- * unit-testable without a network call (see tests/unit/jobs-suggestions.test.ts).
- * Titles dedupe case-insensitively (max 5); companies dedupe case-insensitively
- * (max 3) — first-seen casing wins, blank values are dropped. Both fields run
- * through `stripGenderSuffixArtifact` first — the scrape artifact can land on
- * either (title far more often, but nothing about the convention is
+ * Pure: fold raw `{ title, company, company_domain }` hits into deduped,
+ * capped suggestion lists. Extracted from `fetchJobSuggestions` so the
+ * dedupe logic is unit-testable without a network call (see
+ * tests/unit/jobs-suggestions.test.ts). Titles dedupe case-insensitively
+ * (max 5) — first-seen casing wins, blank values are dropped. Both fields
+ * run through `stripGenderSuffixArtifact` first — the scrape artifact can
+ * land on either (title far more often, but nothing about the convention is
  * title-specific) — so a hit that's ONLY the artifact (blank once stripped)
  * is dropped exactly like any other blank value, not suggested as "".
+ *
+ * Companies get two extra passes titles don't need (2026-08-21 front-door
+ * audit, item 6): a hit whose TITLE matched `q` says nothing about whether
+ * its COMPANY is a relevant suggestion — live prod surfaced "Phsorg",
+ * "Glance", and a raw ATS tenant string for a "product manager" query
+ * purely because those hits' titles matched, not their companies. Only a
+ * company whose OWN name relates to `q` (`titleMatchesQuery`, reused — the
+ * rule is generic over what text it's applied to) is suggested, and a name
+ * that's just its own domain with separators stripped
+ * (`isDomainSquashName`) is repaired via `humanizeTenantSubdomain` before
+ * that relevance check runs; a hit with no domain to confirm the squash
+ * against falls straight through to the ordinary relevance check. Capped
+ * at 2, not the titles' 5 — companies are a smaller,
+ * higher-noise section of the dropdown.
  */
 export function dedupeJobSuggestionHits(
-  hits: Array<{ title?: string | null; company?: string | null }>,
+  hits: Array<{ title?: string | null; company?: string | null; company_domain?: string | null }>,
+  q: string,
 ): JobSuggestions {
   const titles: string[] = [];
   const seenTitles = new Set<string>();
@@ -1113,13 +1128,21 @@ export function dedupeJobSuggestionHits(
         if (titles.length < 5) titles.push(title);
       }
     }
-    const company = stripGenderSuffixArtifact((hit.company ?? "").trim());
-    if (company) {
-      const key = company.toLowerCase();
-      if (!seenCompanies.has(key)) {
-        seenCompanies.add(key);
-        if (companies.length < 3) companies.push(company);
-      }
+    let company = stripGenderSuffixArtifact((hit.company ?? "").trim());
+    if (!company) continue;
+    const domain = hit.company_domain ?? null;
+    // `isDomainSquashName` needs the real domain to confirm the squash — it
+    // returns false without one, so a company string with no domain on the
+    // hit falls through to the ordinary relevance check below unrepaired
+    // (nothing to compare it against, so nothing to safely repair or drop).
+    if (domain && isDomainSquashName(company, domain)) {
+      company = humanizeTenantSubdomain(domain);
+    }
+    if (!titleMatchesQuery(company, q)) continue;
+    const key = company.toLowerCase();
+    if (!seenCompanies.has(key)) {
+      seenCompanies.add(key);
+      if (companies.length < 2) companies.push(company);
     }
   }
 
@@ -1154,7 +1177,11 @@ export function buildSuggestBody(q: string): MeiliSuggestBody {
     q,
     limit: 20,
     attributesToSearchOn: ["title", "company"],
-    attributesToRetrieve: ["title", "company"],
+    // `company_domain` isn't matched against `q` (attributesToSearchOn above
+    // stays title+company only) — retrieved so `dedupeJobSuggestionHits` can
+    // tell a company name that's just its own domain squashed together from
+    // a real one and repair or drop it instead of suggesting it verbatim.
+    attributesToRetrieve: ["title", "company", "company_domain"],
   };
 }
 
@@ -1177,8 +1204,10 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
       body: JSON.stringify(buildSuggestBody(query)),
     });
     if (!res.ok) return EMPTY_SUGGESTIONS;
-    const body = (await res.json()) as { hits?: Array<{ title?: string; company?: string | null }> };
-    return dedupeJobSuggestionHits(body.hits ?? []);
+    const body = (await res.json()) as {
+      hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }>;
+    };
+    return dedupeJobSuggestionHits(body.hits ?? [], query);
   } catch {
     return EMPTY_SUGGESTIONS;
   }

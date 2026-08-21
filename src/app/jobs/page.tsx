@@ -60,6 +60,7 @@ import {
     postedAgeShort,
     searchResultLine,
     firstMentionIndex,
+    interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
     seamSummarySorted,
@@ -97,7 +98,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMasthead, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { LandingMasthead, LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
@@ -142,6 +143,7 @@ import {
     runResumeControlClick,
     hasSearchPrefs,
     shouldPromptSearchPrefsInsteadOfResume,
+    shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
@@ -1170,7 +1172,15 @@ function JobsContent() {
     const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
     const [mobileResultsEngaged, setMobileResultsEngaged] = useState(false);
-    const [detectedOptedIn, setDetectedOptedIn] = useState(false);
+    // Item 7a (2026-08-21 front-door audit): narrower and earlier than
+    // `mobileResultsEngaged` — that one flips on SUBMIT, this one flips on
+    // FOCUS, so the masthead gets out of the way the moment a mobile visitor
+    // starts typing rather than after they finish. Same one-way-ratchet
+    // shape (set once, never reset) as `mobileResultsEngaged` above, for the
+    // same reason: a blur mid-edit (e.g. tapping the location field next to
+    // it) must not un-collapse the masthead under a query the visitor is
+    // still composing.
+    const [mobileSearchFocused, setMobileSearchFocused] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [searchRetry, setSearchRetry] = useState(0);
     // S2 — recent-searches chips on the empty-query landing state.
@@ -1643,6 +1653,15 @@ function JobsContent() {
     // searching, why is it still there").
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain && !searchParams.get("job");
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
+    // Item 7a: the masthead specifically (not the whole `showLandingMarketing`
+    // bundle — the browse showcase/chips below it should keep showing while
+    // the visitor is mid-focus but hasn't submitted anything yet) collapses
+    // on mobile as soon as the search box is focused, on the pristine
+    // landing only — a real search or a deep link already collapses it via
+    // `showLandingMarketing` itself, so this only ever narrows that, never
+    // widens it. `isLgUp` keeps desktop, where vertical space isn't scarce,
+    // showing the masthead through the whole compose step same as before.
+    const showMasthead = showLandingMarketing && !(mobileSearchFocused && !isLgUp);
     const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
     // Debounced search on query / facet / salary / visa changes. Zero query
@@ -1745,8 +1764,18 @@ function JobsContent() {
                     && firstUnresolvedDeadLinkIdRef.current === previousSelectedId;
                 const wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass;
                 firstPageSucceeded = true;
-                setResult(r);
-                const selection = resolveSelectionAfterRefresh(previousSelectedId, r.hits, { wasConfirmed });
+                // Item 4 (2026-08-21 front-door audit): reorder THIS page's
+                // hits so no more than 2 consecutive rows share a company —
+                // live prod showed 10 straight from one employer. Applied
+                // once, here, at ingestion — not recomputed over the whole
+                // accumulated list on every render, which would reshuffle
+                // rows already seen every time a later page loads. Every
+                // downstream read of "this fetch's hits" below uses the same
+                // interleaved array so "hits[0]" means the same row the list
+                // actually renders first.
+                const interleavedHits = interleaveByCompany(r.hits);
+                setResult({ ...r, hits: interleavedHits });
+                const selection = resolveSelectionAfterRefresh(previousSelectedId, interleavedHits, { wasConfirmed });
                 // Review fix: gate on the id ACTUALLY being absent from this
                 // fetch's fresh hits, not merely on `selection.preserveDeliberateDetail`
                 // — that flag is also true for a genuinely-FOUND id (the
@@ -1756,12 +1785,22 @@ function JobsContent() {
                 // spuriously burning its one free pass on a job that was
                 // never actually missing.
                 const foundInFreshHits = previousSelectedId
-                    ? r.hits.some((h) => h.id === previousSelectedId)
+                    ? interleavedHits.some((h) => h.id === previousSelectedId)
                     : false;
                 if (previousSelectedId && !wasConfirmed && !foundInFreshHits) {
                     firstUnresolvedDeadLinkIdRef.current = previousSelectedId;
                 }
-                setSelectedId(selection.selectedId);
+                // Item 5 (2026-08-21 front-door audit): `resolveSelectionAfterRefresh`
+                // defaulting to `hits[0]` is right for every OTHER case (a
+                // dropped selection after a new search/filter, a search that
+                // just returned its first page) — but on the pristine,
+                // zero-intent landing there is no "previous search" for that
+                // default to be standing in for, so it reads as an arbitrary
+                // pick. `preserveDeliberateDetail` is false exactly when
+                // `selection` used that default branch, so a deliberate
+                // selection (deep link, or one carried over from a real
+                // search) is never suppressed here — only the bare default is.
+                setSelectedId(isPristineLanding && !selection.preserveDeliberateDetail ? null : selection.selectedId);
                 if (!selection.preserveDeliberateDetail) {
                     setDetailSheetOpen(false);
                 }
@@ -2171,11 +2210,17 @@ function JobsContent() {
     // hits leaves the pane empty rather than stealing a fallback job. No
     // explicit selection at all (ambient "browsing" default) still falls
     // back to the first hit, exactly like before Task 5 — that default is
-    // never URL-represented.
+    // never URL-represented. EXCEPT on the pristine landing (item 5,
+    // 2026-08-21): `hits[0]` there is a zero-intent visitor's own first
+    // page-1 row, not a result of anything they did, so defaulting to it
+    // reads as an arbitrary pick rather than a browsing default — the
+    // fetch effect above already keeps `selectedId` null for exactly this
+    // case (see its own comment), this mirrors that same gate so the two
+    // can't drift into disagreeing about what "no selection" renders as.
     const selected = useMemo(() => {
-        if (!selectedId) return hits[0] ?? null;
+        if (!selectedId) return isPristineLanding ? null : (hits[0] ?? null);
         return hits.find((h) => h.id === selectedId) ?? null;
-    }, [hits, selectedId]);
+    }, [hits, selectedId, isPristineLanding]);
 
     // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
     // selection that the CURRENT search's first page has already resolved
@@ -2359,7 +2404,11 @@ function JobsContent() {
                 // starts; check again at commit time before touching its results.
                 if (!paginationRef.current!.isCurrentGeneration(ticket.generation)) return prev;
                 const seen = new Set(prev.hits.map((h) => h.id));
-                const fresh = r.hits.filter((h) => !seen.has(h.id));
+                // Item 4: interleave just this newly-fetched page before
+                // appending — the same chokepoint as the first-page fetch
+                // above, applied per-page rather than over the whole
+                // accumulated list (see `interleaveByCompany`'s doc comment).
+                const fresh = interleaveByCompany(r.hits.filter((h) => !seen.has(h.id)));
                 return fresh.length ? { ...prev, hits: [...prev.hits, ...fresh] } : prev;
             });
         } catch {
@@ -2551,6 +2600,13 @@ function JobsContent() {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const panelToggleFacet = (key: FacetKey, value: string) =>
         applyFilterStateWithIntent({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
+    // Same guard `FilterChipsRow`'s own remote chip uses (`remoteValue ==
+    // null` disables it) — the corpus's actual remote facet VALUE is never a
+    // hardcoded "remote" literal, since it comes from live facet data.
+    const onSelectRemote = () => {
+        const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
+        if (remoteValue) panelToggleFacet("work_type", remoteValue);
+    };
     const panelSalaryMin = (v: number) => applyFilterStateWithIntent({ ...filterState, salaryMin: v });
     const panelVisaOnly = (v: boolean) => applyFilterStateWithIntent({ ...filterState, visaOnly: v });
     const panelPostedBucket = (v: PostedBucket | undefined) =>
@@ -3223,12 +3279,7 @@ function JobsContent() {
 
     const searchPlaceholder = "What kind of work are you looking for?";
 
-    const mobileLocationLabel = locationTriggerLabel(filterState, {
-        defaultedIso2: result?.defaultedLocation,
-        locationDefaultSuppressed,
-        detectedName: result?.defaultedLocation ? regionDisplayName(result.defaultedLocation) : undefined,
-        detectedOptedIn,
-    });
+    const mobileLocationLabel = locationTriggerLabel(filterState);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
     // has not yet typed something different in the search box without
@@ -3272,10 +3323,9 @@ function JobsContent() {
             : null;
 
     // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
-    // `resultCountLine` being present (not `resultsCountLabel`, which also
-    // covers the background-refresh "updating…" state) so the affordance
-    // can never appear before the FIRST real result for the active filters
-    // has landed — `totalCount` defaults to an exact zero before that,
+    // `resultCountLine` being present so the affordance can never appear
+    // before the FIRST real result for the active filters has landed —
+    // `totalCount` defaults to an exact zero before that,
     // which would otherwise let `resolveBeyondWindow` render a spurious
     // number the moment `beyondWindowCount` resolves ahead of `totalCount`.
     const beyondWindow = resultCountLine
@@ -3296,8 +3346,12 @@ function JobsContent() {
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
     // 2026-08-14 auto-preview — the pane again for the ambient first result
     // when nothing is explicitly open; see resolveDetailMountSite's doc
-    // comment for the render-only/telemetry contract).
-    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, hits.length > 0);
+    // comment for the render-only/telemetry contract, including the item-5
+    // pristine-landing exception). `Boolean(detailJob)`, not `hits.length >
+    // 0` — there being hits to LIST is a different fact from there being a
+    // job to PREVIEW, and pristine landing is exactly the state where those
+    // two now diverge (hits present, nothing selected).
+    const detailMountSite = resolveDetailMountSite(isXlUp, detailSheetOpen, Boolean(detailJob));
     // The row the pane is currently showing — explicit selection when one
     // exists, else the ambient auto-preview. Drives the list's active ring
     // so the highlighted row and the pane's content can never disagree.
@@ -3339,17 +3393,6 @@ function JobsContent() {
             applyFilterState({ ...filterState, facets: nextFacets });
         }
     };
-
-    // Display-only extension of `resultCountLine` — never `resultCountLine`
-    // itself, which also gates the "beyond window" affordance above and is a
-    // locked pure-function contract shared with /co (searchResultLine,
-    // lib/jobs/presentation.ts). One factual clause, reusing the "ghost
-    // screen"/"may no longer be live" vocabulary `GHOST_META.likely_ghost`
-    // already uses per-row (lib/jobs/presentation.ts) — stated once for the
-    // whole result set rather than implied by a badge on every row.
-    const resultsCountLabel = resultCountLine
-        ? `${resultCountLine} · screened for postings that may no longer be live`
-        : resultCountLine;
 
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
@@ -3503,11 +3546,11 @@ function JobsContent() {
                     Safe to leave in the tree while collapsed only because
                     `LandingMasthead` holds no focusable node — see its doc. */}
                 <div
-                    aria-hidden={!showLandingMarketing}
-                    data-landing-masthead={showLandingMarketing ? "open" : "collapsed"}
+                    aria-hidden={!showMasthead}
+                    data-landing-masthead={showMasthead ? "open" : "collapsed"}
                     className={cn(
                         "grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none",
-                        showLandingMarketing ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                        showMasthead ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
@@ -3526,7 +3569,14 @@ function JobsContent() {
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
                             light ground. */}
-                        <div className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
+                        <div
+                            // Item 7a: React's `onFocus` listens on `focusin`
+                            // under the hood (unlike the native DOM `focus`
+                            // event), so it bubbles from either child input —
+                            // one handler here covers both without changing
+                            // `SearchAutocomplete`'s own props.
+                            onFocus={() => setMobileSearchFocused(true)}
+                            className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
@@ -3615,8 +3665,19 @@ function JobsContent() {
                         </div>
                     </div>
 
-                    {/* Category & Filter Dropdowns */}
-                    {!showLandingMarketing && (
+                    {/* Category & Filter Dropdowns. Item 7b (2026-08-21
+                        front-door audit): lg+ only once engaged — on mobile
+                        this "Browse by field" replace-query shortcut was
+                        one more full-width row stacked above the fold, on
+                        top of the quick-chip row and the toolbar, pushing
+                        result rows out of the first viewport after a real
+                        search already ran. The field directory is still
+                        reachable pre-search, and typing a new query or
+                        "clear ✕" (active-category row below) both still
+                        work post-search — this only drops the one-tap
+                        shortcut's permanent screen space on a phone.
+                        Desktop keeps it; vertical space isn't scarce there. */}
+                    {!showLandingMarketing && isLgUp && (
                         <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2 lg:mt-2 lg:pt-1.5">
                             {/* Field dropdown — radio-like, REPLACE query on click */}
                             <DropdownMenu>
@@ -3697,6 +3758,20 @@ function JobsContent() {
                         </div>
                     )}
                 </section>
+
+                {/* Browse entry points for a zero-intent visitor — field
+                    directory + "start with a filter" shortcuts. Was authored
+                    but never mounted anywhere (2026-08-21 front-door audit,
+                    item 3): the pristine landing had no browse affordance
+                    below the search box at all, only after a search ran. */}
+                {showLandingMarketing && (
+                    <LandingMarketingShowcase
+                        onSelectQuery={submitSearch}
+                        onSelectRemote={onSelectRemote}
+                        onSelectSalaryMin={panelSalaryMin}
+                        onSelectBoard={onBoardChange}
+                    />
+                )}
 
                 {!showLandingMarketing && (
                     <FilterChipsRow
@@ -3904,7 +3979,14 @@ function JobsContent() {
 
                 <div className={cn(
                     "mt-4 flex min-h-0 flex-1 flex-col",
-                    !isPristineLanding && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    // Item 5 (2026-08-21): was gated on `!isPristineLanding`,
+                    // hiding the split (and the pane below) for the whole
+                    // pristine landing even at xl+ with a full page of hits
+                    // already listed. Now keyed on the same fact the pane
+                    // itself needs — is there a list to pair a pane with —
+                    // so browsing the default corpus gets the same preview
+                    // layout a search does, just with nothing selected yet.
+                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -3920,7 +4002,7 @@ function JobsContent() {
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
                         isn't in the layout at all under 1280px. */}
-                    {!isPristineLanding && (
+                    {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
                             className="hidden xl:order-2 xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card/75 xl:backdrop-blur-xl xl:backdrop-saturate-150 detail-pane-raised custom-scrollbar"
@@ -4158,9 +4240,9 @@ function JobsContent() {
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
-                                                        className="font-bold uppercase tracking-wider text-foreground tabular-nums"
+                                                        className="font-bold tracking-wide text-foreground tabular-nums"
                                                     >
-                                                        {resultsCountLabel}
+                                                        {resultCountLine}
                                                     </span>
                                                     {beyondWindow.show && (
                                                         <button
@@ -4398,14 +4480,11 @@ function JobsContent() {
                         : undefined
                 }
                 locationDefaultSuppressed={locationDefaultSuppressed}
-                onRestoreDetected={() => {
-                    restoreLocationDefault();
-                    setDetectedOptedIn(true);
-                }}
+                onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}
             />
 
-            {!isLgUp && !detailSheetOpen && !locationSheetOpen && (
+            {!isLgUp && !detailSheetOpen && !locationSheetOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query) && (
                 <div
                     data-testid="mobile-search-cta"
                     className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] z-[180] border-t border-border/80 bg-card/95 px-4 py-2.5 shadow-none backdrop-blur-xl lg:hidden"

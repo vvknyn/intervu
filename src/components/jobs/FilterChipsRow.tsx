@@ -171,8 +171,18 @@ export function FilterChipsRow({
                 {salaryLabel ?? "Salary"}
                 <CaretDown size={11} weight="bold" />
             </Chip>
+            {/* Item 7c (2026-08-21 front-door audit): "All (0)" read as zero
+                results rather than "no filters active yet" — same fix the
+                toolbar's own `filters-toggle` button already uses (a plain
+                label plus a badge that only renders once there's a count to
+                show), reused verbatim rather than a second copy of it. */}
             <Chip active={activeCount > 0} onClick={onOpenSheet} className="w-full justify-center">
-                All ({activeCount})
+                Filters
+                {activeCount > 0 && (
+                    <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-[10px] font-bold leading-[16px] text-brand">
+                        {activeCount}
+                    </span>
+                )}
             </Chip>
         </div>
     );

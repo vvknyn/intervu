@@ -121,27 +121,23 @@ export function applyLocationSheetDraft(
     return { ...state, facets };
 }
 
-/** Label for the mobile location trigger from committed filter state. */
-export function locationTriggerLabel(
-    state: FilterState,
-    opts: {
-        defaultedIso2?: string | null;
-        locationDefaultSuppressed: boolean;
-        detectedName?: string;
-        /** True once the searcher explicitly re-enabled the IP default via the
-         *  sheet ("Use detected location"). The server only stamps
-         *  `defaultedLocation` on the NEXT response after the suppress flag
-         *  clears, so the trigger would otherwise read "City, state, or remote"
-         *  for one render after the opt back in — this covers that gap. */
-        detectedOptedIn?: boolean;
-    },
-): string {
-    const explicit = state.facets.location_country?.[0]?.trim();
-    if (explicit) return explicit;
-    if ((opts.defaultedIso2 && !opts.locationDefaultSuppressed) || (opts.detectedOptedIn && opts.detectedName)) {
-        return opts.detectedName ? `Near ${opts.detectedName}` : "Detected location";
-    }
-    return "City, state, or remote";
+/**
+ * Label for the mobile location trigger from committed filter state.
+ *
+ * Item 7e (2026-08-21 front-door audit): used to also synthesize "Near
+ * {Country}" from the server's IP-geo default when nothing was explicitly
+ * picked — live prod showed "Near Canada" prefilled into what reads as a
+ * CITY field. `result.defaultedLocation` is always country-granularity
+ * (there is no city-level geo signal anywhere in this codebase — see
+ * `lib/geo/ip-default.ts`), and a country is not a locality, so that
+ * default can only ever produce copy this field's own placeholder
+ * ("City, state, or remote") explicitly promises it won't. The
+ * `LocationPickerSheet`'s own "(detected)" sheet OPTION is a different,
+ * already-honest affordance (explicit, disclosed, opt-in) and is
+ * unaffected — this only removes the passive, undisclosed prefill.
+ */
+export function locationTriggerLabel(state: FilterState): string {
+    return state.facets.location_country?.[0]?.trim() || "City, state, or remote";
 }
 
 /** Static facet option ladders — always shown in SerpFilters even when the

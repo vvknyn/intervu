@@ -44,12 +44,21 @@ test("applyLocationSheetDraft: toggles remote facet value generically", () => {
     assert.deepEqual(next.facets.work_type, ["Remote (US)"]);
 });
 
-test("locationTriggerLabel: prefers explicit country over detected default", () => {
-    const label = locationTriggerLabel(
-        { ...PRISTINE_FILTER_STATE, facets: { location_country: ["Germany"] } },
-        { defaultedIso2: "CA", locationDefaultSuppressed: false, detectedName: "Canada" },
-    );
+test("locationTriggerLabel: an explicit committed country wins", () => {
+    const label = locationTriggerLabel({ ...PRISTINE_FILTER_STATE, facets: { location_country: ["Germany"] } });
     assert.equal(label, "Germany");
+});
+
+// Item 7e (2026-08-21 front-door audit): live prod prefilled "Near Canada"
+// into this field from the IP-geo default alone — a country is not a
+// locality, and this field's own placeholder promises "City, state, or
+// remote". `locationTriggerLabel` no longer takes a detected-default input
+// at all, so there is nothing left that CAN synthesize a "Near {Country}"
+// label — this pins the empty-input fallback rather than a specific detected
+// value, since the function's signature itself now makes the old bug
+// unreachable.
+test("locationTriggerLabel: falls back to the plain placeholder with no explicit country — never synthesizes one from a country-level default", () => {
+    assert.equal(locationTriggerLabel(PRISTINE_FILTER_STATE), "City, state, or remote");
 });
 
 test("initLocationSheetDraft: marks detected when default is active and no explicit location", () => {

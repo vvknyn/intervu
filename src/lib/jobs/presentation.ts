@@ -315,6 +315,26 @@ export function isCompanyPlaceholder(s: string | null | undefined): boolean {
 }
 
 /**
+ * True when `name` carries no brand information beyond its OWN domain with
+ * every separator removed — "phs.org" -> "phsorg" (autosuggest, live prod
+ * 2026-08-21: "Phsorg" suggested as a company for a query that happened to
+ * start with "phs"). `isCompanyPlaceholder` above catches the SAME defect
+ * while the domain's own dots/hyphens still survive in the text
+ * ("phs.org" stored verbatim as a company); this catches it once they've
+ * already been squashed together, which is why it needs the real domain to
+ * compare against rather than working from the name text alone. A caller
+ * that confirms this repairs the name via `humanizeTenantSubdomain(domain)`
+ * (the same extraction every other ATS-tenant-domain name goes through) or
+ * drops the suggestion — never renders the squashed form as-is.
+ */
+export function isDomainSquashName(name: string, domain: string | null | undefined): boolean {
+    if (!domain) return false;
+    const squash = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const nameKey = squash(name);
+    return nameKey.length > 0 && nameKey === squash(domain);
+}
+
+/**
  * True for a posting explicitly tagged internal-only ("[Internal] Developer,
  * Rust", "[INTERNAL ONLY] ..."). Matches a leading bracketed tag that STARTS
  * with "internal" — not the bare word anywhere in the title — so a genuine
@@ -1027,6 +1047,74 @@ export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: Pub
     }
     if (titled.length === 0 || rest.length === 0) return { hits, seamIndex: -1 };
     return { hits: [...titled, ...rest], seamIndex: titled.length };
+}
+
+/**
+ * Reorders one fetched batch of hits so no more than `maxRun` consecutive
+ * rows share a company — live prod (2026-08-21 audit): 10 straight
+ * Extendicare rows, then 7 straight from one other employer, then 3 more,
+ * read as a single-company wall rather than a diverse result set. Every hit
+ * is kept (no drops). Among companies not currently blocked by the run cap,
+ * always takes whichever one's next hit appeared EARLIEST in the original
+ * order — so a stretch that's already compliant (no run over `maxRun`) comes
+ * out byte-for-byte unchanged instead of being reshuffled for no reason, and
+ * only a company actually hitting the cap gets deferred behind a hit from
+ * someone else. Falls back to continuing the current company's run only when
+ * every other company's hits are already exhausted (unavoidable without
+ * dropping something).
+ *
+ * Applied to each newly-fetched PAGE at the point it's ingested into state
+ * (page.tsx), not recomputed over the whole accumulated list on every
+ * render — a global re-sort would reshuffle rows the searcher has already
+ * seen every time a new page loads.
+ */
+export function interleaveByCompany(jobs: PublicJob[], maxRun = 2): PublicJob[] {
+    // Company key -> original indices of its hits, in original order.
+    const groups = new Map<string, number[]>();
+    const order: string[] = [];
+    jobs.forEach((job, i) => {
+        const key = cleanCompany(job.company).trim().toLowerCase() || ` no-company ${i}`;
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(i);
+        else {
+            groups.set(key, [i]);
+            order.push(key);
+        }
+    });
+    if (order.length <= 1) return jobs;
+
+    const cursor = new Map(order.map((key) => [key, 0]));
+    const resultIndices: number[] = [];
+    let lastKey: string | null = null;
+    let runLength = 0;
+    while (resultIndices.length < jobs.length) {
+        let picked: string | null = null;
+        let pickedFrontIdx = Infinity;
+        for (const key of order) {
+            const bucket = groups.get(key)!;
+            const c = cursor.get(key)!;
+            if (c >= bucket.length) continue; // exhausted
+            if (key === lastKey && runLength >= maxRun) continue; // blocked
+            if (bucket[c]! < pickedFrontIdx) {
+                pickedFrontIdx = bucket[c]!;
+                picked = key;
+            }
+        }
+        if (picked === null) {
+            // Every OTHER company is exhausted — nothing left to interleave
+            // the current run with, so it has to continue rather than drop
+            // a hit.
+            picked = order.find((key) => cursor.get(key)! < groups.get(key)!.length) ?? null;
+        }
+        if (picked === null) break; // every bucket exhausted — done
+        const bucket = groups.get(picked)!;
+        const idx = bucket[cursor.get(picked)!]!;
+        cursor.set(picked, cursor.get(picked)! + 1);
+        resultIndices.push(idx);
+        runLength = picked === lastKey ? runLength + 1 : 1;
+        lastKey = picked;
+    }
+    return resultIndices.map((i) => jobs[i]!);
 }
 
 /** Shared "role"/"roles" + "is"/"are" agreement for the seam lines below —
