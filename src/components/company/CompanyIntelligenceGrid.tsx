@@ -4,7 +4,6 @@ import {
   CurrencyDollar,
   GlobeHemisphereWest,
   Code,
-  Buildings,
   Newspaper,
   ArrowUpRight,
 } from "@phosphor-icons/react/dist/ssr";
@@ -47,14 +46,13 @@ export function CompanyIntelligenceGrid({
   className,
 }: CompanyIntelligenceGridProps) {
   if (!intelligence) return null;
-  const { funding, visa, techStack, workModes, news } = intelligence;
+  const { funding, visa, techStack, news } = intelligence;
 
   // If no intelligence data is available at all, return null gracefully
-  const hasAnyData = Boolean(funding || visa || techStack || workModes || news.length > 0);
+  const hasAnyData = Boolean(funding || visa || techStack || news.length > 0);
   if (!hasAnyData) return null;
 
   const hasTechCard = Boolean(techStack);
-  const hasWorkModesCard = Boolean(workModes);
 
   return (
     <section aria-label="Company details" className={cn("space-y-5", className)}>
@@ -62,7 +60,7 @@ export function CompanyIntelligenceGrid({
         Company details
       </h2>
 
-      {(funding || visa || hasTechCard || hasWorkModesCard) && (
+      {(funding || visa || hasTechCard) && (
         // Card count is genuinely variable (0-4) now that fabricated data no
         // longer guarantees all of them always render. An auto-fitting track
         // — not a hardcoded `md:grid-cols-3` — degrades cleanly at every
@@ -150,38 +148,6 @@ export function CompanyIntelligenceGrid({
 
               <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
                 Computed from this company&apos;s own open roles
-              </div>
-            </div>
-          )}
-
-          {/* CARD: How they work — remote/hybrid/onsite split, one plain
-              sentence over a single-hue proportion bar (no tri-color bar —
-              this page has one brand hue for magnitude, not a legend to
-              decode). */}
-          {hasWorkModesCard && workModes && (
-            <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
-              <div>
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <Buildings className="h-4 w-4 text-brand" weight="bold" />
-                  How they work
-                </span>
-
-                <div className="mt-4">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      style={{ width: `${workModes.remotePct}%` }}
-                      className="h-full bg-brand"
-                      title={`${workModes.remotePct}% remote`}
-                    />
-                  </div>
-                  <p className="mt-2.5 text-[13px] text-muted-foreground">
-                    {workModes.remotePct}% remote, {workModes.hybridPct}% hybrid, {workModes.onsitePct}% on-site.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
-                From active job listings
               </div>
             </div>
           )}

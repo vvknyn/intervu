@@ -7,10 +7,21 @@
  * `descriptionLede`/`STATUS_VOCABULARY` — no field here is cleaned twice by
  * two different functions.
  *
- * Not yet wired into any component (this PR is the module + tests only —
- * see ADOPTION.md for the wave-3 call sites).
+ * Wired into the `/co/[slug]` role rows via `companyRowMetaSegments` below
+ * (ADOPTION.md's wave-3 bullet for that page) — the other call sites listed
+ * in ADOPTION.md (SERP `JobCard`, `JobDetail.tsx`, the email digest) are
+ * still unwired.
  */
-import { decodeText, locationText, salaryText } from "@/lib/jobs/presentation";
+import {
+  buildRowMetaLine,
+  decodeText,
+  employmentTypeSegment,
+  locationText,
+  locationWithMode,
+  LOCATION_UNKNOWN_TEXT,
+  salaryText,
+  type RowMetaSegment,
+} from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { presentCompany, type PresentedCompany } from "./company";
 import { locationSummary } from "./location";
@@ -41,4 +52,29 @@ export function presentJob(job: PublicJob): PresentedJob {
     salary: salaryText(job),
     status: status ? STATUS_VOCABULARY[status] : null,
   };
+}
+
+/**
+ * `buildRowMetaLine`'s facts for a company-page role row (salary leads,
+ * then location, then employment-type — see `buildRowMetaLine`'s own doc),
+ * built through `presentJob` so the location text gets the same
+ * `locationSummary` cleanup (postal codes stripped, ATS breadcrumbs
+ * clamped) the SERP row already gets — not a second, uncleaned copy of it.
+ * Exactly the JobCard construction in app/jobs/page.tsx, minus posted age:
+ * neither /co role-row renderer (`CompanyRoleSearch`, `CompanyRolesList`)
+ * has ever shown a posted-age fallback, and this factors out what both
+ * previously hand-rolled as their own `roleMeta()` — the exact drift this
+ * chokepoint replaces.
+ */
+export function companyRowMetaSegments(job: PublicJob): RowMetaSegment[] {
+  const presented = presentJob(job);
+  const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
+  return buildRowMetaLine(
+    {
+      salary: presented.salary,
+      location: locationKnown ? locationWithMode(presented.location, job.work_type) : null,
+      employmentType: employmentTypeSegment(job.employment_type),
+    },
+    null,
+  );
 }

@@ -3,7 +3,7 @@
  * will route through this module instead of touching raw `PublicJob`/company
  * fields directly.
  */
-export { presentJob, type PresentedJob } from "./job";
+export { presentJob, type PresentedJob, companyRowMetaSegments } from "./job";
 export { presentCompany, type PresentedCompany, type CompanyLikeInput } from "./company";
 export { locationSummary } from "./location";
 export { descriptionLede } from "./description";

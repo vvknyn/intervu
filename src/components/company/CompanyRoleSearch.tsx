@@ -5,55 +5,18 @@ import Link from "next/link";
 import { X } from "@phosphor-icons/react";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { checkFreshness } from "@/lib/jobs/badges";
-import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
+import { decodeText, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
-import { locationSummary } from "@/lib/presentation";
+import { companyRowMetaSegments } from "@/lib/presentation";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 
 /** Rendered-list cap — both the default (no-query) preview and a search
  *  match list stop here. One constant, so "how many roles do we ever draw
  *  at once" can't drift between the two states. */
 const ROLES_PREVIEW = 10;
-
-/**
- * `locationSummary` (lib/presentation/location.ts) is the second cleanup
- * pass over `locationText`'s output — strips a trailing postal code, clamps
- * an over-long ATS breadcrumb, collapses a per-state "Remote - XX" dump.
- * This is the first caller to route through it (see that module's ADOPTION
- * doc); `jobMatchesQuery`'s search haystack below deliberately still reads
- * the RAW `locationText` — a stripped postal code or clamped breadcrumb must
- * never make an otherwise-matching role searchable-but-invisible.
- */
-function roleMeta(job: PublicJob): string {
-  const parts = [locationSummary(locationText(job)), salaryText(job), prettyEnum(job.experience_level)].filter(
-    Boolean,
-  );
-  return parts.join(" · ");
-}
-
-/**
- * The role row's one-line ghost verdict, read from the shared chokepoint.
- *
- * It used to be hand-rolled, and every way it could disagree with the rest of
- * the product, it did: it passed `stale: false` unconditionally (so a verdict
- * from a 90-day-old check rendered as current), it hardcoded "Live · no ghost
- * signals" for `clear`, and — because that branch also matched `!job.ghost_badge`
- * — it printed the same green "Live" claim for jobs that had never been scored
- * at all. `ghostMetaFor` returns null for `unscored`, which is the contract
- * every other surface honours: no verdict, no line.
- */
-function roleGhostLine(job: PublicJob, now: number): { text: string; live: boolean } | null {
-  const meta = ghostMetaFor(job, now);
-  if (!meta) return null;
-  const live = job.ghost_badge === "clear" && checkFreshness(job, now) === "fresh";
-  return { text: `${live ? "" : "● "}${meta.label}`, live };
-}
 
 /**
  * True iff `job` matches `query` on any of title, location, or experience
@@ -62,8 +25,11 @@ function roleGhostLine(job: PublicJob, now: number): { text: string; live: boole
  * through the same display helpers the row itself renders with
  * (`locationText`/`prettyEnum`), so a match is always on text the visitor can
  * actually see next to the input, not a raw field they can't. Deliberately
- * excludes salary — `roleMeta` folds it in for the row's caption line, but
- * the spec names only these three fields as searchable.
+ * excludes salary — the row's meta line (`companyRowMetaSegments`) folds it
+ * in for the caption, but the spec names only these three fields as
+ * searchable. Reads the RAW `locationText`, not the meta line's cleaned-up
+ * segment — a stripped postal code or clamped breadcrumb must never make an
+ * otherwise-matching role searchable-but-invisible.
  */
 export function jobMatchesQuery(job: PublicJob, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -251,7 +217,11 @@ export function CompanyRoleSearch({
       ) : (
         <ul className="space-y-2.5">
           {displayed.map((job) => {
-            const ghost = roleGhostLine(job, now);
+            const meta = companyRowMetaSegments(job);
+            // Exception-only status: the routine "clear, currently checked"
+            // state renders no line at all (see `rowExceptionMeta`'s doc) —
+            // only stale-clear/caution/likely_ghost verdicts show up here.
+            const exception = rowExceptionMeta(job, now);
             return (
               <li key={job.id}>
                 <button
@@ -259,25 +229,25 @@ export function CompanyRoleSearch({
                   onClick={() => setSelectedJob(job)}
                   className="w-full text-left flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
-                  <CompanyLogo domain={companyDomain} name={companyName} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
                       {decodeText(job.title)}
                     </div>
-                    <div className="mt-1 text-[14px] text-muted-foreground">
-                      {roleMeta(job)}
-                    </div>
-                    {ghost && (
-                      <div
-                        className={cn(
-                          "mt-1.5 flex items-center gap-1.5 text-[11px]",
-                          ghost.live ? "text-brand" : "text-muted-foreground",
-                        )}
-                      >
-                        {ghost.live && (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
-                        )}
-                        {ghost.text}
+                    {meta.length > 0 && (
+                      <div className="mt-1 text-[14px] text-muted-foreground">
+                        {meta.map((segment, i) => (
+                          <span key={i}>
+                            {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                            <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
+                              {segment.text}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {exception && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        ● {exception.label}
                       </div>
                     )}
                   </div>

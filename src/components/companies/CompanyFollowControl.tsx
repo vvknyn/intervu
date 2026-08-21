@@ -17,6 +17,7 @@ export function CompanyFollowControl({
   displayName,
   className,
   variant,
+  idleLabel,
 }: CompanyFollowControlProps) {
   const normalizedDomain = domain.trim().toLowerCase();
   const [user, setUser] = useState(() => getCurrentUser());
@@ -82,6 +83,7 @@ export function CompanyFollowControl({
         displayName={displayName}
         variant={variant}
         emailVerified={emailVerified}
+        idleLabel={idleLabel}
         onGuestUnfollow={() => setManuallyUnfollowed(true)}
         onSignInInstead={() => setAuthOpen(true)}
       />

@@ -139,3 +139,28 @@ describe("FollowButton: a verified guest channel renders Following", () => {
     });
   }
 });
+
+/**
+ * `/co`'s hero wants the idle Follow label to state the promise up front
+ * ("Follow — new roles by email") without touching any other surface —
+ * every other `FollowButton` call site (SERP row pill, hot-table, /co's own
+ * empty-roles CTA) passes no `idleLabel` and must keep rendering plain
+ * "Follow".
+ */
+describe("FollowButton: idleLabel overrides only the idle (not-following) label", () => {
+  it("defaults to plain 'Follow' when idleLabel is omitted — every existing call site is unchanged", () => {
+    const html = render({ variant: "primary", emailVerified: false });
+    assert.match(html, />Follow</);
+  });
+
+  it("a custom idleLabel renders verbatim while idle", () => {
+    const html = render({ variant: "primary", emailVerified: false, idleLabel: "Follow — new roles by email" });
+    assert.match(html, />Follow — new roles by email</);
+  });
+
+  it("idleLabel never leaks into the Following state — a verified channel still renders 'Following ✓'", () => {
+    const html = render({ variant: "primary", emailVerified: true, idleLabel: "Follow — new roles by email" });
+    assert.match(html, />Following ✓</);
+    assert.doesNotMatch(html, /new roles by email/);
+  });
+});
