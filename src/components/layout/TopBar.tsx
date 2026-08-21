@@ -42,6 +42,11 @@ export function TopBar() {
     const pathname = usePathname();
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
+    // Which tab the popover opens on — "Get job alerts" (primary, value-first
+    // per the 2026-08-20 signup-ladder audit) opens straight to signup, where
+    // LoginForm's own SIGNUP_SUBCOPY carries the alerts/tracker pitch; the
+    // demoted "Log in" link keeps the old login-tab behavior.
+    const [authTab, setAuthTab] = useState<"login" | "signup">("login");
     const sessionRefreshed = useRef(false);
     const { mode, toggleMode, mounted } = useTheme();
 
@@ -198,18 +203,45 @@ export function TopBar() {
                         </DropdownMenu>
                         </>
                     ) : (
-                        <button
-                            data-testid="topbar-login"
-                            onClick={() => setAuthPopoverOpen(true)}
-                            className="hidden rounded-none border border-border/80 bg-card/60 px-3.5 py-1.5 text-[13px] font-medium text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] backdrop-blur-md transition-all hover:bg-card/90 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] lg:inline-flex"
-                        >
-                            Log in
-                        </button>
+                        <div className="hidden items-center gap-3 lg:flex">
+                            {/* Primary, value-first CTA (audit, 2026-08-20): a signed-out
+                                visitor's only prior ask was a bare "Log in". Inverted-ink
+                                block — solid foreground fill, background text, squared
+                                corners, no shadow — same treatment as the house system's
+                                other primary actions (e.g. JobDetail's apply button). */}
+                            <button
+                                type="button"
+                                data-testid="topbar-alerts-cta"
+                                onClick={() => {
+                                    setAuthTab("signup");
+                                    setAuthPopoverOpen(true);
+                                }}
+                                className="rounded-none bg-foreground px-3.5 py-1.5 text-[13px] font-bold uppercase tracking-wider text-background transition-colors hover:bg-foreground/90"
+                            >
+                                Get job alerts
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="topbar-login"
+                                onClick={() => {
+                                    setAuthTab("login");
+                                    setAuthPopoverOpen(true);
+                                }}
+                                className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                                Log in
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
 
-            <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} />
+            <AuthPopover
+                open={authPopoverOpen}
+                onOpenChange={setAuthPopoverOpen}
+                showTrigger={false}
+                defaultTab={authTab}
+            />
         </header>
     );
 }

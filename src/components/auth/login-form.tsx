@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrandMark } from '@/components/brand/BrandMark'
-import { signInWithUsername, signUpWithUsername, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
+import { signInWithIdentifier, signInWithEmail, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
@@ -57,6 +57,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
     const [username, setUsername] = useState('')
+    const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [isPending, startTransition] = useTransition()
@@ -64,13 +65,15 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const [showForgotPassword, setShowForgotPassword] = useState(false)
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
-    const handleUsernameLogin = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setMessage(null)
 
         startTransition(async () => {
             try {
-                await signInWithUsername(username, password)
+                // Identifier field label reads "Email or username" — shape
+                // decides the routing (see signInWithIdentifier).
+                await signInWithIdentifier(username, password)
                 router.refresh()
                 await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
@@ -105,7 +108,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!username || !password) {
+        if (!email || !username || !password) {
             setMessage(AUTH_MESSAGES.missingCredentials)
             return
         }
@@ -115,6 +118,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
         startTransition(async () => {
             try {
                 const formData = new FormData()
+                formData.append('email', email)
                 formData.append('username', username)
                 formData.append('password', password)
                 formData.append('turnstileToken', turnstileToken ?? '')
@@ -123,7 +127,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     setMessage(result.error)
                     return
                 }
-                await signInWithUsername(username, password)
+                // Email-based sign-in — the account was just created under the
+                // submitted address, not a derived one (signInWithUsername
+                // would re-derive `<username>@intervu.cc`, which no longer
+                // matches).
+                await signInWithEmail(email, password)
                 router.refresh()
                 await syncGuestFollowsToServer()
                 if (onSuccess) onSuccess()
@@ -180,16 +188,63 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     </TabsTrigger>
                 </TabsList>
 
+                {/* Email-first ordering (2026-08-20 signup-ladder audit): Google is
+                    the only sign-in path that hands us a real, mail-deliverable
+                    address — a username/password account is registered under a
+                    synthesized `<username>@intervu.cc` the send layer refuses
+                    (see lib/auth/username-email.ts), so it can't actually receive
+                    the alerts/digest this form is now selling. That path stays
+                    above username/password on both tabs rather than below it. */}
+                <div className="grid gap-2 mb-4">
+                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
+                        <GoogleGlyph />
+                        Continue with Google
+                    </Button>
+                    {onGuestAccess && (
+                        <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                            Continue as Guest
+                        </Button>
+                    )}
+                </div>
+
+                <div className="relative mb-4">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                            Or
+                        </span>
+                    </div>
+                </div>
+
                 <div className="grid gap-4">
-                    <form onSubmit={activeTab === "login" ? handleUsernameLogin : handleSignUp}>
+                    <form onSubmit={activeTab === "login" ? handleLogin : handleSignUp}>
                         <div className="grid gap-4">
+                            {activeTab === "signup" && (
+                                <div className="grid gap-1">
+                                    <Label className="sr-only" htmlFor="email">
+                                        Email
+                                    </Label>
+                                    <Input
+                                        id="email"
+                                        placeholder="Email"
+                                        type="email"
+                                        autoComplete="email"
+                                        disabled={isPending}
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className={authFieldClass}
+                                    />
+                                </div>
+                            )}
                             <div className="grid gap-1">
                                 <Label className="sr-only" htmlFor="username">
-                                    Username
+                                    {activeTab === "login" ? "Email or username" : "Username"}
                                 </Label>
                                 <Input
                                     id="username"
-                                    placeholder="Username"
+                                    placeholder={activeTab === "login" ? "Email or username" : "Username"}
                                     type="text"
                                     autoCapitalize="none"
                                     autoComplete="username"
@@ -258,29 +313,6 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     )}
                 </div>
             </Tabs>
-
-            <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                        Or
-                    </span>
-                </div>
-            </div>
-
-            <div className="grid gap-2">
-                <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
-                    <GoogleGlyph />
-                    Continue with Google
-                </Button>
-                {onGuestAccess && (
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
-                        Continue as Guest
-                    </Button>
-                )}
-            </div>
 
             {message && (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm justify-center">
