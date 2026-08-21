@@ -118,6 +118,15 @@
   /* Motion tokens */
   --transition-fast: 100ms;
   --transition-panel: 150ms;
+
+  /* Overlay elevation — the ONE shadow value in the system. A shadow means
+     "this floats above the page": reserved for surfaces that render in a
+     portal with nothing behind them (dialog, sheet, tooltip, select,
+     dropdown-menu, popover, the SearchAutocomplete results panel). Every
+     in-flow surface stays flat and separates by --border + whitespace; hover
+     affordance in-flow is border-darkening, never a lift. See
+     docs/design/ATTENTION.md. */
+  --shadow-overlay: 0 8px 30px 0 rgba(10, 10, 10, 0.14);
 }
 
 .dark {
@@ -198,6 +207,11 @@
   --st-intv: var(--warn);                 --st-intv-soft: 38 31 16;
   --st-offer: var(--live);                --st-offer-soft: var(--live-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
+
+  /* Overlay elevation (dark) — stronger than the light value since a drop
+     shadow reads on a dark ground only when it is darker still than the
+     surface it separates from. */
+  --shadow-overlay: 0 12px 40px 0 rgba(0, 0, 0, 0.55);
 }
 
 @theme inline {
@@ -283,7 +297,12 @@
      had ever written down was never a key the rule could reach. The guard in
      tests/unit/design-language.test.ts reads that same framework file, so a
      Tailwind release that adds a scale step fails the test instead of quietly
-     reintroducing elevation. */
+     reintroducing elevation.
+
+     This scale governs the *named* shadow-{2xs..2xl,inner} utilities only.
+     `--shadow-overlay` (defined in :root/.dark above) is a separate,
+     deliberately non-zero token for the one exception: floating overlay
+     primitives. See the comment there and docs/design/ATTENTION.md. */
   --shadow-2xs: none;
   --shadow-xs: none;
   --shadow-sm: none;
@@ -361,7 +380,6 @@ h4 {
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(10, 10, 10, 0.1);
   box-shadow:
-    0 10px 30px 0 rgba(10, 10, 10, 0.07),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
     inset 0 0 12px 0 rgba(255, 255, 255, 0.3);
 }
@@ -372,37 +390,29 @@ h4 {
   backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 
-    0 12px 36px 0 rgba(0, 0, 0, 0.45),
+  box-shadow:
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
 }
 
-/* Interactive glass cards (job rows, LaunchBanner) lift on hover to signal
-   depth and separate from the surface beneath them. The base .glass-card
-   `box-shadow` is replaced — not layered — so the inset sheen stays
-   consistent and the outer shadow doesn't double-stack. The transition on
-   the element (transition-all duration-150) animates both properties for
-   free. The active-row `.glass-tint-blue` rule uses `!important`, so it
-   always wins over this hover state — an open row never lifts. */
+/* Interactive glass cards (job rows, LaunchBanner) are in-flow, not
+   overlays, so hover affordance is border-darkening only — no outer shadow,
+   no lift. The inset sheen is replaced too (not layered) so it stays
+   consistent rather than double-stacking. The active-row `.glass-tint-blue`
+   rule uses `!important`, so it always wins over this hover state — an open
+   row's border never changes on hover. */
 .glass-card:hover {
   box-shadow:
-    0 2px 8px 0 rgba(10, 10, 10, 0.07),
-    0 6px 20px -4px rgba(10, 10, 10, 0.12),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 0 12px 0 rgba(255, 255, 255, 0.35);
   border-color: rgba(10, 10, 10, 0.18);
-  transform: translateY(-1px);
 }
 
 .dark .glass-card:hover {
   box-shadow:
-    0 2px 8px 0 rgba(0, 0, 0, 0.4),
-    0 6px 24px -4px rgba(0, 0, 0, 0.55),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 0 20px 0 rgba(255, 255, 255, 0.03);
   border-color: rgba(255, 255, 255, 0.20);
-  transform: translateY(-1px);
 }
 
 /* Detail pane at xl+ — outer drop shadow that lifts it above the list
