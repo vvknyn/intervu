@@ -15,7 +15,7 @@ import type { FollowedCompany } from "../../src/lib/follows/types";
  * channel exists (an account, or a verified guest email).
  *
  * Both surfaces render through the same `FollowButton` — the company page
- * (`variant="outline"`/`"elite"`/`"brand"`) and the hot-table pill
+ * (`variant="outline"`/`"elite"`/`"primary"`) and the hot-table pill
  * (`variant="pill"`) — so this file proves the gate once, generically, and
  * proves the pill specifically (a case other than the company-page button)
  * to make sure "gate at the chokepoint" didn't quietly become
@@ -102,7 +102,7 @@ describe("resolveFollowingState: signed-in behavior is unchanged by this fix", (
 });
 
 describe("FollowButton: guest render never claims Following without a verified channel", () => {
-  for (const variant of ["outline", "elite", "brand"] as const) {
+  for (const variant of ["outline", "elite", "primary"] as const) {
     it(`variant="${variant}" (company-page button): unverified guest sees Follow, not Following`, () => {
       const html = render({ variant, emailVerified: false });
       assert.match(html, /data-following="false"/);
@@ -114,6 +114,19 @@ describe("FollowButton: guest render never claims Following without a verified c
     const html = render({ variant: "pill", emailVerified: false });
     assert.match(html, /data-following="false"/);
     assert.doesNotMatch(html, />Following/);
+  });
+});
+
+describe("FollowButton: variant=\"primary\" is the page's single inverted-ink action", () => {
+  it('reaches Button\'s "default" variant, not "brand" (blue is for accents, never the primary CTA)', () => {
+    const html = render({ variant: "primary" });
+    assert.match(html, /data-variant="default"/);
+    assert.doesNotMatch(html, /data-variant="brand"/);
+  });
+
+  it('variant="outline" (a case other than primary) still reaches its own Button variant, unchanged', () => {
+    const html = render({ variant: "outline" });
+    assert.match(html, /data-variant="outline"/);
   });
 });
 

@@ -96,9 +96,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
-            as the page's one primary action — same inverted-ink treatment
-            as the house system's other primary CTAs (`variant="brand"`,
-            already used below for the roles list's own "View all" button). */}
+            as the page's one primary action — inverted-ink treatment via
+            `variant="primary"` (maps to Button's `default` variant). Blue
+            (`variant="brand"`, used below for the roles list's "View all"
+            button) is for interactive accents, never the primary CTA. */}
         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 gap-5">
             <CompanyLogo domain={data.domain} name={data.name} size="lg" />
@@ -129,7 +130,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             domain={data.domain}
             slug={data.slug}
             displayName={data.name}
-            variant="brand"
+            variant="primary"
             className="shrink-0 sm:self-start"
           />
         </header>
