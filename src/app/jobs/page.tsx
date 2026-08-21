@@ -56,17 +56,20 @@ import {
     decodeText,
     displayCompanyBrand,
     locationText,
-    salaryText,
+    LOCATION_UNKNOWN_TEXT,
     postedAgeShort,
     searchResultLine,
     firstMentionIndex,
     partitionByTitleMatch,
     seamSummary,
     seamSummarySorted,
-    prettyEnum,
     ghostMetaFor,
     GHOST_META,
+    buildRowMetaLine,
+    employmentTypeSegment,
+    locationWithMode,
 } from "@/lib/jobs/presentation";
+import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
     subscribeRecentSearches,
@@ -503,28 +506,33 @@ function JobCard({
     expanded?: boolean;
     onToggleExpand?: () => void;
 }) {
-    const accessibleName = `${decodeText(job.title)} at ${displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}`;
+    const presented = presentJob(job);
+    const accessibleName = `${presented.title} at ${presented.company.name}`;
     const trust = rowTrustChip(job, now);
-    const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // Relist caution (Task 3, Vivek request; retitled ITEM T 2026-08-15 — a
     // relist is a posted-date refresh, NOT a repost/close-reopen) — same
     // classifier JobDetail's own posted-chip reads, so the SERP row and the
     // detail panel can never disagree about which postings are re-stamped.
     const relisted = classifyPostingFreshness(job, now).kind === "relisted";
-    const level = prettyEnum(job.experience_level);
-    const employment = prettyEnum(job.employment_type);
-    const loc = locationText(job);
-    // `locationText` degrades to "Location not listed" (never throws, never
-    // guesses) when nothing usable came off the posting — that sentinel is
-    // an absence, not a value, so the LOCATION chip below renders only when
-    // it's something OTHER than that (remote is always a known value, even
-    // when the underlying `loc` is unknown, since `locationLine` never
-    // surfaces the sentinel in the remote branch).
-    const locationKnown = job.work_type === "remote" || loc !== "Location not listed";
-    const modeLabel = job.work_type === "remote" ? "Remote" : job.work_type ? prettyEnum(job.work_type) : null;
-    const locationLine =
-        job.work_type === "remote" ? "Remote" : modeLabel ? `${loc} · ${modeLabel}` : loc;
+    // `presented.location` (locationSummary(locationText(job))) passes the
+    // `LOCATION_UNKNOWN_TEXT` sentinel through unchanged when nothing usable
+    // came off the posting — that's an absence, not a value, so the meta
+    // line's location segment renders only when it's something OTHER than
+    // that (remote is always a known value even when the underlying
+    // location is unknown, since `locationText`'s remote branch never
+    // surfaces the sentinel).
+    const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
+    // Meta-line facts, ordered salary-first — see `buildRowMetaLine`'s doc
+    // comment for the absence-is-silence rule and the posted-age fallback.
+    const metaSegments = buildRowMetaLine(
+        {
+            salary: presented.salary,
+            location: locationKnown ? locationWithMode(presented.location, job.work_type) : null,
+            employmentType: employmentTypeSegment(job.employment_type),
+        },
+        age,
+    );
 
     return (
         <div
@@ -574,7 +582,7 @@ function JobCard({
                             onClick();
                         }}
                     >
-                        {decodeText(job.title)}
+                        {presented.title}
                     </Link>
                     {/* Exception-only trust icon, immediately after the title
                         (badge inversion, Task C1 — replaces the old
@@ -623,10 +631,10 @@ function JobCard({
                                 onCompany(job);
                             }}
                         >
-                            {displayCompanyBrand(job.company, job.company_domain) || "Unknown company"}
+                            {presented.company.name}
                         </button>
                     ) : (
-                        displayCompanyBrand(job.company, job.company_domain) || "Unknown company"
+                        presented.company.name
                     )}
                 </div>
             </div>
@@ -649,36 +657,28 @@ function JobCard({
                     </span>
                 )}
             </span>
-            <div className="col-span-full flex flex-wrap items-center gap-1.5 pt-0.5">
-                {salary && (
-                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-[12px] overflow-hidden">
-                        <span className="bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
-                        <span className="px-1.5 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
+            <div className="col-span-full flex flex-wrap items-baseline gap-x-1.5 gap-y-1 pt-0.5">
+                {/* Meta line (Vivek's approved mock, 2026-08-20) — one quiet
+                    prose sentence replaces the labeled boxed chips: salary
+                    leads in semibold, everything else muted, "·" between
+                    segments. No label, no box, no tint — semantic color
+                    (the old PAY chip's green) is reserved for exceptions
+                    elsewhere on the row (the trust icon, the relist mark),
+                    not for a routine fact. Each segment renders only when
+                    known (`buildRowMetaLine`'s absence-is-silence rule); when
+                    nothing is known the line falls back to the posted age. */}
+                {metaSegments.length > 0 && (
+                    <span data-testid="job-row-meta" className="text-[13px] leading-snug">
+                        {metaSegments.map((segment, i) => (
+                            <span key={i}>
+                                {i > 0 && <span className="mx-1.5 text-muted-foreground/60" aria-hidden>·</span>}
+                                <span className={segment.emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                                    {segment.text}
+                                </span>
+                            </span>
+                        ))}
                     </span>
                 )}
-                {/* Never a chip for an unknown value — a job whose location
-                    genuinely isn't known gets no LOCATION chip at all rather
-                    than one reading "Location not listed". */}
-                {locationKnown && (
-                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
-                        <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LOCATION</span>
-                        <span className="px-1.5 py-0.5 font-medium text-foreground">{locationLine}</span>
-                    </span>
-                )}
-                {level && (
-                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
-                        <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LEVEL</span>
-                        <span className="px-1.5 py-0.5 font-medium text-foreground">{level}</span>
-                    </span>
-                )}
-                {employment &&
-                    employment.toLowerCase() !== "full-time" &&
-                    employment.toLowerCase() !== "full time" && (
-                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
-                            <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">TYPE</span>
-                            <span className="px-1.5 py-0.5 font-medium text-foreground">{employment}</span>
-                        </span>
-                    )}
                 {variantCount > 0 && (
                     <button
                         type="button"

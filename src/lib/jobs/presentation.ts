@@ -518,6 +518,12 @@ export function humanizeRawLocation(raw: string): string | null {
     return s;
 }
 
+/** `locationText`'s own "nothing usable came off the posting" sentinel —
+ *  exported so callers gating on it (the SERP row's meta line) compare
+ *  against the same constant `locationText` returns, rather than a second
+ *  copy of the literal string. */
+export const LOCATION_UNKNOWN_TEXT = "Location not listed";
+
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
@@ -547,7 +553,7 @@ export function locationText(j: PublicJob): string {
         return loc;
     }
     if (j.work_type === "remote") return "Remote";
-    return "Location not listed";
+    return LOCATION_UNKNOWN_TEXT;
 }
 
 /** Split a `locationText` string on ";" into trimmed, non-empty segments.
@@ -676,6 +682,53 @@ export function postedAgeShort(ts: number | null, now: number): string | null {
     if (months < 12) return `${months}mo ago`;
     const years = Math.floor(months / 12);
     return `${years}y ago`;
+}
+
+/** One segment of the SERP row's meta line — see `buildRowMetaLine`. Salary
+ *  renders semibold/foreground; every other segment is muted. */
+export interface RowMetaSegment {
+    text: string;
+    emphasis: boolean;
+}
+
+/** Employment-type segment for the row meta line — suppresses the default
+ *  "full-time" value the same way the row's old TYPE chip did (only the
+ *  exception — contract/part-time/etc. — is worth stating). */
+export function employmentTypeSegment(employmentType: string | null | undefined): string | null {
+    const pretty = prettyEnum(employmentType);
+    if (!pretty) return null;
+    const lower = pretty.toLowerCase();
+    return lower === "full-time" || lower === "full time" ? null : pretty;
+}
+
+/** Appends the onsite/hybrid work mode to an already-known location string.
+ *  Remote is skipped: `locationText`'s own "Remote · …" prefix (or bare
+ *  "Remote") already carries that fact, so appending it again would repeat
+ *  it in the same line. */
+export function locationWithMode(location: string, workType: string | null | undefined): string {
+    if (workType === "remote") return location;
+    const mode = prettyEnum(workType);
+    return mode ? `${location} · ${mode}` : location;
+}
+
+/**
+ * The SERP row's meta line: salary leads (semibold), then whichever of
+ * location/employment-type are known, joined "·" in that order — absence is
+ * silence, never a placeholder ("pay undisclosed"/"Unknown"). When nothing
+ * is known at all, the line falls back to the same posted-age string the
+ * row's data rail already shows (`postedAgeShort`) rather than rendering
+ * nothing.
+ */
+export function buildRowMetaLine(
+    facts: { salary: string | null; location: string | null; employmentType: string | null },
+    postedAge: string | null,
+): RowMetaSegment[] {
+    const segments: RowMetaSegment[] = [];
+    if (facts.salary) segments.push({ text: facts.salary, emphasis: true });
+    if (facts.location) segments.push({ text: facts.location, emphasis: false });
+    if (facts.employmentType) segments.push({ text: facts.employmentType, emphasis: false });
+    if (segments.length > 0) return segments;
+    return postedAge ? [{ text: `Posted ${postedAge}`, emphasis: false }] : [];
 }
 
 /** How each posted-date window reads out loud. `undefined` is "any time" —

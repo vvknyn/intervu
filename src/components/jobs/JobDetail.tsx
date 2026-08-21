@@ -17,6 +17,7 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { presentJob } from "@/lib/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -379,6 +380,15 @@ export function JobDetail({
     const location = locationText(job);
     const locationDisclosure = useMemo(() => clampLocationSegments(location), [location]);
     const locationClamped = locationDisclosure.hidden.length > 0;
+    // Presentation-module adoption (wave 3, ADOPTION.md): the single-location
+    // display case below (`locationClamped` false — the common case) reads
+    // through `presentJob` for postal/breadcrumb cleanup. The semicolon-split
+    // clamp/disclosure above stays on the raw `location` string — it's
+    // splitting DISTINCT locations an aggregator feed joined with ";",
+    // orthogonal to (and upstream of) the single-location cleanup
+    // `locationSummary` does, so cleaning before the split risks mangling a
+    // semicolon-joined string that also happens to contain a dash.
+    const locationDisplay = presentJob(job).location;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
@@ -552,7 +562,7 @@ export function JobDetail({
                                         </button>
                                     </>
                                 ) : (
-                                    location
+                                    locationDisplay
                                 )}
                             </div>
                             {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
