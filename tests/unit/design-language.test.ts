@@ -50,21 +50,30 @@ function tripletToHex(triplet: string): string {
 
 /**
  * The Tailwind-generated shadow SCALE (--shadow-2xs..2xl, --shadow-inner) —
- * the keys that back a `shadow-{size}` utility and that DESIGN-LANGUAGE.md's
- * "Elevation: none" rule zeros. Read from the framework rather than hardcoded
- * so a future Tailwind release that adds a step is covered by construction.
+ * the keys that back a `shadow-{size}` utility, mapped to their FRAMEWORK
+ * STOCK value (e.g. `--shadow-2xl` -> `0 25px 50px -12px rgb(0 0 0 / 0.25)`).
+ * Read from the framework rather than hardcoded so a future Tailwind release
+ * that adds a step is covered by construction, both for DESIGN-LANGUAGE.md's
+ * "Elevation: none" rule (which zeros every key in globals.css) and for the
+ * named-preset shadow-utility guard below (which classifies a bare
+ * `shadow-{size}` by the shadow it would cast if this repo didn't zero it —
+ * the shape the "never a raw named-scale shadow-* class" rule actually bans).
  * Deliberately excludes `--shadow-overlay`: that token is not part of
  * Tailwind's generated scale (no `shadow-overlay` utility exists), so a
  * plain --shadow- prefix match would wrongly fold the one sanctioned
- * non-zero shadow into the "must be none" scale check.
+ * non-zero shadow into either check.
  */
-function tailwindShadowScaleKeys(): Set<string> {
+function tailwindShadowScaleDefaults(): Map<string, string> {
     const themeCss = readFileSync(path.join(ROOT, "node_modules/tailwindcss/theme.css"), "utf8");
-    const shipped = new Set(
-        [...themeCss.matchAll(/^\s*(--shadow-[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+    const defaults = new Map(
+        [...themeCss.matchAll(/^\s*(--shadow-[a-z0-9-]+)\s*:\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]),
     );
-    assert.ok(shipped.size > 0, "could not read Tailwind's default shadow scale");
-    return shipped;
+    assert.ok(defaults.size > 0, "could not read Tailwind's default shadow scale");
+    return defaults;
+}
+
+function tailwindShadowScaleKeys(): Set<string> {
+    return new Set(tailwindShadowScaleDefaults().keys());
 }
 
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
@@ -287,10 +296,34 @@ function isForbiddenOuterShadowUtility(utility: string): boolean {
     return isForbiddenOuterShadowLayer(body.replace(/_/g, " "));
 }
 
+/**
+ * True for a bare (non-arbitrary) Tailwind shadow utility naming a scale
+ * step — e.g. `shadow-xs`, `shadow-2xl` — whose FRAMEWORK STOCK value casts a
+ * forbidden outer shadow layer, judged by the exact same
+ * `isForbiddenOuterShadowLayer` shape rule the arbitrary-value branch uses.
+ * Judging the stock value (not this repo's zeroed one) is deliberate: the
+ * `--shadow-*` scale is zeroed in globals.css, so `shadow-2xl` renders no
+ * pixel today, but DESIGN-LANGUAGE.md's rule is "never a raw named-scale
+ * shadow-* class" — using the name at all is the violation, independent of
+ * whether a token override currently neuters it. `shadow-inner` survives
+ * (its own stock value is itself an inset layer) and `shadow-none` survives
+ * (no `--shadow-none` key exists in Tailwind's scale) without either being
+ * special-cased here — both fall out of the shared shape rule for free, the
+ * same "match on shape, not on an enumerated list" contract as the sibling
+ * arbitrary-value classifier.
+ */
 function splitShadowLayers(value: string): string[] {
     // A box-shadow value is a comma-separated layer list; commas also occur
     // inside rgba()/var(), so only split on ones outside parens.
     return value.split(/,(?![^(]*\))/).map((s) => s.trim());
+}
+
+function isForbiddenNamedShadowPreset(utility: string, scaleDefaults: Map<string, string>): boolean {
+    const step = utility.match(/^shadow-([a-z0-9]+)$/)?.[1];
+    if (!step) return false;
+    const stockValue = scaleDefaults.get(`--shadow-${step}`);
+    if (!stockValue) return false; // shadow-none, or not a real Tailwind scale step
+    return splitShadowLayers(stockValue).some(isForbiddenOuterShadowLayer);
 }
 
 test("shadow means floating: .glass-panel/.glass-card never regain an outer shadow", () => {
@@ -346,12 +379,27 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
     };
     walk(path.join(ROOT, "src"));
 
+    const scaleDefaults = tailwindShadowScaleDefaults();
     const offenders: string[] = [];
+    const namedPresetOffenders: string[] = [];
     for (const file of files) {
         const src = readFileSync(file, "utf8");
         for (const m of src.matchAll(/shadow-\[[^\]]*\]/g)) {
             if (isForbiddenOuterShadowUtility(m[0])) {
                 offenders.push(`${path.relative(ROOT, file)}: ${m[0]}`);
+            }
+        }
+        // Named-preset half of the same rule (`shadow-sm`/`shadow-xl`/... —
+        // no brackets): classified by `isForbiddenNamedShadowPreset`, the
+        // SAME shape rule as the arbitrary-value branch above, just applied
+        // to a scale step's stock value instead of a literal one. This is
+        // the exact gap that let `shadow-2xl` survive in a job-details modal
+        // — the arbitrary-value regex above never matches a bracket-free
+        // class name.
+        for (const m of src.matchAll(/shadow-[a-z0-9]+\b/g)) {
+            if (isForbiddenNamedShadowPreset(m[0], scaleDefaults)) {
+                const line = src.slice(0, m.index).split("\n").length;
+                namedPresetOffenders.push(`${path.relative(ROOT, file)}:${line}: ${m[0]}`);
             }
         }
     }
@@ -361,6 +409,35 @@ test("shadow means floating: outer utility shadows only appear as the overlay to
         [],
         `outer elevation shadow(s) outside the sanctioned overlay token: ${offenders.join("; ")}. ` +
             `In-flow elements are flat (border + whitespace); floating overlays use shadow-[var(--shadow-overlay)].`,
+    );
+
+    // The named-preset half ratchets against a baseline instead of a hard
+    // zero, the same shrink-only contract as module-adoption-baseline.json:
+    // ~70 call sites across the app predate this half of the guard, and
+    // fixing all of them is a separate, deliberate PR, not fallout from
+    // closing the /co modal's gap. A NEW named-preset offender not already
+    // in the baseline still fails this test by name.
+    const baselinePath = path.join(__dirname, "shadow-preset-baseline.json");
+    const baseline: string[] = JSON.parse(readFileSync(baselinePath, "utf8")).offenders;
+    const baselineSet = new Set(baseline);
+    const currentSet = new Set(namedPresetOffenders);
+    const newNamedPresetOffenders = namedPresetOffenders.filter((o) => !baselineSet.has(o));
+    const staleBaselineEntries = baseline.filter((o) => !currentSet.has(o));
+
+    if (staleBaselineEntries.length) {
+        console.log(
+            `shadow-preset-baseline: ${staleBaselineEntries.length} entr${staleBaselineEntries.length === 1 ? "y" : "ies"} ` +
+                `no longer cast a named-preset shadow — safe to remove from tests/unit/shadow-preset-baseline.json: ` +
+                `${staleBaselineEntries.join(", ")}`,
+        );
+    }
+
+    assert.deepEqual(
+        newNamedPresetOffenders,
+        [],
+        `${newNamedPresetOffenders.length} new named-preset outer shadow(s): ${newNamedPresetOffenders.join("; ")}. ` +
+            `Go flat / border, adopt shadow-[var(--shadow-overlay)] if this is a true overlay, or — only for a ` +
+            `surface genuinely outside this change's scope — add it to tests/unit/shadow-preset-baseline.json.`,
     );
 
     // Coverage half of the invariant: the primitives that are genuinely
@@ -411,6 +488,68 @@ test("shadow classifier: survives an inset sheen, catches a hardcoded outer shad
         isForbiddenOuterShadowUtility("shadow-[0_4px_14px_rgba(0,0,0,0.18)]"),
         true,
         "a hardcoded outer drop shadow must be caught",
+    );
+});
+
+test("shadow classifier: named presets follow the same rule as arbitrary values", () => {
+    // Proves the named-preset half is shape-based too, not a hardcoded list
+    // of the sizes this change happened to touch — a case other than
+    // `shadow-2xl` (the modal instance that motivated this) has to fail too.
+    const scaleDefaults = tailwindShadowScaleDefaults();
+    assert.equal(
+        isForbiddenNamedShadowPreset("shadow-2xl", scaleDefaults),
+        true,
+        "shadow-2xl is the instance that motivated this — must still be caught",
+    );
+    assert.equal(
+        isForbiddenNamedShadowPreset("shadow-xs", scaleDefaults),
+        true,
+        "shadow-xs's stock value is a real outer drop shadow (not inset, not a ring) and must fail too",
+    );
+    assert.equal(
+        isForbiddenNamedShadowPreset("shadow-none", scaleDefaults),
+        false,
+        "shadow-none is a legitimate explicit no-op — no --shadow-none key exists to flag",
+    );
+    assert.equal(
+        isForbiddenNamedShadowPreset("shadow-inner", scaleDefaults),
+        false,
+        "shadow-inner's own stock value is itself an inset layer, exempt the same way arbitrary insets are",
+    );
+});
+
+test("/co: no rounded-2xl/rounded-3xl survives in the company-page family", () => {
+    // DESIGN-LANGUAGE.md's radius rule ("All nine --radius-* keys are 0px")
+    // already renders these classes at 0px — this guards the code-hygiene
+    // half, the same reasoning the shadow guard above applies to shadow-2xl:
+    // a component naming a size that does nothing reads as a lie to the next
+    // person editing it. Scoped to the company-page family (the /co route
+    // plus every src/components/company/*.tsx file, whether or not /co is
+    // the one that renders it) rather than all of src, because the rest of
+    // the app hasn't been swept yet — one surface's ratchet, not a repo-wide
+    // rewrite in this change.
+    const targets = [
+        path.join(ROOT, "src/app/co/[slug]/page.tsx"),
+        ...readdirSync(path.join(ROOT, "src/components/company"))
+            .filter((f) => f.endsWith(".tsx"))
+            .map((f) => path.join(ROOT, "src/components/company", f)),
+    ];
+
+    const offenders: string[] = [];
+    for (const file of targets) {
+        const src = readFileSync(file, "utf8");
+        for (const m of src.matchAll(/\brounded-(2xl|3xl)\b/g)) {
+            const line = src.slice(0, m.index).split("\n").length;
+            offenders.push(`${path.relative(ROOT, file)}:${line}: ${m[0]}`);
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `rounded-2xl/rounded-3xl surviving in the company-page family: ${offenders.join("; ")}. ` +
+            `Every --radius-* key is 0px already — drop the class (or use rounded-none where dropping it ` +
+            `would leave the element non-square by default).`,
     );
 });
 

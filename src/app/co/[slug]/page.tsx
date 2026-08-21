@@ -128,7 +128,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
               )}
               {data.stage && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {data.stage}
                   </span>
                 </div>
@@ -169,7 +169,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           {/* Plain-language hiring record + the ghost-flagged share restated
               as a count (`staleShare`) instead of a bare, jargon-labelled
               percentage tile. */}
-          <section data-testid="company-hiring-activity" className="rounded-2xl bg-chip px-5 py-4">
+          <section data-testid="company-hiring-activity" className="bg-chip px-5 py-4">
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Hiring activity
             </h2>
