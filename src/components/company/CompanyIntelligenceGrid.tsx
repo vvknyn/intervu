@@ -4,7 +4,7 @@ import {
   CurrencyDollar,
   GlobeHemisphereWest,
   Code,
-  Sparkle,
+  Buildings,
   Newspaper,
   ArrowUpRight,
 } from "@phosphor-icons/react/dist/ssr";
@@ -53,21 +53,21 @@ export function CompanyIntelligenceGrid({
   const hasAnyData = Boolean(funding || visa || techStack || workModes || news.length > 0);
   if (!hasAnyData) return null;
 
-  const hasTechCard = Boolean(techStack || workModes);
+  const hasTechCard = Boolean(techStack);
+  const hasWorkModesCard = Boolean(workModes);
 
   return (
-    <section aria-label="Company Intelligence Suite" className={cn("mb-10 space-y-5", className)}>
-      <h2 className="flex items-center gap-2.5 font-display text-[20px] sm:text-[22px] font-semibold text-foreground">
-        <Sparkle className="h-5 w-5 text-brand" weight="fill" />
-        Company Intelligence & Insights
+    <section aria-label="Company details" className={cn("space-y-5", className)}>
+      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Company details
       </h2>
 
-      {(funding || visa || hasTechCard) && (
-        // Card count is genuinely variable (0-3) now that fabricated data no
-        // longer guarantees all three always render. An auto-fitting track
+      {(funding || visa || hasTechCard || hasWorkModesCard) && (
+        // Card count is genuinely variable (0-4) now that fabricated data no
+        // longer guarantees all of them always render. An auto-fitting track
         // — not a hardcoded `md:grid-cols-3` — degrades cleanly at every
-        // count: 1 card fills the row instead of sitting alone in two empty
-        // slots, 2-3 cards split the row evenly, and this can't regress as
+        // count: 1 card fills the row instead of sitting alone in empty
+        // slots, more cards split the row evenly, and this can't regress as
         // fields come and go.
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
           {/* CARD 1: Capital & Stage — sourced from the company's own job listings */}
@@ -154,86 +154,69 @@ export function CompanyIntelligenceGrid({
             </div>
           )}
 
-          {/* CARD 3: Tech DNA & Workplace Policy — extracted from active job listings */}
-          {hasTechCard && (
+          {/* CARD: How they work — remote/hybrid/onsite split, one plain
+              sentence over a single-hue proportion bar (no tri-color bar —
+              this page has one brand hue for magnitude, not a legend to
+              decode). */}
+          {hasWorkModesCard && workModes && (
             <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
               <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <Code className="h-4 w-4 text-sky-500" weight="bold" />
-                    Tech DNA & Remote %
-                  </span>
-                  {workModes && workModes.remotePct > 0 && (
-                    <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-sky-600 dark:text-sky-400">
-                      {workModes.remotePct}% Remote
-                    </span>
-                  )}
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Buildings className="h-4 w-4 text-brand" weight="bold" />
+                  How they work
+                </span>
+
+                <div className="mt-4">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      style={{ width: `${workModes.remotePct}%` }}
+                      className="h-full bg-brand"
+                      title={`${workModes.remotePct}% remote`}
+                    />
+                  </div>
+                  <p className="mt-2.5 text-[13px] text-muted-foreground">
+                    {workModes.remotePct}% remote, {workModes.hybridPct}% hybrid, {workModes.onsitePct}% on-site.
+                  </p>
                 </div>
-
-                {/* Work Mode Bar */}
-                {workModes && (
-                  <div className="mt-4">
-                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                      {workModes.remotePct > 0 && (
-                        <div
-                          style={{ width: `${workModes.remotePct}%` }}
-                          className="bg-sky-500"
-                          title={`${workModes.remotePct}% Remote`}
-                        />
-                      )}
-                      {workModes.hybridPct > 0 && (
-                        <div
-                          style={{ width: `${workModes.hybridPct}%` }}
-                          className="bg-amber-500"
-                          title={`${workModes.hybridPct}% Hybrid`}
-                        />
-                      )}
-                      {workModes.onsitePct > 0 && (
-                        <div
-                          style={{ width: `${workModes.onsitePct}%` }}
-                          className="bg-muted-foreground/40"
-                          title={`${workModes.onsitePct}% On-site`}
-                        />
-                      )}
-                    </div>
-                    <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-                      <span>{workModes.remotePct}% Remote</span>
-                      <span>{workModes.hybridPct}% Hybrid</span>
-                      <span>{workModes.onsitePct}% On-site</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tech Stack Chips */}
-                {techStack && (techStack.languages.length > 0 || techStack.infrastructure.length > 0) && (
-                  <div className="mt-5 border-t border-border pt-4">
-                    <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
-                      Detected Technology Stack
-                    </div>
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {techStack.languages.slice(0, 5).map((lang) => (
-                        <span
-                          key={lang}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
-                        >
-                          {lang}
-                        </span>
-                      ))}
-                      {techStack.infrastructure.slice(0, 3).map((infra) => (
-                        <span
-                          key={infra}
-                          className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
-                        >
-                          {infra}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
-                Extracted from active job listings
+                From active job listings
+              </div>
+            </div>
+          )}
+
+          {/* CARD: Tech stack — extracted from active job listings */}
+          {hasTechCard && techStack && (techStack.languages.length > 0 || techStack.infrastructure.length > 0) && (
+            <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs transition-colors hover:border-border-strong">
+              <div>
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Code className="h-4 w-4 text-brand" weight="bold" />
+                  Tech stack
+                </span>
+
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {techStack.languages.slice(0, 5).map((lang) => (
+                    <span
+                      key={lang}
+                      className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] font-medium text-foreground"
+                    >
+                      {lang}
+                    </span>
+                  ))}
+                  {techStack.infrastructure.slice(0, 3).map((infra) => (
+                    <span
+                      key={infra}
+                      className="inline-flex items-center rounded-md border border-border bg-chip px-2.5 py-1 text-[11.5px] text-muted-foreground"
+                    >
+                      {infra}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 pt-2 text-[11.5px] text-muted-foreground">
+                From active job listings
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { locationSummary } from "@/lib/presentation";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -20,8 +21,19 @@ import { cn } from "@/lib/utils";
  *  at once" can't drift between the two states. */
 const ROLES_PREVIEW = 10;
 
+/**
+ * `locationSummary` (lib/presentation/location.ts) is the second cleanup
+ * pass over `locationText`'s output — strips a trailing postal code, clamps
+ * an over-long ATS breadcrumb, collapses a per-state "Remote - XX" dump.
+ * This is the first caller to route through it (see that module's ADOPTION
+ * doc); `jobMatchesQuery`'s search haystack below deliberately still reads
+ * the RAW `locationText` — a stripped postal code or clamped breadcrumb must
+ * never make an otherwise-matching role searchable-but-invisible.
+ */
 function roleMeta(job: PublicJob): string {
-  const parts = [locationText(job), salaryText(job), prettyEnum(job.experience_level)].filter(Boolean);
+  const parts = [locationSummary(locationText(job)), salaryText(job), prettyEnum(job.experience_level)].filter(
+    Boolean,
+  );
   return parts.join(" · ");
 }
 
@@ -249,10 +261,10 @@ export function CompanyRoleSearch({
                 >
                   <CompanyLogo domain={companyDomain} name={companyName} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-semibold text-foreground group-hover:text-brand transition-colors">
+                    <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
                       {decodeText(job.title)}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
+                    <div className="mt-1 text-[14px] text-muted-foreground">
                       {roleMeta(job)}
                     </div>
                     {ghost && (
