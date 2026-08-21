@@ -4,8 +4,15 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: COMPANY-FOLLOW — Milestone 2 smoke
  *
  * Environment-tolerant: company pages for elite-allowlisted domains return 200
- * even when Meilisearch is unconfigured (KPIs may be empty). Follow toggle uses
- * guest localStorage only — no Firebase required. Unknown slugs always 404.
+ * even when Meilisearch is unconfigured (KPIs may be empty). Unknown slugs
+ * always 404.
+ *
+ * Milestone 4 (the follow-email-gate fix): a signed-out click on Follow no
+ * longer flips the button to "Following" — a guest-store bookmark isn't a
+ * real notification channel. The click opens the one-field email step right
+ * at the button instead; only a verified email (or a signed-in account) may
+ * render "Following". Turnstile is live in this env, so these specs stop at
+ * "the email step opened / is focusable" — no real submission.
  */
 
 const GUEST_FOLLOWS_KEY = 'intervu.follows.guest';
@@ -49,7 +56,7 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(page.getByTestId('follow-company')).toBeVisible();
     });
 
-    test('guest follow toggle persists in localStorage', async ({ page }) => {
+    test('guest click on Follow never renders Following — it opens the email step instead', async ({ page }) => {
         await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
 
         const companyPage = page.getByTestId('company-page');
@@ -62,78 +69,26 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
 
         const btn = page.getByTestId('follow-company');
         await expect(btn).toHaveAttribute('data-following', 'false');
-
-        await btn.click();
-        await expect(btn).toHaveAttribute('data-following', 'true');
-        await expect(btn).toHaveText(/Following/);
-
-        const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
-        expect(stored).toBeTruthy();
-        expect(stored).toContain(ELITE_COMPANY_DOMAIN);
-
-        await btn.click();
-        await expect(btn).toHaveAttribute('data-following', 'false');
-
-        const cleared = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
-        expect(cleared === '[]' || cleared === null).toBeTruthy();
-    });
-
-    test('guest follow shows persist CTA without gating browse', async ({ page }) => {
-        await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
-
-        const companyPage = page.getByTestId('company-page');
-        await expect(companyPage.or(page.getByText('Page not found')).first()).toBeVisible({
-            timeout: 30_000,
-        });
-        if (!(await companyPage.isVisible())) {
-            test.skip(true, 'Company page unavailable — allowlist missing in this build');
-        }
-
-        const btn = page.getByTestId('follow-company');
-        const prompt = page.getByTestId('follow-persist-prompt');
-        const persistCta = page.getByTestId('follow-persist-cta');
-        const heading = page.getByRole('heading', { level: 1 });
-        const companyName = (await heading.textContent())?.trim() ?? '';
-
-        await expect(prompt).not.toBeVisible();
-        await expect(persistCta).not.toBeVisible();
 
         await btn.click();
         await expect(page).not.toHaveURL(/\/login/);
-        await expect(btn).toHaveAttribute('data-following', 'true');
 
-        await expect(prompt).toBeVisible();
-        await expect(prompt).toContainText(companyName);
-        await expect(prompt).toContainText('Get a weekly note when they post');
-        await expect(persistCta).toBeVisible();
+        // The core gate: still not "Following" — no channel exists yet.
+        await expect(btn).toHaveAttribute('data-following', 'false');
+        await expect(btn).not.toHaveText(/Following/);
 
-        // Persist CTA now opens the one-field email step inline (Milestone
-        // 3) instead of the account dialog directly — sign-in is a fallback
-        // reached from inside that step.
-        await persistCta.click();
+        // The email step opened right at the button instead of a fake follow.
         const emailStep = page.getByTestId('follow-email-step');
         await expect(emailStep).toBeVisible();
-        await expect(prompt).not.toBeVisible();
 
-        await page.getByTestId('follow-email-signin').click();
-        const dialog = page.getByRole('dialog');
-        await expect(dialog).toBeVisible();
-        await expect(emailStep).not.toBeVisible();
-
-        await page.getByRole('button', { name: 'Close' }).click();
-        await expect(dialog).not.toBeVisible();
-
-        await expect(btn).toHaveAttribute('data-following', 'true');
+        // The click is still recorded as guest-store intent (may migrate to
+        // a real account follow on sign-in) — it just never renders as
+        // "Following" off that alone.
         const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
         expect(stored).toContain(ELITE_COMPANY_DOMAIN);
-        await expect(prompt).toBeVisible();
-
-        await btn.click();
-        await expect(btn).toHaveAttribute('data-following', 'false');
-        await expect(prompt).not.toBeVisible();
     });
 
-    test('persist CTA opens email step, sign-in link falls back to auth dialog', async ({ page }) => {
+    test('email step: focusable, sign-in link falls back to the auth dialog', async ({ page }) => {
         await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
 
         const companyPage = page.getByTestId('company-page');
@@ -146,10 +101,6 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
 
         await page.getByTestId('follow-company').click();
 
-        const persistCta = page.getByTestId('follow-persist-cta');
-        await expect(persistCta).toBeVisible();
-        await persistCta.click();
-
         const emailStep = page.getByTestId('follow-email-step');
         await expect(emailStep).toBeVisible();
 
@@ -161,5 +112,8 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await page.getByTestId('follow-email-signin').click();
         await expect(page.getByRole('dialog')).toBeVisible();
         await expect(emailStep).not.toBeVisible();
+
+        const btn = page.getByTestId('follow-company');
+        await expect(btn).toHaveAttribute('data-following', 'false');
     });
 });

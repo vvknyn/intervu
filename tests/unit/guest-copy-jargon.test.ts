@@ -14,8 +14,6 @@ import {
   followEmailPrompt,
   followEmailSentLine,
   followEmailVerifiedLine,
-  followPersistCta,
-  followPersistLine,
   followPersistValueLine,
 } from "../../src/lib/follows/persist-copy";
 import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
@@ -50,8 +48,6 @@ const GUEST_STRINGS: Record<string, string> = {
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({
     liveJobs: { kind: "exact", value: 12345 },
   }),
-  FOLLOW_PERSIST_LINE: followPersistLine("Example Co"),
-  FOLLOW_PERSIST_CTA: followPersistCta(),
   FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
   FOLLOW_EMAIL_PROMPT: followEmailPrompt("Example Co"),
   FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
