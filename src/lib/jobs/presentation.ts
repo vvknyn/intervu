@@ -2,6 +2,7 @@ import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 
@@ -400,13 +401,45 @@ const COMMA_LEGAL_SUFFIXES = [
 ];
 /** Longest phrase first isn't required for correctness (see
  *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
- *  documenting as multi-word forms are added. */
+ *  documenting as multi-word forms are added.
+ *
+ *  Widened 2026-08-21 (prose-company-names): every entry below is either
+ *  punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical abbreviation
+ *  (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday English word to
+ *  plausibly BE a deliberate brand ending — the same "own shape" test the
+ *  module doc above already uses to justify this list (and the same line
+ *  the ORIGINAL list already drew between "Ltd." and bare "Ltd", see
+ *  `GEO_GATED_TAIL_WORDS`'s doc). The bare, unpunctuated, everyday-word
+ *  forms of the same designators — "Ltd", "Corp", "Co", "Company",
+ *  "Corporation" — stay OUT of this always-safe list; they move to
+ *  `GEO_GATED_TAIL_WORDS` below, which strips them only when an independent
+ *  signal corroborates that the trailing word is a legal marker rather than
+ *  the brand's own ending. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
-    "Ltd.", "Limited", "L.L.C.", "LLC", "Inc.",
-    "GmbH", "PLC", "S.p.A.", "S.A.", "B.V.", "N.V.", "AG", "AB", "Oy",
+    "Ltd.", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
+    "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
+    "AG", "AB", "Oy", "ULC", "Corp.", "Co.", "Pty", "A/S", "KK", "s.r.o.", "d.o.o.",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
+
+/**
+ * Bare (unpunctuated) corporate-structure/entity words too ordinary, on
+ * their own, to safely read as a legal marker rather than a deliberate
+ * brand ending — "Acme Ltd", "Acme Corp", "Riverside Group" must all render
+ * untouched, because real brands legitimately end in these words. They
+ * become safe to strip only once `stackedGeographyParen` finds an
+ * independent corroborating signal: a bracketed geography qualifier
+ * elsewhere in the name (the "(Canada) Holdings LTD" shape) — a company
+ * that bothers to bracket a subsidiary's geography is naming a legal
+ * filing, not styling a brand. "Company"/"Corporation" join this tier
+ * rather than `BARE_LEGAL_SUFFIXES` for the same reason as "Ltd"/"Corp":
+ * unlike the punctuated abbreviations above (never a deliberate brand
+ * ending), the fully-spelled word IS sometimes the brand's own terminal
+ * word — "The Manufacturers Life Insurance Company" stays whole below on
+ * exactly that basis.
+ */
+const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Ltd", "Corp", "Co", "Company", "Corporation"];
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -422,11 +455,12 @@ function normalizeLegalWord(w: string): string {
     return w.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` entry
- *  (multi-word phrases split apart) — the vocabulary `isOnlyLegalForm`
- *  checks a stripped remainder's words against. */
+/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` or
+ *  `GEO_GATED_TAIL_WORDS` entry (multi-word phrases split apart) — the
+ *  vocabulary `isOnlyLegalForm` checks a stripped remainder's words
+ *  against. */
 const BARE_LEGAL_WORDS = new Set(
-    BARE_LEGAL_SUFFIXES.flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
+    [...BARE_LEGAL_SUFFIXES, ...GEO_GATED_TAIL_WORDS].flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
 );
 
 const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})$`, "i");
@@ -435,8 +469,8 @@ const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeReg
  *  either a recognized legal-form word (`BARE_LEGAL_WORDS`) or pure
  *  punctuation left over from a strip (a lone "," when ", Inc." loses
  *  " Inc."). An empty `s` counts too (nothing real survived). Guards
- *  `stripBareLegalForm` against hollowing a name down to nothing but
- *  suffix chaff. */
+ *  `stripBareLegalForm`/`stripOneGeoGatedWord` against hollowing a name
+ *  down to nothing but suffix chaff. */
 function isOnlyLegalForm(s: string): boolean {
     const words = s.trim().split(/\s+/).filter(Boolean);
     if (words.length === 0) return true;
@@ -447,7 +481,7 @@ function isOnlyLegalForm(s: string): boolean {
 }
 
 /**
- * Strips ONE trailing bare (no-comma) legal-form phrase from `s`, trying
+ * Strips ONE trailing bare legal-form phrase from `s`, trying
  * `BARE_LEGAL_SUFFIXES_BY_LENGTH` longest-first so a multi-word form
  * ("Private Ltd.") strips as a whole unit rather than a shorter member of
  * the same family ("Ltd.") leaving a dangling "...Private" behind. A match
@@ -455,16 +489,136 @@ function isOnlyLegalForm(s: string): boolean {
  * and not itself `isOnlyLegalForm` — which is what keeps a name that IS
  * just a legal form (or reduces to one after a strip) coming back
  * untouched, and is the general property that makes growing the vocabulary
- * safe by construction rather than by re-deriving safety per token.
+ * safe by construction rather than by re-deriving safety per token. The
+ * optional leading comma (`,?`) is what makes "with or without a preceding
+ * comma" a property of every entry in the list, instead of needing
+ * `COMMA_LEGAL_SUFFIXES` duplicated into this one too.
  */
 function stripBareLegalForm(s: string): string {
     for (const suffix of BARE_LEGAL_SUFFIXES_BY_LENGTH) {
-        const re = new RegExp(`\\s+${escapeRegExp(suffix)}$`, "i");
+        const re = new RegExp(`,?\\s+${escapeRegExp(suffix)}$`, "i");
         if (!re.test(s)) continue;
         const remainder = s.replace(re, "").trim();
         if (remainder && !isOnlyLegalForm(remainder)) return remainder;
     }
     return s;
+}
+
+/** Loops `stripBareLegalForm` to a fixpoint — designators can stack ("Foo
+ *  Holdings, LLC" still has an "LLC" to remove after `GEO_GATED_TAIL_WORDS`
+ *  strips "Holdings"), and a single pass only ever removes one. */
+function stripAllBareLegalForms(s: string): string {
+    let out = s;
+    while (true) {
+        const next = stripBareLegalForm(out);
+        if (next === out) return out;
+        out = next;
+    }
+}
+
+/**
+ * One pass of `GEO_GATED_TAIL_WORDS` — same shape as `stripBareLegalForm`
+ * (comma-tolerant, remainder must survive `isOnlyLegalForm`), plus the
+ * additional guard these words need because they're common enough to be a
+ * deliberate brand ending on their own: the remainder must stay at least 2
+ * tokens or 5 characters, so a short stem doesn't get hollowed out ("Foo
+ * Holdings" -> "Foo" is refused; "Michael Kors (Canada) Holdings" ->
+ * "Michael Kors (Canada)" is fine). Only called once `stackedGeographyParen`
+ * has already found the independent corroborating signal these words need.
+ */
+function stripOneGeoGatedWord(s: string): string {
+    for (const word of GEO_GATED_TAIL_WORDS) {
+        const re = new RegExp(`,?\\s+${escapeRegExp(word)}$`, "i");
+        if (!re.test(s)) continue;
+        const remainder = s.replace(re, "").trim();
+        if (!remainder || isOnlyLegalForm(remainder)) continue;
+        const tokenCount = remainder.split(/\s+/).filter(Boolean).length;
+        if (tokenCount < 2 && remainder.length < 5) continue;
+        return remainder;
+    }
+    return s;
+}
+
+/**
+ * Finds a bracketed geography qualifier sitting BETWEEN the brand and a
+ * legal tail — "(Canada)" in "Michael Kors (Canada) Holdings LTD" — the
+ * corroborating signal `GEO_GATED_TAIL_WORDS` and the geography-parenthetical
+ * strip in `stripLegalTail` both gate on. Reuses `classifyCountryValue`
+ * (country-classification.ts, the repo's one country-name/alias table) —
+ * one source of truth for "is this a country" instead of a second,
+ * hand-rolled geography word list — so "Canada", "US", "UK" and every other
+ * alias it already recognizes work here for free.
+ *
+ * Deliberately requires something to still follow the closing paren: a
+ * parenthetical that is ALREADY the last thing in the name — "Ingram Micro
+ * Inc. (Canada)" — is `cleanCompany`'s own "does this add information"
+ * territory (module doc above), which already decided to KEEP it; this
+ * function only fires on the "geography sits between the brand and a legal
+ * tail" shape, never the "trailing geography is the whole story" shape.
+ *
+ * Only a BRACKETED geography token counts — never a bare one. "Stryker
+ * Canada ULC" strips to "Stryker Canada", not "Stryker": an unbracketed
+ * country word is load-bearing in real brand names ("Air Canada", "Canada
+ * Goose"), where a company that specifically brackets it is reliably
+ * marking a subsidiary rather than naming itself.
+ */
+function stackedGeographyParen(s: string): { content: string } | null {
+    const re = /\(([^()]{1,40})\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s))) {
+        const content = m[1]!.trim();
+        if (content.split(/\s+/).filter(Boolean).length > 3) continue;
+        if (classifyCountryValue(content).kind !== "country") continue;
+        const afterParen = s.slice(m.index + m[0].length);
+        if (!afterParen.trim()) continue; // already trailing — cleanCompany's call, not this one's
+        return { content };
+    }
+    return null;
+}
+
+/**
+ * `displayCompanyName`'s prose-safety pass, one level past
+ * `stripAllBareLegalForms`: a `^Company \d+ - ` upstream row-index prefix
+ * (a known source defect, same class as `cleanCompany`'s own leading
+ * req/tenant-code strips — kept in this display-only layer rather than
+ * `cleanCompany` itself, see `displayCompanyName`'s doc below for why), the
+ * geography-gated bare words `GEO_GATED_TAIL_WORDS` above, and the
+ * geography parenthetical they can newly expose. Order: prefix, then
+ * designators/geo-gated words to a fixpoint (stacking — "Holdings LTD" is
+ * two strips), then the now-possibly-exposed geography parenthetical. A
+ * final safety net (never below 2 chars, never JUST legal-form chaff) falls
+ * back to the pre-strip string rather than risk a mangled fragment —
+ * belt-and-braces on top of the per-step remainder guards, which should
+ * already make this unreachable.
+ */
+function stripLegalTail(s: string): string {
+    const prefixStripped = s.replace(/^Company\s+\d+\s*-\s*/i, "");
+    const geo = stackedGeographyParen(prefixStripped);
+
+    let out = prefixStripped;
+    while (true) {
+        const next = stripAllBareLegalForms(out);
+        if (next !== out) {
+            out = next;
+            continue;
+        }
+        if (geo) {
+            const gated = stripOneGeoGatedWord(out);
+            if (gated !== out) {
+                out = gated;
+                continue;
+            }
+        }
+        break;
+    }
+
+    if (geo) {
+        const trailingGeoRe = new RegExp(`,?\\s*\\(${escapeRegExp(geo.content)}\\)\\s*$`, "i");
+        if (trailingGeoRe.test(out)) out = out.replace(trailingGeoRe, "").trim();
+    }
+
+    if (out.length < 2 || isOnlyLegalForm(out)) return prefixStripped;
+    return out;
 }
 
 /**
@@ -479,12 +633,21 @@ function stripBareLegalForm(s: string): string {
  * shared chokepoint would silently change what THEY key or count by. Never
  * strips down to nothing or whitespace — a name that IS just a legal-form
  * word (or empty) is returned as `cleanCompany` left it.
+ *
+ * `stripLegalTail` (prose-company-names, 2026-08-21) is the same kind of
+ * companion, one step further: "(Canada) Holdings LTD"-shaped legal filings
+ * are still `cleanCompany("Acme Inc.")`'s exact problem — a call-site audit
+ * found `resolveCompanyName` (company-name.ts) reads `cleanCompany`'s output
+ * as a matching/dedup/tally key, so composing the wider strip there too
+ * would silently change which corpus row wins a company's display name,
+ * not just how it renders. It composes here instead, where every consumer
+ * (this function's own callers, `displayCompanyBrand`) is display-only.
  */
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
     const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
-    return stripBareLegalForm(withoutComma);
+    return stripLegalTail(withoutComma);
 }
 
 /**

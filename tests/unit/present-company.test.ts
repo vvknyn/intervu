@@ -36,3 +36,12 @@ test("strips a comma-separated legal suffix via displayCompanyBrand (composition
   const out = presentCompany({ name: "ServiceTitan, Inc.", domain: "servicetitan.com" });
   assert.equal(out.name, "ServiceTitan");
 });
+
+// End-to-end proof the prose-company-names fix (presentation.ts's
+// `stripLegalTail`) reaches the ACTUAL production row/detail-pane path —
+// `presentCompany` is what `presentJob` (lib/presentation/job.ts) calls for
+// every job row and the JobDetail panel, via `displayCompanyBrand`.
+test("prose-safe display reaches the real row/detail-pane path: a stacked geography+legal-tail name renders as its brand", () => {
+  const out = presentCompany({ name: "Michael Kors (Canada) Holdings LTD", domain: "michaelkors.com" });
+  assert.equal(out.name, "Michael Kors");
+});

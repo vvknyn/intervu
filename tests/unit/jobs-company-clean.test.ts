@@ -273,3 +273,112 @@ test("the existing leading-entity-code strip generalizes to a different real QLY
         "Qualys Security TechServices Private Ltd.",
     );
 });
+
+// displayCompanyName — prose-safe display of legal-entity strings, 2026-08-21.
+// Real production examples, pixel-verified live on /jobs the same day.
+// See presentation.ts's `stripLegalTail`/`GEO_GATED_TAIL_WORDS`/
+// `stackedGeographyParen` for the mechanism these exercise.
+
+test("strips a stacked 'geography + structure-noun + legal-designator' tail — the Michael Kors shape", () => {
+    assert.equal(displayCompanyName("Michael Kors (Canada) Holdings LTD"), "Michael Kors");
+});
+
+// "Stryker" alone was also considered — see stackedGeographyParen's doc for
+// why an UNBRACKETED trailing country word is deliberately left alone
+// (it's load-bearing in real brand names like "Air Canada"/"Canada Goose");
+// only the bracketed shape ever gets read as a legal qualifier.
+test("strips an unambiguous foreign designator (ULC) but leaves the bare, unbracketed geography token alone", () => {
+    assert.equal(displayCompanyName("Stryker Canada ULC"), "Stryker Canada");
+});
+
+test("strips a punctuated 'Co.' with no comma and no geography needed — punctuation alone makes it unambiguous", () => {
+    assert.equal(displayCompanyName("Autodesk Canada Co."), "Autodesk Canada");
+});
+
+test("strips the '^Company N - ' upstream row-index prefix, leaving a trailing bare 'Company' untouched", () => {
+    // The trailing bare "Company" is NOT stripped: it's a geo-gated word
+    // (see GEO_GATED_TAIL_WORDS's doc) and there's no bracketed geography
+    // qualifier anywhere in this name to corroborate it — "The Manufacturers
+    // Life Insurance Company" IS this employer's real, whole legal name.
+    assert.equal(
+        displayCompanyName("Company 1 - The Manufacturers Life Insurance Company"),
+        "The Manufacturers Life Insurance Company",
+    );
+});
+
+test("the '^Company N - ' prefix strip generalizes past N=1 — class-wide, not one instance", () => {
+    assert.equal(displayCompanyName("Company 47 - Beacon Health Options"), "Beacon Health Options");
+});
+
+// Explicitly out of scope: no legal designator anywhere in this name, so
+// there is nothing for stripLegalTail to key off — "Property Management
+// Services" is real, load-bearing brand content, not a stripped legal tail.
+test("leaves a name with no legal designator at all untouched, even though it reads like a long legal form", () => {
+    assert.equal(
+        displayCompanyName("Greystar Canada Property Management Services"),
+        "Greystar Canada Property Management Services",
+    );
+});
+
+test("control: a plain two-word brand with no designator anywhere is untouched", () => {
+    assert.equal(displayCompanyName("Best Buy"), "Best Buy");
+});
+
+test("simple dotted-suffix case still works unchanged (Gap Inc. -> Gap)", () => {
+    assert.equal(displayCompanyName("Gap Inc."), "Gap");
+});
+
+test("a leading, non-trailing 'Inc' is never touched — end-anchored matching, not substring matching", () => {
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+});
+
+test("strips a legal designator that sits AFTER a trailing geography parenthetical, exposing it for a second strip", () => {
+    assert.equal(displayCompanyName("Extendicare (Canada) Inc."), "Extendicare");
+});
+
+// The "+3 more" suffix seen live alongside "Extendicare (Canada) Inc." in
+// the reported bug is a SEPARATE UI concatenation (JobDetail.tsx's location
+// disclosure toggle, `+ ${hidden.length} more locations`) — verified via
+// grep, never part of the string handed to cleanCompany/displayCompanyName,
+// so there is nothing for this function to strip.
+
+// Class-wide beyond the reported examples: a DIFFERENT bracketed country
+// (not Canada) combined with BOTH geo-gated words in one name.
+test("class-wide: a different bracketed country plus a two-deep geo-gated stack (Group + Ltd)", () => {
+    assert.equal(displayCompanyName("Acme Widgets (UK) Group Ltd"), "Acme Widgets");
+});
+
+// Negative controls for the geo-gated tier: these bare words must NEVER
+// strip without a bracketed-geography corroborating signal, even though
+// they're in the very same vocabulary the corroborated cases above strip.
+test("negative: 'Group' bare, with no geography anywhere, is left alone (not just 'Holdings')", () => {
+    assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
+});
+
+test("negative: a trailing geography parenthetical with nothing stacked after it is left for cleanCompany's own rule, not stripped here", () => {
+    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro Inc. (Canada)");
+});
+
+// Idempotence: re-running displayCompanyName on its own output must be a
+// no-op, for both strings it changes and strings it leaves alone.
+test("displayCompanyName is idempotent across the full class of inputs above", () => {
+    const inputs = [
+        "Michael Kors (Canada) Holdings LTD",
+        "Stryker Canada ULC",
+        "Autodesk Canada Co.",
+        "Company 1 - The Manufacturers Life Insurance Company",
+        "Greystar Canada Property Management Services",
+        "Best Buy",
+        "Gap Inc.",
+        "Inc Magazine",
+        "Extendicare (Canada) Inc.",
+        "Acme Widgets (UK) Group Ltd",
+        "Riverside Group",
+        "Acme Ltd",
+        "Acme Corp",
+    ];
+    for (const input of inputs) {
+        const once = displayCompanyName(input);
+        assert.equal(displayCompanyName(once), once, `not idempotent for "${input}" -> "${once}"`);
+    }
+});
