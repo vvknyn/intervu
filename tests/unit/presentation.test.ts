@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GHOST_META, titleCaseDisplay } from "../../src/lib/jobs/presentation";
+import { GHOST_META, isInternalPosting, titleCaseDisplay } from "../../src/lib/jobs/presentation";
 import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
 
 test("title-cases an all-uppercase string", () => {
@@ -40,4 +40,22 @@ test("GHOST_META colors are derived from ghostBadgeTone, not a second hand-picke
 test("a possible-ghost posting never looks like a merely-cautioned one", () => {
   assert.notEqual(GHOST_META.likely_ghost!.cls, GHOST_META.caution!.cls);
   assert.notEqual(GHOST_META.likely_ghost!.label, GHOST_META.caution!.label);
+});
+
+test("isInternalPosting matches a leading [Internal] tag", () => {
+  assert.equal(isInternalPosting("[Internal] Developer, Rust"), true);
+});
+
+// A second phrasing, not just the one that motivated the fix — the tag isn't
+// a fixed string, it's "a bracket that starts with 'internal'".
+test("isInternalPosting matches a differently-worded internal tag", () => {
+  assert.equal(isInternalPosting("[INTERNAL ONLY] Senior Platform Engineer"), true);
+});
+
+test("isInternalPosting never flags a normal public title", () => {
+  assert.equal(isInternalPosting("Internal Audit Manager"), false);
+  assert.equal(isInternalPosting("International Business Analyst"), false);
+  assert.equal(isInternalPosting("Senior Software Engineer"), false);
+  assert.equal(isInternalPosting(null), false);
+  assert.equal(isInternalPosting(undefined), false);
 });

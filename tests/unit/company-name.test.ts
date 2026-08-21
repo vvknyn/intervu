@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, resolveCompanyName } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, resolveCompanyName } from "@/lib/companies/company-name";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -184,5 +184,27 @@ describe("companies/company-name — brand vs legal entity", () => {
   it("resolves a domain-styled real brand name to the same value whether read as corpus evidence or as a domain fallback (checkout.com, live)", () => {
     const resolved = resolveCompanyName(rows({ "Checkout.Com": 429 }), "checkout.com");
     assert.equal(resolved.value, "Checkout");
+  });
+
+  // The domain fallback (`displayNameFromDomain`) used to capitalize on `\b`
+  // word boundaries only, which never fires between a digit and the letter
+  // right after it — "23andme.com" and "1password.com" came back exactly as
+  // lowercase as the raw domain label. Covers a second, different domain
+  // shape (not just the two named in the bug report) to prove the fix is the
+  // general "capitalize after any non-letter" rule, not two hardcoded names.
+  it("capitalizes a domain label even where a digit sits directly against a letter, with no corpus evidence at all", () => {
+    assert.equal(displayNameFromDomain("23andme.com"), "23Andme");
+    assert.equal(displayNameFromDomain("1password.com"), "1Password");
+    assert.equal(displayNameFromDomain("6sense.com"), "6Sense");
+    // Unaffected shapes stay exactly as before.
+    assert.equal(displayNameFromDomain("acme-corp.com"), "Acme Corp");
+    assert.equal(displayNameFromDomain("stripe.com"), "Stripe");
+  });
+
+  it("never leaves the raw lowercase domain-shaped string as the resolved name when the corpus carries no evidence", () => {
+    const resolved = resolveCompanyName([], "23andme.com");
+    assert.equal(resolved.source, "domain");
+    assert.notEqual(resolved.value, "23andme");
+    assert.equal(resolved.value, "23Andme");
   });
 });

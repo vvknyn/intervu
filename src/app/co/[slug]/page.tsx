@@ -11,6 +11,7 @@ import {
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
   buildCompanyPageMetadata,
+  hasCompanyKpiContent,
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
@@ -154,22 +155,24 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           )}
         </section>
 
-        <div className="mb-8 grid grid-cols-2 gap-3.5 sm:grid-cols-4">
-          <Kpi value={openCountText(data)} label="Open roles" />
-          <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
-          <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
-          <Kpi
-            value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
-            // Names the base the share was actually computed over whenever
-            // that base is smaller than the count beside it, so the tile
-            // stops reading as a company-wide audit it never was.
-            label={
-              ghostPctIsCompanyWide
-                ? "Possibly stale"
-                : `Possibly stale of ${data.jobs.length} shown`
-            }
-          />
-        </div>
+        {hasCompanyKpiContent(data) && (
+          <div className="mb-8 grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+            <Kpi value={openCountText(data)} label="Open roles" />
+            <Kpi value={formatKpi(data.opened90d)} label="Opened 90d" />
+            <Kpi value={formatKpi(data.closed90d)} label="Closed 90d" />
+            <Kpi
+              value={data.ghostFlaggedPct == null ? "—" : `${data.ghostFlaggedPct}%`}
+              // Names the base the share was actually computed over whenever
+              // that base is smaller than the count beside it, so the tile
+              // stops reading as a company-wide audit it never was.
+              label={
+                ghostPctIsCompanyWide
+                  ? "Possibly stale"
+                  : `Possibly stale of ${data.jobs.length} shown`
+              }
+            />
+          </div>
+        )}
 
         <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
 
@@ -178,6 +181,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         <CompanyRoleSearch
           jobs={data.jobs}
           companyDomain={data.domain}
+          companySlug={data.slug}
           companyName={data.name}
           openCountLabel={openCountText(data)}
           searchesPartialWindow={!sampleCoversAllRoles(data)}

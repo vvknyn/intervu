@@ -292,6 +292,23 @@ export function isCompanyPlaceholder(s: string | null | undefined): boolean {
     return ATS_PORTAL_HOSTNAME_RE.test(out) || (BARE_DOMAIN_RE.test(out) && !out.includes(" "));
 }
 
+/**
+ * True for a posting explicitly tagged internal-only ("[Internal] Developer,
+ * Rust", "[INTERNAL ONLY] ..."). Matches a leading bracketed tag that STARTS
+ * with "internal" — not the bare word anywhere in the title — so a genuine
+ * public role like "Internal Audit Manager" or "International Sales Lead"
+ * never matches: neither has a leading `[`, and the second doesn't even
+ * word-boundary on "internal". Whatever follows inside the brackets
+ * ("[Internal Only]", "[Internal - Do Not Post]") still matches, since the
+ * policy question is "was this tagged internal", not "does the tag say
+ * exactly one thing".
+ */
+const INTERNAL_POSTING_RE = /^\s*\[\s*internal\b/i;
+export function isInternalPosting(title: string | null | undefined): boolean {
+    if (!title) return false;
+    return INTERNAL_POSTING_RE.test(title);
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
