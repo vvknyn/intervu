@@ -30,7 +30,9 @@ interface LandingMastheadProps {
  * results they seed. Reduced to eyebrow + h1 + one-line claim (2026-08-18):
  * the two-line "Updated every day / No recruiters, no reposts" rail is gone,
  * and the 3-column USP grid moved into `LandingMarketingShowcase` below the
- * directory and shortcuts — action before explanation.
+ * directory and shortcuts — action before explanation. Eyebrow dropped
+ * entirely (2026-08-21, item 1): it restated the H1's own claim in shoutier
+ * type one line above it — one trust statement, not two copies of it.
  *
  * Deliberately free of buttons and links. `/jobs` keeps it MOUNTED and
  * collapses it once a search runs (see the `grid-rows-[0fr]` wrapper in
@@ -41,11 +43,8 @@ interface LandingMastheadProps {
 export function LandingMasthead({ claim }: LandingMastheadProps) {
   return (
     <div className="pb-4 sm:pb-6">
-    <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
-      <span className="text-xs font-bold uppercase tracking-widest text-brand">
-        Jobs posted by the companies themselves
-      </span>
-      <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-foreground">
+    <div className="border-b border-border py-5 sm:py-7">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
         Every job, straight from the employer.
       </h1>
       {claim ? (

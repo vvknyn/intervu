@@ -13,7 +13,7 @@ test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, fi
         { title: "Site Reliability Engineer", company: "Zeta" }, // 6th distinct title — beyond the cap, dropped
     ];
 
-    const result = dedupeJobSuggestionHits(hits);
+    const result = dedupeJobSuggestionHits(hits, "engineer");
 
     assert.deepEqual(result.titles, [
         "Software Engineer",
@@ -25,21 +25,60 @@ test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, fi
     assert.equal(result.titles.length, 5);
 });
 
-test("dedupeJobSuggestionHits dedupes companies case-insensitively, capped at 3, and drops blank/null values", () => {
+test("dedupeJobSuggestionHits dedupes companies case-insensitively, capped at 2, and drops blank/null values", () => {
     const hits = [
-        { title: "Engineer", company: "Acme Inc" },
-        { title: "Engineer II", company: "acme inc" }, // dup of above (different case) — dropped
+        { title: "Engineer", company: "Acme Corp" },
+        { title: "Engineer II", company: "acme corp" }, // dup of above (different case) — dropped
         { title: "Engineer III", company: "  " }, // blank after trim — dropped
         { title: "Engineer IV", company: null }, // null — dropped
         { title: "Engineer V", company: "Beta Corp" },
-        { title: "Engineer VI", company: "Gamma LLC" },
-        { title: "Engineer VII", company: "Delta Co" }, // 4th distinct company — beyond the cap, dropped
+        { title: "Engineer VI", company: "Gamma Corp" }, // 3rd distinct company — beyond the cap, dropped
     ];
 
-    const result = dedupeJobSuggestionHits(hits);
+    const result = dedupeJobSuggestionHits(hits, "corp");
 
-    assert.deepEqual(result.companies, ["Acme Inc", "Beta Corp", "Gamma LLC"]);
-    assert.equal(result.companies.length, 3);
+    assert.deepEqual(result.companies, ["Acme Corp", "Beta Corp"]);
+    assert.equal(result.companies.length, 2);
+});
+
+// 2026-08-21 front-door audit, item 6b: live prod suggested "Phsorg",
+// "Glance", and an ATS-portal string as companies for a "product manager"
+// query — every one of them came from a hit whose TITLE matched, not a
+// company that had anything to do with what was typed.
+test("dedupeJobSuggestionHits only suggests a company that itself relates to q — a title-only match doesn't pull an unrelated company along", () => {
+    const hits = [
+        { title: "Product Manager", company: "Extendicare" },
+        { title: "Senior Product Manager", company: "Greystar" },
+    ];
+    const result = dedupeJobSuggestionHits(hits, "product manager");
+    assert.deepEqual(result.companies, []);
+});
+
+test("dedupeJobSuggestionHits still suggests a company whose own name relates to q", () => {
+    const hits = [{ title: "Registered Nurse", company: "Acme Health" }];
+    const result = dedupeJobSuggestionHits(hits, "acme");
+    assert.deepEqual(result.companies, ["Acme Health"]);
+});
+
+// Item 6d: a company value that's just its own domain with separators
+// stripped ("phs.org" -> "Phsorg") is ingestion-side junk, not an asserted
+// name — repaired via the same domain-humanizing path every other
+// ATS-tenant-domain name goes through, or dropped when there's no domain on
+// the hit to repair it from.
+test("dedupeJobSuggestionHits repairs a company name that's just its own domain squashed together", () => {
+    const hits = [{ title: "Nurse", company: "Phsorg", company_domain: "phs.org" }];
+    const result = dedupeJobSuggestionHits(hits, "phs");
+    assert.deepEqual(result.companies, ["Phs"]);
+});
+
+test("dedupeJobSuggestionHits leaves a company name unrepaired when the hit carries no domain to confirm a squash against", () => {
+    const hits = [{ title: "Nurse", company: "Phsorg" }];
+    const result = dedupeJobSuggestionHits(hits, "phs");
+    // No `company_domain` on the hit means there's nothing to compare
+    // against, so this can't be confirmed as domain-derived junk — it falls
+    // through to the ordinary relevance check like any other company text
+    // and still passes it ("phsorg" starts with "phs").
+    assert.deepEqual(result.companies, ["Phsorg"]);
 });
 
 // 2026-08-20: live prod suggested "Product Manager:in" — a German
@@ -63,12 +102,15 @@ test("stripGenderSuffixArtifact leaves an ordinary title untouched", () => {
 });
 
 test("dedupeJobSuggestionHits strips the gender-suffix artifact from both title and company before dedupe/cap", () => {
-    const result = dedupeJobSuggestionHits([
-        { title: "Product Manager:in", company: "Acme" },
-        { title: "Entwickler:innen", company: "Beta:in" },
-    ]);
+    const result = dedupeJobSuggestionHits(
+        [
+            { title: "Product Manager:in", company: "Acme Systems" },
+            { title: "Entwickler:innen", company: "Beta Systems:in" },
+        ],
+        "systems",
+    );
     assert.deepEqual(result.titles, ["Product Manager", "Entwickler"]);
-    assert.deepEqual(result.companies, ["Acme", "Beta"]);
+    assert.deepEqual(result.companies, ["Acme Systems", "Beta Systems"]);
 });
 
 // 2026-08-14: the typeahead's request body moved off hitsPerPage (forces
@@ -84,7 +126,7 @@ test("buildSuggestBody scopes matching to title+company and uses `limit`, never 
         q: "engineer",
         limit: 20,
         attributesToSearchOn: ["title", "company"],
-        attributesToRetrieve: ["title", "company"],
+        attributesToRetrieve: ["title", "company", "company_domain"],
     });
     assert.ok(!("hitsPerPage" in body), "hitsPerPage forces exhaustive-count pagination — must not reappear");
 });
