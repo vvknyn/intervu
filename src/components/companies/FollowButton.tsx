@@ -47,8 +47,8 @@ export interface FollowButtonProps {
   domain: string;
   slug: string;
   displayName: string;
-  /** brand = generic; elite = ink outline, squared (company page); pill = hot-table compact */
-  variant?: "brand" | "outline" | "elite" | "pill";
+  /** primary = the page's single inverted-ink action; elite = ink outline, squared (company page); pill = hot-table compact */
+  variant?: "primary" | "outline" | "elite" | "pill";
   className?: string;
   /**
    * A signed-out visitor who already has a real, verified notification
@@ -162,7 +162,7 @@ export function FollowButton({
 
   const label =
     following
-      ? variant === "elite" || variant === "brand"
+      ? variant === "elite" || variant === "primary"
         ? "Following ✓"
         : "Following"
       : "Follow";
@@ -197,7 +197,7 @@ export function FollowButton({
     ) : (
       <Button
         type="button"
-        variant={variant}
+        variant={variant === "primary" ? "default" : variant}
         size="sm"
         data-testid="follow-company"
         data-following={following ? "true" : "false"}
