@@ -207,4 +207,33 @@ describe("companies/company-name — brand vs legal entity", () => {
     assert.notEqual(resolved.value, "23andme");
     assert.equal(resolved.value, "23Andme");
   });
+
+  // Live bug, intervuhq.com/co/1password--com after PR #258: every row on the
+  // domain spells the name flat ("1password"), so there is no cased witness
+  // (`best.cased` stays null) and the winning group is exactly as
+  // casing-free as a bare domain label — it must get the same recovery, not
+  // be shown verbatim.
+  it("recovers casing on a corpus-flat name with no cased witness anywhere in the group (1password.com, live)", () => {
+    const resolved = resolveCompanyName(rows({ "1password": 2 }), "1password.com");
+    assert.equal(resolved.value, "1Password");
+    assert.equal(resolved.source, "corpus-flat");
+  });
+
+  it("generalises corpus-flat recovery to a second employer, not just the one that surfaced the bug (monzo.com)", () => {
+    const resolved = resolveCompanyName(rows({ monzo: 3 }), "monzo.com");
+    assert.equal(resolved.value, "Monzo");
+    assert.equal(resolved.source, "corpus-flat");
+  });
+
+  it("does not touch the corpus-cased path: a lone cased row still wins verbatim (survivor)", () => {
+    const resolved = resolveCompanyName(rows({ eBay: 5 }), "ebay.com");
+    assert.equal(resolved.value, "eBay");
+    assert.equal(resolved.source, "corpus-cased");
+  });
+
+  it("does not touch the corpus-cased path: a cased witness among flat siblings wins verbatim (survivor)", () => {
+    const resolved = resolveCompanyName(rows({ Datadog: 1, datadog: 4 }), "datadog.com");
+    assert.equal(resolved.value, "Datadog");
+    assert.equal(resolved.source, "corpus-cased");
+  });
 });
