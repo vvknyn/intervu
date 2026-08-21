@@ -15,18 +15,20 @@
  * notices, apply instructions) — the noise-cue penalties below down-rank
  * those so the genuine "about us" paragraph wins the vote.
  *
- * Pipeline: paragraph-split every posting's description (`paragraphsOf`) →
- * group by a normalized match key so near-identical repeats across postings
- * count as the same paragraph (`buildCandidates`) → keep only paragraphs
- * that either repeat across ≥2 distinct postings, or (single-posting
- * companies only) open with an "About {Company}" / "{Company} is/builds/…"
+ * Pipeline: block-split every posting's description into the SAME display-
+ * form blocks the SERP detail pane renders (`blocksOf`, via
+ * `formatDescription`) → group `para` blocks by a normalized match key so
+ * near-identical repeats across postings count as the same paragraph, and
+ * flag any paragraph that sat right after an "About {Company}" heading
+ * block (`buildCandidates`) → keep only paragraphs that either repeat
+ * across ≥2 distinct postings, or (single-posting companies only) carry the
+ * heading flag or open with an "About {Company}" / "{Company} is/builds/…"
  * cue → score and rank the survivors (`pickWinner`) → require the winner to
  * actually name the company (rule 4 — blocks a mission-statement paragraph
  * that never mentions the company from winning by sheer repetition) → pick
  * one complete, verbatim sentence out of it (`selectSentence`).
  */
-import { stripResidualHtml } from "@/lib/jobs/format-description";
-import { decodeText } from "@/lib/jobs/presentation";
+import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const MIN_PARAGRAPH_LEN = 80;
@@ -60,43 +62,42 @@ function escapeForRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** "About {Company}" — the strongest possible cue a posting can carry, both
+ *  as a standalone heading block (see `buildCandidates`' heading walk) and
+ *  as literal opening text on a single-posting company's only candidate
+ *  paragraph. Single source of truth for that pattern — reused by
+ *  `openingCueRegexes` below rather than re-declared. */
+function aboutHeadingRegex(companyName: string): RegExp {
+  return new RegExp(`^about\\s+${escapeForRegex(companyName)}\\b`, "i");
+}
+
 /** "About {Company}" or "{Company} is/builds/provides/makes/helps/offers" —
  *  the only signal a SINGLE-posting company gets (there's no second posting
  *  to repeat against), and a scoring bonus for every company. */
 function openingCueRegexes(companyName: string): RegExp[] {
   const name = escapeForRegex(companyName);
   return [
-    new RegExp(`^about\\s+${name}\\b`, "i"),
+    aboutHeadingRegex(companyName),
     new RegExp(`^${name}\\s+(?:is|builds|provides|makes|helps|offers)\\b`, "i"),
   ];
 }
 
 /**
- * Decodes and paragraph-splits one posting's description. Decoding reuses
- * the same two exported helpers `descriptionLede` (presentation/
- * description.ts) already composes for a different description-derived read
- * surface — `decodeText` then `stripResidualHtml` — rather than inventing a
- * third decode routine; `formatDescription`'s full pipeline is NOT reused
- * here because its heading/bullet/sentence-chunking logic exists to render
- * a structured detail pane, and would fragment a long "about us" paragraph
- * into multiple chunks before we ever get to count it as one candidate.
- *
- * Paragraph boundaries are blank lines OR HTML block edges. A single `<br>`
- * collapses to one newline (a soft wrap, not a paragraph break) — so a
- * DOUBLED `<br><br>` naturally becomes `\n\n` and lands on the same split as
- * a blank line, with no separate HTML-vs-plaintext branch needed. `</p>`
- * and `</div>` are explicit paragraph edges. Remaining tags (opening `<p>`,
- * `<div>`, `<span>`, …) carry no boundary and are dropped by
- * `stripResidualHtml` same as any other residual markup.
+ * Block-splits one posting's description via `formatDescription` — the SAME
+ * segmentation the SERP detail pane renders to the user (JobDetail.tsx calls
+ * it on this identical `job.description` field). Reusing it here, instead of
+ * a second hand-rolled splitter, is the whole fix for this module: real
+ * index descriptions are single-block, zero-newline text (markdown markers
+ * collapsed onto one line, or an ALL-CAPS heading glued straight to its
+ * body — `formatDescription` already reconstructs structure for exactly
+ * these ATS shapes), so a naive `\n{2,}` split saw one >1000-char blob and
+ * produced zero candidates for every real company. Only `para` blocks are
+ * candidate paragraphs; `heading` and `list` blocks are structural, not
+ * "about us" prose — see `buildCandidates` for how a heading still feeds the
+ * scoring bonus.
  */
-function paragraphsOf(raw: string): string[] {
-  let text = decodeText(raw).replace(/\r\n?/g, "\n");
-  text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(?:p|div)>/gi, "\n\n");
-  text = stripResidualHtml(text);
-  return text
-    .split(/\n{2,}/)
-    .map((p) => p.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+function blocksOf(raw: string): DescBlock[] {
+  return formatDescription(raw);
 }
 
 /** Normalized identity for grouping near-identical repeats across postings:
@@ -108,7 +109,7 @@ function matchKey(text: string): string {
 }
 
 interface Candidate {
-  /** Original decoded paragraph text (first posting it was seen in). */
+  /** Original display-form paragraph text (first posting it was seen in). */
   text: string;
   /** Indices, into the filtered with-description job list, of every
    *  DISTINCT posting this paragraph appeared in — a Set so a paragraph
@@ -118,29 +119,54 @@ interface Candidate {
    *  one entry per distinct posting (first occurrence) — feeds the
    *  earliest-average-position tie-break. */
   positions: number[];
+  /** True if, in at least one posting, this paragraph block sat immediately
+   *  after an "About {Company}"-matching heading block — the strongest
+   *  possible structural cue a posting can carry (stronger than the textual
+   *  opening-cue regex, which only catches company names spelled exactly at
+   *  the start of the paragraph itself). See `buildCandidates`'s heading
+   *  walk. */
+  afterAboutHeading: boolean;
 }
 
-/** Groups every posting's paragraphs (length-bounded 80–1000 chars,
- *  post-decode) by match key. `jobs` here is already filtered to postings
- *  that have a description — see the `postingsWithDescription` call site. */
-function buildCandidates(jobs: PublicJob[]): Map<string, Candidate> {
+/** Groups every posting's paragraph BLOCKS (length-bounded 80–1000 chars,
+ *  display-form text) by match key. `jobs` here is already filtered to
+ *  postings that have a description — see the `postingsWithDescription` call
+ *  site. Walks each posting's block list in order so a `heading` block
+ *  matching "About {Company}" can flag every `para` block that follows it —
+ *  up to the next `heading` or `list` block, since a long about-paragraph
+ *  sentence-chunks into several consecutive `para` blocks under one heading
+ *  (see `formatDescription`'s `sentenceGroup`). */
+function buildCandidates(jobs: PublicJob[], aboutHeadingRe: RegExp): Map<string, Candidate> {
   const byKey = new Map<string, Candidate>();
   jobs.forEach((job, jobIdx) => {
-    const paragraphs = paragraphsOf(job.description as string);
+    const blocks = blocksOf(job.description as string);
     const seenKeysThisJob = new Set<string>();
-    paragraphs.forEach((text, posIdx) => {
-      if (text.length < MIN_PARAGRAPH_LEN || text.length > MAX_PARAGRAPH_LEN) return;
+    let posIdx = 0;
+    let afterAboutHeading = false;
+    for (const block of blocks) {
+      if (block.type === "heading") {
+        afterAboutHeading = aboutHeadingRe.test(block.text ?? "");
+        continue;
+      }
+      if (block.type !== "para") {
+        afterAboutHeading = false;
+        continue;
+      }
+      const text = (block.text ?? "").trim();
+      const thisPos = posIdx++;
+      if (text.length < MIN_PARAGRAPH_LEN || text.length > MAX_PARAGRAPH_LEN) continue;
       const key = matchKey(text);
-      if (seenKeysThisJob.has(key)) return; // one vote per posting, not per repeat within it
+      if (seenKeysThisJob.has(key)) continue; // one vote per posting, not per repeat within it
       seenKeysThisJob.add(key);
       const existing = byKey.get(key);
       if (existing) {
         existing.jobIndices.add(jobIdx);
-        existing.positions.push(posIdx);
+        existing.positions.push(thisPos);
+        existing.afterAboutHeading ||= afterAboutHeading;
       } else {
-        byKey.set(key, { text, jobIndices: new Set([jobIdx]), positions: [posIdx] });
+        byKey.set(key, { text, jobIndices: new Set([jobIdx]), positions: [thisPos], afterAboutHeading });
       }
-    });
+    }
   });
   return byKey;
 }
@@ -149,6 +175,7 @@ function scoreCandidate(c: Candidate, companyName: string, cueRes: RegExp[]): nu
   let score = c.jobIndices.size; // occurrence count across distinct postings
   if (c.text.slice(0, 80).toLowerCase().includes(companyName.toLowerCase())) score += 1;
   if (cueRes.some((re) => re.test(c.text))) score += 1;
+  if (c.afterAboutHeading) score += 2; // strongest cue — structural, not textual
   for (const noiseRe of NOISE_CUE_RES) {
     if (noiseRe.test(c.text)) score -= 1;
   }
@@ -218,9 +245,12 @@ export function extractCompanyAboutLine(jobs: PublicJob[], companyName: string):
   if (postings.length === 0) return null;
 
   const cueRes = openingCueRegexes(name);
+  const aboutHeadingRe = aboutHeadingRegex(name);
   const singlePostingCorpus = postings.length === 1;
-  const candidates = [...buildCandidates(postings).values()].filter(
-    (c) => c.jobIndices.size >= 2 || (singlePostingCorpus && cueRes.some((re) => re.test(c.text))),
+  const candidates = [...buildCandidates(postings, aboutHeadingRe).values()].filter(
+    (c) =>
+      c.jobIndices.size >= 2 ||
+      (singlePostingCorpus && (c.afterAboutHeading || cueRes.some((re) => re.test(c.text)))),
   );
   if (candidates.length === 0) return null;
 
