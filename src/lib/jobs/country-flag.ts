@@ -9,16 +9,15 @@ import { toValueArray } from "@/lib/jobs/types";
  * country-classification.ts already validates `location_country` facet
  * values against (`classifyCountryValue`, reused rather than re-derived —
  * one country table, not two) — every name/alias/casing that module
- * recognizes as a real country resolves to a flag here for free. Anything
- * that doesn't match a canonical name falls through to a generic ISO-3166
- * alpha-2 passthrough (regional-indicator code-point math), so a raw 2-letter
- * code in the data never needs its own table entry.
- *
- * Canonical-name lookup runs BEFORE the ISO-2 passthrough on purpose: a
- * colloquial 2-letter-ish value like "UK" is a known alias for
- * "United Kingdom" (see country-classification's COUNTRY_ALIASES), whose
- * real ISO-3166 code is GB, not UK — routing through classification first
- * gets the correct flag instead of a passthrough guess.
+ * recognizes as a real country resolves to a flag here for free. A value
+ * that `classifyCountryValue` doesn't recognize as a country name/alias
+ * resolves to `null` — there is deliberately no raw ISO-2 passthrough.
+ * US state codes ("AZ", "AR", "CA", "DE", "IN", ...) collide with real
+ * ISO-3166 alpha-2 country codes (Azerbaijan, Argentina, Canada, Germany,
+ * India), so a passthrough silently mislabeled US postings with foreign
+ * flags. The tradeoff: a corpus row that stores a bare, legitimate ISO-2
+ * like "DE" for Germany (no full name) now loses its flag instead of
+ * gaining one — cosmetic loss, but it beats a confidently wrong flag.
  */
 
 /** Canonical country name (country-classification.ts's ISO_COUNTRY_NAMES) →
@@ -252,9 +251,9 @@ function flagForOne(raw: string): string | null {
     if (iso2) return regionalIndicatorFlag(iso2);
   }
 
-  // Not a recognized country name/alias — try it as a raw ISO-2 code
-  // (e.g. a value the corpus already stores as "DE" rather than "Germany").
-  return regionalIndicatorFlag(trimmed);
+  // Not a recognized country name/alias — no flag. See the file-level doc
+  // comment for why there is no raw ISO-2 passthrough here.
+  return null;
 }
 
 /**

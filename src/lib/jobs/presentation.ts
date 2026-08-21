@@ -550,6 +550,47 @@ export function locationText(j: PublicJob): string {
     return "Location not listed";
 }
 
+/** Split a `locationText` string on ";" into trimmed, non-empty segments.
+ *  Aggregator feeds sometimes stuff many locations into one semicolon-joined
+ *  `location` string (e.g. "San Diego CA Renewable Group; Remote - AZ;
+ *  Remote - AR; ..."), which `humanizeRawLocation` passes through verbatim.
+ *  A plain, semicolon-free location returns itself as the sole segment, so
+ *  callers can treat every location the same way. */
+export function splitLocationSegments(location: string): string[] {
+    return location
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+/** How many segments the identity-header location line shows before the
+ *  "+N more locations" toggle, and how many it hides behind it. */
+export interface LocationDisclosure {
+    visible: string[];
+    hidden: string[];
+}
+
+const LOCATION_CLAMP_VISIBLE = 2;
+const LOCATION_CLAMP_THRESHOLD = 3;
+
+/** Progressive-disclosure decision for the identity-header location line —
+ *  same idiom as the description clamp (`collapsible`/`descExpanded`), just
+ *  for semicolon-joined location prose instead of description length. Up to
+ *  `LOCATION_CLAMP_THRESHOLD` segments render in full today (no toggle, no
+ *  behavior change); more than that clamps to the first
+ *  `LOCATION_CLAMP_VISIBLE` with the rest behind the toggle. Pure — no data
+ *  loss, the caller decides how `hidden` renders once expanded. */
+export function clampLocationSegments(location: string): LocationDisclosure {
+    const segments = splitLocationSegments(location);
+    if (segments.length <= LOCATION_CLAMP_THRESHOLD) {
+        return { visible: segments, hidden: [] };
+    }
+    return {
+        visible: segments.slice(0, LOCATION_CLAMP_VISIBLE),
+        hidden: segments.slice(LOCATION_CLAMP_VISIBLE),
+    };
+}
+
 const SALARY_PERIOD: Record<string, string> = {
     yearly: "yr", year: "yr", annual: "yr", annually: "yr",
     hourly: "hr", hour: "hr", monthly: "mo", month: "mo", weekly: "wk", daily: "day",

@@ -16,14 +16,14 @@ import { formatDescription, type DescBlock } from "@/lib/jobs/format-description
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
-import { getRelatedJobsAction } from "@/actions/jobs";
-import type { OpenCount } from "@/lib/companies/open-count";
+import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
+import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -367,6 +367,18 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
+    // Identity-header location line — same progressive-disclosure idiom as
+    // the description clamp above, for aggregator-feed `location` strings
+    // that stuff many semicolon-joined locations into one field (see
+    // clampLocationSegments's doc comment). Presentation-only: the
+    // underlying `location` string is untouched.
+    const [locationExpanded, setLocationExpanded] = useState(false);
+    useEffect(() => {
+        setLocationExpanded(false);
+    }, [job.id]);
+    const location = locationText(job);
+    const locationDisclosure = useMemo(() => clampLocationSegments(location), [location]);
+    const locationClamped = locationDisclosure.hidden.length > 0;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
@@ -423,42 +435,73 @@ export function JobDetail({
     // against a fast re-open (new `job.id` before the previous fetch lands)
     // painting a stale job's related list onto the new one.
     const [related, setRelated] = useState<PublicJob[]>([]);
-    // ITEM N (2026-08-15) — the hiring-truth rail's "Live roles" figure used
-    // to read `job.company_open_count`, a sync-time aggregate baked onto the
-    // job document that structurally drifts from /co/[slug]'s own live count
-    // for the same company (delta sync can't carry cross-table data). `null`
-    // until this resolves (or for guests, or a companyless job) — the render
-    // below falls back to `job.company_open_count` in that window, same as
-    // before this existed.
-    const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
     useEffect(() => {
         let cancelled = false;
         setRelated([]);
-        setLiveOpenCount(null);
-        // Guests see this panel blurred behind the sign-in gate — fetching
-        // for them would spend up to three corpus queries per detail-open on
-        // rows/figures nobody can read.
+        // Guests see this list gated behind sign-in — fetching for them would
+        // spend up to three corpus queries per detail-open on rows nobody can
+        // read. The open-count figure below is fetched separately and does
+        // NOT share this gate — see that effect's own comment for why.
         if (!signedIn) return;
         getRelatedJobsAction(job.id, job.company_domain, job.title)
             .then((data) => {
                 if (cancelled) return;
                 setRelated(data.jobs);
-                setLiveOpenCount(data.openCount);
             })
             .catch(() => {
                 // "More like this" is an accelerant, never a source of
                 // user-visible error — the render guard below already
-                // renders nothing for an empty list, and the open-count
-                // render falls back to `job.company_open_count`.
+                // renders nothing for an empty list.
             });
         return () => {
             cancelled = true;
         };
     }, [job.id, job.company_domain, job.title, signedIn]);
 
+    // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
+    // hiring-truth rail's "Live roles" figure used to read
+    // `job.company_open_count`, a sync-time aggregate baked onto the job
+    // document that structurally drifts from /co/[slug]'s own live count for
+    // the same company (delta sync can't carry cross-table data). This used
+    // to ride the `signedIn`-gated related-jobs fetch above, so guests —
+    // almost certainly how a self-contradicting "0 live roles" card gets
+    // seen — never got the live figure, only ever the stale one. `/co/[slug]`
+    // already serves this same query to anonymous visitors with no gate at
+    // all, and it's a single cheap query (unlike the 3-query related-jobs
+    // list above), so it gets its own always-on fetch here instead. `null`
+    // until this resolves or when the job has no `company_domain` — the
+    // render below falls back to `job.company_open_count` in that window,
+    // same as before this existed.
+    const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        setLiveOpenCount(null);
+        if (!job.company_domain) return;
+        getCompanyOpenCountAction(job.company_domain)
+            .then((count) => {
+                if (!cancelled) setLiveOpenCount(count);
+            })
+            .catch(() => {
+                // Presentation only — the render falls back to
+                // `job.company_open_count`, same as before this existed.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [job.company_domain]);
+
+    // Resolve to ONE open-count number the same way the render below reads
+    // it (live figure first, stale field as fallback), then run it through
+    // `shouldSuppressOpenCount` so a company whose live count is honestly 0
+    // never renders "0 live roles" on a page that is itself one of that
+    // company's live postings — see that function's doc comment for the
+    // closed-job carve-out.
+    const resolvedOpenCount =
+        liveOpenCount != null ? liveOpenCount.value : typeof job.company_open_count === "number" ? job.company_open_count : null;
+    const showOpenCount = resolvedOpenCount != null && !shouldSuppressOpenCount(resolvedOpenCount, job.vacancy_status === "closed");
+
     const hasCompanyIntel =
-        liveOpenCount != null ||
-        typeof job.company_open_count === "number" ||
+        showOpenCount ||
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
@@ -490,7 +533,27 @@ export function JobDetail({
                                         {countryFlag}
                                     </span>
                                 )}
-                                {locationText(job)}
+                                {locationClamped ? (
+                                    <>
+                                        {(locationExpanded
+                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                            : locationDisclosure.visible
+                                        ).map((segment, i) => (
+                                            <span key={i} className="block">
+                                                {segment}
+                                            </span>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setLocationExpanded((v) => !v)}
+                                            className="mt-0.5 block text-xs font-medium text-brand hover:underline cursor-pointer"
+                                        >
+                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                        </button>
+                                    </>
+                                ) : (
+                                    location
+                                )}
                             </div>
                             {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
                                 <div className={cn("mt-1.5 rounded-none border px-2.5 py-1 text-xs font-medium", LISTING_STATE_CHIP.relisted)}>
@@ -813,7 +876,7 @@ export function JobDetail({
                             {companyBrand || "This company"} · hiring truth
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
-                            {(liveOpenCount != null || typeof job.company_open_count === "number") && (
+                            {showOpenCount && (
                                 <div className="min-w-[100px]">
                                     <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {liveOpenCount != null

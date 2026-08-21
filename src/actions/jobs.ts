@@ -164,6 +164,49 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * usable keywords, it returns whatever company hits exist rather than a
  * fabricated whole-corpus fallback (`resolveRelatedQuery`'s "none" branch).
  */
+
+/**
+ * The detail panel's "N live roles" figure (JobDetail.tsx) used to read a
+ * sync-time aggregate baked onto the job document — structurally stale, and
+ * it can disagree with /co/[slug]'s own live count for the same company.
+ * Resolved here with the SAME query shape `getCompanyPageData` uses for that
+ * count (companyDomain, COMPANY_JOBS_FETCH_LIMIT, no posted-window, no ghost
+ * exclusion) — deliberately NOT `fetchRelatedExcluding` above, which is a
+ * narrower, different-purpose query (30d window, ghosts hidden, excludes
+ * this job, caps at RELATED_JOBS_LIMIT) built for "More like this"
+ * suggestions; reusing it here would just be a third, disagreeing
+ * definition of "open roles" — the exact bug this closes.
+ * Resolved through `resolveOpenCount`, never raw `total`, so a saturated/
+ * capped result renders as a floor ("N+"), not a false exact count.
+ *
+ * Unguarded by `allowSearchRequest` on purpose — both callers below own
+ * that check at their own entry point, and this runs one query, so gating
+ * it here too would silently double-charge `getRelatedJobsAction`'s shared
+ * rate-limit budget for what is still a single logical call.
+ */
+async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
+  if (!companyDomain) return null;
+  const countResult = await runSearch({
+    companyDomain,
+    limit: COMPANY_JOBS_FETCH_LIMIT,
+    hideGhosts: false,
+  });
+  return resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
+}
+
+/**
+ * Standalone entry point for the "N live roles" figure — JobDetail.tsx calls
+ * this directly (not gated behind `signedIn`, unlike `getRelatedJobsAction`'s
+ * related-jobs list below) since /co/[slug] already serves this same query
+ * to anonymous visitors with no sign-in gate at all.
+ */
+export async function getCompanyOpenCountAction(companyDomain: string): Promise<OpenCount | null> {
+  if (!companyDomain) return null;
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return null;
+  return resolveCompanyOpenCount(companyDomain);
+}
+
 export async function getRelatedJobsAction(
   jobId: string,
   companyDomain: string | null | undefined,
@@ -186,27 +229,7 @@ export async function getRelatedJobsAction(
       ? await fetchRelatedExcluding(jobId, { q: plan.fallbackQuery })
       : companyHits;
 
-  // The detail panel's "N live roles" figure (JobDetail.tsx) used to read a
-  // sync-time aggregate baked onto the job document — structurally stale,
-  // and it can disagree with /co/[slug]'s own live count for the same
-  // company. Resolved here with the SAME query shape `getCompanyPageData`
-  // uses for that count (companyDomain, COMPANY_JOBS_FETCH_LIMIT, no posted-
-  // window, no ghost exclusion) — deliberately NOT `fetchRelatedExcluding`
-  // above, which is a narrower, different-purpose query (30d window, ghosts
-  // hidden, excludes this job, caps at RELATED_JOBS_LIMIT) built for "More
-  // like this" suggestions; reusing it here would just be a third,
-  // disagreeing definition of "open roles" — the exact bug this closes.
-  // Resolved through `resolveOpenCount`, never raw `total`, so a saturated/
-  // capped result renders as a floor ("N+"), not a false exact count.
-  let openCount: OpenCount | null = null;
-  if (companyDomain) {
-    const countResult = await runSearch({
-      companyDomain,
-      limit: COMPANY_JOBS_FETCH_LIMIT,
-      hideGhosts: false,
-    });
-    openCount = resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
-  }
+  const openCount = companyDomain ? await resolveCompanyOpenCount(companyDomain) : null;
 
   return { jobs, openCount };
 }
