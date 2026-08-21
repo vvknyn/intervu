@@ -67,7 +67,7 @@ export function TopCountriesList({ countries }: { countries: CountryRollupRow[] 
               <div className="flex items-center gap-3 shrink-0">
                 <span className="hidden sm:inline-block h-1.5 w-36 overflow-hidden rounded-none bg-muted/70 backdrop-blur-xs">
                   <span
-                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all shadow-[0_0_8px_rgba(255,255,255,0.15)]"
+                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
                     style={{ width: `${(row.count / maxCount) * 100}%` }}
                   />
                 </span>

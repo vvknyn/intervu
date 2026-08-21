@@ -271,15 +271,15 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 />
             </div>
 
-            {/* Dropdown. The only surface in the app that floats over page
-                content with nothing behind it — every dialog has a scrim, this
-                has the results list. It used to be separated by `shadow-xl`;
-                elevation is none everywhere now, so the edge and the fill have
-                to carry it: a full-strength border rather than a half-opacity
-                one, and an opaque popover rather than 95%, which the rows
-                underneath were reading through. */}
+            {/* Dropdown. One of the few surfaces in the app that floats over
+                page content with nothing behind it — every dialog has a
+                scrim, this has the results list — so it carries the one
+                sanctioned overlay shadow (--shadow-overlay) plus a
+                full-strength border and an opaque popover fill, since the
+                rows underneath would otherwise read through a half-opacity
+                edge. */}
             {isOpen && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1 shadow-[var(--shadow-overlay)]">
                     {suggestions[0]?.type === 'seed' && (
                         <p className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Popular searches

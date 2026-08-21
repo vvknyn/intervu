@@ -73,12 +73,21 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   phone has rounded corners. That component is otherwise a self-contained artifact (its own
   fixed WhatsApp hex colours, not theme tokens) that must never leak its palette onto the page
   around it — elevation still applies to it though: no exception on `shadow-*` there.
-- **Elevation: none.** *Every* `--shadow-*` key Tailwind ships is `none` — `2xs`, `xs`, `sm`,
-  `md`, `lg`, `xl`, `2xl`, `inner`. Not "every key we happen to have written down": that reading
-  is what left `2xl` casting Tailwind's stock shadow for a fortnight. Separation comes from a 1px
-  `--border` and whitespace — ollama's rule, and it suits a squared system. Never `shadow-lg`,
-  `shadow-2xl`, or a raw `shadow-*` class. A surface that floats over content **with no scrim**
-  must declare its own full-strength border; it has no elevation left to borrow.
+- **Elevation: reserved exclusively for overlays.** A shadow means "this floats above the page."
+  *Every* named-scale `--shadow-*` key Tailwind ships is `none` — `2xs`, `xs`, `sm`, `md`, `lg`,
+  `xl`, `2xl`, `inner`. Not "every key we happen to have written down": that reading is what left
+  `2xl` casting Tailwind's stock shadow for a fortnight. Separation for every in-flow surface comes
+  from a 1px `--border` and whitespace — ollama's rule, and it suits a squared system — and hover
+  affordance in-flow is border-darkening, never a lift. Never `shadow-lg`, `shadow-2xl`, or a raw
+  named-scale `shadow-*` class.
+
+  The one deliberate exception is `--shadow-overlay` (`globals.css`, `:root`/`.dark`) — not part of
+  Tailwind's scale, so the "none" rule above doesn't reach it. It is the single standard shadow for
+  surfaces that render with nothing behind them: `dialog.tsx`, `sheet.tsx`, `tooltip.tsx`,
+  `select.tsx`'s floating content (not its in-flow trigger, which stays scale-`none`),
+  `dropdown-menu.tsx`, `popover.tsx`, and `SearchAutocomplete`'s results dropdown, each applied as
+  `shadow-[var(--shadow-overlay)]` — one mechanism, everywhere it's used. See
+  `docs/design/ATTENTION.md`.
 
   **Amended 2026-08-17.** The 2026-08-04 pass zeroed `sm/md/lg` in `:root`/`.dark` but left
   `2xs`, `xs` and `xl` at their live slate-tinted values in `@theme inline`, where no `:root`
@@ -90,6 +99,23 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   `--shadow-glow` was deleted outright: defined once, referenced nowhere, and still carrying the
   retired emerald.
 
+  **Amended 2026-08-20.** The rule above used to be an absolute — elevation is none, full stop —
+  and two things had grown around that absolute rather than through it: `.glass-panel`/
+  `.glass-card` (job rows, the LaunchBanner) cast a real `0 10px 30px` outer drop shadow plus a
+  hover-lift `translateY`, and `SearchAutocomplete`'s dropdown compensated for having no elevation
+  to borrow with an extra-strength border instead. Both were real elevation the document said
+  didn't exist, on top of ~30 arbitrary `shadow-[...]` utilities across `src` bypassing the zeroed
+  scale entirely. The fix is the `--shadow-overlay` exception above, not a wider absolute:
+  `.glass-panel`/`.glass-card` dropped their outer shadow and their hover lift (they separate by
+  border + inset sheen only now, and `.glass-card:hover` darkens the border, nothing more), and
+  every genuine floating overlay — including `SearchAutocomplete`, which keeps its full-strength
+  border alongside the new shadow — now casts exactly `--shadow-overlay`. Every remaining
+  arbitrary `shadow-[0_...]` on an in-flow element was swept to flat (or, where it was the only
+  separator, a 1px border). `tests/unit/design-language.test.ts` guards both halves: the
+  `.glass-panel`/`.glass-card` blocks can never regain an outer layer, and no `shadow-[...]`
+  utility anywhere in `src` may cast an outer shadow except as `shadow-[var(--shadow-overlay)]`,
+  an inset sheen, or a zero-blur ring.
+
   "Every key" means **every key Tailwind ships**, not every key this repo had written down. The
   first pass zeroed the six that appeared in `globals.css` and missed `--shadow-2xl`, which was
   never declared here at all — so Tailwind's stock `0 25px 50px -12px` went on rendering on seven
@@ -98,23 +124,26 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   `node_modules/tailwindcss/theme.css` so a future scale step fails a test rather than silently
   reintroducing elevation.
 
-  **Two standing exceptions**, both in `globals.css` and both deliberate:
-  - `.glass-panel-raised` (PR #219), the single focal surface per page — currently `/jobs`' search
-    line. It exists because a page whose every surface is separated only by a 1px border gives the
-    reader nothing to enter through, which is the defect #219 was opened to fix ("it is just
-    blending in the page"). Use it **once per page**. Everything about it is now achromatic: its
-    shadow, border and fill were `rgba(15,23,42)` / slate-200 against a purely neutral ramp, so
-    the focal panel of the app was the bluest thing in it. Elevation is light, and light is grey
-    here.
-  - `.glass-panel` / `.glass-card` carry a soft `0 10px 30px` at 7% — glass over a flat fill has
-    no content to refract, so without it the panel degrades to a plain translucent rectangle.
+  **One standing exception**, in `globals.css` and deliberate: `.glass-panel-raised` (PR #219),
+  the single focal surface per page — currently `/jobs`' search line. It exists because a page
+  whose every surface is separated only by a 1px border gives the reader nothing to enter through,
+  which is the defect #219 was opened to fix ("it is just blending in the page"). Use it **once
+  per page**. Everything about it is achromatic: its shadow, border and fill were
+  `rgba(15,23,42)` / slate-200 against a purely neutral ramp, so the focal panel of the app was
+  the bluest thing in it. Elevation is light, and light is grey here. This is a once-per-page
+  in-flow spotlight, not a portal-rendered overlay, so it is a separate device from
+  `--shadow-overlay` and is not affected by the 2026-08-20 amendment. (`.glass-panel`/`.glass-card`
+  themselves used to carry a soft `0 10px 30px` outer shadow here too — retired in that amendment;
+  glass legibility over a flat fill now comes from the border and inset sheen alone.)
 
-  Anything that floats over page content with **no scrim behind it** has to declare its own edge,
-  because it can no longer borrow one from the shadow scale. `SearchAutocomplete`'s dropdown is
-  the case that proved it: `border-border/50` over `bg-popover/95` was invisible the moment
-  `shadow-xl` went to `none`, and the results list underneath read straight through it. It is now
-  a full-strength `border-border-strong` on an opaque fill. Every other `shadow-2xl` site was
-  already safe — dialogs and sheets have scrims, and the banner is a `.glass-panel`.
+  Every surface that floats with **no scrim behind it** carries `--shadow-overlay` alongside its
+  own edge, rather than trying to borrow definition from a border alone. `SearchAutocomplete`'s
+  dropdown is the case that proved a border-only fix wasn't enough: `border-border/50` over
+  `bg-popover/95` was invisible the moment `shadow-xl` went to `none`, and the results list
+  underneath read straight through it. It now pairs a full-strength `border-border-strong` on an
+  opaque fill *with* `shadow-[var(--shadow-overlay)]`. Every other floating primitive —
+  `dialog.tsx`, `sheet.tsx`, `tooltip.tsx`, `select.tsx`'s content, `dropdown-menu.tsx`,
+  `popover.tsx` — has a scrim or is unambiguously a portal panel, and carries the same token.
 
   The `.glass-tint-*` chips keep hued shadows and are not a violation — theirs are `inset`
   sheens, which paint the surface rather than lift it. The `instrument-breathe` live pulse *was*

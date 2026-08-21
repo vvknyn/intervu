@@ -77,7 +77,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
 
     if (applications.length === 0) {
         return (
-            <div className="bg-card rounded-xl shadow-[var(--shadow-sm)] border border-dashed border-border">
+            <div className="bg-card rounded-xl border border-dashed border-border">
                 <div className="flex flex-col items-center justify-center p-12 text-center">
                     <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center mb-4 text-brand">
                         <Briefcase size={32} />
@@ -95,7 +95,7 @@ export function ApplicationList({ applications, onEdit, onRefresh }: Application
         <>
             <div className="grid gap-4">
                 {applications.map((app) => (
-                    <div key={app.id} className="bg-card rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div key={app.id} className="bg-card rounded-xl overflow-hidden">
                         <div className="p-4 flex items-center justify-between">
                             <div className="flex-1 min-w-0 grid gap-1">
                                 <div className="flex items-center gap-2">

@@ -48,10 +48,30 @@ function tripletToHex(triplet: string): string {
     );
 }
 
-test("elevation is none: every --shadow-* key resolves to none", () => {
-    const shadows = declarations(GLOBALS).filter((d) => d.name.startsWith("--shadow-"));
+/**
+ * The Tailwind-generated shadow SCALE (--shadow-2xs..2xl, --shadow-inner) —
+ * the keys that back a `shadow-{size}` utility and that DESIGN-LANGUAGE.md's
+ * "Elevation: none" rule zeros. Read from the framework rather than hardcoded
+ * so a future Tailwind release that adds a step is covered by construction.
+ * Deliberately excludes `--shadow-overlay`: that token is not part of
+ * Tailwind's generated scale (no `shadow-overlay` utility exists), so a
+ * plain --shadow- prefix match would wrongly fold the one sanctioned
+ * non-zero shadow into the "must be none" scale check.
+ */
+function tailwindShadowScaleKeys(): Set<string> {
+    const themeCss = readFileSync(path.join(ROOT, "node_modules/tailwindcss/theme.css"), "utf8");
+    const shipped = new Set(
+        [...themeCss.matchAll(/^\s*(--shadow-[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+    );
+    assert.ok(shipped.size > 0, "could not read Tailwind's default shadow scale");
+    return shipped;
+}
 
-    assert.ok(shadows.length > 0, "no --shadow-* tokens found — did the scale move?");
+test("elevation is none: every --shadow-* scale key resolves to none", () => {
+    const scaleKeys = tailwindShadowScaleKeys();
+    const shadows = declarations(GLOBALS).filter((d) => scaleKeys.has(d.name));
+
+    assert.ok(shadows.length > 0, "no --shadow-* scale tokens found — did the scale move?");
     for (const { name, value } of shadows) {
         assert.equal(
             value,
@@ -79,18 +99,10 @@ test("elevation is none: no key in Tailwind's scale is left undeclared", () => {
     // it said elevation was none. Reading the framework's own theme means the
     // rule covers keys nobody here has heard of yet, including ones a future
     // Tailwind release adds.
-    const themeCss = readFileSync(
-        path.join(ROOT, "node_modules/tailwindcss/theme.css"),
-        "utf8",
-    );
-    const shipped = new Set(
-        [...themeCss.matchAll(/^\s*(--shadow-[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
-    );
-    assert.ok(shipped.size > 0, "could not read Tailwind's default shadow scale");
-
+    const shipped = tailwindShadowScaleKeys();
     const declared = new Set(
         declarations(GLOBALS)
-            .filter((d) => d.name.startsWith("--shadow-"))
+            .filter((d) => shipped.has(d.name))
             .map((d) => d.name),
     );
     const missing = [...shipped].filter((k) => !declared.has(k));
@@ -212,6 +224,193 @@ test("nothing outside globals.css assigns a core design token at runtime", () =>
         offenders,
         [],
         `runtime token assignment in: ${offenders.join(", ")} — change the value in globals.css.`,
+    );
+});
+
+/**
+ * Guards docs/design/ATTENTION.md's elevation rule: a shadow means "this
+ * floats above the page." Overlays (portal-rendered, nothing behind them)
+ * cast exactly one standard shadow via the --shadow-overlay token; every
+ * in-flow surface is flat and separates by border + whitespace, and its
+ * hover affordance is border-darkening, never a lift.
+ *
+ * Classification is by VALUE SHAPE, not by an enumerated file list — a
+ * future overlay primitive that correctly adopts shadow-[var(--shadow-overlay)]
+ * must pass by construction, the same way a future in-flow component that
+ * copies a hardcoded outer shadow must fail by construction. A hardcoded
+ * filename allowlist would get either of those backwards.
+ */
+
+/** True for an inset sheen (surface finish — never judged as elevation). */
+function isInsetShadowLayer(layer: string): boolean {
+    return layer.trim().startsWith("inset");
+}
+
+/**
+ * True for a zero-offset, zero-blur, spread-only ring — e.g.
+ * `0 0 0 1px rgb(var(--foreground))`. This is box-shadow used to simulate a
+ * border without affecting layout (a focus ring, an active-row outline); it
+ * has no blur radius, so nothing "lifts," and it is exempt the same way a
+ * literal `border` would be.
+ */
+function isRingShadowLayer(layer: string): boolean {
+    return /^0(px)?[\s_]+0(px)?[\s_]+0(px)?[\s_]+[\d.]+px\b/.test(layer.trim());
+}
+
+/** True for a layer that is exactly the sanctioned overlay token. */
+function isOverlayTokenShadowLayer(layer: string): boolean {
+    return /^var\(--shadow-overlay\)$/.test(layer.trim());
+}
+
+/**
+ * True if a single box-shadow layer (CSS `box-shadow:` syntax, e.g.
+ * "0 10px 30px 0 rgba(10,10,10,0.07)") is a forbidden outer elevation shadow.
+ */
+function isForbiddenOuterShadowLayer(layer: string): boolean {
+    return (
+        !isInsetShadowLayer(layer) &&
+        !isRingShadowLayer(layer) &&
+        !isOverlayTokenShadowLayer(layer)
+    );
+}
+
+/**
+ * True if a Tailwind arbitrary shadow utility, e.g. "shadow-[0_8px_24px_rgba(0,0,0,0.1)]"
+ * or "shadow-[var(--shadow-overlay)]", casts a forbidden outer elevation
+ * shadow. Utility syntax joins a layer's components with underscores instead
+ * of spaces, so it is normalised to space form before reusing the CSS-layer
+ * classifier — one shape rule serves both syntaxes.
+ */
+function isForbiddenOuterShadowUtility(utility: string): boolean {
+    const body = utility.match(/^shadow-\[(.+)\]$/)?.[1];
+    if (!body) return false;
+    return isForbiddenOuterShadowLayer(body.replace(/_/g, " "));
+}
+
+function splitShadowLayers(value: string): string[] {
+    // A box-shadow value is a comma-separated layer list; commas also occur
+    // inside rgba()/var(), so only split on ones outside parens.
+    return value.split(/,(?![^(]*\))/).map((s) => s.trim());
+}
+
+test("shadow means floating: .glass-panel/.glass-card never regain an outer shadow", () => {
+    // Direct regression guard for the fix: these four blocks (base × hover,
+    // light × dark) are the exact surfaces the owner's complaint named — every
+    // job row cast a real drop shadow, and hover added more shadow plus a
+    // lift. Only the inset sheen may remain.
+    const blocks: Array<[string, RegExp]> = [
+        ["light base", /^\.glass-panel,\n\.glass-card \{[\s\S]*?\n\}/m],
+        ["dark base", /^\.dark \.glass-panel,\n\.dark \.glass-card \{[\s\S]*?\n\}/m],
+        ["light hover", /^\.glass-card:hover \{[\s\S]*?\n\}/m],
+        ["dark hover", /^\.dark \.glass-card:hover \{[\s\S]*?\n\}/m],
+    ];
+
+    for (const [label, pattern] of blocks) {
+        const match = GLOBALS.match(pattern);
+        assert.ok(match, `could not find the ${label} .glass-panel/.glass-card block`);
+        const shadowMatch = match[0].match(/box-shadow\s*:\s*([^;]+);/);
+        assert.ok(shadowMatch, `${label} block has no box-shadow declaration`);
+        const offenders = splitShadowLayers(shadowMatch[1]).filter(isForbiddenOuterShadowLayer);
+        assert.deepEqual(
+            offenders,
+            [],
+            `${label} .glass-panel/.glass-card casts an outer shadow again: ${offenders.join(", ")}. ` +
+                `In-flow surfaces are flat — separation is border + whitespace, hover is border-darkening.`,
+        );
+    }
+
+    // The hover blocks must not lift either — a lift is the other half of
+    // "floating," and the rule bans it from in-flow surfaces on its own.
+    const hoverBlocks = GLOBALS.match(/\.glass-card:hover \{[\s\S]*?\n\}/g) ?? [];
+    assert.ok(hoverBlocks.length >= 2, "expected a light and dark .glass-card:hover block");
+    for (const block of hoverBlocks) {
+        assert.doesNotMatch(
+            block,
+            /transform\s*:\s*translateY/,
+            "a .glass-card:hover block still lifts on hover — hover affordance is border-darkening only",
+        );
+    }
+});
+
+test("shadow means floating: outer utility shadows only appear as the overlay token", () => {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(dir)) {
+            const full = path.join(dir, entry);
+            if (statSync(full).isDirectory()) {
+                walk(full);
+            } else if (/\.tsx?$/.test(entry)) {
+                files.push(full);
+            }
+        }
+    };
+    walk(path.join(ROOT, "src"));
+
+    const offenders: string[] = [];
+    for (const file of files) {
+        const src = readFileSync(file, "utf8");
+        for (const m of src.matchAll(/shadow-\[[^\]]*\]/g)) {
+            if (isForbiddenOuterShadowUtility(m[0])) {
+                offenders.push(`${path.relative(ROOT, file)}: ${m[0]}`);
+            }
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `outer elevation shadow(s) outside the sanctioned overlay token: ${offenders.join("; ")}. ` +
+            `In-flow elements are flat (border + whitespace); floating overlays use shadow-[var(--shadow-overlay)].`,
+    );
+
+    // Coverage half of the invariant: the primitives that are genuinely
+    // floating (portal-rendered, nothing behind them) must actually carry the
+    // token, not just fail to violate it — an explicit list of the surfaces
+    // docs/design/ATTENTION.md names as overlays.
+    const OVERLAY_PRIMITIVE_FILES = [
+        "src/components/ui/dialog.tsx",
+        "src/components/ui/sheet.tsx",
+        "src/components/ui/tooltip.tsx",
+        "src/components/ui/select.tsx",
+        "src/components/ui/dropdown-menu.tsx",
+        "src/components/ui/popover.tsx",
+        "src/components/search/SearchAutocomplete.tsx",
+    ];
+    const missingToken = OVERLAY_PRIMITIVE_FILES.filter(
+        (rel) => !readFileSync(path.join(ROOT, rel), "utf8").includes("shadow-[var(--shadow-overlay)]"),
+    );
+    assert.deepEqual(
+        missingToken,
+        [],
+        `overlay primitive(s) missing the shadow-[var(--shadow-overlay)] treatment: ${missingToken.join(", ")}`,
+    );
+});
+
+test("shadow classifier: survives an inset sheen, catches a hardcoded outer shadow", () => {
+    // Proves the guard above is shape-based and class-wide, not a record of
+    // the specific instances this change fixed.
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)]"),
+        false,
+        "an inset sheen in a non-overlay file must survive — it is surface finish, not elevation",
+    );
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[0_0_0_1px_rgb(var(--foreground))]"),
+        false,
+        "a zero-blur spread-only ring must survive — it simulates a border, not elevation",
+    );
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[var(--shadow-overlay)]"),
+        false,
+        "the sanctioned overlay token must survive anywhere it's used",
+    );
+    // A violation fixture other than any instance this change touched: a
+    // hypothetical card component hardcoding its own drop shadow instead of
+    // going flat or adopting the token.
+    assert.equal(
+        isForbiddenOuterShadowUtility("shadow-[0_4px_14px_rgba(0,0,0,0.18)]"),
+        true,
+        "a hardcoded outer drop shadow must be caught",
     );
 });
 
