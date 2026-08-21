@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { X } from "@phosphor-icons/react";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
@@ -192,7 +191,7 @@ export function CompanyRoleSearch({
 
       {displayed.length === 0 ? (
         hasQuery ? (
-          <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center">
+          <div className="border border-border bg-card px-5 py-8 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
@@ -205,7 +204,7 @@ export function CompanyRoleSearch({
           // sentence with nothing to do next is strictly worse than turning
           // the visitor into a follower, since that's the one action this
           // page can actually offer them right now.
-          <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center">
+          <div className="border border-border bg-card px-5 py-8 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
             </p>
@@ -227,7 +226,7 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
+                  className="w-full text-left flex items-center gap-4 border border-border bg-card px-5 py-4 transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
@@ -262,7 +261,7 @@ export function CompanyRoleSearch({
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6 shadow-xs">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
           <div>
             <h3 className="font-display text-[18px] font-semibold text-foreground">
               Explore all {openCountLabel} open roles at {companyName}
@@ -292,20 +291,9 @@ export function CompanyRoleSearch({
             }
           }}
         >
-          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-border bg-card shadow-2xl p-4 sm:p-8 animate-in zoom-in-95 duration-200">
-            {/* Close Button */}
-            <div className="sticky top-0 z-20 -mt-2 -mr-2 mb-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedJob(null)}
-                aria-label="Close job details"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
-              >
-                <X size={18} weight="bold" />
-              </button>
-            </div>
-
-            {/* Public Job Detail Content */}
+          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-border bg-card shadow-[var(--shadow-overlay)] p-4 sm:p-8 animate-in zoom-in-95 duration-200">
+            {/* Public Job Detail Content — PublicJobDetail renders JobDetail's own
+                × via the onClose prop below, so this container adds no second one. */}
             <PublicJobDetail
               job={selectedJob}
               onClose={() => setSelectedJob(null)}
