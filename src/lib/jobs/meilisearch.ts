@@ -1070,11 +1070,31 @@ export async function fetchPostedDateFilterSupported(): Promise<boolean | null> 
 }
 
 /**
+ * Strips the German gender-neutral-suffix scrape artifact a colon-appended
+ * convention leaves on a title copied verbatim from a German-language
+ * source — live prod suggested "Product Manager:in"; "Entwickler:innen" is
+ * the same artifact on an otherwise-German title. General rule (not a
+ * per-title patch): a colon immediately followed by ONLY one of that closed
+ * set of German suffixes, anchored to the end of the string — so any future
+ * scrape from the same convention is caught by construction, not by adding
+ * another literal to a blocklist. `$` anchors the match, so the alternation
+ * order doesn't matter (the engine backtracks to "innen" if "in" alone
+ * doesn't reach the end) — kept longest-first anyway for readability.
+ */
+export function stripGenderSuffixArtifact(text: string): string {
+  return text.replace(/:(innen|in|r|e)$/i, "").trim();
+}
+
+/**
  * Pure: fold raw `{ title, company }` hits into deduped, capped suggestion
  * lists. Extracted from `fetchJobSuggestions` so the dedupe logic is
  * unit-testable without a network call (see tests/unit/jobs-suggestions.test.ts).
  * Titles dedupe case-insensitively (max 5); companies dedupe case-insensitively
- * (max 3) — first-seen casing wins, blank values are dropped.
+ * (max 3) — first-seen casing wins, blank values are dropped. Both fields run
+ * through `stripGenderSuffixArtifact` first — the scrape artifact can land on
+ * either (title far more often, but nothing about the convention is
+ * title-specific) — so a hit that's ONLY the artifact (blank once stripped)
+ * is dropped exactly like any other blank value, not suggested as "".
  */
 export function dedupeJobSuggestionHits(
   hits: Array<{ title?: string | null; company?: string | null }>,
@@ -1085,7 +1105,7 @@ export function dedupeJobSuggestionHits(
   const seenCompanies = new Set<string>();
 
   for (const hit of hits) {
-    const title = (hit.title ?? "").trim();
+    const title = stripGenderSuffixArtifact((hit.title ?? "").trim());
     if (title) {
       const key = title.toLowerCase();
       if (!seenTitles.has(key)) {
@@ -1093,7 +1113,7 @@ export function dedupeJobSuggestionHits(
         if (titles.length < 5) titles.push(title);
       }
     }
-    const company = (hit.company ?? "").trim();
+    const company = stripGenderSuffixArtifact((hit.company ?? "").trim());
     if (company) {
       const key = company.toLowerCase();
       if (!seenCompanies.has(key)) {

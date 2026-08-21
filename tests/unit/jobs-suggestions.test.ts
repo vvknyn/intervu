@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSuggestBody, dedupeJobSuggestionHits } from "../../src/lib/jobs/meilisearch";
+import { buildSuggestBody, dedupeJobSuggestionHits, stripGenderSuffixArtifact } from "../../src/lib/jobs/meilisearch";
 
 test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, first casing wins", () => {
     const hits = [
@@ -40,6 +40,35 @@ test("dedupeJobSuggestionHits dedupes companies case-insensitively, capped at 3,
 
     assert.deepEqual(result.companies, ["Acme Inc", "Beta Corp", "Gamma LLC"]);
     assert.equal(result.companies.length, 3);
+});
+
+// 2026-08-20: live prod suggested "Product Manager:in" — a German
+// gender-neutral-suffix scrape artifact riding along on a title copied
+// verbatim from a German-language source. Covers a SECOND artifact form
+// ("Entwickler:innen") too, not just the reported instance — same rule, two
+// suffixes, so the fix is proven class-wide rather than a literal patch for
+// the one string that got noticed.
+test("stripGenderSuffixArtifact strips the German gender-suffix scrape artifact, any of the closed suffix set", () => {
+    assert.equal(stripGenderSuffixArtifact("Product Manager:in"), "Product Manager");
+    assert.equal(stripGenderSuffixArtifact("Entwickler:innen"), "Entwickler");
+    assert.equal(stripGenderSuffixArtifact("Lehrer:r"), "Lehrer");
+    assert.equal(stripGenderSuffixArtifact("Student:e"), "Student");
+});
+
+test("stripGenderSuffixArtifact leaves an ordinary title untouched", () => {
+    assert.equal(stripGenderSuffixArtifact("Software Engineer"), "Software Engineer");
+    // A colon NOT at the end, or not followed by one of the closed suffixes,
+    // is just punctuation in the title — not the scrape artifact.
+    assert.equal(stripGenderSuffixArtifact("Senior: Backend Engineer"), "Senior: Backend Engineer");
+});
+
+test("dedupeJobSuggestionHits strips the gender-suffix artifact from both title and company before dedupe/cap", () => {
+    const result = dedupeJobSuggestionHits([
+        { title: "Product Manager:in", company: "Acme" },
+        { title: "Entwickler:innen", company: "Beta:in" },
+    ]);
+    assert.deepEqual(result.titles, ["Product Manager", "Entwickler"]);
+    assert.deepEqual(result.companies, ["Acme", "Beta"]);
 });
 
 // 2026-08-14: the typeahead's request body moved off hitsPerPage (forces

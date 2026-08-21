@@ -643,8 +643,15 @@ export function JobDetail({
                 {/* Action row */}
                 <div className="border-t border-border/80 px-4 py-2.5 sm:px-6 sm:py-3 bg-muted/20">
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* House attention system (docs/design/ATTENTION.md,
+                            channel 2): exactly one inverted-ink block per
+                            view. Apply is the primary action this pane
+                            exists for — same solid-foreground/background-text
+                            treatment as the SERP's own Search button — not
+                            the quietest element on the page. Save is the
+                            secondary action: a plain 1px outline. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none glass-tint-blue text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-foreground text-background hover:bg-foreground/90 text-xs font-bold uppercase tracking-wider transition-colors">
                                 <ArrowSquareOut size={16} />
                                 Apply
                             </Button>
@@ -658,7 +665,7 @@ export function JobDetail({
                                 Saved
                             </Link>
                         ) : (
-                            <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-bold uppercase tracking-wider transition-colors">
                                 <Check size={16} />
                                 {goingAfter ? "Saving…" : "Save"}
                             </Button>

@@ -22,7 +22,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { SearchAutocomplete } from "@/components/search/SearchAutocomplete";
+import { SearchAutocomplete, type SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,6 @@ import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
-import { LaunchBanner } from "@/components/jobs/LaunchBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData, saveResumeData } from "@/actions/resume";
@@ -414,50 +413,50 @@ function mapToSuggestions(data: { titles: string[]; companies: string[] }): Sear
 /* ----------------------------- ledger row ----------------------------- */
 
 /** Squared mono `key value` fact-chip base */
-const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 text-[10.5px] leading-tight font-medium glass-tint-muted transition-colors";
-
-/** Shared shape of the row's trust chip — only the color and the words differ per state. */
-const TRUST_CHIP_BOX = "leading-none inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]";
+const FACT_BOX = "inline-flex items-center gap-1.5 rounded-none px-2.5 py-0.5 text-[12px] leading-tight font-medium glass-tint-muted transition-colors";
 
 /**
- * How each `rowTrustChip` state looks and reads — one table instead of one
- * hand-written `<span>` per state. The states were four near-identical
- * copy-pasted spans differing in three palette words; adding `ghost` would
- * have made a fifth, which is how the amber that `caution` and
- * `likely_ghost` used to share got there in the first place.
+ * How each `rowTrustChip` state renders as the small icon beside the job
+ * title — one table instead of one hand-written glyph+color pair per state
+ * (same reasoning the old chip-box table this replaces had — see git
+ * history). Per the house attention system (docs/design/ATTENTION.md,
+ * channel 4): semantic color marks EXCEPTIONS only, so `clear`/`checked` —
+ * the "nothing to flag" states — carry no glyph at all. A green checkmark on
+ * every row was exactly the "✓ ACTIVELY POSTED" wallpaper this table used to
+ * produce; only `review` and `ghost` are actual exceptions worth a mark.
  *
- * `ghost` takes its class straight from `GHOST_META.likely_ghost.cls` — which
- * now resolves through `ghostBadgeTone` (lib/ui/status-tokens.ts) — so the
- * row chip, the tooltip beside it, the detail-panel verdict pill and the /co
- * roles list are the same red for the same verdict without anyone
- * remembering to keep them in step. The other three keep their existing
- * literal palettes verbatim: they render correctly today and restyling a
- * surface nobody reported is not this change's job.
+ * `ghost`/`clear` reuse `GHOST_META`'s labels (not a second word for the same
+ * state — see `rowTrustChip`'s doc comment) so the row and the detail panel
+ * stay one vocabulary by construction.
  */
-const TRUST_CHIP: Record<RowTrustChip, { label: string; cls: string; glyph?: string; glyphCls?: string }> = {
+const TRUST_CHIP: Record<RowTrustChip, { label: string; glyph: string | null; glyphCls: string }> = {
     ghost: {
         label: GHOST_META.likely_ghost!.label,
-        cls: GHOST_META.likely_ghost!.cls,
         glyph: "✕",
+        glyphCls: "text-red-600 dark:text-red-400",
     },
     review: {
-        label: "review",
-        cls: "border border-amber-300/90 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+        label: GHOST_META.caution!.label,
+        glyph: "⚠",
+        glyphCls: "text-amber-600 dark:text-amber-400",
     },
     clear: {
-        // `GHOST_META.clear.label`, not a second word for the same state —
-        // see `rowTrustChip`'s doc comment for why the row no longer says
-        // "verified".
         label: GHOST_META.clear!.label,
-        cls: "border border-emerald-300/90 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
-        glyph: "✓",
-        glyphCls: "font-extrabold text-emerald-600 dark:text-emerald-400",
+        glyph: null,
+        glyphCls: "",
     },
     checked: {
         label: "checked",
-        cls: "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        glyph: null,
+        glyphCls: "",
     },
 };
+
+/** Same "employer's posted date was likely refreshed" claim JobDetail's
+ *  relisted disclosure sentence makes (JobDetail.tsx) — reused verbatim
+ *  rather than a second wording for the same fact. */
+const RELISTED_EXPLAIN =
+    "Employer's posted date is newer than when we first found this role — the date was likely refreshed.";
 
 /**
  * One result. Title + company/location on the left, a fixed-width data rail
@@ -516,6 +515,13 @@ function JobCard({
     const level = prettyEnum(job.experience_level);
     const employment = prettyEnum(job.employment_type);
     const loc = locationText(job);
+    // `locationText` degrades to "Location not listed" (never throws, never
+    // guesses) when nothing usable came off the posting — that sentinel is
+    // an absence, not a value, so the LOCATION chip below renders only when
+    // it's something OTHER than that (remote is always a known value, even
+    // when the underlying `loc` is unknown, since `locationLine` never
+    // surfaces the sentinel in the remote branch).
+    const locationKnown = job.work_type === "remote" || loc !== "Location not listed";
     const modeLabel = job.work_type === "remote" ? "Remote" : job.work_type ? prettyEnum(job.work_type) : null;
     const locationLine =
         job.work_type === "remote" ? "Remote" : modeLabel ? `${loc} · ${modeLabel}` : loc;
@@ -536,7 +542,7 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card p-4 text-left transition-all duration-150 hover:border-foreground/50",
+                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card px-4 py-3 text-left transition-all duration-150 hover:border-foreground/50",
                 active && "border-brand border-l-4 border-l-brand glass-tint-blue",
             )}
         >
@@ -544,32 +550,70 @@ function JobCard({
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
             <div className="min-w-0">
-                <Link
-                    href={jobPath(job)}
-                    data-testid="job-title"
-                    className={cn(
-                        "block text-[15px] leading-snug tracking-tight hover:underline",
-                        opened ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
+                <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                    <Link
+                        href={jobPath(job)}
+                        data-testid="job-title"
+                        className={cn(
+                            "text-[17px] leading-snug tracking-tight hover:underline",
+                            opened ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
+                        )}
+                        onClick={(e) => {
+                            // A real href is what makes the row crawlable and
+                            // middle-click/copy-link-able. But a plain click must
+                            // keep opening the in-page panel (no full navigation)
+                            // — the row's own onClick already does that, so stop
+                            // it from ALSO firing via bubbling (would double the
+                            // telemetry + history push) and drive it from here
+                            // instead. Modified clicks (new tab, etc.) and
+                            // non-primary buttons are left alone to use the
+                            // anchor's native behavior.
+                            e.stopPropagation();
+                            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                            e.preventDefault();
+                            onClick();
+                        }}
+                    >
+                        {decodeText(job.title)}
+                    </Link>
+                    {/* Exception-only trust icon, immediately after the title
+                        (badge inversion, Task C1 — replaces the old
+                        "✓ ACTIVELY POSTED" wallpaper chip that used to sit in
+                        the top-right slot). `clear`/`checked` render nothing:
+                        the default, nothing-to-flag state is unmarked per
+                        ATTENTION.md channel 4. The icon IS the tooltip
+                        trigger (`ContextHelp`'s `icon` override) rather than a
+                        separate "?" mark beside a separate colored chip. */}
+                    {trust && TRUST_CHIP[trust].glyph && (
+                        <span
+                            data-testid="row-trust-icon"
+                            data-trust={trust}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center leading-none"
+                        >
+                            <ContextHelp
+                                content={ghostMetaFor(job, now)?.explain ?? TRUST_CHIP[trust].label}
+                                side="right"
+                                className={TRUST_CHIP[trust].glyphCls}
+                                icon={<span aria-hidden className="text-[13px] font-bold leading-none">{TRUST_CHIP[trust].glyph}</span>}
+                            />
+                        </span>
                     )}
-                    onClick={(e) => {
-                        // A real href is what makes the row crawlable and
-                        // middle-click/copy-link-able. But a plain click must
-                        // keep opening the in-page panel (no full navigation)
-                        // — the row's own onClick already does that, so stop
-                        // it from ALSO firing via bubbling (would double the
-                        // telemetry + history push) and drive it from here
-                        // instead. Modified clicks (new tab, etc.) and
-                        // non-primary buttons are left alone to use the
-                        // anchor's native behavior.
-                        e.stopPropagation();
-                        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                        e.preventDefault();
-                        onClick();
-                    }}
-                >
-                    {decodeText(job.title)}
-                </Link>
-                <div className="mt-1 text-[13px] font-medium text-muted-foreground">
+                    {/* Relist caution — orthogonal to `trust` (a posting can
+                        be both "clear" and relisted), so it's its own icon
+                        rather than folded into the TRUST_CHIP table. */}
+                    {relisted && (
+                        <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center leading-none">
+                            <ContextHelp
+                                content={RELISTED_EXPLAIN}
+                                side="right"
+                                className="text-amber-600 dark:text-amber-400"
+                                icon={<span aria-hidden className="text-[13px] font-bold leading-none">⟳</span>}
+                            />
+                        </span>
+                    )}
+                </span>
+                <div className="mt-1 text-[14px] font-medium text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
@@ -586,76 +630,55 @@ function JobCard({
                     )}
                 </div>
             </div>
-            <span className="flex h-fit items-center self-start">
-                {trust && (
+            {/* Posted age, not a trust chip (badge inversion, Task C1) —
+                the trust state is now the icon beside the title above; this
+                slot is purely "how stale," reads as metadata rather than a
+                claim. Monospace is reserved for <code> (see typography.test);
+                `.mono-data` gets the same "figures line up" property from
+                tabular-nums on the sans face instead. */}
+            <span className="flex h-fit items-start self-start">
+                {age && (
                     <span
-                        data-testid="row-trust-chip"
-                        data-trust={trust}
-                        className={cn(TRUST_CHIP_BOX, TRUST_CHIP[trust].cls)}
-                    >
-                        {TRUST_CHIP[trust].glyph && (
-                            <>
-                                <span aria-hidden className={TRUST_CHIP[trust].glyphCls}>
-                                    {TRUST_CHIP[trust].glyph}
-                                </span>{" "}
-                            </>
+                        data-testid="posted-age"
+                        className={cn(
+                            "mono-data text-[12px] leading-none",
+                            relisted ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
                         )}
-                        {TRUST_CHIP[trust].label}
-                    </span>
-                )}
-                {ghostMetaFor(job, now) && (
-                    <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center leading-none">
-                        <ContextHelp
-                            content={ghostMetaFor(job, now)!.explain}
-                            side="left"
-                        />
+                    >
+                        {age}
                     </span>
                 )}
             </span>
             <div className="col-span-full flex flex-wrap items-center gap-1.5 pt-0.5">
                 {salary && (
-                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-[10.5px] overflow-hidden">
-                        <span className="bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
+                    <span className="inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 text-[12px] overflow-hidden">
+                        <span className="bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300 border-r border-emerald-500/30">PAY</span>
                         <span className="px-1.5 py-0.5 font-bold tabular-nums text-foreground">{salary}</span>
                     </span>
                 )}
-                <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
-                    <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LOCATION</span>
-                    <span className="px-1.5 py-0.5 font-medium text-foreground">{locationLine}</span>
-                </span>
-                {level && (
-                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
-                        <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LEVEL</span>
-                        <span className="px-1.5 py-0.5 font-medium text-foreground">{level}</span>
+                {/* Never a chip for an unknown value — a job whose location
+                    genuinely isn't known gets no LOCATION chip at all rather
+                    than one reading "Location not listed". */}
+                {locationKnown && (
+                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
+                        <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LOCATION</span>
+                        <span className="px-1.5 py-0.5 font-medium text-foreground">{locationLine}</span>
                     </span>
                 )}
-                {age && (
-                    <span className={cn(
-                        "inline-flex items-center rounded-none border text-[10.5px] overflow-hidden",
-                        relisted ? "border-amber-500/40 bg-amber-500/10" : "border-border/80 bg-background/50"
-                    )}>
-                        <span className={cn(
-                            "px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider border-r",
-                            relisted ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/30" : "bg-muted/70 text-muted-foreground border-border/80"
-                        )}>
-                            {relisted ? "RELISTED" : "POSTED"}
-                        </span>
-                        <span className="px-1.5 py-0.5 font-medium text-foreground">{age}</span>
+                {level && (
+                    <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
+                        <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">LEVEL</span>
+                        <span className="px-1.5 py-0.5 font-medium text-foreground">{level}</span>
                     </span>
                 )}
                 {employment &&
                     employment.toLowerCase() !== "full-time" &&
                     employment.toLowerCase() !== "full time" && (
-                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[10.5px] overflow-hidden">
-                            <span className="bg-muted/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">TYPE</span>
+                        <span className="inline-flex items-center rounded-none border border-border/80 bg-background/50 text-[12px] overflow-hidden">
+                            <span className="bg-muted/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-border/80">TYPE</span>
                             <span className="px-1.5 py-0.5 font-medium text-foreground">{employment}</span>
                         </span>
                     )}
-                {!salary && (
-                    <span className="inline-flex items-center rounded-none border border-dashed border-border/80 bg-background/40 text-[10px] text-muted-foreground px-2 py-0.5">
-                        pay undisclosed
-                    </span>
-                )}
                 {variantCount > 0 && (
                     <button
                         type="button"
@@ -1230,10 +1253,19 @@ function JobsContent() {
         else window.history.replaceState(null, "", target);
     };
 
+    const searchAutocompleteRef = useRef<SearchAutocompleteHandle>(null);
+
     // Single chokepoint for a SUBMITTED (not per-keystroke) search — the
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        // Every submit path funnels through here (the box's own Enter/
+        // suggestion-pick already self-closes; this covers the ones that
+        // don't — the external "Search" button, category chips, seed
+        // clicks), so closing here is the ONE place a submitted search
+        // dismisses a dropdown left open from typing, not one fix per
+        // caller.
+        searchAutocompleteRef.current?.close();
         setQueryDraft(q);
         setQuery(q);
         setMobileResultsEngaged(true);
@@ -1602,7 +1634,14 @@ function JobsContent() {
         activeFilterCount: activeEntries.length,
         hasCorpusScope: Boolean(scope.board || scope.companyDomain),
     });
-    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain;
+    // `!searchParams.get("job")` — the RAW url param, not `selectedId` (whose
+    // default-browse auto-selection of `hits[0]` is not a deliberate pick —
+    // see `resolveSelectionAfterRefresh`, lib/jobs/result-state.ts — and
+    // never writes `job=`, per `jobs-split-view.spec.ts`'s "no ?job=" case).
+    // A deliberate deep link/row click DOES write `job=`, and the hero has no
+    // business sitting over an open job's detail (Vivek, "once I start
+    // searching, why is it still there").
+    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain && !searchParams.get("job");
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     const agentSearchPrefsSet = hasSearchPrefs(agentPrefs?.search);
 
@@ -3301,7 +3340,16 @@ function JobsContent() {
         }
     };
 
-    const resultsCountLabel = resultCountLine;
+    // Display-only extension of `resultCountLine` — never `resultCountLine`
+    // itself, which also gates the "beyond window" affordance above and is a
+    // locked pure-function contract shared with /co (searchResultLine,
+    // lib/jobs/presentation.ts). One factual clause, reusing the "ghost
+    // screen"/"may no longer be live" vocabulary `GHOST_META.likely_ghost`
+    // already uses per-row (lib/jobs/presentation.ts) — stated once for the
+    // whole result set rather than implied by a badge on every row.
+    const resultsCountLabel = resultCountLine
+        ? `${resultCountLine} · screened for postings that may no longer be live`
+        : resultCountLine;
 
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
@@ -3481,6 +3529,7 @@ function JobsContent() {
                         <div className="flex flex-col rounded-none border border-border bg-card divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x">
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
+                                    ref={searchAutocompleteRef}
                                     value={queryDraft}
                                     onChange={(v) => {
                                         setQueryDraft(v);
@@ -4221,9 +4270,6 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
-                                            if (i === 3) {
-                                                rows.push(<LaunchBanner key="launch-banner-inline" />);
-                                            }
                                             if (i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
