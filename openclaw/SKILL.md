@@ -35,7 +35,15 @@ All intervu calls go through
 `mcporter call intervu-cc-mcp.<tool> --args '{...}' --output json`
 (`intervu-cc-mcp` is the server key; setup is `mcporter config add intervu-cc-mcp
 --url https://intervu.cc/api/mcp --config ~/.mcporter/mcporter.json` then
-`mcporter auth intervu-cc-mcp`).
+`mcporter auth intervu-cc-mcp`). The installer also writes
+`"oauthRedirectUrl": "http://127.0.0.1:21473/callback"` onto that server entry
+— **do not remove it.** Without a pinned callback port mcporter re-registers
+under a new client_id on every run, our refresh endpoint rejects the refresh
+token as belonging to a different client, and the connection needs a fresh
+browser approval every single day. If you ever find that key missing, add it
+back and run `mcporter auth intervu-cc-mcp --reset` once (the `--reset` is
+required: a registration cached from before the pin is stale, and mcporter
+only self-clears stale registrations while the port is still dynamic).
 
 CALL TOOLS DIRECTLY — never use `mcporter list` to check whether auth works.
 Its health probe reports "auth required" even when stored credentials are
