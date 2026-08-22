@@ -330,6 +330,11 @@ pay the browser boot cost.
      justified body, right-aligned dates — data can be correct while the
      layout has silently drifted from `templates/resume.html`, and that's
      still a failure.
+   - no large empty region at the bottom of the last page — the template
+     auto-fits type/margins on load and logs `resume-fit: …` to the console
+     (also in `document.documentElement.dataset.fit`); a page that still
+     looks half-empty means data.json lost sections — fix the data, not the
+     CSS.
    Any failure → fix `data.json`, re-render (step 5), re-verify. This tab's
    job ends here — close it once export (step 9) succeeds. FORM FILL opens
    its own RESUME tab from the exported Downloads PDF, not this HTML render
