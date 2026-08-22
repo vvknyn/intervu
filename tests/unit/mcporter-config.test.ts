@@ -45,7 +45,9 @@ const SERVER_URL = installerVar("MCP_SERVER_URL");
 const OAUTH_PORT = installerVar("MCP_OAUTH_PORT");
 const REDIRECT = `http://127.0.0.1:${OAUTH_PORT}/callback`;
 
-type PatchResult = { config: Record<string, any>; stdout: string; redirectChanged: boolean };
+type McporterServer = { baseUrl?: string; lifecycle?: string; oauthRedirectUrl?: string };
+type McporterConfig = { mcpServers: Record<string, McporterServer> };
+type PatchResult = { config: McporterConfig; stdout: string; redirectChanged: boolean };
 
 /** Writes `initial` to a temp mcporter.json, runs the extracted program over it, returns the result. */
 function runPatch(initial: unknown, redirect: string = REDIRECT): PatchResult {
