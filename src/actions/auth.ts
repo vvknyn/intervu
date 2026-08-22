@@ -5,10 +5,12 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { runUserDataPlan } from "@/lib/db/user-data";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { usernameEmail } from "@/lib/auth/username-email";
+import { isMintedLoginEmail, validateSignupEmail } from "@/lib/auth/username-email";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { forgetIdentity } from "@/lib/identity/forget";
+import { getIntervuPg } from "@/lib/pg/pool";
 
 export async function checkUsernameAvailability(username: string) {
     try {
@@ -42,6 +44,20 @@ export async function signUp(prevState: any, formData: FormData) {
         return { error: "Username must be at least 3 characters" };
     }
 
+    // A real, mail-deliverable address is now mandatory ("ok keep accounts,
+    // kill the username-only path" — Vivek, Aug 20 2026). The send layer
+    // (lib/email/send.ts, welcome.ts, digest/send.ts) refuses anything
+    // shaped like the old synthesized `<username>@intervu.cc` address, so an
+    // account registered under one could never receive the alerts/tracker
+    // digest this app now sells on signup. Checked before any I/O below —
+    // cheapest check first, and it's what keeps this decision unit-testable
+    // without mocking Turnstile/rate-limiting/Firebase Admin.
+    const emailResult = validateSignupEmail(formData.get("email"));
+    if (!emailResult.ok) {
+        return { error: emailResult.error };
+    }
+    const email = emailResult.email;
+
     const ip = await getClientIp();
     if (!allowAuthSignupRequest(ip)) {
         return { error: "Too many attempts — try again in a few minutes." };
@@ -58,16 +74,13 @@ export async function signUp(prevState: any, formData: FormData) {
         return { error: "Username is already taken" };
     }
 
-    const email = usernameEmail(username);
-
     try {
         const adminAuth = getAdminAuth();
         const db = getAdminDb();
 
         // 2. Create user in Firebase Auth. `emailVerified` is deliberately
-        // omitted (defaults false) — this address is synthesized by
-        // `usernameEmail`, not one the user actually supplied and proved
-        // control of (see lib/auth/username-email.ts); claiming it verified
+        // omitted (defaults false) — signup doesn't yet prove control of this
+        // address (no verification link is sent), so claiming it verified
         // would be an unearned claim nothing in this codebase even reads.
         const userRecord = await adminAuth.createUser({
             email,
@@ -137,6 +150,13 @@ export async function signOut() {
  * ORDER MATTERS. Firestore first, Auth last. Deleting the Auth user first —
  * as this did — means any later failure strands the remaining documents for
  * good: the account is gone, so nobody can sign in to retry the sweep.
+ *
+ * Also sweeps the PG identity store (verified-email-follow's `forgetIdentity`,
+ * see `docs/specs/2026-08-19-verified-email-follow-design.md` item 7) when
+ * the account's email is a real address rather than the synthetic
+ * `<username>@intervu.cc` a password signup mints — a minted address was
+ * never entered into the email-follow flow, so there is nothing there to
+ * find, and running the lookup anyway would just be wasted PG round trips.
  */
 export async function deleteAccount(): Promise<{ error?: string }> {
     const user = await getServerUser();
@@ -160,6 +180,11 @@ export async function deleteAccount(): Promise<{ error?: string }> {
         }
 
         await getAdminAuth().deleteUser(uid);
+
+        if (user.email && !isMintedLoginEmail(user.email)) {
+            await forgetIdentity(getIntervuPg(), user.email);
+        }
+
         await clearSessionCookie();
 
         return {};

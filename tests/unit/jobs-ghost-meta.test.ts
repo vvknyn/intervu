@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GHOST_META, STALE_CLEAR_META, ghostMetaFor } from "../../src/lib/jobs/presentation";
+import { GHOST_META, STALE_CLEAR_META, ghostMetaFor, rowExceptionMeta } from "../../src/lib/jobs/presentation";
 import { STALE_CHECK_DAYS } from "../../src/lib/jobs/freshness";
 import type { GhostBadge } from "../../src/lib/jobs/types";
 
@@ -95,4 +95,37 @@ test("a fresh scrape cannot refresh a stale verdict", () => {
     )!;
     assert.equal(meta.label, STALE_CLEAR_META.label);
     assert.match(meta.explain, /Last checked 90d ago\./);
+});
+
+/* --------------------- rowExceptionMeta: exception-only -------------------- */
+
+/**
+ * `/co`'s two role-row renderers (CompanyRoleSearch, CompanyRolesList) used
+ * to render `GHOST_META.clear.label` ("Actively posted") on every routine
+ * row — the "✓ ACTIVELY POSTED" wallpaper the SERP row's own `TRUST_CHIP`
+ * table (app/jobs/page.tsx) was already built to remove from ITS surface.
+ * `rowExceptionMeta` brings the same "the default state carries no mark"
+ * rule to /co's label vocabulary: null for clear+fresh, otherwise identical
+ * to `ghostMetaFor`.
+ */
+test("clear + fresh (the routine, nothing-to-flag state) renders no status line", () => {
+    assert.equal(rowExceptionMeta(job("clear", FRESH), NOW), null);
+});
+
+test("stale-clear is still an exception and renders 'Not recently verified'", () => {
+    const meta = rowExceptionMeta(job("clear", STALE), NOW)!;
+    assert.equal(meta.label, "Not recently verified");
+    assert.equal(meta.label, STALE_CLEAR_META.label);
+});
+
+// A second exception state, not just the one the class fix was named after —
+// proves the suppression is specific to "clear + fresh", not to "clear" as a
+// whole or to ghostMetaFor's output shape in general.
+test("a fresh 'caution' verdict is a real exception and still renders", () => {
+    const meta = rowExceptionMeta(job("caution", FRESH), NOW)!;
+    assert.equal(meta.label, GHOST_META.caution!.label);
+});
+
+test("unscored still renders no line, same as ghostMetaFor", () => {
+    assert.equal(rowExceptionMeta(job("unscored", FRESH), NOW), null);
 });

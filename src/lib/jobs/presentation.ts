@@ -2,6 +2,7 @@ import { ghostBadgeTone, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 
@@ -124,6 +125,27 @@ export function ghostMetaFor(job: GhostChecked, nowMs: number) {
 function lastCheckedClause(checkedAt: string | null | undefined, nowMs: number): string {
     if (!checkedAt || Number.isNaN(Date.parse(checkedAt))) return "We have no record of when it was last checked.";
     return `Last checked ${formatRelativeAge(checkedAt, nowMs)}.`;
+}
+
+/**
+ * Exception-only status mark for a role row: `null` for the default,
+ * nothing-to-flag state (clear AND currently-checked), otherwise identical
+ * to `ghostMetaFor`. Same "the routine state carries no mark" rule the SERP
+ * row's `TRUST_CHIP` table already applies to its own `clear`/`checked`
+ * icon (app/jobs/page.tsx — a green "no ghost signals" wallpaper on every
+ * row was the exact wallpaper that table was built to remove), reused here
+ * as a value-level check instead of a second table because /co's two role
+ * renderers (CompanyRoleSearch, CompanyRolesList) speak `ghostMetaFor`'s
+ * label vocabulary directly, not `RowTrustChip`'s glyph vocabulary.
+ *
+ * `ghostMetaFor` returns the SAME `GHOST_META.clear` object reference
+ * whenever the check is current (no spread/clone happens on that branch —
+ * see its own doc), so identity comparison is exactly "clear and fresh"
+ * without re-deriving `checkFreshness` a second time here.
+ */
+export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
+    const meta = ghostMetaFor(job, nowMs);
+    return meta === GHOST_META.clear ? null : meta;
 }
 
 /**
@@ -292,6 +314,43 @@ export function isCompanyPlaceholder(s: string | null | undefined): boolean {
     return ATS_PORTAL_HOSTNAME_RE.test(out) || (BARE_DOMAIN_RE.test(out) && !out.includes(" "));
 }
 
+/**
+ * True when `name` carries no brand information beyond its OWN domain with
+ * every separator removed — "phs.org" -> "phsorg" (autosuggest, live prod
+ * 2026-08-21: "Phsorg" suggested as a company for a query that happened to
+ * start with "phs"). `isCompanyPlaceholder` above catches the SAME defect
+ * while the domain's own dots/hyphens still survive in the text
+ * ("phs.org" stored verbatim as a company); this catches it once they've
+ * already been squashed together, which is why it needs the real domain to
+ * compare against rather than working from the name text alone. A caller
+ * that confirms this repairs the name via `humanizeTenantSubdomain(domain)`
+ * (the same extraction every other ATS-tenant-domain name goes through) or
+ * drops the suggestion — never renders the squashed form as-is.
+ */
+export function isDomainSquashName(name: string, domain: string | null | undefined): boolean {
+    if (!domain) return false;
+    const squash = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const nameKey = squash(name);
+    return nameKey.length > 0 && nameKey === squash(domain);
+}
+
+/**
+ * True for a posting explicitly tagged internal-only ("[Internal] Developer,
+ * Rust", "[INTERNAL ONLY] ..."). Matches a leading bracketed tag that STARTS
+ * with "internal" — not the bare word anywhere in the title — so a genuine
+ * public role like "Internal Audit Manager" or "International Sales Lead"
+ * never matches: neither has a leading `[`, and the second doesn't even
+ * word-boundary on "internal". Whatever follows inside the brackets
+ * ("[Internal Only]", "[Internal - Do Not Post]") still matches, since the
+ * policy question is "was this tagged internal", not "does the tag say
+ * exactly one thing".
+ */
+const INTERNAL_POSTING_RE = /^\s*\[\s*internal\b/i;
+export function isInternalPosting(title: string | null | undefined): boolean {
+    if (!title) return false;
+    return INTERNAL_POSTING_RE.test(title);
+}
+
 export function cleanCompany(s: string | null | undefined): string {
     let out = decodeText(s).trim();
     if (!out) return "";
@@ -362,13 +421,45 @@ const COMMA_LEGAL_SUFFIXES = [
 ];
 /** Longest phrase first isn't required for correctness (see
  *  `stripBareLegalForm`'s doc comment) but keeps the vocabulary self-
- *  documenting as multi-word forms are added. */
+ *  documenting as multi-word forms are added.
+ *
+ *  Widened 2026-08-21 (prose-company-names): every entry below is either
+ *  punctuated ("Corp.", "Co.", "S.A.S.") or a foreign/technical abbreviation
+ *  (ULC, B.V., KK, s.r.o., …) too rare as a genuine everyday English word to
+ *  plausibly BE a deliberate brand ending — the same "own shape" test the
+ *  module doc above already uses to justify this list (and the same line
+ *  the ORIGINAL list already drew between "Ltd." and bare "Ltd", see
+ *  `GEO_GATED_TAIL_WORDS`'s doc). The bare, unpunctuated, everyday-word
+ *  forms of the same designators — "Ltd", "Corp", "Co", "Company",
+ *  "Corporation" — stay OUT of this always-safe list; they move to
+ *  `GEO_GATED_TAIL_WORDS` below, which strips them only when an independent
+ *  signal corroborates that the trailing word is a legal marker rather than
+ *  the brand's own ending. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
-    "Ltd.", "Limited", "L.L.C.", "LLC", "Inc.",
-    "GmbH", "PLC", "S.p.A.", "S.A.", "B.V.", "N.V.", "AG", "AB", "Oy",
+    "Ltd.", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
+    "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
+    "AG", "AB", "Oy", "ULC", "Corp.", "Co.", "Pty", "A/S", "KK", "s.r.o.", "d.o.o.",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
+
+/**
+ * Bare (unpunctuated) corporate-structure/entity words too ordinary, on
+ * their own, to safely read as a legal marker rather than a deliberate
+ * brand ending — "Acme Ltd", "Acme Corp", "Riverside Group" must all render
+ * untouched, because real brands legitimately end in these words. They
+ * become safe to strip only once `stackedGeographyParen` finds an
+ * independent corroborating signal: a bracketed geography qualifier
+ * elsewhere in the name (the "(Canada) Holdings LTD" shape) — a company
+ * that bothers to bracket a subsidiary's geography is naming a legal
+ * filing, not styling a brand. "Company"/"Corporation" join this tier
+ * rather than `BARE_LEGAL_SUFFIXES` for the same reason as "Ltd"/"Corp":
+ * unlike the punctuated abbreviations above (never a deliberate brand
+ * ending), the fully-spelled word IS sometimes the brand's own terminal
+ * word — "The Manufacturers Life Insurance Company" stays whole below on
+ * exactly that basis.
+ */
+const GEO_GATED_TAIL_WORDS = ["Holdings", "Group", "Ltd", "Corp", "Co", "Company", "Corporation"];
 
 function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -384,11 +475,12 @@ function normalizeLegalWord(w: string): string {
     return w.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` entry
- *  (multi-word phrases split apart) — the vocabulary `isOnlyLegalForm`
- *  checks a stripped remainder's words against. */
+/** Every individual word that appears in ANY `BARE_LEGAL_SUFFIXES` or
+ *  `GEO_GATED_TAIL_WORDS` entry (multi-word phrases split apart) — the
+ *  vocabulary `isOnlyLegalForm` checks a stripped remainder's words
+ *  against. */
 const BARE_LEGAL_WORDS = new Set(
-    BARE_LEGAL_SUFFIXES.flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
+    [...BARE_LEGAL_SUFFIXES, ...GEO_GATED_TAIL_WORDS].flatMap((f) => f.split(/\s+/)).map(normalizeLegalWord),
 );
 
 const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeRegExp).join("|")})$`, "i");
@@ -397,8 +489,8 @@ const COMMA_SUFFIX_RE = new RegExp(`,\\s*(?:${COMMA_LEGAL_SUFFIXES.map(escapeReg
  *  either a recognized legal-form word (`BARE_LEGAL_WORDS`) or pure
  *  punctuation left over from a strip (a lone "," when ", Inc." loses
  *  " Inc."). An empty `s` counts too (nothing real survived). Guards
- *  `stripBareLegalForm` against hollowing a name down to nothing but
- *  suffix chaff. */
+ *  `stripBareLegalForm`/`stripOneGeoGatedWord` against hollowing a name
+ *  down to nothing but suffix chaff. */
 function isOnlyLegalForm(s: string): boolean {
     const words = s.trim().split(/\s+/).filter(Boolean);
     if (words.length === 0) return true;
@@ -409,7 +501,7 @@ function isOnlyLegalForm(s: string): boolean {
 }
 
 /**
- * Strips ONE trailing bare (no-comma) legal-form phrase from `s`, trying
+ * Strips ONE trailing bare legal-form phrase from `s`, trying
  * `BARE_LEGAL_SUFFIXES_BY_LENGTH` longest-first so a multi-word form
  * ("Private Ltd.") strips as a whole unit rather than a shorter member of
  * the same family ("Ltd.") leaving a dangling "...Private" behind. A match
@@ -417,16 +509,136 @@ function isOnlyLegalForm(s: string): boolean {
  * and not itself `isOnlyLegalForm` — which is what keeps a name that IS
  * just a legal form (or reduces to one after a strip) coming back
  * untouched, and is the general property that makes growing the vocabulary
- * safe by construction rather than by re-deriving safety per token.
+ * safe by construction rather than by re-deriving safety per token. The
+ * optional leading comma (`,?`) is what makes "with or without a preceding
+ * comma" a property of every entry in the list, instead of needing
+ * `COMMA_LEGAL_SUFFIXES` duplicated into this one too.
  */
 function stripBareLegalForm(s: string): string {
     for (const suffix of BARE_LEGAL_SUFFIXES_BY_LENGTH) {
-        const re = new RegExp(`\\s+${escapeRegExp(suffix)}$`, "i");
+        const re = new RegExp(`,?\\s+${escapeRegExp(suffix)}$`, "i");
         if (!re.test(s)) continue;
         const remainder = s.replace(re, "").trim();
         if (remainder && !isOnlyLegalForm(remainder)) return remainder;
     }
     return s;
+}
+
+/** Loops `stripBareLegalForm` to a fixpoint — designators can stack ("Foo
+ *  Holdings, LLC" still has an "LLC" to remove after `GEO_GATED_TAIL_WORDS`
+ *  strips "Holdings"), and a single pass only ever removes one. */
+function stripAllBareLegalForms(s: string): string {
+    let out = s;
+    while (true) {
+        const next = stripBareLegalForm(out);
+        if (next === out) return out;
+        out = next;
+    }
+}
+
+/**
+ * One pass of `GEO_GATED_TAIL_WORDS` — same shape as `stripBareLegalForm`
+ * (comma-tolerant, remainder must survive `isOnlyLegalForm`), plus the
+ * additional guard these words need because they're common enough to be a
+ * deliberate brand ending on their own: the remainder must stay at least 2
+ * tokens or 5 characters, so a short stem doesn't get hollowed out ("Foo
+ * Holdings" -> "Foo" is refused; "Michael Kors (Canada) Holdings" ->
+ * "Michael Kors (Canada)" is fine). Only called once `stackedGeographyParen`
+ * has already found the independent corroborating signal these words need.
+ */
+function stripOneGeoGatedWord(s: string): string {
+    for (const word of GEO_GATED_TAIL_WORDS) {
+        const re = new RegExp(`,?\\s+${escapeRegExp(word)}$`, "i");
+        if (!re.test(s)) continue;
+        const remainder = s.replace(re, "").trim();
+        if (!remainder || isOnlyLegalForm(remainder)) continue;
+        const tokenCount = remainder.split(/\s+/).filter(Boolean).length;
+        if (tokenCount < 2 && remainder.length < 5) continue;
+        return remainder;
+    }
+    return s;
+}
+
+/**
+ * Finds a bracketed geography qualifier sitting BETWEEN the brand and a
+ * legal tail — "(Canada)" in "Michael Kors (Canada) Holdings LTD" — the
+ * corroborating signal `GEO_GATED_TAIL_WORDS` and the geography-parenthetical
+ * strip in `stripLegalTail` both gate on. Reuses `classifyCountryValue`
+ * (country-classification.ts, the repo's one country-name/alias table) —
+ * one source of truth for "is this a country" instead of a second,
+ * hand-rolled geography word list — so "Canada", "US", "UK" and every other
+ * alias it already recognizes work here for free.
+ *
+ * Deliberately requires something to still follow the closing paren: a
+ * parenthetical that is ALREADY the last thing in the name — "Ingram Micro
+ * Inc. (Canada)" — is `cleanCompany`'s own "does this add information"
+ * territory (module doc above), which already decided to KEEP it; this
+ * function only fires on the "geography sits between the brand and a legal
+ * tail" shape, never the "trailing geography is the whole story" shape.
+ *
+ * Only a BRACKETED geography token counts — never a bare one. "Stryker
+ * Canada ULC" strips to "Stryker Canada", not "Stryker": an unbracketed
+ * country word is load-bearing in real brand names ("Air Canada", "Canada
+ * Goose"), where a company that specifically brackets it is reliably
+ * marking a subsidiary rather than naming itself.
+ */
+function stackedGeographyParen(s: string): { content: string } | null {
+    const re = /\(([^()]{1,40})\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s))) {
+        const content = m[1]!.trim();
+        if (content.split(/\s+/).filter(Boolean).length > 3) continue;
+        if (classifyCountryValue(content).kind !== "country") continue;
+        const afterParen = s.slice(m.index + m[0].length);
+        if (!afterParen.trim()) continue; // already trailing — cleanCompany's call, not this one's
+        return { content };
+    }
+    return null;
+}
+
+/**
+ * `displayCompanyName`'s prose-safety pass, one level past
+ * `stripAllBareLegalForms`: a `^Company \d+ - ` upstream row-index prefix
+ * (a known source defect, same class as `cleanCompany`'s own leading
+ * req/tenant-code strips — kept in this display-only layer rather than
+ * `cleanCompany` itself, see `displayCompanyName`'s doc below for why), the
+ * geography-gated bare words `GEO_GATED_TAIL_WORDS` above, and the
+ * geography parenthetical they can newly expose. Order: prefix, then
+ * designators/geo-gated words to a fixpoint (stacking — "Holdings LTD" is
+ * two strips), then the now-possibly-exposed geography parenthetical. A
+ * final safety net (never below 2 chars, never JUST legal-form chaff) falls
+ * back to the pre-strip string rather than risk a mangled fragment —
+ * belt-and-braces on top of the per-step remainder guards, which should
+ * already make this unreachable.
+ */
+function stripLegalTail(s: string): string {
+    const prefixStripped = s.replace(/^Company\s+\d+\s*-\s*/i, "");
+    const geo = stackedGeographyParen(prefixStripped);
+
+    let out = prefixStripped;
+    while (true) {
+        const next = stripAllBareLegalForms(out);
+        if (next !== out) {
+            out = next;
+            continue;
+        }
+        if (geo) {
+            const gated = stripOneGeoGatedWord(out);
+            if (gated !== out) {
+                out = gated;
+                continue;
+            }
+        }
+        break;
+    }
+
+    if (geo) {
+        const trailingGeoRe = new RegExp(`,?\\s*\\(${escapeRegExp(geo.content)}\\)\\s*$`, "i");
+        if (trailingGeoRe.test(out)) out = out.replace(trailingGeoRe, "").trim();
+    }
+
+    if (out.length < 2 || isOnlyLegalForm(out)) return prefixStripped;
+    return out;
 }
 
 /**
@@ -441,12 +653,21 @@ function stripBareLegalForm(s: string): string {
  * shared chokepoint would silently change what THEY key or count by. Never
  * strips down to nothing or whitespace — a name that IS just a legal-form
  * word (or empty) is returned as `cleanCompany` left it.
+ *
+ * `stripLegalTail` (prose-company-names, 2026-08-21) is the same kind of
+ * companion, one step further: "(Canada) Holdings LTD"-shaped legal filings
+ * are still `cleanCompany("Acme Inc.")`'s exact problem — a call-site audit
+ * found `resolveCompanyName` (company-name.ts) reads `cleanCompany`'s output
+ * as a matching/dedup/tally key, so composing the wider strip there too
+ * would silently change which corpus row wins a company's display name,
+ * not just how it renders. It composes here instead, where every consumer
+ * (this function's own callers, `displayCompanyBrand`) is display-only.
  */
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
     const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
-    return stripBareLegalForm(withoutComma);
+    return stripLegalTail(withoutComma);
 }
 
 /**
@@ -501,6 +722,12 @@ export function humanizeRawLocation(raw: string): string | null {
     return s;
 }
 
+/** `locationText`'s own "nothing usable came off the posting" sentinel —
+ *  exported so callers gating on it (the SERP row's meta line) compare
+ *  against the same constant `locationText` returns, rather than a second
+ *  copy of the literal string. */
+export const LOCATION_UNKNOWN_TEXT = "Location not listed";
+
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
@@ -530,7 +757,48 @@ export function locationText(j: PublicJob): string {
         return loc;
     }
     if (j.work_type === "remote") return "Remote";
-    return "Location not listed";
+    return LOCATION_UNKNOWN_TEXT;
+}
+
+/** Split a `locationText` string on ";" into trimmed, non-empty segments.
+ *  Aggregator feeds sometimes stuff many locations into one semicolon-joined
+ *  `location` string (e.g. "San Diego CA Renewable Group; Remote - AZ;
+ *  Remote - AR; ..."), which `humanizeRawLocation` passes through verbatim.
+ *  A plain, semicolon-free location returns itself as the sole segment, so
+ *  callers can treat every location the same way. */
+export function splitLocationSegments(location: string): string[] {
+    return location
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+/** How many segments the identity-header location line shows before the
+ *  "+N more locations" toggle, and how many it hides behind it. */
+export interface LocationDisclosure {
+    visible: string[];
+    hidden: string[];
+}
+
+const LOCATION_CLAMP_VISIBLE = 2;
+const LOCATION_CLAMP_THRESHOLD = 3;
+
+/** Progressive-disclosure decision for the identity-header location line —
+ *  same idiom as the description clamp (`collapsible`/`descExpanded`), just
+ *  for semicolon-joined location prose instead of description length. Up to
+ *  `LOCATION_CLAMP_THRESHOLD` segments render in full today (no toggle, no
+ *  behavior change); more than that clamps to the first
+ *  `LOCATION_CLAMP_VISIBLE` with the rest behind the toggle. Pure — no data
+ *  loss, the caller decides how `hidden` renders once expanded. */
+export function clampLocationSegments(location: string): LocationDisclosure {
+    const segments = splitLocationSegments(location);
+    if (segments.length <= LOCATION_CLAMP_THRESHOLD) {
+        return { visible: segments, hidden: [] };
+    }
+    return {
+        visible: segments.slice(0, LOCATION_CLAMP_VISIBLE),
+        hidden: segments.slice(LOCATION_CLAMP_VISIBLE),
+    };
 }
 
 const SALARY_PERIOD: Record<string, string> = {
@@ -618,6 +886,53 @@ export function postedAgeShort(ts: number | null, now: number): string | null {
     if (months < 12) return `${months}mo ago`;
     const years = Math.floor(months / 12);
     return `${years}y ago`;
+}
+
+/** One segment of the SERP row's meta line — see `buildRowMetaLine`. Salary
+ *  renders semibold/foreground; every other segment is muted. */
+export interface RowMetaSegment {
+    text: string;
+    emphasis: boolean;
+}
+
+/** Employment-type segment for the row meta line — suppresses the default
+ *  "full-time" value the same way the row's old TYPE chip did (only the
+ *  exception — contract/part-time/etc. — is worth stating). */
+export function employmentTypeSegment(employmentType: string | null | undefined): string | null {
+    const pretty = prettyEnum(employmentType);
+    if (!pretty) return null;
+    const lower = pretty.toLowerCase();
+    return lower === "full-time" || lower === "full time" ? null : pretty;
+}
+
+/** Appends the onsite/hybrid work mode to an already-known location string.
+ *  Remote is skipped: `locationText`'s own "Remote · …" prefix (or bare
+ *  "Remote") already carries that fact, so appending it again would repeat
+ *  it in the same line. */
+export function locationWithMode(location: string, workType: string | null | undefined): string {
+    if (workType === "remote") return location;
+    const mode = prettyEnum(workType);
+    return mode ? `${location} · ${mode}` : location;
+}
+
+/**
+ * The SERP row's meta line: salary leads (semibold), then whichever of
+ * location/employment-type are known, joined "·" in that order — absence is
+ * silence, never a placeholder ("pay undisclosed"/"Unknown"). When nothing
+ * is known at all, the line falls back to the same posted-age string the
+ * row's data rail already shows (`postedAgeShort`) rather than rendering
+ * nothing.
+ */
+export function buildRowMetaLine(
+    facts: { salary: string | null; location: string | null; employmentType: string | null },
+    postedAge: string | null,
+): RowMetaSegment[] {
+    const segments: RowMetaSegment[] = [];
+    if (facts.salary) segments.push({ text: facts.salary, emphasis: true });
+    if (facts.location) segments.push({ text: facts.location, emphasis: false });
+    if (facts.employmentType) segments.push({ text: facts.employmentType, emphasis: false });
+    if (segments.length > 0) return segments;
+    return postedAge ? [{ text: `Posted ${postedAge}`, emphasis: false }] : [];
 }
 
 /** How each posted-date window reads out loud. `undefined` is "any time" —
@@ -732,6 +1047,74 @@ export function partitionByTitleMatch(hits: PublicJob[], q: string): { hits: Pub
     }
     if (titled.length === 0 || rest.length === 0) return { hits, seamIndex: -1 };
     return { hits: [...titled, ...rest], seamIndex: titled.length };
+}
+
+/**
+ * Reorders one fetched batch of hits so no more than `maxRun` consecutive
+ * rows share a company — live prod (2026-08-21 audit): 10 straight
+ * Extendicare rows, then 7 straight from one other employer, then 3 more,
+ * read as a single-company wall rather than a diverse result set. Every hit
+ * is kept (no drops). Among companies not currently blocked by the run cap,
+ * always takes whichever one's next hit appeared EARLIEST in the original
+ * order — so a stretch that's already compliant (no run over `maxRun`) comes
+ * out byte-for-byte unchanged instead of being reshuffled for no reason, and
+ * only a company actually hitting the cap gets deferred behind a hit from
+ * someone else. Falls back to continuing the current company's run only when
+ * every other company's hits are already exhausted (unavoidable without
+ * dropping something).
+ *
+ * Applied to each newly-fetched PAGE at the point it's ingested into state
+ * (page.tsx), not recomputed over the whole accumulated list on every
+ * render — a global re-sort would reshuffle rows the searcher has already
+ * seen every time a new page loads.
+ */
+export function interleaveByCompany(jobs: PublicJob[], maxRun = 2): PublicJob[] {
+    // Company key -> original indices of its hits, in original order.
+    const groups = new Map<string, number[]>();
+    const order: string[] = [];
+    jobs.forEach((job, i) => {
+        const key = cleanCompany(job.company).trim().toLowerCase() || ` no-company ${i}`;
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(i);
+        else {
+            groups.set(key, [i]);
+            order.push(key);
+        }
+    });
+    if (order.length <= 1) return jobs;
+
+    const cursor = new Map(order.map((key) => [key, 0]));
+    const resultIndices: number[] = [];
+    let lastKey: string | null = null;
+    let runLength = 0;
+    while (resultIndices.length < jobs.length) {
+        let picked: string | null = null;
+        let pickedFrontIdx = Infinity;
+        for (const key of order) {
+            const bucket = groups.get(key)!;
+            const c = cursor.get(key)!;
+            if (c >= bucket.length) continue; // exhausted
+            if (key === lastKey && runLength >= maxRun) continue; // blocked
+            if (bucket[c]! < pickedFrontIdx) {
+                pickedFrontIdx = bucket[c]!;
+                picked = key;
+            }
+        }
+        if (picked === null) {
+            // Every OTHER company is exhausted — nothing left to interleave
+            // the current run with, so it has to continue rather than drop
+            // a hit.
+            picked = order.find((key) => cursor.get(key)! < groups.get(key)!.length) ?? null;
+        }
+        if (picked === null) break; // every bucket exhausted — done
+        const bucket = groups.get(picked)!;
+        const idx = bucket[cursor.get(picked)!]!;
+        cursor.set(picked, cursor.get(picked)! + 1);
+        resultIndices.push(idx);
+        runLength = picked === lastKey ? runLength + 1 : 1;
+        lastKey = picked;
+    }
+    return resultIndices.map((i) => jobs[i]!);
 }
 
 /** Shared "role"/"roles" + "is"/"are" agreement for the seam lines below —

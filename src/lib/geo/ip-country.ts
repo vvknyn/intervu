@@ -15,6 +15,18 @@ import { join } from "node:path";
 /** ISO2 for an IP, or null when it can't be resolved. */
 export type CountryLookup = (ip: string) => Promise<string | null>;
 
+/** Dev/test seam: when the request IP is loopback/private (localhost dev, a
+ *  container's own egress) it maps to no country, so the IP-default feature
+ *  can never be exercised or QA'd on a dev box. Setting
+ *  `JOBS_DEV_DEFAULT_COUNTRY=IN` (any ISO2) makes the lookup return that
+ *  country for an unresolvable IP. Production never sets this — a missing
+ *  var keeps the real fail-open behaviour. */
+function devOverrideIso2(): string | null {
+    if (process.env.NODE_ENV === "production") return null;
+    const v = process.env.JOBS_DEV_DEFAULT_COUNTRY?.trim().toUpperCase();
+    return v && /^[A-Z]{2}$/.test(v) ? v : null;
+}
+
 const DEFAULT_MMDB_PATH = join(process.cwd(), "data", "geo", "dbip-country-lite.mmdb");
 
 /**
@@ -34,14 +46,14 @@ export function createMmdbCountryLookup(mmdbPath: string = DEFAULT_MMDB_PATH): C
     return readerPromise;
   }
 
-  return async (ip: string): Promise<string | null> => {
-    if (!ip || ip === "unknown") return null;
-    const reader = await loadReader();
-    if (!reader) return null;
-    try {
-      return reader.get(ip)?.country?.iso_code ?? null;
-    } catch {
-      return null;
-    }
-  };
+    return async (ip: string): Promise<string | null> => {
+        if (!ip || ip === "unknown") return devOverrideIso2();
+        const reader = await loadReader();
+        if (!reader) return devOverrideIso2();
+        try {
+            return reader.get(ip)?.country?.iso_code ?? devOverrideIso2();
+        } catch {
+            return devOverrideIso2();
+        }
+    };
 }

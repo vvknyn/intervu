@@ -4,8 +4,15 @@ import { test, expect } from '@playwright/test';
  * TEST GROUP: COMPANY-FOLLOW — Milestone 2 smoke
  *
  * Environment-tolerant: company pages for elite-allowlisted domains return 200
- * even when Meilisearch is unconfigured (KPIs may be empty). Follow toggle uses
- * guest localStorage only — no Firebase required. Unknown slugs always 404.
+ * even when Meilisearch is unconfigured (KPIs may be empty). Unknown slugs
+ * always 404.
+ *
+ * Milestone 4 (the follow-email-gate fix): a signed-out click on Follow no
+ * longer flips the button to "Following" — a guest-store bookmark isn't a
+ * real notification channel. The click opens the one-field email step right
+ * at the button instead; only a verified email (or a signed-in account) may
+ * render "Following". Turnstile is live in this env, so these specs stop at
+ * "the email step opened / is focusable" — no real submission.
  */
 
 const GUEST_FOLLOWS_KEY = 'intervu.follows.guest';
@@ -49,7 +56,7 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(page.getByTestId('follow-company')).toBeVisible();
     });
 
-    test('guest follow toggle persists in localStorage', async ({ page }) => {
+    test('guest click on Follow never renders Following — it opens the email step instead', async ({ page }) => {
         await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
 
         const companyPage = page.getByTestId('company-page');
@@ -64,17 +71,49 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(btn).toHaveAttribute('data-following', 'false');
 
         await btn.click();
-        await expect(btn).toHaveAttribute('data-following', 'true');
-        await expect(btn).toHaveText(/Following/);
+        await expect(page).not.toHaveURL(/\/login/);
 
-        const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
-        expect(stored).toBeTruthy();
-        expect(stored).toContain(ELITE_COMPANY_DOMAIN);
-
-        await btn.click();
+        // The core gate: still not "Following" — no channel exists yet.
         await expect(btn).toHaveAttribute('data-following', 'false');
+        await expect(btn).not.toHaveText(/Following/);
 
-        const cleared = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
-        expect(cleared === '[]' || cleared === null).toBeTruthy();
+        // The email step opened right at the button instead of a fake follow.
+        const emailStep = page.getByTestId('follow-email-step');
+        await expect(emailStep).toBeVisible();
+
+        // The click is still recorded as guest-store intent (may migrate to
+        // a real account follow on sign-in) — it just never renders as
+        // "Following" off that alone.
+        const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
+        expect(stored).toContain(ELITE_COMPANY_DOMAIN);
+    });
+
+    test('email step: focusable, sign-in link falls back to the auth dialog', async ({ page }) => {
+        await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
+
+        const companyPage = page.getByTestId('company-page');
+        await expect(companyPage.or(page.getByText('Page not found')).first()).toBeVisible({
+            timeout: 30_000,
+        });
+        if (!(await companyPage.isVisible())) {
+            test.skip(true, 'Company page unavailable — allowlist missing in this build');
+        }
+
+        await page.getByTestId('follow-company').click();
+
+        const emailStep = page.getByTestId('follow-email-step');
+        await expect(emailStep).toBeVisible();
+
+        // Focusable, not submitted — live Turnstile means no e2e submission.
+        const emailInput = page.getByTestId('follow-email-input');
+        await emailInput.focus();
+        await expect(emailInput).toBeFocused();
+
+        await page.getByTestId('follow-email-signin').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await expect(emailStep).not.toBeVisible();
+
+        const btn = page.getByTestId('follow-company');
+        await expect(btn).toHaveAttribute('data-following', 'false');
     });
 });

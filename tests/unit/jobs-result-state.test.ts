@@ -16,6 +16,7 @@ import {
     degradedResultsNote,
     resolveResumeControlState,
     runResumeControlClick,
+    shouldShowMobileSearchCta,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
 import type { EmptySearchStateInput } from '../../src/lib/jobs/result-state';
@@ -564,9 +565,9 @@ describe('resolveJobsResultsPanel', () => {
         assert.equal(panel({ hitCount: 24 }), 'list');
     });
 
-    it('loading with zero hits so far resolves to the loading panel; a background refresh over existing hits keeps the list up', () => {
+    it('loading resolves to the loading panel regardless of prior hits — stale rows are hidden during any refresh', () => {
         assert.equal(panel({ loading: true }), 'loading');
-        assert.equal(panel({ loading: true, hitCount: 5 }), 'list');
+        assert.equal(panel({ loading: true, hitCount: 5 }), 'loading');
     });
 
     it('panel precedence matches the ternary it replaced: ask beats backend states, which beat loading, which beats empty', () => {
@@ -651,5 +652,24 @@ describe('runResumeControlClick', () => {
         const { calls, resolve, upload } = spies();
         await runResumeControlClick(null, () => resolve(false), upload);
         assert.deepEqual(calls, ['resolve', 'upload']);
+    });
+});
+
+describe('shouldShowMobileSearchCta', () => {
+    it('shows on the pristine landing regardless of the draft text', () => {
+        assert.equal(shouldShowMobileSearchCta(true, '', ''), true);
+        assert.equal(shouldShowMobileSearchCta(true, 'nurse', ''), true);
+    });
+
+    it('hides once engaged with nothing pending — the draft matches the committed query', () => {
+        assert.equal(shouldShowMobileSearchCta(false, 'nurse', 'nurse'), false);
+    });
+
+    it('shows again once the searcher types something new that has not been submitted', () => {
+        assert.equal(shouldShowMobileSearchCta(false, 'electrician', 'nurse'), true);
+    });
+
+    it('trims before comparing — trailing whitespace alone is not a pending edit', () => {
+        assert.equal(shouldShowMobileSearchCta(false, 'nurse  ', 'nurse'), false);
     });
 });

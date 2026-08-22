@@ -4,7 +4,11 @@ import React from "react";
 import {
   ArrowRight,
   ArrowUpRight,
+  ShieldCheck,
+  GlobeHemisphereWest,
+  CurrencyDollar,
 } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
 interface LandingMastheadProps {
   /**
@@ -26,7 +30,9 @@ interface LandingMastheadProps {
  * results they seed. Reduced to eyebrow + h1 + one-line claim (2026-08-18):
  * the two-line "Updated every day / No recruiters, no reposts" rail is gone,
  * and the 3-column USP grid moved into `LandingMarketingShowcase` below the
- * directory and shortcuts — action before explanation.
+ * directory and shortcuts — action before explanation. Eyebrow dropped
+ * entirely (2026-08-21, item 1): it restated the H1's own claim in shoutier
+ * type one line above it — one trust statement, not two copies of it.
  *
  * Deliberately free of buttons and links. `/jobs` keeps it MOUNTED and
  * collapses it once a search runs (see the `grid-rows-[0fr]` wrapper in
@@ -36,12 +42,9 @@ interface LandingMastheadProps {
  */
 export function LandingMasthead({ claim }: LandingMastheadProps) {
   return (
-    <div className="panel-enter pb-4 sm:pb-6">
-    <div className="border-t-2 border-b-2 border-foreground py-6 sm:py-8">
-      <span className="text-xs font-bold uppercase tracking-widest text-brand">
-        Jobs posted by the companies themselves
-      </span>
-      <h1 className="mt-1 text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
+    <div className="pb-4 sm:pb-6">
+    <div className="border-b border-border py-5 sm:py-7">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
         Every job, straight from the employer.
       </h1>
       {claim ? (
@@ -136,7 +139,7 @@ export function LandingMarketingShowcase({
               key={cat.num}
               type="button"
               onClick={() => onSelectQuery(cat.q)}
-              className="group flex w-full flex-col gap-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background sm:flex-row sm:items-center sm:justify-between px-3"
+              className="group grid w-full grid-cols-[1fr_auto] items-center gap-3 px-3 py-4 text-left transition-all duration-100 hover:bg-foreground hover:text-background"
             >
               <div className="flex items-start sm:items-center gap-4 min-w-0">
                 <span className="text-sm font-bold text-muted-foreground group-hover:text-background/70 shrink-0">
@@ -171,7 +174,7 @@ export function LandingMarketingShowcase({
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 shrink-0 text-xs">
+              <div className="flex items-center gap-4 self-center shrink-0 text-xs">
                 <ArrowRight className="h-4 w-4 text-foreground group-hover:text-background transition-transform group-hover:translate-x-1" />
               </div>
             </button>

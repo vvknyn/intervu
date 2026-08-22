@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,13 +72,21 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
-                <div className="flex justify-center pb-1 pt-2.5">
-                    <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                <div className="shrink-0 border-b border-border">
+                    <div className="flex justify-center pb-1 pt-2.5">
+                        <span className="h-1 w-9 rounded-full bg-[#d0d6de]" aria-hidden="true" />
+                    </div>
+                    <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
+                        <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
+                            <SheetTitle className="truncate text-lg font-semibold tracking-[-0.03em]">Track a role</SheetTitle>
+                            <SheetDescription className="truncate text-[13px]">One step. Link the posting — skip the essay.</SheetDescription>
+                        </SheetHeader>
+                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80">
+                            <span aria-hidden="true">×</span>
+                            <span className="sr-only">Close</span>
+                        </SheetClose>
+                    </div>
                 </div>
-                <SheetHeader className="space-y-0 border-b border-border px-5 pb-3.5 pt-1 text-left">
-                    <SheetTitle className="text-lg font-semibold tracking-[-0.03em]">Track a role</SheetTitle>
-                    <SheetDescription className="text-[13px]">One step. Link the posting — skip the essay.</SheetDescription>
-                </SheetHeader>
                 <div className="space-y-3 px-5 py-4 pb-7">
                     <div>
                         <Label className="mb-1.5 block text-[10px] uppercase tracking-[0.07em] text-[#8b939e]">Company</Label>

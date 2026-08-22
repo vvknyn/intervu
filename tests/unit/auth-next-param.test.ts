@@ -23,6 +23,15 @@ test("validateNextParam accepts safe in-app paths", () => {
   assert.equal(validateNextParam("/"), "/");
 });
 
+test("validateNextParam accepts canonical company page paths", () => {
+  assert.equal(validateNextParam("/co/anthropic--com"), "/co/anthropic--com");
+  assert.equal(validateNextParam("/co/anthropic--com?x=1"), "/co/anthropic--com?x=1");
+});
+
+test("isAuthGatedProductPath keeps /co public", () => {
+  assert.equal(isAuthGatedProductPath("/co/anthropic--com"), false);
+});
+
 test("validateNextParam accepts the OAuth authorize return path with its query intact", () => {
   const authorizeReturn = "/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fclient.example%2Fcb&code_challenge=xyz&code_challenge_method=S256&response_type=code";
   assert.equal(validateNextParam(authorizeReturn), authorizeReturn);

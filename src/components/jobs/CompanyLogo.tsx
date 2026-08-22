@@ -9,11 +9,6 @@ import { cn } from "@/lib/utils";
 // parentheticals, so the logo initial can never disagree with the row text.
 import { cleanCompany } from "@/lib/jobs/presentation";
 
-function companyInitial(name: string | null): string {
-    const n = cleanCompany(name).trim();
-    return n ? n[0].toUpperCase() : "?";
-}
-
 /**
  * Company-initial tile palette (portal redesign spec) — a fixed set of
  * bg/fg pastel pairs, deliberately raw hex: the spec calls these out as the
@@ -62,14 +57,17 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
 const SIZE_CLS: Record<"xs" | "sm" | "md" | "lg", string> = {
     xs: "h-7 w-7 rounded-md text-xs",
     sm: "h-9 w-9 rounded-lg text-sm",
-    md: "h-11 w-11 rounded-xl text-base",
+    // SERP job-card tile size — restored to h-12/rounded-xl to match the
+    // JobCardSkeleton slot so loading → loaded doesn't shift the row.
+    md: "h-12 w-12 rounded-xl text-base",
     lg: "h-14 w-14 rounded-2xl text-xl",
 };
 
 /**
  * Single chokepoint for company logos across /jobs. Renders a favicon fetched
- * off `company_domain` when available, falling back to the existing
- * single-letter initial tile on a null domain or a failed image load.
+ * off `company_domain` when available, falling back to `CompanyInitialTile`
+ * (pastel letter tile) on a null domain or a failed image load. Both paths
+ * share the same SIZE_CLS container so the row slot never shifts.
  */
 export function CompanyLogo({
     domain,
@@ -83,25 +81,36 @@ export function CompanyLogo({
     const [errored, setErrored] = useState(false);
     const showImage = Boolean(domain) && !errored;
 
+    const sizeCls = SIZE_CLS[size];
+
+    if (!showImage) {
+        return (
+            <CompanyInitialTile
+                name={name}
+                className={cn(
+                    "border border-slate-200/80 shadow-2xs dark:border-slate-700/80",
+                    sizeCls,
+                )}
+            />
+        );
+    }
+
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white font-bold text-slate-800 shadow-2xs dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-100",
-                SIZE_CLS[size],
+                "flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white shadow-2xs dark:border-slate-700/80 dark:bg-slate-800",
+                sizeCls,
             )}
         >
-            {showImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    src={companyLogoUrl(domain as string)}
-                    alt={`${name ?? "Company"} logo`}
-                    loading="lazy"
-                    onError={() => setErrored(true)}
-                    className="h-full w-full object-contain p-1"
-                />
-            ) : (
-                companyInitial(name)
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={companyLogoUrl(domain as string)}
+                alt={`${name ?? "Company"} logo`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setErrored(true)}
+                className="h-full w-full object-contain p-1"
+            />
         </div>
     );
 }

@@ -8,7 +8,7 @@
  * added to `EMAIL_KIND_POLICY` below, not by editing an if/else ladder in
  * send.ts.
  */
-export type EmailKind = "digest" | "waitlist_confirm" | "welcome" | "transactional";
+export type EmailKind = "digest" | "waitlist_confirm" | "welcome" | "transactional" | "verify_follow";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -34,6 +34,12 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // CONTAINS, not what triggered it.
   welcome: { suppressible: true, requiresUnsubscribeHeader: true },
   transactional: { suppressible: false, requiresUnsubscribeHeader: false },
+  // Confirms a single action the visitor just took on our own form (verified
+  // email follow) — not commercial content, so nothing to opt out of, same
+  // as `transactional`. Kept as its own kind (rather than reused as
+  // "transactional") so send.ts's logging and any future suppression carve
+  // out stay legible per-kind.
+  verify_follow: { suppressible: false, requiresUnsubscribeHeader: false },
 };
 
 export function emailKindPolicy(kind: EmailKind): EmailKindPolicy {

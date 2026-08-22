@@ -99,7 +99,7 @@ export default async function TrendsPage() {
         bare
         size="display"
         title="Market trends"
-        description="Live stats from the jobs corpus we track — scraped from companies' own career pages, not curated."
+        description="Live stats from the jobs corpus we track — from companies' own career pages, not curated."
         actions={
           <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs">
             <span className="relative flex h-2 w-2">

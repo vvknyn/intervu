@@ -1,13 +1,17 @@
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 
 /**
- * The honest-market claim's factual core — scrape provenance + ghost
+ * The honest-market claim's factual core — source provenance + ghost
  * screening. Single source of truth: the landing claim sentence and the
  * footer's one-line descriptor both read this exact phrase rather than
  * drifting into two independently-edited wordings of the same fact.
+ *
+ * Never says "scraped" — that's the ingestion engine's own vocabulary, not
+ * something a job seeker reads (2026-08-21 front-door audit, item 1). "from
+ * companies' own career pages" states the same fact from the seeker's side.
  */
 export const CORPUS_SOURCE_DESCRIPTOR =
-    "scraped from companies' own career pages, screened for postings that aren't really live";
+    "from companies' own career pages — each one checked so you don't waste an hour on a dead posting";
 
 /**
  * Numbers the landing claim can render when available. Sourced from the same
@@ -27,14 +31,14 @@ export interface MarketingCorpusStats {
  */
 export function marketingClaim(stats: MarketingCorpusStats | null): string {
     if (!stats) {
-        return `Every live role is ${CORPUS_SOURCE_DESCRIPTOR} — before you spend an hour on it.`;
+        return `Every live role is ${CORPUS_SOURCE_DESCRIPTOR}.`;
     }
     const n = formatCorpusCount(stats.liveJobs);
-    return `${n} live roles, ${CORPUS_SOURCE_DESCRIPTOR} — before you spend an hour on any of them.`;
+    return `${n} live roles ${CORPUS_SOURCE_DESCRIPTOR}.`;
 }
 
 /** Site footer's one-line provenance claim — same fact as the landing claim,
  *  one source. The old footer sentence ended "…Same market your agent sees
  *  via MCP." — machinery language on every guest page; dropped 2026-08-07
  *  (docs/specs/2026-08-07-job-seeker-front-door-design.md). */
-export const FOOTER_PROVENANCE_LINE = `Every listing is ${CORPUS_SOURCE_DESCRIPTOR} — never resold, never curated.`;
+export const FOOTER_PROVENANCE_LINE = `Every listing is ${CORPUS_SOURCE_DESCRIPTOR}. Never resold, never curated.`;

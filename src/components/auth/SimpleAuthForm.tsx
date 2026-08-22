@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { checkUsernameAvailability } from "@/actions/auth";
-import { signInWithUsername, signUpWithUsername } from "@/lib/firebase/client-auth";
+import { signInWithIdentifier, signInWithEmail } from "@/lib/firebase/client-auth";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useDebouncedCallback } from "use-debounce";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
@@ -13,6 +13,7 @@ export function SimpleAuthForm() {
     const [isLogin, setIsLogin] = useState(true);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [availability, setAvailability] = useState<{ available?: boolean; checking?: boolean; message?: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -40,8 +41,8 @@ export function SimpleAuthForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!username || !password) {
-            setError("Username and password are required");
+        if (!username || !password || (!isLogin && !email)) {
+            setError(isLogin ? "Username and password are required" : "Email, username, and password are required");
             return;
         }
 
@@ -49,10 +50,13 @@ export function SimpleAuthForm() {
         startTransition(async () => {
             try {
                 if (isLogin) {
-                    await signInWithUsername(username, password);
+                    // The identifier field accepts either shape — shape
+                    // decides the routing (see signInWithIdentifier).
+                    await signInWithIdentifier(username, password);
                 } else {
                     // Create profile on server first, then sign in client-side
                     const formData = new FormData();
+                    formData.append("email", email);
                     formData.append("username", username);
                     formData.append("password", password);
                     const { signUp } = await import("@/actions/auth");
@@ -61,8 +65,10 @@ export function SimpleAuthForm() {
                         setError(result.error);
                         return;
                     }
-                    // Now sign in client-side to create session
-                    await signInWithUsername(username, password);
+                    // Sign in with the address just registered — not a
+                    // re-derived one (signInWithUsername would mint
+                    // `<username>@intervu.cc`, which no longer matches).
+                    await signInWithEmail(email, password);
                 }
                 router.refresh();
             } catch (err: any) {
@@ -93,6 +99,21 @@ export function SimpleAuthForm() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+                {!isLogin && (
+                    <div className="space-y-1">
+                        <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                            required
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="block w-full border-b border-border bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none"
+                        />
+                    </div>
+                )}
                 <div className="space-y-1">
                     <input
                         id="username"
@@ -100,7 +121,7 @@ export function SimpleAuthForm() {
                         type="text"
                         autoComplete="username"
                         required
-                        placeholder="Username"
+                        placeholder={isLogin ? "Email or username" : "Username"}
                         value={username}
                         onChange={handleUsernameChange}
                         className={`block w-full border-b bg-transparent py-2 text-base md:text-sm text-foreground placeholder:text-faint focus:border-brand focus:outline-none
@@ -173,6 +194,7 @@ export function SimpleAuthForm() {
                     onClick={() => {
                         setIsLogin(!isLogin);
                         setUsername("");
+                        setEmail("");
                         setPassword("");
                         setAvailability(null);
                         setError(null);

@@ -142,14 +142,33 @@ export function repairRunTogethers(input: string): string {
 }
 
 function promoteHeadings(input: string): string {
+  let text = input;
   // "Section Word:" + space + Capital/digit/$ → paragraph break before
   // the heading and after the colon. Only triggers for noun-phrase-
   // shaped headings (≤40 chars, mostly letters/spaces/slash/dash). The
   // third capture allows $ and digit so "Pay Range: $148,000" promotes.
-  return input.replace(
+  text = text.replace(
     /(^|[.!?]\s+)([A-Z][\w &/-]{2,40}):\s+([A-Z$0-9])/g,
     "$1\n\n$2:\n$3",
   );
+  // ALL-CAPS section heading glued directly to its Titlecase body, no
+  // colon and no space ("ABOUT GREYSTARGreystar is...", "JOB DESCRIPTION
+  // SUMMARYThis role manages..." — observed live, sources that flatten
+  // HTML block edges with zero separator). The ALL-CAPS→Titlecase case
+  // transition is itself a knowable heading/body boundary — same run-
+  // together family as repairRunTogethers' lowercase→Capital and digit→
+  // Capital rules, just promoted to a paragraph break here instead of a
+  // bare space, since an isolated ALL-CAPS run is a heading shape
+  // considerHeading() already recognizes below. Unlike the genuinely
+  // ambiguous already-spaced "## Company Description CREATIVITY IS OUR
+  // SUPERPOWER" case (no case-transition signal at that boundary — see
+  // jobs-format-description-headings.test.ts), this one has a boundary
+  // regex backtracking finds deterministically.
+  text = text.replace(
+    /(^|[.!?]\s+)([A-Z][A-Z\s&/-]{2,58}[A-Z])(?=[A-Z][a-z])/g,
+    "$1\n\n$2\n\n",
+  );
+  return text;
 }
 
 function sentenceGroup(paragraph: string): string[] {

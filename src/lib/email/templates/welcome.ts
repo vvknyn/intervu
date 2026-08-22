@@ -26,7 +26,7 @@ function welcomeFeatures(siteUrl: string): WelcomeFeature[] {
       href: `${siteUrl}/jobs`,
       label: "Search roles",
       blurb:
-        "Every posting is scraped from the employer's own careers page — never a job board, never an agency reposting someone else's listing.",
+        "Every posting comes straight from the employer's own careers page — never a job board, never an agency reposting someone else's listing.",
     },
     {
       href: `${siteUrl}/jobs`,

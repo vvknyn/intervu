@@ -5,8 +5,10 @@ import { countryToFlag } from "../../src/lib/jobs/country-flag";
 // Flag chip (Himalayas-style, visual-identity pass 2026-08-01) — keyed off
 // the SAME canonical country table country-classification.ts already
 // validates `location_country` facet values against, so this only needs to
-// cover the mapping/passthrough/null behavior, not re-litigate which raw
-// values classify as a country (that's jobs-country-classification.test.ts).
+// cover the mapping/null behavior, not re-litigate which raw values classify
+// as a country (that's jobs-country-classification.test.ts). There is no raw
+// ISO-2 passthrough (removed 2026-08-20): it silently mislabeled US state
+// codes like "AZ"/"CA"/"DE"/"IN" as Azerbaijan/Canada/Germany/India.
 describe("countryToFlag", () => {
   it("known countries from the real ~country table map to their flag", () => {
     assert.equal(countryToFlag("Germany"), "🇩🇪");
@@ -42,17 +44,35 @@ describe("countryToFlag", () => {
     assert.equal(countryToFlag(undefined), null);
   });
 
-  it("ISO-2 passthrough for a raw 2-letter code not recognized as a country name", () => {
-    // "DE" isn't a name/alias classifyCountryValue recognizes (it only
-    // knows "Germany"), so this exercises the code-point-math passthrough.
-    assert.equal(countryToFlag("DE"), "🇩🇪");
-    assert.equal(countryToFlag("fr"), "🇫🇷");
+  it("a raw 2-letter code not recognized as a country name/alias returns null, not a passthrough guess", () => {
+    // "DE" and "fr" aren't names/aliases classifyCountryValue recognizes (it
+    // only knows "Germany"/"France") — regression test for the removed
+    // ISO-2 passthrough: these must NOT resolve via code-point math anymore.
+    assert.equal(countryToFlag("DE"), null);
+    assert.equal(countryToFlag("fr"), null);
   });
 
-  it("a 2-letter string that isn't a real ISO code still returns a regional-indicator pair (no crash), a 3+/1-letter string returns null", () => {
-    assert.equal(countryToFlag("XX"), "🇽🇽");
+  it("a 2-letter string that isn't a real ISO code also returns null (no passthrough to guess from)", () => {
+    assert.equal(countryToFlag("XX"), null);
     assert.equal(countryToFlag("A"), null);
     assert.equal(countryToFlag("USAA"), null);
+  });
+
+  it("a US state code that collides with a real ISO-2 country code returns null, not the colliding country's flag", () => {
+    // Live bug: "IN" (Indiana) must not render India's flag on a US posting.
+    assert.equal(countryToFlag("IN"), null);
+  });
+
+  it("an array of unrecognized state codes returns null, not an empty-string join", () => {
+    assert.equal(countryToFlag(["AZ", "AR"]), null);
+  });
+
+  it("canonical full country names still resolve, untouched by the passthrough removal", () => {
+    assert.equal(countryToFlag("Germany"), "🇩🇪");
+  });
+
+  it("a mixed array keeps the recognized country's flag and silently skips the unrecognized state code", () => {
+    assert.equal(countryToFlag(["Germany", "AZ"]), "🇩🇪");
   });
 
   // Multi-country postings (Subspace feed, 2026-08): location_country can

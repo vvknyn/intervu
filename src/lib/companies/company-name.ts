@@ -124,10 +124,33 @@ function isStrictTokenPrefix(root: readonly string[], full: readonly string[]): 
  */
 const MIN_BRANDED_SIBLINGS = 2;
 
-/** Last-resort label from the domain: "acme-corp.com" -> "Acme Corp". */
+/**
+ * Capitalize the start of every "word" in a caseless string — after any
+ * non-letter, not just `\b` word boundaries. `\b\w` alone leaves a run
+ * untouched wherever a digit sits directly against a letter ("23andme",
+ * "1password"), because `\d` and `\w` letters are both `\b`-equivalent so no
+ * boundary exists between them. Digits themselves are left as-is (there is
+ * no case to fix on "2" or "3") — only the run of letters immediately after
+ * one now starts a new capitalized "word", same as a space or hyphen already
+ * does. All-caps input passes through unchanged: there is no lowercase
+ * letter to recase, which is correct — all-caps carries no case information
+ * to recover in the first place (see `carriesCase`).
+ *
+ * Shared by every source that is exactly as casing-free as a bare domain
+ * label: the domain fallback below, and a `corpus-flat` name in
+ * `resolveCompanyName` (a winning name group with no cased witness among its
+ * rows carries zero casing information, same as a domain label).
+ */
+export function capitalizeAfterNonLetter(value: string): string {
+  return value.replace(/(^|[^a-zA-Z])([a-z])/g, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
+}
+
+/**
+ * Last-resort label from the domain: "acme-corp.com" -> "Acme Corp".
+ */
 export function displayNameFromDomain(domain: string): string {
   const label = domain.split(".")[0] ?? domain;
-  return label.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return capitalizeAfterNonLetter(label.replace(/-/g, " "));
 }
 
 type NameGroup = {
@@ -234,5 +257,9 @@ export function resolveCompanyName(
 
   if (!best) return { value: displayNameFromDomain(domain), source: "domain" };
   if (best.cased) return { value: best.cased, source: "corpus-cased" };
-  return { value: best.verbatim, source: "corpus-flat" };
+  // No row among the winning group carried case (`best.cased` is null): the
+  // group is exactly as casing-free as a bare domain label, so it gets the
+  // same recovery — see `capitalizeAfterNonLetter`. `source` stays
+  // "corpus-flat": this is still the corpus's own string, not a guess.
+  return { value: capitalizeAfterNonLetter(best.verbatim), source: "corpus-flat" };
 }

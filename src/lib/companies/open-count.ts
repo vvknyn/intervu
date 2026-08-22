@@ -60,3 +60,24 @@ export function resolveOpenCount(
   const saturated = hitCount >= requestedLimit;
   return { value, isLowerBound: saturated && typeof result.note === "string" };
 }
+
+/**
+ * Should the "Live roles" stat render at all? JobDetail's hiring-truth rail
+ * used to trust `job.company_open_count` (a stale, ingest-time aggregate)
+ * whenever the live, `companyDomain`-keyed count was `null` — which for
+ * guests was ALWAYS, since that fetch used to be gated behind sign-in. A
+ * job page can then assert "0 live roles" for a company while the page
+ * itself IS one of that company's live roles — a self-contradiction, not an
+ * honest zero.
+ *
+ * Suppress only that contradiction: an open count of 0 while the CURRENT
+ * job is not closed (`vacancy_status !== "closed"`, this repo's existing
+ * liveness signal — see JobDetail.tsx's own comment and
+ * `/jobs/[slug]`'s `generateMetadata` indexability check). A closed job
+ * showing "0 live roles" isn't contradictory — the posting itself agrees
+ * it's no longer live — so that case renders normally. Any nonzero count
+ * never suppresses, regardless of job status.
+ */
+export function shouldSuppressOpenCount(openCount: number, jobIsClosed: boolean): boolean {
+  return openCount === 0 && !jobIsClosed;
+}

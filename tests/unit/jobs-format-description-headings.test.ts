@@ -84,6 +84,44 @@ test("normalizeMarkdown: heading text already ending ':' produces no double colo
   assert.equal(heading!.text, "Position Purpose");
 });
 
+/**
+ * Live prod bug (2026-08-21, company-about-line ground-truth audit): an
+ * ALL-CAPS section heading glued directly to its Titlecase body with no
+ * separator at all — no bold marker, no newline, no colon — e.g. Greystar's
+ * index description opens with "ABOUT GREYSTARGreystar is a leading, fully
+ * integrated global real estate platform…". Unlike the genuinely-ambiguous
+ * "## Company Description CREATIVITY IS OUR SUPERPOWER" case above (no
+ * case-transition signal at that boundary), the ALL-CAPS→Titlecase
+ * transition here IS a knowable boundary — same run-together family as
+ * repairRunTogethers' lowercase→Capital rule, just promoted to a paragraph
+ * break since an isolated ALL-CAPS run is itself a recognized heading shape.
+ */
+test("formatDescription: ALL-CAPS heading glued directly to its Titlecase body (observed Greystar bug) splits into heading + para", () => {
+  const raw =
+    "ABOUT GREYSTARGreystar is a leading, fully integrated global real estate platform offering property management and investment services.";
+  const blocks = formatDescription(raw);
+  const heading = blocks.find((b) => b.type === "heading");
+  const para = blocks.find((b) => b.type === "para");
+  assert.ok(heading, "expected a heading block");
+  assert.equal(heading!.text, "ABOUT GREYSTAR");
+  assert.ok(para, "expected a para block");
+  assert.match(para!.text!, /^Greystar is a leading/);
+  // The bug: the glued heading text must NOT leak into the body block.
+  assert.doesNotMatch(para!.text!, /^ABOUT GREYSTAR/);
+});
+
+test("formatDescription: the same glued-ALL-CAPS-heading class on a different heading and company splits identically (class-wide, not Greystar-specific)", () => {
+  const raw =
+    "JOB DESCRIPTION SUMMARYThis role manages customer support to residents by coordinating service requests and accounting issues.";
+  const blocks = formatDescription(raw);
+  const heading = blocks.find((b) => b.type === "heading");
+  const para = blocks.find((b) => b.type === "para");
+  assert.ok(heading, "expected a heading block");
+  assert.equal(heading!.text, "JOB DESCRIPTION SUMMARY");
+  assert.ok(para, "expected a para block");
+  assert.match(para!.text!, /^This role manages/);
+});
+
 test("formatDescription: truly run-together heading (no bold, no newline) is left at today's behavior — no crash, still readable prose", () => {
   const raw = "## Company Description CREATIVITY IS OUR SUPERPOWER and we live it daily.";
   const blocks = formatDescription(raw);

@@ -189,14 +189,24 @@ export function shouldBackOnDetailSheetClose(open: boolean, urlJobId: string | n
  * related-jobs fetch, double open-rank telemetry).
  *
  * Auto-preview (2026-08-14 investor-polish, reversing v1's no-auto-select):
- * at xl+ the pane never sits empty — with no explicit open it previews the
- * ambient job (`detailJob`'s `hits[0]` fallback) via `hasAmbientJob`. The
- * original objection to auto-select was open-rank telemetry poisoning, and
- * that still holds — which is why this stays a RENDER-ONLY mount:
- * `recordJobOpenedAction`, `openedIds`, and the `?job=` URL write all live
- * exclusively in `openJob` (jobs/page.tsx), which only a real click/keypress
- * reaches. Below xl nothing changes: the sheet still opens only on an
- * explicit open (`detailSheetOpen`).
+ * at xl+ the pane previews the ambient job with no explicit open, via
+ * `hasAmbientJob`. The original objection to auto-select was open-rank
+ * telemetry poisoning, and that still holds — which is why this stays a
+ * RENDER-ONLY mount: `recordJobOpenedAction`, `openedIds`, and the `?job=`
+ * URL write all live exclusively in `openJob` (jobs/page.tsx), which only a
+ * real click/keypress reaches. Below xl nothing changes: the sheet still
+ * opens only on an explicit open (`detailSheetOpen`).
+ *
+ * Item 5, 2026-08-21 front-door audit: the caller now passes
+ * `hasAmbientJob` as "is there actually a job selected/previewable" rather
+ * than "are there hits at all" — on the pristine, zero-intent landing
+ * there's no explicit selection AND no search behind the first hit for an
+ * ambient preview to be standing in for, so `hasAmbientJob` is false there
+ * even with hits on screen, and the pane mounts at "none" instead of
+ * "pane" — the shared ternary's own placeholder branch, not a bespoke
+ * empty state. Everywhere else (a real search, a deep link) is unchanged:
+ * this function's own contract didn't move, only what the caller means by
+ * "ambient job" got more precise.
  */
 export type DetailMountSite = "sheet" | "pane" | "none";
 
@@ -417,6 +427,13 @@ export function resolveJobsRenderMode(
  *
  * Order is the ternary's own precedence, unchanged: the ask state, then
  * hard backend states, then loading, then empty, then the list.
+ *
+ * `loading` returns "loading" even when `hitCount > 0` (stale results from
+ * the previous search are present). Showing irrelevant old rows during a new
+ * query/filter/sort/location refresh confuses more than it helps: the rows
+ * belong to a different search the user just changed. `blockingError` and
+ * `notConnected` are only ever true at their declaration sites when
+ * `hits.length === 0`, so the guard ordering already handles any overlap.
  */
 export type JobsResultsPanel = "serp-ask" | "not-connected" | "error" | "loading" | "empty" | "list";
 
@@ -430,7 +447,7 @@ export function resolveJobsResultsPanel(input: {
     if (input.isSerpAsk) return "serp-ask";
     if (input.notConnected) return "not-connected";
     if (input.blockingError) return "error";
-    if (input.loading && input.hitCount === 0) return "loading";
+    if (input.loading) return "loading";
     return input.hitCount === 0 ? "empty" : "list";
 }
 
@@ -534,4 +551,32 @@ export async function runResumeControlClick(
     }
     const applied = await resolve();
     if (!applied) upload();
+}
+
+/** Whether saved agent search prefs count as "set" — non-empty query only. */
+export function hasSearchPrefs(search: { query?: string } | undefined | null): boolean {
+    return Boolean(search?.query?.trim());
+}
+
+/** Prefs-first onboarding: no résumé on file and no saved search prefs yet. */
+export function shouldPromptSearchPrefsInsteadOfResume(
+    resumeOnFile: boolean | null,
+    prefsSet: boolean,
+): boolean {
+    return resumeOnFile === false && !prefsSet;
+}
+
+/**
+ * Item 7d (2026-08-21 front-door audit): the mobile fixed bottom CTA
+ * ("Show jobs" / "Search") used to render unconditionally post-engagement,
+ * even with nothing pending — the search box's own Enter key and every
+ * suggestion/category pick already submit directly, so once a search has
+ * run the bar sat there duplicating an affordance nothing needed. It still
+ * earns its place on the pristine landing (`showLandingMarketing`), where
+ * it's the only way to leave that state without typing anything, and after
+ * engagement it's only useful again once the searcher has typed something
+ * NEW that hasn't been submitted yet.
+ */
+export function shouldShowMobileSearchCta(showLandingMarketing: boolean, queryDraft: string, query: string): boolean {
+    return showLandingMarketing || queryDraft.trim() !== query.trim();
 }

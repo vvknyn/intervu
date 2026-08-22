@@ -2,45 +2,20 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { X } from "@phosphor-icons/react";
 import { getJobByIdAction } from "@/actions/jobs";
-import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { checkFreshness } from "@/lib/jobs/badges";
-import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
+import { decodeText, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { companyRowMetaSegments } from "@/lib/presentation";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 
 /** Rendered-list cap — both the default (no-query) preview and a search
  *  match list stop here. One constant, so "how many roles do we ever draw
  *  at once" can't drift between the two states. */
 const ROLES_PREVIEW = 10;
-
-function roleMeta(job: PublicJob): string {
-  const parts = [locationText(job), salaryText(job), prettyEnum(job.experience_level)].filter(Boolean);
-  return parts.join(" · ");
-}
-
-/**
- * The role row's one-line ghost verdict, read from the shared chokepoint.
- *
- * It used to be hand-rolled, and every way it could disagree with the rest of
- * the product, it did: it passed `stale: false` unconditionally (so a verdict
- * from a 90-day-old check rendered as current), it hardcoded "Live · no ghost
- * signals" for `clear`, and — because that branch also matched `!job.ghost_badge`
- * — it printed the same green "Live" claim for jobs that had never been scored
- * at all. `ghostMetaFor` returns null for `unscored`, which is the contract
- * every other surface honours: no verdict, no line.
- */
-function roleGhostLine(job: PublicJob, now: number): { text: string; live: boolean } | null {
-  const meta = ghostMetaFor(job, now);
-  if (!meta) return null;
-  const live = job.ghost_badge === "clear" && checkFreshness(job, now) === "fresh";
-  return { text: `${live ? "" : "● "}${meta.label}`, live };
-}
 
 /**
  * True iff `job` matches `query` on any of title, location, or experience
@@ -49,8 +24,11 @@ function roleGhostLine(job: PublicJob, now: number): { text: string; live: boole
  * through the same display helpers the row itself renders with
  * (`locationText`/`prettyEnum`), so a match is always on text the visitor can
  * actually see next to the input, not a raw field they can't. Deliberately
- * excludes salary — `roleMeta` folds it in for the row's caption line, but
- * the spec names only these three fields as searchable.
+ * excludes salary — the row's meta line (`companyRowMetaSegments`) folds it
+ * in for the caption, but the spec names only these three fields as
+ * searchable. Reads the RAW `locationText`, not the meta line's cleaned-up
+ * segment — a stripped postal code or clamped breadcrumb must never make an
+ * otherwise-matching role searchable-but-invisible.
  */
 export function jobMatchesQuery(job: PublicJob, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -87,6 +65,7 @@ function roleCountLabel(
 export function CompanyRoleSearch({
   jobs,
   companyDomain,
+  companySlug,
   companyName,
   openCountLabel,
   searchesPartialWindow,
@@ -95,6 +74,8 @@ export function CompanyRoleSearch({
 }: {
   jobs: PublicJob[];
   companyDomain: string;
+  /** For the zero-roles empty state's follow CTA (`CompanyFollowControl`). */
+  companySlug: string;
   companyName: string;
   /** Pre-formatted company-wide open-role count (`openCountText(data)`) —
    *  one string, shared with the KPI tile above so the two can't disagree. */
@@ -210,7 +191,7 @@ export function CompanyRoleSearch({
 
       {displayed.length === 0 ? (
         hasQuery ? (
-          <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center">
+          <div className="border border-border bg-card px-5 py-8 text-center">
             <p className="text-sm text-muted-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
@@ -219,38 +200,53 @@ export function CompanyRoleSearch({
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No open roles indexed right now.</p>
+          // No live roles at all (not just no search matches) — a dead-end
+          // sentence with nothing to do next is strictly worse than turning
+          // the visitor into a follower, since that's the one action this
+          // page can actually offer them right now.
+          <div className="border border-border bg-card px-5 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
+            </p>
+            <div className="mt-4 flex justify-center">
+              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="primary" />
+            </div>
+          </div>
         )
       ) : (
         <ul className="space-y-2.5">
           {displayed.map((job) => {
-            const ghost = roleGhostLine(job, now);
+            const meta = companyRowMetaSegments(job);
+            // Exception-only status: the routine "clear, currently checked"
+            // state renders no line at all (see `rowExceptionMeta`'s doc) —
+            // only stale-clear/caution/likely_ghost verdicts show up here.
+            const exception = rowExceptionMeta(job, now);
             return (
               <li key={job.id}>
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
-                  className="w-full text-left flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
+                  className="w-full text-left flex items-center gap-4 border border-border bg-card px-5 py-4 transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
-                  <CompanyLogo domain={companyDomain} name={companyName} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-semibold text-foreground group-hover:text-brand transition-colors">
+                    <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
                       {decodeText(job.title)}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {roleMeta(job)}
-                    </div>
-                    {ghost && (
-                      <div
-                        className={cn(
-                          "mt-1.5 flex items-center gap-1.5 text-[11px]",
-                          ghost.live ? "text-brand" : "text-muted-foreground",
-                        )}
-                      >
-                        {ghost.live && (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
-                        )}
-                        {ghost.text}
+                    {meta.length > 0 && (
+                      <div className="mt-1 text-[14px] text-muted-foreground">
+                        {meta.map((segment, i) => (
+                          <span key={i}>
+                            {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                            <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
+                              {segment.text}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {exception && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        ● {exception.label}
                       </div>
                     )}
                   </div>
@@ -265,7 +261,7 @@ export function CompanyRoleSearch({
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6 shadow-xs">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
           <div>
             <h3 className="font-display text-[18px] font-semibold text-foreground">
               Explore all {openCountLabel} open roles at {companyName}
@@ -295,20 +291,9 @@ export function CompanyRoleSearch({
             }
           }}
         >
-          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-border bg-card shadow-2xl p-4 sm:p-8 animate-in zoom-in-95 duration-200">
-            {/* Close Button */}
-            <div className="sticky top-0 z-20 -mt-2 -mr-2 mb-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedJob(null)}
-                aria-label="Close job details"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
-              >
-                <X size={18} weight="bold" />
-              </button>
-            </div>
-
-            {/* Public Job Detail Content */}
+          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-border bg-card shadow-[var(--shadow-overlay)] p-4 sm:p-8 animate-in zoom-in-95 duration-200">
+            {/* Public Job Detail Content — PublicJobDetail renders JobDetail's own
+                × via the onClose prop below, so this container adds no second one. */}
             <PublicJobDetail
               job={selectedJob}
               onClose={() => setSelectedJob(null)}

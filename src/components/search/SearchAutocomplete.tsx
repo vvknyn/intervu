@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useSyncExternalStore, KeyboardEvent } from "react";
+import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
+import { highlightMatch } from "@/lib/highlight-match";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -44,7 +45,39 @@ interface SearchAutocompleteProps {
     seeds?: string[];
 }
 
-export function SearchAutocomplete({
+export interface SearchAutocompleteHandle {
+    /** Dismiss the suggestion dropdown without touching `value`. A submit
+     *  that happens OUTSIDE this component — an external "Search" button
+     *  click, a category/seed pick — never runs this component's own
+     *  Enter-key handler (which already closes the dropdown), so it left the
+     *  dropdown floating over freshly-loaded results. One imperative method
+     *  here, called from the caller's own submit chokepoint, instead of an
+     *  `open`/`onOpenChange` prop pair the parent would have to thread
+     *  through every keystroke. */
+    close: () => void;
+}
+
+/**
+ * Section header text for each suggestion type — single source of truth for
+ * the dropdown's group labels (item 6a, 2026-08-21 front-door audit: the
+ * dropdown mixed roles, companies, and stray junk with no labels at all,
+ * generalized from the one pre-existing 'seed' -> "Popular searches"
+ * special case). Keyed off `SearchSuggestion['type']` itself — TypeScript
+ * requires every member of that closed union to be handled below (`undefined`
+ * for a type deliberately left unlabeled), so a new suggestion type can't
+ * silently render without a labeling decision having been made for it.
+ * A type omitted here (falls through to `undefined`) renders no header —
+ * `'full'` (compound one-off boosted rows) doesn't read as its own group.
+ */
+const SECTION_LABELS: Record<SearchSuggestion["type"], string | undefined> = {
+    seed: "Popular searches",
+    history: "Recent searches",
+    role: "Roles",
+    company: "Companies",
+    full: undefined,
+};
+
+export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
     onChange,
     onSearch,
@@ -56,7 +89,7 @@ export function SearchAutocomplete({
     leadingIcon,
     suggest,
     seeds
-}: SearchAutocompleteProps) {
+}, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
@@ -71,7 +104,6 @@ export function SearchAutocomplete({
         getRecentSearchesSnapshot,
         getRecentSearchesServerSnapshot,
     );
-    const containerRef = useRef<HTMLDivElement>(null);
     // Always hold the LATEST `onSearch`/`suggest` props, updated by a single
     // no-dependency effect that runs after every render (declared first so
     // it commits before the suggestion effect below reads it in the same
@@ -112,6 +144,8 @@ export function SearchAutocomplete({
     // response still matched the (unbumped) generation and repopulated the
     // now-empty box with "engineer" suggestions.
     const suggestGenRef = useRef(0);
+
+    useImperativeHandle(ref, () => ({ close: () => setIsOpen(false) }), []);
 
     // Update suggestions
     useEffect(() => {
@@ -174,17 +208,6 @@ export function SearchAutocomplete({
         setActiveIndex(-1);
     }, [suggestions]);
 
-    // Click outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         // Bubble up arrow keys only if dropdown is open and has items
         if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isOpen && suggestions.length > 0) {
@@ -223,7 +246,7 @@ export function SearchAutocomplete({
     };
 
     return (
-        <div className={cn("relative group", containerClassName)} ref={containerRef}>
+        <div className={cn("relative group", containerClassName)}>
             {/* The glyph is a FLEX SIBLING of the field, never an absolutely
                 positioned overlay with `pl-*` on the input holding the text
                 clear of it. That older shape coupled the component and its
@@ -251,57 +274,91 @@ export function SearchAutocomplete({
                         setActiveIndex(-1);
                     }}
                     onFocus={() => setIsOpen(true)}
+                    // Item 6e (2026-08-21): closes the dropdown on blur —
+                    // tab away, click elsewhere, or click a suggestion (each
+                    // `<li>` below prevents the mousedown that would
+                    // otherwise fire this BEFORE the click's own `onClick`
+                    // runs) — replacing the separate click-outside
+                    // listener this component used to carry: blur already
+                    // covers every case that did, and one source of truth
+                    // for "did focus leave the field" beats two.
+                    onBlur={() => setIsOpen(false)}
                     onKeyDown={handleKeyDown}
                     disabled={disabled}
                     autoFocus={autoFocus}
                 />
             </div>
 
-            {/* Dropdown. The only surface in the app that floats over page
-                content with nothing behind it — every dialog has a scrim, this
-                has the results list. It used to be separated by `shadow-xl`;
-                elevation is none everywhere now, so the edge and the fill have
-                to carry it: a full-strength border rather than a half-opacity
-                one, and an opaque popover rather than 95%, which the rows
-                underneath were reading through. */}
+            {/* Dropdown. One of the few surfaces in the app that floats over
+                page content with nothing behind it — every dialog has a
+                scrim, this has the results list — so it carries the one
+                sanctioned overlay shadow (--shadow-overlay) plus a
+                full-strength border and an opaque popover fill, since the
+                rows underneath would otherwise read through a half-opacity
+                edge. */}
             {isOpen && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1">
-                    {suggestions[0]?.type === 'seed' && (
-                        <p className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Popular searches
-                        </p>
-                    )}
+                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1 shadow-[var(--shadow-overlay)]">
                     <ul role="listbox" aria-label="Search suggestions" className="py-2 max-h-[300px] overflow-y-auto">
-                        {suggestions.map((suggestion, index) => (
-                            <li
-                                key={index}
-                                role="option"
-                                aria-selected={index === activeIndex}
-                                className={cn(
-                                    "px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors text-sm",
-                                    index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                                )}
-                                onClick={() => handleSelect(suggestion.text)}
-                                onMouseEnter={() => setActiveIndex(index)}
-                            >
-                                {suggestion.type === 'history' ? (
-                                    <Clock size={16} className="shrink-0 opacity-70" />
-                                ) : suggestion.type === 'company' ? (
-                                    <Buildings size={16} className="shrink-0 opacity-70" />
-                                ) : (
-                                    <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
-                                )}
-                                <span className="flex-1 truncate">
-                                    {suggestion.text}
-                                </span>
-                                {index === activeIndex && (
-                                    <CaretRight size={14} className="opacity-50" />
-                                )}
-                            </li>
-                        ))}
+                        {suggestions.map((suggestion, index) => {
+                            // Item 6a: a section header renders once per run
+                            // of same-typed suggestions — at the very first
+                            // item, or wherever the type changes from the
+                            // item before it — never per-row, and never at
+                            // all for a type with no label in `SECTION_LABELS`.
+                            const label = SECTION_LABELS[suggestion.type];
+                            const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);
+                            const segments = highlightMatch(suggestion.text, value);
+                            return (
+                                <Fragment key={index}>
+                                    {showLabel && (
+                                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                            {label}
+                                        </li>
+                                    )}
+                                    <li
+                                        role="option"
+                                        aria-selected={index === activeIndex}
+                                        className={cn(
+                                            "px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors text-sm",
+                                            index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                        )}
+                                        onClick={() => handleSelect(suggestion.text)}
+                                        onMouseEnter={() => setActiveIndex(index)}
+                                        // Item 6e: without this, the click's own
+                                        // mousedown blurs the Input FIRST (firing
+                                        // the `onBlur` close above), which
+                                        // unmounts this row before its `onClick`
+                                        // ever runs — the standard combobox fix.
+                                        onMouseDown={(e) => e.preventDefault()}
+                                    >
+                                        {suggestion.type === 'history' ? (
+                                            <Clock size={16} className="shrink-0 opacity-70" />
+                                        ) : suggestion.type === 'company' ? (
+                                            <Buildings size={16} className="shrink-0 opacity-70" />
+                                        ) : (
+                                            <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
+                                        )}
+                                        <span className="flex-1 truncate">
+                                            {segments.map((seg, i) =>
+                                                seg.matched ? (
+                                                    <mark key={i} className="bg-transparent font-semibold text-foreground">
+                                                        {seg.text}
+                                                    </mark>
+                                                ) : (
+                                                    <span key={i}>{seg.text}</span>
+                                                ),
+                                            )}
+                                        </span>
+                                        {index === activeIndex && (
+                                            <CaretRight size={14} className="opacity-50" />
+                                        )}
+                                    </li>
+                                </Fragment>
+                            );
+                        })}
                     </ul>
                 </div>
             )}
         </div>
     );
-}
+});

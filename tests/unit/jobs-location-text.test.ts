@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { humanizeRawLocation, locationText } from "../../src/lib/jobs/presentation";
+import { humanizeRawLocation, locationText, clampLocationSegments } from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const job = (over: Partial<PublicJob>): PublicJob =>
@@ -106,4 +106,34 @@ test("an empty array and a null location_country both fall through the same as t
         locationText(job({ location_country: [], work_type: "remote" })),
         "Remote",
     );
+});
+
+// Progressive-disclosure clamp for the JobDetail identity-header location
+// line (2026-08-20) — an aggregator posting's `location` string can be a
+// semicolon-joined dump of many entries; `locationText` passes it through
+// verbatim (see `humanizeRawLocation` above), so the clamp lives one layer
+// up as its own pure decision rather than teaching `locationText` about
+// rendering.
+test("3 or fewer segments render in full — no clamp, matches today's behavior", () => {
+    assert.deepEqual(clampLocationSegments("Remote"), { visible: ["Remote"], hidden: [] });
+    assert.deepEqual(clampLocationSegments("San Diego; Remote - CA; Remote - AZ"), {
+        visible: ["San Diego", "Remote - CA", "Remote - AZ"],
+        hidden: [],
+    });
+});
+
+test("exactly 4 segments clamps to the first 2, hides the rest", () => {
+    const result = clampLocationSegments("A; B; C; D");
+    assert.deepEqual(result, { visible: ["A", "B"], hidden: ["C", "D"] });
+});
+
+test("a single plain location with no semicolons behaves exactly as today", () => {
+    assert.deepEqual(clampLocationSegments("San Diego, CA"), { visible: ["San Diego, CA"], hidden: [] });
+});
+
+test("whitespace around semicolons is trimmed and empty segments are dropped", () => {
+    assert.deepEqual(clampLocationSegments("  A  ;B;  ;C ;D;E"), {
+        visible: ["A", "B"],
+        hidden: ["C", "D", "E"],
+    });
 });

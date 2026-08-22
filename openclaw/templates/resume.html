@@ -13,6 +13,15 @@
   updating that checklist too. There is no role/title line under the name —
   the reference format doesn't have one, don't add one back.
 
+  Layout auto-fits on load: an inline script at the end of body (after the
+  last </section>, so it can't be caught by render-resume.mjs's section-prune
+  regex) measures the rendered content, binary-searches font size, then
+  (if still sparse) margins, then line-height/section gap, and finally pins
+  the solved margins into an appended @page rule. Font ranges 8-13pt,
+  margins/leading adapt with it. The token contract below is unchanged by
+  any of this — it only touches CSS custom properties and one trailing
+  <style>.
+
   Token contract:
     Plain text tokens — NAME, LOCATION, PHONE, EMAIL, LINKEDIN, WEBSITE, SUMMARY
       LOCATION/PHONE/EMAIL/LINKEDIN/WEBSITE render as ONE centered contact
@@ -50,51 +59,59 @@
 <meta charset="utf-8" />
 <title>{{NAME}} — Resume</title>
 <style>
+  :root {
+    --fit: 1;
+    --lh: 1.3;
+    --gap: 1;
+    --mx: 0.55in;
+    --my: 0.45in;
+  }
   @page { size: letter; margin: 0.45in 0.55in; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html { margin: 0; padding: 0; }
   body {
     font-family: Helvetica, Arial, sans-serif;
     color: #000;
-    max-width: 7.4in;
+    font-size: calc(10pt * var(--fit));
+    line-height: var(--lh);
+    width: calc(8.5in - 2 * var(--mx));
     margin: 0 auto;
-    padding: 0.45in 0.55in;
-    line-height: 1.28;
-    font-size: 7.7pt;
+    padding: 0;
   }
-  header { text-align: center; margin-bottom: 10px; }
-  h1 { font-size: 16.5pt; font-weight: bold; margin: 0 0 3px; }
-  .contact { font-size: 7.5pt; margin: 0; text-align: center; }
+  header { text-align: center; margin-bottom: 0.75em; }
+  h1 { font-size: 1.65em; font-weight: bold; margin: 0 0 0.225em; }
+  .contact { font-size: 0.8em; margin: 0; text-align: center; }
   .contact span:empty { display: none; }
   .contact span:not(:empty) ~ span:not(:empty)::before { content: " | "; }
-  section { margin-top: 10px; }
+  section { margin-top: calc(1em * var(--gap)); }
   section:first-of-type { margin-top: 0; }
   h2 {
-    font-size: 8pt;
+    font-size: 0.85em;
     font-weight: bold;
     text-transform: uppercase;
     border-bottom: 0.75pt solid #000;
-    margin: 0 0 6px;
-    padding-bottom: 2px;
+    margin: 0 0 0.45em;
+    padding-bottom: 0.15em;
   }
-  p { margin: 0 0 4px; text-align: justify; }
+  p { margin: 0 0 0.3em; text-align: justify; }
   p:last-child { margin-bottom: 0; }
-  .entry { margin-bottom: 8px; }
+  .entry { margin-bottom: 0.6em; }
   .entry:last-child { margin-bottom: 0; }
   .entry-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 8px;
+    gap: 0.6em;
   }
   .entry-header span:first-child { font-weight: bold; }
   .entry-header span:last-child { font-weight: normal; white-space: nowrap; }
-  ul { margin: 2px 0 0; padding-left: 14px; }
-  li { margin-bottom: 2px; text-align: justify; }
+  ul { margin: 0.15em 0 0; padding-left: 1.05em; }
+  li { margin-bottom: 0.15em; text-align: justify; }
   li:last-child { margin-bottom: 0; }
   @media print {
-    body { padding: 0; }
-    .entry { break-inside: avoid; }
+    .entry { break-inside: auto; }
+    .entry-header { break-after: avoid; }
+    li { break-inside: avoid; }
     h2 { break-after: avoid; }
   }
 </style>
@@ -131,5 +148,201 @@
     <h2>Education &amp; Professional Development</h2>
     {{EDUCATION}}
   </section>
+<script>
+// Auto-fit pass: grows type/margins/leading so the resume fills its page(s)
+// instead of floating tiny text over empty space. Runs after the DOM is
+// parsed (script is the last node in body, after every </section>, so
+// render-resume.mjs's section-prune regex never touches it).
+//
+// Placed AFTER the content it measures on purpose — no deps, no build step,
+// must survive both file:// and http:// with zero network access. On ANY
+// failure this leaves the :root defaults in place and reports the error
+// string instead of throwing past a caller who's mid-`browser pdf` capture.
+(function () {
+  var root = document.documentElement;
+  var DEFAULTS = { fit: 1, lh: 1.3, gap: 1, mx: 0.55, my: 0.45 };
+  var PX_PER_IN = 96;
+  var PAGE_H_IN = 11;
+  var FILL_CAP = 0.97;
+  var ITERATIONS = 7;
+
+  function setVars(s) {
+    root.style.setProperty("--fit", s.fit);
+    root.style.setProperty("--lh", s.lh);
+    root.style.setProperty("--gap", s.gap);
+    root.style.setProperty("--mx", s.mx + "in");
+    root.style.setProperty("--my", s.my + "in");
+    // Force layout so the next getBoundingClientRect() call reflects this
+    // knob change rather than a stale cached box.
+    void root.offsetHeight;
+  }
+
+  // Leaf content blocks, in document order — the only elements whose real
+  // rendered geometry we need. h2 and .entry-header are "keep-with-next":
+  // they must not be the last thing on a page with their following block
+  // pushed to the next one, so pagination treats each as glued to whatever
+  // comes right after it (chains merge automatically below).
+  function collectBlocks() {
+    var nodes = document.querySelectorAll("header, h2, p, .entry-header, li");
+    if (nodes.length === 0) return [];
+    var first = nodes[0].getBoundingClientRect().top + window.scrollY;
+    var blocks = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var r = el.getBoundingClientRect();
+      blocks.push({
+        top: r.top + window.scrollY - first,
+        bottom: r.bottom + window.scrollY - first,
+        glueNext: el.tagName === "H2" || el.classList.contains("entry-header"),
+      });
+    }
+    return blocks;
+  }
+
+  // Merge glue-next chains (h2 -> entry-header -> first li all glue in
+  // sequence) into atomic groups that pagination can't split.
+  function groupBlocks(blocks) {
+    var groups = [];
+    var i = 0;
+    while (i < blocks.length) {
+      var j = i;
+      while (blocks[j].glueNext && j + 1 < blocks.length) j++;
+      groups.push({ top: blocks[i].top, bottom: blocks[j].bottom });
+      i = j + 1;
+    }
+    return groups;
+  }
+
+  // Print-pagination simulation over the live (unpaginated) DOM: walk
+  // groups top to bottom, preserving each real inter-group gap, and start a
+  // new page whenever the next group doesn't fit the remainder. No
+  // reordering/backfill — space skipped on the page being left is simply
+  // gone, matching how print pagination actually flows.
+  function measure(myIn) {
+    var usable = (PAGE_H_IN - 2 * myIn) * PX_PER_IN;
+    var blocks = collectBlocks();
+    if (blocks.length === 0 || usable <= 0) return { pages: 1, fill: 0 };
+    var groups = groupBlocks(blocks);
+    var pages = 1;
+    var used = 0;
+    var lastBottom = null;
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i];
+      var height = g.bottom - g.top;
+      if (lastBottom === null) {
+        used = height;
+      } else {
+        var gap = g.top - lastBottom;
+        if (used + gap + height > usable) {
+          pages++;
+          used = height;
+        } else {
+          used += gap + height;
+        }
+      }
+      lastBottom = g.bottom;
+    }
+    return { pages: pages, fill: Math.max(0, Math.min(1, used / usable)) };
+  }
+
+  // Standard bisection over a monotone predicate: predicate(lo) is assumed
+  // true (the search's floor is always an acceptable answer), predicate
+  // flips to false somewhere at/after the true max and never flips back.
+  function bisectMax(lo, hi, predicate) {
+    var best = lo;
+    for (var i = 0; i < ITERATIONS; i++) {
+      var mid = (best + hi) / 2;
+      if (predicate(mid)) best = mid;
+      else hi = mid;
+    }
+    return best;
+  }
+
+  function pct(x) {
+    return Math.round(x * 1000) / 10;
+  }
+
+  try {
+    var state = { fit: DEFAULTS.fit, lh: DEFAULTS.lh, gap: DEFAULTS.gap, mx: DEFAULTS.mx, my: DEFAULTS.my };
+    setVars(state);
+
+    // Phase 1 — FONT: baseline page count at the smallest allowed font,
+    // then grow font as far as possible without changing that page count.
+    state.fit = 0.8;
+    setVars(state);
+    var targetPages = measure(state.my).pages;
+
+    state.fit = bisectMax(0.8, 1.3, function (fit) {
+      state.fit = fit;
+      setVars(state);
+      var m = measure(state.my);
+      return m.pages === targetPages && m.fill <= FILL_CAP;
+    });
+    setVars(state);
+    var afterFont = measure(state.my);
+
+    // Phase 2 — MARGINS: only for a single page that's still visibly
+    // sparse. Narrowing the usable area (wider margins) raises fill even
+    // though font is already maxed for this page count.
+    var afterMargins = afterFont;
+    if (targetPages === 1 && afterFont.fill < 0.9) {
+      var mT = bisectMax(0, 1, function (t) {
+        state.mx = DEFAULTS.mx + t * (1.0 - DEFAULTS.mx);
+        state.my = DEFAULTS.my + t * (0.7 - DEFAULTS.my);
+        setVars(state);
+        var m = measure(state.my);
+        return m.pages === 1 && m.fill <= FILL_CAP;
+      });
+      state.mx = DEFAULTS.mx + mT * (1.0 - DEFAULTS.mx);
+      state.my = DEFAULTS.my + mT * (0.7 - DEFAULTS.my);
+      setVars(state);
+      afterMargins = measure(state.my);
+    }
+
+    // Phase 3 — STRETCH: still sparse after font+margins — open up line
+    // height and section gap together, capped so it never tips into an
+    // extra page.
+    var final = afterMargins;
+    if (afterMargins.fill < 0.92) {
+      var sT = bisectMax(0, 1, function (t) {
+        state.lh = DEFAULTS.lh + t * (1.42 - DEFAULTS.lh);
+        state.gap = DEFAULTS.gap + t * (1.8 - DEFAULTS.gap);
+        setVars(state);
+        var m = measure(state.my);
+        return m.pages === targetPages && m.fill <= FILL_CAP;
+      });
+      state.lh = DEFAULTS.lh + sT * (1.42 - DEFAULTS.lh);
+      state.gap = DEFAULTS.gap + sT * (1.8 - DEFAULTS.gap);
+      setVars(state);
+      final = measure(state.my);
+    }
+
+    // Pin the solved margins for print — appended after the static @page
+    // fallback so it wins (last rule of equal specificity applies).
+    var style = document.createElement("style");
+    style.appendChild(
+      document.createTextNode(
+        "@page { size: letter; margin: " + state.my.toFixed(2) + "in " + state.mx.toFixed(2) + "in; }"
+      )
+    );
+    document.head.appendChild(style);
+
+    var report =
+      "font=" + (10 * state.fit).toFixed(1) + "pt" +
+      " lh=" + state.lh.toFixed(2) +
+      " gap=" + state.gap.toFixed(2) +
+      " margin=" + state.mx.toFixed(2) + "x" + state.my.toFixed(2) + "in" +
+      " pages=" + final.pages +
+      " fill=" + pct(final.fill) + "%";
+    root.dataset.fit = report;
+    console.log("resume-fit: " + report);
+  } catch (err) {
+    setVars(DEFAULTS);
+    var msg = "error: " + (err && err.message ? err.message : String(err));
+    root.dataset.fit = msg;
+    console.log("resume-fit: " + msg);
+  }
+})();
+</script>
 </body>
 </html>
