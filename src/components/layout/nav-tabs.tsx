@@ -1,10 +1,10 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Tracker · Connect · (avatar → Account)
+ * Jobs · Resume · Tracker · Connect · (avatar → Account)
  * Research / Pricing / Trends live in the footer.
  */
 import type { ComponentType } from "react";
-import { Kanban } from "@phosphor-icons/react";
+import { FileText, Kanban } from "@phosphor-icons/react";
 
 export type NavTab = {
     label: string;
@@ -35,6 +35,10 @@ function TrackerIcon() {
     return <Kanban aria-hidden />;
 }
 
+function ResumeIcon() {
+    return <FileText aria-hidden />;
+}
+
 function ConnectIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -62,6 +66,14 @@ export const NAV_TABS: NavTab[] = [
         testId: "topbar-jobs",
         match: (p) => p === "/jobs" || p.startsWith("/jobs/"),
         icon: JobsIcon,
+    },
+    {
+        label: "Resume",
+        shortLabel: "Resume",
+        href: "/resume",
+        testId: "topbar-resume",
+        match: (p) => p.startsWith("/resume"),
+        icon: ResumeIcon,
     },
     {
         label: "Tracker",

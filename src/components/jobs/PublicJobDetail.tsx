@@ -8,7 +8,6 @@ import { JobDetail } from "@/components/jobs/JobDetail";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
-import { decodeText, locationText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
 import { addGuestPursuit } from "@/lib/pursuits/guest-store";
@@ -65,12 +64,7 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
     return (
         <>
         <ApplyIntentDialog
-            job={{
-                id: job.id,
-                title: decodeText(job.title),
-                company: job.company || "Unknown company",
-                location: locationText(job) || null,
-            }}
+            job={job}
             open={applyIntentOpen}
             onOpenChange={setApplyIntentOpen}
             onContinue={() => {
