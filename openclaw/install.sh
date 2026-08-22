@@ -37,8 +37,27 @@ wait_for_gateway() {
 
 SKILL_NAME="intervu-apply"
 MCP_SERVER_KEY="intervu-cc-mcp"
+MCP_SERVER_URL="https://intervu.cc/api/mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
 SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
+
+# Pinning mcporter's OAuth callback to a fixed loopback port is what makes the
+# connection last. By default mcporter binds the callback to port 0 — a new
+# ephemeral port every run — then notices the redirect URI changed, discards
+# the cached client registration, and re-registers, minting a NEW client_id.
+# Our refresh endpoint requires a refresh token to be presented by the client
+# it was issued to (`refreshAccess`, src/lib/agent/oauth.ts), so an unpinned
+# callback makes refresh structurally impossible: every run falls back to a
+# full browser approval. Users saw this as "why do I have to reconnect every
+# morning?" — the daily cron was simply the first thing to touch the dead
+# connection each day.
+#
+# 21473 is below the ephemeral range macOS allocates from (49152-65535,
+# verified via net.inet.ip.portrange.first) and below the common Linux default
+# (32768), so the OS will not hand this port to some other process behind our
+# back. It is only bound for the seconds an auth flow is in progress.
+MCP_OAUTH_PORT="21473"
+MCP_OAUTH_REDIRECT="http://127.0.0.1:${MCP_OAUTH_PORT}/callback"
 
 # resolve_node_lts()'s fallback when nodejs.org is unreachable or its
 # index.json shape changes. This was the current LTS release verified
@@ -239,7 +258,7 @@ warn_if_outdated mcporter || echo "    Not fatal — the intervu tools work on t
 # --- 3. Register the intervu MCP server (idempotent) ------------------------
 echo "==> Registering the intervu MCP server ($MCP_SERVER_KEY)..."
 grep -q "$MCP_SERVER_KEY" "$MCPORTER_CONFIG" 2>/dev/null || \
-  mcporter config add "$MCP_SERVER_KEY" --url https://intervu.cc/api/mcp --config "$MCPORTER_CONFIG"
+  mcporter config add "$MCP_SERVER_KEY" --url "$MCP_SERVER_URL" --config "$MCPORTER_CONFIG"
 echo "    Registered."
 
 # Keep the MCP connection warm — without this every tool call pays a full
@@ -249,13 +268,25 @@ echo "    Registered."
 # the script and python3 is not — on a fresh Mac, invoking python3 pops
 # Apple's "install developer tools?" dialog, which nothing here is waiting
 # on and nobody would know to click through.
-node -e '
+# The same pass pins the OAuth callback port (see MCP_OAUTH_REDIRECT above).
+# It prints REDIRECT_CHANGED when it had to change that pin, which step 4
+# needs in order to decide whether the cached client registration is stale.
+# Both settings are written unconditionally so re-running the installer
+# repairs an install that predates the pin.
+# --- >>> mcporter-config-patch (extracted verbatim by tests/unit/mcporter-config.test.ts)
+REDIRECT_STATE="$(node -e '
   const fs = require("fs");
-  const [p, key] = process.argv.slice(1);
+  const [p, key, url, redirect] = process.argv.slice(1);
   const d = JSON.parse(fs.readFileSync(p, "utf8"));
-  d.mcpServers[key].lifecycle = "keep-alive";
-  fs.writeFileSync(p, JSON.stringify(d, null, 2));
-' "$MCPORTER_CONFIG" "$MCP_SERVER_KEY"
+  d.mcpServers = d.mcpServers || {};
+  const server = d.mcpServers[key] || (d.mcpServers[key] = { baseUrl: url });
+  const previousRedirect = server.oauthRedirectUrl;
+  server.lifecycle = "keep-alive";
+  server.oauthRedirectUrl = redirect;
+  fs.writeFileSync(p, JSON.stringify(d, null, 2) + "\n");
+  if (previousRedirect !== redirect) console.log("REDIRECT_CHANGED");
+' "$MCPORTER_CONFIG" "$MCP_SERVER_KEY" "$MCP_SERVER_URL" "$MCP_OAUTH_REDIRECT")"
+# --- <<< mcporter-config-patch
 mcporter daemon restart >/dev/null 2>&1 || true
 echo "    Connection keep-alive daemon started."
 
@@ -265,8 +296,23 @@ echo "  A browser window is about to open for you to approve intervu."
 echo "  YOU HAVE ABOUT 60 SECONDS — be ready to click through it now."
 help_link auth
 echo "==============================================================="
-mcporter auth "$MCP_SERVER_KEY" || {
+# --reset only when the callback pin just changed. An install predating the
+# pin cached a client registration whose redirect URI is some long-dead
+# ephemeral port, and mcporter only self-clears a stale registration while the
+# port is dynamic — once pinned it keeps the stale one and every auth attempt
+# is rejected. Clearing once, at the moment we change the pin, is what heals
+# those installs; on a fresh install there is nothing cached and this is a
+# no-op. Do NOT make this unconditional: it would throw away a working
+# credential on every re-run.
+AUTH_RESET=""
+if [ "$REDIRECT_STATE" = "REDIRECT_CHANGED" ]; then
+  AUTH_RESET="--reset"
+fi
+
+mcporter auth "$MCP_SERVER_KEY" $AUTH_RESET || {
   echo "Auth failed. Re-run 'mcporter auth $MCP_SERVER_KEY' — make sure you click through the browser prompt within ~60 seconds this time."
+  echo "If it failed instantly rather than timing out, something else may be holding port $MCP_OAUTH_PORT;"
+  echo "check with 'lsof -nP -iTCP:$MCP_OAUTH_PORT -sTCP:LISTEN' and free it, or change oauthRedirectUrl in $MCPORTER_CONFIG."
   help_link auth
   exit 1
 }
