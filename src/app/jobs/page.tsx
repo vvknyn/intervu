@@ -4643,19 +4643,7 @@ function JobsContent() {
             {/* Held-open apply click. `onContinue` fires from a click inside
                 the dialog, which keeps `window.open` inside a user gesture. */}
             <ApplyIntentDialog
-                job={
-                    applyIntentJob
-                        ? {
-                              // Same mapping JobDetail already uses for
-                              // McpHandoffNote, so both entry points hand the
-                              // assistant an identically shaped role.
-                              id: applyIntentJob.id,
-                              title: decodeText(applyIntentJob.title),
-                              company: applyIntentJob.company || "Unknown company",
-                              location: locationText(applyIntentJob) || null,
-                          }
-                        : null
-                }
+                job={applyIntentJob}
                 open={Boolean(applyIntentJob)}
                 onOpenChange={(next) => {
                     if (!next) setApplyIntentJob(null);
