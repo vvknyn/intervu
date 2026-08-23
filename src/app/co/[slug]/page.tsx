@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
+import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFollowChannelProvider";
+import { CompanyChangeEventTeaser } from "@/components/company/CompanyChangeEventTeaser";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
+import { CompanyIntelGate } from "@/components/company/CompanyIntelGate";
 import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
@@ -98,6 +101,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
+      <CompanyFollowChannelProvider domain={data.domain} displayName={data.name}>
       <main data-testid="company-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
@@ -141,7 +145,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             slug={data.slug}
             displayName={data.name}
             variant="primary"
-            idleLabel="Follow — new roles by email"
+            idleLabel="Follow — unlock hiring intel"
             className="shrink-0 sm:self-start"
           />
         </header>
@@ -164,41 +168,46 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             activity, honest data-quality context, tech stack, and news —
             never ahead of the roles a visitor came here for. */}
         <div data-testid="company-secondary" className="mt-10 space-y-8">
-          <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
+          <CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />
 
-          {/* Plain-language hiring record + the ghost-flagged share restated
-              as a count (`staleShare`) instead of a bare, jargon-labelled
-              percentage tile. */}
-          <section data-testid="company-hiring-activity" className="bg-chip px-5 py-4">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Hiring activity
-            </h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-foreground">{hiring.trackRecord}</p>
-            {hiring.freshness && (
-              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{hiring.freshness}</p>
+          <CompanyIntelGate domain={data.domain} slug={data.slug} displayName={data.name}>
+            <CompanyChangeEvents events={data.changeEvents} companyName={data.name} />
+
+            {/* Plain-language hiring record + the ghost-flagged share restated
+                as a count (`staleShare`) instead of a bare, jargon-labelled
+                percentage tile. */}
+            <section data-testid="company-hiring-activity" className="bg-chip px-5 py-4">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Hiring activity
+              </h2>
+              <p className="mt-2 text-[14px] leading-relaxed text-foreground">{hiring.trackRecord}</p>
+              {hiring.freshness && (
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{hiring.freshness}</p>
+              )}
+              {staleShare && (
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{staleShare}</p>
+              )}
+            </section>
+
+            <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
+
+            {/* The 90-day provenance note describes the opened/closed track
+                record specifically, and that is the one thing this page cannot
+                show today (`hasTrackRecord` is false for every employer until
+                the `company_*` aggregate sync lands). Printed under an assumed
+                90-day window it asserts an observation that was never made — so
+                it renders only when there is a track record for it to
+                describe. */}
+            {data.hasTrackRecord && (
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                Metrics derived from observed job postings over 90 days — not fundraising data, employee
+                reviews, or third-party valuations.
+              </p>
             )}
-            {staleShare && (
-              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{staleShare}</p>
-            )}
-          </section>
-
-          <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
-
-          {/* The 90-day provenance note describes the opened/closed track
-              record specifically, and that is the one thing this page cannot
-              show today (`hasTrackRecord` is false for every employer until
-              the `company_*` aggregate sync lands). Printed under an assumed
-              90-day window it asserts an observation that was never made — so
-              it renders only when there is a track record for it to
-              describe. */}
-          {data.hasTrackRecord && (
-            <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-              Metrics derived from observed job postings over 90 days — not fundraising data, employee
-              reviews, or third-party valuations.
-            </p>
-          )}
+          </CompanyIntelGate>
         </div>
       </main>
+      </CompanyFollowChannelProvider>
     </div>
   );
 }

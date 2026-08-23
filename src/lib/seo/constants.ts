@@ -44,9 +44,9 @@ export const SITE_NAME = "Intervu";
  *  jargon test bans machinery terms here. Agent/OpenClaw copy belongs to
  *  the opted-in surfaces (/connect, /openclaw). */
 export const LANDING_TITLE =
-    "Intervu — Live Remote & Tech Job Search | Verified Roles & Indeed Alternative";
+    "Intervu — Live Jobs from Company Career Pages | Verified & Ghost-Screened";
 export const LANDING_DESCRIPTION =
-    "Search thousands of live, verified remote and tech jobs directly from company career pages. Find the best remote jobs, work-from-home roles, and engineering careers — screened for ghost-job risk, freshness, and salary transparency.";
+    "Search live jobs pulled directly from employer career pages — software, healthcare, trades, and more. Every role is screened for freshness, salary transparency, and ghost-job risk before you apply.";
 
 /** Site-wide default meta description (root layout). Declared here — not in
  *  layout.tsx — so the jargon test covers every guest meta string in one

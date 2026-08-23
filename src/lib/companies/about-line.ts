@@ -42,6 +42,12 @@ const MAX_SENTENCE_LEN = 200;
  *  like a real about-paragraph is) — they are scoring inputs that pull a
  *  candidate's rank DOWN, not an identity gate; any paragraph can carry
  *  more than one of these and loses a point per match. */
+/** EEO / anti-discrimination boilerplate that repeats across postings and
+ *  names the company ("Rivian is an equal opportunity employer…") — too
+ *  strong for a score penalty alone. Hard-rejected unless the paragraph
+ *  sat under an About heading (see `isHardRejectedEeoBoilerplate`). */
+const EEO_HARD_REJECT_RES: RegExp[] = [/equal opportunit/i, /does not discriminate/i];
+
 const NOISE_CUE_RES: RegExp[] = [
   /equal opportunit/i,
   /reasonable accommodat/i,
@@ -285,6 +291,58 @@ function splitSentences(paragraph: string): string[] {
     .filter(Boolean);
 }
 
+/** Title-case / mixed section labels ATS paste glues onto about-paragraph
+ *  openings without a separator — "Who we are About Stripe Stripe is…".
+ *  ALL-CAPS glued headings are handled upstream by formatDescription; this
+ *  only strips leading labels and duplicate name glue, never paraphrases. */
+const GENERIC_SECTION_LABEL_RES: RegExp[] = [
+  /^who we are\b/i,
+  /^about us\b/i,
+  /^about the company\b/i,
+  /^about the \w+\b:?\s*/i,
+  /^our mission\b/i,
+  /^company overview\b/i,
+];
+
+function isHardRejectedEeoBoilerplate(text: string, afterAboutHeading: boolean): boolean {
+  if (afterAboutHeading) return false;
+  return EEO_HARD_REJECT_RES.some((re) => re.test(text));
+}
+
+function collapseLeadingDuplicateName(text: string, companyName: string): string {
+  for (const form of nameForms(companyName)) {
+    const escaped = escapeForRegex(form);
+    const re = new RegExp(`^(${escaped})\\s+\\1\\b`, "i");
+    const m = text.match(re);
+    if (m) return text.slice(m[1].length).trimStart();
+  }
+  return text;
+}
+
+export function stripLeadingSectionLabels(text: string, companyName: string): string {
+  let result = text.trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const labelRe of GENERIC_SECTION_LABEL_RES) {
+      const next = result.replace(labelRe, "").trimStart();
+      if (next !== result) {
+        result = next;
+        changed = true;
+        break;
+      }
+    }
+    if (changed) continue;
+    const aboutRe = aboutHeadingRegex(companyName);
+    const next = result.replace(aboutRe, "").trimStart();
+    if (next !== result) {
+      result = next;
+      changed = true;
+    }
+  }
+  return collapseLeadingDuplicateName(result, companyName);
+}
+
 /**
  * Picks one complete, verbatim sentence out of the winning paragraph.
  * Prefers the first sentence that both names the company and carries a
@@ -327,13 +385,17 @@ export function extractCompanyAboutLine(jobs: PublicJob[], companyName: string):
   const singlePostingCorpus = postings.length === 1;
   const candidates = [...buildCandidates(postings, aboutHeadingRe).values()].filter(
     (c) =>
-      c.jobIndices.size >= 2 ||
-      (singlePostingCorpus && (c.afterAboutHeading || cueRes.some((re) => re.test(c.text)))),
+      !isHardRejectedEeoBoilerplate(c.text, c.afterAboutHeading) &&
+      (c.jobIndices.size >= 2 ||
+        (singlePostingCorpus && (c.afterAboutHeading || cueRes.some((re) => re.test(c.text))))),
   );
   if (candidates.length === 0) return null;
 
   const winner = pickWinner(candidates, mentionRe, cueRes);
   if (!winner || !mentionRe.test(winner.text)) return null;
 
-  return selectSentence(winner.text, mentionRe);
+  const cleanedParagraph = stripLeadingSectionLabels(winner.text, name);
+  const sentence = selectSentence(cleanedParagraph, mentionRe);
+  if (!sentence) return null;
+  return stripLeadingSectionLabels(sentence, name);
 }
