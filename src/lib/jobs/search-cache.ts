@@ -130,6 +130,14 @@ export interface SearchServeMeta {
 export interface DegradedServeDecision {
   result: JobSearchResult;
   cachedAtMs: number;
+  /** Which lookup matched — "exact" means `result` was cached under THIS
+   *  request's own (already location-filtered) key, so it's safe for the
+   *  caller to re-stamp with the current request's derived fields (e.g. an
+   *  IP-based location default). "default-browse" means `result` is the
+   *  unfiltered fallback shape; the caller must NOT claim anything about
+   *  the current request over it, or the served content would misrepresent
+   *  itself (see search.ts's `searchJobs` for the read side). */
+  servedKey: "exact" | "default-browse";
 }
 
 /**
@@ -145,8 +153,9 @@ export function resolveDegradedServe(
   lookup: (key: string) => CacheEntry | undefined,
 ): DegradedServeDecision | null {
   const exact = lookup(normalizeSearchCacheKey(p));
-  if (exact) return exact;
-  return lookup(DEFAULT_BROWSE_CACHE_KEY) ?? null;
+  if (exact) return { ...exact, servedKey: "exact" };
+  const fallback = lookup(DEFAULT_BROWSE_CACHE_KEY);
+  return fallback ? { ...fallback, servedKey: "default-browse" } : null;
 }
 
 /** Thin I/O wrapper: `resolveDegradedServe` wired to the real module-scope cache. */
