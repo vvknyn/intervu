@@ -5,7 +5,8 @@
  * run is a real code path, not a separate reimplementation that could
  * silently drift from what actually gets sent.
  */
-import { getAdminAuth } from "@/lib/firebase/admin";
+import { getAppUser } from "@/lib/auth/user-directory";
+import { APP_INTERVU } from "@/lib/auth/app-tag";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { isMintedLoginEmail } from "@/lib/auth/username-email";
 import { signUnsubscribeToken } from "../unsubscribe-token";
@@ -27,15 +28,17 @@ export interface DigestPreview {
 export type DigestPreviewResult = DigestPreview | { skipped: DigestSkipReason };
 
 /**
- * Firebase Auth's email for a digest-eligible uid, or null when the account
- * has none. Shared by `previewDigestForUser` and the route's PG-lane dedupe
- * set (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so the two
- * lanes can't drift on how "this account's email" is defined.
+ * The intervu-tagged directory's email for a digest-eligible uid, or null
+ * when the account has none. `uid` here is a `legacyUid` (see
+ * eligible-users.ts) — `getAppUser` resolves that the same way whether it's
+ * a migrated account's Firebase uid or a native account's own Supabase id,
+ * and fails closed to null for a subspace-only account, exactly like a
+ * nonexistent one. Shared by `previewDigestForUser` and the route's PG-lane
+ * dedupe set (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so
+ * the two lanes can't drift on how "this account's email" is defined.
  */
 export async function digestEmailForUid(uid: string): Promise<string | null> {
-  const user = await getAdminAuth()
-    .getUser(uid)
-    .catch(() => null);
+  const user = await getAppUser(uid, APP_INTERVU).catch(() => null);
   return user?.email ?? null;
 }
 

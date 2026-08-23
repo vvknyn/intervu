@@ -12,28 +12,30 @@
  * nothing new, and `assembleDigest` drops empty sections, so a uid appearing
  * here costs a read and nothing more.
  */
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { listAppUsers } from "@/lib/auth/user-directory";
+import { APP_INTERVU } from "@/lib/auth/app-tag";
 import { isDefaultDigestEnabled } from "./default-section";
 
-/** Auth's own page size cap. */
-const LIST_USERS_PAGE = 1000;
-
 /**
- * Every uid Firebase Auth knows about — the eligibility set when the
- * default lane is on, since then "has told us something" stops being a
- * precondition for an email. Paginates rather than taking the first page:
- * a silent truncation here would look exactly like "those users had nothing
- * new", which is the failure mode that hid 22,853 employers in the jobs.ca
+ * Every intervu-tagged uid the directory knows about — the eligibility set
+ * when the default lane is on, since then "has told us something" stops
+ * being a precondition for an email. Yields `legacyUid`, not the Supabase
+ * row id: every downstream digest read (`collectDigestForUser`,
+ * `getDigestCursor`, ...) keys Firestore by the pre-migration Firebase uid
+ * on a migrated account, and by the Supabase id itself on a native one —
+ * exactly what `legacyUid` resolves to. `listAppUsers` itself paginates and
+ * filters to `app_metadata.apps` containing "intervu" (user-directory.ts),
+ * so this can't silently pick up subspace's accounts, and a silent
+ * truncation here would look exactly like "those users had nothing new",
+ * which is the failure mode that hid 22,853 employers in the jobs.ca
  * harvest.
  */
 async function listAllUids(): Promise<string[]> {
   const uids: string[] = [];
-  let pageToken: string | undefined;
-  do {
-    const page = await getAdminAuth().listUsers(LIST_USERS_PAGE, pageToken);
-    uids.push(...page.users.map((u) => u.uid));
-    pageToken = page.pageToken;
-  } while (pageToken);
+  for await (const user of listAppUsers(APP_INTERVU)) {
+    uids.push(user.legacyUid);
+  }
   return uids;
 }
 

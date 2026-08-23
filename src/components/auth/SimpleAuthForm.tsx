@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { checkUsernameAvailability } from "@/actions/auth";
 import { signInWithIdentifier, signInWithEmail } from "@/lib/firebase/client-auth";
+import { friendlyAuthMessage } from "@/lib/firebase/auth-errors";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useDebouncedCallback } from "use-debounce";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
@@ -71,17 +72,14 @@ export function SimpleAuthForm() {
                     await signInWithEmail(email, password);
                 }
                 router.refresh();
-            } catch (err: any) {
-                const msg = err?.message || "Authentication failed";
-                if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password") || msg.includes("auth/user-not-found")) {
-                    setError("Invalid username or password");
-                } else if (msg.includes("auth/email-already-in-use")) {
-                    setError("Username is already taken");
-                } else if (msg.includes("auth/weak-password")) {
-                    setError("Password must be at least 6 characters");
-                } else {
-                    setError(msg);
-                }
+            } catch (err) {
+                // `signInWithIdentifier`/`signInWithEmail` (lib/firebase/client-auth.ts)
+                // now throw Supabase's `AuthError` shape, not a Firebase
+                // `auth/...`-coded message — `friendlyAuthMessage` is the
+                // one place that maps it to copy a person can act on (same
+                // helper login-form.tsx uses), so this never falls through
+                // to a raw Supabase error string.
+                setError(friendlyAuthMessage(err, "Authentication failed"));
             }
         });
     };

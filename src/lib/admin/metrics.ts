@@ -34,9 +34,10 @@
  * never reports 0 — "nobody signed up" and "Firestore is unreachable" must not
  * render as the same number.
  */
-import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { Firestore, Query } from "firebase-admin/firestore";
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { listAppUsers, type DirectoryUser } from "@/lib/auth/user-directory";
+import { APP_INTERVU } from "@/lib/auth/app-tag";
 import { currentPeriod } from "@/lib/llm/credit-gate";
 import { SEARCH_LOG_TTL_DAYS } from "@/lib/jobs/search-log";
 import { FOLLOW_FUNNEL_STEPS, type FollowFunnelStep } from "@/lib/follows/funnel-log";
@@ -46,6 +47,7 @@ import {
     sharePercent,
     summarizeUsers,
     type AuthCensus,
+    type AuthUserLike,
     type MetricMeta,
     type MetricValue,
     type MetricsReport,
@@ -63,29 +65,38 @@ export interface MetricSpec extends MetricMeta {
 
 export interface MetricContext {
     db: Firestore;
-    auth: Auth;
     nowMs: number;
-    /** Memoised: the People metrics all need the same user page-walk, and
-     *  `listUsers` is the one genuinely expensive call on this page. */
+    /** Memoised: the People metrics all need the same user directory walk,
+     *  and `listAppUsers` is the one genuinely expensive call on this page. */
     census(): Promise<{ census: AuthCensus; truncated: boolean }>;
 }
 
-/** Page size Firebase Auth allows per `listUsers` call. */
-const AUTH_PAGE_SIZE = 1000;
-/** Hard stop on the page walk. Bounds the work an admin page can do; when it
- *  bites, the People tiles say so instead of quietly under-reporting. */
-const AUTH_MAX_PAGES = 10;
+/** Hard stop on the directory walk. Bounds the work an admin page can do;
+ *  when it bites, the People tiles say so instead of quietly under-reporting. */
+const CENSUS_MAX_USERS = 10_000;
 
-async function walkUsers(auth: Auth): Promise<{ users: UserRecord[]; truncated: boolean }> {
-    const users: UserRecord[] = [];
-    let pageToken: string | undefined;
-    for (let page = 0; page < AUTH_MAX_PAGES; page += 1) {
-        const result = await auth.listUsers(AUTH_PAGE_SIZE, pageToken);
-        users.push(...result.users);
-        pageToken = result.pageToken;
-        if (!pageToken) return { users, truncated: false };
+/**
+ * `summarizeUsers`'s federated check (metrics-shape.ts) is keyed on
+ * Firebase's own convention, where a password/email account's providerId is
+ * literally `"password"`. Supabase's equivalent slug is `"email"` —
+ * translated here so the pure classifier stays vocabulary-agnostic; every
+ * other provider slug (google, apple, ...) already satisfies "not password"
+ * without translation.
+ */
+function toAuthUserLike(user: DirectoryUser): AuthUserLike {
+    return {
+        metadata: { creationTime: user.createdAt, lastSignInTime: user.lastSignInAt },
+        providerData: user.providers.map((p) => ({ providerId: p === "email" ? "password" : p })),
+    };
+}
+
+async function walkUsers(): Promise<{ users: AuthUserLike[]; truncated: boolean }> {
+    const users: AuthUserLike[] = [];
+    for await (const directoryUser of listAppUsers(APP_INTERVU)) {
+        if (users.length >= CENSUS_MAX_USERS) return { users, truncated: true };
+        users.push(toAuthUserLike(directoryUser));
     }
-    return { users, truncated: true };
+    return { users, truncated: false };
 }
 
 // --- query helpers ---------------------------------------------------------
@@ -185,7 +196,7 @@ function equalityShare(meta: MetricMeta, source: SourceRef, field: string, equal
     };
 }
 
-/** One number lifted out of the memoised Firebase Auth census. */
+/** One number lifted out of the memoised auth-directory census. */
 function authMetric(meta: MetricMeta, pick: (census: AuthCensus) => MetricValue): MetricSpec {
     return {
         ...meta,
@@ -193,7 +204,7 @@ function authMetric(meta: MetricMeta, pick: (census: AuthCensus) => MetricValue)
             const { census, truncated } = await ctx.census();
             const value = pick(census);
             return truncated
-                ? { ...value, caveat: `first ${AUTH_MAX_PAGES * AUTH_PAGE_SIZE} accounts only` }
+                ? { ...value, caveat: `first ${CENSUS_MAX_USERS} accounts only` }
                 : value;
         },
     };
@@ -220,12 +231,15 @@ const FUNNEL_STEP_LABEL: Record<FollowFunnelStep, string> = {
 
 export const METRICS: readonly MetricSpec[] = [
     // --- People -----------------------------------------------------------
-    // Firebase Auth, NOT the `profiles` collection, is the account of record.
-    // Someone who signs up with an email and password and never opens their
-    // profile has no Firestore document at all, so counting `profiles` would
-    // silently drop them. Reading Auth counts every sign-up route there is.
+    // Supabase Auth, NOT the `profiles` collection, is the account of record
+    // — filtered to accounts tagged `app_metadata.apps: ["intervu", ...]`
+    // (user-directory.ts), since intervu and subspace share one auth.users
+    // table. Someone who signs up with an email and password and never
+    // opens their profile has no Firestore document at all, so counting
+    // `profiles` would silently drop them. Reading Auth counts every
+    // sign-up route there is.
     authMetric(
-        { id: "accounts", label: "Accounts", group: "People", note: "Every Firebase Auth account, however they signed up. Windows are new sign-ups." },
+        { id: "accounts", label: "Accounts", group: "People", note: "Every intervu account, however they signed up. Windows are new sign-ups." },
         (c) => ({ value: c.total, windows: c.created }),
     ),
     authMetric(
@@ -449,14 +463,12 @@ function metaOf({ id, label, group, note }: MetricSpec): MetricMeta {
  * them through `Promise.allSettled` instead of `Promise.all`.
  */
 export async function collectMetrics(nowMs: number = Date.now()): Promise<MetricsReport> {
-    const auth = getAdminAuth();
     let censusOnce: Promise<{ census: AuthCensus; truncated: boolean }> | null = null;
     const ctx: MetricContext = {
         db: getAdminDb(),
-        auth,
         nowMs,
         census() {
-            censusOnce ??= walkUsers(auth).then(({ users, truncated }) => ({
+            censusOnce ??= walkUsers().then(({ users, truncated }) => ({
                 census: summarizeUsers(users, nowMs),
                 truncated,
             }));
