@@ -40,6 +40,29 @@ function installerVar(name: string): string {
     return match[1];
 }
 
+/**
+ * Linux commonly allocates ephemeral ports from 32768 (macOS from 49152), so a
+ * pin at or above this can be handed to another process between runs. Shared by
+ * the installer guard and the SKILL.md guard below so the doc and the value it
+ * describes cannot drift apart.
+ */
+const EPHEMERAL_FLOOR = 32768;
+
+/**
+ * The `## MCP server` section — the only part of SKILL.md that owns the pin
+ * contract. Scoped deliberately: SKILL.md legitimately names other loopback
+ * ports (the resume-preview servers), and a file-wide check would flag those.
+ */
+function mcpSection(): string {
+    const skill = readFileSync(SKILL_MD, "utf8");
+    const heading = "## MCP server";
+    const start = skill.indexOf(heading);
+    assert.ok(start !== -1, "SKILL.md is missing its '## MCP server' section");
+    const rest = skill.slice(start + heading.length);
+    const end = rest.search(/^## /m);
+    return end === -1 ? rest : rest.slice(0, end);
+}
+
 const SERVER_KEY = installerVar("MCP_SERVER_KEY");
 const SERVER_URL = installerVar("MCP_SERVER_URL");
 const OAUTH_PORT = installerVar("MCP_OAUTH_PORT");
@@ -147,17 +170,36 @@ describe("installer callback port", () => {
         const port = Number(OAUTH_PORT);
         assert.ok(Number.isInteger(port), "MCP_OAUTH_PORT must be an integer");
         assert.ok(port > 1024, "must not need root to bind");
-        // macOS allocates ephemeral ports from 49152; Linux commonly from 32768.
-        // A pinned port inside either range can be handed to another process
-        // between runs, which would break auth with EADDRINUSE.
-        assert.ok(port < 32768, `pinned port ${port} is inside an OS ephemeral range`);
+        // A pinned port inside the OS ephemeral range can be handed to another
+        // process between runs, which would break auth with EADDRINUSE.
+        assert.ok(port < EPHEMERAL_FLOOR, `pinned port ${port} is inside an OS ephemeral range`);
     });
 
-    it("is documented in SKILL.md with the same value the installer writes", () => {
-        const skill = readFileSync(SKILL_MD, "utf8");
-        assert.ok(
-            skill.includes(REDIRECT),
-            `SKILL.md must document the pinned callback ${REDIRECT} so the agent does not strip it`
+    it("is never quoted as a literal in SKILL.md, so an agent cannot 'correct' a differing pin", () => {
+        const found = /(?:127\.0\.0\.1|localhost):\d+/.exec(mcpSection())?.[0];
+        assert.equal(
+            found,
+            undefined,
+            `SKILL.md's MCP server section must not name a concrete callback port (found ${found}). ` +
+                "install.sh is the single source of that value. A literal here invites an agent to rewrite " +
+                "a working pin so it matches the doc, which mints a new client_id and forces the daily " +
+                "browser approval this pin exists to prevent."
+        );
+    });
+
+    it("states the pin contract in SKILL.md: the key, the do-not-touch rule, the reset, and the same floor", () => {
+        const section = mcpSection();
+        assert.match(section, /oauthRedirectUrl/, "SKILL.md must name the key the agent has to preserve");
+        assert.match(
+            section,
+            /do not "correct" the port/i,
+            "SKILL.md must tell the agent to leave a differing pin alone, not just to keep the key present"
+        );
+        assert.match(section, /--reset/, "SKILL.md must document the one-time --reset recovery");
+        assert.match(
+            section,
+            new RegExp(`below ${EPHEMERAL_FLOOR}\\b`),
+            `SKILL.md must quote the same ephemeral floor (${EPHEMERAL_FLOOR}) the installer is held to`
         );
     });
 
