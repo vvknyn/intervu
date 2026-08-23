@@ -2,11 +2,10 @@
 
 import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, TechnicalData, CodingChallenge, AnswerCritique, QuestionItem, SystemDesignData } from "@/types";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
-import { getUserLLMConfig } from "@/actions/profile";
 import { ProviderFactory } from "@/lib/llm/providers";
-import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
+import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS, BYOK_REQUIRED, BYOK_SETTINGS_HINT } from "@/lib/llm/credit-gate";
+import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
-import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
 import { planHasSessionQuestions } from "@/lib/prep/cache-key";
@@ -48,30 +47,8 @@ function normalizeSystemDesignQuestion(
     };
 }
 
-const processEnv = process.env;
 
-// Resolve LLM config: explicit override → the user's own key (BYOK) → app default (shared OpenRouter key + Owl Alpha).
-// Keys are decrypted server-side only and never returned to the client.
-const getConfig = async (override?: Partial<ProviderConfig>) => {
-    // 1. Explicit override carrying a concrete key (rare).
-    if (override?.apiKey && override?.provider) {
-        return { apiKey: override.apiKey, provider: override.provider, model: override.model || DEFAULT_MODEL };
-    }
-
-    // 2. The signed-in user's own provider key (BYOK).
-    const userCfg = await getUserLLMConfig();
-    if (userCfg) {
-        const fallbackModel = AVAILABLE_MODELS[userCfg.provider as Provider]?.[0]?.id || DEFAULT_MODEL;
-        return { apiKey: userCfg.apiKey, provider: userCfg.provider, model: override?.model || userCfg.model || fallbackModel };
-    }
-
-    // 3. App default — shared OpenRouter key + Owl Alpha.
-    const apiKey = processEnv.OPENROUTER_API_KEY || "";
-    if (!apiKey) {
-        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
-    }
-    return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
-};
+const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(override);
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -82,7 +59,7 @@ const formatError = (e: any) => {
     // Hard blocks from the cost/auth gate must reach the client VERBATIM so it can
     // recognize the prefix (see Section C client handling). Do NOT run them through
     // the prefix-stripping cleanup below, which would eat "AUTH_REQUIRED:" etc.
-    if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS)) {
+    if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS) || msg.startsWith(BYOK_REQUIRED)) {
         return { error: msg };
     }
 
@@ -96,11 +73,11 @@ const formatError = (e: any) => {
     } else if (lowerMsg.includes("429") || lowerMsg.includes("rate limit") || lowerMsg.includes("too many requests")) {
         errorMessage = "Rate limit exceeded. Please wait a moment and try again, or switch to a different AI provider.";
     } else if (lowerMsg.includes("401") || lowerMsg.includes("unauthorized") || lowerMsg.includes("invalid") && lowerMsg.includes("key")) {
-        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
+        errorMessage = `Invalid or missing API key. ${BYOK_SETTINGS_HINT}`;
     } else if (lowerMsg.includes("quota") || lowerMsg.includes("resource_exhausted")) {
         errorMessage = "The AI service hit its usage limit. Please try again shortly.";
-    } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required")) {
-        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
+    } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required") || lowerMsg.includes("missing openrouter_api_key")) {
+        errorMessage = BYOK_SETTINGS_HINT;
     } else if (lowerMsg.includes("content") && (lowerMsg.includes("blocked") || lowerMsg.includes("safety"))) {
         errorMessage = "Content was blocked by the AI's safety filters. Please try a different query.";
     } else if (lowerMsg.includes("network") || lowerMsg.includes("econnrefused") || lowerMsg.includes("fetch failed")) {
@@ -1390,7 +1367,7 @@ export async function generateInterviewPlan(
         // "partial result" — propagate them so the client's sentinel UX fires.
         for (const r of [reconMatchRes, questionsResKeys]) {
             if (r && 'error' in r && typeof r.error === 'string' &&
-                (r.error.startsWith(AUTH_REQUIRED) || r.error.startsWith(OUT_OF_CREDITS))) {
+                (r.error.startsWith(AUTH_REQUIRED) || r.error.startsWith(OUT_OF_CREDITS) || r.error.startsWith(BYOK_REQUIRED))) {
                 throw new Error(r.error);
             }
         }

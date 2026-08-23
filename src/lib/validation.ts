@@ -161,3 +161,22 @@ export const contactMessageSchema = z.object({
 export function isHoneypotTripped(value: string | undefined | null): boolean {
   return Boolean(value && value.trim().length > 0);
 }
+
+const byokProvider = z.enum(["openrouter", "groq"]);
+
+/** Live key probe (llm-settings.ts validateProviderKey). */
+export const validateProviderKeySchema = z.object({
+  provider: byokProvider,
+  key: nonEmptyString(512),
+});
+
+/** Single provider key save (profile.ts saveProviderApiKey). Empty key clears. */
+export const saveProviderApiKeySchema = z.object({
+  provider: byokProvider,
+  key: z.string().max(512, "API key is too long"),
+});
+
+/** Preferred BYOK provider (profile.ts setPreferredProvider). */
+export const setPreferredProviderSchema = z.object({
+  provider: byokProvider,
+});
