@@ -17,7 +17,7 @@ test.describe('PARALLEL - Parallel Loading Optimization Tests', () => {
             localStorage.clear();
             sessionStorage.clear();
             localStorage.setItem('guest_api_keys', JSON.stringify({ groq: key }));
-            localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
+            localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
         }, TEST_KEY);
         await page.reload();
     });
