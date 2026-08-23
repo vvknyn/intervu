@@ -3,23 +3,7 @@
 import { ProviderFactory } from "@/lib/llm/providers";
 import { fetchUrlContent } from "@/actions/fetch-url";
 import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
-import { getUserLLMConfig } from "@/actions/profile";
-import { DEFAULT_MODEL } from "@/lib/llm/models";
-
-// Resolve LLM config: the signed-in user's own key (BYOK) → app default (shared
-// OpenRouter key). The credit/auth gate runs against the resolved key, so BYOK
-// users are never charged and never blocked on credits (they pay their provider).
-async function resolveConfig(): Promise<{ provider: string; apiKey: string; model: string }> {
-    const userCfg = await getUserLLMConfig();
-    if (userCfg) {
-        return { provider: userCfg.provider, apiKey: userCfg.apiKey, model: userCfg.model || DEFAULT_MODEL };
-    }
-    const apiKey = process.env.OPENROUTER_API_KEY || "";
-    if (!apiKey) {
-        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
-    }
-    return { provider: "openrouter", apiKey, model: DEFAULT_MODEL };
-}
+import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 
 export async function generateCoverLetter(resumeContent: string, jobUrlOrDescription: string, length: "short" | "standard" | "long" = "standard") {
     try {
@@ -34,10 +18,7 @@ export async function generateCoverLetter(resumeContent: string, jobUrlOrDescrip
             }
         }
 
-        // 2. Resolve config (BYOK → shared) and run the cost/auth gate. The gate
-        //    throws AUTH_REQUIRED for anonymous callers on the shared key and
-        //    OUT_OF_CREDITS when exhausted; it's a no-op for a user's own key.
-        const config = await resolveConfig();
+        const config = await resolveLLMConfig();
         await chargeIfSharedKey({ apiKey: config.apiKey });
 
         const provider = ProviderFactory.getProvider(config.provider, config.apiKey, config.model);

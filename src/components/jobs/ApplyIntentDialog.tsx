@@ -62,6 +62,7 @@ type Phase = "idle" | "working" | "result" | "blocked";
 type BlockedState =
     | { kind: "auth" }
     | { kind: "resume" }
+    | { kind: "byok"; message: string }
     | { kind: "credits"; message: string }
     | { kind: "error"; message: string };
 
@@ -157,8 +158,15 @@ export function ApplyIntentDialog({
             return;
         }
         if (error) {
-            const kind = classifySentinel(error) === "credits" ? "credits" : "error";
-            setBlocked({ kind, message: sentinelMessage(error) });
+            const sentinel = classifySentinel(error);
+            const message = sentinelMessage(error);
+            if (sentinel === "byok") {
+                setBlocked({ kind: "byok", message });
+            } else if (sentinel === "credits") {
+                setBlocked({ kind: "credits", message });
+            } else {
+                setBlocked({ kind: "error", message });
+            }
             setPhase("blocked");
             return;
         }
@@ -422,6 +430,22 @@ function BlockedPanel({
             </Link>
         );
     }
+    if (blocked.kind === "byok") {
+        return (
+            <div className="flex flex-col gap-2 rounded-none border border-border-strong bg-muted/40 p-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    API key required
+                </p>
+                <p className="text-[12.5px] leading-relaxed text-muted-foreground">{blocked.message}</p>
+                <Link
+                    href="/settings?tab=api-key"
+                    className="self-start text-[11px] uppercase tracking-wider text-brand underline underline-offset-4"
+                >
+                    Add your API key in Settings (we&apos;ll walk you through it)
+                </Link>
+            </div>
+        );
+    }
     if (blocked.kind === "credits") {
         return (
             <div className="flex flex-col gap-2 rounded-none border border-border-strong bg-muted/40 p-3">
@@ -429,6 +453,12 @@ function BlockedPanel({
                     Out of {CREDIT_UNIT.many}
                 </p>
                 <p className="text-[12.5px] leading-relaxed text-muted-foreground">{blocked.message}</p>
+                <Link
+                    href="/settings?tab=api-key"
+                    className="self-start text-[11px] uppercase tracking-wider text-brand underline underline-offset-4"
+                >
+                    Add your API key in Settings (we&apos;ll walk you through it)
+                </Link>
             </div>
         );
     }
