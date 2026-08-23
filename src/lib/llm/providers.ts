@@ -1,6 +1,9 @@
 
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
+import { GROQ_DEFAULT_MODEL } from './models';
 import OpenAI from 'openai';
+
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -173,8 +176,8 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
 }
 
 export class GroqProvider extends OpenAICompatibleProvider {
-    constructor(apiKey: string, model: string = 'llama-3.3-70b-versatile') {
-        super('Groq', apiKey, model, 'https://api.groq.com/openai/v1');
+    constructor(apiKey: string, model: string = GROQ_DEFAULT_MODEL) {
+        super('Groq', apiKey, model, GROQ_BASE_URL);
     }
 }
 
@@ -191,11 +194,23 @@ export class ProviderFactory {
 
     static async validateApiKey(provider: string, apiKey: string): Promise<{ valid: boolean; error?: string }> {
         try {
+            if (provider === 'groq') {
+                // Key check only — no chat model needed (deprecated IDs would 404 here).
+                const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
+                await withTimeout(client.models.list(), DEFAULT_TIMEOUT_MS, 'Groq');
+                return { valid: true };
+            }
+
+            // OpenRouter: cheap chat probe on the default model.
             const llmProvider = this.getProvider(provider, apiKey);
             const response = await llmProvider.generate({ prompt: 'Reply with just "ok"', json: false });
             if (response.error) return { valid: false, error: response.error };
             return { valid: true };
         } catch (e: any) {
+            const errorInfo = categorizeError(e, provider === 'groq' ? 'Groq' : 'OpenRouter');
+            if (errorInfo.code === LLMErrorCode.INVALID_KEY) {
+                return { valid: false, error: errorInfo.message };
+            }
             return { valid: false, error: e.message || 'Failed to validate API key' };
         }
     }

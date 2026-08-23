@@ -1,4 +1,6 @@
 export const DEFAULT_PROVIDER = "openrouter";
+/** Groq default — llama-3.3-70b-versatile shut down Aug 16, 2026 */
+export const GROQ_DEFAULT_MODEL = "openai/gpt-oss-20b";
 // App-provided default. A stable, cheap, JSON-reliable model on the shared OpenRouter key.
 // (Replaced the free `owl-alpha` stealth model, which proved unstable — started 400-ing.)
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -12,8 +14,10 @@ export const AVAILABLE_MODELS = {
         { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku", description: "Fast, high quality", category: "Paid" as const },
     ],
     groq: [
-        { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", description: "Versatile, very fast", category: "Free" as const },
-        { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", description: "Fastest, lightweight", category: "Free" as const },
+        // llama-3.3-70b-versatile and llama-3.1-8b-instant were shut down Aug 16, 2026
+        { id: GROQ_DEFAULT_MODEL, name: "GPT-OSS 20B", description: "Default — fast, lightweight", category: "Free" as const },
+        { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B", description: "Higher quality, still fast", category: "Free" as const },
+        { id: "qwen/qwen3.6-27b", name: "Qwen 3.6 27B", description: "Strong, versatile", category: "Free" as const },
         { id: "gemma2-9b-it", name: "Gemma2 9B", description: "Lightweight", category: "Free" as const },
     ],
 } as const;

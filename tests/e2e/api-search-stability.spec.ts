@@ -150,7 +150,7 @@ test.describe('API Key and Search Stability', () => {
         await page.evaluate((key) => {
             const guestKeys = { groq: key };
             localStorage.setItem('guest_api_keys', JSON.stringify(guestKeys));
-            localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
+            localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
             console.log("Injected keys:", guestKeys);
         }, GROQ_KEY!); // suite-level test.skip guarantees this is set
 

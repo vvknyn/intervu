@@ -65,7 +65,7 @@ export const PAID_RUNG_TIMEOUT_MS = 60_000;
  *   nothing and keeps today's exact behaviour. This is opt-in, not a
  *   default that quietly changes six other features.
  * - **Not OpenRouter.** A user on their own Groq key has an entirely
- *   different model namespace (`llama-3.3-70b-versatile`, not
+ *   different model namespace (`openai/gpt-oss-20b`, not
  *   `vendor/model:free`); handing them these slugs would 404 every rung and
  *   turn a working generation into a failure. Their own key, their own model.
  * - **An explicit model override.** If a caller named a model, honour it.
