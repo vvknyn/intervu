@@ -1,8 +1,8 @@
 /**
  * Thin wrapper around the Resend SDK's own webhook verifier
  * (`resend.webhooks.verify`, which is really the vendored `standardwebhooks`
- * package — Resend signs with the Standard Webhooks spec: `webhook-id`/
- * `webhook-timestamp`/`webhook-signature` headers, HMAC-SHA256). Reused
+ * package — Resend signs with the Standard Webhooks spec, HMAC-SHA256; see
+ * `readWebhookSignatureHeaders` for which header names carry it). Reused
  * rather than hand-rolled so `resend` really is the only new dependency
  * this PR adds — `standardwebhooks` arrives transitively and does the
  * timestamp-tolerance + timing-safe comparison work correctly already.
@@ -17,10 +17,37 @@
  */
 import { Resend, type WebhookEventPayload } from "resend";
 
+/**
+ * The three values a Standard Webhooks signature is carried in. Exported so the
+ * reader below and every caller that reports *which* one went missing share one
+ * list instead of re-typing it.
+ */
+export const SIGNATURE_HEADER_NAMES = ["id", "timestamp", "signature"] as const;
+
+export type SignatureHeaderName = (typeof SIGNATURE_HEADER_NAMES)[number];
+
 export interface ResendWebhookHeaders {
   id: string | null;
   timestamp: string | null;
   signature: string | null;
+}
+
+/**
+ * Standard Webhooks defines the canonical names as `webhook-id` /
+ * `webhook-timestamp` / `webhook-signature`, but the spec grew out of Svix and
+ * every Svix-powered sender still emits the older `svix-` prefix for the same
+ * three values — Resend's own verification docs show `svix-id` et al. Reading
+ * only the canonical spelling means the headers come back null, the payload is
+ * dropped unread, and the sender sees a 401 on every single delivery until it
+ * disables the endpoint. That is exactly what happened to us.
+ *
+ * Both spellings are accepted, canonical first: this is the spec's own
+ * compatibility rule, so it covers any Svix-powered provider we add later
+ * rather than singling one out.
+ */
+export function readWebhookSignatureHeaders(headers: Headers): ResendWebhookHeaders {
+  const read = (name: SignatureHeaderName) => headers.get(`webhook-${name}`) ?? headers.get(`svix-${name}`);
+  return { id: read("id"), timestamp: read("timestamp"), signature: read("signature") };
 }
 
 /**
