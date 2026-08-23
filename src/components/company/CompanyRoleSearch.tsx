@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { decodeText, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { toast } from "@/lib/toast";
@@ -101,46 +102,26 @@ export function CompanyRoleSearch({
   const matched = hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs;
   const displayed = matched.slice(0, ROLES_PREVIEW);
 
-  // Close modal on Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setSelectedJob(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedJob) {
-      window.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [selectedJob, handleKeyDown]);
-
-  const modalScrollRef = useRef<HTMLDivElement>(null);
+  const detailScrollRef = useRef<HTMLDivElement>(null);
 
   const handleOpenRelated = useCallback(
     async (jobId: string, directJob?: PublicJob) => {
       if (directJob) {
         setSelectedJob(directJob);
-        modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        detailScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
       const found = jobs.find((j) => j.id === jobId);
       if (found) {
         setSelectedJob(found);
-        modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        detailScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
       try {
         const fetched = await getJobByIdAction(jobId);
         if (fetched) {
           setSelectedJob(fetched);
-          modalScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          detailScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           toast.error("Could not load job details");
         }
@@ -278,30 +259,64 @@ export function CompanyRoleSearch({
         </div>
       )}
 
-      {/* ── JOB DETAILS MODAL (IN-PLACE WITHOUT NAVIGATING AWAY) ── */}
-      {selectedJob && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={selectedJob.title}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedJob(null);
-            }
-          }}
+      {/* Job detail sheet — same chrome/props contract as /jobs mobile detail (SERP). */}
+      <Sheet open={Boolean(selectedJob)} onOpenChange={(open) => !open && setSelectedJob(null)}>
+        <SheetContent
+          side="bottom"
+          hideCloseButton
+          overlayClassName="bg-[rgba(18,21,26,0.42)]"
+          className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0 shadow-[var(--shadow-overlay)] data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
-          <div ref={modalScrollRef} className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-border bg-card shadow-[var(--shadow-overlay)] p-4 sm:p-8 animate-in zoom-in-95 duration-200">
-            {/* Public Job Detail Content — PublicJobDetail renders JobDetail's own
-                × via the onClose prop below, so this container adds no second one. */}
-            <PublicJobDetail
-              job={selectedJob}
-              onClose={() => setSelectedJob(null)}
-              onOpenRelated={handleOpenRelated}
-            />
+          <div className="shrink-0 border-b border-border">
+            <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
+              <span className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
+            </div>
+            <div className="flex items-center gap-2 px-4 pb-3">
+              <div className="min-w-0 flex-1">
+                {selectedJob ? (
+                  <>
+                    <p className="truncate text-base font-semibold tracking-[-0.03em] text-foreground">
+                      {decodeText(selectedJob.title)}
+                    </p>
+                    <p className="truncate text-[13px] text-muted-foreground">
+                      {displayCompanyBrand(selectedJob.company, selectedJob.company_domain)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="truncate text-base font-semibold text-foreground">Job details</p>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setSelectedJob(null)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+              >
+                ×
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+          <SheetTitle className="sr-only">
+            {selectedJob
+              ? `${decodeText(selectedJob.title)} at ${displayCompanyBrand(selectedJob.company, selectedJob.company_domain)}`
+              : "Job details"}
+          </SheetTitle>
+          <div
+            ref={detailScrollRef}
+            data-testid="mobile-detail-scroller"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
+          >
+            {selectedJob && (
+              <PublicJobDetail
+                job={selectedJob}
+                onOpenRelated={handleOpenRelated}
+                collapseDescription={false}
+                detailClassName="border-0 bg-transparent shadow-none"
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </section>
   );
 }

@@ -217,6 +217,58 @@ test("a legal-suffix display name ('Acme Inc' style) extracts using the stem the
   assert.equal(result, body);
 });
 
+test("title-case glued section labels (Stripe shape) are stripped from the hero about line", () => {
+  const polluted =
+    "Who we are About Stripe Stripe is a financial infrastructure platform for businesses of every size, from startups to Fortune 500 companies.";
+  const clean =
+    "Stripe is a financial infrastructure platform for businesses of every size, from startups to Fortune 500 companies.";
+  const jobs = [1, 2].map((n) => makeTestJob(`stripe-${n}`, `${polluted}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "Stripe");
+  assert.equal(result, clean);
+});
+
+test("already-clean about text is returned unchanged after section-label stripping", () => {
+  const clean =
+    "Stripe is a financial infrastructure platform for businesses of every size, from startups to Fortune 500 companies.";
+  const jobs = [1, 2].map((n) => makeTestJob(`stripe-clean-${n}`, `${clean}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "Stripe");
+  assert.equal(result, clean);
+});
+
+test("About the Team: section label (Supabase shape) is stripped from the hero about line", () => {
+  const polluted =
+    "About the Team: Supabase was born-remote and open-source-first, building developer tools that make Postgres accessible to every team.";
+  const clean =
+    "Supabase was born-remote and open-source-first, building developer tools that make Postgres accessible to every team.";
+  const jobs = [1, 2].map((n) => makeTestJob(`supabase-${n}`, `${polluted}\n\n${ROLE_BLURB}\n\n${EEO_NO_NAME}`));
+  const result = extractCompanyAboutLine(jobs, "Supabase");
+  assert.equal(result, clean);
+});
+
+test("EEO boilerplate naming the company (Rivian shape) cannot win when it is the only repeating candidate", () => {
+  const RIVIAN_EEO =
+    "Rivian is an equal opportunity employer and complies with all applicable federal, state, and local fair employment practices laws.";
+  const jobs = [1, 2, 3].map((n) => makeTestJob(`rivian-${n}`, `${ROLE_BLURB}\n\n${RIVIAN_EEO}`));
+  const result = extractCompanyAboutLine(jobs, "Rivian");
+  assert.equal(result, null);
+});
+
+test("EEO boilerplate naming the company (Twitch shape) cannot win when it is the only repeating candidate", () => {
+  const TWITCH_EEO =
+    "Twitch is an equal opportunity employer and does not discriminate on the basis of protected veteran status, disability, or other legally protected status.";
+  const jobs = [1, 2, 3].map((n) => makeTestJob(`twitch-${n}`, `${ROLE_BLURB}\n\n${TWITCH_EEO}`));
+  const result = extractCompanyAboutLine(jobs, "Twitch");
+  assert.equal(result, null);
+});
+
+test("mid-sentence our mission prose (Vanta shape) is not stripped as a section label", () => {
+  const mission =
+    "At Vanta, our mission is to help businesses earn and prove trust by automating security and compliance workflows for companies of every size.";
+  const jobs = [1, 2].map((n) => makeTestJob(`vanta-${n}`, `${mission}\n\n${ROLE_BLURB}`));
+  const result = extractCompanyAboutLine(jobs, "Vanta");
+  assert.equal(result, mission);
+});
+
 test("perf: a single pass over a ~70-description synthetic corpus completes quickly", () => {
   const filler =
     "This role partners with design and product to ship customer-facing features end to end, from spec through rollout, on a small autonomous team.";

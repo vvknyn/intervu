@@ -98,7 +98,7 @@ import {
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
-import { LandingMasthead, LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { LandingMasthead, LandingMarketingShowcase, LandingUspSection, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
@@ -3287,9 +3287,9 @@ function JobsContent() {
     // chip highlighted while the user is mid-edit typing an unrelated term,
     // which is the exact ambiguity the "active chip only when committed query
     // matches" rule exists to prevent (req 4). When non-null, "Searching:
-    // [title]" renders near the chips row to bridge the gap between the short
-    // domain label (e.g. "HEALTHCARE") and the underlying search query (e.g.
-    // "Registered Nurse").
+    // [title]" renders near the chips row to bridge the gap between the
+    // human field name (e.g. "Nursing and patient care") and the underlying
+    // search query (e.g. "Registered Nurse").
     const activeCategory = useMemo(
         () =>
             indexCategories.find(
@@ -3685,13 +3685,13 @@ function JobsContent() {
                                     <button
                                         type="button"
                                         className={cn(
-                                            "inline-flex h-9 items-center gap-1.5 rounded-none border px-3 text-[12px] uppercase tracking-wide transition-colors",
+                                            "inline-flex h-9 items-center gap-1.5 rounded-none border px-3 text-[12px] transition-colors",
                                             activeCategory
                                                 ? "border-foreground bg-foreground text-background font-bold"
                                                 : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
                                         )}
                                     >
-                                        {activeCategory ? activeCategory.domain : "Browse by field"}
+                                        {activeCategory ? activeCategory.title : "Browse by field"}
                                         <CaretDown size={10} weight="bold" aria-hidden />
                                     </button>
                                 </DropdownMenuTrigger>
@@ -3702,11 +3702,11 @@ function JobsContent() {
                                             queryDraft.toLowerCase() === cat.q.toLowerCase();
                                         return (
                                             <DropdownMenuItem
-                                                key={cat.num}
+                                                key={cat.q}
                                                 onSelect={() => submitSearch(cat.q)}
-                                                className="flex items-center justify-between gap-3 text-[12px] uppercase tracking-wide"
+                                                className="flex items-center justify-between gap-3 text-sm"
                                             >
-                                                <span>{cat.domain}</span>
+                                                <span>{cat.title}</span>
                                                 {isMatch && <Check size={12} weight="bold" aria-hidden />}
                                             </DropdownMenuItem>
                                         );
@@ -3716,11 +3716,11 @@ function JobsContent() {
 
                         </div>
                     )}
-                    {/* Active-category indicator: the chip label (e.g. "HEALTHCARE")
-                        is a short domain tag; the query it runs (e.g. "Registered Nurse")
-                        is what actually appears in the search box. Without this, the
-                        connection between the highlighted chip and the search bar text is
-                        opaque. Clicking a category REPLACES the query (radio-like), unlike
+                    {/* Active-category indicator: the dropdown label (e.g. "Nursing
+                        and patient care") is the human field name; the query it
+                        runs (e.g. "Registered Nurse") is what appears in the
+                        search box. Without this, the connection between the
+                        highlighted chip and the search bar text is opaque. Clicking a category REPLACES the query (radio-like), unlike
                         the filter toggles to its right which AND onto existing results.
                         `handleClearSearch` is the same path the "✕ clear search" toolbar
                         button uses — reused, not a third clear path. */}
@@ -3764,13 +3764,18 @@ function JobsContent() {
                     but never mounted anywhere (2026-08-21 front-door audit,
                     item 3): the pristine landing had no browse affordance
                     below the search box at all, only after a search ran. */}
-                {showLandingMarketing && (
+                {showLandingMarketing && !isLgUp && (
                     <LandingMarketingShowcase
                         onSelectQuery={submitSearch}
                         onSelectRemote={onSelectRemote}
                         onSelectSalaryMin={panelSalaryMin}
                         onSelectBoard={onBoardChange}
                     />
+                )}
+                {showLandingMarketing && isLgUp && (
+                    <div className="py-2">
+                        <LandingUspSection />
+                    </div>
                 )}
 
                 {!showLandingMarketing && (

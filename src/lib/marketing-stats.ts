@@ -11,7 +11,7 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
  * companies' own career pages" states the same fact from the seeker's side.
  */
 export const CORPUS_SOURCE_DESCRIPTOR =
-    "from companies' own career pages — each one checked so you don't waste an hour on a dead posting";
+    "from companies' own career pages, screened for stale postings";
 
 /**
  * Numbers the landing claim can render when available. Sourced from the same
