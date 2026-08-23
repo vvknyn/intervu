@@ -2,7 +2,6 @@
   "orphans": [
     "lib/analytics.ts",
     "lib/analytics/funnel.ts",
-    "lib/auth/app-tag.ts",
     "lib/export-resume-pdf.ts",
     "lib/jobs/fit-verdict.ts",
     "lib/jobs/sync.ts",
@@ -16,7 +15,6 @@
     "lib/resume/print-resume.ts",
     "lib/resume/section-meta.ts",
     "lib/resume/to-markdown.ts",
-    "lib/supabase/admin-client.ts",
-    "lib/supabase/client.ts"
+    "lib/supabase/admin-client.ts"
   ]
 }

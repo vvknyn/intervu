@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { BrandMark } from '@/components/brand/BrandMark'
-import { signInWithIdentifier, signInWithEmail, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
+import { signInWithIdentifier, signInWithEmail, signInWithGoogle } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
@@ -55,6 +55,7 @@ function GoogleGlyph() {
 
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: LoginFormProps = {}) {
     const router = useRouter()
+    const pathname = usePathname()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
     const [username, setUsername] = useState('')
     const [email, setEmail] = useState('')
@@ -88,20 +89,12 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
 
         startTransition(async () => {
             try {
-                const user = await signInWithGoogle()
-                // `null` means the popup was blocked and we fell back to a
-                // full-page redirect — the browser is about to navigate away,
-                // there's nothing left for this component to do.
-                if (!user) return
-                router.refresh()
-                await syncGuestFollowsToServer()
-                if (onSuccess) onSuccess()
+                // Always a full-page redirect to Google and back through
+                // /auth/callback — Supabase has no popup OAuth flow. Nothing
+                // left to do here on success; the browser is navigating away.
+                await signInWithGoogle(`${pathname}${window.location.search}`)
             } catch (err) {
-                if (isPopupCancelled(err)) {
-                    setMessage('Sign-in was cancelled — try again whenever you’re ready.')
-                } else {
-                    setMessage(friendlyAuthMessage(err, 'Google sign-in failed — try again in a moment.'))
-                }
+                setMessage(friendlyAuthMessage(err, 'Google sign-in failed — try again in a moment.'))
             }
         })
     }

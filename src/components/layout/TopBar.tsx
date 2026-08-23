@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Moon, Sun } from "@phosphor-icons/react";
 import { getMarketingStatsAction } from "@/actions/marketing";
-import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { formatCorpusCount } from "@/lib/jobs/corpus-count";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
@@ -47,17 +47,14 @@ export function TopBar() {
     // LoginForm's own SIGNUP_SUBCOPY carries the alerts/tracker pitch; the
     // demoted "Log in" link keeps the old login-tab behavior.
     const [authTab, setAuthTab] = useState<"login" | "signup">("login");
-    const sessionRefreshed = useRef(false);
     const { mode, toggleMode, mounted } = useTheme();
 
     useEffect(() => {
-        const unsubscribe = onAuthChange((u) => {
-            setUser(u);
-            if (u && !sessionRefreshed.current) {
-                sessionRefreshed.current = true;
-                refreshSession().catch(() => {});
-            }
-        });
+        // The @supabase/ssr browser client keeps its session cookies in sync
+        // with the client SDK on every sign-in/refresh itself — unlike
+        // Firebase, there's no separate "re-mint the session cookie" step to
+        // trigger here.
+        const unsubscribe = onAuthChange(setUser);
         return () => unsubscribe();
     }, []);
 

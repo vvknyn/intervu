@@ -12,30 +12,35 @@ function check(name: string, actual: string, expected: string) {
 
 const FB = "Sign-in failed — try again in a moment.";
 
+/** Supabase's AuthError shape: an Error with a stable `.code`. */
+function authError(code: string, message = "irrelevant raw message"): Error & { code: string } {
+    return Object.assign(new Error(message), { code });
+}
+
 check(
-    "operation-not-allowed maps to friendly copy",
-    friendlyAuthMessage(new Error("Firebase: Error (auth/operation-not-allowed)."), FB),
+    "signup_disabled maps to friendly copy",
+    friendlyAuthMessage(authError("signup_disabled"), FB),
     "That sign-in method isn't enabled right now.",
 );
 check(
-    "wrong-password maps to invalid-credentials copy",
-    friendlyAuthMessage(new Error("Firebase: Error (auth/wrong-password)."), FB),
+    "invalid_credentials maps to invalid-credentials copy",
+    friendlyAuthMessage(authError("invalid_credentials"), FB),
     "Invalid username or password",
 );
 check(
-    "too-many-requests maps",
-    friendlyAuthMessage(new Error("Firebase: Error (auth/too-many-requests)."), FB),
+    "over_request_rate_limit maps",
+    friendlyAuthMessage(authError("over_request_rate_limit"), FB),
     "Too many attempts — wait a minute and try again.",
 );
 check(
     "unknown auth code falls back, never raw",
-    friendlyAuthMessage(new Error("Firebase: Error (auth/internal-error)."), FB),
+    friendlyAuthMessage(authError("unexpected_failure"), FB),
     FB,
 );
 check(
-    "raw Firebase text without code falls back",
-    friendlyAuthMessage(new Error("Firebase: something exploded"), FB),
-    FB,
+    "raw text without a code passes through",
+    friendlyAuthMessage(new Error("something exploded"), FB),
+    "something exploded",
 );
 check(
     "app-thrown message passes through",

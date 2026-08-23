@@ -63,7 +63,9 @@ describe("signUp source shape (actions/auth.ts)", () => {
 
     it("validates the submitted email via validateSignupEmail before creating the account", () => {
         assert.match(src, /validateSignupEmail\(/);
-        const createIdx = src.indexOf("adminAuth.createUser(");
+        // Firebase's flat `adminAuth.createUser(` became Supabase's nested
+        // admin API shape when signUp moved to GoTrue (Phase 2 auth migration).
+        const createIdx = src.indexOf("adminAuth.auth.admin.createUser(");
         const validateIdx = src.indexOf("validateSignupEmail(");
         assert.ok(validateIdx > -1 && createIdx > -1);
         assert.ok(validateIdx < createIdx, "email must be validated before the account is created");

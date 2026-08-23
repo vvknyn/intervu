@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { confirmReset } from "@/lib/firebase/client-auth";
 import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
 
 export function ResetPasswordForm() {
     const router = useRouter();
-    const searchParams = useSearchParams();
-    // Firebase's reset link appends ?oobCode=...&mode=resetPassword to our continue URL.
-    const oobCode = searchParams.get("oobCode");
+    // Supabase's reset link carries its own recovery tokens (parsed by the
+    // @supabase/ssr browser client on load, establishing a recovery session
+    // automatically) rather than a code this component reads and forwards —
+    // there is no query param to check up front; an expired/invalid link
+    // surfaces naturally as confirmReset's own rejection below.
 
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -45,22 +47,20 @@ export function ResetPasswordForm() {
             setError("Password must be at least 6 characters");
             return;
         }
-        if (!oobCode) {
-            setError("This reset link is invalid or has expired. Please request a new one.");
-            return;
-        }
 
         setIsPending(true);
         setError(null);
         try {
-            await confirmReset(oobCode, password);
+            await confirmReset(password);
             setSuccess(true);
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
-            if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") {
+            if (code === "session_not_found" || code === "otp_expired") {
                 setError("This reset link is invalid or has expired. Please request a new one.");
-            } else if (code === "auth/weak-password") {
+            } else if (code === "weak_password") {
                 setError("Password is too weak. Please choose a stronger one.");
+            } else if (code === "same_password") {
+                setError("New password must be different from your current one.");
             } else {
                 setError((err as { message?: string })?.message || "Could not reset password. Please try again.");
             }
@@ -100,12 +100,6 @@ export function ResetPasswordForm() {
                         Enter your new password below
                     </p>
                 </div>
-
-                {!oobCode && (
-                    <div className="mb-4 text-xs text-amber-600 dark:text-amber-400 text-center">
-                        This page should be opened from the link in your reset email.
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-1">

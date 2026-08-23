@@ -1,13 +1,14 @@
 /**
  * The welcome email's once-per-account sender.
  *
- * There is no "account created" hook to hang this on. Password signup mints
- * its profile in `signUp` (actions/auth.ts) but Google sign-in creates NO
- * profile document at all — it goes client-side through `signInWithPopup`
- * and lands server-side only at `POST /api/auth/session`. That route is the
- * one place BOTH providers pass through, so "first session we've ever seen
- * for this uid" is the only definition of "new user" the server can actually
- * observe. This module owns that claim.
+ * Called from the two places a Supabase account can be created for intervu —
+ * `signUp` (actions/auth.ts, password) and the OAuth callback
+ * (app/auth/callback/route.ts, Google) — gated in each caller on
+ * `ensureAppMembership`'s "did I just tag this user" signal, since a Google
+ * sign-in hits that callback on every login, not just the first. This
+ * module's own `claimWelcomeSend` is a second, independent guard against a
+ * double send (e.g. two concurrent requests both observing "just tagged"),
+ * so it owns that claim regardless of which caller invoked it.
  */
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getSiteUrl } from "@/lib/seo/constants";

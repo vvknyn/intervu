@@ -24,23 +24,18 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         setIsPending(true);
         setError(null);
         try {
-            // Firebase's native password-reset flow: emails an oobCode link that
-            // lands on /reset-password, where ResetPasswordForm calls confirmReset.
+            // Supabase's native password-reset flow: emails a recovery link
+            // that lands on /reset-password with a live recovery session
+            // already established, where ResetPasswordForm calls confirmReset.
+            // Supabase itself never reveals whether the address has an
+            // account (no account-enumeration branch needed here).
             await sendResetEmail(trimmed);
             setSent(true);
         } catch (err: unknown) {
-            // Don't leak whether the account exists — Firebase returns
-            // auth/user-not-found, but we still show the neutral success screen
-            // for that case to avoid account enumeration. Surface only real errors.
-            const code = (err as { code?: string })?.code;
-            if (code === "auth/user-not-found" || code === "auth/invalid-email") {
-                setSent(true);
-            } else {
-                setError(
-                    (err as { message?: string })?.message ||
-                        "Could not send reset email. Please try again.",
-                );
-            }
+            setError(
+                (err as { message?: string })?.message ||
+                    "Could not send reset email. Please try again.",
+            );
         } finally {
             setIsPending(false);
         }

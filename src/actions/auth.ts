@@ -1,7 +1,7 @@
 "use server";
 
-import { getServerUser, clearSessionCookie } from "@/lib/firebase/auth-session";
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { runUserDataPlan } from "@/lib/db/user-data";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -11,6 +11,11 @@ import { allowAuthSignupRequest } from "@/lib/shield/rate-limit";
 import { verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
 import { getIntervuPg } from "@/lib/pg/pool";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { resolveLegacyUid, APP_INTERVU } from "@/lib/auth/app-tag";
+import { ensureAppMembership } from "@/lib/auth/ensure-app-membership";
+import { sendWelcomeEmailOnce } from "@/lib/email/welcome";
+import { grantWelcomeCredits } from "@/lib/llm/credit-gate";
 
 export async function checkUsernameAvailability(username: string) {
     try {
@@ -75,39 +80,64 @@ export async function signUp(prevState: any, formData: FormData) {
     }
 
     try {
-        const adminAuth = getAdminAuth();
+        const adminAuth = await createAdminClient();
         const db = getAdminDb();
 
-        // 2. Create user in Firebase Auth. `emailVerified` is deliberately
-        // omitted (defaults false) — signup doesn't yet prove control of this
-        // address (no verification link is sent), so claiming it verified
-        // would be an unearned claim nothing in this codebase even reads.
-        const userRecord = await adminAuth.createUser({
+        // 2. Create user in Supabase Auth. `email_confirm` is deliberately
+        // left false — signup doesn't yet prove control of this address (no
+        // verification link is sent), so claiming it confirmed would be an
+        // unearned claim nothing in this codebase even reads.
+        // `user_metadata.full_name` carries the display name Firebase's
+        // `displayName` used to (see getServerUser's displayName mapping).
+        const { data, error: createError } = await adminAuth.auth.admin.createUser({
             email,
             password,
-            displayName: username,
+            user_metadata: { full_name: username },
         });
+        if (createError || !data.user) {
+            if (createError?.code === "email_exists") {
+                return { error: "Username is already taken" };
+            }
+            return { error: createError?.message || "Failed to create account" };
+        }
+        const user = data.user;
+        // Brand new account — never a migrated one — but resolveLegacyUid is
+        // the one rule for "what id keys this user's Firestore data", so this
+        // goes through it too rather than assuming user.id directly.
+        const uid = resolveLegacyUid(user);
 
-        // 3. Create profile document in Firestore
+        // 3. Tag intervu membership. Idempotent and additive — see
+        // ensureAppMembership's own doc for why this can't be a DB trigger.
+        const { added } = await ensureAppMembership(user.id, APP_INTERVU);
+
+        // 4. Create profile document in Firestore
         try {
-            await db.collection("profiles").doc(userRecord.uid).set({
+            await db.collection("profiles").doc(uid).set({
                 username,
                 created_at: new Date().toISOString(),
             });
         } catch (profileError: any) {
             console.error("Profile creation error:", profileError);
             // Rollback: Delete the user we just created so they can try again
-            await adminAuth.deleteUser(userRecord.uid);
+            await adminAuth.auth.admin.deleteUser(user.id);
             return { error: `Profile setup failed: ${profileError.message}. Please try again.` };
         }
 
-        // Client handles sign-in and session cookie creation
+        // This action only ever runs once per account (unlike a login, which
+        // can happen many times), so the welcome email + credit grant fire
+        // unconditionally here rather than being gated on `added` the way
+        // the OAuth callback gates them — see that route's comment.
+        if (added) {
+            await sendWelcomeEmailOnce(uid, email);
+            await grantWelcomeCredits(uid).catch((err) =>
+                console.error("[Auth] welcome credit grant failed:", err),
+            );
+        }
+
+        // Client handles sign-in
         return { success: true };
     } catch (error: any) {
         console.error("[Auth] Sign up error:", error);
-        if (error.code === "auth/email-already-exists") {
-            return { error: "Username is already taken" };
-        }
         return { error: error.message || "Failed to create account" };
     }
 }
@@ -120,14 +150,16 @@ export async function signIn(prevState: any, formData: FormData) {
         return { error: "Username and password are required" };
     }
 
-    // Firebase Auth sign-in happens client-side.
-    // The client will call Firebase signInWithEmailAndPassword,
-    // then POST the ID token to /api/auth/session to set the session cookie.
+    // Supabase sign-in happens client-side (lib/firebase/client-auth.ts's
+    // signInWithEmail/signInWithIdentifier) — the @supabase/ssr browser
+    // client syncs the resulting session into cookies itself, no server
+    // round trip required.
     return { success: true };
 }
 
 export async function signOut() {
-    await clearSessionCookie();
+    const supabase = await createClient();
+    await supabase.auth.signOut();
 
     // Revalidate to clear cached session data
     revalidatePath("/", "layout");
@@ -179,13 +211,22 @@ export async function deleteAccount(): Promise<{ error?: string }> {
             await batch.commit();
         }
 
-        await getAdminAuth().deleteUser(uid);
+        // Firestore is keyed by the legacy-resolved `uid` above, but the
+        // Supabase auth record itself is keyed by its OWN id — for a
+        // migrated user that is never the same string, so it's resolved
+        // fresh here rather than reused from `user.uid`.
+        const supabase = await createClient();
+        const { data: sessionData } = await supabase.auth.getUser();
+        if (sessionData.user) {
+            const admin = await createAdminClient();
+            await admin.auth.admin.deleteUser(sessionData.user.id);
+        }
 
         if (user.email && !isMintedLoginEmail(user.email)) {
             await forgetIdentity(getIntervuPg(), user.email);
         }
 
-        await clearSessionCookie();
+        await supabase.auth.signOut();
 
         return {};
     } catch (error) {
@@ -194,9 +235,11 @@ export async function deleteAccount(): Promise<{ error?: string }> {
     }
 }
 
-// Password reset is handled entirely by Firebase's native client flow:
+// Password reset is handled entirely by Supabase's native client flow:
 //   - request:  client-auth.sendResetEmail(email)  (ForgotPasswordForm + Settings)
-//   - complete: client-auth.confirmReset(oobCode, newPassword)  (ResetPasswordForm)
+//   - complete: client-auth.confirmReset(newPassword), using the recovery
+//               session Supabase establishes from the emailed link
+//               (ResetPasswordForm)
 // The previous server actions only console.log'd the link (no email was ever sent),
 // so the entire flow was dead end-to-end. They have been removed — do NOT reintroduce
 // a server-side reset path without an actual transactional email integration.

@@ -1,72 +1,81 @@
 /**
- * Firebase session management using cookies.
- * Server actions call getServerUser() to verify the current user from the session cookie.
- * Client-side code sets the cookie after Firebase Auth sign-in.
+ * Server-side session lookup, backed by Supabase Auth (GoTrue). Firebase's
+ * role as the identity provider ends here — `firebase-admin` (getAdminDb)
+ * still owns every byte of application DATA in Firestore; this file no
+ * longer touches Firebase Auth at all.
+ *
+ * getServerUser()'s return shape is byte-identical to the Firebase-era
+ * version it replaces (`{ uid, email, displayName, customClaims }`) on
+ * purpose: it has 34 call sites across server actions, routes, and pages,
+ * none of which should have to change for this migration.
+ *
+ * Field mapping (see the migration report for the full audit):
+ *  - uid: `resolveLegacyUid(user)` (lib/auth/app-tag.ts) — THE highest-stakes
+ *    line here. Every pre-migration Firestore document is keyed by a user's
+ *    original Firebase UID, carried forward on migrated accounts as
+ *    `app_metadata.firebase_uid`. Getting this fallback backwards silently
+ *    disappears a migrated user's résumés/applications.
+ *  - email: `user.email`, unchanged shape.
+ *  - displayName: Google sign-in lands the name at `user_metadata.full_name`
+ *    (Supabase's own field for it) or `user_metadata.name` (some OAuth
+ *    providers / manually-set metadata use this instead) — audited across
+ *    all 34 call sites, NONE of which read this field today, so this is a
+ *    best-effort mapping with no live consumer to get wrong.
+ *  - customClaims: audited the same way — nothing reads it. Firebase custom
+ *    claims and Supabase `app_metadata` play the same conceptual role
+ *    (admin/server-settable, baked into the session, never user-editable),
+ *    so `app_metadata` is the least-surprising stand-in if this is ever
+ *    consumed later.
  */
 
-import { cookies } from "next/headers";
-import { getAdminAuth } from "./admin";
+import { createClient } from "@/lib/supabase/server";
+import { resolveLegacyUid } from "@/lib/auth/app-tag";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-const SESSION_COOKIE_NAME = "firebase-session";
-const SESSION_EXPIRY_DAYS = 14;
+export interface ServerUser {
+    uid: string;
+    email?: string;
+    displayName?: string;
+    customClaims?: Record<string, any>;
+}
 
 /**
- * Get the current authenticated user from the session cookie (server-side).
- * Returns null if not authenticated.
+ * Pure decision: maps a Supabase auth user (or the absence of one) onto the
+ * byte-identical `ServerUser` shape the Firebase-era `getServerUser` used to
+ * return. Exported so the field mapping — especially `uid`'s
+ * migrated-vs-new-user branch — is directly unit-testable without a
+ * Supabase client, cookies, or a network call.
  */
-export async function getServerUser(): Promise<{ uid: string; email?: string; displayName?: string; customClaims?: Record<string, any> } | null> {
+export function mapSupabaseUserToServerUser(user: SupabaseUser | null | undefined): ServerUser | null {
+    if (!user) return null;
+
+    const userMetadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const displayName =
+        (typeof userMetadata.full_name === "string" && userMetadata.full_name) ||
+        (typeof userMetadata.name === "string" && userMetadata.name) ||
+        undefined;
+
+    return {
+        uid: resolveLegacyUid(user),
+        email: user.email,
+        displayName,
+        customClaims: user.app_metadata as Record<string, any> | undefined,
+    };
+}
+
+/**
+ * Get the current authenticated user from the Supabase session (server-side).
+ * Returns null if not authenticated. Never throws — any failure to reach or
+ * parse a session is treated the same as "no session".
+ */
+export async function getServerUser(): Promise<ServerUser | null> {
     try {
-        const cookieStore = await cookies();
-        const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-        if (!sessionCookie) {
-            return null;
-        }
-
-        const auth = getAdminAuth();
-        const decoded = await auth.verifySessionCookie(sessionCookie, true);
-
-        return {
-            uid: decoded.uid,
-            email: decoded.email,
-            displayName: decoded.name,
-            customClaims: decoded,
-        };
-    } catch (error) {
-        // Session expired or invalid
+        const supabase = await createClient();
+        const { data, error } = await supabase.auth.getUser();
+        if (error) return null;
+        return mapSupabaseUserToServerUser(data.user);
+    } catch {
+        // Session expired, malformed, or the auth backend is unreachable.
         return null;
     }
 }
-
-/**
- * Create a session cookie from a Firebase ID token (called from API route after client-side login).
- */
-export async function createSessionCookie(idToken: string): Promise<string> {
-    const auth = getAdminAuth();
-    const expiresIn = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-    return auth.createSessionCookie(idToken, { expiresIn });
-}
-
-/**
- * Set the session cookie in the response.
- */
-export async function setSessionCookie(sessionCookie: string) {
-    const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
-        maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        sameSite: "lax",
-    });
-}
-
-/**
- * Clear the session cookie (sign out).
- */
-export async function clearSessionCookie() {
-    const cookieStore = await cookies();
-    cookieStore.delete(SESSION_COOKIE_NAME);
-}
-
-export { SESSION_COOKIE_NAME };

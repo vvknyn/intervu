@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthGatedProductPath } from "@/lib/auth/product-routes";
+import { updateSession } from "@/lib/supabase/middleware";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
-
-const SESSION_COOKIE_NAME = "firebase-session";
 
 export async function middleware(request: NextRequest) {
     // P27 shield — block only the one obvious bulk signature: an
@@ -19,18 +17,15 @@ export async function middleware(request: NextRequest) {
         return new NextResponse(null, { status: 403 });
     }
 
-    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const { pathname } = request.nextUrl;
 
-    if (!sessionCookie && isAuthGatedProductPath(pathname)) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        url.search = "";
-        url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-        return NextResponse.redirect(url);
-    }
-
-    const response = NextResponse.next();
+    // Refreshes the Supabase session cookies and redirects to /login when
+    // `pathname` is one of intervu's gated product paths (/settings,
+    // /account) and GoTrue has no valid user for this request — replaces
+    // the old cookie-presence check, which only proved a cookie existed,
+    // never that it was still valid. See lib/supabase/middleware.ts for the
+    // AUTH_CHECK_TIMEOUT_MS fail-closed resilience this carries forward.
+    const response = await updateSession(request);
 
     // Returning-searcher memory (see lib/jobs-visitor-cookie.ts) — client-
     // readable, not httpOnly, since it's only ever a "have you been here
