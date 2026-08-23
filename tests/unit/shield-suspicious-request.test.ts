@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isApiShapedPath, shouldBlockSuspiciousRequest } from "../../src/lib/shield/suspicious-request";
+import { isApiShapedPath, isThirdPartyCallbackPath, shouldBlockSuspiciousRequest } from "../../src/lib/shield/suspicious-request";
 
 test("isApiShapedPath: matches /api and any nested /api/... path", () => {
   assert.equal(isApiShapedPath("/api"), true);
@@ -54,4 +54,47 @@ test("shouldBlockSuspiciousRequest: HEAD is treated the same as GET (never block
     shouldBlockSuspiciousRequest({ pathname: "/api/auth/session", method: "HEAD", userAgent: undefined }),
     false,
   );
+});
+
+// --- Third-party callbacks (regression: Resend disabled our webhook endpoint,
+// Aug 18 2026). Other companies' servers call INTO us; they authenticate with a
+// signed body and choose their own User-Agent. Resend sends none, so the
+// browser-shaped heuristic above 403'd every bounce and complaint before the
+// route could verify the signature.
+
+test("shouldBlockSuspiciousRequest: never blocks a signed third-party callback that sends no User-Agent", () => {
+  assert.equal(
+    shouldBlockSuspiciousRequest({ pathname: "/api/webhooks/resend", method: "POST", userAgent: null }),
+    false,
+  );
+});
+
+test("shouldBlockSuspiciousRequest: the callback carve-out is class-wide, not one vendor", () => {
+  for (const provider of ["stripe", "github", "twilio"]) {
+    assert.equal(
+      shouldBlockSuspiciousRequest({ pathname: `/api/webhooks/${provider}`, method: "POST", userAgent: "" }),
+      false,
+      `/api/webhooks/${provider} must be exempt without being named anywhere`,
+    );
+  }
+  assert.equal(
+    shouldBlockSuspiciousRequest({ pathname: "/api/webhooks", method: "POST", userAgent: "   " }),
+    false,
+  );
+});
+
+test("shouldBlockSuspiciousRequest: the carve-out stops at the path segment boundary", () => {
+  assert.equal(
+    shouldBlockSuspiciousRequest({ pathname: "/api/webhooksomething", method: "POST", userAgent: null }),
+    true,
+    "a look-alike prefix must not inherit the exemption",
+  );
+});
+
+test("isThirdPartyCallbackPath: only /api/webhooks and paths beneath it", () => {
+  assert.equal(isThirdPartyCallbackPath("/api/webhooks"), true);
+  assert.equal(isThirdPartyCallbackPath("/api/webhooks/resend"), true);
+  assert.equal(isThirdPartyCallbackPath("/api/webhooksomething"), false);
+  assert.equal(isThirdPartyCallbackPath("/api/auth/session"), false);
+  assert.equal(isThirdPartyCallbackPath("/webhooks/resend"), false);
 });
