@@ -2,6 +2,7 @@
   "orphans": [
     "lib/analytics.ts",
     "lib/analytics/funnel.ts",
+    "lib/auth/provision-plan.ts",
     "lib/export-resume-pdf.ts",
     "lib/jobs/fit-verdict.ts",
     "lib/jobs/sync.ts",
