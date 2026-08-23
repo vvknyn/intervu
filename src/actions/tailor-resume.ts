@@ -1,7 +1,7 @@
 "use server";
 
 import { TailoringRecommendation, ResumeExperience, ResumeCompetencyCategory, ResumeProfile, ResumeEducation, ResumeSection, ResumeData, JobAnalysis, RecommendationCategory, RecommendationPriority } from "@/types/resume";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 import { generateGenericJSON } from "@/actions/generate-context";

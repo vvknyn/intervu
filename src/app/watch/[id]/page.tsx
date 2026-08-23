@@ -11,7 +11,7 @@
  * exactly when they are least likely to already have a session cookie.
  */
 import Link from "next/link";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { WatchCanvas } from "@/components/viewer/watch-canvas";
 
 export default async function WatchPage({ params }: { params: Promise<{ id: string }> }) {

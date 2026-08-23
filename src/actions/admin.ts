@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isAdminUser } from "@/lib/llm/credit-gate";
 

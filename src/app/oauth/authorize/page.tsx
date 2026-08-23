@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { firestoreStore } from "@/lib/agent/store";
 import { validateConsentRequest, consentParamsToQuery, type ConsentParams, type ConsentParamsInput } from "@/lib/agent/consent";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

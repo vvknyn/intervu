@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { getSuppressionEntries, isSuppressedForKind, suppress, unsuppress } from "@/lib/email/suppression";
 
 export interface EmailPreferences {

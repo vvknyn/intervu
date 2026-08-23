@@ -1,7 +1,7 @@
 "use server";
 
 import Groq from "groq-sdk";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { AUTH_REQUIRED } from "@/lib/llm/credit-gate";
 import { getUserLLMConfig } from "@/actions/profile";
 

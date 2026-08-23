@@ -2,7 +2,7 @@
 
 import { getBaseResumeSummaryForUser, type BaseResume } from "@/lib/resume/base-resume";
 import { setBaseResumeForUser, clearBaseResumeForUser, validateResumeUploadText, type SetBaseResumeResult } from "@/lib/resume/set-resume";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 
 export type ResumeSummary = BaseResume & { updatedAt: string | null };
 

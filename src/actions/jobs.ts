@@ -32,7 +32,7 @@ import { loadGazetteer } from "@/lib/geo/gazetteer";
 import { countryPlaceCandidates } from "@/lib/geo/resolve-place";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 import { ANONYMOUS_DEPTH_GATE_MESSAGE, resolveDepthCap } from "@/lib/shield/depth-cap";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 

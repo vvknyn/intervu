@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 import { savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
 import { docToSavedSearch, savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
 

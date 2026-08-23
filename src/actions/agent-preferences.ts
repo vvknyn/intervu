@@ -6,7 +6,7 @@ import {
     type AgentPreferences,
     type AgentPreferencesPatch,
 } from "@/lib/agent/preferences";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/session";
 
 export type { AgentPreferences, AgentPreferencesPatch } from "@/lib/agent/preferences";
 

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { mapSupabaseUserToServerUser } from "@/lib/firebase/auth-session";
+import { mapSupabaseUserToServerUser } from "@/lib/auth/session";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 function fakeUser(overrides: Partial<SupabaseUser>): SupabaseUser {
