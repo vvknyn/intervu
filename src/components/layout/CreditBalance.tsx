@@ -57,8 +57,6 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
         title = "Admin — unlimited AI use.";
         low = false;
     } else if (s.isBYOK) {
-        // Legacy state: a key stored before the Settings entry point was
-        // removed (2026-08-08). No UI offers adding a new one anymore.
         Icon = Key;
         label = "Your API key";
         title = "Using your own API key — no credit limit.";
@@ -67,7 +65,7 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
 
     return (
         <Link
-            href="/settings"
+            href="/settings?tab=api-key"
             title={title}
             data-testid="topbar-credit-balance"
             className={cn(

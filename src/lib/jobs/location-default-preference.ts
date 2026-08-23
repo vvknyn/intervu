@@ -69,6 +69,24 @@ export function suppressLocationDefault(): void {
     notify();
 }
 
+function clearSuppressLocationDefaultStorage(): void {
+    if (!hasLocalStorage()) return;
+    try {
+        localStorage.removeItem(SUPPRESS_LOCATION_DEFAULT_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Re-enable the IP default after a prior "×" dismiss — the location sheet's
+ *  "Use detected location" affordance is the explicit opt back in. */
+export function restoreLocationDefault(): void {
+    if (cache === false) return;
+    cache = false;
+    clearSuppressLocationDefaultStorage();
+    notify();
+}
+
 /**
  * G3 (Grok UX wave) — the ONE decision for whether the location control
  * shows the applied-default disclosure chip: the server actually applied a

@@ -20,6 +20,18 @@ import { EMAIL_COLORS as C, EMAIL_FONT_SANS, EMAIL_WORDMARK } from "./palette";
  * this file may write a hex literal.
  */
 
+/** Escapes employer/user-supplied text before it lands in HTML — anything
+ *  that isn't an internal, enum-validated label needs this (see
+ *  waitlist-confirm.ts's comment on the one exception). Shared here so a
+ *  second template needing it consolidates onto one copy instead of pasting
+ *  its own. */
+export function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
+}
+
 /** Site origin. Passed in rather than read from `getSiteUrl()` because that
  *  helper throws when `NEXT_PUBLIC_SITE_URL` is unset, which would make
  *  every template untestable without env. */

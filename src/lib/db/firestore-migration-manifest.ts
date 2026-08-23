@@ -54,15 +54,50 @@ export interface IndexedField {
   unique?: boolean;
 }
 
+/**
+ * How a document in this collection is tied to a user account — the one fact
+ * that account deletion and the data export both dispatch on.
+ *
+ * REQUIRED, deliberately. Before this field existed, `actions/account.ts`
+ * carried its own hand-typed array of eight collection names, so closing an
+ * account swept those eight and silently left everything else behind:
+ * `resume_history` (the resume editor's saved versions — the most
+ * personal data in the product), both `users/<uid>` subcollections, and
+ * every `agent_*` credential. A list can only cover the names someone
+ * remembered; a required field makes the compiler ask the question.
+ *
+ * Every form here is one that live data actually uses today — no shape is
+ * here for a hypothetical future collection.
+ */
+export type UserOwnership =
+  /** Top-level collection whose documents carry the uid in a field. */
+  | { by: "field"; field: string }
+  /** `<parent>/<uid>/<collection>` — the uid is path segment 2. Requires
+   *  `subcollectionOf`, which names the parent to query under. */
+  | { by: "path" }
+  /** The document id IS the uid (`email_digest_state/<uid>`). */
+  | { by: "docId" }
+  /** The document id begins with the uid (`apply_counters/<uid>_<date>`). */
+  | { by: "docIdPrefix"; separator: string }
+  /** Not reachable from a uid. `reason` is required so that the claim is
+   *  auditable rather than an omission that looks like a decision. */
+  | { by: "none"; reason: string };
+
 export interface CollectionSpec {
   /** Firestore collection id. For a subcollection this is the leaf id. */
   collection: string;
   /** Table name inside `INTERVU_SCHEMA`. */
   table: string;
-  /** Set for `users/<uid>/<collection>` subcollections. The uid lives in
+  /** How this collection's documents belong to a user. Drives account
+   *  deletion and the user data export; see `lib/db/user-data.ts`. */
+  owner: UserOwnership;
+  /** Set for `<parent>/<uid>/<collection>` subcollections. The uid lives in
    *  the PATH, not in the document, so it becomes a generated column read
-   *  back out of the path rather than something the exporter injects. */
-  subcollectionOf?: "users";
+   *  back out of the path rather than something the exporter injects.
+   *  Both consumers are parent-agnostic — the exporter walks a collection
+   *  GROUP and the DDL reads `split_part(path,'/',2)` — so the parent name
+   *  here is documentation of provenance, not a switch. */
+  subcollectionOf?: "users" | "profiles";
   indexed: readonly IndexedField[];
 }
 
@@ -81,11 +116,13 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "agent_clients",
     table: "agent_clients",
+    owner: { by: "none", reason: "OAuth client registry shared across users; records no uid" },
     indexed: [{ field: "createdAt", type: "epoch_ms", column: "created_at_ms" }],
   },
   {
     collection: "agent_codes",
     table: "agent_codes",
+    owner: { by: "field", field: "uid" },
     indexed: [
       { field: "uid", type: "text" },
       { field: "clientId", type: "text", column: "client_id" },
@@ -95,6 +132,7 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "agent_credentials",
     table: "agent_credentials",
+    owner: { by: "field", field: "uid" },
     indexed: [
       // The bearer-token lookup (`lib/agent/tokens.ts`) — the hottest read
       // in the agent path, and the one that must not table-scan.
@@ -105,12 +143,13 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
       { field: "revokedAt", type: "epoch_ms", column: "revoked_at_ms" },
     ],
   },
-  { collection: "agent_record_budgets", table: "agent_record_budgets", indexed: [] },
+  { collection: "agent_record_budgets", table: "agent_record_budgets", owner: { by: "none", reason: "keyed by credential id and holds only a usage counter" }, indexed: [] },
 
   // --- user data ----------------------------------------------------------
   {
     collection: "applications",
     table: "applications",
+    owner: { by: "field", field: "user_id" },
     indexed: [
       { field: "user_id", type: "text" },
       { field: "status", type: "text" },
@@ -122,11 +161,13 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "profiles",
     table: "profiles",
+    owner: { by: "docId" },
     indexed: [{ field: "username", type: "text", unique: true }],
   },
   {
     collection: "tailored_resumes",
     table: "tailored_resumes",
+    owner: { by: "field", field: "user_id" },
     indexed: [
       { field: "user_id", type: "text" },
       { field: "created_at", type: "text" },
@@ -134,8 +175,20 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
     ],
   },
   {
+    // profiles/<uid>/resume_history/<id> — every saved snapshot in the
+    // resume editor's version history. Added 2026-08-18: the feature landed
+    // one day after this manifest's data census, so a cutover run before
+    // this line would have silently left every saved version behind.
+    collection: "resume_history",
+    table: "resume_history",
+    owner: { by: "path" },
+    subcollectionOf: "profiles",
+    indexed: [{ field: "saved_at", type: "text" }],
+  },
+  {
     collection: "job_analyses",
     table: "job_analyses",
+    owner: { by: "field", field: "user_id" },
     indexed: [
       { field: "user_id", type: "text" },
       { field: "created_at", type: "text" },
@@ -144,19 +197,85 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "interview_prep_cache",
     table: "interview_prep_cache",
+    owner: { by: "field", field: "user_id" },
     indexed: [
       { field: "cache_key", type: "text" },
       { field: "user_id", type: "text" },
       { field: "expires_at", type: "text" },
     ],
   },
-  { collection: "apply_counters", table: "apply_counters", indexed: [] },
+  { collection: "apply_counters", table: "apply_counters", owner: { by: "docIdPrefix", separator: "_" }, indexed: [] },
   {
     collection: "contact_messages",
     table: "contact_messages",
+    owner: { by: "none", reason: "contact form records no uid; senders need not have an account" },
     indexed: [
       { field: "email", type: "text" },
       { field: "ts", type: "text" },
+    ],
+  },
+
+  // --- user-authored content ----------------------------------------------
+  // All six were written by live code and absent from this manifest until
+  // 2026-08-18. `stories` and `sources` are deleted by user_id when an
+  // account is closed (actions/account.ts), which is the clearest proof they
+  // are user-owned data a cutover cannot drop.
+  {
+    collection: "stories",
+    table: "stories",
+    owner: { by: "field", field: "user_id" },
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "sources",
+    table: "sources",
+    owner: { by: "field", field: "user_id" },
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "favorite_questions",
+    table: "favorite_questions",
+    owner: { by: "field", field: "user_id" },
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "interview_questions",
+    table: "interview_questions",
+    owner: { by: "field", field: "user_id" },
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "application_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    collection: "feedback",
+    table: "feedback",
+    owner: { by: "field", field: "user_id" },
+    indexed: [
+      { field: "user_id", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
+  {
+    // Doc id is the email, so `path` already carries it; the field is
+    // indexed anyway because lookups are by address, not by path.
+    collection: "connect_waitlist",
+    table: "connect_waitlist",
+    owner: { by: "none", reason: "keyed by email with no uid recorded, so a uid cannot resolve it" },
+    indexed: [
+      { field: "email", type: "text" },
+      { field: "client", type: "text" },
+      { field: "created_at", type: "text" },
     ],
   },
 
@@ -164,22 +283,25 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "savedSearches",
     table: "saved_searches",
+    owner: { by: "path" },
     subcollectionOf: "users",
     indexed: [],
   },
   {
     collection: "followedCompanies",
     table: "followed_companies",
+    owner: { by: "path" },
     subcollectionOf: "users",
     indexed: [{ field: "domain", type: "text" }],
   },
 
   // --- email (empty today, written by live code) --------------------------
-  { collection: "email_digest_state", table: "email_digest_state", indexed: [] },
-  { collection: "email_suppressions", table: "email_suppressions", indexed: [] },
+  { collection: "email_digest_state", table: "email_digest_state", owner: { by: "docId" }, indexed: [] },
+  { collection: "email_suppressions", table: "email_suppressions", owner: { by: "none", reason: "unsubscribe list keyed by email; removing it would resubscribe the address" }, indexed: [] },
   {
     collection: "welcome_emails",
     table: "welcome_emails",
+    owner: { by: "docId" },
     indexed: [{ field: "email", type: "text" }],
   },
 
@@ -187,6 +309,7 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "search_events",
     table: "search_events",
+    owner: { by: "none", reason: "anonymous search telemetry; verified across all 5483 rows to record no uid" },
     indexed: [
       { field: "createdAt", type: "text", column: "created_at" },
       { field: "expiresAt", type: "text", column: "expires_at" },
@@ -196,6 +319,7 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   {
     collection: "search_opens",
     table: "search_opens",
+    owner: { by: "none", reason: "anonymous click telemetry; verified across all 352 rows to record no uid" },
     indexed: [
       { field: "createdAt", type: "text", column: "created_at" },
       { field: "expiresAt", type: "text", column: "expires_at" },
@@ -205,21 +329,42 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
   },
 
   // --- ops ----------------------------------------------------------------
-  { collection: "app_config", table: "app_config", indexed: [] },
+  { collection: "app_config", table: "app_config", owner: { by: "none", reason: "global configuration, not user data" }, indexed: [] },
   {
     collection: "market_stats_daily",
     table: "market_stats_daily",
+    owner: { by: "none", reason: "aggregate corpus statistics keyed by date" },
     indexed: [{ field: "date", type: "text", unique: true }],
   },
   {
     collection: "viewer_sessions",
     table: "viewer_sessions",
+    owner: { by: "field", field: "uid" },
     indexed: [
       { field: "uid", type: "text" },
       { field: "expiresAt", type: "epoch_ms", column: "expires_at_ms" },
     ],
   },
 ];
+
+/**
+ * Collection names that appear in `db.collection(...)` calls but are
+ * deliberately NOT migrated, each with the reason. The guard in
+ * `tests/unit/firestore-migration-manifest.test.ts` derives the required set
+ * from the source rather than from a remembered list, so a new collection is
+ * a test failure until it is either migrated or listed here on purpose.
+ *
+ * This list is the only sanctioned way to omit something. It exists because
+ * the previous guard enumerated the five names someone thought to add, and
+ * seven collections written by live code sat outside the manifest for weeks
+ * without failing anything.
+ */
+export const NON_MIGRATED_COLLECTIONS: Readonly<Record<string, string>> = {
+  /** A path segment, not a collection of documents. Only its subcollections
+   *  (`savedSearches`, `followedCompanies`) hold data, and both are
+   *  migrated in their own right with `subcollectionOf: "users"`. */
+  users: "parent path segment; its subcollections are migrated separately",
+};
 
 export function columnNameFor(field: IndexedField): string {
   return field.column ?? field.field.toLowerCase();

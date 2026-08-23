@@ -174,3 +174,27 @@ test("only résumé parsing opts in", () => {
         "résumé parsing no longer passes the ladder",
     );
 });
+
+test("fetchJSON passes per-rung timeout and single provider retry", () => {
+    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
+    const start = src.indexOf("export const fetchJSON");
+    const body = src.slice(start, src.indexOf("\n};", start));
+    assert.match(body, /timeoutMs:\s*rung\.timeoutMs/);
+    assert.match(body, /maxRetries:\s*1/);
+});
+
+test("résumé parse ladder survives configOverride.model on OpenRouter", () => {
+    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
+    assert.match(
+        src,
+        /Boolean\(configOverride\?\.model\) && !modelLadder\?\.length/,
+        "explicit model must not skip ladder when modelLadder is passed",
+    );
+    const rungs = resolveModelLadder(
+        { provider: "openrouter", model: "openai/gpt-4o-mini" },
+        RESUME_PARSE_FREE_LADDER,
+        false,
+    );
+    assert.equal(rungs.at(-1)?.model, "openai/gpt-4o-mini");
+    assert.ok(rungs.length > 1);
+});

@@ -8,7 +8,11 @@
  * action" posture as the send seam, just for the inbound direction.
  */
 import { NextResponse } from "next/server";
-import { verifyResendWebhook } from "@/lib/email/webhook-verify";
+import {
+  SIGNATURE_HEADER_NAMES,
+  readWebhookSignatureHeaders,
+  verifyResendWebhook,
+} from "@/lib/email/webhook-verify";
 import { suppress } from "@/lib/email/suppression";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -19,18 +23,20 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const payload = await request.text();
-  const event = verifyResendWebhook(
-    payload,
-    {
-      id: request.headers.get("webhook-id"),
-      timestamp: request.headers.get("webhook-timestamp"),
-      signature: request.headers.get("webhook-signature"),
-    },
-    secret,
-  );
+  const headers = readWebhookSignatureHeaders(request.headers);
+  const event = verifyResendWebhook(payload, headers, secret);
 
   if (!event) {
-    console.error("[resend webhook] signature verification failed — payload dropped, unprocessed.");
+    // A missing signature header and a genuinely bad HMAC are different
+    // failures with different fixes, and reporting both as "signature
+    // verification failed" is what made the header bug above invisible for
+    // eleven days. Header NAMES only — never the signature or the payload.
+    const missing = SIGNATURE_HEADER_NAMES.filter((name) => !headers[name]);
+    console.error(
+      missing.length > 0
+        ? `[resend webhook] unsigned request — no ${missing.join("/")} header — payload dropped, unprocessed.`
+        : "[resend webhook] signature did not verify — payload dropped, unprocessed.",
+    );
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 

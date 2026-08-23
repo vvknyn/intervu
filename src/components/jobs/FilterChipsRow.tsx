@@ -61,14 +61,27 @@ function Chip({
     disabled,
     onClick,
     children,
+    className,
 }: {
     active: boolean;
     disabled?: boolean;
     onClick: () => void;
     children: React.ReactNode;
+    className?: string;
 }) {
     return (
-        <button type="button" disabled={disabled} onClick={onClick} className={cn(chipVariants({ active }), "h-7")}>
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className={cn(
+                chipVariants({ active }),
+                "h-11 px-3 text-[13px]",
+                !active && "border-foreground/20 bg-background text-foreground/80",
+                active && "border-brand/70 bg-brand/15 text-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.32)]",
+                className,
+            )}
+        >
             {children}
         </button>
     );
@@ -122,13 +135,20 @@ export function FilterChipsRow({
         <div
             role="group"
             aria-label="Quick filters"
-            className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className={cn(
+                "mb-3 grid shrink-0 gap-2 border border-border/70 bg-muted/20 p-1.5 pb-2 lg:hidden",
+                postedDateSupported ? "grid-cols-4" : "grid-cols-3",
+            )}
         >
             {/* Same rule as the rail's "Date posted" section: no control when the
                 corpus can't answer it. Both surfaces read one flag so they can't
                 disagree about what's offerable. */}
             {postedDateSupported && (
-                <Chip active={!!state.postedBucket} onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}>
+                <Chip
+                    active={!!state.postedBucket}
+                    onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}
+                    className="w-full justify-center"
+                >
                     {state.postedBucket ? postedBucketLabel(state.postedBucket) : "Posted"}
                     <CaretDown size={11} weight="bold" />
                 </Chip>
@@ -139,15 +159,30 @@ export function FilterChipsRow({
                 onClick={() => {
                     if (remoteValue) onToggleFacet("work_type", remoteValue);
                 }}
+                className="w-full justify-center"
             >
                 Remote
             </Chip>
-            <Chip active={salaryActive} onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}>
+            <Chip
+                active={salaryActive}
+                onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}
+                className="w-full justify-center"
+            >
                 {salaryLabel ?? "Salary"}
                 <CaretDown size={11} weight="bold" />
             </Chip>
-            <Chip active={activeCount > 0} onClick={onOpenSheet}>
-                All ({activeCount})
+            {/* Item 7c (2026-08-21 front-door audit): "All (0)" read as zero
+                results rather than "no filters active yet" — same fix the
+                toolbar's own `filters-toggle` button already uses (a plain
+                label plus a badge that only renders once there's a count to
+                show), reused verbatim rather than a second copy of it. */}
+            <Chip active={activeCount > 0} onClick={onOpenSheet} className="w-full justify-center">
+                Filters
+                {activeCount > 0 && (
+                    <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-[10px] font-bold leading-[16px] text-brand">
+                        {activeCount}
+                    </span>
+                )}
             </Chip>
         </div>
     );

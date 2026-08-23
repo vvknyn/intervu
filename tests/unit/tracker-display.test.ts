@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
     countByTrackerFilter,
+    groupPursuitsByBoardColumn,
     matchesTrackerFilter,
     matchesTrackerSearch,
     trackerStatusLabel,
+    visibleTrackerBoardColumns,
 } from "../../src/lib/pursuits/tracker-display";
 import type { Pursuit } from "../../src/lib/pursuits/types";
 
@@ -46,4 +48,33 @@ test("countByTrackerFilter and trackerStatusLabel stay aligned", () => {
     assert.equal(counts.saved, 1);
     assert.equal(counts.applied, 1);
     assert.equal(trackerStatusLabel("resume_ready"), "Saved");
+});
+
+test("visibleTrackerBoardColumns shows all columns for all filter, one column otherwise", () => {
+    assert.deepEqual(visibleTrackerBoardColumns("all"), [
+        "saved",
+        "applied",
+        "interviewing",
+        "offer",
+        "closed",
+    ]);
+    assert.deepEqual(visibleTrackerBoardColumns("applied"), ["applied"]);
+});
+
+test("groupPursuitsByBoardColumn buckets by boardColumn exhaustively", () => {
+    const list = [
+        pursuit({ id: "p1", status: "interested" }),
+        pursuit({ id: "p2", status: "resume_ready" }),
+        pursuit({ id: "p3", status: "applied" }),
+        pursuit({ id: "p4", status: "interviewing" }),
+        pursuit({ id: "p5", status: "offer" }),
+        pursuit({ id: "p6", status: "rejected" }),
+        pursuit({ id: "p7", status: "withdrawn" }),
+    ];
+    const groups = groupPursuitsByBoardColumn(list);
+    assert.equal(groups.saved.length, 2);
+    assert.equal(groups.applied.length, 1);
+    assert.equal(groups.interviewing.length, 1);
+    assert.equal(groups.offer.length, 1);
+    assert.equal(groups.closed.length, 2);
 });

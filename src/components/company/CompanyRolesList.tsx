@@ -1,11 +1,8 @@
 import Link from "next/link";
-import { decodeText, ghostMetaFor, locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
+import { decodeText, rowExceptionMeta } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { companyRowMetaSegments } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
-
-function roleMeta(job: PublicJob): string {
-  return [locationText(job), salaryText(job), prettyEnum(job.experience_level)].filter(Boolean).join(" · ");
-}
 
 /**
  * This company's live-postings list. Every row links back to the main jobs
@@ -40,12 +37,14 @@ export function CompanyRolesList({
 
       <ul className="mt-4 space-y-2">
         {roles.map((job) => {
-          // Real staleness, not a hardcoded `false`: a "clear" verdict whose
-          // backing check has gone stale renders STALE_CLEAR_META's neutral
-          // "Not recently verified" here exactly as it does on the SERP row
-          // and detail banner — ghostMetaFor is the shared chokepoint, and
-          // this was the one caller bypassing it.
-          const ghost = ghostMetaFor(job, now);
+          // Exception-only: a "clear" verdict whose backing check has gone
+          // stale still renders STALE_CLEAR_META's neutral "Not recently
+          // verified" here exactly as it does on the SERP row and detail
+          // banner (rowExceptionMeta wraps the shared ghostMetaFor
+          // chokepoint), but the routine clear-and-current state — the
+          // default, nothing-to-flag verdict — renders no pill at all.
+          const ghost = rowExceptionMeta(job, now);
+          const meta = companyRowMetaSegments(job);
           return (
             <li key={job.id}>
               <Link
@@ -54,7 +53,18 @@ export function CompanyRolesList({
               >
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{decodeText(job.title)}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{roleMeta(job)}</div>
+                  {meta.length > 0 && (
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {meta.map((segment, i) => (
+                        <span key={i}>
+                          {i > 0 && <span className="mx-1 text-muted-foreground/60" aria-hidden>·</span>}
+                          <span className={segment.emphasis ? "font-semibold text-foreground" : undefined}>
+                            {segment.text}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {ghost && (
                   <span className={cn("shrink-0 px-2 py-0.5 text-[11px]", ghost.cls)}>

@@ -13,19 +13,19 @@ import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhost
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
-import { buildGuestPreview } from "@/lib/jobs/guest-preview";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { ghostMetaFor, decodeText, displayCompany, displayCompanyBrand, locationText, clampLocationSegments, shortDate, salaryText, postedAgeShort } from "@/lib/jobs/presentation";
+import { presentJob } from "@/lib/presentation";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
-import { getRelatedJobsAction } from "@/actions/jobs";
-import type { OpenCount } from "@/lib/companies/open-count";
-import { openCountText } from "@/lib/companies/presentation";
+import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
+import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
+import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 
@@ -110,57 +110,6 @@ function JobDescription({ blocks }: { blocks: DescBlock[] }) {
                     </p>
                 );
             })}
-        </div>
-    );
-}
-
-/**
- * Guest gate (G4, Grok UX wave) — the ONE place a signed-out visitor's
- * detail body renders, replacing the old blur-as-paywall overlay. Shows a
- * real, truncated preview of the description (`buildGuestPreview`,
- * lib/jobs/guest-preview.ts — the same HTML/Markdown sanitization
- * `formatDescription` runs for signed-in readers) with a bottom fade and
- * one sign-in CTA line, rather than an opaque "sign in to view this role"
- * promise. Apply/Save stay real, clickable buttons elsewhere in this panel
- * (they already gate at the click handler — see `resolveApplyGateDecision`,
- * jobs/page.tsx) — this component only arbitrates the DESCRIPTION body, so
- * there is exactly one preview-vs-full decision for a guest's detail view,
- * not scattered per-section `!signedIn` checks.
- */
-function GuestDescriptionPreview({
-    description,
-    onRequestSignIn,
-}: {
-    description: string | null | undefined;
-    onRequestSignIn?: () => void;
-}) {
-    const preview = buildGuestPreview(description);
-    return (
-        <div className="mb-5">
-            <div className="mb-2 text-[13px] font-semibold">About this role</div>
-            {preview.text ? (
-                <div className={cn("relative", preview.truncated && "max-h-[14rem] overflow-hidden")}>
-                    <p className="whitespace-pre-line text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
-                        {preview.text}
-                        {preview.truncated && "…"}
-                    </p>
-                    {preview.truncated && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
-                    )}
-                </div>
-            ) : (
-                <div className="border border-dashed border-border bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
-                    No description was captured for this role.
-                </div>
-            )}
-            <button
-                type="button"
-                data-testid="job-detail-signin-cta"
-                onClick={() => onRequestSignIn?.()}
-                className="mt-2.5 text-xs font-medium text-brand hover:underline"
-            >
-                Sign in to read the full posting
-            </button>
         </div>
     );
 }
@@ -358,12 +307,10 @@ export function JobDetail({
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
     now: number;
     onOpenPosting: () => void;
-    /** When false, the description preview is truncated and Apply/Save gate at click (G4, Grok UX wave). */
+    /** When false, Apply/Save gate at click; description body stays public. */
     signedIn?: boolean;
-    /** Opens auth when the guest preview's sign-in CTA is pressed — also the
-     *  "Report listing" button's gate (ITEM O-FE), same underlying flow
-     *  (AuthPopover on the board, a `/login` redirect on `/jobs/[slug]`),
-     *  not a second gate callback for the same job. */
+    /** Opens auth for gated actions (e.g. "Report listing") — AuthPopover on
+     *  the board, a `/login` redirect on `/jobs/[slug]`, not a second gate. */
     onRequestSignIn?: () => void;
     /** ITEM O-FE (2026-08-15) — probed once by the caller via
      *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
@@ -385,18 +332,16 @@ export function JobDetail({
     className?: string;
     /** A2 — "More like this" row click. */
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
-    /** Whether a long description clamps behind "Show full description"
-     *  (see the `collapsible` comment below for why the clamp exists at
-     *  all). Defaults to `true` so every existing mount site — the xl+
-     *  sticky pane in particular, which genuinely needs the clamp — keeps
-     *  today's behaviour unchanged. The mobile bottom sheet passes `false`
-     *  (jobs/page.tsx's `renderDetailSurface`): that sheet already owns its
-     *  own `overflow-y-auto` scroller, so JobDetail clamping the
-     *  description a second level deeper just hid nearly every real
-     *  description (>700 chars) behind a click inside an already-scrollable
-     *  surface. This is a prop, not a breakpoint check, because the mount
-     *  site is resolved by `resolveDetailMountSite` (state + breakpoint
-     *  together) — a `sm:`/`xl:` class here could silently disagree with it. */
+    /** Parent-is-the-scroller contract. When `false`, the mount site already
+     *  owns `overflow-y-auto` (jobs/page.tsx mobile sheet's
+     *  `mobile-detail-scroller`) — so JobDetail must not add a second scroll
+     *  layer: no description clamp (see `collapsible` below) AND no pinned
+     *  identity header (`sticky top-0` on title/chips/Apply/Save). When
+     *  `true` (default), this panel is the scroller (xl+ sticky pane) and
+     *  keeps both the clamp and the pinned header. Prop, not a breakpoint
+     *  check — mount site is resolved by `resolveDetailMountSite` (state +
+     *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
+     *  with it. */
     collapseDescription?: boolean;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
@@ -423,6 +368,27 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
+    // Identity-header location line — same progressive-disclosure idiom as
+    // the description clamp above, for aggregator-feed `location` strings
+    // that stuff many semicolon-joined locations into one field (see
+    // clampLocationSegments's doc comment). Presentation-only: the
+    // underlying `location` string is untouched.
+    const [locationExpanded, setLocationExpanded] = useState(false);
+    useEffect(() => {
+        setLocationExpanded(false);
+    }, [job.id]);
+    const location = locationText(job);
+    const locationDisclosure = useMemo(() => clampLocationSegments(location), [location]);
+    const locationClamped = locationDisclosure.hidden.length > 0;
+    // Presentation-module adoption (wave 3, ADOPTION.md): the single-location
+    // display case below (`locationClamped` false — the common case) reads
+    // through `presentJob` for postal/breadcrumb cleanup. The semicolon-split
+    // clamp/disclosure above stays on the raw `location` string — it's
+    // splitting DISTINCT locations an aggregator feed joined with ";",
+    // orthogonal to (and upstream of) the single-location cleanup
+    // `locationSummary` does, so cleaning before the split risks mangling a
+    // semicolon-joined string that also happens to contain a dash.
+    const locationDisplay = presentJob(job).location;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // Long descriptions are clamped behind a "Show more" toggle so the sticky
     // detail panel doesn't run thousands of pixels tall. `collapseDescription`
@@ -479,48 +445,84 @@ export function JobDetail({
     // against a fast re-open (new `job.id` before the previous fetch lands)
     // painting a stale job's related list onto the new one.
     const [related, setRelated] = useState<PublicJob[]>([]);
-    // ITEM N (2026-08-15) — the hiring-truth rail's "Live roles" figure used
-    // to read `job.company_open_count`, a sync-time aggregate baked onto the
-    // job document that structurally drifts from /co/[slug]'s own live count
-    // for the same company (delta sync can't carry cross-table data). `null`
-    // until this resolves (or for guests, or a companyless job) — the render
-    // below falls back to `job.company_open_count` in that window, same as
-    // before this existed.
-    const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
     useEffect(() => {
         let cancelled = false;
         setRelated([]);
-        setLiveOpenCount(null);
-        // Guests see this panel blurred behind the sign-in gate — fetching
-        // for them would spend up to three corpus queries per detail-open on
-        // rows/figures nobody can read.
+        // Guests see this list gated behind sign-in — fetching for them would
+        // spend up to three corpus queries per detail-open on rows nobody can
+        // read. The open-count figure below is fetched separately and does
+        // NOT share this gate — see that effect's own comment for why.
         if (!signedIn) return;
         getRelatedJobsAction(job.id, job.company_domain, job.title)
             .then((data) => {
                 if (cancelled) return;
                 setRelated(data.jobs);
-                setLiveOpenCount(data.openCount);
             })
             .catch(() => {
                 // "More like this" is an accelerant, never a source of
                 // user-visible error — the render guard below already
-                // renders nothing for an empty list, and the open-count
-                // render falls back to `job.company_open_count`.
+                // renders nothing for an empty list.
             });
         return () => {
             cancelled = true;
         };
     }, [job.id, job.company_domain, job.title, signedIn]);
 
+    // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
+    // hiring-truth rail's "Live roles" figure used to read
+    // `job.company_open_count`, a sync-time aggregate baked onto the job
+    // document that structurally drifts from /co/[slug]'s own live count for
+    // the same company (delta sync can't carry cross-table data). This used
+    // to ride the `signedIn`-gated related-jobs fetch above, so guests —
+    // almost certainly how a self-contradicting "0 live roles" card gets
+    // seen — never got the live figure, only ever the stale one. `/co/[slug]`
+    // already serves this same query to anonymous visitors with no gate at
+    // all, and it's a single cheap query (unlike the 3-query related-jobs
+    // list above), so it gets its own always-on fetch here instead. `null`
+    // until this resolves or when the job has no `company_domain` — the
+    // render below falls back to `job.company_open_count` in that window,
+    // same as before this existed.
+    const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        setLiveOpenCount(null);
+        if (!job.company_domain) return;
+        getCompanyOpenCountAction(job.company_domain)
+            .then((count) => {
+                if (!cancelled) setLiveOpenCount(count);
+            })
+            .catch(() => {
+                // Presentation only — the render falls back to
+                // `job.company_open_count`, same as before this existed.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [job.company_domain]);
+
+    // Resolve to ONE open-count number the same way the render below reads
+    // it (live figure first, stale field as fallback), then run it through
+    // `shouldSuppressOpenCount` so a company whose live count is honestly 0
+    // never renders "0 live roles" on a page that is itself one of that
+    // company's live postings — see that function's doc comment for the
+    // closed-job carve-out.
+    const resolvedOpenCount =
+        liveOpenCount != null ? liveOpenCount.value : typeof job.company_open_count === "number" ? job.company_open_count : null;
+    const showOpenCount = resolvedOpenCount != null && !shouldSuppressOpenCount(resolvedOpenCount, job.vacancy_status === "closed");
+
     const hasCompanyIntel =
-        liveOpenCount != null ||
-        typeof job.company_open_count === "number" ||
+        showOpenCount ||
         (typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number");
 
     return (
         <div className={cn("relative rounded-none border border-border/80 bg-card/75 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]", className)}>
-            {/* Sticky Header Portion — pins to top while description scrolls beneath */}
-            <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs">
+            {/* Identity block — sticky only when this panel owns scrolling. */}
+            <div
+                className={cn(
+                    "border-b border-border bg-card/90 backdrop-blur-2xl backdrop-saturate-180 shadow-xs",
+                    collapseDescription && "sticky top-0 z-30",
+                )}
+            >
                 {/* Identity header */}
                 <div className="px-4 pb-3.5 pt-4 sm:px-6 sm:pb-4">
                     <div className="flex items-start gap-3 sm:gap-3.5">
@@ -541,7 +543,27 @@ export function JobDetail({
                                         {countryFlag}
                                     </span>
                                 )}
-                                {locationText(job)}
+                                {locationClamped ? (
+                                    <>
+                                        {(locationExpanded
+                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                            : locationDisclosure.visible
+                                        ).map((segment, i) => (
+                                            <span key={i} className="block">
+                                                {segment}
+                                            </span>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setLocationExpanded((v) => !v)}
+                                            className="mt-0.5 block text-xs font-medium text-brand hover:underline cursor-pointer"
+                                        >
+                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                        </button>
+                                    </>
+                                ) : (
+                                    locationDisplay
+                                )}
                             </div>
                             {freshness.kind === "relisted" && freshness.postedMs != null && firstSeenRelative && (
                                 <div className={cn("mt-1.5 rounded-none border px-2.5 py-1 text-xs font-medium", LISTING_STATE_CHIP.relisted)}>
@@ -631,8 +653,15 @@ export function JobDetail({
                 {/* Action row */}
                 <div className="border-t border-border/80 px-4 py-2.5 sm:px-6 sm:py-3 bg-muted/20">
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* House attention system (docs/design/ATTENTION.md,
+                            channel 2): exactly one inverted-ink block per
+                            view. Apply is the primary action this pane
+                            exists for — same solid-foreground/background-text
+                            treatment as the SERP's own Search button — not
+                            the quietest element on the page. Save is the
+                            secondary action: a plain 1px outline. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none glass-tint-blue text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-foreground text-background hover:bg-foreground/90 text-xs font-bold uppercase tracking-wider transition-colors">
                                 <ArrowSquareOut size={16} />
                                 Apply
                             </Button>
@@ -646,9 +675,9 @@ export function JobDetail({
                                 Saved
                             </Link>
                         ) : (
-                            <Button variant="quiet" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none glass-tint-muted text-xs font-bold uppercase tracking-wider transition-colors">
+                            <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-bold uppercase tracking-wider transition-colors">
                                 <Check size={16} />
-                                {goingAfter ? "Saving…" : signedIn ? "Save" : "Sign in to save"}
+                                {goingAfter ? "Saving…" : "Save"}
                             </Button>
                         )}
                         {reportJobEnabled && job.apply_url && (
@@ -787,14 +816,8 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* The ghost-check ledger above renders for EVERYONE — it is
-                    public, derived, and the product's differentiator
-                    (2026-08-14 investor-polish); only the description body
-                    and below stay behind the sign-in gate. */}
-                {!signedIn ? (
-                    <GuestDescriptionPreview description={job.description} onRequestSignIn={onRequestSignIn} />
-                ) : (
-                <>
+                {/* The ghost-check ledger and description body render for
+                    everyone — posting text is public; Apply stays gated. */}
                 <div className="mb-5">
                     <div className="mb-2 text-[13px] font-semibold">About this role</div>
                     {blocks.length > 0 ? (
@@ -870,7 +893,7 @@ export function JobDetail({
                             {companyBrand || "This company"} · hiring truth
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
-                            {(liveOpenCount != null || typeof job.company_open_count === "number") && (
+                            {showOpenCount && (
                                 <div className="min-w-[100px]">
                                     <div className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white tracking-tight">
                                         {liveOpenCount != null
@@ -894,18 +917,30 @@ export function JobDetail({
                             )}
                         </div>
                         {cleanedCompany && (
-                            <Button asChild variant="quiet" className="mt-3.5 h-10 w-full justify-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 hover:bg-slate-100 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 shadow-2xs">
+                            <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <Link
+                                    href={
+                                        job.company_domain?.trim()
+                                            ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
+                                            : jobCompanyHref(cleanedCompany, job.company_domain)
+                                    }
+                                    onClick={() => {
+                                        if (onClose) onClose();
+                                    }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                >
+                                    All jobs at {companyBrand || cleanedCompany}
+                                </Link>
                                 <Link
                                     href={jobCompanyHref(cleanedCompany, job.company_domain)}
                                     onClick={() => {
-                                        if (onClose) {
-                                            onClose();
-                                        }
+                                        if (onClose) onClose();
                                     }}
+                                    className="text-[13px] font-medium text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                 >
-                                    Company page →
+                                    {companyBrand || cleanedCompany}
                                 </Link>
-                            </Button>
+                            </div>
                         )}
                     </div>
                 )}
@@ -929,8 +964,6 @@ export function JobDetail({
                             ))}
                         </div>
                     </div>
-                )}
-                </>
                 )}
             </div>
         </div>

@@ -204,15 +204,18 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
         assert.equal(result?.nameSource, "corpus-cased");
     });
 
-    it("exposes uncertainty instead of guessing when NO row carries case", async () => {
+    it("recovers casing on a corpus-flat name the same way a domain fallback would, when NO row carries case", async () => {
         const search = ok({
             hits: hits(3, { company: "10xgenomics", company_domain: "10xgenomics.com" }),
             total: 3,
         });
 
         const result = await getCompanyPageData("10xgenomics--com", search);
-        // Verbatim corpus string — NOT a reconstructed "10x Genomics".
-        assert.equal(result?.name, "10xgenomics");
+        // A winning group with no cased witness carries zero casing
+        // information — exactly as caseless as a domain label — so it gets
+        // the same capitalize-after-non-letter recovery, not a fabricated
+        // "10x Genomics", and not the raw lowercase string either.
+        assert.equal(result?.name, "10Xgenomics");
         assert.equal(result?.nameSource, "corpus-flat");
     });
 
@@ -401,5 +404,47 @@ describe("getCompanyPageData — aggregates come from whichever hit carries them
 
         const result = await getCompanyPageData("animana--com", search);
         assert.equal(result?.stage, "Seed");
+    });
+});
+
+describe("getCompanyPageData — internal-only postings never reach the public page", () => {
+    it("drops a bracket-tagged internal posting from the roles list", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", title: "Senior Backend Engineer" }),
+                job({ id: "2", title: "[Internal] Developer, Rust" }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.jobs.length, 1);
+        assert.equal(result?.jobs[0]!.id, "1");
+    });
+
+    // A differently-worded tag, covering the wiring for the class the
+    // predicate matches, not just the one instance that motivated the fix.
+    it("drops a second internal-tag phrasing the same way", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", title: "Product Manager" }),
+                job({ id: "2", title: "[INTERNAL ONLY] Staff Engineer" }),
+            ],
+            total: 2,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result?.jobs.length, 1);
+        assert.equal(result?.jobs[0]!.id, "1");
+    });
+
+    it("returns null (never a page of nothing) when every posting is internal-only and no board is tracked", async () => {
+        const search = ok({
+            hits: [job({ id: "1", title: "[Internal] Developer, Rust" })],
+            total: 1,
+        });
+
+        const result = await getCompanyPageData("animana--com", search);
+        assert.equal(result, null);
     });
 });

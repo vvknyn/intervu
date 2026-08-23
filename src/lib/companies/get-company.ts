@@ -1,4 +1,5 @@
 import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/lib/boards/slug";
+import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { resolveOpenCount } from "@/lib/companies/open-count";
@@ -6,7 +7,7 @@ import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyPageData } from "@/lib/companies/types";
-import { displayCompanyName } from "@/lib/jobs/presentation";
+import { displayCompanyName, isInternalPosting } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -60,7 +61,12 @@ export async function getCompanyPageData(
   if (isUnavailableJobsResult(result)) {
     throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);
   }
-  const jobs = result.hits;
+  // Internal-only postings ("[Internal] ...") are staffing noise, never a
+  // role this public page should list, count, or name the company from —
+  // filtered once, here, so every downstream reader (the roles list, the
+  // open-role count, the ghost-flagged share, the name resolver) sees the
+  // same public set instead of each re-deriving its own view of it.
+  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
   const boards = getBoardsForDomain(domain);
 
   if (jobs.length === 0 && boards.length === 0) return null;
@@ -79,19 +85,23 @@ export async function getCompanyPageData(
   // knows whether the number is exact or a floor.
   const trackRecord = resolveTrackRecord(jobs);
   const intelligence = resolveCompanyIntelligence(jobs, stage, news);
+  // Legal-entity suffix stripped here — the ONE place `/co/[slug]` reads its
+  // display name from (H1, `<title>`, OG image, JSON-LD all read
+  // `data.name`) — rather than in `resolveCompanyName` itself, whose
+  // `.value` other callers (the corpus tally, existing tests) depend on
+  // keeping the suffix intact. Reused below for the about-line extraction so
+  // both read the same brand token instead of each re-deriving it.
+  const displayName = displayCompanyName(name.value);
 
   return {
     domain,
     slug: domainToSlug(domain),
-    // Legal-entity suffix stripped here — the ONE place `/co/[slug]` reads
-    // its display name from (H1, `<title>`, OG image, JSON-LD all read
-    // `data.name`) — rather than in `resolveCompanyName` itself, whose
-    // `.value` other callers (the corpus tally, existing tests) depend on
-    // keeping the suffix intact.
-    name: displayCompanyName(name.value),
+    name: displayName,
     nameSource: name.source,
-    // No product tagline in the index yet — do not misuse company_stage as one.
-    oneLiner: null,
+    // Sourced from the company's own job postings (extractCompanyAboutLine)
+    // — never a dedicated tagline field (the index has none) and never
+    // invented. Null when no confident extraction was found.
+    oneLiner: extractCompanyAboutLine(jobs, displayName),
     stage,
     opened90d: trackRecord?.opened90d ?? null,
     closed90d: trackRecord?.closed90d ?? null,

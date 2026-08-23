@@ -1,37 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
+import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
-import { JobDetail } from "@/components/jobs/JobDetail";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
-import { resolveApplyGateDecision } from "@/lib/jobs/pending-actions";
-import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
+import { AuthPopover } from "@/components/auth/auth-popover";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
-import { decodeText, locationText } from "@/lib/jobs/presentation";
+import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
+import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import {
+    formatAuthGateValueLine,
+    GUEST_SAVE_TOAST,
+    type AuthGateReason,
+} from "@/lib/auth/auth-gate-copy";
+import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
+import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
+import {
+    emptyPending,
+    queuePending,
+    resolveApplyGateDecision,
+    takeReplay,
+    type PendingState,
+} from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
+import { classifySentinel } from "@/lib/llm/sentinels";
+import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 export interface PublicJobDetailProps {
     job: PublicJob;
     onClose?: () => void;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+    /** When false, parent sheet owns scrolling — no description clamp. SERP mobile sheet passes false. */
+    collapseDescription?: boolean;
+    /** Passed through to JobDetail — sheet mount uses border-0 bg-transparent shadow-none. */
+    detailClassName?: string;
 }
 
 /**
  * Client-side wiring for `JobDetail` on standalone or modal job views.
+ * Apply/save gates and the sticky action bar match `/jobs` (SERP) behavior.
  */
-export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetailProps) {
+export function PublicJobDetail({
+    job,
+    onClose,
+    onOpenRelated,
+    collapseDescription = true,
+    detailClassName,
+}: PublicJobDetailProps) {
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
     const [applyIntentOpen, setApplyIntentOpen] = useState(false);
-    const pathname = usePathname();
+    const [user, setUser] = useState<User | null>(() => getCurrentUser());
+    const [authOpen, setAuthOpen] = useState(false);
+    const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
     const router = useRouter();
+    const { byJobId } = usePursuits();
+    const authedRef = useRef(false);
+    const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(emptyPending());
 
-    const requireAuth = () => {
-        router.push(`/login?next=${encodeURIComponent(pathname)}`);
-    };
+    useEffect(() => onAuthChange(setUser), []);
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -48,6 +79,126 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
         };
     }, []);
 
+    const openAuth = (reason: AuthGateReason | null = null) => {
+        authedRef.current = false;
+        setAuthGateReason(reason);
+        setAuthOpen(true);
+    };
+
+    const openPostingNow = (target: PublicJob) => {
+        if (!target.apply_url) return;
+        window.open(target.apply_url, "_blank", "noopener,noreferrer");
+    };
+
+    const doMarkApplied = async (target: PublicJob) => {
+        try {
+            const res = await markJobAppliedAction({
+                company: target.company ?? "",
+                title: target.title,
+                applyUrl: target.apply_url,
+                jobId: target.id,
+            });
+            if (res.error) {
+                if (classifySentinel(res.error) === "auth") {
+                    openAuth("apply");
+                } else {
+                    toast.error(`Could not save: ${res.error}`);
+                }
+                return;
+            }
+            invalidatePursuitsCache();
+        } catch (e) {
+            if (classifySentinel(e) === "auth") {
+                openAuth("apply");
+            } else {
+                toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+            }
+        }
+    };
+
+    const replayApplyGate = async (target: PublicJob) => {
+        await doMarkApplied(target);
+        if (target.apply_url) window.location.href = target.apply_url;
+    };
+
+    const maybeReplay = useCallback(() => {
+        if (!authedRef.current) return;
+        const { next, action } = takeReplay(pendingRef.current);
+        pendingRef.current = next;
+        if (!action) return;
+        switch (action.kind) {
+            case "gate":
+                void replayApplyGate(action.payload);
+                break;
+            default:
+                break;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleAuthed = () => {
+        authedRef.current = true;
+        maybeReplay();
+    };
+
+    useEffect(() => {
+        if (user) maybeReplay();
+    }, [user, maybeReplay]);
+
+    const handleApplyGate = (target: PublicJob) => {
+        pendingRef.current = queuePending(pendingRef.current, { kind: "gate", payload: target });
+        openAuth("apply");
+    };
+
+    const handleOpenPosting = (target: PublicJob) => {
+        if (resolveApplyGateDecision(Boolean(user)) === "gate") {
+            handleApplyGate(target);
+            return;
+        }
+        if (target.apply_url && shouldPromptApplyIntent()) {
+            setApplyIntentOpen(true);
+            return;
+        }
+        openPostingNow(target);
+    };
+
+    const handleGoAfter = (target: PublicJob) => {
+        if (!user) {
+            if (getGuestSaveCount() >= 1) {
+                openAuth("save");
+                return;
+            }
+            addGuestPursuit(target);
+            recordGuestSave();
+            toast.success(GUEST_SAVE_TOAST);
+            return;
+        }
+        void (async () => {
+            setGoingAfter(true);
+            try {
+                const res = await goAfterJobAction(target);
+                if (res.error) {
+                    if (classifySentinel(res.error) === "auth") {
+                        openAuth("save");
+                    } else {
+                        toast.error(`Could not save: ${res.error}`);
+                    }
+                    return;
+                }
+                invalidatePursuitsCache();
+                toast.success(GUEST_SAVE_TOAST);
+            } catch (e) {
+                if (classifySentinel(e) === "auth") {
+                    openAuth("save");
+                } else {
+                    toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+                }
+            } finally {
+                setGoingAfter(false);
+            }
+        })();
+    };
+
     const handleOpenRelated = (jobId: string, relatedJob?: PublicJob) => {
         if (onOpenRelated) {
             onOpenRelated(jobId, relatedJob);
@@ -56,66 +207,50 @@ export function PublicJobDetail({ job, onClose, onOpenRelated }: PublicJobDetail
         }
     };
 
+    const requireAuth = () => {
+        openAuth("generic");
+    };
+
     return (
         <>
-        <ApplyIntentDialog
-            job={{
-                id: job.id,
-                title: decodeText(job.title),
-                company: job.company || "Unknown company",
-                location: locationText(job) || null,
-            }}
-            open={applyIntentOpen}
-            onOpenChange={setApplyIntentOpen}
-            onContinue={() => {
-                if (job.apply_url) {
-                    window.open(job.apply_url, "_blank", "noopener,noreferrer");
+            <ApplyIntentDialog
+                job={job}
+                open={applyIntentOpen}
+                onOpenChange={setApplyIntentOpen}
+                onContinue={() => openPostingNow(job)}
+            />
+            <AuthPopover
+                open={authOpen}
+                onOpenChange={setAuthOpen}
+                onAuthed={handleAuthed}
+                showTrigger={false}
+                valueLine={
+                    authGateReason
+                        ? formatAuthGateValueLine(authGateReason, listGuestPursuits().length)
+                        : undefined
                 }
-            }}
-        />
-        <JobDetail
-            job={job}
-            now={nowMs}
-            signedIn
-            pursuit={undefined}
-            goingAfter={goingAfter}
-            reportJobEnabled={reportJobEnabled}
-            onClose={onClose}
-            onOpenRelated={handleOpenRelated}
-            onRequestSignIn={requireAuth}
-            onOpenPosting={() => {
-                if (!job.apply_url) return;
-                // Second entry point into the same departure. /jobs' own
-                // handler gates here too; this one has to as well or the
-                // prompt silently depends on which surface you applied from.
-                if (shouldPromptApplyIntent()) {
-                    setApplyIntentOpen(true);
-                    return;
-                }
-                window.open(job.apply_url, "_blank", "noopener,noreferrer");
-            }}
-            onGoAfter={() => {
-                if (resolveApplyGateDecision(Boolean(getCurrentUser())) === "gate") {
-                    requireAuth();
-                    return;
-                }
-                void (async () => {
-                    setGoingAfter(true);
-                    try {
-                        const res = await goAfterJobAction(job);
-                        if (res.error) {
-                            toast.error(`Could not save: ${res.error}`);
-                            return;
-                        }
-                        toast.success("Saved — find it in your Tracker");
-                    } catch (e) {
-                        toast.error(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
-                    } finally {
-                        setGoingAfter(false);
-                    }
-                })();
-            }}
-        />
+                defaultTab={authGateReason === "apply" ? "signup" : "login"}
+            />
+            <JobDetail
+                job={job}
+                now={nowMs}
+                signedIn={Boolean(user)}
+                pursuit={byJobId.get(job.id)}
+                goingAfter={goingAfter}
+                reportJobEnabled={reportJobEnabled}
+                onClose={onClose}
+                onOpenRelated={handleOpenRelated}
+                onRequestSignIn={requireAuth}
+                collapseDescription={collapseDescription}
+                className={cn(detailClassName)}
+                onOpenPosting={() => handleOpenPosting(job)}
+                onGoAfter={() => handleGoAfter(job)}
+            />
+            <JobDetailActionBar
+                job={job}
+                signedIn={Boolean(user)}
+                onOpenPosting={() => handleOpenPosting(job)}
+            />
         </>
     );
 }

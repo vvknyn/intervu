@@ -50,6 +50,47 @@ function isRenderableArticle(a: CompanyNewsArticle): boolean {
   }
 }
 
+/**
+ * The small, closed set of HTML entities RSS/Atom feed serializers leave in
+ * plain-text fields — never a full HTML-entity vocabulary, because `title`/
+ * `summary` are prose, not markup, so nothing here needs to understand tags.
+ * Numeric entities (`&#39;`, `&#x27;`) are fully general via `fromCodePoint`;
+ * named entities are the handful actually seen in feed text.
+ */
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“",
+  mdash: "—", ndash: "–", hellip: "…",
+};
+
+/** Pure: decode HTML entities in one string, or return it unchanged when
+ *  there's nothing to decode. Exported so the decode rule itself — not just
+ *  its wiring into `shapeNewsArticle` — is directly unit-testable. */
+export function decodeHtmlEntities(s: string): string {
+  if (!s.includes("&")) return s;
+  return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (match, ent: string) => {
+    if (ent[0] === "#") {
+      const codePoint = ent[1] === "x" || ent[1] === "X" ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+    }
+    return NAMED_HTML_ENTITIES[ent.toLowerCase()] ?? match;
+  });
+}
+
+/**
+ * `CompanyNewsArticle` as fetched, with entity-decoded display text. The one
+ * place feed markup crosses into product copy — `title`/`summary` render
+ * directly in `CompanyIntelligenceGrid`'s news card — so decoding happens
+ * once here rather than at each render site.
+ */
+export function shapeNewsArticle(a: CompanyNewsArticle): CompanyNewsArticle {
+  return {
+    ...a,
+    title: decodeHtmlEntities(a.title),
+    summary: a.summary ? decodeHtmlEntities(a.summary) : a.summary,
+  };
+}
+
 /** Fetches recent news for a company domain. Fails soft to `[]` on any error. */
 export async function fetchCompanyNews(domain: string): Promise<CompanyNewsArticle[]> {
   if (!hasSubspaceApiKey()) return [];
@@ -83,7 +124,7 @@ export async function fetchCompanyNews(domain: string): Promise<CompanyNewsArtic
     // publishable article: rendering it would put an empty card, or a link
     // to nowhere, on a page whose whole point is that it only shows what it
     // can source.
-    return body.data.articles.filter(isRenderableArticle);
+    return body.data.articles.filter(isRenderableArticle).map(shapeNewsArticle);
   } catch {
     // Network error, timeout/abort, or malformed JSON — never break the page.
     return [];

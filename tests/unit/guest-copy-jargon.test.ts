@@ -10,6 +10,13 @@ import {
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
 import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
+import {
+  followEmailPrompt,
+  followEmailSentLine,
+  followEmailVerifiedLine,
+  followPersistValueLine,
+} from "../../src/lib/follows/persist-copy";
+import { GUEST_AUTH_STRINGS } from "../../src/lib/auth/auth-gate-copy";
 
 /**
  * Class guard for the guest-surface rule
@@ -41,6 +48,11 @@ const GUEST_STRINGS: Record<string, string> = {
   MARKETING_CLAIM_WITH_COUNT: marketingClaim({
     liveJobs: { kind: "exact", value: 12345 },
   }),
+  FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
+  FOLLOW_EMAIL_PROMPT: followEmailPrompt("Example Co"),
+  FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
+  FOLLOW_EMAIL_VERIFIED_LINE: followEmailVerifiedLine("Example Co"),
+  ...GUEST_AUTH_STRINGS,
 };
 
 test("guest-surface strings carry no machinery jargon", () => {

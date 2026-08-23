@@ -64,11 +64,40 @@ export async function syncGuestFollowsToServer(): Promise<boolean> {
     return false;
 }
 
+/**
+ * Pure: which of the raw follow rows count as a confirmed, channel-backed
+ * "following" set. Signed out, `follows` is sourced from the guest-store
+ * bookmark (see `useFollows` below) — a bookmark with no server row and no
+ * address to email, so none of it may render as "Following" (the
+ * "how can I follow when I have not shared an email" bug). Signed in,
+ * `follows` already came from the account's Firestore rows, so every row
+ * counts.
+ */
+export function visibleFollowDomains(isSignedIn: boolean, follows: FollowedCompany[]): Map<string, FollowedCompany> {
+    const map = new Map<string, FollowedCompany>();
+    if (!isSignedIn) return map;
+    for (const f of follows) map.set(f.domain, f);
+    return map;
+}
+
 export interface UseFollowsResult {
     follows: FollowedCompany[];
     loading: boolean;
     hasAny: boolean;
+    /**
+     * Account-backed follows only (Firestore, keyed by uid) — the source of
+     * truth for rendering "Following". A signed-out guest-store bookmark is
+     * not a real notification channel (no server row, no address to email),
+     * so it never lands here even though it's still in `follows` for
+     * pull-based surfaces (e.g. FollowAlertsCard) that don't claim to push
+     * an email. See docs/specs — guest follows exist only as sign-in
+     * migration intent (`syncGuestFollowsToServer`).
+     */
     byDomain: Map<string, FollowedCompany>;
+    /** So a caller (FollowButton) can scope a guest-only signal — like a
+     *  verified-email prop — to guests only, instead of letting it leak
+     *  into an already-signed-in render. */
+    isSignedIn: boolean;
 }
 
 export function useFollows(): UseFollowsResult {
@@ -114,8 +143,7 @@ export function useFollows(): UseFollowsResult {
         };
     }, [user]);
 
-    const byDomain = new Map<string, FollowedCompany>();
-    for (const f of follows) byDomain.set(f.domain, f);
+    const byDomain = visibleFollowDomains(!!user, follows);
 
-    return { follows, loading, hasAny: follows.length > 0, byDomain };
+    return { follows, loading, hasAny: follows.length > 0, byDomain, isSignedIn: !!user };
 }

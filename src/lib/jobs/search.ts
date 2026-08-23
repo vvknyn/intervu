@@ -102,6 +102,15 @@ export async function searchJobs(
   // out, so an agent's search (MCP) is never silently narrowed by a box's
   // own egress IP, and this step is a no-op. See lib/geo/ip-default.ts —
   // `applyLocationDefault` is the whole decision, unit-tested on its own.
+  //
+  // `defaultedLocation` is REQUEST-scoped: it describes how THIS query was
+  // interpreted, not what the backend returned. That's exactly why it must
+  // survive a backend failure below (degraded cache / unavailable) — the
+  // interpretation is still true even when Meilisearch itself is down. The
+  // one place it must NOT be claimed is over a cached DEFAULT-BROWSE result
+  // (see resolveDegradedServe in search-cache.ts), because that response
+  // body is unfiltered and asserting a location over it would lie about
+  // what's actually being shown.
   const { params: p, defaultedLocation } = await applyLocationDefault(
     understood,
     opts?.clientIp,
@@ -144,9 +153,18 @@ export async function searchJobs(
         return {
           ...degraded.result,
           meta: { degraded: true, servedFrom: "cache", cachedAtMs: degraded.cachedAtMs },
+          // Only an "exact" hit was cached under THIS request's own
+          // (already location-filtered) key — claiming the default over it
+          // is true. A "default-browse" hit is the unfiltered fallback; see
+          // the comment on `defaultedLocation`'s computation above for why
+          // it must not be stamped there.
+          ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation }),
         };
       }
     }
+    // Zero hits either way, so there's nothing for a location chip to
+    // misrepresent — and the field describes how we interpreted the
+    // REQUEST, which is still true with the backend down.
     return {
       hits: [],
       total: 0,
@@ -154,8 +172,14 @@ export async function searchJobs(
       configured: true,
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
+      ...(defaultedLocation && { defaultedLocation }),
     };
   }
+  // Config-error state (no backend configured at all), not a search
+  // outcome — deliberately does NOT carry `defaultedLocation`. This isn't
+  // a repeat of the dropped-field bug above: there's no result of any
+  // kind being served here for a location chip to annotate, just an
+  // operator-facing "search isn't set up" note.
   return {
     hits: [],
     total: 0,

@@ -67,6 +67,13 @@ export const RESUME_PARSE_FREE_LADDER = [
     "nvidia/nemotron-nano-9b-v2:free",      // 128K ctx, response_format + structured outputs
 ] as const;
 
+/** Same two structured-output free rungs as résumé parsing; tailoring is the
+ *  same shape of work (JSON in, JSON out, one résumé of context). */
+export const TAILOR_FREE_LADDER = [
+    "dots-studio/dots-3-note-preview:free",
+    "nvidia/nemotron-nano-9b-v2:free",
+] as const;
+
 export type Provider = keyof typeof AVAILABLE_MODELS;
 export type Model = { id: string; name: string; description: string; category: "Free" | "Paid" };
 

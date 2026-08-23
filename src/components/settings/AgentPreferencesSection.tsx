@@ -398,38 +398,41 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                         </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         <Label>Other answers</Label>
                         <p className="text-xs text-muted-foreground">
                             Anything else your agent should always know when it fills out an application.
                         </p>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {customRows.map((row) => (
-                                <div key={row.id} className="flex items-center gap-2">
+                                <div key={row.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                     <Input
                                         value={row.key}
                                         onChange={(e) => updateCustomRow(row.id, { key: e.target.value })}
-                                        placeholder="Question (e.g. Visa status)"
+                                        placeholder="Question (e.g. How did you hear about us?)"
                                         maxLength={200}
-                                        className="flex-1"
+                                        spellCheck={false}
+                                        className="min-w-0 w-full sm:flex-1"
                                     />
-                                    <Input
-                                        value={row.value}
-                                        onChange={(e) => updateCustomRow(row.id, { value: e.target.value })}
-                                        placeholder="Answer"
-                                        maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
-                                        className="flex-1"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-9 w-9 p-0 shrink-0 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeCustomRow(row.id)}
-                                        aria-label="Remove"
-                                    >
-                                        <Trash size={14} />
-                                    </Button>
+                                    <div className="flex min-w-0 w-full items-center gap-2 sm:flex-1">
+                                        <Input
+                                            value={row.value}
+                                            onChange={(e) => updateCustomRow(row.id, { value: e.target.value })}
+                                            placeholder="Answer"
+                                            maxLength={AGENT.PREFERENCES_STRING_MAX_CHARS}
+                                            className="min-w-0 w-full flex-1"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() => removeCustomRow(row.id)}
+                                            aria-label="Remove"
+                                        >
+                                            <Trash size={14} />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -437,15 +440,16 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="w-full rounded-none sm:w-auto"
                             onClick={addCustomRow}
                             disabled={customRows.length >= AGENT.PREFERENCES_CUSTOM_ANSWERS_MAX}
                         >
-                            Add
+                            Add answer
                         </Button>
                     </div>
 
-                    <div className="flex items-center justify-end pt-1">
-                        <Button onClick={handleSave} disabled={saving}>
+                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                        <Button onClick={handleSave} disabled={saving} className="w-full rounded-none sm:w-auto">
                             {saving ? "Saving…" : "Save"}
                         </Button>
                     </div>

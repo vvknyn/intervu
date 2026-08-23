@@ -340,6 +340,28 @@ export async function getResumeHistoryForUser(uid: string): Promise<SavedResumeV
 /**
  * Save a named resume version snapshot explicitly for a user.
  */
+/**
+ * Pure: is this a bare Firestore document id?
+ *
+ * Firestore treats a slash in `.doc()` as a path separator, so an id like
+ * `x/resume_history/y` would walk back out of the subcollection a delete is
+ * scoped to. The uid in the path already confines a caller to their own
+ * history; this closes the one way a crafted id could leave it.
+ */
+export function isBareDocumentId(id: string): boolean {
+    return /^[A-Za-z0-9_-]{1,1500}$/.test(id);
+}
+
+/**
+ * Delete one saved snapshot from a user's resume history. The path is built
+ * from the session uid, so a caller can only ever reach their own versions.
+ */
+export async function deleteResumeVersionForUser(uid: string, versionId: string): Promise<void> {
+    if (!isBareDocumentId(versionId)) throw new Error("Invalid version id");
+    const db = getAdminDb();
+    await db.collection("profiles").doc(uid).collection("resume_history").doc(versionId).delete();
+}
+
 export async function saveNamedResumeVersion(
     uid: string,
     input: { data: ResumeData; label: string },

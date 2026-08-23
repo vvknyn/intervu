@@ -16,9 +16,10 @@ test.describe('SETTINGS - Account Page Tests', () => {
     await expect(page.locator('text=What your agent (and the board) need to know')).toBeVisible();
   });
 
-  test('TC-SETTINGS-002: Three tabs are visible', async ({ page }) => {
+  test('TC-SETTINGS-002: Settings tabs are visible', async ({ page }) => {
     await expect(page.getByRole('tab', { name: 'Resume' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Preferences' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'API key' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Account' })).toBeVisible();
   });
 

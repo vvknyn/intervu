@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * stalled" reads as a statement about *now*, and a bare "Aug 15" on a
  * two-year-old freeze would be the page's most misleading line.
  */
-function eventDate(iso: string): string | null {
+export function eventDate(iso: string): string | null {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return null;
   return new Date(ms).toLocaleDateString("en-US", {
@@ -107,7 +107,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
 /** Direction drives the only colour on the row. `improving`/`declining` are
  *  the ledger's own words for "good for a jobseeker" / "bad for one"; anything
  *  else is drawn neutral rather than guessed at. */
-function directionStyle(direction: CompanyChangeEvent["direction"]): {
+export function directionStyle(direction: CompanyChangeEvent["direction"]): {
   Icon: typeof TrendUp;
   chip: string;
   icon: string;
@@ -168,7 +168,7 @@ export function CompanyChangeEvents({
             // folded in — the list is server-rendered and never reordered.
             <li
               key={`${event.event_type}-${event.occurred_at}-${idx}`}
-              className="flex items-start gap-3.5 rounded-2xl border border-border bg-card px-5 py-4 shadow-xs"
+              className="flex items-start gap-3.5 border border-border bg-card px-5 py-4"
             >
               <Icon size={18} weight="bold" className={cn("mt-0.5 shrink-0", icon)} aria-hidden />
               <div className="min-w-0 flex-1">
@@ -176,7 +176,7 @@ export function CompanyChangeEvents({
                   {label && (
                     <span
                       className={cn(
-                        "rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        "border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                         chip,
                       )}
                     >

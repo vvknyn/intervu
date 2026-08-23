@@ -1,9 +1,11 @@
 import { clearSessionCookie } from "@/lib/firebase/auth-session";
 import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
+import { relativeRedirect } from "@/lib/http/relative-redirect";
 
-export async function POST(req: Request) {
+export async function POST() {
     await clearSessionCookie();
     revalidatePath("/", "layout");
-    return NextResponse.redirect(new URL("/", req.url), { status: 302 });
+    // 302, not the helper's 307 default — lets the browser downgrade the
+    // replay to GET instead of resubmitting POST /.
+    return relativeRedirect("/", 302);
 }

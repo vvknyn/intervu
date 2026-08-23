@@ -7,7 +7,7 @@ export function CompanyHeader({ name, totalOpenRoles }: { name: string; totalOpe
     <header data-testid="company-header">
       <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">{name}</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        {totalOpenRoles.toLocaleString()} {noun} tracked from scraped postings
+        {totalOpenRoles.toLocaleString()} {noun} tracked from the company's own postings
       </p>
     </header>
   );

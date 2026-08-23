@@ -4,19 +4,16 @@
  *
  * Per-user credit gate for the SHARED (app-funded) default model.
  *
- * Policy (2026-06, BYOK entry point removed 2026-08-08):
+ * Policy (2026-06, BYOK restored in Settings 2026-08-23):
  *  - BETA (2026-08-18): `BETA_UNLIMITED_CREDITS` (./credit-copy.ts) is on, so
  *    nobody is charged. Everything below still applies the moment it is off —
  *    the ledger is untouched, not deleted, and the same constant drives
  *    /pricing's copy so the page can never advertise the wrong story.
  *  - vvk / admins: unlimited use of the shared key (no charge).
- *  - Legacy BYOK users (own OpenRouter/Groq key stored before 2026-08-08) or
- *    explicit key overrides: never charged — they pay their own provider.
- *    There is no more UI to add a new one (see profile.ts's
- *    getUserLLMConfig doc comment).
- *  - Everyone else on the shared key: 1 credit per generation, with a small
- *    free monthly grant. Out of credits → blocked with a clear "buy credits"
- *    message (Stripe purchase is a fast-follow).
+ *  - BYOK users (own OpenRouter/Groq key in Settings) or explicit key
+ *    overrides: never charged — they pay their own provider.
+ *  - Everyone else: BYOK-only (2026-08-23). No shared OpenRouter/Groq fallback.
+ *    Paid shared-key path TBD.
  *
  * Metering is "per generation" (one user-facing AI action). Callers resolve the
  * provider config ONCE and call `chargeIfSharedKey(config)` once, above any
@@ -72,12 +69,26 @@ export const AUTH_REQUIRED = "AUTH_REQUIRED";
 
 /** User-facing copy for the two hard blocks, pulled out so it has one source
  *  of truth and is unit-testable without the Firebase-dependent functions
- *  that throw it. Neither message points at a self-service API-key UI —
- *  that entry point was removed 2026-08-08 (see profile.ts). */
+ *  that throw it. */
 export const AUTH_REQUIRED_MESSAGE = "Sign in to use Intervu's built-in AI.";
 export const OUT_OF_CREDITS_MESSAGE =
-    "You're out of AI credits — this month's free credits and any earned credits are both used up. More free credits arrive next month, or buy credits (coming soon).";
+    "You're out of AI credits — this month's free credits and any earned credits are both used up. More free credits arrive next month, buy credits (coming soon), or add your own OpenRouter or Groq key in Settings.";
+export const BYOK_SETTINGS_HINT = "Add your API key in Settings (we'll walk you through it).";
 
+/** Prefix when a signed-in non-admin user has no BYOK key saved. */
+export const BYOK_REQUIRED = "BYOK_REQUIRED";
+
+/** User-facing copy for the BYOK hard block — same guidance as BYOK_SETTINGS_HINT. */
+export const BYOK_REQUIRED_MESSAGE = BYOK_SETTINGS_HINT;
+
+/** Pure decision for shared-key access — unit-testable without Firebase. */
+export type SharedKeyAccess = "allow" | "auth_required" | "byok_required";
+
+export function resolveSharedKeyAccess(opts: { hasUser: boolean; isAdmin: boolean }): SharedKeyAccess {
+    if (!opts.hasUser) return "auth_required";
+    if (opts.isAdmin) return "allow";
+    return "byok_required";
+}
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {
     return (process.env.ADMIN_EMAILS || "vivek.nar87@gmail.com")
@@ -118,43 +129,50 @@ function sharedKey(): string {
  *  - BYOK / explicit override / no shared key configured → no-op (they pay).
  *  - Shared key + NO authenticated user → HARD BLOCK (`AUTH_REQUIRED: …`). The
  *    shared key is never spent for anonymous traffic.
- *  - Shared key + admin → allowed, uncharged.
- *  - Shared key + non-admin user → charge one credit; `OUT_OF_CREDITS: …` when
- *    the monthly free balance is exhausted.
+ *  - Shared key + admin → allowed, uncharged (ops/debugging).
+ *  - Shared key + non-admin → HARD BLOCK (`BYOK_REQUIRED: …`). Free tier is
+ *    BYOK-only; paid shared-key path TBD.
  *
  * FAIL-OPEN applies ONLY to credit-counting infrastructure errors (Firestore
  * down, etc.) — those allow the generation so a billing bug can't lock users
- * out. AUTH_REQUIRED and OUT_OF_CREDITS are deliberate hard blocks and always
- * propagate.
+ * out. AUTH_REQUIRED, BYOK_REQUIRED, and OUT_OF_CREDITS are deliberate hard
+ * blocks and always propagate.
  */
 export async function chargeIfSharedKey(config: { apiKey?: string | null }): Promise<void> {
     const shared = sharedKey();
     if (!shared || !config?.apiKey || config.apiKey !== shared) return; // BYOK / override / unconfigured
 
-    // Resolving the user is part of the auth decision, not credit infra: a failure
-    // here means we cannot prove an account, so we must NOT spend the shared key.
     let user: { uid: string; email?: string } | null;
+    let isAdmin = false;
     try {
         user = await getServerUser();
+        if (user) isAdmin = await isAdminUser(user);
     } catch {
         user = null;
     }
-    if (!user) {
+
+    const access = resolveSharedKeyAccess({ hasUser: Boolean(user), isAdmin });
+    if (access === "auth_required") {
         throw new Error(`${AUTH_REQUIRED}: ${AUTH_REQUIRED_MESSAGE}`);
+    }
+    if (access === "byok_required") {
+        throw new Error(`${BYOK_REQUIRED}: ${BYOK_REQUIRED_MESSAGE}`);
     }
 
     try {
-        // Beta short-circuits ahead of the admin lookup: nothing is metered,
-        // so there is no reason to spend a Firestore read deciding who is
-        // exempt. Sign-in is still required above — that gate exists so the
-        // app-funded key is never spent on anonymous traffic, which is an
-        // abuse control, not a credit policy.
         if (BETA_UNLIMITED_CREDITS) return;
-        if (await isAdminUser(user)) return; // vvk / admins: unlimited
-        await consumeCredit(user.uid);
+        // Paid shared-key path TBD — admins only reach here today.
+        return;
     } catch (e) {
         // Hard blocks always propagate; only credit-counting infra errors fail open.
-        if (e instanceof Error && (e.message.startsWith(OUT_OF_CREDITS) || e.message.startsWith(AUTH_REQUIRED))) throw e;
+        if (
+            e instanceof Error &&
+            (e.message.startsWith(OUT_OF_CREDITS) ||
+                e.message.startsWith(AUTH_REQUIRED) ||
+                e.message.startsWith(BYOK_REQUIRED))
+        ) {
+            throw e;
+        }
         console.error("[credits] gate failing open:", e instanceof Error ? e.message : e);
     }
 }

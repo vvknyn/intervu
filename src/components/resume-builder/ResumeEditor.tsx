@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
+import { downloadBlob } from "@/lib/export-utils";
 import { resumeDataToParsedDocument, parseResumeContent } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import {
+    deleteResumeVersionAction,
     fetchResumeVersionsAction,
     saveNamedResumeVersionAction,
 } from "@/actions/resume-summary";
@@ -24,7 +26,7 @@ import {
     CircleNotch,
     Check,
     ClockCounterClockwise,
-    GitBranch,
+    Trash,
     GitDiff,
     X,
     BookmarkSimple,
@@ -37,18 +39,6 @@ interface ResumeEditorProps {
     onSave: (data: ResumeData) => Promise<boolean | void>;
     onClose: () => void;
     className?: string;
-}
-
-function downloadBlob(content: BlobPart, filename: string, type: string) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
 function parseVersionContentToResumeData(content: string): ResumeData | null {
@@ -100,8 +90,13 @@ function formatDate(iso: string): string {
 
 export function ResumeEditor({ initialData, onSave, onClose, className }: ResumeEditorProps) {
     const [data, setData] = useState<ResumeData>(initialData);
+    // The diff baseline is one value with two sources. `originalBaseline` tracks
+    // the last saved resume and advances on every save, so diffs re-baseline
+    // once your work is persisted instead of flagging saved content as changed.
+    // `compareBaseline` is the explicit override you pick from Version History;
+    // null means "fall back to the saved state", which is the only way back.
     const [originalBaseline, setOriginalBaseline] = useState<ResumeData>(initialData);
-    const [compareBaseline, setCompareBaseline] = useState<ResumeData | null>(initialData);
+    const [compareBaseline, setCompareBaseline] = useState<{ data: ResumeData; label: string; id: string } | null>(null);
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
     const [saving, setSaving] = useState(false);
@@ -114,6 +109,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [newVersionLabel, setNewVersionLabel] = useState("");
     const [savingVersion, setSavingVersion] = useState(false);
+    // Two-step delete: the first click arms the row, the second commits.
+    // An inline confirm rather than window.confirm — a native modal blocks
+    // the whole page and cannot be styled or dismissed by the app.
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const loadVersions = useCallback(async () => {
         setLoadingVersions(true);
@@ -195,10 +195,29 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             toast.error("Could not parse comparison data.");
             return;
         }
-        setCompareBaseline(parsed);
+        setCompareBaseline({ data: parsed, label: ver.label, id: ver.id });
         setShowDiffs(true);
         toast.success(`Comparing live against: "${ver.label}"`);
         setVersionsOpen(false);
+    };
+
+    const handleDeleteVersion = async (ver: SavedResumeVersion) => {
+        setDeletingId(ver.id);
+        try {
+            const res = await deleteResumeVersionAction(ver.id);
+            if (res.error) throw new Error(res.error);
+            setVersions((prev) => prev.filter((v) => v.id !== ver.id));
+            // If the diff was baselined against this snapshot, that baseline
+            // just stopped existing. Fall back to the last saved resume rather
+            // than keep diffing against something the user deleted.
+            setCompareBaseline((cur) => (cur?.id === ver.id ? null : cur));
+            toast.success(`Deleted "${ver.label}"`);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Failed to delete version");
+        } finally {
+            setDeletingId(null);
+            setConfirmDeleteId(null);
+        }
     };
 
     const handleDownloadPdf = () => {
@@ -233,38 +252,41 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             `${(data.profile?.name || "resume").toLowerCase().replace(/\s+/g, "_")}.json`,
             "application/json",
         );
+        toast.success("JSON downloaded");
     };
 
     return (
         <div
             className={cn(
-                "relative flex h-[85vh] min-h-[640px] flex-col rounded-none border border-border bg-card shadow-none overflow-hidden",
+                // Height subtracts only global chrome (TopBar + mobile tab bar).
+                // Page header/tabs are hidden while this editor is open.
+                "relative flex h-[calc(100dvh-7.25rem-env(safe-area-inset-bottom,0px))] min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card shadow-none lg:h-[calc(100dvh-4.5rem)]",
                 className,
             )}
         >
             {/* Top Toolbar */}
-            <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 py-3 sm:px-6 backdrop-blur-md">
-                <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 py-2.5 sm:px-6 sm:py-3 backdrop-blur-md">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={onClose}
-                        className="gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-none"
+                        className="shrink-0 gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-none"
                     >
                         <ArrowLeft size={14} /> Back
                     </Button>
-                    <div className="hidden sm:block h-4 w-px bg-border" />
-                    <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                            Live Template Editor
+                    <div className="hidden sm:block h-4 w-px shrink-0 bg-border" />
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="hidden truncate text-xs font-bold uppercase tracking-wider text-foreground sm:inline">
+                            Live template editor
                         </span>
                         {hasUnsavedChanges ? (
-                            <span className="rounded-none bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                Unsaved edits
+                            <span className="shrink-0 rounded-none bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                Unsaved
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-none bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Check size={10} weight="bold" /> Saved
                             </span>
                         )}
@@ -272,7 +294,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 </div>
 
                 {/* Right controls */}
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                     {/* Versions Button */}
                     <Button
                         type="button"
@@ -280,9 +302,10 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         size="sm"
                         onClick={() => setVersionsOpen(!versionsOpen)}
                         className="gap-1 text-xs rounded-none"
+                        title="Versions & diffs"
                     >
                         <ClockCounterClockwise size={14} />
-                        <span className="hidden sm:inline">Versions & Diffs</span>
+                        <span className="hidden sm:inline">Versions & diffs</span>
                     </Button>
 
                     {/* Diff Toggle */}
@@ -298,7 +321,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         title="Toggle visual diff highlights"
                     >
                         <GitDiff size={14} />
-                        <span className="hidden md:inline">{showDiffs ? "Diffs On" : "Show Diffs"}</span>
+                        <span className="hidden md:inline">{showDiffs ? "Diffs on" : "Show diffs"}</span>
                     </Button>
 
                     <Button
@@ -323,13 +346,25 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                     <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadJson}
+                        title="Download the structured resume data"
+                        className="hidden xl:inline-flex gap-1 text-xs rounded-none shadow-none"
+                    >
+                        <DownloadSimple size={13} /> .json
+                    </Button>
+
+                    <Button
+                        type="button"
                         size="sm"
                         onClick={handleSave}
                         disabled={saving}
                         className="gap-1.5 text-xs font-semibold rounded-none"
                     >
                         {saving ? <CircleNotch size={14} className="animate-spin" /> : <FloppyDisk size={14} />}
-                        {saving ? "Saving…" : "Save Changes"}
+                        <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
+                        <span className="hidden sm:inline">{saving ? "Saving…" : "Save changes"}</span>
                     </Button>
                 </div>
             </div>
@@ -388,21 +423,34 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                 >
                     <div className="w-full max-w-[8.5in] transition-all">
                         <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground px-1">
-                            <span className="font-mono text-[10.5px] uppercase tracking-wider">
+                            <span className="text-[10.5px] uppercase tracking-wider">
                                 Standard US Letter Layout
                             </span>
                             <div className="flex items-center gap-3">
                                 {showDiffs && (
-                                    <span className="font-mono text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                        <GitDiff size={12} /> Diff Mode Active
+                                    <span className="text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                        <GitDiff size={12} />
+                                        <span className="max-w-[13rem] truncate">
+                                            {compareBaseline ? `Comparing to "${compareBaseline.label}"` : "Comparing to last saved"}
+                                        </span>
+                                        {compareBaseline && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompareBaseline(null)}
+                                                className="underline underline-offset-2 hover:no-underline"
+                                                title="Compare against the last saved resume instead"
+                                            >
+                                                reset
+                                            </button>
+                                        )}
                                     </span>
                                 )}
-                                <span className="font-mono text-[10.5px]">Click any section to edit</span>
+                                <span className="text-[10.5px]">Click any section to edit</span>
                             </div>
                         </div>
                         <LiveResumePreview
                             data={data}
-                            originalData={showDiffs ? compareBaseline : null}
+                            originalData={showDiffs ? (compareBaseline?.data ?? originalBaseline) : null}
                             showDiffs={showDiffs}
                             selectedSection={selectedSection}
                             onEdit={(section) => {
@@ -446,7 +494,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                         value={newVersionLabel}
                                         onChange={(e) => setNewVersionLabel(e.target.value)}
                                         placeholder="e.g. Tailored for Apple, Post-review v2..."
-                                        className="h-8 text-xs"
+                                        className="h-8 text-base md:text-xs"
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
                                                 e.preventDefault();
@@ -469,11 +517,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                             {/* Saved Versions List */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="font-mono uppercase font-semibold">Saved Snapshots ({versions.length})</span>
+                                    <span className="uppercase font-semibold">Saved Snapshots ({versions.length})</span>
                                     <button
                                         type="button"
                                         onClick={loadVersions}
-                                        className="hover:underline font-mono text-[11px]"
+                                        className="hover:underline text-[11px]"
                                     >
                                         Refresh
                                     </button>
@@ -498,30 +546,74 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                     <span className="font-semibold text-foreground leading-tight">
                                                         {ver.label}
                                                     </span>
-                                                    <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                                                    <span className="text-[10px] text-muted-foreground shrink-0">
                                                         {formatDate(ver.saved_at)}
                                                     </span>
                                                 </div>
 
                                                 <div className="flex items-center gap-2 pt-1 border-t border-border/60">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleRecallVersion(ver)}
-                                                        className="h-7 text-[11px] gap-1 rounded-none flex-1"
-                                                    >
-                                                        <ArrowCounterClockwise size={12} /> Recall
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleCompareVersion(ver)}
-                                                        className="h-7 text-[11px] gap-1 rounded-none flex-1 text-amber-600 dark:text-amber-400"
-                                                    >
-                                                        <GitDiff size={12} /> Compare
-                                                    </Button>
+                                                    {confirmDeleteId === ver.id ? (
+                                                        <>
+                                                            <span className="flex-1 text-[11px] font-semibold text-destructive">
+                                                                Delete this version?
+                                                            </span>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => setConfirmDeleteId(null)}
+                                                                className="h-7 text-[11px] rounded-none"
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                disabled={deletingId === ver.id}
+                                                                onClick={() => void handleDeleteVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none"
+                                                            >
+                                                                {deletingId === ver.id ? (
+                                                                    <CircleNotch size={12} className="animate-spin" />
+                                                                ) : (
+                                                                    <Trash size={12} />
+                                                                )}
+                                                                Delete
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleRecallVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1"
+                                                            >
+                                                                <ArrowCounterClockwise size={12} /> Recall
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleCompareVersion(ver)}
+                                                                className="h-7 text-[11px] gap-1 rounded-none flex-1 text-amber-600 dark:text-amber-400"
+                                                            >
+                                                                <GitDiff size={12} /> Compare
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title={`Delete "${ver.label}"`}
+                                                                onClick={() => setConfirmDeleteId(ver.id)}
+                                                                className="h-7 w-7 p-0 shrink-0 rounded-none text-muted-foreground hover:text-destructive"
+                                                            >
+                                                                <Trash size={12} />
+                                                            </Button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}

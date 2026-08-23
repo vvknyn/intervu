@@ -51,6 +51,16 @@ test("buildRobotsRules: search engines and AI crawlers share the exact same rule
   assert.deepEqual(googleRule!.disallow, gptRule!.disallow);
 });
 
+test("buildRobotsRules: named bots disallow every PRIVATE_PATHS entry, not just /api/", () => {
+  const rules = buildRobotsRules();
+  const googleRule = ruleFor(rules, "Googlebot");
+  assert.ok(googleRule);
+  const disallow = Array.isArray(googleRule!.disallow) ? googleRule!.disallow : [googleRule!.disallow].filter(Boolean);
+  for (const path of PRIVATE_PATHS) {
+    assert.ok(disallow.includes(path), `expected Googlebot to disallow ${path}`);
+  }
+});
+
 test("buildRobotsRules: /api/ is disallowed for every rule, named or general", () => {
   const rules = buildRobotsRules();
   for (const rule of rules) {

@@ -33,11 +33,34 @@ test("null/undefined pass through as empty string", () => {
     assert.equal(cleanCompany(undefined), "");
 });
 
-test("strips ATS portal hostnames", () => {
-    assert.equal(cleanCompany("limble.applicantpro.com"), "");
-    assert.equal(cleanCompany("jobs.greenhouse.io"), "");
+// 2026-08-16 (bccde83): cleanCompany stopped blanking ATS-portal hostnames
+// and started extracting a best-effort tenant name instead — a blank name
+// next to a real favicon was the actual complaint (#150), and the module
+// doc above states this branch's job as "extract clean company brand
+// names," not blank them. What must never regress is the RAW ATS-portal
+// hostname leaking onto the screen verbatim.
+test("strips ATS portal hostnames, extracting a humanized tenant name rather than showing the raw hostname", () => {
+    const limble = cleanCompany("limble.applicantpro.com");
+    assert.equal(limble, "Limble");
+    assert.ok(!limble.includes("."), `must not leak the raw hostname, got ${JSON.stringify(limble)}`);
+
+    const greenhouse = cleanCompany("jobs.greenhouse.io");
+    assert.equal(greenhouse, "Jobs");
+    assert.ok(!greenhouse.includes("."), `must not leak the raw hostname, got ${JSON.stringify(greenhouse)}`);
 });
 
+// Unlike an ATS-portal hostname or a single-label brand-styled domain
+// (guard rail 5 below), a bare THREE-OR-MORE-LABEL domain with no
+// recognized ATS provider and no generic subdomain prefix carries no
+// reliable brand signal — "acme.example.com" could mean "Acme" (a
+// subdomain of some portal at example.com) or "Example" (the registrable
+// domain, "acme" an internal product/region label), and there's no way to
+// tell which. Guessing either presents an unverified name as fact, which
+// fails harder than an empty gap. humanizeTenantSubdomain enforces this: an
+// unresolved multi-label remainder returns "" rather than the malformed,
+// still-dotted guess it produced before this fix ("Acme.example") — itself
+// just the raw-hostname leak this whole extraction exists to stop, merely
+// capitalized.
 test("strips bare domain placeholders", () => {
     assert.equal(cleanCompany("acme.example.com"), "");
 });
@@ -54,12 +77,18 @@ test("strips leading C-prefix codes", () => {
     assert.equal(cleanCompany("C0001 Widget Corp"), "Widget Corp");
 });
 
-test("displayCompany falls back to the domain when the name is bare-domain-shaped", () => {
-    assert.equal(displayCompany("Bill.com", "bill.com"), "bill.com");
+// cleanCompany's own placeholder-extraction (bccde83) already resolves a
+// bare-domain-shaped name to a humanized brand — displayCompany's domain
+// argument here is a second signal that happens to agree, not the thing
+// producing the value. What the test guards is unchanged: the label must
+// never fall back to the raw domain string ("bill.com" reads as a URL, not
+// a company name).
+test("displayCompany extracts a humanized brand, not the raw domain string, when the name is bare-domain-shaped", () => {
+    assert.equal(displayCompany("Bill.com", "bill.com"), "Bill");
 });
 
-test("displayCompany falls back to the domain when the name is an ATS portal hostname", () => {
-    assert.equal(displayCompany("acme.applicantpro.com", "acme.com"), "acme.com");
+test("displayCompany extracts a humanized brand, not the raw domain string, when the name is an ATS portal hostname", () => {
+    assert.equal(displayCompany("acme.applicantpro.com", "acme.com"), "Acme");
 });
 
 test("displayCompany passes through a real cleaned name unchanged", () => {
@@ -74,8 +103,19 @@ test("displayCompany returns empty string when both name and domain are absent",
     assert.equal(displayCompany(null, null), "");
 });
 
-test("displayCompany fixes the reported bug: a domain-shaped brand name no longer contradicts the rendered favicon", () => {
-    assert.equal(displayCompany("Super.Com", "super.com"), "super.com");
+// #150's original fix made displayCompany fall back to the raw domain
+// STRING ("super.com") so the label could never visually disagree with
+// itself. Right call at the time — but the favicon it was protecting
+// (CompanyLogo.tsx -> companyLogoUrl, lib/companies/logo.ts) is an <img>
+// fetched from Google's favicon service: an ICON, not rendered text. An
+// icon can't "contradict" a text label the way a blank/"Unknown company"
+// label next to a real logo did (the actual #150 bug — see its commit
+// message). bccde83 (2026-08-16) moved the fallback from the raw domain to
+// a humanized brand for exactly that reason: "super.com" reads as a URL,
+// not a company name, and it's the same domain-styled-brand shape guard
+// rail 5 below already resolves the same way (Checkout.Com -> "Checkout").
+test("displayCompany fixes the reported bug: a blank or raw-domain company name no longer sits next to the rendered favicon", () => {
+    assert.equal(displayCompany("Super.Com", "super.com"), "Super");
 });
 
 // displayCompanyName — /co/[slug]'s display-name suffix strip. Runs on top
@@ -272,4 +312,113 @@ test("the existing leading-entity-code strip generalizes to a different real QLY
         cleanCompany("QLYS_IN Qualys Security TechServices Private Ltd."),
         "Qualys Security TechServices Private Ltd.",
     );
+});
+
+// displayCompanyName — prose-safe display of legal-entity strings, 2026-08-21.
+// Real production examples, pixel-verified live on /jobs the same day.
+// See presentation.ts's `stripLegalTail`/`GEO_GATED_TAIL_WORDS`/
+// `stackedGeographyParen` for the mechanism these exercise.
+
+test("strips a stacked 'geography + structure-noun + legal-designator' tail — the Michael Kors shape", () => {
+    assert.equal(displayCompanyName("Michael Kors (Canada) Holdings LTD"), "Michael Kors");
+});
+
+// "Stryker" alone was also considered — see stackedGeographyParen's doc for
+// why an UNBRACKETED trailing country word is deliberately left alone
+// (it's load-bearing in real brand names like "Air Canada"/"Canada Goose");
+// only the bracketed shape ever gets read as a legal qualifier.
+test("strips an unambiguous foreign designator (ULC) but leaves the bare, unbracketed geography token alone", () => {
+    assert.equal(displayCompanyName("Stryker Canada ULC"), "Stryker Canada");
+});
+
+test("strips a punctuated 'Co.' with no comma and no geography needed — punctuation alone makes it unambiguous", () => {
+    assert.equal(displayCompanyName("Autodesk Canada Co."), "Autodesk Canada");
+});
+
+test("strips the '^Company N - ' upstream row-index prefix, leaving a trailing bare 'Company' untouched", () => {
+    // The trailing bare "Company" is NOT stripped: it's a geo-gated word
+    // (see GEO_GATED_TAIL_WORDS's doc) and there's no bracketed geography
+    // qualifier anywhere in this name to corroborate it — "The Manufacturers
+    // Life Insurance Company" IS this employer's real, whole legal name.
+    assert.equal(
+        displayCompanyName("Company 1 - The Manufacturers Life Insurance Company"),
+        "The Manufacturers Life Insurance Company",
+    );
+});
+
+test("the '^Company N - ' prefix strip generalizes past N=1 — class-wide, not one instance", () => {
+    assert.equal(displayCompanyName("Company 47 - Beacon Health Options"), "Beacon Health Options");
+});
+
+// Explicitly out of scope: no legal designator anywhere in this name, so
+// there is nothing for stripLegalTail to key off — "Property Management
+// Services" is real, load-bearing brand content, not a stripped legal tail.
+test("leaves a name with no legal designator at all untouched, even though it reads like a long legal form", () => {
+    assert.equal(
+        displayCompanyName("Greystar Canada Property Management Services"),
+        "Greystar Canada Property Management Services",
+    );
+});
+
+test("control: a plain two-word brand with no designator anywhere is untouched", () => {
+    assert.equal(displayCompanyName("Best Buy"), "Best Buy");
+});
+
+test("simple dotted-suffix case still works unchanged (Gap Inc. -> Gap)", () => {
+    assert.equal(displayCompanyName("Gap Inc."), "Gap");
+});
+
+test("a leading, non-trailing 'Inc' is never touched — end-anchored matching, not substring matching", () => {
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+});
+
+test("strips a legal designator that sits AFTER a trailing geography parenthetical, exposing it for a second strip", () => {
+    assert.equal(displayCompanyName("Extendicare (Canada) Inc."), "Extendicare");
+});
+
+// The "+3 more" suffix seen live alongside "Extendicare (Canada) Inc." in
+// the reported bug is a SEPARATE UI concatenation (JobDetail.tsx's location
+// disclosure toggle, `+ ${hidden.length} more locations`) — verified via
+// grep, never part of the string handed to cleanCompany/displayCompanyName,
+// so there is nothing for this function to strip.
+
+// Class-wide beyond the reported examples: a DIFFERENT bracketed country
+// (not Canada) combined with BOTH geo-gated words in one name.
+test("class-wide: a different bracketed country plus a two-deep geo-gated stack (Group + Ltd)", () => {
+    assert.equal(displayCompanyName("Acme Widgets (UK) Group Ltd"), "Acme Widgets");
+});
+
+// Negative controls for the geo-gated tier: these bare words must NEVER
+// strip without a bracketed-geography corroborating signal, even though
+// they're in the very same vocabulary the corroborated cases above strip.
+test("negative: 'Group' bare, with no geography anywhere, is left alone (not just 'Holdings')", () => {
+    assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
+});
+
+test("negative: a trailing geography parenthetical with nothing stacked after it is left for cleanCompany's own rule, not stripped here", () => {
+    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro Inc. (Canada)");
+});
+
+// Idempotence: re-running displayCompanyName on its own output must be a
+// no-op, for both strings it changes and strings it leaves alone.
+test("displayCompanyName is idempotent across the full class of inputs above", () => {
+    const inputs = [
+        "Michael Kors (Canada) Holdings LTD",
+        "Stryker Canada ULC",
+        "Autodesk Canada Co.",
+        "Company 1 - The Manufacturers Life Insurance Company",
+        "Greystar Canada Property Management Services",
+        "Best Buy",
+        "Gap Inc.",
+        "Inc Magazine",
+        "Extendicare (Canada) Inc.",
+        "Acme Widgets (UK) Group Ltd",
+        "Riverside Group",
+        "Acme Ltd",
+        "Acme Corp",
+    ];
+    for (const input of inputs) {
+        const once = displayCompanyName(input);
+        assert.equal(displayCompanyName(once), once, `not idempotent for "${input}" -> "${once}"`);
+    }
 });

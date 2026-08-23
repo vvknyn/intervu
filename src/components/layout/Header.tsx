@@ -71,7 +71,7 @@ export function Header({
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[var(--shadow-sm)]">
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl">
       <div className="px-4 h-16 flex items-center gap-2 sm:gap-4 overflow-hidden">
         {/* Mobile Menu Button */}
         {onOpenSidebar && (

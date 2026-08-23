@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, resolveCompanyName } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, resolveCompanyName } from "@/lib/companies/company-name";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -184,5 +184,56 @@ describe("companies/company-name — brand vs legal entity", () => {
   it("resolves a domain-styled real brand name to the same value whether read as corpus evidence or as a domain fallback (checkout.com, live)", () => {
     const resolved = resolveCompanyName(rows({ "Checkout.Com": 429 }), "checkout.com");
     assert.equal(resolved.value, "Checkout");
+  });
+
+  // The domain fallback (`displayNameFromDomain`) used to capitalize on `\b`
+  // word boundaries only, which never fires between a digit and the letter
+  // right after it — "23andme.com" and "1password.com" came back exactly as
+  // lowercase as the raw domain label. Covers a second, different domain
+  // shape (not just the two named in the bug report) to prove the fix is the
+  // general "capitalize after any non-letter" rule, not two hardcoded names.
+  it("capitalizes a domain label even where a digit sits directly against a letter, with no corpus evidence at all", () => {
+    assert.equal(displayNameFromDomain("23andme.com"), "23Andme");
+    assert.equal(displayNameFromDomain("1password.com"), "1Password");
+    assert.equal(displayNameFromDomain("6sense.com"), "6Sense");
+    // Unaffected shapes stay exactly as before.
+    assert.equal(displayNameFromDomain("acme-corp.com"), "Acme Corp");
+    assert.equal(displayNameFromDomain("stripe.com"), "Stripe");
+  });
+
+  it("never leaves the raw lowercase domain-shaped string as the resolved name when the corpus carries no evidence", () => {
+    const resolved = resolveCompanyName([], "23andme.com");
+    assert.equal(resolved.source, "domain");
+    assert.notEqual(resolved.value, "23andme");
+    assert.equal(resolved.value, "23Andme");
+  });
+
+  // Live bug, intervuhq.com/co/1password--com after PR #258: every row on the
+  // domain spells the name flat ("1password"), so there is no cased witness
+  // (`best.cased` stays null) and the winning group is exactly as
+  // casing-free as a bare domain label — it must get the same recovery, not
+  // be shown verbatim.
+  it("recovers casing on a corpus-flat name with no cased witness anywhere in the group (1password.com, live)", () => {
+    const resolved = resolveCompanyName(rows({ "1password": 2 }), "1password.com");
+    assert.equal(resolved.value, "1Password");
+    assert.equal(resolved.source, "corpus-flat");
+  });
+
+  it("generalises corpus-flat recovery to a second employer, not just the one that surfaced the bug (monzo.com)", () => {
+    const resolved = resolveCompanyName(rows({ monzo: 3 }), "monzo.com");
+    assert.equal(resolved.value, "Monzo");
+    assert.equal(resolved.source, "corpus-flat");
+  });
+
+  it("does not touch the corpus-cased path: a lone cased row still wins verbatim (survivor)", () => {
+    const resolved = resolveCompanyName(rows({ eBay: 5 }), "ebay.com");
+    assert.equal(resolved.value, "eBay");
+    assert.equal(resolved.source, "corpus-cased");
+  });
+
+  it("does not touch the corpus-cased path: a cased witness among flat siblings wins verbatim (survivor)", () => {
+    const resolved = resolveCompanyName(rows({ Datadog: 1, datadog: 4 }), "datadog.com");
+    assert.equal(resolved.value, "Datadog");
+    assert.equal(resolved.source, "corpus-cased");
   });
 });

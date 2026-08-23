@@ -23,7 +23,7 @@ export function PrivacyNotice() {
     if (dismissed) return null;
 
     return (
-        <div className="relative bg-card rounded-xl p-4 shadow-[var(--shadow-sm)] mb-6 animate-in fade-in duration-300">
+        <div className="relative bg-card rounded-xl p-4 mb-6 animate-in fade-in duration-300">
             <button
                 onClick={handleDismiss}
                 className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"

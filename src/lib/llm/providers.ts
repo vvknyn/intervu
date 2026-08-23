@@ -5,7 +5,8 @@ import OpenAI from 'openai';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
-const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_RETRIES = 3;
 
 export enum LLMErrorCode {
     TIMEOUT = 'TIMEOUT',
@@ -108,7 +109,8 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
     }
 
     async generate(request: LLMRequest): Promise<LLMResponse> {
-        const maxRetries = 3;
+        const timeoutMs = request.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        const maxRetries = request.maxRetries ?? DEFAULT_MAX_RETRIES;
         let lastError: any = null;
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -126,7 +128,7 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                     response_format: request.json ? { type: 'json_object' } : undefined,
                 });
 
-                const completion = await withTimeout(completionPromise, DEFAULT_TIMEOUT_MS, this.providerName);
+                const completion = await withTimeout(completionPromise, timeoutMs, this.providerName);
                 let text = completion.choices[0]?.message?.content || "";
 
                 if (!text || text.trim() === '') {
