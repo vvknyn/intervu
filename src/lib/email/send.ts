@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { emailKindPolicy, type EmailKind } from "./types";
 import { isSuppressed } from "./suppression";
 import { normalizeEmail } from "./normalize-email";
-import { isMintedLoginEmail } from "@/lib/auth/username-email";
+import { isReachableEmail } from "@/lib/auth/username-email";
 
 export interface SendEmailInput {
   to: string;
@@ -64,7 +64,10 @@ export function resolveSendPreflight(input: {
   // Password signup mints <username>@intervu.cc with nothing behind it, so
   // every send there is a hard bounce, and bounce rate is the largest
   // single input to a sending domain's reputation.
-  if (isMintedLoginEmail(input.to)) return "no-mailbox";
+  // Also covers an empty `to`, which used to fall through to the config
+  // branches and surface as a provider error — same fact ("nowhere to
+  // deliver"), so it belongs on the same reason code.
+  if (!isReachableEmail(input.to)) return "no-mailbox";
   if (emailKindPolicy(input.kind).requiresUnsubscribeHeader && !input.hasUnsubscribeUrl) {
     return "missing-unsubscribe-url";
   }

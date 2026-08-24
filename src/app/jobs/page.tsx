@@ -147,7 +147,35 @@ import {
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
-import { SearchPrefsSetup, type SearchPrefsValues } from "@/components/jobs/SearchPrefsSetup";
+import { SearchPrefsSetup } from "@/components/jobs/SearchPrefsSetup";
+import {
+    clearStashedPrefs,
+    dismissOnboarding,
+    getStashedPrefs,
+    isOnboardingDismissed,
+    prefsToFlush,
+    recordOnboardingInteraction,
+    shouldPromptOnboarding,
+    stashPrefs,
+    type PrefsDestination,
+    type SearchPrefsValues,
+} from "@/lib/jobs/onboarding-prompt";
+import {
+    dismissEmailNudge,
+    isEmailNudgeDismissed,
+    shouldPromptEmailNudge,
+} from "@/lib/jobs/email-nudge";
+import {
+    DEFAULT_SERP_DENSITY,
+    readSerpDensity,
+    resolveFacetsMountSite,
+    showsFiltersToggle,
+    writeSerpDensity,
+    type SerpDensity,
+} from "@/lib/jobs/serp-density";
+import { getAccountEmailStateAction } from "@/actions/account-email";
+import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
+import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
@@ -267,7 +295,7 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
 const toolbarChipClass =
     "inline-flex items-center justify-center h-11 px-3 text-[13px] font-medium rounded-none lg:h-7 lg:px-2 lg:text-[11px]";
 
-function SortSegment({
+function ToolbarSegment({
     label,
     pressed,
     onClick,
@@ -493,6 +521,7 @@ function JobCard({
     variantCount = 0,
     expanded = false,
     onToggleExpand,
+    dense = false,
 }: {
     job: PublicJob;
     active: boolean;
@@ -507,6 +536,10 @@ function JobCard({
     variantCount?: number;
     expanded?: boolean;
     onToggleExpand?: () => void;
+    /** Dense SERP layout. Only the row's OWN spacing changes — no field is
+     *  dropped, so the two layouts always say the same things about a job.
+     *  Defaults false so every other call site keeps today's pixels. */
+    dense?: boolean;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -552,7 +585,8 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card px-4 py-3 text-left transition-all duration-150 hover:border-foreground/50",
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none glass-card text-left transition-all duration-150 hover:border-foreground/50",
+                dense ? "mb-1 gap-x-3 gap-y-0.5 px-3 py-1.5" : "mb-2.5 gap-x-3.5 gap-y-2 px-4 py-3",
                 active && "border-brand border-l-4 border-l-brand glass-tint-blue",
             )}
         >
@@ -1281,6 +1315,21 @@ function JobsContent() {
         setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
+        // Searches run in this browser. Counted HERE, at the one submit
+        // chokepoint, which is what stops a future search entry point from
+        // being invisible to either prompt — and counted for signed-in
+        // visitors too, because the email nudge needs the same "has this
+        // person actually shown intent" signal the wizard does.
+        //
+        // Both offers are decided here rather than in an effect on the count,
+        // so each can only ever follow a search the visitor JUST ran. The
+        // counter persists across visits, so an effect would fire on mount
+        // for anyone already past the threshold — a prompt on arrival, before
+        // they've done anything, which is the version of this pattern
+        // everyone hates. This way a returning visitor who searched twice
+        // yesterday is asked on today's first search.
+        const interactions = recordOnboardingInteraction();
+
         if (user) {
             void saveAgentPreferencesAction({
                 search: {
@@ -1288,6 +1337,33 @@ function JobsContent() {
                     location: locationDraft.trim() || undefined,
                 },
             }).catch(() => {});
+            // `accountEmailState === null` means the lookup hasn't answered
+            // yet — not "reachable". Treating unknown as fine is what keeps a
+            // slow round trip from silently suppressing the banner forever.
+            if (
+                accountEmailState !== null &&
+                shouldPromptEmailNudge({
+                    signedIn: true,
+                    needsEmail: accountEmailState !== "reachable",
+                    dismissed: emailNudgeDismissed,
+                    interactions,
+                })
+            ) {
+                setEmailNudgeOpen(true);
+            }
+        } else {
+            // Signed out there's no profile to write preferences into, so the
+            // count is the only intent signal available.
+            if (
+                shouldPromptOnboarding({
+                    interactions,
+                    signedIn: false,
+                    dismissed: onboardingDismissed,
+                    configured: agentSearchPrefsSet || Boolean(onboardingStash),
+                })
+            ) {
+                setSearchPrefsDialogOpen(true);
+            }
         }
     };
 
@@ -1431,6 +1507,47 @@ function JobsContent() {
     const [user, setUser] = useState<User | null>(null);
     const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
     const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
+    // Signed-out onboarding (owner's call, 2026-08-23): offer the setup
+    // wizard after a few submitted searches rather than on arrival. Both
+    // values live in localStorage and are read post-mount, so `dismissed`
+    // starts at the SUPPRESSED end — true until the browser says otherwise —
+    // rather than risk offering the wizard to someone who already said no.
+    // Same idiom as `guestSaveBannerDismissed` above. The interaction count
+    // isn't mirrored into state: `submitSearch` reads it back from the
+    // increment it just made, and state nothing renders is state that only
+    // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
+    const [onboardingDismissed, setOnboardingDismissed] = useState(true);
+    const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
+    // The signed-in twin: an account whose only address is a minted
+    // <username>@intervu.cc can't receive anything we send. Same
+    // suppressed-until-the-browser-says-otherwise start as above.
+    const [emailNudgeDismissed, setEmailNudgeDismissed] = useState(true);
+    const [emailNudgeOpen, setEmailNudgeOpen] = useState(false);
+    const [accountEmailState, setAccountEmailState] = useState<EmailNudgeState | null>(null);
+    const [accountPendingEmail, setAccountPendingEmail] = useState<string | null>(null);
+    useEffect(() => {
+        setOnboardingDismissed(isOnboardingDismissed());
+        setOnboardingStash(getStashedPrefs());
+        setEmailNudgeDismissed(isEmailNudgeDismissed());
+    }, []);
+    // Resolved from the server, never guessed from the client-side user
+    // object: `user.email` is non-empty for exactly the accounts this serves
+    // (that is the bug), so only `isReachableEmail` on the session can answer
+    // it. Cleared on sign-out so a previous account's state can't leak into
+    // the next one's banner.
+    useEffect(() => {
+        if (!user) {
+            setAccountEmailState(null);
+            setAccountPendingEmail(null);
+            setEmailNudgeOpen(false);
+            return;
+        }
+        void getAccountEmailStateAction().then((res) => {
+            if (!res.data) return;
+            setAccountEmailState(res.data.state);
+            setAccountPendingEmail(res.data.pendingEmail);
+        });
+    }, [user?.uid]);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
@@ -1527,8 +1644,41 @@ function JobsContent() {
             return;
         }
         let cancelled = false;
-        void fetchAgentPreferencesAction().then((res) => {
-            if (!cancelled && res.data) setAgentPrefs(res.data);
+        void fetchAgentPreferencesAction().then(async (res) => {
+            if (cancelled || !res.data) return;
+            // Carry up anything the wizard collected while they were signed
+            // out — but only into an account that has nothing yet. Someone
+            // who set preferences on another device must not have them
+            // overwritten by a logged-out session in this browser, which
+            // would make signing in destructive. `prefsToFlush` owns that
+            // rule; `hasSearchPrefs` is the same "already configured" test
+            // the rest of this page gates on.
+            const flush = prefsToFlush({
+                signedIn: true,
+                stash: getStashedPrefs(),
+                accountConfigured: hasSearchPrefs(res.data.search),
+            });
+            if (!flush) {
+                setAgentPrefs(res.data);
+                return;
+            }
+            const saved = await saveAgentPreferencesAction({
+                search: {
+                    query: flush.query,
+                    location: flush.location || undefined,
+                    remoteOnly: flush.remoteOnly || undefined,
+                    salaryMin: flush.salaryMin || undefined,
+                },
+            });
+            if (cancelled) return;
+            // Only drop the local copy once the server has it. A failed
+            // flush leaves the stash intact so the next sign-in retries,
+            // rather than silently discarding what they typed.
+            if (saved.data) {
+                clearStashedPrefs();
+                setOnboardingStash(null);
+            }
+            setAgentPrefs(saved.data ?? res.data);
         });
         return () => {
             cancelled = true;
@@ -2598,6 +2748,23 @@ function JobsContent() {
      * grow a second, drifting mutation path.
      */
     const [filtersOpen, setFiltersOpen] = useState(false);
+    /**
+     * Layout density (xl+ only — see lib/jobs/serp-density.ts). Seeded with the
+     * DEFAULT rather than with storage, then corrected in an effect: reading
+     * localStorage during render gives the server one answer and the first
+     * client pass another, and React calls that a hydration error, not a
+     * layout preference. One frame of comfortable is the cost.
+     */
+    const [density, setDensity] = useState<SerpDensity>(DEFAULT_SERP_DENSITY);
+    useEffect(() => {
+        setDensity(readSerpDensity());
+    }, []);
+    const chooseDensity = (next: SerpDensity) => {
+        setDensity(next);
+        writeSerpDensity(next);
+    };
+    const dense = density === "dense" && isXlUp;
+    const facetsMountSite = resolveFacetsMountSite({ density, isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
         applyFilterStateWithIntent({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
     // Same guard `FilterChipsRow`'s own remote chip uses (`remoteValue ==
@@ -3175,7 +3342,8 @@ function JobsContent() {
 
     // THE single entry point for opening the résumé importer from this page —
     // every caller (sort menu "Rank by fit", the upsell card's "Upload
-    // résumé", any future one) must go through this, not `setImportOpen(true)`
+    // résumé", the setup wizard's "Add résumé", any future one) must go
+    // through `beginResumeUpload`, not `setImportOpen(true)`
     // directly, because this is also the one place that queues
     // `resumeActionAfterImportRef` — what `handleImport` (below) runs once
     // the upload actually completes. Bug this fixes: the upsell card used to
@@ -3196,11 +3364,7 @@ function JobsContent() {
     // Select's `onValueChange` below — but does NOT clear this ref) would
     // get silently clobbered once the upload finally completes, minutes
     // later.
-    const handleUploadClick = () => {
-        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
-            setSearchPrefsDialogOpen(true);
-            return;
-        }
+    const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
@@ -3211,14 +3375,46 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    const handleSearchPrefsComplete = (values: SearchPrefsValues) => {
-        applySavedSearchPrefs(values);
+    // Adds ONE thing to `beginResumeUpload`: the detour that asks a signed-in
+    // user for search preferences first when they have neither those nor a
+    // résumé. Split out because the wizard's own "Add résumé" step must NOT
+    // take that detour — it is already inside the wizard.
+    const handleUploadClick = () => {
+        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
+            setSearchPrefsDialogOpen(true);
+            return;
+        }
+        beginResumeUpload();
     };
 
-    const handleSearchPrefsAddResume = () => {
-        clearPendingGate();
-        resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        setImportOpen(true);
+    const handleSearchPrefsComplete = (values: SearchPrefsValues, destination: PrefsDestination) => {
+        applySavedSearchPrefs(values);
+        // "browser" means the server had nowhere to put these — signed out, or
+        // a session that expired mid-wizard. Keeping them locally is what lets
+        // the next sign-in carry them up (see the flush above) instead of
+        // quietly losing what they just typed.
+        if (destination === "browser") {
+            stashPrefs(values);
+            setOnboardingStash(values);
+        }
+    };
+
+    // The wizard's last step. Goes to the shared chokepoint so a signed-out
+    // visitor gets the auth gate: this used to call `setImportOpen(true)`
+    // itself, which opened an importer that had nowhere to store the file.
+    const handleSearchPrefsAddResume = () => beginResumeUpload();
+
+    // Closing the dialog ends the offer for good, whether they finished it or
+    // backed out — asking again on the next search is nagging, not
+    // onboarding. Recorded here rather than inside the wizard because the two
+    // signed-in entry points open the same component from their own buttons,
+    // and those must stay re-openable.
+    const handleSearchPrefsOpenChange = (next: boolean) => {
+        setSearchPrefsDialogOpen(next);
+        if (!next && !user) {
+            dismissOnboarding();
+            setOnboardingDismissed(true);
+        }
     };
 
     // "My résumé" toolbar control's click (JSX below). Deliberately does NOT
@@ -3379,6 +3575,7 @@ function JobsContent() {
             variantCount={clusterProps?.variantCount ?? 0}
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
+            dense={dense}
         />
     );
 
@@ -3462,23 +3659,28 @@ function JobsContent() {
     // G5b (Grok UX wave): the filters panel's own content, shared verbatim
     // between the desktop inline expand and the mobile Sheet below — one
     // SerpFilters render, not two copies that could drift on props.
-    const filtersPanelContent = (
+    /**
+     * The filter controls, written once for all three mount sites (expand,
+     * bottom sheet, dense rail). Only `layout` differs — see SerpFilters's own
+     * prop doc for why the rail cannot just be a narrower panel.
+     */
+    const renderFiltersPanel = (layout: "panel" | "rail" = "panel") => (
         <>
             {result?.configured && (
                 <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
                     {postedDateSupported && (
-                        <SortSegment
+                        <ToolbarSegment
                             label="freshest"
                             pressed={!fitActive && effectiveSort === "newest"}
                             onClick={() => chooseSort("newest")}
                         />
                     )}
-                    <SortSegment
+                    <ToolbarSegment
                         label="top pay"
                         pressed={!fitActive && effectiveSort === "salary_desc"}
                         onClick={() => chooseSort("salary_desc")}
                     />
-                    <SortSegment
+                    <ToolbarSegment
                         label="best match"
                         pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
                         onClick={chooseBestMatch}
@@ -3501,6 +3703,7 @@ function JobsContent() {
                 ghostHiddenCount={ghostHiddenCount}
                 board={board === "elite" ? "elite" : "all"}
                 onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
+                layout={layout}
             />
         </>
     );
@@ -3804,7 +4007,14 @@ function JobsContent() {
                                 onSalaryMin={panelSalaryMin}
                                 onPostedBucket={panelPostedBucket}
                             />
-                        )}                        <button
+                        )}
+                        {/* Stands down when the dense rail is up: the rail is
+                            already showing these controls, so the expand would
+                            be a second copy of them. Gated on the resolved
+                            mount site rather than on `dense`, so the button and
+                            the panel can't disagree about which one is live. */}
+                        {showsFiltersToggle(facetsMountSite) && (
+                        <button
                             type="button"
                             data-testid="filters-toggle"
                             aria-expanded={filtersOpen}
@@ -3828,6 +4038,7 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
+                        )}
                         {/* Résumé toolbar control — sits next to Filters.
                             Label is context-aware: "Add résumé" when `resumeOnFile` is false
                             or null (uploader on click); "My résumé" when it is true (rank-by-fit
@@ -3922,44 +4133,82 @@ function JobsContent() {
                         )}
                         </>
                         )}
-                        {result?.configured && (
-                            <div
-                                role="group"
-                                aria-label="Sort"
-                                className="ml-auto hidden items-center rounded-none border border-border/80 bg-muted/40 p-0.5 lg:flex"
-                            >
-                                {postedDateSupported && (
-                                    <SortSegment
-                                        label="freshest"
-                                        pressed={!fitActive && effectiveSort === "newest"}
-                                        onClick={() => chooseSort("newest")}
-                                    />
+                        {/* Right-aligned toolbar cluster. Sort and Layout share
+                            ONE `ml-auto` box: two auto margins in the same flex
+                            row split the free space between them, which would
+                            strand the two groups at opposite ends of the
+                            toolbar instead of pairing them. */}
+                        {(result?.configured || hits.length > 0) && (
+                            <div className="ml-auto hidden items-center gap-2 lg:flex">
+                                {result?.configured && (
+                                    <div
+                                        role="group"
+                                        aria-label="Sort"
+                                        className="flex items-center rounded-none border border-border/80 bg-muted/40 p-0.5"
+                                    >
+                                        {postedDateSupported && (
+                                            <ToolbarSegment
+                                                label="freshest"
+                                                pressed={!fitActive && effectiveSort === "newest"}
+                                                onClick={() => chooseSort("newest")}
+                                            />
+                                        )}
+                                        <ToolbarSegment
+                                            label="top pay"
+                                            pressed={!fitActive && effectiveSort === "salary_desc"}
+                                            onClick={() => chooseSort("salary_desc")}
+                                        />
+                                        <ToolbarSegment
+                                            label="best match"
+                                            pressed={
+                                                fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
+                                            }
+                                            onClick={chooseBestMatch}
+                                        />
+                                    </div>
                                 )}
-                                <SortSegment
-                                    label="top pay"
-                                    pressed={!fitActive && effectiveSort === "salary_desc"}
-                                    onClick={() => chooseSort("salary_desc")}
-                                />
-                                <SortSegment
-                                    label="best match"
-                                    pressed={
-                                        fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                                    }
-                                    onClick={chooseBestMatch}
-                                />
+                                {/* Layout switch — xl+ only, because that is the
+                                    only width where the two layouts differ at
+                                    all (see lib/jobs/serp-density.ts). Offering
+                                    it on a narrow window would be a control
+                                    that visibly does nothing. */}
+                                {hits.length > 0 && (
+                                    <div
+                                        role="group"
+                                        aria-label="Layout"
+                                        data-testid="serp-density-switch"
+                                        className="hidden items-center rounded-none border border-border/80 bg-muted/40 p-0.5 xl:flex"
+                                    >
+                                        <ToolbarSegment
+                                            label="comfortable"
+                                            pressed={density === "comfortable"}
+                                            onClick={() => chooseDensity("comfortable")}
+                                        />
+                                        <ToolbarSegment
+                                            label="dense"
+                                            pressed={density === "dense"}
+                                            onClick={() => chooseDensity("dense")}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    {filtersOpen && (isLgUp ? (
+                    {/* `rail` is handled below, inside the results grid — it is
+                        a column of the layout, not a panel hanging off the
+                        toolbar. Both remaining sites still key off the SAME
+                        resolved value, so "which one is showing" has exactly
+                        one answer. */}
+                    {facetsMountSite === "inline" ? (
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
                             className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-300/80 bg-card p-4 text-foreground custom-scrollbar shadow-md dark:border-slate-700"
                         >
-                            {filtersPanelContent}
+                            {renderFiltersPanel()}
                         </div>
-                    ) : (
+                    ) : facetsMountSite === "sheet" ? (
                         // G5b (Grok UX wave): below `lg`, filters present in the
                         // SAME Sheet primitive the job detail panel uses (reused,
                         // not a second bottom-sheet implementation) — desktop's
@@ -3975,11 +4224,11 @@ function JobsContent() {
                                     data-testid="filters-panel"
                                     className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
-                                    {filtersPanelContent}
+                                    {renderFiltersPanel()}
                                 </div>
                             </SheetContent>
                         </Sheet>
-                    ))}
+                    ) : null}
                 </section>
 
                 <div className={cn(
@@ -3991,7 +4240,14 @@ function JobsContent() {
                     // itself needs — is there a list to pair a pane with —
                     // so browsing the default corpus gets the same preview
                     // layout a search does, just with nothing selected yet.
-                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    // Dense adds a THIRD column — a standing facet rail — and
+                    // buys its width back from the list, not from the detail
+                    // pane: the pane is where a posting is actually read, and
+                    // narrowing it to fit a rail would make the dense layout a
+                    // worse place to do the one thing this page is for.
+                    hits.length > 0 && (dense
+                        ? "xl:grid xl:grid-cols-[232px_minmax(0,30%)_minmax(0,1fr)] xl:gap-5"
+                        : "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6")
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -4007,6 +4263,30 @@ function JobsContent() {
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
                         isn't in the layout at all under 1280px. */}
+                    {/* Dense-only facet rail — column 1. Sits before the list
+                        column in source for the same reason the detail pane
+                        does: it is full of interactive markup, and
+                        tests/unit/jobs-list-tail.test.ts asserts none appears
+                        between the ListTail element and the closing main tag.
+                        `xl:order-first` then puts it back on the LEFT, ahead of
+                        the list (order 0) and the pane (order 2).
+
+                        It renders `renderFiltersPanel` — the same controls the
+                        expand and the bottom sheet mount. Three mount points,
+                        one set of controls; a rail with its own copy would be
+                        a second filter UI to keep in sync. */}
+                    {dense && hits.length > 0 && (
+                        <aside
+                            aria-label="Filters"
+                            data-testid="serp-facet-rail"
+                            className="hidden xl:order-first xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card/60 xl:p-3 custom-scrollbar"
+                        >
+                            <div id="filters-panel" data-testid="filters-panel">
+                                {renderFiltersPanel("rail")}
+                            </div>
+                        </aside>
+                    )}
+
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
@@ -4075,6 +4355,28 @@ function JobsContent() {
                                             not now
                                         </button>
                                     </div>
+                                )}
+
+                                {/* The signed-in counterpart of the banner above, and its exact
+                                    complement: that one asks an anonymous visitor to sign in,
+                                    this one asks someone who ALREADY did for an address we can
+                                    reach. They can never both show — one requires `!user`, the
+                                    other requires a resolved session. */}
+                                {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
+                                    <AccountEmailPrompt
+                                        state={accountEmailState}
+                                        pendingEmail={accountPendingEmail}
+                                        onPending={(email) => {
+                                            setAccountPendingEmail(email);
+                                            setAccountEmailState("pending-confirmation");
+                                        }}
+                                        onDismiss={() => {
+                                            dismissEmailNudge();
+                                            setEmailNudgeDismissed(true);
+                                            setEmailNudgeOpen(false);
+                                        }}
+                                        className="mb-3 border-t border-border pt-4 pb-2"
+                                    />
                                 )}
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
@@ -4393,7 +4695,7 @@ function JobsContent() {
                                             <span>See which of these roles actually fit your background —</span>
                                             <button
                                                 type="button"
-                                                onClick={handleUploadClick}
+                                                onClick={() => handleUploadClick()}
                                                 className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                             >
                                                 add your résumé to rank by fit
@@ -4661,7 +4963,8 @@ function JobsContent() {
             <SearchPrefsSetup
                 variant="dialog"
                 open={searchPrefsDialogOpen}
-                onOpenChange={setSearchPrefsDialogOpen}
+                onOpenChange={handleSearchPrefsOpenChange}
+                signedIn={Boolean(user)}
                 onComplete={handleSearchPrefsComplete}
                 onAddResume={handleSearchPrefsAddResume}
             />

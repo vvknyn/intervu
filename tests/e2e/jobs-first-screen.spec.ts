@@ -305,7 +305,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
 
     // Portal redesign rewrite: the "Sort results" combobox (with its own
     // "Rank by fit" dropdown item) is gone — sort is now three plain
-    // `SortSegment` buttons (page.tsx: freshest / top pay / best match, see
+    // `ToolbarSegment` buttons (page.tsx: freshest / top pay / best match, see
     // jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002). "The old Match mode
     // is gone: 'Rank by fit' is no longer a [dropdown option]" per page.tsx's
     // own comment — with no query, "best match" IS the résumé-rank action

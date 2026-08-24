@@ -138,6 +138,7 @@ export function SerpFilters({
     postedDateSupported,
     board,
     onBoardChange,
+    layout = "panel",
 }: {
     distribution: FacetDistribution | undefined;
     resultTotal?: number;
@@ -154,6 +155,21 @@ export function SerpFilters({
     postedDateSupported: boolean;
     board?: "all" | "elite";
     onBoardChange?: (b: "all" | "elite") => void;
+    /**
+     * How much horizontal room the caller is giving us.
+     *
+     * `panel` (default) is the full-width expand and the bottom sheet — the
+     * groups sit side by side. `rail` is the dense layout's 232px column, where
+     * they must stack.
+     *
+     * This is a PROP and not a breakpoint because Tailwind's `md:` asks the
+     * VIEWPORT how wide it is, not this element. In the dense rail those two
+     * answers disagree completely: a 1512px window happily applies
+     * `md:grid-cols-4` to a 232px box and packs four columns of radio labels
+     * into ~50px each, which overlaps them into an unreadable stack. Only the
+     * caller knows which box the filters landed in.
+     */
+    layout?: "panel" | "rail";
 }) {
     const ghostHideLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
@@ -164,7 +180,13 @@ export function SerpFilters({
 
     return (
         <>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4">
+            <div
+                className={
+                    layout === "rail"
+                        ? "grid grid-cols-1 gap-y-5"
+                        : "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4"
+                }
+            >
                 {postedDateSupported && (
                     <Group label="Date posted">
                         {POSTED_BUCKET_PRESETS.map((o) => (

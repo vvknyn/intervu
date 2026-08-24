@@ -46,7 +46,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
 
     // Portal redesign rewrite: the "Sort results" combobox (Date posted /
     // Salary high to low / Best match, with Best match disabled sans query)
-    // is gone — sort is now three plain `SortSegment` buttons (page.tsx:
+    // is gone — sort is now three plain `ToolbarSegment` buttons (page.tsx:
     // freshest / top pay / best match), each a real `aria-pressed` toggle,
     // gated as a group on `result?.configured` the same way the old
     // combobox was. "top pay" and "best match" always render when

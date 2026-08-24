@@ -16,10 +16,12 @@ import { join } from "node:path";
  * continuation, and completing it silently did nothing: no fit-ranking, no
  * "Ranked by your résumé" chip, no re-rank.
  *
- * The fix moved the queue-write INSIDE `handleUploadClick` itself (the one
- * chokepoint every entry point already had to call to open the modal) —
- * every caller gets the correct behavior just by calling
- * `handleUploadClick()`, with no continuation choice left to forget (the
+ * The fix moved the queue-write INSIDE the importer's own entry point (the
+ * one chokepoint every caller already had to go through to open the modal;
+ * `handleUploadClick` split into `beginResumeUpload` + a preferences detour
+ * on 2026-08-23, and the queue-write went with the former) — every caller
+ * gets the correct behavior just by calling it, with no continuation choice
+ * left to forget (the
  * only résumé-driven continuation left is "fit"; a second one, "explore",
  * existed here through 2026-08-02 — removed with the feature it drove).
  *
@@ -41,18 +43,21 @@ function section(startMarker: string, endMarker: string): string {
     return SOURCE.slice(start, end);
 }
 
-test("resumeActionAfterImportRef.current is assigned in exactly 3 places: clearPendingGate (clear), handleUploadClick (queue), handleImport (clear-on-read)", () => {
+test("resumeActionAfterImportRef.current is assigned in exactly 3 places: clearPendingGate (clear), beginResumeUpload (queue), handleImport (clear-on-read)", () => {
     const assignments = SOURCE.match(/resumeActionAfterImportRef\.current\s*=/g) ?? [];
     // A 4th assignment site anywhere in the file means a new entry point
-    // bypassed `handleUploadClick` and wrote the continuation itself —
-    // exactly the class of bug this fix closes.
+    // bypassed `beginResumeUpload` and wrote the continuation itself —
+    // exactly the class of bug this fix closes. It has caught one for real:
+    // the search-prefs wizard's "Add résumé" step (2026-08-23) queued the
+    // continuation AND opened the modal itself, skipping the signed-out auth
+    // gate; the fix folded it back into the chokepoint.
     assert.equal(assignments.length, 3, `expected 3 assignment sites, found ${assignments.length}`);
 });
 
-test("setImportOpen(true) is called in exactly 2 places: handleUploadClick, and the post-auth replay", () => {
+test("setImportOpen(true) is called in exactly 2 places: beginResumeUpload, and the post-auth replay", () => {
     const opens = SOURCE.match(/setImportOpen\(true\);/g) ?? [];
     // The replay case (`maybeReplay`'s "upload" branch) is legitimate: it
-    // re-opens a modal `handleUploadClick` already queued the continuation
+    // re-opens a modal `beginResumeUpload` already queued the continuation
     // for, before the auth popover interrupted it. Any OTHER call site
     // opens the modal without having gone through the chokepoint that
     // queues what happens when it closes.
