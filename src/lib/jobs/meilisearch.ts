@@ -76,8 +76,18 @@ export function deriveSynonyms(
  * Reverse hops (ux/qa/hr/devops) are inert alone as of 2026-08-24 — live
  * probe: "user experience" (3,733 matches) and "quality assurance" (27,917)
  * returned zero titles lacking the literal phrase, since exact matches
- * outrank synonym expansions. Kept because `distinct: "title"` on the
- * suggest path (PR #296) forces a distinct top-20, giving expansions a shot.
+ * outrank synonym expansions. #296 shipped `distinct: "title"` on the
+ * suggest path on the theory that a distinct top-20 would give expansions a
+ * shot — measured AFTER #296 landed, that prediction is false. With
+ * `distinct: "title"` live, a 20-hit distinct window still contains ZERO
+ * titles lacking the literal phrase for "user experience", "quality
+ * assurance" and "human resources" (and only one punctuation variant,
+ * "Dev/Ops Engineer", for "dev ops"). `exactness` ranks literal-phrase
+ * matches first and there are far more than 20 DISTINCT literal-phrase
+ * titles, so synonym expansions never reach the window. `distinct` raised
+ * the starvation threshold rather than removing it; surfacing
+ * abbreviation-only titles would require a ranking-rule change. The reverse
+ * hops remain inert but harmless.
  */
 export const JOBS_SYNONYMS: Record<string, string[]> = deriveSynonyms(JOBS_SYNONYM_SOURCE);
 
@@ -116,6 +126,14 @@ export const JOBS_INDEX_SETTINGS = {
     // (`buildSuggestBody`) — Meili rejects a non-filterable distinct
     // attribute with a 400. Applied live as Meili task 484080, 2026-08-24.
     "title",
+    // Owned by the subspace-side sync worker, not intervu — populated by its
+    // own classifier and applied live as Meili task 467532, 2026-08-18.
+    // intervu never filters on it. Listed here anyway so this canon stays a
+    // faithful mirror of the live index: applyIndexSettings's PATCH replaces
+    // filterableAttributes wholesale, so omitting a live-only entry here
+    // would silently DROP it on the next apply. Do not remove without
+    // confirming the box no longer needs it.
+    "occupation",
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   // "posted_ts:desc" is the FINAL rule: recency is the tiebreak among
