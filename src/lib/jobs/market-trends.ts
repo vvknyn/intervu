@@ -25,6 +25,7 @@ import { fetchMarketStats, type MarketStats } from "./market-stats";
 import { hasMeilisearch, meiliMultiSearch, type MeiliAggregationResult } from "./meilisearch";
 import { FRESHNESS_BUCKETS, postingAgeFilterClauses, type FreshnessBucket } from "./posting-age-buckets";
 import type { GhostBadge } from "./types";
+import { capitalizeWords } from "@/lib/text-case";
 
 const ACTIVE_FILTER = 'vacancy_status = "active"';
 
@@ -112,7 +113,7 @@ export function formatFacetDistribution(
 
   const items: TrendFacetItem[] = entries.map(([rawKey, count]) => ({
     key: rawKey,
-    label: labelMap[rawKey] || rawKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    label: labelMap[rawKey] || capitalizeWords(rawKey.replace(/_/g, " ")),
     count,
     pct: Math.round((count / total) * 100),
     rawKey,
