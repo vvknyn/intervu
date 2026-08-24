@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Check } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
 import { isLocationSelected } from "@/lib/jobs/location-suggest";
+import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
 import type { LocationSuggestGroup, LocationSuggestion } from "@/lib/jobs/location-suggest";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +62,7 @@ export function LocationCombobox({
     onChange,
     onCommit,
     selected,
-    placeholder = "City, state, or remote",
+    placeholder = LOCATION_TRIGGER_PLACEHOLDER,
     className,
     containerClassName,
     "data-testid": testId = "location-input",

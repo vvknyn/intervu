@@ -108,6 +108,7 @@ import {
     PRISTINE_FILTER_STATE,
     applyLocationSheetDraft,
     locationTriggerLabel,
+    LOCATION_TRIGGER_PLACEHOLDER,
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
@@ -1240,6 +1241,14 @@ function JobsContent() {
      * applied-default disclosure — asks here.
      */
     const chosenLocations = filterState.facets.location_country ?? [];
+    /**
+     * The docked header control's place text, or `undefined` when no place is
+     * filtered on. Derived HERE, at component scope, so the dock effect below
+     * can depend on a stable string instead of on `filterState` — see the
+     * dependency-array comment there for the loop that cost.
+     */
+    const dockedLabel = locationTriggerLabel(filterState);
+    const dockedPlace = dockedLabel === LOCATION_TRIGGER_PLACEHOLDER ? undefined : dockedLabel;
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1417,12 +1426,19 @@ function JobsContent() {
         }
         setDocked({
             label: query.trim() || "Search jobs",
-            place: locationTriggerLabel(filterState) === "City, state, or remote"
-                ? undefined
-                : locationTriggerLabel(filterState),
+            place: dockedPlace,
             onExpand: expandSearch,
         });
-    }, [isLgUp, searchOutOfView, query, filterState, expandSearch, setDocked]);
+        // `dockedPlace` — a STRING — and never `filterState`. This effect
+        // writes to a provider that lives above this component, so its own
+        // `setDocked` re-renders us; `filterState` is an object literal
+        // rebuilt every render, so listing it here made the effect re-run on
+        // its own output forever (React #185, "Maximum update depth
+        // exceeded"). It only bit once `searchOutOfView` turned true — before
+        // that the branch above returns at `setDocked(null)`, which is
+        // idempotent — which is why it read as "the page crashes when I
+        // scroll". A derived primitive changes only when the label does.
+    }, [isLgUp, searchOutOfView, query, dockedPlace, expandSearch, setDocked]);
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
