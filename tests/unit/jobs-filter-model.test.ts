@@ -2,12 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     activeFilterEntries,
+    chipLabelForEntry,
+    entriesNeedingOwnChip,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
     STATIC_FACET_LADDERS,
     type FilterState,
 } from "../../src/components/jobs/FilterPanel";
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, WORK_TYPES } from "../../src/lib/agent/facets";
+import { BOARD_META } from "../../src/lib/boards/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl, parseJobsUrl, type JobsUrlState } from "../../src/lib/jobs/url-state";
 
 // Review fix (2026-07-19): was a locally-duplicated literal — now the same
@@ -119,4 +122,61 @@ test("STATIC_FACET_LADDERS seeds the canonical work/experience/employment values
     assert.deepEqual(STATIC_FACET_LADDERS.work_type, WORK_TYPES);
     assert.deepEqual(STATIC_FACET_LADDERS.experience_level, EXPERIENCE_LEVELS);
     assert.deepEqual(STATIC_FACET_LADDERS.employment_type, EMPLOYMENT_TYPES);
+});
+
+// ---------------------------------------------------------------------------
+// Corpus scope is a filter (2026-08-24).
+//
+// `board=elite` restricts the whole search to an editorial allowlist of a few
+// hundred domains out of ~75k companies. It used to live OUTSIDE `FilterState`,
+// which meant `activeFilterEntries` could not emit a chip for it, "clear
+// filters" could not reach it, and `buildUrlState` re-spread it into every new
+// query — so a Canada search for "software engineer" returned 78 rows instead
+// of 1,775, on one device only (it is URL state), with nothing on screen saying
+// why. These tests pin the seam, not the symptom: they assert that a scope that
+// narrows the corpus is a member of the one collection every clear reads.
+// ---------------------------------------------------------------------------
+
+test("board is an active entry, labelled from BOARD_META, and its clear drops it", () => {
+    const s: FilterState = { ...base, board: "elite" };
+    const entries = activeFilterEntries(s);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].key, "board");
+    assert.equal(entries[0].label, BOARD_META.elite.label);
+    assert.equal(entries[0].clear(s).board, null);
+    assert.equal(activeFilterEntries(entries[0].clear(s)).length, 0);
+});
+
+test("board's chip renders standalone — its key carries no facet prefix", () => {
+    const entry = activeFilterEntries({ ...base, board: "elite" })[0];
+    // Colon-free key: `entriesNeedingOwnChip` splits on ":" to recover a facet
+    // key, so a colon here would make the chip row look for a FacetBar control
+    // named "board" and silently swallow the chip when one existed.
+    assert.equal(entry.key.includes(":"), false);
+    assert.equal(chipLabelForEntry(entry), BOARD_META.elite.label);
+    assert.deepEqual(
+        entriesNeedingOwnChip([entry], new Set(["location_country"])).map((e) => e.key),
+        ["board"],
+    );
+});
+
+// The OTHER case of the same class (generic-fix rule): `companyDomain` never
+// showed the symptom — the SERP already renders a dedicated employer token for
+// it — but it had the identical structural defect, sitting outside the
+// collection that "clear all" and "clear search" reset. Membership is the fix;
+// it deliberately emits no entry of its own, because a second chip for one
+// scope is the duplicate-affordance regression this row was cleaned of once.
+test("companyDomain is cleared by pristine, yet emits no second chip", () => {
+    const s: FilterState = { ...base, companyDomain: "harrods.com" };
+    assert.equal(activeFilterEntries(s).length, 0);
+    assert.equal(PRISTINE_FILTER_STATE.companyDomain, null);
+});
+
+test("clearing all filters widens BOTH scopes back to the whole corpus", () => {
+    // `panelClearAll` (page.tsx) is literally `applyFilterState(PRISTINE_FILTER_STATE)`,
+    // so pristine's own fields are what "Clear filters · N" restores.
+    assert.equal(PRISTINE_FILTER_STATE.board, null);
+    assert.equal(PRISTINE_FILTER_STATE.companyDomain, null);
+    assert.equal(activeFilterEntries({ ...base, board: "elite", companyDomain: "harrods.com" }).length, 1);
+    assert.equal(activeFilterEntries(PRISTINE_FILTER_STATE).length, 0);
 });

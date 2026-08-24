@@ -1170,13 +1170,7 @@ function JobsContent() {
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
-    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts };
-    // The corpus narrowings that aren't user-picked filters, in one object so
-    // the four `buildJobSearchPayload` call sites below can't pick up one and
-    // forget the other — the same single-source rule `filterState` above
-    // exists for. Plain object, same as `filterState`: it's only ever spread
-    // into a payload, never a hook dependency.
-    const scope = { board, companyDomain };
+    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain };
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1792,7 +1786,7 @@ function JobsContent() {
         hasQuery: Boolean(query.trim()),
         fitActive,
         activeFilterCount: activeEntries.length,
-        hasCorpusScope: Boolean(scope.board || scope.companyDomain),
+        hasCorpusScope: Boolean(filterState.board || filterState.companyDomain),
     });
     // `!searchParams.get("job")` — the RAW url param, not `selectedId` (whose
     // default-browse auto-selection of `hits[0]` is not a deliberate pick —
@@ -1801,7 +1795,13 @@ function JobsContent() {
     // A deliberate deep link/row click DOES write `job=`, and the hero has no
     // business sitting over an open job's detail (Vivek, "once I start
     // searching, why is it still there").
-    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !board && !companyDomain && !searchParams.get("job");
+    // `board`/`companyDomain` are NOT re-tested here: they are members of
+    // `filterState`, so `activeEntries.length === 0` already covers them. The
+    // hand-written `&& !board && !companyDomain` that used to sit here was the
+    // tell that scope was a second, parallel source of "is anything narrowing
+    // this?" — every OTHER reader of that question (chips, clear, clear-all)
+    // asked `activeFilterEntries` and got "no".
+    const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !searchParams.get("job");
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     // Item 7a: the masthead specifically (not the whole `showLandingMarketing`
     // bundle — the browse showcase/chips below it should keep showing while
@@ -1845,7 +1845,7 @@ function JobsContent() {
                     emptySearchState === "overlay-ask"
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
-                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
+                              ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               withFacets: true,
                               limit: PAGE,
                               offset: 0,
@@ -2030,7 +2030,6 @@ function JobsContent() {
                             query,
                             backendSort,
                             postedDateSupported,
-                            scope,
                             locationDefaultSuppressed,
                         ),
                         withFacets: true,
@@ -2063,7 +2062,7 @@ function JobsContent() {
                 // number the spec forbids.
                 if (postedBucket === "30d") {
                     searchJobsAction({
-                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
+                        ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                         postedBucket: undefined,
                         limit: 0,
                         offset: 0,
@@ -2543,7 +2542,7 @@ function JobsContent() {
             // hideGhosts state this callback already depends on, so this is
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
-                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, scope, locationDefaultSuppressed),
+                ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -2638,26 +2637,34 @@ function JobsContent() {
         applyUrlState(buildUrlState({ hideGhosts: v }), "replace");
     };
 
+    // Routed through `applyFilterState` (the per-render funnel) rather than the
+    // memoized `applyFilterStateWithIntent`: that wrapper is a `useCallback`
+    // keyed on `[flushSearchIntent]`, so it can hold a `buildUrlState` from an
+    // earlier render and write a stale `sort`/`job` back into the URL. The
+    // intent bookends are spelled out here for the same reason they were
+    // before — this mutator engages mobile results and flushes a typed draft.
     const onBoardChange = (next: BoardId | null) => {
-        setBoard(next);
         setMobileResultsEngaged(true);
-        applyUrlState(buildUrlState({ board: next }), "replace");
+        applyFilterState({ ...filterState, board: next });
         flushSearchIntent();
     };
 
     /**
-     * Widen a single-employer browse back to the whole corpus.
+     * Widen a single-employer browse back to the whole corpus — the ✕ on the
+     * employer token below.
      *
-     * Deliberately NOT folded into `panelClearAll` (which resets
-     * `FilterState` only): the employer scope is the corpus this search runs
-     * against, not a filter the searcher picked off the toolbar, and a
-     * "Clear filters" that silently dumped them out of the company they
-     * arrived for would be the same undisclosed-scope change the chip below
-     * exists to prevent. One affordance, one meaning.
+     * This used to be deliberately OUTSIDE `FilterState`, on the reasoning
+     * that a "Clear filters" which dumped you out of the company you arrived
+     * for was itself an undisclosed scope change. Reversed 2026-08-24 (Vivek):
+     * holding corpus scope outside the one collection that means "everything
+     * narrowing this search" is what let `board=elite` survive every query and
+     * every clear while capping results at a few hundred domains, with nothing
+     * on screen naming it. Scope is now a filter — visible, and reachable by
+     * clear. The employer token stays as its own richer disclosure (see
+     * `activeFilterEntries` on why it emits no second chip).
      */
     const clearCompanyScope = () => {
-        setCompanyDomain(null);
-        applyUrlState(buildUrlState({ companyDomain: null }), "replace");
+        applyFilterState({ ...filterState, companyDomain: null });
     };
 
     useEffect(() => {
@@ -2674,6 +2681,8 @@ function JobsContent() {
         setVisaOnly(next.visaOnly);
         setPostedBucket(next.postedBucket);
         setHideGhosts(next.hideGhosts);
+        setBoard(next.board);
+        setCompanyDomain(next.companyDomain);
         applyUrlState(
             buildUrlState({
                 facets: next.facets,
@@ -2681,6 +2690,8 @@ function JobsContent() {
                 visaOnly: next.visaOnly,
                 postedBucket: next.postedBucket,
                 hideGhosts: next.hideGhosts,
+                board: next.board,
+                companyDomain: next.companyDomain,
             }),
             "replace",
         );
@@ -3586,8 +3597,14 @@ function JobsContent() {
         applyUrlState(buildUrlState({ q: "" }), "replace");
         const nextFacets = { ...filterState.facets };
         delete nextFacets.location_country;
-        if (Object.keys(nextFacets).length !== Object.keys(filterState.facets).length) {
-            applyFilterState({ ...filterState, facets: nextFacets });
+        // Clearing the search clears the scope it ran against. Guarded (rather
+        // than applied unconditionally) only to keep a no-op clear from
+        // issuing a redundant URL replace — the same reason the facet-count
+        // comparison was here before scope joined it.
+        const droppedLocation = Object.keys(nextFacets).length !== Object.keys(filterState.facets).length;
+        const hadScope = filterState.board !== null || filterState.companyDomain !== null;
+        if (droppedLocation || hadScope) {
+            applyFilterState({ ...filterState, facets: nextFacets, board: null, companyDomain: null });
         }
     };
 

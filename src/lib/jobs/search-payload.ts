@@ -1,5 +1,4 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
-import type { BoardId } from "@/lib/boards/types";
 import type { JobSearchParams, JobSortMode } from "@/lib/jobs/types";
 
 /**
@@ -44,18 +43,6 @@ export function buildJobSearchPayload(
     query: string,
     sort: JobSortMode | null | undefined,
     postedDateSupported: boolean,
-    /**
-     * The corpus narrowings that are NOT user-picked filters: a curated
-     * `board` allowlist, or a single employer by `companyDomain`. Grouped
-     * into one argument rather than one positional each — both express the
-     * same concern (which slice of the corpus is even in play), both are
-     * threaded from the URL rather than from `FilterState`, and both are
-     * consumed by the same `company_domain` clause downstream
-     * (`renderBaseFilters`, meilisearch.ts). A second positional would also
-     * have pushed `suppressLocationDefault` to seventh place at four call
-     * sites for no gain.
-     */
-    scope: { board?: BoardId | null; companyDomain?: string | null },
     /** The searcher dismissed the default-location chip (persisted client-
      *  side, JobsPage) — carried through so page 2+/probe requests never
      *  silently re-apply a default the searcher already cleared. */
@@ -73,8 +60,15 @@ export function buildJobSearchPayload(
         postedBucket: postedDateSupported ? state.postedBucket : undefined,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
-        board: scope.board ?? undefined,
-        companyDomain: scope.companyDomain ?? undefined,
+        // Corpus scope rides in on `state` like every other narrowing. It used
+        // to arrive as a separate `scope` argument, on the reasoning that a
+        // curated board / single-employer slice is "not a user-picked filter".
+        // That split is what let `board=elite` cap every search invisibly
+        // (2026-08-24): a second home for "what narrows this?" meant the chips,
+        // the clears and the pristine check all read one of them and missed the
+        // other. One collection now, so drift is not expressible.
+        board: state.board ?? undefined,
+        companyDomain: state.companyDomain ?? undefined,
         suppressLocationDefault: suppressLocationDefault || undefined,
     };
 }
