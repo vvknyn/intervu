@@ -277,6 +277,22 @@ export interface PlaceFilter {
 export interface PlaceClause {
   any: PlaceFilter[];
   scopedToCountry?: PlaceFilter[];
+  /**
+   * Work modes that apply to THIS place only, AND-ed into the clause.
+   *
+   * Set when a work-mode word was typed as part of a place phrase ("remote
+   * canada"). Binding it here rather than merging into the global
+   * `work_type` facet is what makes two places with different work modes
+   * expressible: `["remote canada", "hybrid united states"]` renders as
+   * `((Canada AND remote) OR (US AND hybrid))`, where a global facet could
+   * only say `(remote OR hybrid) AND (Canada OR US)` — which also returns
+   * remote US roles nobody asked for.
+   *
+   * A work mode chosen in the Work-mode dropdown stays in the global facet
+   * and still AND's across the whole query; the two are different questions
+   * ("remote anywhere" vs "remote in Canada") and both remain askable.
+   */
+  workTypes?: string[];
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";

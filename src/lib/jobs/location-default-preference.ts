@@ -90,14 +90,21 @@ export function restoreLocationDefault(): void {
 /**
  * G3 (Grok UX wave) — the ONE decision for whether the location control
  * shows the applied-default disclosure chip: the server actually applied a
- * default (`defaultedLocation` is set) AND the searcher hasn't typed
- * anything into the location box yet. Once they start typing, their own
- * text takes over the control and the chip would just be noise sitting on
- * top of it. Pure so the disclosure logic is testable without a DOM.
+ * default (`defaultedLocation` is set) AND the searcher has not chosen a
+ * place of their own. Once they have, their choice takes over the control
+ * and the chip would just be noise sitting on top of it. Pure so the
+ * disclosure logic is testable without a DOM.
+ *
+ * Takes the CHOSEN places, not the location box's draft text. The draft was
+ * an exact proxy only while the box itself was the state; now that the box
+ * is an entry field for a list that can hold several places, an empty box no
+ * longer means "no location" — it usually means "just committed one". Asking
+ * the collection directly removes the second source of truth rather than
+ * re-deriving the same fact from a control's transient contents.
  */
 export function shouldShowLocationDefaultChip(
     defaultedLocation: string | null | undefined,
-    locationDraft: string,
+    chosenLocations: readonly string[],
 ): boolean {
-    return !!defaultedLocation && locationDraft.trim().length === 0;
+    return !!defaultedLocation && chosenLocations.every((v) => v.trim().length === 0);
 }
