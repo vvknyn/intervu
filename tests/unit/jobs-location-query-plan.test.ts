@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     applyLabelPrefix,
+    buildWorkModeSuggestion,
     planLocationQuery,
     type LocationSuggestGroup,
 } from "../../src/lib/jobs/location-suggest";
@@ -45,14 +46,69 @@ test("a plain place is untouched — no filter, no prefix, byte-for-byte the old
     assert.equal(plan.labelPrefix, "");
 });
 
-test("a BARE work mode keeps the old behaviour rather than inventing a ranking", () => {
-    // What to show for "remote" with no place is a product question, and the
-    // toolbar already carries a global Work mode control. Guard the decision
-    // so it is not silently changed.
+test("a BARE work mode has no place to facet-search, so the plan carries the mode itself", () => {
+    // Measured live: searching the literal word "remote" against place NAMES
+    // only turns up corpus junk that merely contains it ("Remote Only",
+    // count 1) — see the module doc. There is no residual place text at all,
+    // so the plan must not hand a place facet-search anything to search for.
     const plan = planLocationQuery("remote");
-    assert.equal(plan.facetQuery, "remote");
+    assert.equal(plan.facetQuery, "");
     assert.equal(plan.filter, undefined);
     assert.equal(plan.labelPrefix, "");
+    assert.deepEqual(plan.workModeOnly, ["remote"]);
+});
+
+// A case OTHER than the one that surfaced the bug: hybrid, not remote.
+test("a bare NON-remote work mode gets the same treatment", () => {
+    const plan = planLocationQuery("hybrid");
+    assert.deepEqual(plan.workModeOnly, ["hybrid"]);
+    assert.equal(plan.facetQuery, "");
+});
+
+test("the existing 'work mode + place' behaviour is unchanged by the bare-mode split", () => {
+    const plan = planLocationQuery("remote can");
+    assert.equal(plan.facetQuery, "can");
+    assert.equal(plan.filter, '(work_type = "remote")');
+    assert.equal(plan.labelPrefix, "Remote ");
+    assert.equal(plan.workModeOnly, undefined);
+});
+
+test("buildWorkModeSuggestion sums the corpus's own count for the mode, honestly measured", () => {
+    const group = buildWorkModeSuggestion(["remote"], [
+        { value: "remote", count: 45230 },
+        { value: "hybrid", count: 9120 },
+        { value: "onsite", count: 3011 },
+    ]);
+    assert.ok(group);
+    assert.equal(group.field, "work_type");
+    assert.equal(group.items.length, 1);
+    assert.equal(group.items[0]!.label, "Remote — anywhere");
+    assert.equal(group.items[0]!.field, "work_type");
+    assert.equal(group.items[0]!.count, 45230);
+});
+
+// A case OTHER than remote: onsite, plus a multi-mode query summed correctly.
+test("buildWorkModeSuggestion works for any mode and sums a multi-mode query", () => {
+    const onsite = buildWorkModeSuggestion(["onsite"], [{ value: "onsite", count: 812 }]);
+    assert.ok(onsite);
+    assert.equal(onsite.items[0]!.label, "Onsite — anywhere");
+    assert.equal(onsite.items[0]!.count, 812);
+
+    const both = buildWorkModeSuggestion(["remote", "hybrid"], [
+        { value: "remote", count: 45230 },
+        { value: "hybrid", count: 9120 },
+    ]);
+    assert.ok(both);
+    assert.equal(both.items[0]!.label, "Remote Hybrid — anywhere");
+    assert.equal(both.items[0]!.count, 45230 + 9120);
+});
+
+test("buildWorkModeSuggestion omits rather than shows a wrong count when the facet couldn't be asked", () => {
+    assert.equal(buildWorkModeSuggestion(["remote"], null), null);
+});
+
+test("buildWorkModeSuggestion omits when the corpus has no hit for the requested mode", () => {
+    assert.equal(buildWorkModeSuggestion(["remote"], [{ value: "hybrid", count: 100 }]), null);
 });
 
 test("the committed label round-trips back through the SAME parser", () => {

@@ -23,12 +23,13 @@ import { fetchFacetSearch, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch"
 import {
     applyLabelPrefix,
     buildLocationSuggestions,
+    buildWorkModeSuggestion,
     LOCATION_SUGGEST_FIELDS,
     planLocationQuery,
 } from "@/lib/jobs/location-suggest";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowJobsLocationRequest } from "@/lib/shield/rate-limit";
-import type { LocationSuggestGroup } from "@/lib/jobs/location-suggest";
+import type { LocationQueryPlan, LocationSuggestGroup } from "@/lib/jobs/location-suggest";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
 export interface LocationSuggestResponse {
@@ -47,24 +48,26 @@ export function resolveLocationQuery(raw: string | null): string {
     return (raw ?? "").trim().slice(0, 100);
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
-    const q = resolveLocationQuery(new URL(request.url).searchParams.get("q"));
-    if (!q) return NextResponse.json(EMPTY);
+/**
+ * Bare work-mode query ("remote", no place left over): there is no place
+ * text to facet-search, so the honest suggestion is the work mode itself —
+ * see `planLocationQuery`'s `workModeOnly` branch. `field: "work_type"` with
+ * an empty query browses that facet's own value counts (no place filter),
+ * which is exactly "how many jobs are remote" and reuses the same
+ * `fetchFacetSearch` every place row's count goes through.
+ */
+async function buildWorkModeGroups(workTypes: readonly string[]): Promise<LocationSuggestGroup[]> {
+    const hits = await fetchFacetSearch("work_type", "").catch(() => null);
+    const group = buildWorkModeSuggestion(workTypes, hits);
+    return group ? [group] : [];
+}
 
-    const ip = await getClientIp();
-    if (!allowJobsLocationRequest(ip)) {
-        return NextResponse.json(EMPTY, { status: 429 });
-    }
-
-    // Work-mode words typed into this box ("remote can") are not part of any
-    // place name, so searching the literal string only ever matches junk an
-    // employer typed into their own location field. The plan splits them off
-    // into a FILTER, using the same parser that `resolveLocationFacet` uses
-    // when the value is committed — see `planLocationQuery`.
-    const plan = planLocationQuery(q);
-
-    // One call per field, concurrently — each is ~40ms against the box, so
-    // three in series would put the typeahead over a perceptible 120ms.
+/**
+ * Place query (with or without a bound work-mode filter): one facet-search
+ * call per location field, concurrently — each is ~40ms against the box, so
+ * three in series would put the typeahead over a perceptible 120ms.
+ */
+async function buildPlaceGroups(plan: LocationQueryPlan): Promise<LocationSuggestGroup[]> {
     const fields = LOCATION_SUGGEST_FIELDS.map((f) => f.field);
     const results = await Promise.all(
         fields.map((field) =>
@@ -82,10 +85,31 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (hits) hitsByField[fields[i]] = hits;
     });
 
+    return applyLabelPrefix(buildLocationSuggestions(hitsByField), plan.labelPrefix);
+}
+
+export async function GET(request: Request): Promise<NextResponse> {
+    const q = resolveLocationQuery(new URL(request.url).searchParams.get("q"));
+    if (!q) return NextResponse.json(EMPTY);
+
+    const ip = await getClientIp();
+    if (!allowJobsLocationRequest(ip)) {
+        return NextResponse.json(EMPTY, { status: 429 });
+    }
+
+    // Work-mode words typed into this box ("remote can") are not part of any
+    // place name, so searching the literal string only ever matches junk an
+    // employer typed into their own location field. The plan splits them off
+    // into a FILTER, using the same parser that `resolveLocationFacet` uses
+    // when the value is committed — see `planLocationQuery`.
+    const plan = planLocationQuery(q);
+
+    const groups = plan.workModeOnly
+        ? await buildWorkModeGroups(plan.workModeOnly)
+        : await buildPlaceGroups(plan);
+
     return NextResponse.json(
-        {
-            groups: applyLabelPrefix(buildLocationSuggestions(hitsByField), plan.labelPrefix),
-        } satisfies LocationSuggestResponse,
+        { groups } satisfies LocationSuggestResponse,
         { headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=3600" } },
     );
 }

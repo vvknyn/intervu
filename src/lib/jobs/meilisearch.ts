@@ -1005,7 +1005,7 @@ export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "locati
 
 /**
  * Read-path: does a specific candidate STRING exist as a value in a given
- * location facet — the corpus validation layer behind gazetteer-backed place
+ * facet — the corpus validation layer behind gazetteer-backed place
  * resolution (lib/geo/corpus-values.ts). Meilisearch's facet-search endpoint
  * is typeahead-shaped (find values matching a query), which is exactly what
  * "does the corpus have this place" needs — unlike a bulk facet distribution
@@ -1013,12 +1013,17 @@ export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "locati
  * specific value regardless of how far down the long tail it sits. Measured
  * live against the box 2026-08-05: ~40ms per call.
  *
+ * Also the source of the bare-work-mode location suggestion's count
+ * (`buildWorkModeSuggestion`, location-suggest.ts) — `field: "work_type"`
+ * with an empty `query` browses every work_type value's own total, which is
+ * exactly "how many jobs are remote" with no place filter mixed in.
+ *
  * Returns null on ANY failure (no backend configured, network error,
  * non-2xx) — the caller (createCorpusValueChecker) treats that as "couldn't
  * ask" and fails the candidate open rather than caching a false negative.
  */
 export async function fetchFacetSearch(
-  field: (typeof LOCATION_FACET_FIELDS)[number],
+  field: (typeof LOCATION_FACET_FIELDS)[number] | "work_type",
   query: string,
   /** Narrows the counts, e.g. `work_type = "remote"`. Meili applies it to the
    *  facet search itself, so the number returned is the true intersection

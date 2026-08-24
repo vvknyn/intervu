@@ -14,8 +14,19 @@
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
+import { capitalizeWords } from "@/lib/text-case";
 import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
+
+/**
+ * Which facet a suggestion writes when committed. Every PLACE suggestion
+ * (city/state/country) writes `location_country` regardless of which of the
+ * three fields matched it — see `addLocation` in page.tsx — so `LocationField`
+ * alone was never the whole answer to "what does this commit". The one
+ * suggestion that targets something else is the bare-work-mode row, hence a
+ * widened union here rather than a new type per field.
+ */
+export type SuggestField = LocationField | "work_type";
 
 /** One selectable place, already merged across the corpus's spellings of it. */
 export interface LocationSuggestion {
@@ -27,7 +38,7 @@ export interface LocationSuggestion {
      *  invention, because this string has to survive a round trip back
      *  through place resolution. */
     label: string;
-    field: LocationField;
+    field: SuggestField;
     /** Postings across EVERY spelling that folds to this one, which is the
      *  number the searcher is actually choosing between. Summing is what
      *  stops Montréal (1,208) from looking like a third of the city when
@@ -37,7 +48,7 @@ export interface LocationSuggestion {
 
 /** Suggestions for one location field, with the heading the picker shows. */
 export interface LocationSuggestGroup {
-    field: LocationField;
+    field: SuggestField;
     heading: string;
     items: LocationSuggestion[];
 }
@@ -84,30 +95,76 @@ export const LOCATION_SUGGEST_FIELDS: { field: LocationField; heading: string }[
  *    Canada place clause carrying work_type "remote". No new field, and no
  *    second code path for the picker versus typing it by hand.
  *
- * A bare work mode with no place after it ("remote") deliberately keeps the
- * old behaviour: what to rank in that case is a product question, and the
- * toolbar already has a global Work mode control for it.
+ * A bare work mode with NO place after it ("remote") has no residual text to
+ * facet-search at all — searching the literal word against place NAMES only
+ * ever turns up corpus junk that merely contains it ("Remote Only",
+ * "Remote/California", each a count of one), while the honest answer —
+ * every remote posting — is unreachable from the dropdown. So this case
+ * skips place facet-search entirely: `workModeOnly` carries the parsed
+ * modes for the caller to turn into ONE suggestion targeting the work_type
+ * facet directly (`buildWorkModeSuggestion`), not a location.
  */
 export interface LocationQueryPlan {
-    /** What to facet-search for — the place words only. */
+    /** What to facet-search for — the place words only. Empty when the
+     *  query was pure work-mode text (`workModeOnly` is set instead). */
     facetQuery: string;
     /** Meili filter binding the typed work modes, or undefined when none. */
     filter?: string;
     /** Prefixed onto every suggestion label so choosing one commits the mode. */
     labelPrefix: string;
+    /** Set when the ENTIRE query was work-mode words with no place text left
+     *  over — there is nothing to facet-search for a place. */
+    workModeOnly?: readonly string[];
 }
 
 export function planLocationQuery(raw: string): LocationQueryPlan {
     const { residualQ, workTypes } = parseWorkTypeTokens(raw);
-    if (workTypes.length === 0 || !residualQ) {
+    if (workTypes.length === 0) {
         return { facetQuery: raw.trim(), labelPrefix: "" };
+    }
+    if (!residualQ) {
+        return { facetQuery: "", labelPrefix: "", workModeOnly: workTypes };
     }
     return {
         facetQuery: residualQ,
         // Same shape as the committed-clause filter in meilisearch.ts, so the
         // preview and the search agree by construction.
         filter: "(" + workTypes.map((v) => `work_type = ${JSON.stringify(v)}`).join(" OR ") + ")",
-        labelPrefix: workTypes.map((v) => v.charAt(0).toUpperCase() + v.slice(1)).join(" ") + " ",
+        labelPrefix: capitalizeWords(workTypes.join(" ")) + " ",
+    };
+}
+
+/**
+ * Build the single suggestion for a bare work-mode query ("remote",
+ * "hybrid"). Pure: `hits` are the ALREADY-FETCHED corpus counts for the
+ * `work_type` facet itself (same `fetchFacetSearch` call every place row's
+ * count goes through), so the number shown is measured, never invented.
+ *
+ * Returns null — omit, don't show a wrong number — when the facet couldn't
+ * be asked (`hits === null`, same convention `buildLocationSuggestions` uses
+ * for an absent field) or when none of the requested modes turned up a hit,
+ * mirroring `buildLocationSuggestions`'s "no items, no group" rule rather
+ * than rendering a row promising a count that isn't real.
+ */
+export function buildWorkModeSuggestion(
+    workTypes: readonly string[],
+    hits: readonly FacetHit[] | null,
+): LocationSuggestGroup | null {
+    if (workTypes.length === 0 || !hits) return null;
+    const wanted = new Set(workTypes);
+    const count = hits.filter((h) => wanted.has(h.value)).reduce((n, h) => n + h.count, 0);
+    if (count === 0) return null;
+    return {
+        field: "work_type",
+        heading: "Work mode",
+        items: [
+            {
+                key: `work_type:${workTypes.join("+")}`,
+                label: `${capitalizeWords(workTypes.join(" "))} — anywhere`,
+                field: "work_type",
+                count,
+            },
+        ],
     };
 }
 
