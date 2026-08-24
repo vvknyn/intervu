@@ -9,6 +9,7 @@ import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/fac
 import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { addLocationValue } from "@/lib/jobs/location-suggest";
 import { GHOST_META } from "@/lib/jobs/presentation";
 import { capitalizeWords } from "@/lib/text-case";
 
@@ -86,7 +87,18 @@ export const POPULAR_LOCATION_COUNTRIES = [
 
 export type LocationSheetDraft = {
     useDetected: boolean;
-    country: string | null;
+    /**
+     * EVERY place the sheet has chosen, not one.
+     *
+     * This was `country: string | null`, so committing the sheet replaced the
+     * whole `location_country` list with a single value — mobile could never
+     * ask for "Canada and remote", and a phone opening a two-place URL saw
+     * only the first one. The corpus, the URL (`?country=a,b`) and
+     * `resolveLocationFacet` have all carried a LIST from the start; this
+     * field was the last place that collapsed it, and the sheet's own copy
+     * ("Pick one or more") already promised otherwise.
+     */
+    places: string[];
     otherText: string;
     showOther: boolean;
     remote: boolean;
@@ -100,13 +112,20 @@ export function applyLocationSheetDraft(
 ): FilterState {
     const facets = { ...state.facets };
     if (draft.useDetected) {
+        // "Use my detected location" means "stop filtering explicitly and let
+        // the server's IP default apply", so it clears the list rather than
+        // adding to it.
         delete facets.location_country;
-    } else if (draft.showOther && draft.otherText.trim()) {
-        facets.location_country = [draft.otherText.trim()];
-    } else if (draft.country) {
-        facets.location_country = [draft.country];
     } else {
-        delete facets.location_country;
+        // Free text commits as one more place, folded-deduped through the same
+        // helper the desktop picker uses — typing "Montreal" when "Montréal"
+        // is already chosen is a no-op, not a second filter for one city.
+        const chosen = draft.showOther && draft.otherText.trim()
+            ? addLocationValue(draft.places, draft.otherText)
+            : draft.places;
+        const cleaned = chosen.map((v) => v.trim()).filter(Boolean);
+        if (cleaned.length) facets.location_country = cleaned;
+        else delete facets.location_country;
     }
 
     if (remoteValue) {

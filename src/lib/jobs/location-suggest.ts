@@ -122,29 +122,40 @@ export function buildLocationSuggestions(
 }
 
 /**
- * Is this suggestion already chosen? Compared on the FOLDED label, not the
- * raw string, so a token committed as "Montreal" suppresses the "Montréal"
- * row too — they are one place, and offering the other spelling as a second
- * choice would re-introduce the split the fold exists to close.
+ * Is `value` already chosen? Compared on the FOLDED string, not the raw one,
+ * so a place committed as "Montreal" counts as chosen when asked about
+ * "Montréal" — they are one place, and treating them as two would re-introduce
+ * the split the fold exists to close.
+ *
+ * This is the ONE definition of "already chosen". It was inlined identically
+ * in three helpers here; the mobile sheet needs it as a predicate of its own
+ * (to render a row as on/off), and a fourth copy is how the desktop picker and
+ * the sheet would start disagreeing about what counts as the same place.
  */
-export function isLocationSelected(suggestion: LocationSuggestion, selected: readonly string[]): boolean {
-    const folded = foldForMatch(suggestion.label);
+export function hasLocationValue(selected: readonly string[], value: string): boolean {
+    const folded = foldForMatch(value);
+    if (!folded) return false;
     return selected.some((s) => foldForMatch(s) === folded);
+}
+
+/** Is this suggestion already chosen? Folded-compared — see `hasLocationValue`. */
+export function isLocationSelected(suggestion: LocationSuggestion, selected: readonly string[]): boolean {
+    return hasLocationValue(selected, suggestion.label);
 }
 
 /**
  * Add a location to the committed list.
  *
  * Pure, and shared by the desktop picker, the free-text Enter path and the
- * mobile sheet, so "what counts as already added" cannot drift between them.
+ * mobile sheet's toggles, so "what counts as already added" cannot drift
+ * between them.
  * Returns the SAME array when nothing changes, letting callers skip a no-op
  * state write (and the URL replace that rides along with it).
  */
 export function addLocationValue(selected: readonly string[], value: string): string[] {
     const trimmed = value.trim();
     if (!trimmed) return selected as string[];
-    const folded = foldForMatch(trimmed);
-    if (selected.some((s) => foldForMatch(s) === folded)) return selected as string[];
+    if (hasLocationValue(selected, trimmed)) return selected as string[];
     return [...selected, trimmed];
 }
 
