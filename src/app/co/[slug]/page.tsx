@@ -146,7 +146,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             displayName={data.name}
             variant="primary"
             idleLabel="Follow — unlock hiring intel"
-            className="shrink-0 sm:self-start"
+            className="shrink-0 self-start items-end text-right"
           />
         </header>
 

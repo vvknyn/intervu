@@ -190,7 +190,7 @@ export function CompanyRoleSearch({
               No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
             </p>
             <div className="mt-4 flex justify-center">
-              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="primary" />
+              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="primary" className="items-center" />
             </div>
           </div>
         )

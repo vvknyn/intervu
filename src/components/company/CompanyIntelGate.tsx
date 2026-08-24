@@ -74,6 +74,7 @@ function CompanyIntelGateInner({
             displayName={displayName}
             variant="primary"
             idleLabel="Follow to unlock hiring intel"
+            className="items-center"
           />
         </div>
       )}
