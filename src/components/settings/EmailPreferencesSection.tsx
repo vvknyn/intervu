@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import type { User } from "@/lib/firebase/client-auth";
 import { getEmailPreferencesAction, setDigestPreferenceAction, type EmailPreferences } from "@/actions/email-preferences";
+import { getAccountEmailStateAction } from "@/actions/account-email";
+import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
+import type { EmailNudgeState } from "@/lib/auth/account-email";
 
 /** Same hand-rolled switch idiom `AgentPreferencesSection.tsx` already
  *  uses ("Remote only") — one toggle pattern, not a second one invented
@@ -28,11 +31,19 @@ function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
     const [saving, setSaving] = useState(false);
+    const [emailState, setEmailState] = useState<EmailNudgeState | null>(null);
+    const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
     useEffect(() => {
         if (!user) return;
         void getEmailPreferencesAction().then((res) => {
             if (res.data) setPrefs(res.data);
+        });
+        void getAccountEmailStateAction().then((res) => {
+            if (res.data) {
+                setEmailState(res.data.state);
+                setPendingEmail(res.data.pendingEmail);
+            }
         });
     }, [user]);
 
@@ -57,16 +68,32 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
             <p className="mb-4 text-[13px] text-muted-foreground">Which emails intervu sends you.</p>
 
             {prefs ? (
-                <div className="flex items-center justify-between gap-4">
-                    <div>
-                        <p className="text-sm font-medium">Weekly digest</p>
-                        <p className="text-[12px] text-muted-foreground">
-                            New roles from your followed companies and saved searches.
-                            {prefs.blockedGlobally && " Blocked — you've unsubscribed from all intervu emails."}
-                        </p>
+                prefs.needsEmail ? (
+                    // The digest switch is deliberately NOT rendered here. A
+                    // control that decides where nothing can be delivered is
+                    // the bug this section had: it showed the digest ON while
+                    // every send was being dropped as `no-mailbox`.
+                    <AccountEmailPrompt
+                        state={emailState ?? "needs-email"}
+                        pendingEmail={pendingEmail}
+                        onPending={(email) => {
+                            setPendingEmail(email);
+                            setEmailState("pending-confirmation");
+                        }}
+                        className="rounded-none border border-border p-4"
+                    />
+                ) : (
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-medium">Weekly digest</p>
+                            <p className="text-[12px] text-muted-foreground">
+                                New roles from your followed companies and saved searches.
+                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all intervu emails."}
+                            </p>
+                        </div>
+                        <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} />
                     </div>
-                    <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} />
-                </div>
+                )
             ) : (
                 <p className="text-[13px] text-muted-foreground">Loading…</p>
             )}

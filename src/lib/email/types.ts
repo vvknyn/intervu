@@ -8,7 +8,13 @@
  * added to `EMAIL_KIND_POLICY` below, not by editing an if/else ladder in
  * send.ts.
  */
-export type EmailKind = "digest" | "waitlist_confirm" | "welcome" | "transactional" | "verify_follow";
+export type EmailKind =
+  | "digest"
+  | "waitlist_confirm"
+  | "welcome"
+  | "transactional"
+  | "verify_follow"
+  | "verify_email";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -40,6 +46,14 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // "transactional") so send.ts's logging and any future suppression carve
   // out stay legible per-kind.
   verify_follow: { suppressible: false, requiresUnsubscribeHeader: false },
+  // "Confirm this address is yours" for an account that has no reachable one
+  // (a legacy password signup, registered under a minted
+  // <username>@intervu.cc). Same shape as verify_follow and for the same
+  // reason: it confirms an action the user just took on our own form and
+  // contains no commercial content, so there is nothing to opt out of. The
+  // alerts it unlocks are `digest`, which stays suppressible — consenting to
+  // be reachable is not consenting to be marketed to.
+  verify_email: { suppressible: false, requiresUnsubscribeHeader: false },
 };
 
 export function emailKindPolicy(kind: EmailKind): EmailKindPolicy {

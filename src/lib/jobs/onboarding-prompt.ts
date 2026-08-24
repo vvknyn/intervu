@@ -11,6 +11,8 @@
  * Pure, so the policy is testable without a browser, a session or Firestore:
  * the page owns counting and storage, this owns the decisions.
  */
+import { browserStorage as storage, readBrowserFlag, setBrowserFlag } from "./browser-storage";
+
 /**
  * What the wizard collects. Defined here rather than in the component because
  * the stash, the flush and the search all handle this shape without rendering
@@ -125,14 +127,6 @@ export function readStash(raw: string | null): SearchPrefsValues | null {
  * absent during SSR and THROWS (not returns null) in some private modes.
  * ------------------------------------------------------------------ */
 
-function storage(): Storage | null {
-    try {
-        return typeof window !== "undefined" ? window.localStorage : null;
-    } catch {
-        return null;
-    }
-}
-
 // Deliberately not exported: nothing renders the count, so the only honest
 // way to read it is as the return of the increment that produced it. An
 // exported getter would invite a component to hold a copy that goes stale.
@@ -153,15 +147,11 @@ export function recordOnboardingInteraction(): number {
 }
 
 export function isOnboardingDismissed(): boolean {
-    return storage()?.getItem(DISMISSED_KEY) === "true";
+    return readBrowserFlag(DISMISSED_KEY);
 }
 
 export function dismissOnboarding(): void {
-    try {
-        storage()?.setItem(DISMISSED_KEY, "true");
-    } catch {
-        /* quota exceeded / private mode */
-    }
+    setBrowserFlag(DISMISSED_KEY);
 }
 
 export function getStashedPrefs(): SearchPrefsValues | null {

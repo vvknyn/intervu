@@ -2,6 +2,7 @@
 
 import { getServerUser } from "@/lib/firebase/auth-session";
 import { getSuppressionEntries, isSuppressedForKind, suppress, unsuppress } from "@/lib/email/suppression";
+import { isReachableEmail } from "@/lib/auth/username-email";
 
 export interface EmailPreferences {
     digestEnabled: boolean;
@@ -9,17 +10,32 @@ export interface EmailPreferences {
      *  complaint) is blocking every kind — surfaced so the UI can explain
      *  WHY the toggle won't stick rather than silently reverting it. */
     blockedGlobally: boolean;
+    /** True when the account has no address mail can actually reach, so the
+     *  UI offers "add an email" instead of a delivery switch that decides
+     *  nothing. See `isReachableEmail`. */
+    needsEmail: boolean;
 }
 
 export async function getEmailPreferencesAction(): Promise<{ data?: EmailPreferences; error?: string }> {
     const user = await getServerUser();
-    if (!user?.email) return { error: "Sign in to manage email preferences." };
+    if (!user) return { error: "Sign in to manage email preferences." };
 
-    const entries = await getSuppressionEntries(user.email);
+    // Not `!user.email`. A legacy password signup carries a minted
+    // <username>@intervu.cc address — non-empty, so that guard passed, and
+    // this page reported the weekly digest as ON while send.ts was dropping
+    // every one of those sends as `no-mailbox` a layer down.
+    const reachable = isReachableEmail(user.email);
+    const entries = reachable ? await getSuppressionEntries(user.email!) : {};
+
     return {
         data: {
-            digestEnabled: !isSuppressedForKind(entries, "digest"),
+            // Reachability is part of the answer, not a separate flag the UI
+            // has to remember to check. An unreachable account's digest is
+            // OFF in the only sense that matters — nothing arrives — so
+            // saying otherwise would restate the bug in a new field.
+            digestEnabled: reachable && !isSuppressedForKind(entries, "digest"),
             blockedGlobally: Boolean(entries.all),
+            needsEmail: !reachable,
         },
     };
 }
@@ -37,12 +53,20 @@ export async function getEmailPreferencesAction(): Promise<{ data?: EmailPrefere
  */
 export async function setDigestPreferenceAction(enabled: boolean): Promise<{ success: true } | { error: string }> {
     const user = await getServerUser();
-    if (!user?.email) return { error: "Sign in to manage email preferences." };
+    if (!user) return { error: "Sign in to manage email preferences." };
+
+    // Refuse rather than record a preference that decides nothing. Writing
+    // "digest on" against an unreachable address would leave the suppression
+    // store claiming a delivery state send.ts can never honor.
+    const email = user.email;
+    if (!isReachableEmail(email)) {
+        return { error: "Add an email address before turning on job alerts." };
+    }
 
     if (enabled) {
-        await unsuppress(user.email, "digest");
+        await unsuppress(email!, "digest");
     } else {
-        await suppress(user.email, "digest", "unsubscribed");
+        await suppress(email!, "digest", "unsubscribed");
     }
     return { success: true };
 }

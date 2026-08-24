@@ -160,6 +160,14 @@ import {
     type PrefsDestination,
     type SearchPrefsValues,
 } from "@/lib/jobs/onboarding-prompt";
+import {
+    dismissEmailNudge,
+    isEmailNudgeDismissed,
+    shouldPromptEmailNudge,
+} from "@/lib/jobs/email-nudge";
+import { getAccountEmailStateAction } from "@/actions/account-email";
+import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
+import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
@@ -1293,6 +1301,21 @@ function JobsContent() {
         setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
+        // Searches run in this browser. Counted HERE, at the one submit
+        // chokepoint, which is what stops a future search entry point from
+        // being invisible to either prompt — and counted for signed-in
+        // visitors too, because the email nudge needs the same "has this
+        // person actually shown intent" signal the wizard does.
+        //
+        // Both offers are decided here rather than in an effect on the count,
+        // so each can only ever follow a search the visitor JUST ran. The
+        // counter persists across visits, so an effect would fire on mount
+        // for anyone already past the threshold — a prompt on arrival, before
+        // they've done anything, which is the version of this pattern
+        // everyone hates. This way a returning visitor who searched twice
+        // yesterday is asked on today's first search.
+        const interactions = recordOnboardingInteraction();
+
         if (user) {
             void saveAgentPreferencesAction({
                 search: {
@@ -1300,21 +1323,23 @@ function JobsContent() {
                     location: locationDraft.trim() || undefined,
                 },
             }).catch(() => {});
+            // `accountEmailState === null` means the lookup hasn't answered
+            // yet — not "reachable". Treating unknown as fine is what keeps a
+            // slow round trip from silently suppressing the banner forever.
+            if (
+                accountEmailState !== null &&
+                shouldPromptEmailNudge({
+                    signedIn: true,
+                    needsEmail: accountEmailState !== "reachable",
+                    dismissed: emailNudgeDismissed,
+                    interactions,
+                })
+            ) {
+                setEmailNudgeOpen(true);
+            }
         } else {
-            // Signed out there's no profile to write this into, so count it
-            // instead: a few submitted searches is the signal that this
-            // visitor has real intent and the setup offer is worth making.
-            // Counting HERE, at the one submit chokepoint, is what stops a
-            // future search entry point from being invisible to onboarding.
-            //
-            // The offer is decided here rather than in an effect on the count
-            // so that it can only ever follow a search the visitor JUST ran.
-            // The counter persists across visits, so an effect would fire on
-            // mount for anyone already past the threshold — a modal on
-            // arrival, before they've done anything, which is the version of
-            // this pattern everyone hates. This way a returning visitor who
-            // searched twice yesterday is asked on today's first search.
-            const interactions = recordOnboardingInteraction();
+            // Signed out there's no profile to write preferences into, so the
+            // count is the only intent signal available.
             if (
                 shouldPromptOnboarding({
                     interactions,
@@ -1479,10 +1504,36 @@ function JobsContent() {
     // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
     const [onboardingDismissed, setOnboardingDismissed] = useState(true);
     const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
+    // The signed-in twin: an account whose only address is a minted
+    // <username>@intervu.cc can't receive anything we send. Same
+    // suppressed-until-the-browser-says-otherwise start as above.
+    const [emailNudgeDismissed, setEmailNudgeDismissed] = useState(true);
+    const [emailNudgeOpen, setEmailNudgeOpen] = useState(false);
+    const [accountEmailState, setAccountEmailState] = useState<EmailNudgeState | null>(null);
+    const [accountPendingEmail, setAccountPendingEmail] = useState<string | null>(null);
     useEffect(() => {
         setOnboardingDismissed(isOnboardingDismissed());
         setOnboardingStash(getStashedPrefs());
+        setEmailNudgeDismissed(isEmailNudgeDismissed());
     }, []);
+    // Resolved from the server, never guessed from the client-side user
+    // object: `user.email` is non-empty for exactly the accounts this serves
+    // (that is the bug), so only `isReachableEmail` on the session can answer
+    // it. Cleared on sign-out so a previous account's state can't leak into
+    // the next one's banner.
+    useEffect(() => {
+        if (!user) {
+            setAccountEmailState(null);
+            setAccountPendingEmail(null);
+            setEmailNudgeOpen(false);
+            return;
+        }
+        void getAccountEmailStateAction().then((res) => {
+            if (!res.data) return;
+            setAccountEmailState(res.data.state);
+            setAccountPendingEmail(res.data.pendingEmail);
+        });
+    }, [user?.uid]);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
@@ -4189,6 +4240,28 @@ function JobsContent() {
                                             not now
                                         </button>
                                     </div>
+                                )}
+
+                                {/* The signed-in counterpart of the banner above, and its exact
+                                    complement: that one asks an anonymous visitor to sign in,
+                                    this one asks someone who ALREADY did for an address we can
+                                    reach. They can never both show — one requires `!user`, the
+                                    other requires a resolved session. */}
+                                {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
+                                    <AccountEmailPrompt
+                                        state={accountEmailState}
+                                        pendingEmail={accountPendingEmail}
+                                        onPending={(email) => {
+                                            setAccountPendingEmail(email);
+                                            setAccountEmailState("pending-confirmation");
+                                        }}
+                                        onDismiss={() => {
+                                            dismissEmailNudge();
+                                            setEmailNudgeDismissed(true);
+                                            setEmailNudgeOpen(false);
+                                        }}
+                                        className="mb-3 border-t border-border pt-4 pb-2"
+                                    />
                                 )}
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
