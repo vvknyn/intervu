@@ -320,6 +320,21 @@ const toolbarChipClass =
 const toolbarSegmentGroupClass =
     `flex items-center rounded-none border border-border/80 bg-muted/40 p-px ${toolbarControlHeight}`;
 
+/**
+ * Where reading content stops widening. The page shell itself is edge to edge
+ * — Vivek picked "full-bleed chrome, capped results" on /mock/surface
+ * (2026-08-24) after asking to lose the empty margins on either side — so the
+ * search shell and the toolbar run the full window and only the results grid
+ * takes this cap.
+ *
+ * 1600 is a ceiling, not a width: below it this class does nothing at all, so
+ * every laptop viewport renders exactly as it did. It exists for the wide
+ * monitor, where an uncapped three-pane grid put the description pane at
+ * ~110 characters per line — well past the 65–75 a person reads without
+ * losing their place on the return sweep.
+ */
+const cappedContentClass = "mx-auto w-full max-w-[1600px]";
+
 function ToolbarSegment({
     label,
     pressed,
@@ -3829,7 +3844,12 @@ function JobsContent() {
                     "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
             }}
         >
-            <main className="mx-auto flex min-h-screen w-full max-w-6xl xl:max-w-7xl flex-col px-4 pb-20 pt-2 sm:px-8 sm:pt-3 xl:px-10">
+            {/* No max-width: the shell is edge to edge, and each child decides
+                whether it caps itself (`cappedContentClass`). Everything above
+                the results — masthead, search shell, toolbar — deliberately
+                does not, so their left edges all line up against the same
+                gutter; the results grid is the one thing that stops widening. */}
+            <main className="flex min-h-screen w-full flex-col px-4 pb-20 pt-2 sm:px-8 sm:pt-3 xl:px-10">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -4410,6 +4430,7 @@ function JobsContent() {
 
                 <div className={cn(
                     "mt-4 flex min-h-0 flex-1 flex-col",
+                    cappedContentClass,
                     // Item 5 (2026-08-21): was gated on `!isPristineLanding`,
                     // hiding the split (and the pane below) for the whole
                     // pristine landing even at xl+ with a full page of hits

@@ -48,7 +48,9 @@ export function FooterContent() {
                 siteChrome.border,
             )}
         >
-            <div className="mx-auto flex w-full max-w-6xl xl:max-w-7xl flex-col gap-3 px-4 py-6 sm:px-8 xl:px-10">
+            {/* Same edge-to-edge treatment as TopBar — the two bands frame the
+                page, so they have to share its gutter or the frame is crooked. */}
+            <div className="flex w-full flex-col gap-3 px-4 py-6 sm:px-8 xl:px-10">
                 <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>{FOOTER_PROVENANCE_LINE}</p>
                 <nav
                     aria-label="Company"

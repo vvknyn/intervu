@@ -41,8 +41,15 @@
 :root {
   --mobile-tabbar-h: 56px;
 
-  /* Swiss Modernist Index — Stark Paper (#FAFAFA) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
-  --background: 250 250 250;
+  /* Swiss Modernist Index — Cool Paper (#F6F8FC) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
+  /* The ground carries a few degrees of the brand blue rather than being a
+     neutral grey. Vivek's read of the old #FAFAFA was "a little dull white"
+     (2026-08-24) — and it was: neutral-50 is the same hue as the white cards
+     sitting on it, so cards and page differed only in lightness and the page
+     read as a slightly dirty card. Biasing the ground toward the accent gives
+     it a temperature, and `--card` (pure 255) now reads as genuinely white
+     against it. Picked from /mock/surface at true scale. */
+  --background: 246 248 252;
   --foreground: 10 10 10;
   --card: 255 255 255;
   --card-foreground: var(--foreground);
@@ -368,7 +375,7 @@ h4 {
 /* Complete Tinted Glassmorphic Design System */
 /* The outer edge must be DARKER than the page, the inset sheen lighter.
    This started as a white 0.6 border, which on our light ground
-   (--background is slate-50) is lighter than the page behind it — so the
+   (--background is a near-white cool paper) is lighter than the page behind it — so the
    edge erased itself and every glass surface read as a white rectangle on
    a white page. Glass only refracts when there is content behind it to
    refract; over a flat fill it degrades to a plain translucent panel, and
@@ -444,7 +451,13 @@ h4 {
    it is just a heavier default — which is how .glass-panel ended up
    edgeless in the first place. */
 .glass-panel-raised {
-  background: rgba(229, 229, 229, 0.85);
+  /* Carries the same cool bias as `--background`, offset ~21 points darker so
+     the surface still reads as raised. It was a pure neutral grey, tuned when
+     the ground was neutral too; once the ground gained a temperature
+     (2026-08-24) the page's single focal surface became the one element with
+     none, and a colourless box on a tinted page reads as unfinished rather
+     than as raised. Alpha and every other value here are unchanged. */
+  background: rgba(225, 227, 231, 0.85);
   border: 1px solid rgba(10, 10, 10, 0.22);
   box-shadow:
     0 1px 2px 0 rgba(10, 10, 10, 0.08),
