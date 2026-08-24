@@ -22,7 +22,18 @@ export interface PostAuthHandoffDeps {
     /** Report a failed re-mint. Reporting, not swallowing — a session that
      *  can't be established is a real failure the console should carry. */
     reportError?: (error: unknown) => void;
+    /** Longest anyone is held on the sign-in page waiting for the server.
+     *  Bounded on purpose: `ensureServerSession` is a fetch, and an unbounded
+     *  wait on it turns a slow session endpoint into a sign-in page nobody can
+     *  leave — a worse failure than the early arrival this exists to prevent. */
+    sessionTimeoutMs?: number;
+    /** Injected so the timeout is testable without real time passing. */
+    wait?: (ms: number) => Promise<void>;
 }
+
+/** Long enough for a slow session POST on a bad connection, short enough that
+ *  nobody reads it as the button not having worked. */
+const DEFAULT_SESSION_TIMEOUT_MS = 4_000;
 
 /**
  * Build a one-shot handoff. Sign-in surfaces have more than one thing watching
@@ -35,6 +46,8 @@ export function createPostAuthHandoff({
     leave,
     reportError = (error) =>
         console.error("Could not establish the session before redirecting", error),
+    sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT_MS,
+    wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }: PostAuthHandoffDeps): (destination: string) => Promise<void> {
     let leaving = false;
 
@@ -42,14 +55,29 @@ export function createPostAuthHandoff({
         if (leaving) return;
         leaving = true;
 
-        try {
-            await ensureServerSession();
-        } catch (error) {
-            // Go anyway. A cookie an earlier sync already minted is still good,
-            // and the destination is the surface that can actually tell someone
-            // they're signed out — stranding them on the sign-in page with no
-            // feedback is strictly worse.
-            reportError(error);
+        // Both ways of not getting a session — it failed, or it never came
+        // back — are reported, and neither stops the visitor leaving. A cookie
+        // an earlier sync already minted is still good, and the destination is
+        // the surface that can actually tell someone they're signed out;
+        // stranding them here with no feedback is strictly worse.
+        let settled = false;
+        const session = ensureServerSession().then(
+            () => {
+                settled = true;
+            },
+            (error) => {
+                settled = true;
+                reportError(error);
+            },
+        );
+
+        await Promise.race([session, wait(sessionTimeoutMs)]);
+        if (!settled) {
+            reportError(
+                new Error(
+                    `Server session was not ready within ${sessionTimeoutMs}ms — continuing to ${destination}`,
+                ),
+            );
         }
 
         leave(destination);

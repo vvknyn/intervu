@@ -25,6 +25,9 @@ describe("post-auth handoff", () => {
         const handOff = createPostAuthHandoff({
             ensureServerSession: () => session.promise,
             leave: (destination) => visited.push(destination),
+            // Never fires, so only the session can end the wait — this test is
+            // about the session, and the timeout has its own case below.
+            wait: () => new Promise(() => {}),
         });
 
         const done = handOff("/oauth/authorize?client_id=abc");
@@ -48,10 +51,31 @@ describe("post-auth handoff", () => {
             ensureServerSession: () => Promise.reject(failure),
             leave: (destination) => visited.push(destination),
             reportError: (error) => reported.push(error),
+            wait: () => new Promise(() => {}),
         })("/jobs");
 
         assert.deepEqual(visited, ["/jobs"]);
         assert.deepEqual(reported, [failure], "swallowed a failed session sync");
+    });
+
+    it("leaves anyway when the session sync never comes back", { timeout: 2_000 }, async () => {
+        // Another different case, and the one that makes waiting safe at all:
+        // the sync is a fetch, so an unbounded wait would turn a hung session
+        // endpoint into a sign-in page nobody can leave.
+        const visited: string[] = [];
+        const reported: unknown[] = [];
+
+        await createPostAuthHandoff({
+            ensureServerSession: () => new Promise<void>(() => {}),
+            leave: (destination) => visited.push(destination),
+            reportError: (error) => reported.push(error),
+            sessionTimeoutMs: 25,
+            wait: () => Promise.resolve(),
+        })("/oauth/authorize?client_id=abc");
+
+        assert.deepEqual(visited, ["/oauth/authorize?client_id=abc"]);
+        assert.equal(reported.length, 1, "gave up on the session without saying so");
+        assert.match(String(reported[0]), /not ready within 25ms/);
     });
 
     it("leaves once when several watchers see the same sign-in", async () => {
@@ -66,6 +90,7 @@ describe("post-auth handoff", () => {
                 syncs += 1;
             },
             leave: (destination) => visited.push(destination),
+            wait: () => new Promise(() => {}),
         });
 
         await Promise.all([handOff("/jobs"), handOff("/yours"), handOff("/jobs")]);
