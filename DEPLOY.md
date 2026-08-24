@@ -3,10 +3,10 @@
 Intervu ([intervu.cc](https://intervu.cc)) is a Next.js 16 app.
 Repo: [github.com/vvknyn/intervu](https://github.com/vvknyn/intervu).
 
-**Preferred production host:** Contabo (same box as pipelines), not Vercel.
-The FE is lightweight; Meilisearch sync / scrape / discover already run off-Vercel.
+**Production host:** Contabo (same box as pipelines).
+The FE is lightweight; Meilisearch sync / scrape / discover already run off the web app.
 
-## Contabo (Caddy + Docker) — recommended
+## Contabo (Caddy + Docker)
 
 Shared dual-site stack (intervu.cc **and** thesubspace.io) lives in the subspace
 repo: `deploy/contabo-web/`. Use that on Contabo after the box has Docker.
@@ -17,7 +17,7 @@ Solo intervu-only (this repo):
 # On Contabo
 git clone https://github.com/vvknyn/intervu.git /opt/intervu
 cd /opt/intervu
-cp /path/to/.env.production .   # Vercel/env export; include NEXT_PUBLIC_*
+cp /path/to/.env.production .   # production env file; include NEXT_PUBLIC_*
 docker compose up -d --build
 # DNS: intervu.cc + www → Contabo A/AAAA
 ```
@@ -31,11 +31,6 @@ feature → staging → main
 ```
 
 Never commit directly on `main` or `staging`.
-
-## Legacy: Vercel
-
-Still works via `npm run promote` / `npx vercel --prod` until DNS cuts over.
-After Contabo is live, point DNS at Contabo and leave Vercel as rollback only.
 
 ## Environment variables
 

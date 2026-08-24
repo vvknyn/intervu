@@ -33,9 +33,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
-
 # IP geolocation database — deploy-time download (scripts/download-mmdb.mjs),
 # not committed; see lib/geo/ip-country.ts.
 /data/geo/*.mmdb

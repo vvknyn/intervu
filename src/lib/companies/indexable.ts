@@ -35,7 +35,7 @@
  * #187: it re-issued that walk on every `/sitemap.xml` request and timed out
  * once the corpus reached tens of thousands of domains). The durable
  * replacement is a separate publisher, `push-company-directory.mjs`
- * (subspace repo, off-Vercel, admin key), which pages the jobs index ONCE on
+ * (subspace repo, off-app, admin key), which pages the jobs index ONCE on
  * its own schedule and writes one pre-aggregated `{ domain, open_role_count
  * }` doc per company to a dedicated `company_directory` Meilisearch index.
  * This module just reads that index with the search key this app already
@@ -232,7 +232,7 @@ async function searchCompanyDirectoryPage(
 /**
  * Every company domain worth submitting to `/sitemap.xml`, read from the
  * `company_directory` index that `push-company-directory.mjs` (subspace
- * repo, off-Vercel, admin key) publishes on its own schedule — see the file
+ * repo, off-app, admin key) publishes on its own schedule — see the file
  * docblock's 2026-08-13 update for why this replaced both the curated
  * "elite" list and the reverted #186 facet walk. Filters server-side on
  * `open_role_count >= MIN_INDEXABLE_ROLES` (this file's single copy of that
