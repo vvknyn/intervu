@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSearchBody, shouldRelaxSearch } from "../../src/lib/jobs/meilisearch";
+import { buildSearchBody, JOBS_INDEX_SETTINGS, quoteShortTokens, shouldRelaxSearch } from "../../src/lib/jobs/meilisearch";
 
 test("by default the search body does not restrict attributesToSearchOn — the whole posting is one document", () => {
     // The old title/company precision pass treated place words as title words:
@@ -78,4 +78,62 @@ test("the relax pass (matchingStrategy last) drops sort-scoping back to whole-do
     assert.deepEqual(strict.attributesToSearchOn, ["title", "company"]);
     const relaxed = buildSearchBody({ q: "product manager", sort: "newest" }, false, "last");
     assert.ok(!("attributesToSearchOn" in relaxed), JSON.stringify(relaxed));
+});
+
+// Short-token prefix explosion (meilisearch is index-wide prefixSearch, no
+// per-query opt-out on 1.45.2): q=tam returned 22,977 hits live 2026-08-23
+// (Tampa, Tamayyaz, ...) vs 1,822 phrase-quoted. Threshold is
+// JOBS_INDEX_SETTINGS.typoTolerance.minWordSizeForTypos.oneTypo = 5 — tokens
+// below it get no typo tolerance from Meilisearch anyway, so quoting them
+// forfeits nothing that was working.
+test("quoteShortTokens wraps tokens below the typo-tolerance floor in phrase quotes", () => {
+    assert.equal(quoteShortTokens("tam"), '"tam"');
+    assert.equal(quoteShortTokens("pm"), '"pm"');
+    assert.equal(quoteShortTokens("qa"), '"qa"');
+});
+
+test("a token exactly AT the typo-tolerance floor keeps prefix+typo behaviour — not quoted", () => {
+    assert.equal(quoteShortTokens("scrum"), "scrum"); // 5 chars == oneTypo threshold
+});
+
+test("a token one below the floor is quoted", () => {
+    assert.equal(quoteShortTokens("scrm"), '"scrm"'); // 4 chars
+});
+
+test("a long token is never quoted", () => {
+    assert.equal(quoteShortTokens("engineer"), "engineer");
+});
+
+test("a multi-token query quotes only the short tokens, longer ones pass through", () => {
+    assert.equal(quoteShortTokens("tam manager"), '"tam" manager');
+    assert.equal(quoteShortTokens("qa engineer"), '"qa" engineer');
+});
+
+test("an already-quoted phrase is left alone, even if it contains short words", () => {
+    assert.equal(quoteShortTokens('"tam"'), '"tam"');
+    assert.equal(quoteShortTokens('"technical account manager"'), '"technical account manager"');
+});
+
+test("empty query is a no-op", () => {
+    assert.equal(quoteShortTokens(""), "");
+});
+
+test("quoteShortTokens fails safe to unquoted (current behaviour) when the threshold is unavailable — never a fabricated threshold", () => {
+    const minWordSizeForTypos = JOBS_INDEX_SETTINGS.typoTolerance.minWordSizeForTypos as { oneTypo: number | undefined };
+    const real = minWordSizeForTypos.oneTypo;
+    try {
+        minWordSizeForTypos.oneTypo = undefined;
+        assert.equal(quoteShortTokens("tam"), "tam");
+        assert.equal(quoteShortTokens("engineer"), "engineer");
+    } finally {
+        minWordSizeForTypos.oneTypo = real;
+    }
+});
+
+test("buildSearchBody quotes short tokens in the submitted search q; longer tokens are byte-identical", () => {
+    assert.equal(buildSearchBody({ q: "tam" }, false).q, '"tam"');
+    assert.equal(buildSearchBody({ q: "pm" }, false).q, '"pm"');
+    assert.equal(buildSearchBody({ q: "qa" }, false).q, '"qa"');
+    assert.equal(buildSearchBody({ q: "engineer" }, false).q, "engineer");
+    assert.equal(buildSearchBody({ q: "technical account manager" }, false).q, "technical account manager");
 });

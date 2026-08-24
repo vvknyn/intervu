@@ -201,6 +201,14 @@ export const JOBS_INDEX_SETTINGS = {
   // (non-relevance) sort is affected.
   rankingRules: ["words", "typo", "sort", "proximity", "attributeRank", "wordPosition", "exactness", "posted_ts:desc"],
   synonyms: JOBS_SYNONYMS,
+  // Made explicit 2026-08-23; previously left unset (silently riding Meili's
+  // factory default, which these numbers equal exactly — GET-verified live
+  // against the box that day). Declaring it turns "the typo-tolerance floor"
+  // into a repo-owned value instead of an assumption about server defaults,
+  // and gives `oneTypoMinWordSize` (below `buildSearchBody`) one place to
+  // read it from — see that function's docblock for why it reads THIS
+  // object rather than doing a live settings GET.
+  typoTolerance: { minWordSizeForTypos: { oneTypo: 5, twoTypos: 9 } },
   // Default cap is 1000; raise so result counts are exact across the corpus.
   pagination: { maxTotalHits: 100000 },
   // Facet values must sort by COUNT, not the Meili default (alpha). With alpha,
@@ -521,6 +529,61 @@ export interface MeiliSearchBody {
   attributesToSearchOn?: string[];
 }
 
+/**
+ * `minWordSizeForTypos.oneTypo` — read from `JOBS_INDEX_SETTINGS.typoTolerance`
+ * (declared above) rather than a live GET against
+ * `/indexes/jobs/settings/typo-tolerance`. That endpoint needs the admin
+ * key, which per this file's module docblock is available ONLY to the
+ * off-Vercel sync worker (`sync.ts`) and is never present in a Vercel
+ * request; the search-only key this read path actually holds 403s on every
+ * settings endpoint (verified live 2026-08-23 — the same constraint
+ * `fetchPostedDateFilterSupported` above already documents and works around
+ * for `/stats`). A request-time GET here would 403 on every request in
+ * production and permanently take the fail-safe branch below, so it would
+ * ship as dead code that silently never fixes the bug it exists for.
+ * Sourcing from the settings object the sync worker already applies to the
+ * live index keeps one canonical number: retune typo tolerance by editing
+ * `JOBS_INDEX_SETTINGS.typoTolerance` and both the live index (next
+ * `applyIndexSettings`) and query-building below follow automatically.
+ *
+ * Returns `null` — never a guessed number — if the field is ever missing or
+ * malformed, so `quoteShortTokens` can fail safe to unquoted queries instead
+ * of quoting against a fabricated threshold.
+ */
+function oneTypoMinWordSize(): number | null {
+  const n = JOBS_INDEX_SETTINGS.typoTolerance.minWordSizeForTypos.oneTypo;
+  return typeof n === "number" && n > 0 ? n : null;
+}
+
+/**
+ * Meilisearch treats the FINAL token of every query as a prefix match
+ * (index-wide `prefixSearch: "indexingTime"` — no per-query opt-out on Meili
+ * 1.45.2, verified live). For a short token that explodes: `q=produc`
+ * returned 100,000 Product-role hits live; `q=tam` (Technical Account
+ * Manager) returned 22,977 hits — Tampa, Tamayyaz, anything sharing the
+ * prefix — while phrase-quoted `q="tam"` returned 1,822.
+ *
+ * Tokens below `oneTypoMinWordSize()` get NO typo tolerance from Meilisearch
+ * either way, so wrapping them in phrase quotes (which also turns off prefix
+ * matching for that token) forfeits nothing they had working. Tokens at or
+ * above the threshold are left untouched — they keep both prefix and typo
+ * behaviour exactly as before. Already-quoted segments (a user-typed phrase)
+ * are left alone too: Meilisearch phrase search is already exact, so
+ * re-quoting would only risk nesting quotes.
+ *
+ * This only ever runs on SUBMITTED search bodies (`buildSearchBody`) — the
+ * typeahead path (`buildSuggestBody`) is a separate function this never
+ * touches, so autocomplete keeps prefix matching for a word still being
+ * typed.
+ */
+export function quoteShortTokens(q: string): string {
+  const threshold = oneTypoMinWordSize();
+  if (threshold === null) return q;
+  const tokens = q.match(/"[^"]*"|\S+/g);
+  if (!tokens) return q;
+  return tokens.map((tok) => (tok.startsWith('"') || tok.length >= threshold ? tok : `"${tok}"`)).join(" ");
+}
+
 export function buildSearchBody(
   p: JobSearchParams,
   legacy: boolean,
@@ -539,7 +602,11 @@ export function buildSearchBody(
   const techSkillScoped =
     !opts?.companyScoped && !sortScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
   return {
-    q: p.q ?? "",
+    // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
+    // classifier below (`sortScoped`, `techSkillScoped`, `buildFilter`, …)
+    // still reads the raw `p.q`/`p` so quoting can never change what the
+    // query is CLASSIFIED as, only how its short tokens are matched.
+    q: quoteShortTokens(p.q ?? ""),
     // Whole-document retrieval is the default and stays that way (see the
     // note above `searchMeili`). Two scoped exceptions, company-intent always
     // narrower and therefore always winning when both apply:
