@@ -25,28 +25,55 @@ import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestion
 export const JOBS_INDEX = "jobs";
 
 /**
- * Curated query synonyms (spec §6.4). Conservative by design: only
- * unambiguous industry abbreviations. "pm" fans out to both of its common
- * meanings and lets ranking sort it out. Applied to the live index by
- * scripts/apply-synonyms.mjs (synonyms-only PUT — no reindex cost);
- * ⚠ the box-side sync worker holds its own settings copy, so a box
- * reprovision can wipe these — reconcile there when S1 ships (spec §9).
+ * Declared source table for JOBS_SYNONYMS (spec §6.4). Conservative by
+ * design: only unambiguous industry abbreviations.
+ *
+ * Meilisearch synonyms are DIRECTIONAL — declaring `swe -> ["software
+ * engineer"]` does NOT make "software engineer" match "swe". Every entry
+ * here is expanded to BOTH directions by `deriveSynonyms` below, so a term
+ * only needs to be declared once. Set `oneWay: true` to suppress the
+ * reverse hop for a deliberate fan-out: "pm" expands to both "product
+ * manager" and "project manager", but the reverse must NOT be added —
+ * doing so would let a *product* manager search also return *project*
+ * manager jobs (and vice versa) via the shared `pm` hop.
  */
-export const JOBS_SYNONYMS: Record<string, string[]> = {
-  swe: ["software engineer"],
-  "software engineer": ["swe"],
-  sre: ["site reliability engineer"],
-  "site reliability engineer": ["sre"],
-  pm: ["product manager", "project manager"],
-  k8s: ["kubernetes"],
-  kubernetes: ["k8s"],
-  ml: ["machine learning"],
-  "machine learning": ["ml"],
-  ux: ["user experience"],
-  qa: ["quality assurance"],
-  hr: ["human resources"],
-  devops: ["dev ops"],
-};
+const JOBS_SYNONYM_SOURCE: Array<{ term: string; expansions: string[]; oneWay?: boolean }> = [
+  { term: "swe", expansions: ["software engineer"] },
+  { term: "sre", expansions: ["site reliability engineer"] },
+  { term: "pm", expansions: ["product manager", "project manager"], oneWay: true },
+  { term: "k8s", expansions: ["kubernetes"] },
+  { term: "ml", expansions: ["machine learning"] },
+  { term: "ux", expansions: ["user experience"] },
+  { term: "qa", expansions: ["quality assurance"] },
+  { term: "hr", expansions: ["human resources"] },
+  { term: "devops", expansions: ["dev ops"] },
+];
+
+/** Expands a `JOBS_SYNONYM_SOURCE`-shaped table into Meilisearch's directional synonym map. */
+export function deriveSynonyms(
+  source: Array<{ term: string; expansions: string[]; oneWay?: boolean }>,
+): Record<string, string[]> {
+  const table: Record<string, string[]> = {};
+  const add = (key: string, value: string) => {
+    const list = table[key] ?? (table[key] = []);
+    if (!list.includes(value)) list.push(value);
+  };
+  for (const { term, expansions, oneWay } of source) {
+    for (const expansion of expansions) {
+      add(term, expansion);
+      if (!oneWay) add(expansion, term);
+    }
+  }
+  return table;
+}
+
+/**
+ * Applied to the live index by scripts/apply-synonyms.mjs (synonyms-only
+ * PUT — no reindex cost); ⚠ the box-side sync worker holds its own settings
+ * copy, so a box reprovision can wipe these — reconcile there when S1 ships
+ * (spec §9).
+ */
+export const JOBS_SYNONYMS: Record<string, string[]> = deriveSynonyms(JOBS_SYNONYM_SOURCE);
 
 /** Index settings for the jobs index. Applied by the sync worker on (re)provision. */
 export const JOBS_INDEX_SETTINGS = {
