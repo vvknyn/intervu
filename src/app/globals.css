@@ -40,6 +40,14 @@
 
 :root {
   --mobile-tabbar-h: 56px;
+  /* The sticky header's height. TopBar SETS its own height from this, so the
+     token can't drift from the bar it describes, and anything that has to
+     clear the header — a scroll target's `scroll-margin-top`, an
+     IntersectionObserver's rootMargin — reads it instead of restating 64.
+     Restating it is what broke expanding the docked search: the observer
+     knew the header was 64px and the scroll that followed did not, so the
+     search box landed underneath it. */
+  --topbar-h: 64px;
 
   /* Swiss Modernist Index — Cool Paper (#F6F8FC) × Pure Ink Black (#0A0A0A) × International Klein Blue (#002FA7) */
   /* The ground carries a few degrees of the brand blue rather than being a

@@ -148,11 +148,14 @@ type JobDetailFields = Pick<
    *  never a raw `PublicJob` field — the SAME `jobShareUrl` builder the
    *  board's own "Copy link" button (CopyJobLinkButton, JobDetail.tsx) uses,
    *  so an agent-shared link and a web-copied link are byte-identical.
-   *  Origin is `getSiteUrl()` (the SEO canonical), never `AGENT.issuer()` —
-   *  the latter is pinned to the retired intervu.cc for OAuth/connector
-   *  identity stability and would hand every agent-surfaced job link an
-   *  extra 301 hop through a domain that serves no real content (2026-08-11
-   *  fix). Always present (pure function of `id` + the app's own base URL)
+   *  Origin is `getSiteUrl()` (the SEO canonical), never `AGENT.issuer()`.
+   *  Since 2026-08-24 those two hold the SAME string, which is exactly when
+   *  it gets tempting to collapse them: they answer different questions —
+   *  "where does this link's search-ranking equity accrue" versus "which
+   *  origin minted the caller's token" — and they were different values as
+   *  recently as that morning (the 2026-08-11 fix exists because the issuer
+   *  was then a redirect-only domain, giving every agent-shared link an
+   *  extra 301 hop). Always present (pure function of `id` + the app's own base URL)
    *  even when `apply_url` is blank — see `toSearchHit`'s absent-apply_url
    *  test. */
   intervu_url: string;

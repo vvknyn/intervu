@@ -41,7 +41,10 @@ import {
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
 
-const MCP_URL = "https://intervu.cc/api/mcp";
+// A frozen fixture value, deliberately a literal: this mock exists to render a
+// stable picture, so it must not move when an env var does. Kept on the same
+// origin as the real connector so the picture doesn't teach a dead domain.
+const MCP_URL = "https://intervuhq.com/api/mcp";
 const MOCK_NOW = Date.UTC(2026, 7, 5, 15, 0, 0);
 const TOTAL_ROLES = 248;
 

@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HELP_URL="https://intervu.cc/connect/help"
+# Every intervu URL in this script derives from this one origin, and it must be
+# the SAME origin the MCP server identifies as (`AGENT.issuer()`,
+# src/lib/agent/config.ts). That is not cosmetic: `MCP_SERVER_URL` below is
+# written into the user's own mcporter config, and an MCP client compares it
+# against the `.well-known` documents it fetches. Point them at two different
+# hostnames — even two that redirect to each other — and the handshake fails
+# with an issuer mismatch rather than anything that names the cause.
+# Overridable so a staging origin can be installed against without editing.
+INTERVU_BASE="${INTERVU_BASE:-https://intervuhq.com}"
+
+HELP_URL="$INTERVU_BASE/connect/help"
 # Every fatal exit below calls this so a stuck user always has a next step
 # beyond re-reading a terminal error.
 help_link() {
@@ -31,15 +41,15 @@ wait_for_gateway() {
 # recap). Every step below is safe to re-run: it checks current state first
 # and no-ops if already done.
 #
-# Designed to run as: curl -fsSL https://intervu.cc/install | bash
+# Designed to run as: curl -fsSL $INTERVU_BASE/install | bash
 # There is no script file on disk in that mode, so this deliberately never
 # references $0/$BASH_SOURCE or a repo checkout.
 
 SKILL_NAME="intervu-apply"
 MCP_SERVER_KEY="intervu-cc-mcp"
-MCP_SERVER_URL="https://intervu.cc/api/mcp"
+MCP_SERVER_URL="$INTERVU_BASE/api/mcp"
 MCPORTER_CONFIG="$HOME/.mcporter/mcporter.json"
-SKILL_TARBALL_URL="https://intervu.cc/intervu-apply-skill.tar.gz"
+SKILL_TARBALL_URL="$INTERVU_BASE/intervu-apply-skill.tar.gz"
 
 # Pinning mcporter's OAuth callback to a fixed loopback port is what makes the
 # connection last. By default mcporter binds the callback to port 0 — a new
@@ -211,7 +221,7 @@ if ! warn_if_outdated openclaw; then
   echo "    Without the current OpenClaw, the WhatsApp plugin will not install"
   echo "    and your agent will have no way to reach you."
   echo
-  echo "    Upgrade Node, then re-run:  curl -fsSL https://intervu.cc/install | bash"
+  echo "    Upgrade Node, then re-run:  curl -fsSL $INTERVU_BASE/install | bash"
   echo "    (nodejs.org, or 'brew upgrade node', or 'nvm install --lts')"
   help_link node-version
   exit 1
@@ -231,7 +241,7 @@ if [ "${NEEDS_ONBOARD:-}" = "1" ]; then
   # this script either way).
   if ( exec 2>/dev/null 3<>/dev/tty ); then
     openclaw onboard < /dev/tty || {
-      echo "OpenClaw onboarding did not finish. Once you're ready, run 'openclaw onboard' yourself, then re-run: curl -fsSL https://intervu.cc/install | bash"
+      echo "OpenClaw onboarding did not finish. Once you're ready, run 'openclaw onboard' yourself, then re-run: curl -fsSL $INTERVU_BASE/install | bash"
       help_link onboarding
       exit 1
     }
@@ -240,7 +250,7 @@ if [ "${NEEDS_ONBOARD:-}" = "1" ]; then
     echo "No interactive terminal available here to run the OpenClaw onboarding wizard."
     echo "Run these two commands yourself once you have a real terminal:"
     echo "  openclaw onboard"
-    echo "  curl -fsSL https://intervu.cc/install | bash"
+    echo "  curl -fsSL $INTERVU_BASE/install | bash"
     help_link onboarding
     exit 1
   fi
@@ -268,23 +278,36 @@ echo "    Registered."
 # the script and python3 is not — on a fresh Mac, invoking python3 pops
 # Apple's "install developer tools?" dialog, which nothing here is waiting
 # on and nobody would know to click through.
-# The same pass pins the OAuth callback port (see MCP_OAUTH_REDIRECT above).
-# It prints REDIRECT_CHANGED when it had to change that pin, which step 4
-# needs in order to decide whether the cached client registration is stale.
-# Both settings are written unconditionally so re-running the installer
-# repairs an install that predates the pin.
+# The same pass pins the OAuth callback port (see MCP_OAUTH_REDIRECT above)
+# and the server's own URL.
+#
+# Those two values together are the identity the cached OAuth client was
+# registered against: mcporter mints a client_id for a given server origin
+# with a given redirect URI, and the authorization server will honour that
+# credential for neither if either half moves. So this reports one signal —
+# IDENTITY_CHANGED — rather than watching the redirect alone, which is what it
+# used to do. Watching half an identity is how the 2026-08-24 origin move
+# would have silently broken every existing install: `mcporter config add` in
+# step 3 is skipped once the key exists, so nothing else in this script would
+# ever have rewritten a stale baseUrl, and re-running the installer — the one
+# thing anyone would try — would have been a no-op on exactly the field that
+# was wrong.
+#
+# Every setting is written unconditionally so re-running the installer repairs
+# an install that predates any of them.
 # --- >>> mcporter-config-patch (extracted verbatim by tests/unit/mcporter-config.test.ts)
-REDIRECT_STATE="$(node -e '
+AUTH_IDENTITY_STATE="$(node -e '
   const fs = require("fs");
   const [p, key, url, redirect] = process.argv.slice(1);
   const d = JSON.parse(fs.readFileSync(p, "utf8"));
   d.mcpServers = d.mcpServers || {};
-  const server = d.mcpServers[key] || (d.mcpServers[key] = { baseUrl: url });
-  const previousRedirect = server.oauthRedirectUrl;
+  const server = d.mcpServers[key] || (d.mcpServers[key] = {});
+  const before = [server.baseUrl, server.oauthRedirectUrl];
   server.lifecycle = "keep-alive";
+  server.baseUrl = url;
   server.oauthRedirectUrl = redirect;
   fs.writeFileSync(p, JSON.stringify(d, null, 2) + "\n");
-  if (previousRedirect !== redirect) console.log("REDIRECT_CHANGED");
+  if (before[0] !== url || before[1] !== redirect) console.log("IDENTITY_CHANGED");
 ' "$MCPORTER_CONFIG" "$MCP_SERVER_KEY" "$MCP_SERVER_URL" "$MCP_OAUTH_REDIRECT")"
 # --- <<< mcporter-config-patch
 mcporter daemon restart >/dev/null 2>&1 || true
@@ -296,16 +319,18 @@ echo "  A browser window is about to open for you to approve intervu."
 echo "  YOU HAVE ABOUT 60 SECONDS — be ready to click through it now."
 help_link auth
 echo "==============================================================="
-# --reset only when the callback pin just changed. An install predating the
-# pin cached a client registration whose redirect URI is some long-dead
-# ephemeral port, and mcporter only self-clears a stale registration while the
-# port is dynamic — once pinned it keeps the stale one and every auth attempt
-# is rejected. Clearing once, at the moment we change the pin, is what heals
-# those installs; on a fresh install there is nothing cached and this is a
-# no-op. Do NOT make this unconditional: it would throw away a working
-# credential on every re-run.
+# --reset only when the identity that credential was minted against just
+# changed — either half of it. Two ways an install arrives here stale:
+# it predates the callback pin, so its cached registration names some long-dead
+# ephemeral port (mcporter only self-clears a stale registration while the port
+# is dynamic — once pinned it keeps the stale one and every auth attempt is
+# rejected); or it was installed against a previous intervu origin, so the
+# credential belongs to an authorization server we are no longer talking to.
+# Clearing once, at the moment we move it, is what heals both; on a fresh
+# install there is nothing cached and this is a no-op. Do NOT make this
+# unconditional: it would throw away a working credential on every re-run.
 AUTH_RESET=""
-if [ "$REDIRECT_STATE" = "REDIRECT_CHANGED" ]; then
+if [ "$AUTH_IDENTITY_STATE" = "IDENTITY_CHANGED" ]; then
   AUTH_RESET="--reset"
 fi
 

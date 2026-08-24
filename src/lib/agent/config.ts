@@ -9,14 +9,35 @@ import { NextResponse } from "next/server";
  */
 export const AGENT = {
     /**
-     * The agent/OAuth/MCP surface is deliberately pinned to intervu.cc —
-     * existing connectors and the OAuth issuer identity must stay stable —
-     * even after the web domain moves to intervuhq.com for SEO. Reads its
-     * own `AGENT_ISSUER_URL`, never `NEXT_PUBLIC_SITE_URL` (the SEO
-     * canonical), so a future domain move can't silently re-couple them.
+     * The origin this OAuth authorization server and MCP resource identify as.
+     * Everything a connector touches — the two `.well-known` documents, the
+     * consent screen, the token endpoint, `/api/mcp`, the OpenClaw installer —
+     * must be reachable HERE, directly, with no cross-origin hop.
+     *
+     * REVERSES the earlier pin to intervu.cc (Vivek, 2026-08-24: "change the
+     * base url for these connectors and ensure that they work"). That pin
+     * existed to keep already-registered connectors working across the SEO
+     * domain move, but by the time it was tested the domain move had half
+     * happened underneath it: `/api/*` and `/.well-known/*` were carved out of
+     * the intervu.cc → intervuhq.com redirect and still served, while the
+     * `authorization_endpoint` this very document advertises
+     * (`intervu.cc/oauth/authorize`) and the installer (`intervu.cc/install`)
+     * answered 301 to the other origin. An authorization server advertising an
+     * endpoint on a domain that redirects away is not a stable identity; it is
+     * a half-move that only looks stable because browsers follow redirects.
+     *
+     * What the pin was protecting turned out not to exist: the 76 registered
+     * clients and 213 credentials belong to ~4 uids and are almost all named
+     * `mcporter (intervu-cc-mcp)` — re-auth testing, not installs. Moving now,
+     * before the connector is handed to real people, costs those test
+     * registrations a re-auth; moving later would cost real users theirs.
+     *
+     * Still reads its OWN `AGENT_ISSUER_URL`, never `NEXT_PUBLIC_SITE_URL` (the
+     * SEO canonical), so the two can be pointed apart again without either one
+     * silently dragging the other along.
      */
     issuer(): string {
-        return process.env.AGENT_ISSUER_URL ?? "https://intervu.cc";
+        return process.env.AGENT_ISSUER_URL ?? "https://intervuhq.com";
     },
     collections: {
         clients: "agent_clients",

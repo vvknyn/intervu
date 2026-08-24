@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /**
- * The installer runs `curl -fsSL https://intervu.cc/install | bash` with no
+ * The installer runs `curl -fsSL <origin>/install | bash` with no
  * repo checkout on disk, so its mcporter-config logic has to live inline in
  * install.sh — it cannot import a module we could unit-test directly. Rather
  * than restate that logic here (a copy that would silently drift from the
@@ -33,11 +33,43 @@ function extractConfigPatchProgram(): string {
     return match[1];
 }
 
-/** Reads a `NAME="value"` assignment out of install.sh. */
+/**
+ * Every plain `NAME="value"` assignment in install.sh, resolved the way bash
+ * will resolve it.
+ *
+ * A regex read is not enough any more: the installer derives every intervu URL
+ * from a single `INTERVU_BASE`, so reading `MCP_SERVER_URL` textually returns
+ * the literal `$INTERVU_BASE/api/mcp` — a string that is not a URL, and one
+ * these tests would happily compare against itself while proving nothing about
+ * the origin that actually ships. Letting bash expand them means the test reads
+ * the same values a person running the installer gets.
+ *
+ * Assignments containing a command substitution are skipped: the point is to
+ * read constants, not to execute the installer.
+ */
+const RESOLVED_VARS: Readonly<Record<string, string>> = (() => {
+    const assignments = installerSource()
+        .split("\n")
+        .filter((line) => /^[A-Z_][A-Z0-9_]*="[^"`]*"$/.test(line) && !line.includes("$("));
+    const names = assignments.map((line) => line.slice(0, line.indexOf("=")));
+    const echoes = names.map((n) => `printf '%s\\n' "\${${n}}"`).join("\n");
+    // INTERVU_BASE removed so an override exported in the shell running the
+    // tests can't change what they assert — the subject is the DEFAULT that
+    // ships. Everything else is passed through, because bash still needs a
+    // usable environment to run in.
+    const { INTERVU_BASE: _overridden, ...cleanEnv } = process.env;
+    const out = execFileSync("bash", ["-c", `${assignments.join("\n")}\n${echoes}`], {
+        encoding: "utf8",
+        env: cleanEnv,
+    });
+    const values = out.split("\n");
+    return Object.fromEntries(names.map((n, i) => [n, values[i]]));
+})();
+
 function installerVar(name: string): string {
-    const match = new RegExp(`^${name}="([^"]*)"`, "m").exec(installerSource());
-    assert.ok(match, `install.sh is missing a ${name} assignment`);
-    return match[1];
+    const value = RESOLVED_VARS[name];
+    assert.ok(value, `install.sh is missing a ${name} assignment`);
+    return value;
 }
 
 /**
@@ -70,54 +102,58 @@ const REDIRECT = `http://127.0.0.1:${OAUTH_PORT}/callback`;
 
 type McporterServer = { baseUrl?: string; lifecycle?: string; oauthRedirectUrl?: string };
 type McporterConfig = { mcpServers: Record<string, McporterServer> };
-type PatchResult = { config: McporterConfig; stdout: string; redirectChanged: boolean };
+type PatchResult = { config: McporterConfig; stdout: string; identityChanged: boolean };
 
-/** Writes `initial` to a temp mcporter.json, runs the extracted program over it, returns the result. */
-function runPatch(initial: unknown, redirect: string = REDIRECT): PatchResult {
+/**
+ * Writes `initial` to a temp mcporter.json, runs the extracted program over it,
+ * returns the result. `serverUrl` is a parameter because the point of several of
+ * these cases is an install whose stored origin is NOT the one shipping today.
+ */
+function runPatch(initial: unknown, redirect: string = REDIRECT, serverUrl: string = SERVER_URL): PatchResult {
     const dir = mkdtempSync(path.join(tmpdir(), "mcporter-config-"));
     const file = path.join(dir, "mcporter.json");
     writeFileSync(file, JSON.stringify(initial, null, 2));
     const stdout = execFileSync(
         "node",
-        ["-e", extractConfigPatchProgram(), file, SERVER_KEY, SERVER_URL, redirect],
+        ["-e", extractConfigPatchProgram(), file, SERVER_KEY, serverUrl, redirect],
         { encoding: "utf8" }
     );
     return {
         config: JSON.parse(readFileSync(file, "utf8")),
         stdout,
-        redirectChanged: stdout.includes("REDIRECT_CHANGED"),
+        identityChanged: stdout.includes("IDENTITY_CHANGED"),
     };
 }
 
 describe("installer mcporter config patch", () => {
     it("pins the callback and reports the change on an install that predates the pin", () => {
-        const { config, redirectChanged } = runPatch({
+        const { config, identityChanged } = runPatch({
             mcpServers: { [SERVER_KEY]: { baseUrl: SERVER_URL, lifecycle: "keep-alive" } },
         });
         assert.equal(config.mcpServers[SERVER_KEY].oauthRedirectUrl, REDIRECT);
         assert.equal(
-            redirectChanged,
+            identityChanged,
             true,
-            "must signal REDIRECT_CHANGED so the installer passes --reset and clears the stale registration"
+            "must signal IDENTITY_CHANGED so the installer passes --reset and clears the stale registration"
         );
     });
 
-    it("is a no-op on an already-pinned install and does NOT ask for a reset", () => {
-        const { config, redirectChanged } = runPatch({
+    it("is a no-op on an install already matching, and does NOT ask for a reset", () => {
+        const { config, identityChanged } = runPatch({
             mcpServers: {
                 [SERVER_KEY]: { baseUrl: SERVER_URL, lifecycle: "keep-alive", oauthRedirectUrl: REDIRECT },
             },
         });
         assert.equal(config.mcpServers[SERVER_KEY].oauthRedirectUrl, REDIRECT);
         assert.equal(
-            redirectChanged,
+            identityChanged,
             false,
             "re-running the installer must not throw away a working credential"
         );
     });
 
     it("migrates an install pinned to some other port", () => {
-        const { config, redirectChanged } = runPatch({
+        const { config, identityChanged } = runPatch({
             mcpServers: {
                 [SERVER_KEY]: {
                     baseUrl: SERVER_URL,
@@ -127,16 +163,45 @@ describe("installer mcporter config patch", () => {
             },
         });
         assert.equal(config.mcpServers[SERVER_KEY].oauthRedirectUrl, REDIRECT);
-        assert.equal(redirectChanged, true);
+        assert.equal(identityChanged, true);
+    });
+
+    it("moves an install still pointed at a previous intervu origin", () => {
+        // The 2026-08-24 case. Step 3's `grep -q … || mcporter config add` skips
+        // registration entirely once the key exists, so this block is the ONLY
+        // thing that can move an existing install — and before it wrote baseUrl,
+        // re-running the installer left the stale origin in place and reported
+        // success. An MCP client compares the URL it was given against the
+        // `.well-known` documents it fetches, so a stale origin fails the
+        // handshake on an issuer mismatch that names nothing.
+        const { config, identityChanged } = runPatch({
+            mcpServers: {
+                [SERVER_KEY]: {
+                    baseUrl: "https://previous-origin.example/api/mcp",
+                    lifecycle: "keep-alive",
+                    oauthRedirectUrl: REDIRECT,
+                },
+            },
+        });
+        assert.equal(
+            config.mcpServers[SERVER_KEY].baseUrl,
+            SERVER_URL,
+            "an existing install must be moved to the shipping origin, not left where it was"
+        );
+        assert.equal(
+            identityChanged,
+            true,
+            "the cached client_id was minted against the old origin's authorization server, so it must be reset"
+        );
     });
 
     it("creates the server entry when it is missing entirely", () => {
-        const { config, redirectChanged } = runPatch({ mcpServers: {} });
+        const { config, identityChanged } = runPatch({ mcpServers: {} });
         const server = config.mcpServers[SERVER_KEY];
         assert.equal(server.baseUrl, SERVER_URL);
         assert.equal(server.oauthRedirectUrl, REDIRECT);
         assert.equal(server.lifecycle, "keep-alive");
-        assert.equal(redirectChanged, true);
+        assert.equal(identityChanged, true);
     });
 
     it("tolerates a config with no mcpServers key at all", () => {
@@ -203,12 +268,52 @@ describe("installer callback port", () => {
         );
     });
 
-    it("passes --reset only when the pin changed", () => {
+    it("passes --reset only when the identity changed", () => {
         const source = installerSource();
         assert.match(
             source,
-            /if \[ "\$REDIRECT_STATE" = "REDIRECT_CHANGED" \]; then\s+AUTH_RESET="--reset"/,
+            /if \[ "\$AUTH_IDENTITY_STATE" = "IDENTITY_CHANGED" \]; then\s+AUTH_RESET="--reset"/,
             "the --reset must stay conditional; unconditional reset discards a working credential every re-run"
+        );
+    });
+});
+
+describe("installer origin", () => {
+    it("derives every intervu URL from one origin", () => {
+        // The MCP handshake compares the URL in a person's config against the
+        // `.well-known` documents it fetches. A second origin spelled anywhere
+        // in this script is a second answer to "who is intervu", and the failure
+        // it produces names neither the file nor the mismatch.
+        const base = installerVar("INTERVU_BASE");
+        assert.equal(installerVar("MCP_SERVER_URL"), `${base}/api/mcp`);
+        assert.equal(installerVar("HELP_URL"), `${base}/connect/help`);
+        assert.equal(installerVar("SKILL_TARBALL_URL"), `${base}/intervu-apply-skill.tar.gz`);
+    });
+
+    it("installs against the same origin the MCP server identifies as", () => {
+        // THE cross-file link, and the one this whole class needed: install.sh
+        // writes MCP_SERVER_URL into a person's mcporter config, while the
+        // server answers `.well-known` requests with AGENT.issuer(). Those are
+        // two files, in two languages, that no reviewer reads together — and an
+        // MCP client rejects the handshake when they disagree, naming neither.
+        //
+        // Read via a child process because AGENT.issuer() consults the
+        // environment, and the assertion is about the DEFAULT that ships: what
+        // someone gets when nothing is configured.
+        const { AGENT_ISSUER_URL: _configured, ...issuerDefaultEnv } = process.env;
+        const issuer = execFileSync(
+            "npx",
+            [
+                "tsx",
+                "-e",
+                'import { AGENT } from "./src/lib/agent/config"; process.stdout.write(AGENT.issuer());',
+            ],
+            { encoding: "utf8", cwd: process.cwd(), env: issuerDefaultEnv }
+        ).trim();
+        assert.equal(
+            installerVar("INTERVU_BASE"),
+            issuer,
+            "install.sh points people at an origin the MCP server does not identify as"
         );
     });
 });

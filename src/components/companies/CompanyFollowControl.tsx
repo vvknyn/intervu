@@ -60,7 +60,17 @@ function CompanyFollowControlInner({
   }, [user]);
 
   return (
-    <div className={cn("flex shrink-0 flex-col items-end gap-2 self-start", className)}>
+    // No `self-*` and no alignment of its own. `self-start` used to be baked in
+    // here, and its MEANING FLIPS with the parent's flex direction: in the
+    // company header (a row) it reads "top", in the unlock overlay (a column)
+    // it reads "left" — so the overlay's `items-center` was silently overruled
+    // and the Follow button sat against the left edge under a centred heading
+    // (Vivek, 2026-08-24: "center the button"). A control cannot know the axis
+    // of a container it doesn't own, so placement — and the text alignment that
+    // follows from it — is the caller's to state. Both call sites that wanted
+    // the old behaviour now say so; one of them was already passing
+    // `sm:self-start` to re-state what it was getting anyway.
+    <div className={cn("flex shrink-0 flex-col gap-2", className)}>
       <FollowButton
         domain={domain}
         slug={slug}
@@ -74,7 +84,9 @@ function CompanyFollowControlInner({
       {!user && emailVerified && (
         <p
           data-testid="follow-email-verified"
-          className="max-w-[220px] text-right text-xs leading-snug text-muted-foreground"
+          // Inherits its alignment from the caller alongside the button, so the
+          // caption can't end up right-aligned under a centred control.
+          className="max-w-[220px] text-xs leading-snug text-muted-foreground"
         >
           {followEmailVerifiedLine(displayName)}
         </p>
