@@ -4,6 +4,7 @@ import "./globals.css";
 import "./elite-signal.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
+import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -178,8 +179,13 @@ export default function RootLayout({
           <ThemeProvider>
             <CursorFabricBackground />
             <TourProvider>
+              {/* Wraps BOTH the header and the page: /jobs publishes its search
+                  summary here once its own search box scrolls away, and TopBar
+                  renders it. Siblings can't share state without this. */}
+              <SearchDockProvider>
               <TopBar />
               {children}
+              </SearchDockProvider>
               <Footer />
               <MobileTabBar />
               <TourOverlay />

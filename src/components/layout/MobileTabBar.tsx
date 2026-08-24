@@ -5,12 +5,16 @@ import { usePathname } from "next/navigation";
 import { MOBILE_ACCOUNT_TAB, NAV_TABS } from "@/components/layout/nav-tabs";
 import { siteChrome } from "@/components/layout/site-chrome";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { cn } from "@/lib/utils";
 
 const MOBILE_TABS = [...NAV_TABS, MOBILE_ACCOUNT_TAB];
 
 export function MobileTabBar() {
     const pathname = usePathname();
+    // Above the early return: hooks must run in the same order on every render,
+    // and `hideNav` is route-dependent.
+    const navBadges = useNavBadgeCounts();
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
 
@@ -51,7 +55,23 @@ export function MobileTabBar() {
                                 className="absolute inset-x-0 top-0 mx-auto h-0.5 w-7 rounded-b-sm bg-chrome-foreground"
                             />
                         )}
-                        {Icon && <Icon />}
+                        {Icon && (
+                            <span className="relative flex items-center justify-center">
+                                <Icon />
+                                {/* Count over the icon — the standard tab-bar badge
+                                    position, and the same `NavTab.badge` declaration
+                                    the desktop bar reads, so the two can't disagree
+                                    about which tab carries a number. */}
+                                {tab.badge && navBadges[tab.badge] > 0 && (
+                                    <span
+                                        data-testid={`mobile-${tab.testId}-badge`}
+                                        className="absolute -right-2.5 -top-1 mono-data rounded-none bg-brand px-1 text-[9px] font-bold leading-[14px] text-background"
+                                    >
+                                        {navBadges[tab.badge]}
+                                    </span>
+                                )}
+                            </span>
+                        )}
                         <span>{tab.shortLabel}</span>
                     </Link>
                 );

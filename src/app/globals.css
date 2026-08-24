@@ -452,6 +452,16 @@ h4 {
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
 }
 
+/* Accent edge for the page's primary surface — the /jobs search box (Vivek,
+   2026-08-24). Declared here rather than as a `border-t-[3px] border-t-brand`
+   utility on the element because `.glass-panel-raised` above sets the `border`
+   SHORTHAND, which expands to all four sides and beats a single-side utility
+   in the cascade; the utility applied cleanly to the markup and painted
+   nothing. `rgb(var(--brand))` follows the token, so dark mode swaps with it. */
+.glass-panel-accent-top {
+  border-top: 3px solid rgb(var(--brand));
+}
+
 .dark .glass-panel-raised {
   background: rgba(26, 26, 26, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.22);
