@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { validateNextParam } from "@/lib/auth/product-routes";
-import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { createPostAuthHandoff } from "@/lib/auth/post-auth-redirect";
+import {
+    getCurrentUser,
+    onAuthChange,
+    refreshSession,
+    type User,
+} from "@/lib/firebase/client-auth";
 
 export function LoginClient() {
     const router = useRouter();
@@ -18,9 +24,27 @@ export function LoginClient() {
         return onAuthChange(setUser);
     }, []);
 
+    /**
+     * Leaving by document navigation rather than `router.replace`: the cookie
+     * the destination renders from was just minted by a fetch from this page,
+     * and a fresh document is the one way to be certain the server render sees
+     * it — no reasoning about what the client router kept from the signed-out
+     * render the visitor arrived from. Sign-in happens once a session; one
+     * page load is the right price for a destination that always agrees with
+     * the credential.
+     */
+    const handOff = useMemo(
+        () =>
+            createPostAuthHandoff({
+                ensureServerSession: refreshSession,
+                leave: (destination) => window.location.replace(destination),
+            }),
+        [],
+    );
+
     const redirectAfterAuth = useCallback(() => {
-        router.replace(validateNextParam(searchParams.get("next")) ?? "/jobs");
-    }, [router, searchParams]);
+        void handOff(validateNextParam(searchParams.get("next")) ?? "/jobs");
+    }, [handOff, searchParams]);
 
     useEffect(() => {
         if (user) redirectAfterAuth();
