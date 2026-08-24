@@ -5,7 +5,7 @@
  * firebase-admin, so it can't be pulled into client components. Server actions
  * throw errors prefixed with these tokens (e.g. "AUTH_REQUIRED: Sign in …");
  * the UI uses the helpers here to branch — open the login popover for
- * AUTH_REQUIRED, show an add-key / upgrade message for OUT_OF_CREDITS — instead
+ * AUTH_REQUIRED, show the out-of-credits panel for OUT_OF_CREDITS — instead
  * of dumping a raw error string at the user.
  *
  * Keep these literals in sync with src/lib/llm/credit-gate.ts.

@@ -6,9 +6,12 @@
  * needs exactly one home.
  */
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
+import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
+import { addLocationValue } from "@/lib/jobs/location-suggest";
 import { GHOST_META } from "@/lib/jobs/presentation";
+import { capitalizeWords } from "@/lib/text-case";
 
 /**
  * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
@@ -84,7 +87,18 @@ export const POPULAR_LOCATION_COUNTRIES = [
 
 export type LocationSheetDraft = {
     useDetected: boolean;
-    country: string | null;
+    /**
+     * EVERY place the sheet has chosen, not one.
+     *
+     * This was `country: string | null`, so committing the sheet replaced the
+     * whole `location_country` list with a single value — mobile could never
+     * ask for "Canada and remote", and a phone opening a two-place URL saw
+     * only the first one. The corpus, the URL (`?country=a,b`) and
+     * `resolveLocationFacet` have all carried a LIST from the start; this
+     * field was the last place that collapsed it, and the sheet's own copy
+     * ("Pick one or more") already promised otherwise.
+     */
+    places: string[];
     otherText: string;
     showOther: boolean;
     remote: boolean;
@@ -98,13 +112,20 @@ export function applyLocationSheetDraft(
 ): FilterState {
     const facets = { ...state.facets };
     if (draft.useDetected) {
+        // "Use my detected location" means "stop filtering explicitly and let
+        // the server's IP default apply", so it clears the list rather than
+        // adding to it.
         delete facets.location_country;
-    } else if (draft.showOther && draft.otherText.trim()) {
-        facets.location_country = [draft.otherText.trim()];
-    } else if (draft.country) {
-        facets.location_country = [draft.country];
     } else {
-        delete facets.location_country;
+        // Free text commits as one more place, folded-deduped through the same
+        // helper the desktop picker uses — typing "Montreal" when "Montréal"
+        // is already chosen is a no-op, not a second filter for one city.
+        const chosen = draft.showOther && draft.otherText.trim()
+            ? addLocationValue(draft.places, draft.otherText)
+            : draft.places;
+        const cleaned = chosen.map((v) => v.trim()).filter(Boolean);
+        if (cleaned.length) facets.location_country = cleaned;
+        else delete facets.location_country;
     }
 
     if (remoteValue) {
@@ -136,8 +157,17 @@ export function applyLocationSheetDraft(
  * already-honest affordance (explicit, disclosed, opt-in) and is
  * unaffected — this only removes the passive, undisclosed prefill.
  */
+export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
+
 export function locationTriggerLabel(state: FilterState): string {
-    return state.facets.location_country?.[0]?.trim() || "City, state, or remote";
+    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+    if (values.length === 0) return LOCATION_TRIGGER_PLACEHOLDER;
+    if (values.length === 1) return values[0]!;
+    // A trigger is one line of a narrow control, so past the first place it
+    // reports a COUNT rather than truncating a list — "Montréal +2" says how
+    // much is hidden, where "Montréal, Toron…" only says that something is.
+    // The chips row below spells all of them out and can remove any one.
+    return `${values[0]} +${values.length - 1}`;
 }
 
 /** Static facet option ladders — always shown in SerpFilters even when the
@@ -176,7 +206,7 @@ export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
 
 /** Human-friendly label for a facet value (shared with the active-filter chips). */
 export function facetValueLabel(key: FacetKey, v: string): string {
-    return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    return VALUE_LABELS[key]?.[v] ?? capitalizeWords(v.replace(/[_-]/g, " "));
 }
 
 /** What to call a facet KEY in a chip that has to say which filter it is
@@ -196,7 +226,7 @@ const KEY_LABELS: Partial<Record<FacetKey, string>> = {
 export function facetKeyLabel(key: FacetKey): string {
     return (
         KEY_LABELS[key] ??
-        key.replace(/^location_/, "").replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        capitalizeWords(key.replace(/^location_/, "").replace(/[_-]/g, " "))
     );
 }
 
@@ -234,6 +264,18 @@ export interface FilterState {
     postedBucket: PostedBucket | undefined;
     /** First-screen default true (hide `likely_ghost` postings) — mirrors the URL's `ghosts` param. */
     hideGhosts: boolean;
+    /**
+     * Curated-board scope (`?board=elite`). It narrows results HARDER than any
+     * facet — an editorial allowlist of a few hundred domains out of the whole
+     * corpus — so it lives here, in the one collection that means "everything
+     * currently narrowing this search", rather than beside it. Kept outside,
+     * it was a filter no chip could name and no clear could reach: it survived
+     * every new query and silently capped results, on one device only (it is
+     * URL state), which is exactly how it read as "search is broken".
+     */
+    board: BoardId | null;
+    /** Single-employer scope (`?company=…`). Same shape, same reason as `board`. */
+    companyDomain: string | null;
 }
 
 /**
@@ -251,6 +293,8 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     visaOnly: false,
     postedBucket: "30d",
     hideGhosts: true,
+    board: null,
+    companyDomain: null,
 };
 
 /**
@@ -292,6 +336,27 @@ export function activeFilterEntries(
     opts?: { includeQuietDefaults?: boolean },
 ): { key: string; label: string; clear: (s: FilterState) => FilterState }[] {
     const entries: { key: string; label: string; clear: (s: FilterState) => FilterState }[] = [];
+
+    // Scope first: it narrows the corpus itself, so it reads ahead of every
+    // facet in the chip row. It is an entry at all for one reason — a filter
+    // the searcher cannot see is a filter they cannot escape.
+    if (state.board) {
+        entries.push({
+            key: "board",
+            label: BOARD_META[state.board].label,
+            clear: (s) => ({ ...s, board: null }),
+        });
+    }
+
+    // `companyDomain` deliberately emits NO entry, despite being a first-class
+    // member of `FilterState` alongside `board`. The SERP already renders a
+    // dedicated employer token for it ("employer · acme.com ✕",
+    // `data-testid="company-scope-chip"`, page.tsx) — richer than a generic
+    // chip and mounted where a link-arrived scope belongs. Emitting one here
+    // would put TWO removable chips on screen for ONE scope, which is the
+    // duplicate-affordance regression this file has already been cleaned of
+    // once (ITEM S, 2026-08-15). Membership in `FilterState` is what it needs:
+    // that is what puts it inside "clear all" and "clear search".
 
     for (const key of FACETABLE_KEYS) {
         for (const v of state.facets[key] ?? []) {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MCP_CONNECTOR_URL, OPENCLAW_INSTALL_COMMAND } from "@/components/marketing/openclaw-content";
+import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
+import { AGENT } from "@/lib/agent/config";
 
 export const metadata: Metadata = {
   title: "Setup help — intervu",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 /** Ordered id + label pairs — the single source for both the on-page table
  *  of contents and the anchor ids below. This exact list, in this exact
  *  order, is a contract with `openclaw/install.sh`: every fatal exit there
- *  prints `https://intervu.cc/connect/help#<id>`, so an id typo here is a
+ *  prints `$INTERVU_BASE/connect/help#<id>`, so an id typo here is a
  *  dead link from a real failed install, not just a broken TOC. */
 const SECTIONS = [
   { id: "which-path", label: "Which path is right for you?" },
@@ -57,6 +58,11 @@ function Command({ children }: { children: string }) {
 }
 
 export default function ConnectHelpPage() {
+  // Built from the connector's own origin, so a troubleshooting page can never
+  // tell someone to paste a URL the `.well-known` documents disagree with.
+  const issuer = AGENT.issuer();
+  const MCP_CONNECTOR_URL = mcpConnectorUrl(issuer);
+  const OPENCLAW_INSTALL_COMMAND = openclawInstallCommand(issuer);
   return (
     <main data-testid="connect-help-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -251,7 +257,7 @@ export default function ConnectHelpPage() {
         <HelpSection id="skill-download" title={SECTIONS[7].label}>
           <p>
             Near the end of the install, the script downloads intervu&apos;s actual job-search
-            instructions from intervu.cc and installs them into OpenClaw. This step failed — almost
+            instructions and installs them into OpenClaw. This step failed — almost
             always a network hiccup (a dropped connection), not a problem with your account or
             anything installed so far.
           </p>
@@ -314,7 +320,7 @@ export default function ConnectHelpPage() {
             Your WhatsApp link dies along with the agent — there&apos;s nothing left to message. And
             nothing about you stays behind on intervu&apos;s servers from the local agent: it runs
             entirely on your own machine, and the only thing that ever left it was job-matching
-            queries to intervu.cc, the same way your browser talks to any website you visit.
+            queries to intervu, the same way your browser talks to any website you visit.
           </p>
         </HelpSection>
 

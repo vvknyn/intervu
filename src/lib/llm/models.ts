@@ -1,4 +1,6 @@
 export const DEFAULT_PROVIDER = "openrouter";
+/** Groq default — llama-3.3-70b-versatile shut down Aug 16, 2026 */
+export const GROQ_DEFAULT_MODEL = "openai/gpt-oss-20b";
 // App-provided default. A stable, cheap, JSON-reliable model on the shared OpenRouter key.
 // (Replaced the free `owl-alpha` stealth model, which proved unstable — started 400-ing.)
 export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
@@ -12,18 +14,30 @@ export const AVAILABLE_MODELS = {
         { id: "anthropic/claude-3.5-haiku", name: "Claude 3.5 Haiku", description: "Fast, high quality", category: "Paid" as const },
     ],
     groq: [
-        { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", description: "Versatile, very fast", category: "Free" as const },
-        { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", description: "Fastest, lightweight", category: "Free" as const },
+        // llama-3.3-70b-versatile and llama-3.1-8b-instant were shut down Aug 16, 2026
+        { id: GROQ_DEFAULT_MODEL, name: "GPT-OSS 20B", description: "Default — fast, lightweight", category: "Free" as const },
+        { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B", description: "Higher quality, still fast", category: "Free" as const },
+        { id: "qwen/qwen3.6-27b", name: "Qwen 3.6 27B", description: "Strong, versatile", category: "Free" as const },
         { id: "gemma2-9b-it", name: "Gemma2 9B", description: "Lightweight", category: "Free" as const },
     ],
 } as const;
 
 /**
- * Free rungs tried before the paid default, for résumé parsing only.
+ * Free rungs tried before the paid default, on EVERY generation.
  *
- * Uploading a résumé sends ~8K characters through the shared, app-funded key
- * on every attempt, and the task — pull structured fields out of a document —
- * is one free models are good at. Ordered most-capable first.
+ * Was résumé-parse-only until 2026-08-23, when the app took over funding all
+ * AI (bring-your-own-key was removed): once every call is on our key, the
+ * argument for laddering résumé parsing applies to all of them, and opting
+ * each caller in one at a time is how a call site gets forgotten. It is now
+ * the default at the two chokepoints — `fetchJSON` and `generateGenericText`
+ * in actions/generate-context.ts — so a new caller is covered by
+ * construction rather than by remembering to pass an argument.
+ *
+ * A caller that names its own model still skips these rungs entirely. That
+ * is the point of naming one: answering a deliberately-premium request from
+ * a 9B free model would defeat the override rather than economise on it.
+ *
+ * Ordered most-capable first.
  *
  * **Ordered by measured latency, not by parameter count.** Every free model
  * below was smoke-tested 2026-08-17 against this exact prompt on a real
@@ -58,16 +72,9 @@ export const AVAILABLE_MODELS = {
  * final rung precisely so a withdrawn or throttled free tier degrades to
  * today's behaviour instead of to a broken upload.
  */
-export const RESUME_PARSE_FREE_LADDER = [
+export const FREE_LADDER = [
     "dots-studio/dots-3-note-preview:free", // 512K ctx, response_format + structured outputs
     "nvidia/nemotron-nano-9b-v2:free",      // 128K ctx, response_format + structured outputs
-] as const;
-
-/** Same two structured-output free rungs as résumé parsing; tailoring is the
- *  same shape of work (JSON in, JSON out, one résumé of context). */
-export const TAILOR_FREE_LADDER = [
-    "dots-studio/dots-3-note-preview:free",
-    "nvidia/nemotron-nano-9b-v2:free",
 ] as const;
 
 export type Provider = keyof typeof AVAILABLE_MODELS;

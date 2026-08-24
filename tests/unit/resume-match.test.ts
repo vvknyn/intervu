@@ -66,7 +66,19 @@ describe('buildMatchQuery', () => {
         const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 0 }));
         assert.equal(out.facets.experience_level, undefined);
     });
-    it('returns empty q when profession is missing', () => {
+    it('falls back to top skills when profession is missing (skills-only résumé)', () => {
+        const out = buildMatchQuery(
+            mk({ profession: '', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka', 'AWS'] }]),
+        );
+        assert.equal(out.q, 'Go Kafka AWS');
+    });
+    it('prefers profession over skills when a résumé has both', () => {
+        const out = buildMatchQuery(
+            mk({ profession: 'Backend Engineer', yearsOfExperience: 5 }, [{ category: 'Tech', skills: ['Go', 'Kafka'] }]),
+        );
+        assert.equal(out.q, 'Backend Engineer');
+    });
+    it('returns empty q only when neither profession nor any skill is present', () => {
         const out = buildMatchQuery(mk({ profession: '', yearsOfExperience: 5 }));
         assert.equal(out.q, '');
     });

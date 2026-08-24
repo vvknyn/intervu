@@ -6,6 +6,15 @@
 import type { ComponentType } from "react";
 import { FileText, Kanban } from "@phosphor-icons/react";
 
+/**
+ * Live counters a nav tab can carry. A tab DECLARES which counter it wants;
+ * the nav bars resolve the number. Neither bar may test a tab's href or label
+ * to decide whether to draw a badge — that would make "which tab has a count"
+ * a fact spread across the two bars instead of one stated here, and the two
+ * would drift the moment a second tab wanted one.
+ */
+export type NavBadge = "pursuits";
+
 export type NavTab = {
     label: string;
     shortLabel: string;
@@ -14,6 +23,7 @@ export type NavTab = {
     match: (pathname: string) => boolean;
     icon?: ComponentType;
     variant?: "cta";
+    badge?: NavBadge;
 };
 
 function JobsIcon() {
@@ -82,6 +92,10 @@ export const NAV_TABS: NavTab[] = [
         testId: "topbar-tracker",
         match: (p) => p.startsWith("/yours"),
         icon: TrackerIcon,
+        // The tracked count used to sit in the /jobs filter toolbar as a chip
+        // linking here. It was never a filter — it narrowed nothing — so it
+        // now rides on the destination it was already pointing at.
+        badge: "pursuits",
     },
     {
         label: "Connect",

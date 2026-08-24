@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createCorpusValueChecker,
+  foldForMatch,
   selectMatchingHits,
   PLACE_MIN_COUNT,
   type FacetHit,
@@ -9,7 +10,7 @@ import {
 } from "../../src/lib/geo/corpus-values";
 import type { PlaceCandidate } from "../../src/lib/geo/resolve-place";
 
-test("selectMatchingHits: exact mode keeps only the literal case-insensitive match, in the CORPUS's own casing", () => {
+test("selectMatchingHits: exact mode keeps every spelling that folds alike, in the CORPUS's own casing", () => {
   const hits: FacetHit[] = [{ value: "MISSISSAUGA", count: 1306 }, { value: "Mississauga Heights", count: 4 }];
   const candidate: PlaceCandidate = { field: "location_city", value: "Mississauga" };
   assert.deepEqual(selectMatchingHits(candidate, hits), [{ field: "location_city", value: "MISSISSAUGA" }]);
@@ -156,4 +157,94 @@ test("createCorpusValueChecker: groups validate independently — one group's re
   assert.deepEqual(cityGroup, [{ field: "location_city", value: "Richmond Hill" }]);
   assert.deepEqual(countryGroup, [{ field: "location_country", value: "Canada" }]);
   assert.deepEqual(otherCountryGroup, []);
+});
+
+// ---------------------------------------------------------------------------
+// Accent folding (2026-08-24).
+//
+// Meilisearch's facet FILTER is accent-SENSITIVE while its facet SEARCH is
+// accent-INsensitive. Verified live: filtering `location_city = "Montreal"`
+// returns 2,306 rows and `"Montréal"` returns 1,208, and the two sets are
+// provably disjoint (their union equals their sum exactly, 3,514) — yet ONE
+// facet-search returns both spellings. So a searcher who types either one is
+// silently shown roughly half the city, with no way to tell.
+// ---------------------------------------------------------------------------
+
+test("foldForMatch strips diacritics and case, and is a general transform (not a city list)", () => {
+  assert.equal(foldForMatch("Montréal"), "montreal");
+  assert.equal(foldForMatch("MONTREAL"), "montreal");
+  assert.equal(foldForMatch("  Lévis "), "levis");
+  // Nothing here knows about French: any diacritic folds the same way.
+  assert.equal(foldForMatch("Zürich"), "zurich");
+  assert.equal(foldForMatch("São Paulo"), "sao paulo");
+  assert.equal(foldForMatch("Kraków"), "krakow");
+});
+
+test("selectMatchingHits: one accented mention licenses EVERY corpus spelling of that place", () => {
+  const hits: FacetHit[] = [
+    { value: "Montreal", count: 2306 },
+    { value: "Montréal", count: 1208 },
+  ];
+  for (const typed of ["Montreal", "Montréal", "MONTRÉAL"]) {
+    const candidate: PlaceCandidate = { field: "location_city", value: typed };
+    assert.deepEqual(
+      selectMatchingHits(candidate, hits),
+      [
+        { field: "location_city", value: "Montreal" },
+        { field: "location_city", value: "Montréal" },
+      ],
+      `typed "${typed}" must reach both spellings`,
+    );
+  }
+});
+
+// The OTHER bug the split caused, and a case other than the one that surfaced
+// it: PLACE_MIN_COUNT is a claim about the PLACE, so splitting a place across
+// spellings splits its evidence too and can push a real city under the floor.
+test("selectMatchingHits: a fold group clears PLACE_MIN_COUNT together even when no single spelling does", () => {
+  const hits: FacetHit[] = [
+    { value: "Lévis", count: 62 },
+    { value: "Levis", count: 39 },
+  ];
+  assert.ok(62 < PLACE_MIN_COUNT && 39 < PLACE_MIN_COUNT, "neither spelling clears the floor alone");
+  assert.equal(62 + 39, 101);
+  assert.deepEqual(selectMatchingHits({ field: "location_city", value: "Levis" }, hits), [
+    { field: "location_city", value: "Lévis" },
+    { field: "location_city", value: "Levis" },
+  ]);
+});
+
+test("selectMatchingHits: a fold group still BELOW the floor licenses nothing — folding widens matching, never the floor", () => {
+  const hits: FacetHit[] = [
+    { value: "Nowhereville", count: 30 },
+    { value: "Nowhervílle", count: 40 },
+  ];
+  assert.deepEqual(selectMatchingHits({ field: "location_city", value: "Nowhereville" }, hits), []);
+});
+
+test("selectMatchingHits: folding stays exact — a longer name that merely STARTS with the mention is not folded in", () => {
+  const hits: FacetHit[] = [
+    { value: "Montreal", count: 2306 },
+    { value: "Montréal", count: 1208 },
+    { value: "Montreal Area", count: 141 },
+    { value: "Montréal-Est", count: 13 },
+  ];
+  assert.deepEqual(selectMatchingHits({ field: "location_city", value: "Montreal" }, hits), [
+    { field: "location_city", value: "Montreal" },
+    { field: "location_city", value: "Montréal" },
+  ]);
+});
+
+test("selectMatchingHits: prefix mode's compound match folds too ('Québec - Remote' for a bare 'Quebec')", () => {
+  const hits: FacetHit[] = [
+    { value: "Quebec", count: 312 },
+    { value: "Québec", count: 287 },
+    { value: "Québec - Remote", count: 44 },
+  ];
+  const out = selectMatchingHits({ field: "location_state", value: "Quebec", matchMode: "prefix" }, hits);
+  assert.deepEqual(out, [
+    { field: "location_state", value: "Quebec" },
+    { field: "location_state", value: "Québec" },
+    { field: "location_state", value: "Québec - Remote" },
+  ]);
 });

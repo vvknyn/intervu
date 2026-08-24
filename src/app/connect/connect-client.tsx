@@ -5,11 +5,7 @@ import { ArrowSquareOut, Check, Copy, Sparkle, ShieldCheck, Code, TerminalWindow
 import { useSearchParams } from "next/navigation";
 import { joinConnectWaitlist } from "@/actions/connect-waitlist";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
-import {
-  MCP_CONNECTOR_URL,
-  OPENCLAW_INSTALL_COMMAND,
-  OPENCLAW_INSTALL_HINT,
-} from "@/components/marketing/openclaw-content";
+import { OPENCLAW_INSTALL_HINT } from "@/components/marketing/openclaw-content";
 import { resolveWaitlistOutcome } from "@/components/marketing/waitlist-outcome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,7 +117,22 @@ const TRY_THESE_PROMPTS = [
   "Summarize key requirements and interview insights for Stripe and OpenAI openings",
 ];
 
-export function ConnectClient() {
+/**
+ * `mcpUrl` and `installCommand` arrive already built from `AGENT.issuer()` —
+ * this half never derives them, because the issuer lives in a server-only env
+ * var and a client-side re-derivation could only guess at a default. `signedIn`
+ * likewise comes from the server session rather than a client auth listener, so
+ * the sign-in step is correct on the FIRST paint instead of flickering in.
+ */
+export function ConnectClient({
+  mcpUrl,
+  installCommand,
+  signedIn,
+}: {
+  mcpUrl: string;
+  installCommand: string;
+  signedIn: boolean;
+}) {
   const searchParams = useSearchParams();
   const [selectedClient, setSelectedClient] = useState<ConnectClientId>("claude");
   const [film, setFilm] = useState<HowItWorksFilmId | null>(null);
@@ -165,7 +176,7 @@ export function ConnectClient() {
     {
       mcpServers: {
         intervu: {
-          url: MCP_CONNECTOR_URL,
+          url: mcpUrl,
         },
       },
     },
@@ -208,7 +219,38 @@ export function ConnectClient() {
             </button>
           </div>
 
-          <CopyBox value={MCP_CONNECTOR_URL} label="Universal MCP Endpoint URL" />
+          {/* The step that was missing. Everything below this line ends at an
+              intervu account — the endpoint answers 401 until a connector
+              finishes the OAuth handshake, and the Claude Code lane hands you a
+              token only Settings can mint — but the page said nothing about
+              one, so a signed-out visitor copied a URL and met a sign-in wall
+              inside someone else's app with no idea why. `next` brings them
+              back HERE, mid-setup, rather than dropping them on /jobs. */}
+          {!signedIn && (
+            <div
+              data-testid="connect-signin-step"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
+            >
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  First, sign in to intervu
+                </h3>
+                <p className="mt-1 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                  Your AI connects as you, so it needs an account to connect to. We&apos;ll bring you
+                  right back here.
+                </p>
+              </div>
+              <Button
+                asChild
+                size="sm"
+                className="shrink-0 gap-1.5 rounded-lg bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              >
+                <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
+              </Button>
+            </div>
+          )}
+
+          <CopyBox value={mcpUrl} label="Universal MCP Endpoint URL" />
 
           {/* AI Client Selector Tabs */}
           <div className="border-t border-border/80 pt-4 space-y-3">
@@ -309,7 +351,7 @@ export function ConnectClient() {
             <div>
               {platform === "mac" || platform === null ? (
                 <div className="space-y-2">
-                  <CopyBox value={OPENCLAW_INSTALL_COMMAND} label="1-Click Mac Terminal Command" />
+                  <CopyBox value={installCommand} label="1-Click Mac Terminal Command" />
                   <p className="text-[11px] text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
                 </div>
               ) : (

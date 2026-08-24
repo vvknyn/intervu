@@ -46,6 +46,7 @@ import { COMMON_WORDS } from "./common-words";
 import { JOB_VOCAB } from "./job-vocab";
 import { JOBS_SYNONYMS } from "../jobs/meilisearch";
 import { subdivisionCandidates } from "./country-subdivisions";
+import { capitalizeWords } from "@/lib/text-case";
 
 /**
  * The guard's full word set: general-English common words (common-words.ts)
@@ -364,13 +365,16 @@ const CITY_NAME_VARIANTS: Readonly<Record<string, string>> = {
   gurgaon: "gurugram",
 };
 
-/** Title-cases a plain-ASCII multi-word name ("ho chi minh city" -> "Ho Chi
- *  Minh City") for a curated variant spelling that has no gazetteer-cased
- *  original to borrow (Meilisearch's `=` filter is case-insensitive per
+/** Title-cases a multi-word name ("ho chi minh city" -> "Ho Chi Minh City")
+ *  for a curated variant spelling that has no gazetteer-cased original to
+ *  borrow (Meilisearch's `=` filter is case-insensitive per
  *  `resolveLocationFacet`'s doc, so this is display casing, not a matching
- *  requirement). */
+ *  requirement). Delegates rather than re-spelling the regex: the previous
+ *  `\b\w` version was correct only while every variant stayed plain ASCII,
+ *  and nothing in `CITY_NAME_VARIANTS` enforces that — one accented entry
+ *  would have rendered "MontréAl". */
 function titleCase(s: string): string {
-  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+  return capitalizeWords(s);
 }
 
 /**

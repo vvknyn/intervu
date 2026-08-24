@@ -81,7 +81,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
      */
     test('TC-STORAGE-003: Prep settings persist across pages', async ({ page }) => {
         await page.evaluate(() => {
-            localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
+            localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
             localStorage.setItem('interview-os-prep-settings', JSON.stringify({
                 questionCount: 5,
                 difficulty: 'medium'
@@ -90,7 +90,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
 
         await page.goto('/settings');
         const model = await page.evaluate(() => localStorage.getItem('guest_model'));
-        expect(model).toBe('groq:llama-3.3-70b-versatile');
+        expect(model).toBe('groq:openai/gpt-oss-20b');
 
         const prepSettings = await page.evaluate(() => localStorage.getItem('interview-os-prep-settings'));
         expect(prepSettings).toContain('medium');
@@ -98,7 +98,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
         // Navigate back
         await page.goto('/');
         const model2 = await page.evaluate(() => localStorage.getItem('guest_model'));
-        expect(model2).toBe('groq:llama-3.3-70b-versatile');
+        expect(model2).toBe('groq:openai/gpt-oss-20b');
     });
 
     /**
@@ -153,7 +153,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
     test('TC-STORAGE-006: Multiple storage items coexist', async ({ page }) => {
         await page.evaluate(() => {
             localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test' }));
-            localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
+            localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
             localStorage.setItem('interview-os-theme', 'dark');
             localStorage.setItem('interview-os-prep-settings', JSON.stringify({ difficulty: 'hard' }));
             localStorage.setItem('privacy-notice-dismissed', 'true');
@@ -168,7 +168,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
         const privacy = await page.evaluate(() => localStorage.getItem('privacy-notice-dismissed'));
 
         expect(apiKeys).toContain('gsk_test');
-        expect(model).toBe('groq:llama-3.3-70b-versatile');
+        expect(model).toBe('groq:openai/gpt-oss-20b');
         expect(theme).toBe('dark');
         expect(prep).toContain('hard');
         expect(privacy).toBe('true');
@@ -199,7 +199,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
         // Set multiple items
         await page.evaluate(() => {
             localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test' }));
-            localStorage.setItem('guest_model', 'groq:llama-3.3-70b-versatile');
+            localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
             localStorage.setItem('interview-os-theme', 'dark');
         });
 

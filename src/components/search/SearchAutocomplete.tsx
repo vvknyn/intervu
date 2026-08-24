@@ -55,6 +55,11 @@ export interface SearchAutocompleteHandle {
      *  `open`/`onOpenChange` prop pair the parent would have to thread
      *  through every keystroke. */
     close: () => void;
+    /** Put the cursor in the field. Used when the search has scrolled away and
+     *  something else — the docked control in the header — brings it back:
+     *  scrolling the box into view without focusing it leaves the person to
+     *  click a second time. */
+    focus: () => void;
 }
 
 /**
@@ -145,7 +150,15 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     // now-empty box with "engineer" suggestions.
     const suggestGenRef = useRef(0);
 
-    useImperativeHandle(ref, () => ({ close: () => setIsOpen(false) }), []);
+    const inputRef = useRef<HTMLInputElement>(null);
+    useImperativeHandle(
+        ref,
+        () => ({
+            close: () => setIsOpen(false),
+            focus: () => inputRef.current?.focus(),
+        }),
+        [],
+    );
 
     // Update suggestions
     useEffect(() => {
@@ -264,6 +277,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     </span>
                 )}
                 <Input
+                    ref={inputRef}
                     type="text"
                     placeholder={placeholder}
                     className={cn("relative z-20 transition-all", leadingIcon && "min-w-0 flex-1", className)}

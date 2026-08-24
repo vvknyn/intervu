@@ -39,9 +39,18 @@ export function seniorityFromYears(years: number): Seniority | null {
     return "senior";
 }
 
-/** Match: the candidate's own role title + seniority. Deterministic, free. */
+/**
+ * Match: the candidate's own role title + seniority. Deterministic, free.
+ * Falls back to the résumé's own skills (same terms `buildExploreBroadenQuery`
+ * uses) when there's no profession to match on — a résumé with skills but no
+ * stated title still deserves a non-empty query, not a silent "newest first"
+ * that keeps the "Ranked by your résumé" chip lit over an unranked browse.
+ * `resumeIsUsable` is defined in terms of this function's own output (see
+ * resume-usable.ts) precisely so the two can't drift apart again.
+ */
 export function buildMatchQuery(resume: ResumeData): DerivedQuery {
-    const q = (resume?.profile?.profession ?? "").trim();
+    const profession = (resume?.profile?.profession ?? "").trim();
+    const q = profession || capExploreTerms(topSkills(resume, 6)).join(" ");
     const facets: Partial<Record<FacetKey, string[]>> = {};
     const seniority = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
     if (seniority) facets.experience_level = [seniority];

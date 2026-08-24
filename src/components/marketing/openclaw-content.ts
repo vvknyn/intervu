@@ -35,7 +35,9 @@ export const OPENCLAW_STATUS_BADGE = "OpenClaw skill · self-hosted · free";
  * (owned by a parallel branch as of this writing) rather than duplicating
  * its logic here.
  */
-export const OPENCLAW_INSTALL_COMMAND = "curl -fsSL https://intervu.cc/install | bash";
+export function openclawInstallCommand(issuer: string): string {
+  return `curl -fsSL ${issuer}/install | bash`;
+}
 
 /**
  * Landing instrument meta — sits above the Claude / OpenClaw / Job board
@@ -53,8 +55,20 @@ export const INSTRUMENT_SUPPORT =
 /** Quiet tip above unsigned `/jobs` results (session-dismissible in UI). */
 export const GUEST_SERP_TIP = "Open a role to continue — details need sign-in.";
 
-/** Landing instrument — Claude / ChatGPT lane (same URL as /connect). */
-export const MCP_CONNECTOR_URL = "https://intervu.cc/api/mcp";
+/**
+ * Landing instrument — Claude / ChatGPT lane (same URL as /connect).
+ *
+ * A FUNCTION of the issuer, not a constant, and the same is true of the two
+ * commands around it. These used to be three hand-typed copies of a hostname
+ * that `AGENT.issuer()` already owned, so "change the connector base URL" meant
+ * grepping for a string and hoping — and the copies could disagree with the
+ * `.well-known` documents a client actually reads, which is the one way an MCP
+ * connector fails silently. Server components pass `AGENT.issuer()` in; nothing
+ * reads an env var a second time.
+ */
+export function mcpConnectorUrl(issuer: string): string {
+  return `${issuer}/api/mcp`;
+}
 export const MCP_CONNECTOR_HINT = "Paste as a custom connector in Claude or ChatGPT. Approve once.";
 export const OPENCLAW_INSTALL_HINT = "Runs on your machine. Stops before submit. Free to self-host.";
 
@@ -139,13 +153,16 @@ export interface SetupStep extends ContentStep {
 }
 
 /** Setup in 3 steps — condensed (landing) shows titles only, full
- *  (/openclaw) shows title + body + the copyable command on step 2. */
-export const SETUP_STEPS: readonly SetupStep[] = [
-  { title: "Install OpenClaw", body: "The open-source assistant that runs on your own machine." },
-  {
-    title: "Authenticate",
-    body: "Point it at intervu's data with your own key.",
-    command: "mcporter auth https://intervu.cc/api/mcp",
-  },
-  { title: "Scan the WhatsApp QR", body: "Pair your WhatsApp so the agent can message you drafts to review." },
-];
+ *  (/openclaw) shows title + body + the copyable command on step 2.
+ *  Takes the issuer for the same reason `mcpConnectorUrl` does. */
+export function setupSteps(issuer: string): readonly SetupStep[] {
+  return [
+    { title: "Install OpenClaw", body: "The open-source assistant that runs on your own machine." },
+    {
+      title: "Authenticate",
+      body: "Point it at intervu's data with your own key. It opens a browser to sign in to intervu the first time.",
+      command: `mcporter auth ${mcpConnectorUrl(issuer)}`,
+    },
+    { title: "Scan the WhatsApp QR", body: "Pair your WhatsApp so the agent can message you drafts to review." },
+  ];
+}

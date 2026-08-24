@@ -120,7 +120,10 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
           backedBy: { module: "src/actions/resume.ts", symbol: "parseResumeWithAI" },
         },
         {
-          text: "Connect your own AI — search and save jobs, track applications, and update your résumé without leaving your chat",
+          // Names MCP explicitly rather than "Connect your own AI": bringing
+          // your own provider key is a separate feature, and the two read as
+          // the same offer under that older wording.
+          text: "Drive intervu from your own AI chat — search and save jobs, track applications, and update your résumé without leaving the conversation",
           href: "/connect",
           backedBy: { module: "src/lib/agent/tools.ts", symbol: "toolSearchJobs" },
         },

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * stalled" reads as a statement about *now*, and a bare "Aug 15" on a
  * two-year-old freeze would be the page's most misleading line.
  */
-function eventDate(iso: string): string | null {
+export function eventDate(iso: string): string | null {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return null;
   return new Date(ms).toLocaleDateString("en-US", {
@@ -107,7 +107,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
 /** Direction drives the only colour on the row. `improving`/`declining` are
  *  the ledger's own words for "good for a jobseeker" / "bad for one"; anything
  *  else is drawn neutral rather than guessed at. */
-function directionStyle(direction: CompanyChangeEvent["direction"]): {
+export function directionStyle(direction: CompanyChangeEvent["direction"]): {
   Icon: typeof TrendUp;
   chip: string;
   icon: string;

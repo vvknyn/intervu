@@ -11,7 +11,7 @@
  * filled, the field being filled is the subject.
  *
  * Shared by all three clients — the LAN page (served as a module), the
- * /watch page on intervu.cc (bundled by Next), and the Node unit tests — so
+ * hosted /watch page (bundled by Next), and the Node unit tests — so
  * the arithmetic has one home rather than one per client.
  */
 

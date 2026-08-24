@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { indexCategories, LandingMasthead } from '../../src/components/jobs/LandingMarketingShowcase';
+import { LANDING_PROVENANCE_LINE } from '../../src/lib/marketing-stats';
 
 /**
  * Guards the landing-page copy rewrite (2026-08-18): the page used to talk
@@ -106,9 +107,25 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
         );
     });
 
+    it('technology leads the field directory (tech-first ICP)', () => {
+        assert.equal(indexCategories[0]?.title, 'Software and tech');
+        assert.equal(indexCategories[0]?.q, 'Software Engineer');
+    });
+
+    it('field directory uses human titles, not ledger chrome', () => {
+        const src = readFileSync(TARGET, 'utf8');
+        assert.doesNotMatch(src, /\{cat\.num\}/);
+        assert.doesNotMatch(src, /\{cat\.domain\}/);
+        assert.doesNotMatch(src, /\[\{cat\.domain\}\]/);
+        for (const cat of indexCategories) {
+            assert.ok(cat.title.length > 0, 'each field needs a human title');
+            assert.match(cat.title, /[a-z]/, `${cat.title} should read like plain language`);
+        }
+    });
+
     it('no card carries an unmeasured badge', () => {
         for (const cat of indexCategories) {
-            assert.ok(!('metric' in cat), `${cat.domain} card still carries a metric badge`);
+            assert.ok(!('metric' in cat), `${cat.title} card still carries a metric badge`);
         }
     });
 });
@@ -126,7 +143,7 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
  * the one thing that actually distinguishes "derives from the export" from
  * "hardcodes a lookalike list": a hardcoded chip literal writes
  * `label: "some string"` (a quoted value right after the key); a derived one
- * writes `{cat.domain}`/`cat.q` — a property access, never a quote. Scoped to
+ * writes `{cat.title}`/`cat.q` — a property access, never a quote. Scoped to
  * just the chip-row block (between its own comment and the next section's
  * `data-testid`) so it can't false-positive on the unrelated `label:` object
  * literals that exist elsewhere in this 4,000+ line file.
@@ -136,7 +153,7 @@ describe('jobs toolbar chip row: field chips derive from indexCategories, not a 
 
     function chipRowSource(): string {
         const src = readFileSync(PAGE, 'utf8');
-        const start = src.indexOf('Category & Persona Discovery Micro-Pills');
+        const start = src.indexOf('Category & Filter Dropdowns');
         const end = src.indexOf('data-testid="jobs-toolbar"');
         assert.ok(start !== -1 && end !== -1 && end > start, 'chip-row anchors moved — update this test\'s markers');
         return src.slice(start, end);
@@ -153,26 +170,39 @@ describe('jobs toolbar chip row: field chips derive from indexCategories, not a 
 });
 
 /**
- * Guards the live-count USP sentence (2026-08-18): `marketClaim` in
- * app/jobs/page.tsx was computed from `marketingClaim()` but never passed to
- * anything that rendered it — a dead-state bug where the state existed and
- * updated correctly but no JSX ever read it. This asserts the render side
- * directly: a non-null `claim` prop must reach the page, and `null` must
- * render nothing claim-shaped, never an invented placeholder sentence.
+ * Guards the masthead claim (2026-08-18): `marketClaim` in app/jobs/page.tsx
+ * was computed but never passed to anything that rendered it — a dead-state
+ * bug where the state existed and updated correctly but no JSX ever read it.
+ * This asserts the render side directly: a non-null `claim` prop must reach
+ * the page, and `null` must render nothing claim-shaped, never an invented
+ * placeholder sentence.
+ *
+ * The claim carries provenance and no count since 2026-08-24 — see
+ * `LANDING_PROVENANCE_LINE`'s own note and the class-wide guard in
+ * guest-copy-jargon.test.ts.
  */
-describe('LandingMasthead: renders the live-count claim (or nothing)', () => {
+describe('LandingMasthead: renders the provenance claim (or nothing)', () => {
     it('renders the claim sentence when passed a non-null claim', () => {
-        const claim = "1,234 live roles, scraped from company career pages — before you spend an hour on any of them.";
-        const html = renderToStaticMarkup(LandingMasthead({ claim }));
-        assert.ok(html.includes(claim), 'claim sentence missing from rendered masthead');
+        const html = renderToStaticMarkup(LandingMasthead({ claim: LANDING_PROVENANCE_LINE }));
+        assert.match(html, /screened for stale postings/);
     });
 
     it('renders nothing claim-shaped when claim is null', () => {
-        const claim = "1,234 live roles, scraped from company career pages — before you spend an hour on any of them.";
         const html = renderToStaticMarkup(LandingMasthead({ claim: null }));
-        assert.ok(!html.includes(claim), 'a claim string leaked through despite a null claim prop');
-        // The h1/eyebrow still render — only the third element (the claim
-        // paragraph) is conditional, so this isn't just an empty masthead.
+        assert.doesNotMatch(html, /live roles/);
+        assert.doesNotMatch(html, /screened for stale postings/);
+        // The h1 still renders — only the claim paragraph is conditional.
         assert.match(html, /Every job, straight from the employer\./);
+    });
+
+    it('is what the page actually passes — the claim is a constant, not fetched state', () => {
+        // The 2026-08-18 bug was the prop never arriving. Its 2026-08-24 shape
+        // would be the page reintroducing a count-bearing sentence of its own,
+        // so assert the call site by source rather than only the component.
+        const pageSrc = readFileSync(
+            new URL('../../src/app/jobs/page.tsx', import.meta.url),
+            'utf8',
+        );
+        assert.match(pageSrc, /<LandingMasthead claim=\{LANDING_PROVENANCE_LINE\} \/>/);
     });
 });

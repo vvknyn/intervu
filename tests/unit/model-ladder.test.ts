@@ -8,7 +8,7 @@ import {
     FREE_RUNG_TIMEOUT_MS,
     PAID_RUNG_TIMEOUT_MS,
 } from "@/lib/llm/model-ladder";
-import { RESUME_PARSE_FREE_LADDER } from "@/lib/llm/models";
+import { FREE_LADDER } from "@/lib/llm/models";
 
 const ROOT = path.resolve(__dirname, "../..");
 const PAID = "deepseek/deepseek-v4-flash";
@@ -16,10 +16,10 @@ const FREE = ["a/one:free", "b/two:free"];
 const openrouter = { provider: "openrouter", model: PAID };
 
 test("no ladder requested — one rung, the config's own model", () => {
-    // Every AI action EXCEPT résumé parsing takes this path: cover letters,
-    // search NLP, interview questions, story parsing, job analysis. Their
-    // behaviour must be byte-identical to before the ladder existed, or a
-    // cost optimisation on one feature silently changed five others.
+    // The module's honest zero case: given no rungs there is nothing to walk.
+    // No app caller takes this path any more (both chokepoints pass
+    // FREE_LADDER), but the pure function must still answer sanely when handed
+    // nothing rather than inventing a ladder of its own.
     const rungs = resolveModelLadder(openrouter);
     assert.deepEqual(rungs, [{ model: PAID, timeoutMs: PAID_RUNG_TIMEOUT_MS, isFallback: true }]);
 });
@@ -47,12 +47,12 @@ test("the walk can never end on a free model", () => {
     }
 });
 
-test("a BYOK user on another provider is never handed these slugs", () => {
-    // Groq's namespace is `llama-3.3-70b-versatile`, not `vendor/model:free`.
+test("a non-OpenRouter provider is never handed these slugs", () => {
+    // Groq's namespace is `openai/gpt-oss-20b`, not `vendor/model:free`.
     // Walking an OpenRouter ladder on a Groq key would 404 every rung and turn
-    // a working generation into a failure — on the user's own key, no less.
-    const rungs = resolveModelLadder({ provider: "groq", model: "llama-3.3-70b-versatile" }, FREE);
-    assert.deepEqual(rungs.map((r) => r.model), ["llama-3.3-70b-versatile"]);
+    // a working generation into a failure.
+    const rungs = resolveModelLadder({ provider: "groq", model: "openai/gpt-oss-20b" }, FREE);
+    assert.deepEqual(rungs.map((r) => r.model), ["openai/gpt-oss-20b"]);
 });
 
 test("an explicitly chosen model wins over the ladder", () => {
@@ -135,7 +135,7 @@ test("the shipped ladder cannot hold a user longer than its budget", () => {
     // ONE path where a person is watching a spinner on their own résumé.
     // Worst case is the sum, so cap the sum rather than the rung count: a
     // future faster ladder is allowed to be longer.
-    const rungs = resolveModelLadder(openrouter, RESUME_PARSE_FREE_LADDER);
+    const rungs = resolveModelLadder(openrouter, FREE_LADDER);
     const worstCaseMs = rungs.reduce((sum, r) => sum + r.timeoutMs, 0);
     assert.ok(
         worstCaseMs <= 120_000,
@@ -148,13 +148,13 @@ test("free rungs are given more time than they were measured to need", () => {
     // shipped: the first draft's lead model answered correctly in 46.3s under a
     // 30s timeout. A timeout below a rung's real latency is worse than having
     // no ladder — it pays for the fallback AND adds the dead wait first. The
-    // measurements live in the RESUME_PARSE_FREE_LADDER doc comment; this
-    // asserts the ones recorded there are actually under the budget in force.
+    // measurements live in the FREE_LADDER doc comment; this asserts the ones
+    // recorded there are actually under the budget in force.
     const src = readFileSync(path.join(ROOT, "src/lib/llm/models.ts"), "utf8");
-    const start = src.indexOf("export const RESUME_PARSE_FREE_LADDER");
+    const start = src.indexOf("export const FREE_LADDER");
     const doc = src.slice(0, start);
 
-    for (const model of RESUME_PARSE_FREE_LADDER) {
+    for (const model of FREE_LADDER) {
         const measured = new RegExp(`${model}\\s+([\\d.]+)s`).exec(doc);
         assert.ok(measured, `${model} ships with no recorded latency — measure it`);
         assert.ok(
@@ -164,14 +164,47 @@ test("free rungs are given more time than they were measured to need", () => {
     }
 });
 
-test("only résumé parsing opts in", () => {
-    // Scope guard (owner's call, 2026-08-17): the ladder is deliberately NOT
-    // the default for every AI action. If a second caller starts passing one,
-    // that is a decision to make on purpose, not to discover in a bill.
-    const callers = readFileSync(path.join(ROOT, "src/actions/resume.ts"), "utf8");
-    assert.ok(
-        /RESUME_PARSE_FREE_LADDER/.test(callers),
-        "résumé parsing no longer passes the ladder",
+test("BOTH generation chokepoints ladder by default", () => {
+    // Owner's call reversed 2026-08-23: with the app funding every AI action,
+    // every action walks the free rungs. The guard this replaces required each
+    // caller to opt in — which is how `generateGenericText` went un-laddered
+    // unnoticed: it never routed through fetchJSON, so opting in the JSON path
+    // left a whole second path on the paid model.
+    //
+    // Asserted at the SEAMS, not at the ~17 call sites, because that is where
+    // the property actually holds — a new caller is covered by construction.
+    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
+
+    for (const [name, marker] of [
+        ["fetchJSON", "export const fetchJSON"],
+        ["generateGenericText", "export async function generateGenericText"],
+    ] as const) {
+        const start = src.indexOf(marker);
+        assert.ok(start >= 0, `${name} is gone — this guard needs re-pointing`);
+        const body = src.slice(start, start + 2200);
+        assert.match(
+            body,
+            /resolveModelLadder\([^)]*FREE_LADDER/,
+            `${name} no longer passes FREE_LADDER — a generation path is back on the paid model`,
+        );
+    }
+});
+
+test("a caller that names its own model gets THAT model, not a free rung", () => {
+    // The override has to win, or naming a premium model would be answered by
+    // a 9B free one — that defeats the override rather than economising on it.
+    const rungs = resolveModelLadder(
+        { provider: "openrouter", model: "deepseek/deepseek-v4-pro" },
+        FREE_LADDER,
+        true,
+    );
+    assert.deepEqual(rungs.map((r) => r.model), ["deepseek/deepseek-v4-pro"]);
+
+    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
+    assert.match(
+        src,
+        /resolveModelLadder\(baseConfig, FREE_LADDER, Boolean\(configOverride\?\.model\)\)/,
+        "fetchJSON must still let an explicit model skip the free rungs",
     );
 });
 
@@ -183,18 +216,14 @@ test("fetchJSON passes per-rung timeout and single provider retry", () => {
     assert.match(body, /maxRetries:\s*1/);
 });
 
-test("résumé parse ladder survives configOverride.model on OpenRouter", () => {
-    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-    assert.match(
-        src,
-        /Boolean\(configOverride\?\.model\) && !modelLadder\?\.length/,
-        "explicit model must not skip ladder when modelLadder is passed",
-    );
+test("with no override, the resolved model is the paid TAIL behind the free rungs", () => {
     const rungs = resolveModelLadder(
         { provider: "openrouter", model: "openai/gpt-4o-mini" },
-        RESUME_PARSE_FREE_LADDER,
+        FREE_LADDER,
         false,
     );
     assert.equal(rungs.at(-1)?.model, "openai/gpt-4o-mini");
     assert.ok(rungs.length > 1);
+    // The tail is the only rung allowed to be the paid one.
+    assert.deepEqual(rungs.filter((r) => r.isFallback).map((r) => r.model), ["openai/gpt-4o-mini"]);
 });

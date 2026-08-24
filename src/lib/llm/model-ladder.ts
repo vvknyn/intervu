@@ -9,6 +9,11 @@
  * SAME model on failure, which is not a ladder: a rate-limited model is still
  * rate-limited a second later.
  *
+ * Since 2026-08-23 it is no longer résumé-only: with bring-your-own-key gone,
+ * the app funds every generation, so every generation walks the rungs. The
+ * callers do not opt in — the two chokepoints in actions/generate-context.ts
+ * pass `FREE_LADDER` by default.
+ *
  * Two properties matter more than the saving:
  *
  * 1. **A rung that fails must cost the user nothing.** The credit charge lives
@@ -41,7 +46,7 @@ export interface LadderRung {
  *
  * **This number has to be measured, not guessed.** It was 30s against a first
  * draft of the ladder whose lead model turned out to take 46.3s on a real
- * résumé (see `RESUME_PARSE_FREE_LADDER`): the timeout would have killed a
+ * résumé (see `FREE_LADDER`): the timeout would have killed a
  * working answer mid-flight, so every upload would have paid for the fallback
  * AND eaten 30s of dead wait first — strictly worse than not having a ladder.
  * The shipped rungs measure 15.0s and 17.0s, so 30s is ~1.8x the slowest,
@@ -61,11 +66,11 @@ export const PAID_RUNG_TIMEOUT_MS = 60_000;
  * The ladder is skipped entirely — a single rung, the config's own model —
  * whenever it cannot be honoured:
  *
- * - **No ladder requested.** Every caller except résumé parsing passes
- *   nothing and keeps today's exact behaviour. This is opt-in, not a
- *   default that quietly changes six other features.
+ * - **No ladder requested.** Kept as the module's honest zero case: given no
+ *   rungs there is nothing to walk. In the app both chokepoints now always
+ *   pass `FREE_LADDER`, so this branch is reached only by a direct caller.
  * - **Not OpenRouter.** A user on their own Groq key has an entirely
- *   different model namespace (`llama-3.3-70b-versatile`, not
+ *   different model namespace (`openai/gpt-oss-20b`, not
  *   `vendor/model:free`); handing them these slugs would 404 every rung and
  *   turn a working generation into a failure. Their own key, their own model.
  * - **An explicit model override.** If a caller named a model, honour it.

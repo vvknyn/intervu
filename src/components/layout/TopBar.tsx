@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Sun } from "@phosphor-icons/react";
-import { getMarketingStatsAction } from "@/actions/marketing";
+import { MagnifyingGlass, Moon, Sun } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
-import { formatCorpusCount } from "@/lib/jobs/corpus-count";
+import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
@@ -18,6 +17,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NAV_TABS } from "@/components/layout/nav-tabs";
+import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -58,25 +58,14 @@ export function TopBar() {
         return () => unsubscribe();
     }, []);
 
-    // Desktop-only "N live roles" ticker linking to /trends (Vivek: "like the
-    // old subspace product header"). Same fetch-once-on-mount + cancelled-flag
-    // idiom as jobs/page.tsx's `marketClaim`, and the SAME 900s-cached action
-    // that backs it — never an uncached call per TopBar mount. Stays `null`
-    // (ticker absent, not a skeleton or a "0") until a real count resolves, on
-    // both the loading and the failure path — never implies a stale/live count
-    // it doesn't have.
-    const [liveJobsLabel, setLiveJobsLabel] = useState<string | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-        getMarketingStatsAction()
-            .then((stats) => {
-                if (!cancelled && stats) setLiveJobsLabel(`${formatCorpusCount(stats.liveJobs)} live roles`);
-            })
-            .catch(() => {});
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    // The "N live roles" ticker used to live here and fetched its own copy of
+    // the marketing stats on every TopBar mount. It moved to sit directly above
+    // the /jobs search box (2026-08-24, Vivek) where the count is doing work
+    // rather than decorating a corner — it keeps its /trends link there, and
+    // that page already had the same stats in hand, so this also removes a
+    // duplicate fetch. This slot now belongs to the docked search below.
+    const { docked } = useSearchDock();
+    const navBadges = useNavBadgeCounts();
 
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
@@ -95,7 +84,11 @@ export function TopBar() {
             data-testid="topbar"
             className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/75 backdrop-blur-2xl backdrop-saturate-180 shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)] transition-colors"
         >
-            <div className="relative mx-auto flex h-16 w-full max-w-6xl xl:max-w-7xl items-center justify-between px-4 sm:px-8 xl:px-10">
+            {/* `shell-row` (globals.css) owns the width and the gutter, so this
+                bar lines up with whatever the page below it is doing — capped
+                on most pages, edge to edge on one that declares it. Writing a
+                `max-w-*` here again would reintroduce the crooked frame. */}
+            <div className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 text-foreground transition-opacity hover:opacity-90"
@@ -107,16 +100,43 @@ export function TopBar() {
                     </span>
                 </Link>
 
-                <div className="flex items-center gap-3 sm:gap-5">
-                    {liveJobsLabel && (
-                        <Link
-                            href="/trends"
-                            data-testid="topbar-pulse-ticker"
-                            className="hidden shrink-0 items-center gap-1.5 rounded-none border border-brand/40 bg-brand/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-brand shadow-none transition-colors hover:bg-brand/20 lg:inline-flex"
+                {/* `flex-1` so the row's leftover width lands HERE rather than
+                    as a gap in the middle of the bar. `justify-end` keeps the
+                    nav and the account controls against the right edge exactly
+                    as before when nothing is docked; the only thing that can
+                    grow is the docked search below. */}
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:gap-5">
+                    {/* The docked search. Shows what you searched for and puts
+                        it back one click away.
+
+                        It takes the WHOLE empty span of the bar (`flex-1`) and
+                        wears the search field's own chrome — card ground,
+                        `border-border` at rest, a full-height inverted SEARCH
+                        block on the trailing edge. Sized in the header's own
+                        token so it can't drift from the bar. As a 380px pill
+                        with a small grey "Edit" it read as a status label, not
+                        a control (Vivek, 2026-08-24: "it is not at all obvious
+                        that this is a search bar"): width and field vocabulary
+                        are what say "search box", so it borrows both from the
+                        real field instead of inventing a header-only look. */}
+                    {docked && (
+                        <button
+                            type="button"
+                            onClick={docked.onExpand}
+                            data-testid="topbar-docked-search"
+                            className="hidden h-10 min-w-0 flex-1 items-center gap-2 rounded-none border border-border bg-card pl-3 text-left transition-colors hover:border-foreground lg:inline-flex"
                         >
-                            <span className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
-                            {liveJobsLabel}
-                        </Link>
+                            <MagnifyingGlass size={15} weight="bold" className="shrink-0 text-foreground" />
+                            <span className="truncate text-xs font-semibold text-foreground">{docked.label}</span>
+                            {docked.place && (
+                                <span className="shrink truncate border-l border-border pl-2 text-xs text-muted-foreground">
+                                    {docked.place}
+                                </span>
+                            )}
+                            <span className="ml-auto flex shrink-0 items-center self-stretch bg-foreground px-4 text-[10px] font-bold uppercase tracking-wider text-background">
+                                Search
+                            </span>
+                        </button>
                     )}
                     <nav
                         aria-label="Primary"
@@ -138,6 +158,19 @@ export function TopBar() {
                                     )}
                                 >
                                     {tab.label}
+                                    {/* Declared by the tab, resolved by the shared
+                                        badge hook — this bar never asks WHICH tab it
+                                        is drawing. Zero is not rendered: an empty
+                                        tracker should read as nothing to see, not as
+                                        a count of none. */}
+                                    {tab.badge && navBadges[tab.badge] > 0 && (
+                                        <span
+                                            data-testid={`${tab.testId}-badge`}
+                                            className="ml-1.5 mono-data text-[11px] font-bold text-brand"
+                                        >
+                                            {navBadges[tab.badge]}
+                                        </span>
+                                    )}
                                 </Link>
                             );
                         })}

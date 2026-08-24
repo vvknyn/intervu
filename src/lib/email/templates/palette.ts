@@ -47,7 +47,7 @@ export const EMAIL_COLORS = {
   muted: "#737373",
   faint: "#A3A3A3",
   line: "#E5E5E5",
-  page: "#FAFAFA",
+  page: "#F6F8FC",
   card: "#FFFFFF",
   brand: "#002FA7",
   onBrand: "#FFFFFF",

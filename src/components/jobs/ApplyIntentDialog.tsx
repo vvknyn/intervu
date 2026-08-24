@@ -57,8 +57,8 @@ type Phase = "idle" | "working" | "result" | "blocked";
 /** Why the built-in lane is blocked. `auth`/`resume` are `TailorForJobResult`'s
  *  own `needs` values; `credits` and `error` come from the action's `error`
  *  string (`classifySentinel`) once `needs` is absent — see B2 in the spec.
- *  Four single-literal members (not one `kind: "auth" | "resume"` member) so
- *  each branch narrows on `.message` without a manual type assertion. */
+ *  Single-literal members (not one `kind: "auth" | "resume"` member) so each
+ *  branch narrows on `.message` without a manual type assertion. */
 type BlockedState =
     | { kind: "auth" }
     | { kind: "resume" }
@@ -157,8 +157,13 @@ export function ApplyIntentDialog({
             return;
         }
         if (error) {
-            const kind = classifySentinel(error) === "credits" ? "credits" : "error";
-            setBlocked({ kind, message: sentinelMessage(error) });
+            const sentinel = classifySentinel(error);
+            const message = sentinelMessage(error);
+            if (sentinel === "credits") {
+                setBlocked({ kind: "credits", message });
+            } else {
+                setBlocked({ kind: "error", message });
+            }
             setPhase("blocked");
             return;
         }
@@ -423,6 +428,9 @@ function BlockedPanel({
         );
     }
     if (blocked.kind === "credits") {
+        // No CTA: there is no top-up to sell and no key to add, so the message
+        // (which says when the allowance refills) is the whole answer. A button
+        // here would be a link to nowhere.
         return (
             <div className="flex flex-col gap-2 rounded-none border border-border-strong bg-muted/40 p-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

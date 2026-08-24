@@ -47,6 +47,22 @@ export function isMintedLoginEmail(email: string | null | undefined): boolean {
     return normalizeEmail(email).endsWith(`@${USERNAME_EMAIL_DOMAIN}`);
 }
 
+/**
+ * Can mail actually reach the human behind this account?
+ *
+ * The positive form of `isMintedLoginEmail`, and the question every UI
+ * surface actually wants to ask. It exists because the two halves were
+ * being answered differently: `send.ts` knew a minted address is a dead
+ * mailbox, while `email-preferences.ts` guarded on `!user?.email` alone — and
+ * a minted address is a non-empty STRING, so it sailed through. The result
+ * was a settings page showing the weekly digest switched ON for accounts
+ * whose every send was being dropped one layer down. Truthy is not the same
+ * as reachable, and one predicate is how the two layers stop disagreeing.
+ */
+export function isReachableEmail(email: string | null | undefined): boolean {
+    return Boolean(email) && !isMintedLoginEmail(email);
+}
+
 const signupEmailSchema = z.string().trim().toLowerCase().email();
 
 export type SignupEmailResult = { ok: true; email: string } | { ok: false; error: string };

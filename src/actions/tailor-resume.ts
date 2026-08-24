@@ -5,7 +5,6 @@ import { getServerUser } from "@/lib/auth/session";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { TAILOR_FREE_LADDER } from "@/lib/llm/models";
 import { enforceResumeIntegrity, screenAdvisoryRecommendations } from "@/lib/resume/tailor-integrity";
 
 /** Single blank-profile default — used wherever a stored version predates
@@ -310,7 +309,7 @@ export async function tailorResumeForJob(
             : base.resume_text;
 
         const prompt = buildTailorPrompt(resumeBlock, jobText, input, mode);
-        const result = await generateGenericJSON(prompt, undefined, TAILOR_FREE_LADDER);
+        const result = await generateGenericJSON(prompt);
 
         if (!result) return { error: "No response from AI. Please try again in a moment." };
         if (result.error) return { error: result.error };

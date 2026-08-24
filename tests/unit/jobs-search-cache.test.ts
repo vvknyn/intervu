@@ -78,14 +78,33 @@ test("resolveDegradedServe: pure decision — exact hit, then default fallback, 
   ]);
 
   // Exact key present → served, not the default.
-  assert.deepEqual(resolveDegradedServe(p, (k) => store.get(k)), exactEntry);
+  assert.deepEqual(resolveDegradedServe(p, (k) => store.get(k)), { ...exactEntry, servedKey: "exact" });
 
   // Exact key missing for a DIFFERENT query → falls back to default browse.
   const other: JobSearchParams = { q: "designer" };
-  assert.deepEqual(resolveDegradedServe(other, (k) => store.get(k)), defaultEntry);
+  assert.deepEqual(resolveDegradedServe(other, (k) => store.get(k)), { ...defaultEntry, servedKey: "default-browse" });
 
   // Nothing cached at all → null, caller's existing error path is untouched.
   assert.equal(resolveDegradedServe(other, () => undefined), null);
+});
+
+// The `servedKey` contract itself — search.ts (`searchJobs`) branches on
+// this to decide whether `defaultedLocation` is safe to re-stamp onto a
+// degraded-serve response: "exact" was cached under THIS request's own
+// (already location-filtered) key, so claiming the current request's
+// default over it is true; "default-browse" is the unfiltered fallback, and
+// claiming a location over it would misrepresent what's actually shown.
+test("resolveDegradedServe: servedKey distinguishes an exact hit from a default-browse fallback", () => {
+  const p: JobSearchParams = { q: "nurse" };
+  const exactEntry = { result: makeResult(3), cachedAtMs: 111 };
+  const defaultEntry = { result: makeResult(9), cachedAtMs: 222 };
+  const store = new Map([
+    [normalizeSearchCacheKey(p), exactEntry],
+    ["\x00default-browse\x00", defaultEntry],
+  ]);
+
+  assert.equal(resolveDegradedServe(p, (k) => store.get(k))?.servedKey, "exact");
+  assert.equal(resolveDegradedServe({ q: "designer" }, (k) => store.get(k))?.servedKey, "default-browse");
 });
 
 test("cacheSearchResult + getDegradedServe: write path feeds the real module cache", () => {
@@ -118,4 +137,48 @@ test("cacheSearchResult: LRU is bounded — oldest entry evicted once over the c
   const last = SEARCH_CACHE_MAX_ENTRIES;
   const served = getDegradedServe({ q: `query-${last}` });
   assert.equal(served?.result.total, last);
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Place clauses reach the key through `renderPlaceClause`, the same function
+ * that builds the real filter — so a clause field can never be filtered on
+ * but forgotten by the key.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+test("two places that differ ONLY by their bound work mode get different keys", () => {
+  // The collision a hand-written key would have shipped: both requests carry
+  // the same single Canada clause, so a key listing only `any`/
+  // `scopedToCountry` renders them identical and serves one the other's
+  // results.
+  const canada = { field: "location_country" as const, value: "Canada" };
+  const remote: JobSearchParams = { places: [{ any: [canada], workTypes: ["remote"] }] };
+  const hybrid: JobSearchParams = { places: [{ any: [canada], workTypes: ["hybrid"] }] };
+  assert.notEqual(normalizeSearchCacheKey(remote), normalizeSearchCacheKey(hybrid));
+});
+
+test("a bound work mode is distinct from no work mode at all", () => {
+  const canada = { field: "location_country" as const, value: "Canada" };
+  const bare: JobSearchParams = { places: [{ any: [canada] }] };
+  const bound: JobSearchParams = { places: [{ any: [canada], workTypes: ["remote"] }] };
+  assert.notEqual(normalizeSearchCacheKey(bare), normalizeSearchCacheKey(bound));
+});
+
+test("the same two places in either order still share one key", () => {
+  // Top-level clause order is normalized, so asking for Canada-then-Toronto
+  // and Toronto-then-Canada is one cached search, not two.
+  const canada = { any: [{ field: "location_country" as const, value: "Canada" }] };
+  const toronto = { any: [{ field: "location_city" as const, value: "Toronto" }] };
+  assert.equal(
+    normalizeSearchCacheKey({ places: [canada, toronto] }),
+    normalizeSearchCacheKey({ places: [toronto, canada] }),
+  );
+});
+
+test("a global work_type facet is not interchangeable with the same mode bound to a place", () => {
+  // Different filters — (remote) AND (Canada OR Toronto) vs
+  // (Canada AND remote) OR (Toronto) — so different keys.
+  const canada = { field: "location_country" as const, value: "Canada" };
+  const global: JobSearchParams = { places: [{ any: [canada] }], facets: { work_type: ["remote"] } };
+  const bound: JobSearchParams = { places: [{ any: [canada], workTypes: ["remote"] }] };
+  assert.notEqual(normalizeSearchCacheKey(global), normalizeSearchCacheKey(bound));
 });

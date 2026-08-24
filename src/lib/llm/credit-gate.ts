@@ -4,19 +4,16 @@
  *
  * Per-user credit gate for the SHARED (app-funded) default model.
  *
- * Policy (2026-06, BYOK entry point removed 2026-08-08):
+ * Policy (2026-06; the bring-your-own-key requirement was removed 2026-08-23):
  *  - BETA (2026-08-18): `BETA_UNLIMITED_CREDITS` (./credit-copy.ts) is on, so
  *    nobody is charged. Everything below still applies the moment it is off —
  *    the ledger is untouched, not deleted, and the same constant drives
  *    /pricing's copy so the page can never advertise the wrong story.
  *  - vvk / admins: unlimited use of the shared key (no charge).
- *  - Legacy BYOK users (own OpenRouter/Groq key stored before 2026-08-08) or
- *    explicit key overrides: never charged — they pay their own provider.
- *    There is no more UI to add a new one (see profile.ts's
- *    getUserLLMConfig doc comment).
- *  - Everyone else on the shared key: 1 credit per generation, with a small
- *    free monthly grant. Out of credits → blocked with a clear "buy credits"
- *    message (Stripe purchase is a fast-follow).
+ *  - Everyone else signed in: the shared key, metered against their monthly
+ *    allowance. The app funds it.
+ *  - Signed out: hard block. Sign-in is an abuse control on the app-funded
+ *    key, not a credit policy — see `chargeIfSharedKey`.
  *
  * Metering is "per generation" (one user-facing AI action). Callers resolve the
  * provider config ONCE and call `chargeIfSharedKey(config)` once, above any
@@ -66,17 +63,16 @@ export const OUT_OF_CREDITS = "OUT_OF_CREDITS";
 /**
  * Prefix on the thrown message so the UI can recognize the "must sign in" block.
  * The shared, app-funded key is never given to anonymous callers — sign-in is
- * required so usage is metered to an account (or exempted for admins / BYOK).
+ * required so usage is metered to an account (or exempted for admins).
  */
 export const AUTH_REQUIRED = "AUTH_REQUIRED";
 
 /** User-facing copy for the two hard blocks, pulled out so it has one source
  *  of truth and is unit-testable without the Firebase-dependent functions
- *  that throw it. Neither message points at a self-service API-key UI —
- *  that entry point was removed 2026-08-08 (see profile.ts). */
+ *  that throw it. */
 export const AUTH_REQUIRED_MESSAGE = "Sign in to use Intervu's built-in AI.";
 export const OUT_OF_CREDITS_MESSAGE =
-    "You're out of AI credits — this month's free credits and any earned credits are both used up. More free credits arrive next month, or buy credits (coming soon).";
+    "You're out of AI credits — this month's free credits and any earned credits are both used up. More free credits arrive next month.";
 
 /** Admin emails get unlimited shared-key use. vvk is the default; override via env. */
 function adminEmails(): string[] {
@@ -115,12 +111,11 @@ function sharedKey(): string {
  * resolved provider config. This is the SINGLE chokepoint every server action
  * that can hit the shared, app-funded key must call.
  *
- *  - BYOK / explicit override / no shared key configured → no-op (they pay).
+ *  - Explicit override / no shared key configured → no-op.
  *  - Shared key + NO authenticated user → HARD BLOCK (`AUTH_REQUIRED: …`). The
  *    shared key is never spent for anonymous traffic.
- *  - Shared key + admin → allowed, uncharged.
- *  - Shared key + non-admin user → charge one credit; `OUT_OF_CREDITS: …` when
- *    the monthly free balance is exhausted.
+ *  - Shared key + admin → allowed, uncharged (ops/debugging).
+ *  - Shared key + non-admin → allowed, charged one credit.
  *
  * FAIL-OPEN applies ONLY to credit-counting infrastructure errors (Firestore
  * down, etc.) — those allow the generation so a billing bug can't lock users
@@ -129,7 +124,7 @@ function sharedKey(): string {
  */
 export async function chargeIfSharedKey(config: { apiKey?: string | null }): Promise<void> {
     const shared = sharedKey();
-    if (!shared || !config?.apiKey || config.apiKey !== shared) return; // BYOK / override / unconfigured
+    if (!shared || !config?.apiKey || config.apiKey !== shared) return; // override / unconfigured
 
     // Resolving the user is part of the auth decision, not credit infra: a failure
     // here means we cannot prove an account, so we must NOT spend the shared key.

@@ -22,6 +22,8 @@ type AccountTab = "resume" | "prefs" | "account";
 
 const ACCOUNT_SUBCOPY = "What your agent (and the board) need to know about you. Nothing else.";
 
+// An unrecognized tab (including the retired `api-key`, which may still be
+// bookmarked) lands on Resume rather than rendering an empty panel.
 function parseAccountTab(value: string | null): AccountTab {
     if (value === "prefs" || value === "account") return value;
     return "resume";

@@ -2,12 +2,12 @@
 
 import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, TechnicalData, CodingChallenge, AnswerCritique, QuestionItem, SystemDesignData } from "@/types";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
-import { getUserLLMConfig } from "@/actions/profile";
 import { ProviderFactory } from "@/lib/llm/providers";
 import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
+import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
-import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
+import { FREE_LADDER } from "@/lib/llm/models";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
 import { planHasSessionQuestions } from "@/lib/prep/cache-key";
 import { resolveCacheLookup } from "@/lib/interview-cache";
@@ -48,32 +48,15 @@ function normalizeSystemDesignQuestion(
     };
 }
 
-const processEnv = process.env;
 
-// Resolve LLM config: explicit override → the user's own key (BYOK) → app default (shared OpenRouter key + Owl Alpha).
-// Keys are decrypted server-side only and never returned to the client.
-const getConfig = async (override?: Partial<ProviderConfig>) => {
-    // 1. Explicit override carrying a concrete key (rare).
-    if (override?.apiKey && override?.provider) {
-        return { apiKey: override.apiKey, provider: override.provider, model: override.model || DEFAULT_MODEL };
-    }
-
-    // 2. The signed-in user's own provider key (BYOK).
-    const userCfg = await getUserLLMConfig();
-    if (userCfg) {
-        const fallbackModel = AVAILABLE_MODELS[userCfg.provider as Provider]?.[0]?.id || DEFAULT_MODEL;
-        return { apiKey: userCfg.apiKey, provider: userCfg.provider, model: override?.model || userCfg.model || fallbackModel };
-    }
-
-    // 3. App default — shared OpenRouter key + Owl Alpha.
-    const apiKey = processEnv.OPENROUTER_API_KEY || "";
-    if (!apiKey) {
-        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
-    }
-    return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
-};
+const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(override);
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** A provider-key fault is always the app's OWN shared key now — there is no
+ *  user-supplied key left to fix — so this copy owns the failure rather than
+ *  sending the reader to a Settings page that no longer has a key field. */
+const SHARED_KEY_FAULT_MESSAGE = "AI is temporarily unavailable — that's on our side, not yours. Please try again shortly.";
 
 const formatError = (e: any) => {
     console.error("Generation Error:", e);
@@ -96,11 +79,11 @@ const formatError = (e: any) => {
     } else if (lowerMsg.includes("429") || lowerMsg.includes("rate limit") || lowerMsg.includes("too many requests")) {
         errorMessage = "Rate limit exceeded. Please wait a moment and try again, or switch to a different AI provider.";
     } else if (lowerMsg.includes("401") || lowerMsg.includes("unauthorized") || lowerMsg.includes("invalid") && lowerMsg.includes("key")) {
-        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
+        errorMessage = SHARED_KEY_FAULT_MESSAGE;
     } else if (lowerMsg.includes("quota") || lowerMsg.includes("resource_exhausted")) {
         errorMessage = "The AI service hit its usage limit. Please try again shortly.";
-    } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required")) {
-        errorMessage = "AI is temporarily unavailable. Please try again in a moment.";
+    } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required") || lowerMsg.includes("missing openrouter_api_key")) {
+        errorMessage = SHARED_KEY_FAULT_MESSAGE;
     } else if (lowerMsg.includes("content") && (lowerMsg.includes("blocked") || lowerMsg.includes("safety"))) {
         errorMessage = "Content was blocked by the AI's safety filters. Please try a different query.";
     } else if (lowerMsg.includes("network") || lowerMsg.includes("econnrefused") || lowerMsg.includes("fetch failed")) {
@@ -150,34 +133,26 @@ export const fetchJSON = async (
     prompt: string,
     label: string,
     configOverride?: Partial<ProviderConfig>,
-    /**
-     * Optional free-first model ladder (see lib/llm/model-ladder.ts). Opt-in:
-     * omit it and this behaves exactly as before, on one model. Only résumé
-     * parsing passes one today.
-     */
-    modelLadder?: readonly string[],
 ) => {
-    // Resolved ONCE and reused. `getConfig` does a Firestore read for the BYOK
-    // lookup, so re-resolving per attempt cost a round-trip per retry — and a
-    // ladder needs one stable config whose model it can vary per rung anyway.
+    // Resolved ONCE and reused. `getConfig` hits the auth session, so
+    // re-resolving per attempt cost a round-trip per retry — and a ladder needs
+    // one stable config whose model it can vary per rung anyway.
     const baseConfig = await getConfig(configOverride);
 
     // Credit gate — charged ONCE per generation, above the ladder AND the retry
-    // loop, and only when this resolves to the shared key (admins + BYOK are
-    // exempt). Throws OUT_OF_CREDITS when the monthly free balance is spent.
+    // loop, and only when this resolves to the shared key (admins are exempt).
+    // Throws OUT_OF_CREDITS when the monthly free balance is spent.
     // This ordering is the reason the ladder is walked here rather than by the
     // caller: a caller looping over `generateGenericJSON` would charge one
     // credit per rung, so a single upload could cost three.
     await chargeIfSharedKey(baseConfig);
 
-    // Résumé parse passes a ladder even when configOverride.model is set (BYOK
-    // users pick a paid tail, not "skip the free rungs"). Only Groq skips —
-    // handled inside resolveModelLadder by provider !== openrouter.
-    const rungs = resolveModelLadder(
-        baseConfig,
-        modelLadder,
-        Boolean(configOverride?.model) && !modelLadder?.length,
-    );
+    // Every generation walks the free rungs first (see FREE_LADDER) — this is
+    // the seam that makes that true for all ~15 entry points above rather than
+    // for whichever ones remembered to opt in. Two callers still skip them: one
+    // that named its own model (the override picks THE model, not a starting
+    // point) and Groq, handled inside resolveModelLadder by provider check.
+    const rungs = resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model));
 
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
@@ -684,12 +659,9 @@ export async function generateCodeFeedback(code: string, problem: string): Promi
 export async function generateGenericJSON(
     prompt: string,
     configOverride?: Partial<ProviderConfig>,
-    /** Free-first rungs to try before the resolved model. Opt-in — omitting it
-     *  is today's behaviour exactly. See lib/llm/model-ladder.ts. */
-    modelLadder?: readonly string[],
 ): Promise<any> {
     try {
-        return await fetchJSON(prompt, "Generic JSON", configOverride, modelLadder);
+        return await fetchJSON(prompt, "Generic JSON", configOverride);
     } catch (e: any) {
         console.error("Generic JSON Error:", e);
         // Propagate the error message so callers can display it to the user
@@ -701,14 +673,32 @@ export async function generateGenericJSON(
 export async function generateGenericText(prompt: string, configOverride?: Partial<ProviderConfig>): Promise<string> {
     try {
         const config = await getConfig(configOverride);
+        // Charged ONCE, above the walk — same ordering as fetchJSON and for the
+        // same reason: charging per rung would bill three credits for one answer.
         await chargeIfSharedKey(config);
-        const provider = ProviderFactory.getProvider(config.provider, config.apiKey, config.model);
 
-        const response = await provider.generate({
-            prompt: prompt
-        });
+        // The app's OTHER generation path. It never went through fetchJSON, so
+        // it had no ladder, no per-attempt timeout and no fallthrough at all —
+        // "every call is laddered" is only true if this one is too.
+        const rungs = resolveModelLadder(config, FREE_LADDER, Boolean(configOverride?.model));
+        const response = await runLadder(
+            rungs,
+            async (rung) => {
+                const provider = ProviderFactory.getProvider(config.provider, config.apiKey, rung.model);
+                const r = await provider.generate({ prompt, timeoutMs: rung.timeoutMs });
+                // An in-band error means this rung did NOT answer. Throwing is
+                // what advances the walk; returning it would strand the caller
+                // on a free rung's failure with paid rungs left untried.
+                if (r.error) throw new Error(r.error);
+                return r;
+            },
+            (rung, error) =>
+                console.warn(
+                    `[DEBUG] Generic Text: rung ${rung.model} failed, falling through —`,
+                    error instanceof Error ? error.message : error,
+                ),
+        );
 
-        if (response.error) throw new Error(response.error);
         return response.text || "Error generating text.";
     } catch (e: any) {
         console.error("Generic Text Error:", e);
