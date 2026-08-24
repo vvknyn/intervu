@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MagnifyingGlass, Moon, Sun } from "@phosphor-icons/react";
+import { FunnelSimple, MagnifyingGlass, Moon, Sun } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
+import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -149,23 +150,42 @@ export function TopBar() {
                         are what say "search box", so it borrows both from the
                         real field instead of inventing a header-only look. */}
                     {docked && (
-                        <button
-                            type="button"
-                            onClick={docked.onExpand}
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                docked.onSubmit(docked.value);
+                            }}
                             data-testid="topbar-docked-search"
-                            className="hidden h-10 min-w-0 flex-1 items-center gap-2 rounded-none border border-border bg-card pl-3 text-left transition-colors hover:border-foreground lg:inline-flex"
+                            className="hidden h-10 min-w-0 flex-1 items-center gap-2 rounded-none border border-border bg-card pl-3 text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <MagnifyingGlass size={15} weight="bold" className="shrink-0 text-foreground" />
-                            <span className="truncate text-xs font-semibold text-foreground">{docked.label}</span>
+                            <input
+                                type="text"
+                                value={docked.value}
+                                onChange={(e) => docked.onChange(e.target.value)}
+                                placeholder={docked.placeholder}
+                                aria-label="Search jobs"
+                                data-testid="topbar-docked-search-input"
+                                className="min-w-0 flex-1 truncate border-0 bg-transparent text-xs font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+                            />
                             {docked.place && (
-                                <span className="shrink truncate border-l border-border pl-2 text-xs text-muted-foreground">
+                                <button
+                                    type="button"
+                                    onClick={docked.onPlaceClick}
+                                    disabled={!docked.onPlaceClick}
+                                    data-testid="topbar-docked-place"
+                                    className="shrink truncate border-l border-border pl-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default"
+                                >
                                     {docked.place}
-                                </span>
+                                </button>
                             )}
-                            <span className="ml-auto flex shrink-0 items-center self-stretch bg-foreground px-4 text-[10px] font-bold uppercase tracking-wider text-background">
+                            <button
+                                type="submit"
+                                className="ml-auto flex shrink-0 items-center self-stretch bg-foreground px-4 text-[10px] font-bold uppercase tracking-wider text-background"
+                            >
                                 Search
-                            </span>
-                        </button>
+                            </button>
+                        </form>
                     )}
                     <nav
                         aria-label="Primary"
@@ -295,6 +315,50 @@ export function TopBar() {
                     )}
                 </div>
             </div>
+
+            {/* Second row — active filters, docked alongside the search above
+                rather than left behind on the page it came from. Only the
+                page that owns `docked` knows what a "filter" is; this row
+                just renders whatever chips it was handed and a count badge,
+                same narrow seam as the search field above. `lg:flex` matches
+                the search row's own `lg:` gate — `docked` is only ever
+                populated on desktop (see jobs/page.tsx), but the class keeps
+                this row from ever appearing below that breakpoint even if
+                that changes. Chip-less (a fresh search, nothing narrowed
+                yet) still renders the row for the "Filters" button alone. */}
+            {docked && (
+                <div className="hidden border-t border-border/60 bg-background/60 lg:block">
+                    <div className="shell-row flex min-h-9 flex-wrap items-center gap-2 py-1.5">
+                        <button
+                            type="button"
+                            onClick={docked.onOpenFilters}
+                            data-testid="topbar-docked-filters-toggle"
+                            className={cn(
+                                chipVariants({ active: docked.filterCount > 0 }),
+                                "gap-1.5 font-semibold uppercase tracking-wider",
+                            )}
+                        >
+                            <FunnelSimple size={12} weight="bold" aria-hidden />
+                            Filters
+                            {docked.filterCount > 0 && (
+                                <span className="ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-[10px] font-bold leading-[14px] text-brand">
+                                    {docked.filterCount}
+                                </span>
+                            )}
+                        </button>
+                        {docked.chips.map((chip) => (
+                            <span
+                                key={chip.key}
+                                data-testid="topbar-docked-chip"
+                                className={cn(chipVariants({ active: false }), "gap-1.5")}
+                            >
+                                {chip.label}
+                                <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <AuthPopover
                 open={authPopoverOpen}

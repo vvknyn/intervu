@@ -338,17 +338,9 @@ const toolbarSegmentGroupClass =
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
 
-/**
- * The sticky header's height, read from the `--topbar-h` token TopBar sizes
- * itself with, so nothing here restates 64. Used for the parts of clearing the
- * header that CSS can't express — an IntersectionObserver's rootMargin takes a
- * string, not a custom property.
- */
-function headerHeightPx(): number {
-    if (typeof window === "undefined") return 64;
-    const raw = getComputedStyle(document.documentElement).getPropertyValue("--topbar-h");
-    return Number.parseFloat(raw) || 64;
-}
+/** Shared by the hero search box and its docked copy in the header (see the
+ *  dock effect below) — one string, so the two can never read differently. */
+const SEARCH_PLACEHOLDER = "What kind of work are you looking for?";
 
 function ToolbarSegment({
     label,
@@ -1376,69 +1368,11 @@ function JobsContent() {
     const searchAutocompleteRef = useRef<SearchAutocompleteHandle>(null);
 
     // --- docked search ---------------------------------------------------
-    // The search box is not sticky; it scrolls away entirely on a long result
-    // list. Once it passes under the header, hand TopBar a summary so the way
-    // back is one click. `IntersectionObserver`, not a scroll listener: no
-    // per-frame work while someone scrolls thousands of rows.
-    const searchShellRef = useRef<HTMLElement>(null);
-    const [searchOutOfView, setSearchOutOfView] = useState(false);
+    // The header carries a live, typeable copy of this search once one is
+    // active (see the effect near `activeCount`/`filtersOpen` below — it
+    // needs both, so it lives after them). `setDocked` is pulled out here so
+    // the unmount cleanup can sit next to the rest of this page's setup.
     const { setDocked } = useSearchDock();
-
-    useEffect(() => {
-        const el = searchShellRef.current;
-        if (!el) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => setSearchOutOfView(!entry.isIntersecting),
-            // The header is opaque — anything behind it is gone as far as the
-            // person is concerned, so shrink the viewport by its height rather
-            // than waiting for the box to clear the screen. Read from
-            // `--topbar-h` (globals.css) so this and the bar itself cannot
-            // disagree; the fallback only covers a server-side first paint,
-            // where there is no layout to observe yet anyway.
-            { rootMargin: `-${headerHeightPx()}px 0px 0px 0px` },
-        );
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-
-    const expandSearch = useCallback(() => {
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        // `block: "start"` aligns with the SCROLL PORT's top, which sits behind
-        // the sticky header — that is what clipped the search box under the bar
-        // when the docked pill was clicked. The shell carries
-        // a `scroll-mt-*` off `--topbar-h`, which `scrollIntoView` honours, so the
-        // offset lives with the element instead of being recomputed here.
-        searchShellRef.current?.scrollIntoView({
-            behavior: reduce ? "auto" : "smooth",
-            block: "start",
-        });
-        // Focus AFTER the scroll settles: focusing mid-scroll makes the browser
-        // jump to the field itself and fight the animation.
-        window.setTimeout(() => searchAutocompleteRef.current?.focus(), reduce ? 0 : 350);
-    }, []);
-
-    useEffect(() => {
-        // Desktop only — the docked control is `lg:inline-flex`, and below that
-        // the sticky mobile search CTA already owns this job.
-        if (!isLgUp || !searchOutOfView) {
-            setDocked(null);
-            return;
-        }
-        setDocked({
-            label: query.trim() || "Search jobs",
-            place: dockedPlace,
-            onExpand: expandSearch,
-        });
-        // `dockedPlace` — a STRING — and never `filterState`. This effect
-        // writes to a provider that lives above this component, so its own
-        // `setDocked` re-renders us; `filterState` is an object literal
-        // rebuilt every render, so listing it here made the effect re-run on
-        // its own output forever (React #185, "Maximum update depth
-        // exceeded"). It only bit once `searchOutOfView` turned true — before
-        // that the branch above returns at `setDocked(null)`, which is
-        // idempotent — which is why it read as "the page crashes when I
-        // scroll". A derived primitive changes only when the label does.
-    }, [isLgUp, searchOutOfView, query, dockedPlace, expandSearch, setDocked]);
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
@@ -1515,6 +1449,14 @@ function JobsContent() {
             }
         }
     };
+
+    // `docked.onSubmit` (below) can fire long after the render that captured
+    // it — the dock effect only re-runs when its own dependencies change,
+    // not on every render, so a closure taken straight from that render
+    // would read stale `user`/`chosenLocations`/etc. the way `fitActiveRef`
+    // above guards `fitActive` against for callbacks that outlive a render.
+    const submitSearchRef = useRef(submitSearch);
+    submitSearchRef.current = submitSearch;
 
     /** Commits a typed-but-unsubmitted query when a filter/location chip fires search. */
     const flushSearchIntent = useCallback(() => {
@@ -1905,6 +1847,13 @@ function JobsContent() {
     // instead of a second `activeFilterEntries(filterState)` per render.
     const activeEntries = activeFilterEntries(filterState);
 
+    // A STRING derived from `activeEntries`, not the array itself — the dock
+    // effect below depends on this the same way it depends on `dockedPlace`:
+    // `activeEntries` is a fresh array every render even when its content
+    // hasn't changed, and listing IT in a dependency array is the same
+    // React #185 loop `filterState` caused (see that effect's own comment).
+    const activeChipsKey = activeEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
+
     // The active filters the FacetBar has no control for — see
     // `FACET_BAR_FACETS`. The toolbar names these itself, because for them
     // the 2026-08-15 "duplicate information" removal had nothing to be a
@@ -1964,6 +1913,12 @@ function JobsContent() {
     // this?" — every OTHER reader of that question (chips, clear, clear-all)
     // asked `activeFilterEntries` and got "no".
     const isPristineLanding = emptySearchState === "overlay-ask" && !query.trim() && activeEntries.length === 0 && !fitActive && !searchParams.get("job");
+    // Single gate for "the header owns this search now" — the dock effect
+    // below (which sets it) and the hero/toolbar JSX (which stand down once
+    // it's true, so nothing renders twice) both read this ONE boolean
+    // instead of two call sites separately reconstructing `isLgUp &&
+    // !isPristineLanding` and risking disagreement.
+    const headerDockActive = isLgUp && !isPristineLanding;
     const showLandingMarketing = isPristineLanding && !mobileResultsEngaged;
     // Item 7a: the masthead specifically (not the whole `showLandingMarketing`
     // bundle — the browse showcase/chips below it should keep showing while
@@ -2971,6 +2926,56 @@ function JobsContent() {
      * grow a second, drifting mutation path.
      */
     const [filtersOpen, setFiltersOpen] = useState(false);
+
+    // `docked.onClearChip` (below) has the same staleness risk `submitSearchRef`
+    // above guards `submitSearch` against — `applyFilterState` closes over
+    // `buildUrlState`'s many fields, and a clear fired from a stale render's
+    // closure would push a stale `query`/`sort` back into the URL. `filterState`
+    // itself needs the same guard: the dock effect only refires when
+    // `activeChipsKey` changes, but a field like `companyDomain` mutates
+    // `filterState` without touching any chip, so a clear fired between two
+    // dock-effect runs must still start from the CURRENT full state, not the
+    // one closed over at the last run.
+    const applyFilterStateRef = useRef(applyFilterState);
+    applyFilterStateRef.current = applyFilterState;
+    const filterStateRef = useRef(filterState);
+    filterStateRef.current = filterState;
+
+    // --- docked search (header) ------------------------------------------
+    // Once a search is active the header carries a live, typeable copy of
+    // it — present immediately, no scrolling required, so the hero and the
+    // header are never both offering a search at once (see `headerDockActive`
+    // above and the hero/toolbar JSX that stand down on it).
+    useEffect(() => {
+        if (!headerDockActive) {
+            setDocked(null);
+            return;
+        }
+        setDocked({
+            value: queryDraft,
+            onChange: setQueryDraft,
+            onSubmit: (v) => submitSearchRef.current(v),
+            placeholder: SEARCH_PLACEHOLDER,
+            place: dockedPlace,
+            onPlaceClick: () => setLocationSheetOpen(true),
+            chips: activeEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+            onClearChip: (key) => {
+                const entry = activeEntries.find((e) => e.key === key);
+                if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
+            },
+            filterCount: activeCount,
+            onOpenFilters: () => setFiltersOpen(true),
+        });
+        // `queryDraft` and `activeChipsKey`/`activeCount` — a STRING and
+        // primitives — never `filterState`/`activeEntries` themselves. This
+        // effect writes to a provider that lives above this component, so
+        // its own `setDocked` re-renders us; an object/array literal rebuilt
+        // every render would make the effect re-run on its own output
+        // forever (React #185, "Maximum update depth exceeded" — the exact
+        // defect this replaced, see the git history on this file). A
+        // derived primitive changes only when the rendered content does.
+    }, [headerDockActive, queryDraft, dockedPlace, activeChipsKey, activeCount, setDocked]);
+
     /**
      * Layout density (xl+ only — see lib/jobs/serp-density.ts). Seeded with the
      * DEFAULT rather than with storage, then corrected in an effect: reading
@@ -3698,8 +3703,6 @@ function JobsContent() {
     // gated on `isSerpAsk` — matches this file's other render-prep consts.
     const searchSeeds = resolveSearchSeeds(recentSearches);
 
-    const searchPlaceholder = "What kind of work are you looking for?";
-
     const mobileLocationLabel = locationTriggerLabel(filterState);
     // The category chip whose search query matches the current COMMITTED query
     // (case-insensitive) AND whose text also matches the draft (i.e. the user
@@ -4010,17 +4013,8 @@ function JobsContent() {
                     reads as the live thing without inventing a new device. It
                     is a CSS class, not a border utility — see its note in
                     globals.css for why the utility version painted nothing. */}
-                {/* `scroll-mt-*` is what keeps this box out from under the
-                    sticky header when the docked search scrolls back to it.
-                    `scrollIntoView({block:"start"})` aligns with the top of the
-                    SCROLL PORT, which is behind the header — so without this the
-                    box, and the suggestion list hanging off its input, both
-                    landed on top of the bar. Stated once here, on the element
-                    being scrolled to, rather than as an offset recomputed at
-                    each call site. */}
                 <section
-                    ref={searchShellRef}
-                    className="scroll-mt-[calc(var(--topbar-h)+0.5rem)] rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
+                    className="rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
@@ -4035,6 +4029,14 @@ function JobsContent() {
                             {formatCorpusCount(liveJobsCount)} live roles
                         </Link>
                     )}
+                    {/* Collapses once the header carries a live copy of this
+                        search (`headerDockActive`, lg+ only) — the reclaimed
+                        height goes straight to results instead of two typing
+                        surfaces sitting on screen at once. Below `lg`,
+                        `headerDockActive` is always false (the header dock
+                        never shows there — see TopBar), so this row stays
+                        put and the sticky mobile CTA keeps owning search. */}
+                    {!headerDockActive && (
                     <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-2.5">
                         {/* `bg-card`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
@@ -4058,7 +4060,7 @@ function JobsContent() {
                                     onSearch={() => submitSearch(queryDraft)}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
-                                    placeholder={searchPlaceholder}
+                                    placeholder={SEARCH_PLACEHOLDER}
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
                                     className="h-11 sm:h-[56px] w-full min-w-0 rounded-none border-0 bg-transparent px-3 text-base md:text-sm text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 pr-8"
                                     containerClassName="min-w-0 w-full"
@@ -4163,6 +4165,7 @@ function JobsContent() {
                             </Button>
                         </div>
                     </div>
+                    )}
 
                     {/* Category & Filter Dropdowns. Item 7b (2026-08-21
                         front-door audit): lg+ only once engaged — on mobile
@@ -4312,8 +4315,13 @@ function JobsContent() {
                             already showing these controls, so the expand would
                             be a second copy of them. Gated on the resolved
                             mount site rather than on `dense`, so the button and
-                            the panel can't disagree about which one is live. */}
-                        {showsFiltersToggle(facetsMountSite) && (
+                            the panel can't disagree about which one is live.
+                            Also stands down when the header owns this search
+                            (`headerDockActive`) — its own "Filters" button
+                            opens the SAME `filtersOpen` state, so a second
+                            trigger on screen at once would be the toggle
+                            equivalent of the hero/header search duplication. */}
+                        {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
                             data-testid="filters-toggle"
@@ -4367,7 +4375,13 @@ function JobsContent() {
                             every other control narrows the result set — it narrowed
                             nothing. It now rides on the Tracker nav item, which is
                             where it was already pointing. */}
-                        {unnamedEntries.map((entry) => (
+                        {/* Moved into the header's own chips row once it owns this
+                            search (`headerDockActive`) — same `activeEntries`
+                            chokepoint, rendered in the sticky unit instead of
+                            here so the same filter doesn't wear two chips at
+                            once. Below `lg` the header never docks, so this
+                            stays the one place they render. */}
+                        {!headerDockActive && unnamedEntries.map((entry) => (
                             <span
                                 key={entry.key}
                                 data-testid="active-filter-chip"

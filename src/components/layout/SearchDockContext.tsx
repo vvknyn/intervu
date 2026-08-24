@@ -3,22 +3,40 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 
 /**
- * What the header shows once a page's own search has scrolled out of reach.
+ * What the header renders once a page's own search is the thing in play.
  *
  * The seam is deliberately narrow: the header does NOT know what a job search
- * is, what Meili is, or which page published this. It renders a label, an
- * optional place, and a way back. Any page that owns a search can dock into
- * the same slot without TopBar growing a second code path.
+ * is, what Meili is, or which page published this. It renders a controlled
+ * text field, an optional place segment, and an optional row of dismissible
+ * chips plus a filter-count button — generic controls with no notion of
+ * "job", "facet", or "board" attached. Any page that owns a search can dock
+ * into the same slot without TopBar growing a second code path.
  *
  * `null` means nothing is docked and the header keeps its normal layout.
  */
-export type DockedSearch = {
-    /** What was searched for. Falls back to a generic label when the box is empty. */
+export type DockedSearchChip = {
+    /** Stable identity for the chip — round-trips to `onClearChip`. */
+    key: string;
     label: string;
-    /** Where, when a location is actually set. Omitted rather than shown empty. */
+};
+
+export type DockedSearch = {
+    /** The field's current text. Controlled — the header renders exactly this. */
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: (value: string) => void;
+    placeholder?: string;
+    /** Where, when a place is actually set. Omitted rather than shown empty. */
     place?: string;
-    /** Puts the real search back in front of the person and focuses it. */
-    onExpand: () => void;
+    /** Opens whatever place-picking UI the page uses. Omitted hides the segment. */
+    onPlaceClick?: () => void;
+    /** Every filter currently narrowing the search, for a dismissible chip each. */
+    chips: DockedSearchChip[];
+    onClearChip: (key: string) => void;
+    /** Badge count on the "Filters" button — 0 renders no badge, per house style. */
+    filterCount: number;
+    /** Opens the page's own filter panel/sheet. */
+    onOpenFilters: () => void;
 } | null;
 
 type DockValue = {
