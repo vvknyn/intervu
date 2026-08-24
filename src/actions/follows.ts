@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { listNewRolesForFollows } from "@/lib/follows/list-new-roles";
 import { docToFollowedCompany, followedCompaniesCollection } from "@/lib/follows/store";

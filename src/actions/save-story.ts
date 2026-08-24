@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { StarStory } from "@/types";
 

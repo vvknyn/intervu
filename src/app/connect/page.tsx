@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ConnectClient } from "./connect-client";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { AGENT } from "@/lib/agent/config";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
 
 const TITLE = "Connect your AI to intervu (MCP)";

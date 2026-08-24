@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";

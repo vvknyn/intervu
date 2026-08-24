@@ -15,7 +15,7 @@
  * ReportJobButton's mount sites).
  */
 
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 
 /** Plain-language radio label the dialog shows. */
 export type ReportJobReason =

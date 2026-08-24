@@ -1,4 +1,4 @@
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { redirect } from "next/navigation";
 
 export default async function AccountPage() {

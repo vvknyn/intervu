@@ -2,7 +2,7 @@
 
 import * as cheerio from "cheerio";
 import { checkContentSafety, assertSafeFetchUrl, UnsafeUrlError } from "@/lib/url-safety";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 
 const FETCH_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

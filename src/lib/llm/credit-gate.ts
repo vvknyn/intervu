@@ -37,7 +37,7 @@
  * (standard use-it-or-lose-it ordering). Blocked only when BOTH are zero.
  */
 import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /** Free generations granted per calendar month to non-admin shared-key users.

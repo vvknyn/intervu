@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import { extractBearerToken } from "@/lib/agent/http";
 import { verifySecret, AUTHORIZED_CREDENTIAL_KINDS } from "@/lib/agent/tokens";
 import { firestoreStore } from "@/lib/agent/store";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { authorizeSession, type SignalBlob, type ViewerSession } from "@/lib/viewer/sessions";
 import { getSession, putSignal, deleteSession } from "@/lib/viewer/session-store";
 
