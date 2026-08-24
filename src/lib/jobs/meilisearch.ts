@@ -112,6 +112,10 @@ export const JOBS_INDEX_SETTINGS = {
     // setting lives on the index, not in this repo, and a future re-provision
     // can drop it again without a deploy.
     "id",
+    // Makes `distinct: "title"` legal on the typeahead's search body
+    // (`buildSuggestBody`) — Meili rejects a non-filterable distinct
+    // attribute with a 400. Applied live as Meili task 484080, 2026-08-24.
+    "title",
   ],
   sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
   // "posted_ts:desc" is the FINAL rule: recency is the tiebreak among
@@ -1256,6 +1260,7 @@ export interface MeiliSuggestBody {
   limit: number;
   attributesToSearchOn: string[];
   attributesToRetrieve: string[];
+  distinct?: string;
 }
 
 /**
@@ -1271,6 +1276,15 @@ export interface MeiliSuggestBody {
  * was never part of what a "suggestion" means here. Measured live against
  * the box 2026-08-14: the old `{ hitsPerPage, attributesToRetrieve }`-only
  * shape ran 0.62s cold / ~0.1s warm; this shape ran 0.15s cold / ~0.08s warm.
+ *
+ * `distinct: "title"` (2026-08-24) — measured live: a query matching a
+ * common exact title (e.g. "manager", 100k hits) returned 100 hits ALL
+ * titled "manager" before this, because the query's unit is documents, not
+ * distinct titles. Legal only because `"title"` is in
+ * `JOBS_INDEX_SETTINGS.filterableAttributes` above — see the invariant test
+ * in jobs-suggestions.test.ts. This operates on the raw stored title, so
+ * case variants still arrive as separate hits; `dedupeJobSuggestionHits`
+ * still does the case-insensitive fold on top.
  */
 export function buildSuggestBody(q: string): MeiliSuggestBody {
   return {
@@ -1282,6 +1296,7 @@ export function buildSuggestBody(q: string): MeiliSuggestBody {
     // tell a company name that's just its own domain squashed together from
     // a real one and repair or drop it instead of suggesting it verbatim.
     attributesToRetrieve: ["title", "company", "company_domain"],
+    distinct: "title",
   };
 }
 
