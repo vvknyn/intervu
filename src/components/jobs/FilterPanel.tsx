@@ -138,9 +138,11 @@ export function applyLocationSheetDraft(
  * already-honest affordance (explicit, disclosed, opt-in) and is
  * unaffected — this only removes the passive, undisclosed prefill.
  */
+export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
+
 export function locationTriggerLabel(state: FilterState): string {
     const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
-    if (values.length === 0) return "City, state, or remote";
+    if (values.length === 0) return LOCATION_TRIGGER_PLACEHOLDER;
     if (values.length === 1) return values[0]!;
     // A trigger is one line of a narrow control, so past the first place it
     // reports a COUNT rather than truncating a list — "Montréal +2" says how

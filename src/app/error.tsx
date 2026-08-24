@@ -21,7 +21,13 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+    // Testid so suites can assert this screen is ABSENT structurally rather
+    // than by matching its copy — a negative gate keyed to wording silently
+    // stops testing anything the day the wording is reworded.
+    <div
+      data-testid="error-boundary"
+      className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center"
+    >
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
         <BrandMark className="h-7 w-7" />
       </div>
