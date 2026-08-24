@@ -335,6 +335,18 @@ const toolbarSegmentGroupClass =
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
 
+/**
+ * The sticky header's height, read from the `--topbar-h` token TopBar sizes
+ * itself with, so nothing here restates 64. Used for the parts of clearing the
+ * header that CSS can't express — an IntersectionObserver's rootMargin takes a
+ * string, not a custom property.
+ */
+function headerHeightPx(): number {
+    if (typeof window === "undefined") return 64;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--topbar-h");
+    return Number.parseFloat(raw) || 64;
+}
+
 function ToolbarSegment({
     label,
     pressed,
@@ -1353,10 +1365,13 @@ function JobsContent() {
         if (!el) return;
         const observer = new IntersectionObserver(
             ([entry]) => setSearchOutOfView(!entry.isIntersecting),
-            // The header is 64px and opaque — anything behind it is gone as
-            // far as the person is concerned, so shrink the viewport by that
-            // much rather than waiting for the box to clear the screen.
-            { rootMargin: "-64px 0px 0px 0px" },
+            // The header is opaque — anything behind it is gone as far as the
+            // person is concerned, so shrink the viewport by its height rather
+            // than waiting for the box to clear the screen. Read from
+            // `--topbar-h` (globals.css) so this and the bar itself cannot
+            // disagree; the fallback only covers a server-side first paint,
+            // where there is no layout to observe yet anyway.
+            { rootMargin: `-${headerHeightPx()}px 0px 0px 0px` },
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -1364,6 +1379,11 @@ function JobsContent() {
 
     const expandSearch = useCallback(() => {
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // `block: "start"` aligns with the SCROLL PORT's top, which sits behind
+        // the sticky header — that is what clipped the search box under the bar
+        // when the docked pill was clicked. The shell carries
+        // a `scroll-mt-*` off `--topbar-h`, which `scrollIntoView` honours, so the
+        // offset lives with the element instead of being recomputed here.
         searchShellRef.current?.scrollIntoView({
             behavior: reduce ? "auto" : "smooth",
             block: "start",
@@ -3909,9 +3929,17 @@ function JobsContent() {
                     reads as the live thing without inventing a new device. It
                     is a CSS class, not a border utility — see its note in
                     globals.css for why the utility version painted nothing. */}
+                {/* `scroll-mt-*` is what keeps this box out from under the
+                    sticky header when the docked search scrolls back to it.
+                    `scrollIntoView({block:"start"})` aligns with the top of the
+                    SCROLL PORT, which is behind the header — so without this the
+                    box, and the suggestion list hanging off its input, both
+                    landed on top of the bar. Stated once here, on the element
+                    being scrolled to, rather than as an offset recomputed at
+                    each call site. */}
                 <section
                     ref={searchShellRef}
-                    className="rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
+                    className="scroll-mt-[calc(var(--topbar-h)+0.5rem)] rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,

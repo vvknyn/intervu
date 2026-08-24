@@ -91,7 +91,7 @@ export function TopBar() {
                 bar lines up with whatever the page below it is doing — capped
                 on most pages, edge to edge on one that declares it. Writing a
                 `max-w-*` here again would reintroduce the crooked frame. */}
-            <div className="shell-row relative flex h-16 items-center justify-between">
+            <div className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 text-foreground transition-opacity hover:opacity-90"
@@ -103,28 +103,41 @@ export function TopBar() {
                     </span>
                 </Link>
 
-                <div className="flex items-center gap-3 sm:gap-5">
+                {/* `flex-1` so the row's leftover width lands HERE rather than
+                    as a gap in the middle of the bar. `justify-end` keeps the
+                    nav and the account controls against the right edge exactly
+                    as before when nothing is docked; the only thing that can
+                    grow is the docked search below. */}
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:gap-5">
                     {/* The docked search. Shows what you searched for and puts
-                        it back one click away — the header never grows to hold
-                        it, because the sticky result panes below are positioned
-                        against a 64px header. */}
+                        it back one click away.
+
+                        It takes the WHOLE empty span of the bar (`flex-1`) and
+                        wears the search field's own chrome — card ground,
+                        `border-border` at rest, a full-height inverted SEARCH
+                        block on the trailing edge. Sized in the header's own
+                        token so it can't drift from the bar. As a 380px pill
+                        with a small grey "Edit" it read as a status label, not
+                        a control (Vivek, 2026-08-24: "it is not at all obvious
+                        that this is a search bar"): width and field vocabulary
+                        are what say "search box", so it borrows both from the
+                        real field instead of inventing a header-only look. */}
                     {docked && (
                         <button
                             type="button"
                             onClick={docked.onExpand}
                             data-testid="topbar-docked-search"
-                            className="hidden h-8 min-w-0 max-w-[380px] shrink items-center gap-2 rounded-none border border-foreground bg-card px-3 text-left transition-colors hover:bg-muted/60 lg:inline-flex"
+                            className="hidden h-10 min-w-0 flex-1 items-center gap-2 rounded-none border border-border bg-card pl-3 text-left transition-colors hover:border-foreground lg:inline-flex"
                         >
-                            <MagnifyingGlass size={13} weight="bold" className="shrink-0 text-foreground" />
+                            <MagnifyingGlass size={15} weight="bold" className="shrink-0 text-foreground" />
                             <span className="truncate text-xs font-semibold text-foreground">{docked.label}</span>
                             {docked.place && (
-                                <>
-                                    <span aria-hidden className="shrink-0 text-muted-foreground">·</span>
-                                    <span className="truncate text-xs text-muted-foreground">{docked.place}</span>
-                                </>
+                                <span className="shrink truncate border-l border-border pl-2 text-xs text-muted-foreground">
+                                    {docked.place}
+                                </span>
                             )}
-                            <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                                Edit
+                            <span className="ml-auto flex shrink-0 items-center self-stretch bg-foreground px-4 text-[10px] font-bold uppercase tracking-wider text-background">
+                                Search
                             </span>
                         </button>
                     )}
