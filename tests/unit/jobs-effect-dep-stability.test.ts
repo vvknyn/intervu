@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -30,20 +30,86 @@ import { join } from "node:path";
  * `useState` results are stable and are deliberately not flagged.
  */
 
-/** Names declared at component scope whose value is a NEW reference each render. */
+/** Where the call starting at `at` ends, by balancing parentheses — so a
+ *  nested call inside the body cannot be mistaken for the call's own tail. */
+function callEnd(source: string, at: number): number {
+    let depth = 0;
+    for (let i = source.indexOf("(", at); i < source.length && i !== -1; i++) {
+        const ch = source[i];
+        if (ch === "(") depth++;
+        else if (ch === ")") {
+            depth--;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/** The dependency array of the call starting at `at`, as identifiers. */
+function depsOfCallAt(source: string, at: number): string[] | null {
+    const end = callEnd(source, at);
+    if (end === -1) return null;
+    const call = source.slice(at, end);
+    // The dependency array is the last bracketed group in the call.
+    const open = call.lastIndexOf("[");
+    const close = call.lastIndexOf("]");
+    if (open === -1 || close < open) return null;
+    return call
+        .slice(open + 1, close)
+        .split(",")
+        .map((d) => d.replace(/\/\/.*$/gm, "").trim())
+        .filter(Boolean);
+}
+
+/**
+ * Names declared at component scope whose value is a NEW reference each render.
+ *
+ * Two sources of instability:
+ *  - a fresh object/array literal (`const x = {`, `const x = [`, `?? []`);
+ *  - a `useMemo`/`useCallback` whose OWN dependency list contains something
+ *    unstable, which re-runs every render and hands back a new reference. The
+ *    hook call reads as a stability guarantee, so this one hides well; it is
+ *    resolved to a fixpoint because the chain can be any length.
+ *
+ * KNOWN LIMIT, stated rather than papered over: instability that arrives as a
+ * PROP cannot be seen from inside one file. `LocationPickerSheet` took
+ * `state={filterState}` — an object rebuilt by the page above it — memoized on
+ * it, and reset the user's in-progress draft on every parent render. Catching
+ * that needs the caller, which is a different (and much more expensive) kind
+ * of check. Treat a prop in a dep array as suspect by reading, not by grep.
+ */
 export function unstableDeclarations(source: string): Set<string> {
     const names = new Set<string>();
+    const memos: { name: string; deps: string[] }[] = [];
     // `const x = {`, `const x = [`, `const x: T = {`, `const x = expr ?? []`
     const decl =
         /^[ \t]+const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(.+)$/gm;
     for (const m of source.matchAll(decl)) {
         const name = m[1]!;
         const rhs = m[2]!.trim();
-        // Hook results are referentially stable across renders by contract.
-        if (/^(useMemo|useCallback|useRef|useState|useSyncExternalStore)\s*\(/.test(rhs)) continue;
+        const hook = /^(useMemo|useCallback)\s*\(/.exec(rhs);
+        if (hook) {
+            const deps = depsOfCallAt(source, m.index! + m[0]!.indexOf(rhs));
+            if (deps) memos.push({ name, deps });
+            continue;
+        }
+        // Remaining hook results are referentially stable across renders.
+        if (/^(useRef|useState|useSyncExternalStore)\s*\(/.test(rhs)) continue;
         const isFreshLiteral = rhs.startsWith("{") || rhs.startsWith("[");
         const isNullishToLiteral = /\?\?\s*(\[\s*\]|\{\s*\})\s*;?$/.test(rhs);
         if (isFreshLiteral || isNullishToLiteral) names.add(name);
+    }
+    // A memo keyed on something unstable is itself unstable — to a fixpoint,
+    // since one such memo can be the key of the next.
+    for (let changed = true; changed; ) {
+        changed = false;
+        for (const memo of memos) {
+            if (names.has(memo.name)) continue;
+            if (memo.deps.some((d) => names.has(d))) {
+                names.add(memo.name);
+                changed = true;
+            }
+        }
     }
     return names;
 }
@@ -53,34 +119,8 @@ export function effectDependencyLists(source: string): string[][] {
     const lists: string[][] = [];
     const marker = "useEffect(";
     for (let at = source.indexOf(marker); at !== -1; at = source.indexOf(marker, at + 1)) {
-        // Balance parentheses to find where this call ends, so a nested call
-        // inside the effect body cannot be mistaken for the effect's own tail.
-        let depth = 0;
-        let end = -1;
-        for (let i = at + marker.length - 1; i < source.length; i++) {
-            const ch = source[i];
-            if (ch === "(") depth++;
-            else if (ch === ")") {
-                depth--;
-                if (depth === 0) {
-                    end = i;
-                    break;
-                }
-            }
-        }
-        if (end === -1) continue;
-        const call = source.slice(at, end);
-        // The dependency array is the last bracketed group in the call.
-        const open = call.lastIndexOf("[");
-        const close = call.lastIndexOf("]");
-        if (open === -1 || close < open) continue;
-        lists.push(
-            call
-                .slice(open + 1, close)
-                .split(",")
-                .map((d) => d.replace(/\/\/.*$/gm, "").trim())
-                .filter(Boolean),
-        );
+        const deps = depsOfCallAt(source, at);
+        if (deps) lists.push(deps);
     }
     return lists;
 }
@@ -155,17 +195,58 @@ test("a nested call inside the effect body is not mistaken for the dep array", (
     assert.deepEqual(violations(src), []);
 });
 
+test("flags a useMemo keyed on an unstable value — the hook call is not the guarantee it looks like", () => {
+    // A memo whose own deps change identity every render re-runs every render
+    // and returns a NEW reference, so depending on it is depending on the
+    // object underneath. This is the variant found in LocationPickerSheet on
+    // 2026-08-24, one file over from the crash.
+    const src = `
+    const filterState = { facets, salaryMin };
+    const seed = useMemo(() => build(filterState), [filterState]);
+    useEffect(() => {
+        setDraft(seed);
+    }, [open, seed]);
+`;
+    assert.deepEqual(violations(src).map((v) => v.dep), ["seed"]);
+});
+
+test("does NOT flag a useMemo keyed only on stable values", () => {
+    const src = `
+    const seed = useMemo(() => build(open), [open]);
+    useEffect(() => {
+        setDraft(seed);
+    }, [seed]);
+`;
+    assert.deepEqual(violations(src), []);
+});
+
 // ---------------------------------------------------------------------------
 // The real file the incident happened in.
 // ---------------------------------------------------------------------------
 
-test("src/app/jobs/page.tsx has no per-render value in any useEffect dep array", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/jobs/page.tsx"), "utf8");
-    const found = violations(source);
+// The incident was in page.tsx, but nothing about the defect is particular to
+// that file — a sibling component holding the same shape loops just as hard.
+// Scanning the whole jobs surface costs nothing (it was clean on the day this
+// widened) and is the difference between a gate on one bug and a gate on the
+// class.
+const JOBS_SOURCE_DIRS = ["src/app/jobs", "src/components/jobs"];
+
+test("no jobs component has a per-render value in a useEffect dep array", () => {
+    const found: string[] = [];
+    for (const dir of JOBS_SOURCE_DIRS) {
+        const root = join(process.cwd(), dir);
+        for (const file of readdirSync(root)) {
+            if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
+            const source = readFileSync(join(root, file), "utf8");
+            for (const v of violations(source)) {
+                found.push(`  - ${dir}/${file}: "${v.dep}" in [${v.deps.join(", ")}]`);
+            }
+        }
+    }
     assert.deepEqual(
         found,
         [],
         `useEffect depends on a value rebuilt every render — this is React #185 waiting to happen:\n` +
-            found.map((v) => `  - "${v.dep}" in [${v.deps.join(", ")}]`).join("\n"),
+            found.join("\n"),
     );
 });

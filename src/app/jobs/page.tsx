@@ -2922,8 +2922,11 @@ function JobsContent() {
             else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
             const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
             const next = applyLocationSheetDraft(draft, filterState, remoteValue);
-            const loc =
-                draft.useDetected ? "" : draft.showOther ? draft.otherText.trim() : draft.country ?? "";
+            // Mirrors `addLocation`: the saved preference holds ONE location, so
+            // it takes the first chosen place — read off the COMMITTED result
+            // rather than re-derived from the draft's branches, so "what did we
+            // filter on" has one answer instead of two that can disagree.
+            const loc = next.facets.location_country?.[0]?.trim() ?? "";
             // The sheet writes the FACET (via `applyLocationSheetDraft`); the
             // entry box just goes back to empty rather than mirroring it.
             setLocationDraft("");
