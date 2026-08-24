@@ -147,7 +147,19 @@ import {
 } from "@/lib/jobs/result-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
-import { SearchPrefsSetup, type SearchPrefsValues } from "@/components/jobs/SearchPrefsSetup";
+import { SearchPrefsSetup } from "@/components/jobs/SearchPrefsSetup";
+import {
+    clearStashedPrefs,
+    dismissOnboarding,
+    getStashedPrefs,
+    isOnboardingDismissed,
+    prefsToFlush,
+    recordOnboardingInteraction,
+    shouldPromptOnboarding,
+    stashPrefs,
+    type PrefsDestination,
+    type SearchPrefsValues,
+} from "@/lib/jobs/onboarding-prompt";
 import { shouldPromptApplyReturn } from "@/lib/jobs/apply-return";
 import { clusterJobs } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle } from "@/lib/jobs/sort";
@@ -1288,6 +1300,31 @@ function JobsContent() {
                     location: locationDraft.trim() || undefined,
                 },
             }).catch(() => {});
+        } else {
+            // Signed out there's no profile to write this into, so count it
+            // instead: a few submitted searches is the signal that this
+            // visitor has real intent and the setup offer is worth making.
+            // Counting HERE, at the one submit chokepoint, is what stops a
+            // future search entry point from being invisible to onboarding.
+            //
+            // The offer is decided here rather than in an effect on the count
+            // so that it can only ever follow a search the visitor JUST ran.
+            // The counter persists across visits, so an effect would fire on
+            // mount for anyone already past the threshold — a modal on
+            // arrival, before they've done anything, which is the version of
+            // this pattern everyone hates. This way a returning visitor who
+            // searched twice yesterday is asked on today's first search.
+            const interactions = recordOnboardingInteraction();
+            if (
+                shouldPromptOnboarding({
+                    interactions,
+                    signedIn: false,
+                    dismissed: onboardingDismissed,
+                    configured: agentSearchPrefsSet || Boolean(onboardingStash),
+                })
+            ) {
+                setSearchPrefsDialogOpen(true);
+            }
         }
     };
 
@@ -1431,6 +1468,21 @@ function JobsContent() {
     const [user, setUser] = useState<User | null>(null);
     const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
     const [searchPrefsDialogOpen, setSearchPrefsDialogOpen] = useState(false);
+    // Signed-out onboarding (owner's call, 2026-08-23): offer the setup
+    // wizard after a few submitted searches rather than on arrival. Both
+    // values live in localStorage and are read post-mount, so `dismissed`
+    // starts at the SUPPRESSED end — true until the browser says otherwise —
+    // rather than risk offering the wizard to someone who already said no.
+    // Same idiom as `guestSaveBannerDismissed` above. The interaction count
+    // isn't mirrored into state: `submitSearch` reads it back from the
+    // increment it just made, and state nothing renders is state that only
+    // has room to go stale. Decisions live in lib/jobs/onboarding-prompt.ts.
+    const [onboardingDismissed, setOnboardingDismissed] = useState(true);
+    const [onboardingStash, setOnboardingStash] = useState<SearchPrefsValues | null>(null);
+    useEffect(() => {
+        setOnboardingDismissed(isOnboardingDismissed());
+        setOnboardingStash(getStashedPrefs());
+    }, []);
     const [authOpen, setAuthOpen] = useState(false);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
@@ -1527,8 +1579,41 @@ function JobsContent() {
             return;
         }
         let cancelled = false;
-        void fetchAgentPreferencesAction().then((res) => {
-            if (!cancelled && res.data) setAgentPrefs(res.data);
+        void fetchAgentPreferencesAction().then(async (res) => {
+            if (cancelled || !res.data) return;
+            // Carry up anything the wizard collected while they were signed
+            // out — but only into an account that has nothing yet. Someone
+            // who set preferences on another device must not have them
+            // overwritten by a logged-out session in this browser, which
+            // would make signing in destructive. `prefsToFlush` owns that
+            // rule; `hasSearchPrefs` is the same "already configured" test
+            // the rest of this page gates on.
+            const flush = prefsToFlush({
+                signedIn: true,
+                stash: getStashedPrefs(),
+                accountConfigured: hasSearchPrefs(res.data.search),
+            });
+            if (!flush) {
+                setAgentPrefs(res.data);
+                return;
+            }
+            const saved = await saveAgentPreferencesAction({
+                search: {
+                    query: flush.query,
+                    location: flush.location || undefined,
+                    remoteOnly: flush.remoteOnly || undefined,
+                    salaryMin: flush.salaryMin || undefined,
+                },
+            });
+            if (cancelled) return;
+            // Only drop the local copy once the server has it. A failed
+            // flush leaves the stash intact so the next sign-in retries,
+            // rather than silently discarding what they typed.
+            if (saved.data) {
+                clearStashedPrefs();
+                setOnboardingStash(null);
+            }
+            setAgentPrefs(saved.data ?? res.data);
         });
         return () => {
             cancelled = true;
@@ -3175,7 +3260,8 @@ function JobsContent() {
 
     // THE single entry point for opening the résumé importer from this page —
     // every caller (sort menu "Rank by fit", the upsell card's "Upload
-    // résumé", any future one) must go through this, not `setImportOpen(true)`
+    // résumé", the setup wizard's "Add résumé", any future one) must go
+    // through `beginResumeUpload`, not `setImportOpen(true)`
     // directly, because this is also the one place that queues
     // `resumeActionAfterImportRef` — what `handleImport` (below) runs once
     // the upload actually completes. Bug this fixes: the upsell card used to
@@ -3196,11 +3282,7 @@ function JobsContent() {
     // Select's `onValueChange` below — but does NOT clear this ref) would
     // get silently clobbered once the upload finally completes, minutes
     // later.
-    const handleUploadClick = () => {
-        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
-            setSearchPrefsDialogOpen(true);
-            return;
-        }
+    const beginResumeUpload = () => {
         clearPendingGate();
         resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
         if (!user) {
@@ -3211,14 +3293,46 @@ function JobsContent() {
         setImportOpen(true);
     };
 
-    const handleSearchPrefsComplete = (values: SearchPrefsValues) => {
-        applySavedSearchPrefs(values);
+    // Adds ONE thing to `beginResumeUpload`: the detour that asks a signed-in
+    // user for search preferences first when they have neither those nor a
+    // résumé. Split out because the wizard's own "Add résumé" step must NOT
+    // take that detour — it is already inside the wizard.
+    const handleUploadClick = () => {
+        if (user && shouldPromptSearchPrefsInsteadOfResume(resumeOnFile, agentSearchPrefsSet)) {
+            setSearchPrefsDialogOpen(true);
+            return;
+        }
+        beginResumeUpload();
     };
 
-    const handleSearchPrefsAddResume = () => {
-        clearPendingGate();
-        resumeActionAfterImportRef.current = { kind: "fit", fitToken: fitIntentRef.current!.begin() };
-        setImportOpen(true);
+    const handleSearchPrefsComplete = (values: SearchPrefsValues, destination: PrefsDestination) => {
+        applySavedSearchPrefs(values);
+        // "browser" means the server had nowhere to put these — signed out, or
+        // a session that expired mid-wizard. Keeping them locally is what lets
+        // the next sign-in carry them up (see the flush above) instead of
+        // quietly losing what they just typed.
+        if (destination === "browser") {
+            stashPrefs(values);
+            setOnboardingStash(values);
+        }
+    };
+
+    // The wizard's last step. Goes to the shared chokepoint so a signed-out
+    // visitor gets the auth gate: this used to call `setImportOpen(true)`
+    // itself, which opened an importer that had nowhere to store the file.
+    const handleSearchPrefsAddResume = () => beginResumeUpload();
+
+    // Closing the dialog ends the offer for good, whether they finished it or
+    // backed out — asking again on the next search is nagging, not
+    // onboarding. Recorded here rather than inside the wizard because the two
+    // signed-in entry points open the same component from their own buttons,
+    // and those must stay re-openable.
+    const handleSearchPrefsOpenChange = (next: boolean) => {
+        setSearchPrefsDialogOpen(next);
+        if (!next && !user) {
+            dismissOnboarding();
+            setOnboardingDismissed(true);
+        }
     };
 
     // "My résumé" toolbar control's click (JSX below). Deliberately does NOT
@@ -4393,7 +4507,7 @@ function JobsContent() {
                                             <span>See which of these roles actually fit your background —</span>
                                             <button
                                                 type="button"
-                                                onClick={handleUploadClick}
+                                                onClick={() => handleUploadClick()}
                                                 className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                             >
                                                 add your résumé to rank by fit
@@ -4661,7 +4775,8 @@ function JobsContent() {
             <SearchPrefsSetup
                 variant="dialog"
                 open={searchPrefsDialogOpen}
-                onOpenChange={setSearchPrefsDialogOpen}
+                onOpenChange={handleSearchPrefsOpenChange}
+                signedIn={Boolean(user)}
                 onComplete={handleSearchPrefsComplete}
                 onAddResume={handleSearchPrefsAddResume}
             />
