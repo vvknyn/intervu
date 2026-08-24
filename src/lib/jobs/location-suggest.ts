@@ -13,6 +13,7 @@
  * honest answer to "is it worth filtering here".
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
+import { isMalformedLocationValue } from "@/lib/geo/malformed-location-value";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
@@ -152,6 +153,13 @@ export function mergeFieldHits(
     const groups = new Map<string, { total: number; best: FacetHit }>();
 
     for (const hit of hits) {
+        // Positive-evidence-only: a value that looks like a parser artifact
+        // (unbalanced parenthesis, a raw delimiter character, collapsed
+        // whitespace) is dropped here rather than rendered as a selectable
+        // trap. A value this module simply doesn't recognize is NOT evidence
+        // of malformation and still renders — see isMalformedLocationValue's
+        // doc for why absence of gazetteer knowledge never suppresses.
+        if (isMalformedLocationValue(hit.value)) continue;
         const folded = foldForMatch(hit.value);
         if (!folded) continue;
         const existing = groups.get(folded);

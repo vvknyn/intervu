@@ -135,3 +135,60 @@ test("removing is folded too, so a chip removes the place however it was spelled
     assert.deepEqual(removeLocationValue(["Montreal", "Toronto"], "Montréal"), ["Toronto"]);
     assert.deepEqual(removeLocationValue(["Toronto"], "Ottawa"), ["Toronto"]);
 });
+
+/**
+ * Malformed corpus values (parser artifacts, not places) must never reach
+ * the dropdown as selectable rows — see src/lib/geo/malformed-location-value.ts
+ * for the positive-evidence predicate this gates on.
+ */
+
+test("drops parser-artifact hits measured live under Canada, keeps the real one", () => {
+    const out = mergeFieldHits("location_country", [
+        { value: "Remote Canada", count: 6097 },
+        { value: "Canada -  (ON", count: 2 },
+        { value: "Canada (Alberta", count: 1 },
+        { value: "Canada | Logan", count: 1 },
+    ]);
+    assert.deepEqual(
+        out.map((o) => o.label),
+        ["Remote Canada"],
+    );
+});
+
+test("the same drop applies to a malformed value under a different country, not just Canada", () => {
+    const out = mergeFieldHits("location_country", [
+        { value: "Germany", count: 4000 },
+        { value: "Germany | Berlin", count: 3 },
+    ]);
+    assert.deepEqual(
+        out.map((o) => o.label),
+        ["Germany"],
+    );
+});
+
+test("a real place under a less-apt heading is NOT suppressed just because it looks unfamiliar", () => {
+    const out = mergeFieldHits("location_city", [
+        { value: "Canary Wharf", count: 81 },
+        { value: "Canton", count: 51 },
+        { value: "Candelaria", count: 39 },
+    ]);
+    assert.deepEqual(
+        out.map((o) => o.label).sort(),
+        ["Canary Wharf", "Candelaria", "Canton"],
+    );
+});
+
+test("malformed-value suppression does not touch group ordering", () => {
+    const groups = buildLocationSuggestions({
+        location_country: [
+            { value: "Canada", count: 63936 },
+            { value: "Canada (Alberta", count: 1 },
+        ],
+        location_city: [{ value: "Montreal", count: 342 }],
+    });
+    assert.deepEqual(groups.map((g) => g.field), ["location_city", "location_country"]);
+    assert.deepEqual(
+        groups.find((g) => g.field === "location_country")!.items.map((i) => i.label),
+        ["Canada"],
+    );
+});
