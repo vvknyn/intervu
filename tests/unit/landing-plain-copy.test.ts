@@ -151,10 +151,19 @@ describe("landing page copy: plain language, not the builder's vocabulary", () =
 describe('jobs toolbar chip row: field chips derive from indexCategories, not a parallel list', () => {
     const PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'page.tsx');
 
+    // Anchored on the `fieldDirectoryMenu` definition (2026-08-24): the menu
+    // gained a second mount site — the toolbar, once the header owns the
+    // search and the hero well stops rendering — so it was extracted to one
+    // named const instead of being written out at each site. The old anchors
+    // bracketed the JSX at its former position, which now holds only
+    // `{fieldDirectoryMenu}`. This pair brackets the single definition, which
+    // is both where the list is built and the only place it could drift into
+    // a parallel literal. Tighter than the old span, so the `label:` check
+    // below still can't false-positive on unrelated object literals.
     function chipRowSource(): string {
         const src = readFileSync(PAGE, 'utf8');
-        const start = src.indexOf('Category & Filter Dropdowns');
-        const end = src.indexOf('data-testid="jobs-toolbar"');
+        const start = src.indexOf('const fieldDirectoryMenu');
+        const end = src.indexOf('const savedSearchControl');
         assert.ok(start !== -1 && end !== -1 && end > start, 'chip-row anchors moved — update this test\'s markers');
         return src.slice(start, end);
     }

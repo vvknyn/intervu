@@ -168,6 +168,27 @@ export function TopBar() {
                                 data-testid="topbar-docked-search-input"
                                 className="min-w-0 flex-1 truncate border-0 bg-transparent text-xs font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
                             />
+                            {/* The hero field carried its own "✕ clear query";
+                                docking took that away and put nothing back, so
+                                a search could be narrowed but never emptied
+                                without selecting the text by hand. Clears and
+                                re-runs in one step, which is what the hero
+                                version did — not just blanking the draft. */}
+                            {docked.value && (
+                                <button
+                                    type="button"
+                                    aria-label="Clear query"
+                                    title="Clear query"
+                                    data-testid="topbar-docked-clear"
+                                    onClick={() => {
+                                        docked.onChange("");
+                                        docked.onSubmit("");
+                                    }}
+                                    className="shrink-0 px-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                    ✕
+                                </button>
+                            )}
                             {docked.place && (
                                 <button
                                     type="button"
@@ -346,6 +367,32 @@ export function TopBar() {
                                 </span>
                             )}
                         </button>
+                        {/* The page's standing context (on /jobs, the live-role
+                            count). It sits on this row rather than in a band of
+                            its own — a single line of text does not justify a
+                            full-width surface, which is exactly the empty well
+                            this row replaced. Rendered as a link only when the
+                            page supplied somewhere to go. */}
+                        {docked.status && (
+                            docked.status.href ? (
+                                <Link
+                                    href={docked.status.href}
+                                    data-testid="topbar-docked-status"
+                                    className="mono-data inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
+                                >
+                                    <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+                                    {docked.status.label}
+                                </Link>
+                            ) : (
+                                <span
+                                    data-testid="topbar-docked-status"
+                                    className="mono-data inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand"
+                                >
+                                    <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+                                    {docked.status.label}
+                                </span>
+                            )
+                        )}
                         {docked.chips.map((chip) => (
                             <span
                                 key={chip.key}

@@ -2965,6 +2965,13 @@ function JobsContent() {
             },
             filterCount: activeCount,
             onOpenFilters: () => setFiltersOpen(true),
+            // The live count follows the search into the header. It used to be
+            // the first child of the hero well; once the well stops rendering
+            // here (see the `headerDockActive` gate on that section) this is
+            // the only place it appears, so it moves rather than duplicating.
+            status: liveJobsCount !== null
+                ? { label: `${formatCorpusCount(liveJobsCount)} live roles`, href: "/trends" }
+                : undefined,
         });
         // `queryDraft` and `activeChipsKey`/`activeCount` — a STRING and
         // primitives — never `filterState`/`activeEntries` themselves. This
@@ -2974,7 +2981,7 @@ function JobsContent() {
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [headerDockActive, queryDraft, dockedPlace, activeChipsKey, activeCount, setDocked]);
+    }, [headerDockActive, queryDraft, dockedPlace, activeChipsKey, activeCount, liveJobsCount, setDocked]);
 
     /**
      * Layout density (xl+ only — see lib/jobs/serp-density.ts). Seeded with the
@@ -3943,6 +3950,71 @@ function JobsContent() {
     );
 
     /**
+     * The "Browse by field" replace-query shortcut, defined once because it
+     * has two mount sites and only ever one at a time: inside the hero well
+     * when the well is the search, and on the toolbar's control line once the
+     * header owns the search (`headerDockActive`) and the well no longer
+     * renders. Each site supplies its own wrapper — this is just the control,
+     * so neither site inherits the other's spacing. Extracted rather than
+     * copied: two literal copies of a menu is two places for its item list to
+     * drift apart.
+     */
+    const fieldDirectoryMenu = (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    data-testid="field-directory-trigger"
+                    className={cn(
+                        "inline-flex h-9 items-center gap-1.5 rounded-none border px-3 text-[12px] transition-colors",
+                        activeCategory
+                            ? "border-foreground bg-foreground text-background font-bold"
+                            : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
+                    )}
+                >
+                    {activeCategory ? activeCategory.title : "Browse by field"}
+                    <CaretDown size={10} weight="bold" aria-hidden />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[180px]">
+                {indexCategories.map((cat) => {
+                    const isMatch =
+                        query.toLowerCase() === cat.q.toLowerCase() &&
+                        queryDraft.toLowerCase() === cat.q.toLowerCase();
+                    return (
+                        <DropdownMenuItem
+                            key={cat.q}
+                            onSelect={() => submitSearch(cat.q)}
+                            className="flex items-center justify-between gap-3 text-sm"
+                        >
+                            <span>{cat.title}</span>
+                            {isMatch && <Check size={12} weight="bold" aria-hidden />}
+                        </DropdownMenuItem>
+                    );
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+
+    /**
+     * "Save this search", same two-mount-site story as `fieldDirectoryMenu`:
+     * it lived inside the hero well, and the well stops rendering once the
+     * header owns the search. Its only other home is the toolbar. Extracted
+     * so docking cannot silently delete the affordance — which is exactly
+     * when someone is most likely to want to save what they just built.
+     */
+    const savedSearchControl = canSaveSearch ? (
+        <SavedSearchesPanel
+            saved={savedSearches}
+            urlState={buildUrlState()}
+            canSave={canSaveSearch}
+            onApply={applySavedSearch}
+            onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
+            compact
+        />
+    ) : null;
+
+    /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
      * (`isSerpAsk` — tappable search seeds, chrome preserved) or has
@@ -4013,6 +4085,18 @@ function JobsContent() {
                     reads as the live thing without inventing a new device. It
                     is a CSS class, not a border utility — see its note in
                     globals.css for why the utility version painted nothing. */}
+                {/* Stands down entirely once the header owns the search
+                    (2026-08-24, Vivek: the docked version left this well on
+                    screen holding a count and one dropdown). Gating only the
+                    inner search line — which is what the dock originally did —
+                    kept painting the raised fill, the accent rule and the
+                    padding around an empty box, so the page's single strongest
+                    emphasis pointed at nothing and the height the dock claimed
+                    to reclaim was never actually reclaimed. The children that
+                    outlive the search line have their own homes on the header
+                    row and the toolbar; see `status` on the dock payload and
+                    `fieldDirectoryMenu`. */}
+                {!headerDockActive && (
                 <section
                     className="rounded-none glass-panel glass-panel-raised glass-panel-accent-top p-2 sm:p-2.5 transition-colors"
                 >
@@ -4182,40 +4266,7 @@ function JobsContent() {
                     {!showLandingMarketing && isLgUp && (
                         <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2 lg:mt-2 lg:pt-1.5">
                             {/* Field dropdown — radio-like, REPLACE query on click */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        type="button"
-                                        className={cn(
-                                            "inline-flex h-9 items-center gap-1.5 rounded-none border px-3 text-[12px] transition-colors",
-                                            activeCategory
-                                                ? "border-foreground bg-foreground text-background font-bold"
-                                                : "border-border/80 bg-background/50 text-muted-foreground hover:border-foreground hover:text-foreground"
-                                        )}
-                                    >
-                                        {activeCategory ? activeCategory.title : "Browse by field"}
-                                        <CaretDown size={10} weight="bold" aria-hidden />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="min-w-[180px]">
-                                    {indexCategories.map((cat) => {
-                                        const isMatch =
-                                            query.toLowerCase() === cat.q.toLowerCase() &&
-                                            queryDraft.toLowerCase() === cat.q.toLowerCase();
-                                        return (
-                                            <DropdownMenuItem
-                                                key={cat.q}
-                                                onSelect={() => submitSearch(cat.q)}
-                                                className="flex items-center justify-between gap-3 text-sm"
-                                            >
-                                                <span>{cat.title}</span>
-                                                {isMatch && <Check size={12} weight="bold" aria-hidden />}
-                                            </DropdownMenuItem>
-                                        );
-                                    })}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
+                            {fieldDirectoryMenu}
                         </div>
                     )}
                     {/* Active-category indicator: the dropdown label (e.g. "Nursing
@@ -4248,18 +4299,11 @@ function JobsContent() {
                                     {canSaveSearch && <span aria-hidden className="text-border">·</span>}
                                 </>
                             )}
-                            {canSaveSearch && (
-                                <SavedSearchesPanel
-                                    saved={savedSearches}
-                                    urlState={buildUrlState()}
-                                    canSave={canSaveSearch}
-                                    onApply={applySavedSearch}
-                                    onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
-                                    compact
-                                />                            )}
+                            {savedSearchControl}
                         </div>
                     )}
                 </section>
+                )}
 
                 {/* Browse entry points for a zero-intent visitor — field
                     directory + "start with a filter" shortcuts. Was authored
@@ -4301,6 +4345,14 @@ function JobsContent() {
                     className="mt-3 border-y border-border/50 bg-muted/[0.14] py-2 lg:px-0.5 lg:py-1.5"
                 >
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 lg:gap-x-3 lg:gap-y-2">
+                        {/* The well's second mount site. It reads as a peer of
+                            the Salary/Work mode/Experience dropdowns beside it
+                            — same height, same caret — which is honest: like
+                            them it re-scopes the result set, though by
+                            REPLACING the query rather than narrowing it. Its
+                            own `isLgUp` gate is already implied here, since
+                            `headerDockActive` is `isLgUp && !isPristineLanding`. */}
+                        {headerDockActive && !showLandingMarketing && fieldDirectoryMenu}
                         {!showLandingMarketing && (
                             <FacetBar
                                 distribution={result?.facetDistribution}
@@ -4408,6 +4460,10 @@ function JobsContent() {
                                 Clear filters ({activeCount})
                             </button>
                         )}
+                        {/* Second mount site — see `savedSearchControl`. Last in
+                            the row because it acts on the search the controls to
+                            its left just finished describing. */}
+                        {headerDockActive && savedSearchControl}
                         {/* "✕ clear search" is NOT here any more either. Two reset
                             buttons sat side by side in this row — one dropped the
                             query, one dropped the filters — and nothing about either

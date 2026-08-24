@@ -37,6 +37,13 @@ export type DockedSearch = {
     filterCount: number;
     /** Opens the page's own filter panel/sheet. */
     onOpenFilters: () => void;
+    /**
+     * One short piece of standing context for this search, shown beside the
+     * filter controls. Deliberately `label` + optional `href` and nothing
+     * else: the header stays ignorant of what is being counted, same as it is
+     * for `chips`. Omitted renders nothing — there is no empty state.
+     */
+    status?: { label: string; href?: string };
 } | null;
 
 type DockValue = {
