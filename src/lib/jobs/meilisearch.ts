@@ -473,11 +473,20 @@ export function filterHitsByDomainFilters(
  *  `any` OR-group alone, or ANDed against `scopedToCountry` when present
  *  (see `PlaceClause`'s doc, jobs/types.ts, for why only a city/metro
  *  mention ever carries that second group). */
-function renderPlaceClause(clause: PlaceClause): string {
-  const any = "(" + clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")";
-  if (!clause.scopedToCountry?.length) return any;
-  const country = "(" + clause.scopedToCountry.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")";
-  return `(${any} AND ${country})`;
+export function renderPlaceClause(clause: PlaceClause): string {
+  const parts = ["(" + clause.any.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")"];
+  if (clause.scopedToCountry?.length) {
+    parts.push("(" + clause.scopedToCountry.map((pl) => `${pl.field} = ${JSON.stringify(pl.value)}`).join(" OR ") + ")");
+  }
+  // Work modes bound to THIS place (see `PlaceClause.workTypes`) AND into
+  // the clause, so they constrain this place and no other.
+  if (clause.workTypes?.length) {
+    parts.push("(" + clause.workTypes.map((v) => `work_type = ${JSON.stringify(v)}`).join(" OR ") + ")");
+  }
+  // A lone group is returned bare — the parenthesised AND form is reserved
+  // for the multi-part case, so a clause with no extras renders exactly the
+  // string it always did.
+  return parts.length === 1 ? parts[0]! : `(${parts.join(" AND ")})`;
 }
 
 /**

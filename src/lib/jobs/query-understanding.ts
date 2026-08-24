@@ -328,16 +328,40 @@ export async function resolveLocationFacet(
   // ("remote qwerty") contains a work-mode word no location_country value
   // ever holds, so there is no real exact facet left to preserve, and the
   // work-mode facet we DID understand should still apply.
+  //
+  // Each phrase's work modes are bound to the places THAT phrase resolved
+  // to, rather than pooled into one global facet. Pooling is what made
+  // ["remote canada", "hybrid united states"] mean
+  //   (remote OR hybrid) AND (Canada OR US)
+  // — which also returns remote US roles nobody asked for. Bound, it means
+  //   (Canada AND remote) OR (US AND hybrid)
+  // which is the question that was actually asked. For a SINGLE phrase the
+  // two forms are logically identical, so this changes nothing for the
+  // one-location case that has always worked.
   const resolved: PlaceClause[] = [];
-  for (const { residualQ } of stripped) {
+  const unboundWorkTypes = new Set<string>();
+  for (const { residualQ, workTypes: phraseWorkTypes } of stripped) {
     const residual = residualQ.trim();
-    if (!residual) continue;
-    const { places } = await parsePlaceTokens(residual, vocab);
-    resolved.push(...places);
+    const places = residual ? (await parsePlaceTokens(residual, vocab)).places : [];
+    if (places.length === 0) {
+      // Nothing to bind to — a pure work-mode phrase ("remote"), or place
+      // text that did not resolve. Its work modes stay global, which is
+      // exactly the pre-existing behaviour for those inputs.
+      for (const t of phraseWorkTypes) unboundWorkTypes.add(t);
+      continue;
+    }
+    resolved.push(
+      ...places.map((clause) =>
+        phraseWorkTypes.length > 0 ? { ...clause, workTypes: [...phraseWorkTypes] } : clause,
+      ),
+    );
   }
 
   const { location_country: _raw, ...facets } = p.facets!;
-  const mergedWorkTypes = new Set([...(facets.work_type ?? []), ...workTypes]);
+  // The dropdown's own work_type selection is a DIFFERENT question ("remote
+  // anywhere") from one typed into a place phrase ("remote in Canada"), so
+  // it stays global and still AND's across the whole query.
+  const mergedWorkTypes = new Set([...(facets.work_type ?? []), ...unboundWorkTypes]);
   const mergedPlaces = [...(p.places ?? []), ...resolved];
   return {
     ...p,
@@ -346,7 +370,11 @@ export async function resolveLocationFacet(
     // place words) has nothing to filter on, so leave `places` exactly as
     // it arrived rather than pinning an empty array where `undefined` was.
     ...(mergedPlaces.length > 0 ? { places: mergedPlaces } : {}),
-    facets: { ...facets, work_type: [...mergedWorkTypes] },
+    // Likewise only write `work_type` when something global remains: with
+    // every typed mode now bound to its own place, this set is often empty,
+    // and writing `[]` where the caller had `undefined` would be a change
+    // of shape for no change of meaning.
+    facets: mergedWorkTypes.size > 0 ? { ...facets, work_type: [...mergedWorkTypes] } : facets,
   };
 }
 

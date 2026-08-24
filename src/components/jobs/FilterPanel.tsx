@@ -139,7 +139,14 @@ export function applyLocationSheetDraft(
  * unaffected — this only removes the passive, undisclosed prefill.
  */
 export function locationTriggerLabel(state: FilterState): string {
-    return state.facets.location_country?.[0]?.trim() || "City, state, or remote";
+    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+    if (values.length === 0) return "City, state, or remote";
+    if (values.length === 1) return values[0]!;
+    // A trigger is one line of a narrow control, so past the first place it
+    // reports a COUNT rather than truncating a list — "Montréal +2" says how
+    // much is hidden, where "Montréal, Toron…" only says that something is.
+    // The chips row below spells all of them out and can remove any one.
+    return `${values[0]} +${values.length - 1}`;
 }
 
 /** Static facet option ladders — always shown in SerpFilters even when the

@@ -130,6 +130,22 @@ export const JOBS_SUGGEST_MAX_REQUESTS = 90;
 export const allowJobsSuggestRequest = createIpRateLimiter(JOBS_SUGGEST_WINDOW_MS, JOBS_SUGGEST_MAX_REQUESTS);
 
 /**
+ * Per-IP sliding-window rate limit for the location typeahead chokepoint
+ * (`GET /api/jobs/locations`). Its own store for the same reason every entry
+ * here has one: sharing a counter with `/api/jobs/suggest` would let a
+ * searcher typing a job title exhaust the budget for typing a city, and the
+ * two fire independently — they sit side by side in the same search bar.
+ *
+ * Sized like the title typeahead: same debounced-per-keystroke shape, and a
+ * place name is if anything shorter to type than a job title.
+ */
+export const JOBS_LOCATION_WINDOW_MS = 60_000;
+export const JOBS_LOCATION_MAX_REQUESTS = 90;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the location route's own store. */
+export const allowJobsLocationRequest = createIpRateLimiter(JOBS_LOCATION_WINDOW_MS, JOBS_LOCATION_MAX_REQUESTS);
+
+/**
  * Per-IP sliding-window rate limit for `POST /api/auth/session` — mints the
  * session cookie and fires the welcome email, and had NO rate limit before
  * this (verified 2026-08-16). Own store, not shared with `allowSearchRequest`

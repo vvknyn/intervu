@@ -14,6 +14,7 @@
  * persistence. That's deliberate: this is a shock absorber for an outage
  * window on ONE server instance, not a cache correctness guarantee.
  */
+import { renderPlaceClause } from "./meilisearch";
 import type { FacetKey, JobSearchParams, JobSearchResult } from "./types";
 
 /** Bound on the LRU — single source of truth, referenced by the eviction
@@ -57,16 +58,20 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     const vals = p.facets?.[key];
     if (vals?.length) facets[key] = [...vals].sort();
   }
-  // Each clause's own `any`/`scopedToCountry` sub-lists are order-sensitive
-  // (they came out of validation in a stable order for the SAME candidate
-  // set), so only the top-level clause ordering needs normalizing here.
-  const places = (p.places ?? [])
-    .map(
-      (c) =>
-        `${c.any.map((pl) => `${pl.field}:${pl.value}`).join(",")}` +
-        (c.scopedToCountry?.length ? `|${c.scopedToCountry.map((pl) => `${pl.field}:${pl.value}`).join(",")}` : ""),
-    )
-    .sort();
+  // Rendered through `renderPlaceClause` — the same function that builds the
+  // real filter — rather than re-listing a clause's fields here. This key's
+  // contract (above) is that two requests producing the identical
+  // Meilisearch call produce the identical key, and the only thing that
+  // knows what a clause becomes in that call is the renderer. A hand-written
+  // copy silently breaks that promise the moment `PlaceClause` grows a
+  // field: when `workTypes` was added, a key listing only
+  // `any`/`scopedToCountry` would have collided "remote Canada" with
+  // "hybrid Canada" and served one the other's results.
+  //
+  // Each clause's own sub-lists are order-sensitive (they came out of
+  // validation in a stable order for the SAME candidate set), so only the
+  // top-level clause ordering needs normalizing here.
+  const places = (p.places ?? []).map(renderPlaceClause).sort();
   return JSON.stringify({
     q: (p.q ?? "").trim().toLowerCase(),
     id: p.id ?? "",
