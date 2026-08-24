@@ -165,6 +165,14 @@ import {
     isEmailNudgeDismissed,
     shouldPromptEmailNudge,
 } from "@/lib/jobs/email-nudge";
+import {
+    DEFAULT_SERP_DENSITY,
+    readSerpDensity,
+    resolveFacetsMountSite,
+    showsFiltersToggle,
+    writeSerpDensity,
+    type SerpDensity,
+} from "@/lib/jobs/serp-density";
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
@@ -287,7 +295,7 @@ function modeToUrlSort(mode: JobSortMode): UrlSort {
 const toolbarChipClass =
     "inline-flex items-center justify-center h-11 px-3 text-[13px] font-medium rounded-none lg:h-7 lg:px-2 lg:text-[11px]";
 
-function SortSegment({
+function ToolbarSegment({
     label,
     pressed,
     onClick,
@@ -513,6 +521,7 @@ function JobCard({
     variantCount = 0,
     expanded = false,
     onToggleExpand,
+    dense = false,
 }: {
     job: PublicJob;
     active: boolean;
@@ -527,6 +536,10 @@ function JobCard({
     variantCount?: number;
     expanded?: boolean;
     onToggleExpand?: () => void;
+    /** Dense SERP layout. Only the row's OWN spacing changes — no field is
+     *  dropped, so the two layouts always say the same things about a job.
+     *  Defaults false so every other call site keeps today's pixels. */
+    dense?: boolean;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -572,7 +585,8 @@ function JobCard({
                 }
             }}
             className={cn(
-                "group mb-2.5 grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3.5 gap-y-2 rounded-none glass-card px-4 py-3 text-left transition-all duration-150 hover:border-foreground/50",
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] rounded-none glass-card text-left transition-all duration-150 hover:border-foreground/50",
+                dense ? "mb-1 gap-x-3 gap-y-0.5 px-3 py-1.5" : "mb-2.5 gap-x-3.5 gap-y-2 px-4 py-3",
                 active && "border-brand border-l-4 border-l-brand glass-tint-blue",
             )}
         >
@@ -2734,6 +2748,23 @@ function JobsContent() {
      * grow a second, drifting mutation path.
      */
     const [filtersOpen, setFiltersOpen] = useState(false);
+    /**
+     * Layout density (xl+ only — see lib/jobs/serp-density.ts). Seeded with the
+     * DEFAULT rather than with storage, then corrected in an effect: reading
+     * localStorage during render gives the server one answer and the first
+     * client pass another, and React calls that a hydration error, not a
+     * layout preference. One frame of comfortable is the cost.
+     */
+    const [density, setDensity] = useState<SerpDensity>(DEFAULT_SERP_DENSITY);
+    useEffect(() => {
+        setDensity(readSerpDensity());
+    }, []);
+    const chooseDensity = (next: SerpDensity) => {
+        setDensity(next);
+        writeSerpDensity(next);
+    };
+    const dense = density === "dense" && isXlUp;
+    const facetsMountSite = resolveFacetsMountSite({ density, isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
         applyFilterStateWithIntent({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
     // Same guard `FilterChipsRow`'s own remote chip uses (`remoteValue ==
@@ -3544,6 +3575,7 @@ function JobsContent() {
             variantCount={clusterProps?.variantCount ?? 0}
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
+            dense={dense}
         />
     );
 
@@ -3627,23 +3659,28 @@ function JobsContent() {
     // G5b (Grok UX wave): the filters panel's own content, shared verbatim
     // between the desktop inline expand and the mobile Sheet below — one
     // SerpFilters render, not two copies that could drift on props.
-    const filtersPanelContent = (
+    /**
+     * The filter controls, written once for all three mount sites (expand,
+     * bottom sheet, dense rail). Only `layout` differs — see SerpFilters's own
+     * prop doc for why the rail cannot just be a narrower panel.
+     */
+    const renderFiltersPanel = (layout: "panel" | "rail" = "panel") => (
         <>
             {result?.configured && (
                 <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
                     {postedDateSupported && (
-                        <SortSegment
+                        <ToolbarSegment
                             label="freshest"
                             pressed={!fitActive && effectiveSort === "newest"}
                             onClick={() => chooseSort("newest")}
                         />
                     )}
-                    <SortSegment
+                    <ToolbarSegment
                         label="top pay"
                         pressed={!fitActive && effectiveSort === "salary_desc"}
                         onClick={() => chooseSort("salary_desc")}
                     />
-                    <SortSegment
+                    <ToolbarSegment
                         label="best match"
                         pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
                         onClick={chooseBestMatch}
@@ -3666,6 +3703,7 @@ function JobsContent() {
                 ghostHiddenCount={ghostHiddenCount}
                 board={board === "elite" ? "elite" : "all"}
                 onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
+                layout={layout}
             />
         </>
     );
@@ -3969,7 +4007,14 @@ function JobsContent() {
                                 onSalaryMin={panelSalaryMin}
                                 onPostedBucket={panelPostedBucket}
                             />
-                        )}                        <button
+                        )}
+                        {/* Stands down when the dense rail is up: the rail is
+                            already showing these controls, so the expand would
+                            be a second copy of them. Gated on the resolved
+                            mount site rather than on `dense`, so the button and
+                            the panel can't disagree about which one is live. */}
+                        {showsFiltersToggle(facetsMountSite) && (
+                        <button
                             type="button"
                             data-testid="filters-toggle"
                             aria-expanded={filtersOpen}
@@ -3993,6 +4038,7 @@ function JobsContent() {
                             )}
                             {filtersOpen ? <CaretUp size={12} weight="bold" aria-hidden /> : <CaretDown size={12} weight="bold" aria-hidden />}
                         </button>
+                        )}
                         {/* Résumé toolbar control — sits next to Filters.
                             Label is context-aware: "Add résumé" when `resumeOnFile` is false
                             or null (uploader on click); "My résumé" when it is true (rank-by-fit
@@ -4087,44 +4133,82 @@ function JobsContent() {
                         )}
                         </>
                         )}
-                        {result?.configured && (
-                            <div
-                                role="group"
-                                aria-label="Sort"
-                                className="ml-auto hidden items-center rounded-none border border-border/80 bg-muted/40 p-0.5 lg:flex"
-                            >
-                                {postedDateSupported && (
-                                    <SortSegment
-                                        label="freshest"
-                                        pressed={!fitActive && effectiveSort === "newest"}
-                                        onClick={() => chooseSort("newest")}
-                                    />
+                        {/* Right-aligned toolbar cluster. Sort and Layout share
+                            ONE `ml-auto` box: two auto margins in the same flex
+                            row split the free space between them, which would
+                            strand the two groups at opposite ends of the
+                            toolbar instead of pairing them. */}
+                        {(result?.configured || hits.length > 0) && (
+                            <div className="ml-auto hidden items-center gap-2 lg:flex">
+                                {result?.configured && (
+                                    <div
+                                        role="group"
+                                        aria-label="Sort"
+                                        className="flex items-center rounded-none border border-border/80 bg-muted/40 p-0.5"
+                                    >
+                                        {postedDateSupported && (
+                                            <ToolbarSegment
+                                                label="freshest"
+                                                pressed={!fitActive && effectiveSort === "newest"}
+                                                onClick={() => chooseSort("newest")}
+                                            />
+                                        )}
+                                        <ToolbarSegment
+                                            label="top pay"
+                                            pressed={!fitActive && effectiveSort === "salary_desc"}
+                                            onClick={() => chooseSort("salary_desc")}
+                                        />
+                                        <ToolbarSegment
+                                            label="best match"
+                                            pressed={
+                                                fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
+                                            }
+                                            onClick={chooseBestMatch}
+                                        />
+                                    </div>
                                 )}
-                                <SortSegment
-                                    label="top pay"
-                                    pressed={!fitActive && effectiveSort === "salary_desc"}
-                                    onClick={() => chooseSort("salary_desc")}
-                                />
-                                <SortSegment
-                                    label="best match"
-                                    pressed={
-                                        fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
-                                    }
-                                    onClick={chooseBestMatch}
-                                />
+                                {/* Layout switch — xl+ only, because that is the
+                                    only width where the two layouts differ at
+                                    all (see lib/jobs/serp-density.ts). Offering
+                                    it on a narrow window would be a control
+                                    that visibly does nothing. */}
+                                {hits.length > 0 && (
+                                    <div
+                                        role="group"
+                                        aria-label="Layout"
+                                        data-testid="serp-density-switch"
+                                        className="hidden items-center rounded-none border border-border/80 bg-muted/40 p-0.5 xl:flex"
+                                    >
+                                        <ToolbarSegment
+                                            label="comfortable"
+                                            pressed={density === "comfortable"}
+                                            onClick={() => chooseDensity("comfortable")}
+                                        />
+                                        <ToolbarSegment
+                                            label="dense"
+                                            pressed={density === "dense"}
+                                            onClick={() => chooseDensity("dense")}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    {filtersOpen && (isLgUp ? (
+                    {/* `rail` is handled below, inside the results grid — it is
+                        a column of the layout, not a panel hanging off the
+                        toolbar. Both remaining sites still key off the SAME
+                        resolved value, so "which one is showing" has exactly
+                        one answer. */}
+                    {facetsMountSite === "inline" ? (
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
                             className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-300/80 bg-card p-4 text-foreground custom-scrollbar shadow-md dark:border-slate-700"
                         >
-                            {filtersPanelContent}
+                            {renderFiltersPanel()}
                         </div>
-                    ) : (
+                    ) : facetsMountSite === "sheet" ? (
                         // G5b (Grok UX wave): below `lg`, filters present in the
                         // SAME Sheet primitive the job detail panel uses (reused,
                         // not a second bottom-sheet implementation) — desktop's
@@ -4140,11 +4224,11 @@ function JobsContent() {
                                     data-testid="filters-panel"
                                     className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-card p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
-                                    {filtersPanelContent}
+                                    {renderFiltersPanel()}
                                 </div>
                             </SheetContent>
                         </Sheet>
-                    ))}
+                    ) : null}
                 </section>
 
                 <div className={cn(
@@ -4156,7 +4240,14 @@ function JobsContent() {
                     // itself needs — is there a list to pair a pane with —
                     // so browsing the default corpus gets the same preview
                     // layout a search does, just with nothing selected yet.
-                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6"
+                    // Dense adds a THIRD column — a standing facet rail — and
+                    // buys its width back from the list, not from the detail
+                    // pane: the pane is where a posting is actually read, and
+                    // narrowing it to fit a rail would make the dense layout a
+                    // worse place to do the one thing this page is for.
+                    hits.length > 0 && (dense
+                        ? "xl:grid xl:grid-cols-[232px_minmax(0,30%)_minmax(0,1fr)] xl:gap-5"
+                        : "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-6")
                 )}>
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
@@ -4172,6 +4263,30 @@ function JobsContent() {
                         first). `hidden` below xl reproduces today's
                         sheet-only behavior byte-for-byte — this box simply
                         isn't in the layout at all under 1280px. */}
+                    {/* Dense-only facet rail — column 1. Sits before the list
+                        column in source for the same reason the detail pane
+                        does: it is full of interactive markup, and
+                        tests/unit/jobs-list-tail.test.ts asserts none appears
+                        between the ListTail element and the closing main tag.
+                        `xl:order-first` then puts it back on the LEFT, ahead of
+                        the list (order 0) and the pane (order 2).
+
+                        It renders `renderFiltersPanel` — the same controls the
+                        expand and the bottom sheet mount. Three mount points,
+                        one set of controls; a rail with its own copy would be
+                        a second filter UI to keep in sync. */}
+                    {dense && hits.length > 0 && (
+                        <aside
+                            aria-label="Filters"
+                            data-testid="serp-facet-rail"
+                            className="hidden xl:order-first xl:block xl:sticky xl:top-[72px] xl:max-h-[calc(100dvh-88px)] xl:min-w-0 xl:overflow-y-auto xl:rounded-none xl:border xl:border-border xl:bg-card/60 xl:p-3 custom-scrollbar"
+                        >
+                            <div id="filters-panel" data-testid="filters-panel">
+                                {renderFiltersPanel("rail")}
+                            </div>
+                        </aside>
+                    )}
+
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"

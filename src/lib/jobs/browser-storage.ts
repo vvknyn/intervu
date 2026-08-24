@@ -19,15 +19,29 @@ export function browserStorage(): Storage | null {
     }
 }
 
-/** True only for an explicitly stored "true" — a missing key is not dismissed. */
-export function readBrowserFlag(key: string): boolean {
-    return browserStorage()?.getItem(key) === "true";
+/** Null for a missing key AND for a storage that refused to answer — a caller
+ *  cannot tell the two apart, and shouldn't: both mean "no stored value". */
+export function readBrowserValue(key: string): string | null {
+    try {
+        return browserStorage()?.getItem(key) ?? null;
+    } catch {
+        return null;
+    }
 }
 
-export function setBrowserFlag(key: string): void {
+export function writeBrowserValue(key: string, value: string): void {
     try {
-        browserStorage()?.setItem(key, "true");
+        browserStorage()?.setItem(key, value);
     } catch {
         /* quota exceeded / private mode */
     }
+}
+
+/** True only for an explicitly stored "true" — a missing key is not dismissed. */
+export function readBrowserFlag(key: string): boolean {
+    return readBrowserValue(key) === "true";
+}
+
+export function setBrowserFlag(key: string): void {
+    writeBrowserValue(key, "true");
 }
