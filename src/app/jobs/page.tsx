@@ -28,7 +28,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
-import { marketingClaim } from "@/lib/marketing-stats";
+import { LANDING_PROVENANCE_LINE } from "@/lib/marketing-stats";
 import { getMarketingStatsAction } from "@/actions/marketing";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
@@ -1657,15 +1657,15 @@ function JobsContent() {
         setGuestSaveCount(getGuestSaveCount());
         setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
     }, []);
-    // Honest-market claim shown alongside the guest SERP tip (front-door
-    // spec, Task 2). Fetched once on mount, same cancelled-flag idiom as
-    // `lastUpdated`/`postedDateSupported` above; `marketingClaim` degrades to
-    // a claim without a live count on `null` rather than fabricating one.
-    const [marketClaim, setMarketClaim] = useState<string | null>(null);
-    // The raw count too, from the SAME already-cached call: it now labels the
+    // The masthead's provenance sentence is a constant now
+    // (`LANDING_PROVENANCE_LINE`) — it holds no number, so it needs no fetch
+    // and no state, and it renders on the server instead of appearing a beat
+    // late.
+    //
+    // The count itself comes from this one already-cached call: it labels the
     // link above the search box that used to be the TopBar ticker. Stays `null`
     // on the failure path so the link is absent rather than claiming a count we
-    // don't have — same degrade contract `marketingClaim` follows.
+    // don't have.
     // `CorpusCount`, not a number: the count carries its own exact/approximate
     // kind and `formatCorpusCount` renders "100,000+" vs "12,345" from it.
     // Flattening it to a number here would quietly turn an approximation into
@@ -1676,12 +1676,9 @@ function JobsContent() {
         getMarketingStatsAction()
             .then((stats) => {
                 if (cancelled) return;
-                setMarketClaim(marketingClaim(stats));
                 setLiveJobsCount(stats?.liveJobs ?? null);
             })
-            .catch(() => {
-                if (!cancelled) setMarketClaim(marketingClaim(null));
-            });
+            .catch(() => {});
         return () => {
             cancelled = true;
         };
@@ -3844,12 +3841,14 @@ function JobsContent() {
                     "radial-gradient(ellipse 80% 40% at 50% -10%, rgb(var(--brand) / 0.12), transparent 70%), rgb(var(--background))",
             }}
         >
-            {/* No max-width: the shell is edge to edge, and each child decides
-                whether it caps itself (`cappedContentClass`). Everything above
-                the results — masthead, search shell, toolbar — deliberately
-                does not, so their left edges all line up against the same
-                gutter; the results grid is the one thing that stops widening. */}
-            <main className="flex min-h-screen w-full flex-col px-4 pb-20 pt-2 sm:px-8 sm:pt-3 xl:px-10">
+            {/* `data-shell="bleed"` is this page ASKING for the full window;
+                globals.css turns that into `--shell-max: none` for the header
+                and footer too, so all three left edges stay together. Each
+                child then decides whether it caps itself
+                (`cappedContentClass`) — masthead, search shell and toolbar
+                deliberately don't, so they line up against the same gutter,
+                and the results grid is the one thing that stops widening. */}
+            <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -3878,7 +3877,7 @@ function JobsContent() {
                     )}
                 >
                     <div className="min-h-0 overflow-hidden">
-                        <LandingMasthead claim={marketClaim} />
+                        <LandingMasthead claim={LANDING_PROVENANCE_LINE} />
                     </div>
                 </div>
 
@@ -4167,11 +4166,9 @@ function JobsContent() {
                     <FilterChipsRow
                         state={filterState}
                         distribution={result?.facetDistribution}
-                        activeCount={activeCount}
                         onPostedBucket={panelPostedBucket}
                         onToggleFacet={panelToggleFacet}
                         onSalaryMin={panelSalaryMin}
-                        onOpenSheet={() => setFiltersOpen(true)}
                         postedDateSupported={postedDateSupported}
                     />
                 )}

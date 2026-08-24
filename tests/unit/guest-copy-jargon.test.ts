@@ -9,7 +9,7 @@ import {
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
 } from "../../src/components/marketing/openclaw-content";
-import { FOOTER_PROVENANCE_LINE, marketingClaim } from "../../src/lib/marketing-stats";
+import { FOOTER_PROVENANCE_LINE, LANDING_PROVENANCE_LINE } from "../../src/lib/marketing-stats";
 import {
   followEmailPrompt,
   followEmailSentLine,
@@ -44,10 +44,7 @@ const GUEST_STRINGS: Record<string, string> = {
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
   FOOTER_PROVENANCE_LINE,
-  MARKETING_CLAIM_NO_STATS: marketingClaim(null),
-  MARKETING_CLAIM_WITH_COUNT: marketingClaim({
-    liveJobs: { kind: "exact", value: 12345 },
-  }),
+  LANDING_PROVENANCE_LINE,
   FOLLOW_PERSIST_VALUE_LINE: followPersistValueLine("Example Co"),
   FOLLOW_EMAIL_PROMPT: followEmailPrompt("Example Co"),
   FOLLOW_EMAIL_SENT_LINE: followEmailSentLine(),
@@ -61,4 +58,35 @@ test("guest-surface strings carry no machinery jargon", () => {
       assert.doesNotMatch(value, pattern, `${name} must not match ${pattern}`);
     }
   }
+});
+
+/**
+ * One owner per fact. The live corpus count is rendered by the count line
+ * above the /jobs search box — linked to /trends, and absent rather than
+ * guessed when the fetch fails. A fixed string that also states a count is a
+ * second owner of the same number: on 2026-08-24 the masthead claim and that
+ * line showed the same figure ~90px apart, and nothing stopped them from
+ * disagreeing the moment one was fetched and the other wasn't.
+ *
+ * This runs over the WHOLE guest map rather than the one sentence that
+ * surfaced it, so any future claim string inherits the rule.
+ */
+const CORPUS_COUNT_SHAPE = /\d{1,3}(?:,\d{3})+\+?/;
+
+test("no guest-surface string states the corpus count — the count line owns it", () => {
+  for (const [name, value] of Object.entries(GUEST_STRINGS)) {
+    assert.doesNotMatch(
+      value,
+      CORPUS_COUNT_SHAPE,
+      `${name} states a count; render it from the live count instead of freezing it into copy`,
+    );
+  }
+});
+
+test("the count-shape guard can actually detect a count", () => {
+  // A probe for absence is worthless until it's shown to detect presence —
+  // without this, deleting every guest string would make the test above pass.
+  assert.match("2,073,043 live roles", CORPUS_COUNT_SHAPE);
+  assert.match("100,000+ live roles", CORPUS_COUNT_SHAPE);
+  assert.doesNotMatch(LANDING_PROVENANCE_LINE, CORPUS_COUNT_SHAPE);
 });

@@ -87,13 +87,11 @@ export function TopBar() {
             data-testid="topbar"
             className="sticky top-0 z-50 shrink-0 border-b border-border/80 bg-background/75 backdrop-blur-2xl backdrop-saturate-180 shadow-[inset_0_-1px_0_0_rgba(255,255,255,0.05)] transition-colors"
         >
-            {/* Edge to edge, matching the page shell below it (2026-08-24).
-                A centred header over an edge-to-edge page put the logo 116px
-                inside the search box's left edge at 1512 and 320px at 1920 —
-                the two most prominent left edges on the screen disagreeing.
-                The padding here is the same `px-4 sm:px-8 xl:px-10` the shell
-                uses, which is what actually keeps them aligned. */}
-            <div className="relative flex h-16 w-full items-center justify-between px-4 sm:px-8 xl:px-10">
+            {/* `shell-row` (globals.css) owns the width and the gutter, so this
+                bar lines up with whatever the page below it is doing — capped
+                on most pages, edge to edge on one that declares it. Writing a
+                `max-w-*` here again would reintroduce the crooked frame. */}
+            <div className="shell-row relative flex h-16 items-center justify-between">
                 <Link
                     href="/"
                     className="flex shrink-0 items-center gap-2 text-foreground transition-opacity hover:opacity-90"

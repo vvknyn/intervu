@@ -1,33 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { marketingClaim, CORPUS_SOURCE_DESCRIPTOR } from "../../src/lib/marketing-stats";
+import { LANDING_PROVENANCE_LINE, FOOTER_PROVENANCE_LINE, CORPUS_SOURCE_DESCRIPTOR } from "../../src/lib/marketing-stats";
 
-/* ----------------------------- marketingClaim ----------------------------- */
+/* ------------------------ LANDING_PROVENANCE_LINE ------------------------ */
 
-test("marketingClaim degrades to copy without a number when stats are null", () => {
-    const claim = marketingClaim(null);
-    assert.match(claim, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
-    assert.doesNotMatch(claim, /\d/, "no digit should appear when the corpus count is unknown");
+test("the landing claim states provenance", () => {
+    assert.match(LANDING_PROVENANCE_LINE, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
 });
 
-test("marketingClaim renders an exact live-jobs count", () => {
-    const claim = marketingClaim({ liveJobs: { kind: "exact", value: 12345 } });
-    assert.match(claim, /12,345 live roles/);
-    assert.match(claim, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
+test("the landing claim states no count — the live count line owns that number", () => {
+    // Was `marketingClaim(stats)`, which opened with the live figure. Once the
+    // count moved to its own linked line above the search box (2026-08-24) the
+    // same number was on screen twice, ~90px apart, from two owners that could
+    // disagree. The class-wide version of this guard, over every guest-surface
+    // string rather than this one, lives in guest-copy-jargon.test.ts.
+    assert.doesNotMatch(LANDING_PROVENANCE_LINE, /\d/);
 });
 
-test("marketingClaim renders a floor count with the honest '+' suffix", () => {
-    const claim = marketingClaim({ liveJobs: { kind: "floor", value: 100_000 } });
-    assert.match(claim, /100,000\+ live roles/);
-});
-
-test("marketingClaim never fabricates a count for a zero-value exact stat", () => {
-    // Zero is a real, reportable count — distinct from `null` (unknown). The
-    // claim should still render the number, not silently fall back to the
-    // numberless copy.
-    const claim = marketingClaim({ liveJobs: { kind: "exact", value: 0 } });
-    assert.match(claim, /^0 live roles/);
+test("the landing and footer claims share one descriptor rather than two wordings", () => {
+    assert.match(FOOTER_PROVENANCE_LINE, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
+    assert.match(LANDING_PROVENANCE_LINE, new RegExp(CORPUS_SOURCE_DESCRIPTOR));
 });
 
 /* ------------------------- ITEM U: single cache chokepoint ------------------------ */

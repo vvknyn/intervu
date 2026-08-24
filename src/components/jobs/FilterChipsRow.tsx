@@ -96,26 +96,26 @@ function Chip({
  * state. This component only decides which values a compact chip cycles
  * through and how to label them; it holds no parallel filter logic.
  *
- * `All (n)` absorbs the old standalone mobile "Filters" button — tapping it
- * opens the sheet (Task 10) instead of the old bounded inline overlay.
+ * Quick filters ONLY. This row deliberately holds no way into the full filter
+ * panel: the toolbar's `filters-toggle` owns that door at every breakpoint,
+ * and when this row carried one too, a phone rendered two identically labelled
+ * "Filters" buttons about 60px apart (2026-08-24). The prop that fed it is
+ * gone rather than the button alone, so a second door can't be reopened here
+ * without changing the component's shape — which is the part a reviewer sees.
  */
 export function FilterChipsRow({
     state,
     distribution,
-    activeCount,
     onPostedBucket,
     onToggleFacet,
     onSalaryMin,
-    onOpenSheet,
     postedDateSupported,
 }: {
     state: FilterState;
     distribution: FacetDistribution | undefined;
-    activeCount: number;
     onPostedBucket: (v: PostedBucket | undefined) => void;
     onToggleFacet: (key: FacetKey, value: string) => void;
     onSalaryMin: (v: number) => void;
-    onOpenSheet: () => void;
     /** False when the corpus carries no `posted_ts` — the chip is hidden rather than offered dead. */
     postedDateSupported: boolean;
 }) {
@@ -137,7 +137,7 @@ export function FilterChipsRow({
             aria-label="Quick filters"
             className={cn(
                 "mb-3 grid shrink-0 gap-2 border border-border/70 bg-muted/20 p-1.5 pb-2 lg:hidden",
-                postedDateSupported ? "grid-cols-4" : "grid-cols-3",
+                postedDateSupported ? "grid-cols-3" : "grid-cols-2",
             )}
         >
             {/* Same rule as the rail's "Date posted" section: no control when the
@@ -170,19 +170,6 @@ export function FilterChipsRow({
             >
                 {salaryLabel ?? "Salary"}
                 <CaretDown size={11} weight="bold" />
-            </Chip>
-            {/* Item 7c (2026-08-21 front-door audit): "All (0)" read as zero
-                results rather than "no filters active yet" — same fix the
-                toolbar's own `filters-toggle` button already uses (a plain
-                label plus a badge that only renders once there's a count to
-                show), reused verbatim rather than a second copy of it. */}
-            <Chip active={activeCount > 0} onClick={onOpenSheet} className="w-full justify-center">
-                Filters
-                {activeCount > 0 && (
-                    <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-none border border-brand/40 bg-brand/10 px-1 text-[10px] font-bold leading-[16px] text-brand">
-                        {activeCount}
-                    </span>
-                )}
             </Chip>
         </div>
     );

@@ -364,6 +364,51 @@ body {
   }
 }
 
+/* ONE shell geometry for the whole app. The header, the page and the footer
+   are siblings, so nothing structural makes their left edges agree — before
+   this they agreed only because three files happened to spell the same
+   `max-w-6xl xl:max-w-7xl px-4 sm:px-8 xl:px-10` string, and the moment /jobs
+   went edge to edge (2026-08-24) the frame went crooked: the logo sat 320px
+   inside the search box's left edge at 1920.
+
+   A page that wants the full window says so by rendering `data-shell="bleed"`,
+   the same way a page already declares a mobile tab bar just above. TopBar and
+   Footer read the result and never learn a route name, so a new full-bleed
+   page opts in where it lives rather than by being added to a list somewhere
+   else — and a page that says nothing keeps the capped default. */
+:root {
+  --shell-max: 72rem;
+}
+@media (min-width: 1280px) {
+  :root {
+    --shell-max: 80rem;
+  }
+}
+/* Set on `body`, which every shell row descends from, so it shadows the
+   inherited `:root` value including inside the media query above. */
+body:has([data-shell="bleed"]) {
+  --shell-max: none;
+}
+
+.shell-row {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--shell-max);
+  /* The gutter lives here too. Splitting it back out into per-element
+     `px-*` utilities is what let the three rows drift in the first place. */
+  padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+  .shell-row {
+    padding-inline: 2rem;
+  }
+}
+@media (min-width: 1280px) {
+  .shell-row {
+    padding-inline: 2.5rem;
+  }
+}
+
 /* Heading typography */
 h1,
 h2,

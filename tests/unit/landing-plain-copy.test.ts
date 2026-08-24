@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { indexCategories, LandingMasthead } from '../../src/components/jobs/LandingMarketingShowcase';
-import { marketingClaim } from '../../src/lib/marketing-stats';
+import { LANDING_PROVENANCE_LINE } from '../../src/lib/marketing-stats';
 
 /**
  * Guards the landing-page copy rewrite (2026-08-18): the page used to talk
@@ -170,18 +170,20 @@ describe('jobs toolbar chip row: field chips derive from indexCategories, not a 
 });
 
 /**
- * Guards the live-count USP sentence (2026-08-18): `marketClaim` in
- * app/jobs/page.tsx was computed from `marketingClaim()` but never passed to
- * anything that rendered it — a dead-state bug where the state existed and
- * updated correctly but no JSX ever read it. This asserts the render side
- * directly: a non-null `claim` prop must reach the page, and `null` must
- * render nothing claim-shaped, never an invented placeholder sentence.
+ * Guards the masthead claim (2026-08-18): `marketClaim` in app/jobs/page.tsx
+ * was computed but never passed to anything that rendered it — a dead-state
+ * bug where the state existed and updated correctly but no JSX ever read it.
+ * This asserts the render side directly: a non-null `claim` prop must reach
+ * the page, and `null` must render nothing claim-shaped, never an invented
+ * placeholder sentence.
+ *
+ * The claim carries provenance and no count since 2026-08-24 — see
+ * `LANDING_PROVENANCE_LINE`'s own note and the class-wide guard in
+ * guest-copy-jargon.test.ts.
  */
-describe('LandingMasthead: renders the live-count claim (or nothing)', () => {
+describe('LandingMasthead: renders the provenance claim (or nothing)', () => {
     it('renders the claim sentence when passed a non-null claim', () => {
-        const claim = marketingClaim({ liveJobs: { kind: 'exact', value: 1234 } });
-        const html = renderToStaticMarkup(LandingMasthead({ claim }));
-        assert.match(html, /1,234 live roles/);
+        const html = renderToStaticMarkup(LandingMasthead({ claim: LANDING_PROVENANCE_LINE }));
         assert.match(html, /screened for stale postings/);
     });
 
@@ -191,5 +193,16 @@ describe('LandingMasthead: renders the live-count claim (or nothing)', () => {
         assert.doesNotMatch(html, /screened for stale postings/);
         // The h1 still renders — only the claim paragraph is conditional.
         assert.match(html, /Every job, straight from the employer\./);
+    });
+
+    it('is what the page actually passes — the claim is a constant, not fetched state', () => {
+        // The 2026-08-18 bug was the prop never arriving. Its 2026-08-24 shape
+        // would be the page reintroducing a count-bearing sentence of its own,
+        // so assert the call site by source rather than only the component.
+        const pageSrc = readFileSync(
+            new URL('../../src/app/jobs/page.tsx', import.meta.url),
+            'utf8',
+        );
+        assert.match(pageSrc, /<LandingMasthead claim=\{LANDING_PROVENANCE_LINE\} \/>/);
     });
 });
