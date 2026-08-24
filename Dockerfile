@@ -1,4 +1,4 @@
-# Next.js standalone — Contabo behind Caddy (no Vercel).
+# Next.js standalone — Contabo behind Caddy.
 # Build with secret env (see docker-compose.yml) so NEXT_PUBLIC_* inline
 # without baking .env into image layers.
 FROM node:22-bookworm-slim AS deps

@@ -168,7 +168,7 @@ ADMIN_EMAILS=you@example.com
 # --- Jobs (optional; the Find-jobs tab is empty without these) ---
 MEILISEARCH_HOST=https://your-meili-host
 MEILISEARCH_SEARCH_KEY=...      # read-only search key used at request time
-# MEILISEARCH_ADMIN_KEY / MEILISEARCH_API_KEY are used only by the off-Vercel sync worker
+# MEILISEARCH_ADMIN_KEY / MEILISEARCH_API_KEY are used only by the sync worker (runs on the pipeline box, not in the web app)
 SUBSPACE_API_BASE_URL=...
 SUBSPACE_API_KEY=...
 ```

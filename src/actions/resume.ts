@@ -353,7 +353,7 @@ export async function parseResumeWithAI(
 
 /**
  * Extract text from PDF file (server-side)
- * Uses unpdf library (lightweight, works on serverless/Vercel)
+ * Uses unpdf library (lightweight, works in serverless runtimes)
  */
 export async function extractPDFText(fileBase64: string): Promise<{ text?: string; error?: string }> {
     try {

@@ -2,9 +2,10 @@
  * Jobs sync logic (J3) — ingest Subspace's read-only feed into intervu's own
  * Meilisearch index. This is the core algorithm; a thin worker wraps it.
  *
- * SERVER-ONLY, and intended to run OFF-VERCEL: a long-lived worker / cron box,
- * NOT a serverless function, and NOT co-hosted on Subspace infra. Vercel can't
- * host the reconciliation loop. Requires SUBSPACE_API_KEY + MEILISEARCH_* env.
+ * SERVER-ONLY, and intended to run off the web app: a long-lived worker / cron
+ * box, NOT a serverless function, and NOT co-hosted on Subspace infra. A
+ * serverless function can't host the reconciliation loop (it's short-lived
+ * by design). Requires SUBSPACE_API_KEY + MEILISEARCH_* env.
  * See docs/intervu-jobs-api.md → "Sync algorithm".
  *
  * Recommended cadence:

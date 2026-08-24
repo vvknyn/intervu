@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [[ ! -f .env.production ]]; then
-  echo "ERROR: missing $ROOT/.env.production (copy from Vercel env / .env.local)" >&2
+  echo "ERROR: missing $ROOT/.env.production (copy from .env.local)" >&2
   exit 1
 fi
 

@@ -5,8 +5,8 @@
  * module talks to Meilisearch over its HTTP API via `fetch` (no SDK dependency
  * — keeps the engine swappable; "Meilisearch vs Typesense" is an open decision
  * in docs/intervu-jobs-api.md). Read-path search uses the search-only key;
- * ingestion/admin uses the admin key and is only ever invoked by the off-Vercel
- * sync worker — never at request time.
+ * ingestion/admin uses the admin key and is only ever invoked by the sync
+ * worker on the pipeline box — never at request time.
  */
 import { getBoardDomains } from "@/lib/boards/allowlists";
 import {
@@ -376,8 +376,8 @@ async function logMeiliConfigError(url: string, res: Response): Promise<void> {
  * AbortController timeout plus ONE bounded retry on the failure classes a
  * retry can plausibly fix (network-level throw, or 5xx per
  * `isRetryableMeiliFailure`) — never on 4xx. Deliberately scoped to the read
- * path: the ingestion/admin functions below (off-Vercel sync worker, admin
- * key, bulk PUT/DELETE) run on their own schedule outside any Vercel
+ * path: the ingestion/admin functions below (pipeline-box sync worker, admin
+ * key, bulk PUT/DELETE) run on their own schedule outside any web app
  * request and are out of scope for a client-request-time resilience fix.
  */
 export async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
@@ -1460,7 +1460,7 @@ export async function resolveCompanyIntent(q: string | undefined): Promise<boole
   return value;
 }
 
-/* --------- Ingestion / admin (invoked only by the off-Vercel sync worker) --------- */
+/* --------- Ingestion / admin (invoked only by the pipeline-box sync worker) --------- */
 
 async function adminFetch(path: string, init: RequestInit): Promise<unknown> {
   const h = host();
