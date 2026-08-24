@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { pickRemoteFacetValue, nextSalaryPreset } from "../../src/components/jobs/FilterChipsRow";
 import {
     entriesNeedingOwnChip,
@@ -121,4 +122,45 @@ test("chipLabelForEntry: a facet entry names its filter; a standalone entry is a
 test("facetKeyLabel: unmapped keys still get a readable name, so a new facet needs no edit here", () => {
     assert.equal(facetKeyLabel("location_country"), "Location");
     assert.equal(facetKeyLabel("source" as FacetKey), "Source");
+});
+
+/**
+ * One door into the filter panel, per surface.
+ *
+ * The quick-filter row used to carry its own "Filters" chip alongside the
+ * toolbar's `filters-toggle`, so a phone rendered two identically labelled
+ * buttons about 60px apart, both opening the same sheet (2026-08-24). The fix
+ * removed the PROP that fed it, not just the button — but a prop can be added
+ * back, so this counts doors at the page level rather than watching one
+ * component. A third door added anywhere in the SERP fails this too.
+ */
+const JOBS_PAGE_SRC = readFileSync(
+    new URL("../../src/app/jobs/page.tsx", import.meta.url),
+    "utf8",
+);
+const CHIPS_ROW_SRC = readFileSync(
+    new URL("../../src/components/jobs/FilterChipsRow.tsx", import.meta.url),
+    "utf8",
+);
+
+/** Doc comments legitimately discuss the button this file no longer renders. */
+const chipsRowCode = CHIPS_ROW_SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\w])\/\/[^\n]*/g, "$1");
+
+test("the SERP mounts exactly one control that opens the filter panel", () => {
+    const doors = (JOBS_PAGE_SRC.match(/data-testid="filters-toggle"/g) ?? []).length;
+    assert.equal(doors, 1, "two controls opening the same panel is the duplication this guards");
+});
+
+test("the filter panel is still reachable — the guard above must not pass by deleting every door", () => {
+    // A probe for absence proves nothing until presence is proven too: zero
+    // doors would fail the count above, but a door wired to nothing would not.
+    assert.match(JOBS_PAGE_SRC, /onClick=\{\(\) => setFiltersOpen\(/);
+    assert.match(JOBS_PAGE_SRC, /<Sheet open=\{filtersOpen\} onOpenChange=\{setFiltersOpen\}>/);
+});
+
+test("the quick-filter row cannot open the panel at all", () => {
+    assert.doesNotMatch(chipsRowCode, /onOpenSheet|onOpen[A-Z]/, "no panel-opening prop may return to this row");
+    assert.doesNotMatch(chipsRowCode, /\bFilters\b/, "no control here may be labelled Filters");
+    // It is still a quick-filter row, not an empty div.
+    assert.match(chipsRowCode, /aria-label="Quick filters"/);
 });

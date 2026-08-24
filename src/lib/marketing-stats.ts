@@ -1,4 +1,4 @@
-import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { type CorpusCount } from "@/lib/jobs/corpus-count";
 
 /**
  * The honest-market claim's factual core — source provenance + ghost
@@ -23,19 +23,18 @@ export interface MarketingCorpusStats {
 }
 
 /**
- * Build the landing page's honest-market claim sentence. Renders the live
- * corpus count when it's known; otherwise degrades to the same claim without
- * a number — never a stale or fabricated placeholder count (see
- * `getMarketingStatsAction`, which returns `null` on the same conditions
- * `fetchMarketTrends` itself degrades on).
+ * The landing masthead's honest-market claim. Provenance only — it states
+ * WHERE the roles come from and never HOW MANY.
+ *
+ * It used to open with the live count. Once the count moved to its own linked
+ * line directly above the search box (2026-08-24, Vivek), the same figure was
+ * on screen twice about 90px apart, and the two could disagree the moment one
+ * of them was fetched and the other wasn't. The count belongs to the count
+ * line, which links to /trends and degrades to absent when unknown; this
+ * sentence carries the part the count can't say. A constant, not a function of
+ * stats, so the duplication cannot be reintroduced by passing an argument.
  */
-export function marketingClaim(stats: MarketingCorpusStats | null): string {
-    if (!stats) {
-        return `Every live role is ${CORPUS_SOURCE_DESCRIPTOR}.`;
-    }
-    const n = formatCorpusCount(stats.liveJobs);
-    return `${n} live roles ${CORPUS_SOURCE_DESCRIPTOR}.`;
-}
+export const LANDING_PROVENANCE_LINE = `Every live role is ${CORPUS_SOURCE_DESCRIPTOR}.`;
 
 /** Site footer's one-line provenance claim — same fact as the landing claim,
  *  one source. The old footer sentence ended "…Same market your agent sees
