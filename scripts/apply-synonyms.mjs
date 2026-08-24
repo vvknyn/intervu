@@ -31,9 +31,11 @@ if (!HOST || !KEY) {
   process.exit(1);
 }
 
-// Inline copy of JOBS_SYNONYMS (this is an .mjs script; it can't import the .ts
-// module). MUST match src/lib/jobs/meilisearch.ts JOBS_SYNONYMS — that export
-// is the source of truth; update both together.
+// Inline copy of the DERIVED JOBS_SYNONYMS (this is an .mjs script; it can't
+// import the .ts module). This is `deriveSynonyms(JOBS_SYNONYM_SOURCE)`'s
+// output, not the source table — src/lib/jobs/meilisearch.ts is the source
+// of truth; regenerate this block from it whenever JOBS_SYNONYM_SOURCE
+// changes (`npx tsx -e 'import {JOBS_SYNONYMS} from "./src/lib/jobs/meilisearch"; console.log(JSON.stringify(JOBS_SYNONYMS))'`).
 const JOBS_SYNONYMS = {
   swe: ["software engineer"],
   "software engineer": ["swe"],
@@ -45,9 +47,13 @@ const JOBS_SYNONYMS = {
   ml: ["machine learning"],
   "machine learning": ["ml"],
   ux: ["user experience"],
+  "user experience": ["ux"],
   qa: ["quality assurance"],
+  "quality assurance": ["qa"],
   hr: ["human resources"],
+  "human resources": ["hr"],
   devops: ["dev ops"],
+  "dev ops": ["devops"],
 };
 
 const rollback = process.argv.includes("--rollback");
