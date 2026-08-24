@@ -72,6 +72,12 @@ export function deriveSynonyms(
  * PUT — no reindex cost); ⚠ the box-side sync worker holds its own settings
  * copy, so a box reprovision can wipe these — reconcile there when S1 ships
  * (spec §9).
+ *
+ * Reverse hops (ux/qa/hr/devops) are inert alone as of 2026-08-24 — live
+ * probe: "user experience" (3,733 matches) and "quality assurance" (27,917)
+ * returned zero titles lacking the literal phrase, since exact matches
+ * outrank synonym expansions. Kept because `distinct: "title"` on the
+ * suggest path (PR #296) forces a distinct top-20, giving expansions a shot.
  */
 export const JOBS_SYNONYMS: Record<string, string[]> = deriveSynonyms(JOBS_SYNONYM_SOURCE);
 
