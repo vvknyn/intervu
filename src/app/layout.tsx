@@ -21,6 +21,7 @@ import {
 } from "@/lib/seo/jsonld";
 import { Toaster } from "@/lib/toast";
 import { CursorFabricBackground } from "@/components/ui/CursorFabricBackground";
+import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -175,6 +176,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
         />
+        <AuthKitProvider>
         <PostHogProvider>
           <ThemeProvider>
             <CursorFabricBackground />
@@ -194,6 +196,7 @@ export default function RootLayout({
             </TourProvider>
           </ThemeProvider>
         </PostHogProvider>
+        </AuthKitProvider>
       </body>
     </html>
   );
