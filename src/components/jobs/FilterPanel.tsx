@@ -10,6 +10,7 @@ import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { GHOST_META } from "@/lib/jobs/presentation";
+import { capitalizeWords } from "@/lib/text-case";
 
 /**
  * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
@@ -177,7 +178,7 @@ export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
 
 /** Human-friendly label for a facet value (shared with the active-filter chips). */
 export function facetValueLabel(key: FacetKey, v: string): string {
-    return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    return VALUE_LABELS[key]?.[v] ?? capitalizeWords(v.replace(/[_-]/g, " "));
 }
 
 /** What to call a facet KEY in a chip that has to say which filter it is
@@ -197,7 +198,7 @@ const KEY_LABELS: Partial<Record<FacetKey, string>> = {
 export function facetKeyLabel(key: FacetKey): string {
     return (
         KEY_LABELS[key] ??
-        key.replace(/^location_/, "").replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        capitalizeWords(key.replace(/^location_/, "").replace(/[_-]/g, " "))
     );
 }
 
