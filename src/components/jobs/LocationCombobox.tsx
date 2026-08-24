@@ -6,7 +6,7 @@ import { Check } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
 import { isLocationSelected } from "@/lib/jobs/location-suggest";
 import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
-import type { LocationSuggestGroup, LocationSuggestion } from "@/lib/jobs/location-suggest";
+import type { LocationSuggestGroup, LocationSuggestion, SuggestField } from "@/lib/jobs/location-suggest";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,9 +39,11 @@ interface LocationComboboxProps {
     /** The in-progress text. Committed places live in `selected`, not here. */
     value: string;
     onChange: (value: string) => void;
-    /** Add a place to the filter. Passed the corpus's own spelling when a
-     *  suggestion is picked, or the raw text on a free-text Enter. */
-    onCommit: (value: string) => void;
+    /** Commit a value to the filter. Passed the corpus's own spelling when a
+     *  suggestion is picked (with the facet it targets — omitted, meaning
+     *  `location_country`, on a free-text Enter/blur, since raw text is
+     *  never known to be anything else). */
+    onCommit: (value: string, field?: SuggestField) => void;
     /** Already-filtered places, so their rows can render as chosen rather
      *  than inviting a second, no-op click. */
     selected: readonly string[];
@@ -103,8 +105,8 @@ export function LocationCombobox({
     }, [value]);
 
     const commit = useCallback(
-        (next: string) => {
-            onCommit(next);
+        (next: string, field?: SuggestField) => {
+            onCommit(next, field);
             onChange("");
             setGroups([]);
             setActiveIndex(-1);
@@ -143,7 +145,7 @@ export function LocationCombobox({
             // dropdown to it.
             const picked = activeIndex >= 0 ? items[activeIndex] : undefined;
             const next = picked ? picked.label : value.trim();
-            if (next) commit(next);
+            if (next) commit(next, picked?.field);
         }
     };
 
@@ -216,7 +218,7 @@ export function LocationCombobox({
                                                 )}
                                                 onMouseEnter={() => setActiveIndex(index)}
                                                 onMouseDown={(e) => e.preventDefault()}
-                                                onClick={() => commit(item.label)}
+                                                onClick={() => commit(item.label, item.field)}
                                             >
                                                 {/* `highlightMatch` compares case-insensitively but
                                                     NOT accent-insensitively, so typing "montreal"

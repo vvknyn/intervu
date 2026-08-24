@@ -115,7 +115,7 @@ import {
 import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
 import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
 import { LocationCombobox } from "@/components/jobs/LocationCombobox";
-import { addLocationValue } from "@/lib/jobs/location-suggest";
+import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
@@ -2885,9 +2885,22 @@ function JobsContent() {
      * which is one parameter carrying two meanings — harmless while setting
      * replaced, actively wrong once it appends.
      */
-    const addLocation = useCallback((value: string) => {
+    const addLocation = useCallback((value: string, field?: SuggestField) => {
         const trimmed = value.trim();
         if (!trimmed) return;
+        if (field === "work_type") {
+            // The bare-work-mode suggestion ("Remote — anywhere") targets the
+            // GLOBAL work_type facet directly, not a place — see
+            // `planLocationQuery`'s `workModeOnly` branch. Add-only, matching
+            // this function's own idempotent semantics for places: a second
+            // click on an already-active mode is a no-op, never a removal
+            // (unlike `toggleFacetValue`, which the Work-mode checkbox uses).
+            const current = filterState.facets.work_type ?? [];
+            const next = [...new Set([...current, ...parseWorkTypeTokens(trimmed).workTypes])];
+            if (next.length === current.length) return;
+            applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: next } });
+            return;
+        }
         const current = filterState.facets.location_country ?? [];
         const next = addLocationValue(current, trimmed);
         if (next === current) return; // already filtered on this place
