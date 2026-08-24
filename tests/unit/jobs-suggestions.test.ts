@@ -130,3 +130,13 @@ test("buildSuggestBody scopes matching to title+company and uses `limit`, never 
     });
     assert.ok(!("hitsPerPage" in body), "hitsPerPage forces exhaustive-count pagination — must not reappear");
 });
+
+// The short-token prefix-explosion fix (`quoteShortTokens`, meilisearch.ts)
+// applies ONLY to `buildSearchBody` (a submitted search) — never here. A
+// user still typing "produc" needs prefix matching to keep suggesting
+// "Product Manager"; phrase-quoting a mid-word typeahead token would break
+// autocomplete outright.
+test("buildSuggestBody never quotes short tokens — typeahead keeps prefix matching", () => {
+    const body = buildSuggestBody("tam");
+    assert.equal(body.q, "tam");
+});
