@@ -13,6 +13,7 @@
  * honest answer to "is it worth filtering here".
  */
 import { foldForMatch } from "@/lib/geo/corpus-values";
+import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import type { LocationField } from "@/lib/geo/resolve-place";
 import type { FacetHit } from "@/lib/geo/corpus-values";
 
@@ -54,6 +55,82 @@ export const LOCATION_SUGGEST_FIELDS: { field: LocationField; heading: string }[
     { field: "location_state", heading: "States & regions" },
     { field: "location_country", heading: "Countries" },
 ];
+
+/**
+ * How a typed location query splits into a facet search plus an optional
+ * work-mode qualifier.
+ *
+ * Someone typing "remote can" means remote roles in Canada. The corpus cannot
+ * answer that as a place name, so the literal string only matches junk that
+ * employers typed into their own location field — measured on the live index
+ * 2026-08-24, "remote can" offered "Remote – Canada & United States" with a
+ * count of ONE, while remote-in-Canada is 6,097. The searcher is handed a
+ * plausible row that returns nothing and concludes search is broken.
+ *
+ * So the work-mode words are split off and become a FILTER on the facet
+ * search, exactly as `resolveLocationFacet` already splits them off when the
+ * value is committed — the same `parseWorkTypeTokens` on both sides, so what
+ * the dropdown offers and what the filter then does cannot drift.
+ *
+ * Two consequences worth stating:
+ *  - The count stays honest. Meili's facet-search accepts a filter, so the
+ *    number shown is the true intersection (Canada 63,936 unfiltered ->
+ *    6,097 remote), not the place's total. This list's count is the whole
+ *    reason to open it; a place total beside a work-mode label would promise
+ *    a result set the search then would not return.
+ *  - `labelPrefix` rides on the suggestion's `label`, which is BOTH what the
+ *    searcher sees and what gets committed. So selecting the row commits
+ *    "Remote Canada", which round-trips back through the same parser into a
+ *    Canada place clause carrying work_type "remote". No new field, and no
+ *    second code path for the picker versus typing it by hand.
+ *
+ * A bare work mode with no place after it ("remote") deliberately keeps the
+ * old behaviour: what to rank in that case is a product question, and the
+ * toolbar already has a global Work mode control for it.
+ */
+export interface LocationQueryPlan {
+    /** What to facet-search for — the place words only. */
+    facetQuery: string;
+    /** Meili filter binding the typed work modes, or undefined when none. */
+    filter?: string;
+    /** Prefixed onto every suggestion label so choosing one commits the mode. */
+    labelPrefix: string;
+}
+
+export function planLocationQuery(raw: string): LocationQueryPlan {
+    const { residualQ, workTypes } = parseWorkTypeTokens(raw);
+    if (workTypes.length === 0 || !residualQ) {
+        return { facetQuery: raw.trim(), labelPrefix: "" };
+    }
+    return {
+        facetQuery: residualQ,
+        // Same shape as the committed-clause filter in meilisearch.ts, so the
+        // preview and the search agree by construction.
+        filter: "(" + workTypes.map((v) => `work_type = ${JSON.stringify(v)}`).join(" OR ") + ")",
+        labelPrefix: workTypes.map((v) => v.charAt(0).toUpperCase() + v.slice(1)).join(" ") + " ",
+    };
+}
+
+/** Apply a plan's work-mode prefix to already-built groups. Separate from
+ *  `buildLocationSuggestions` because merging spellings and labelling a mode
+ *  are different jobs, and only one of them depends on what was typed. */
+export function applyLabelPrefix(
+    groups: LocationSuggestGroup[],
+    labelPrefix: string,
+): LocationSuggestGroup[] {
+    if (!labelPrefix) return groups;
+    return groups.map((g) => ({
+        ...g,
+        items: g.items.map((item) => ({
+            ...item,
+            // The key carries the prefix too: "Canada" and "Remote Canada" are
+            // different choices and must not collide as React keys or in the
+            // already-chosen check.
+            key: `${labelPrefix}${item.key}`,
+            label: `${labelPrefix}${item.label}`,
+        })),
+    }));
+}
 
 /** Per-field cap. Small on purpose: a picker is for choosing, not browsing. */
 export const LOCATION_SUGGEST_PER_FIELD = 5;
