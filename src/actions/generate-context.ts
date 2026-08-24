@@ -7,6 +7,7 @@ import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/cred
 import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
+import { FREE_LADDER } from "@/lib/llm/models";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
 import { planHasSessionQuestions } from "@/lib/prep/cache-key";
 import { resolveCacheLookup } from "@/lib/interview-cache";
@@ -132,12 +133,6 @@ export const fetchJSON = async (
     prompt: string,
     label: string,
     configOverride?: Partial<ProviderConfig>,
-    /**
-     * Optional free-first model ladder (see lib/llm/model-ladder.ts). Opt-in:
-     * omit it and this behaves exactly as before, on one model. Only résumé
-     * parsing passes one today.
-     */
-    modelLadder?: readonly string[],
 ) => {
     // Resolved ONCE and reused. `getConfig` hits the auth session, so
     // re-resolving per attempt cost a round-trip per retry — and a ladder needs
@@ -152,14 +147,12 @@ export const fetchJSON = async (
     // credit per rung, so a single upload could cost three.
     await chargeIfSharedKey(baseConfig);
 
-    // Résumé parse passes a ladder even when configOverride.model is set (an
-    // explicit model picks a paid tail, not "skip the free rungs"). Only Groq
-    // skips — handled inside resolveModelLadder by provider !== openrouter.
-    const rungs = resolveModelLadder(
-        baseConfig,
-        modelLadder,
-        Boolean(configOverride?.model) && !modelLadder?.length,
-    );
+    // Every generation walks the free rungs first (see FREE_LADDER) — this is
+    // the seam that makes that true for all ~15 entry points above rather than
+    // for whichever ones remembered to opt in. Two callers still skip them: one
+    // that named its own model (the override picks THE model, not a starting
+    // point) and Groq, handled inside resolveModelLadder by provider check.
+    const rungs = resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model));
 
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
@@ -666,12 +659,9 @@ export async function generateCodeFeedback(code: string, problem: string): Promi
 export async function generateGenericJSON(
     prompt: string,
     configOverride?: Partial<ProviderConfig>,
-    /** Free-first rungs to try before the resolved model. Opt-in — omitting it
-     *  is today's behaviour exactly. See lib/llm/model-ladder.ts. */
-    modelLadder?: readonly string[],
 ): Promise<any> {
     try {
-        return await fetchJSON(prompt, "Generic JSON", configOverride, modelLadder);
+        return await fetchJSON(prompt, "Generic JSON", configOverride);
     } catch (e: any) {
         console.error("Generic JSON Error:", e);
         // Propagate the error message so callers can display it to the user
@@ -683,14 +673,32 @@ export async function generateGenericJSON(
 export async function generateGenericText(prompt: string, configOverride?: Partial<ProviderConfig>): Promise<string> {
     try {
         const config = await getConfig(configOverride);
+        // Charged ONCE, above the walk — same ordering as fetchJSON and for the
+        // same reason: charging per rung would bill three credits for one answer.
         await chargeIfSharedKey(config);
-        const provider = ProviderFactory.getProvider(config.provider, config.apiKey, config.model);
 
-        const response = await provider.generate({
-            prompt: prompt
-        });
+        // The app's OTHER generation path. It never went through fetchJSON, so
+        // it had no ladder, no per-attempt timeout and no fallthrough at all —
+        // "every call is laddered" is only true if this one is too.
+        const rungs = resolveModelLadder(config, FREE_LADDER, Boolean(configOverride?.model));
+        const response = await runLadder(
+            rungs,
+            async (rung) => {
+                const provider = ProviderFactory.getProvider(config.provider, config.apiKey, rung.model);
+                const r = await provider.generate({ prompt, timeoutMs: rung.timeoutMs });
+                // An in-band error means this rung did NOT answer. Throwing is
+                // what advances the walk; returning it would strand the caller
+                // on a free rung's failure with paid rungs left untried.
+                if (r.error) throw new Error(r.error);
+                return r;
+            },
+            (rung, error) =>
+                console.warn(
+                    `[DEBUG] Generic Text: rung ${rung.model} failed, falling through —`,
+                    error instanceof Error ? error.message : error,
+                ),
+        );
 
-        if (response.error) throw new Error(response.error);
         return response.text || "Error generating text.";
     } catch (e: any) {
         console.error("Generic Text Error:", e);
