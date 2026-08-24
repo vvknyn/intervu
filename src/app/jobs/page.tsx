@@ -3975,8 +3975,14 @@ function JobsContent() {
                         onSelectBoard={onBoardChange}
                     />
                 )}
+                {/* `pt-10`, not the old `pt-2`: the search shell above casts a
+                    44px `glass-panel-raised` drop shadow, so 8px of padding put
+                    this heading inside the shadow's tail and read as cramped.
+                    The mobile path already clears it — USP is the last child of
+                    a `space-y-8` in `LandingMarketingShowcase` — so this only
+                    brings desktop up to the spacing mobile always had. */}
                 {showLandingMarketing && isLgUp && (
-                    <div className="py-2">
+                    <div className="pt-10 pb-2">
                         <LandingUspSection />
                     </div>
                 )}
