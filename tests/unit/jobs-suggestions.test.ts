@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSuggestBody, dedupeJobSuggestionHits, stripGenderSuffixArtifact } from "../../src/lib/jobs/meilisearch";
+import {
+    buildSuggestBody,
+    dedupeJobSuggestionHits,
+    JOBS_INDEX_SETTINGS,
+    stripGenderSuffixArtifact,
+} from "../../src/lib/jobs/meilisearch";
 
 test("dedupeJobSuggestionHits dedupes titles case-insensitively, capped at 5, first casing wins", () => {
     const hits = [
@@ -127,6 +132,7 @@ test("buildSuggestBody scopes matching to title+company and uses `limit`, never 
         limit: 20,
         attributesToSearchOn: ["title", "company"],
         attributesToRetrieve: ["title", "company", "company_domain"],
+        distinct: "title",
     });
     assert.ok(!("hitsPerPage" in body), "hitsPerPage forces exhaustive-count pagination — must not reappear");
 });
@@ -139,4 +145,38 @@ test("buildSuggestBody scopes matching to title+company and uses `limit`, never 
 test("buildSuggestBody never quotes short tokens — typeahead keeps prefix matching", () => {
     const body = buildSuggestBody("tam");
     assert.equal(body.q, "tam");
+});
+
+// 2026-08-24: `manager`/`nurse`/`software engineer` — common exact job
+// titles — collapsed the typeahead to ONE suggestion, because every one of
+// Meili's top hits was a different document with the identical title (the
+// query's unit is documents, not distinct titles). Fix is `distinct:
+// "title"` on the suggest body. Covers the collapsing case AND a
+// non-collapsing one AND an odd query — `distinct` must be unconditional,
+// never special-cased per query string, or a future edit could silently
+// scope it to just the reported instance.
+for (const q of ["manager", "user experience", "  ", ""]) {
+    test(`buildSuggestBody(${JSON.stringify(q)}) always sets distinct: "title" alongside the existing shape`, () => {
+        const body = buildSuggestBody(q);
+        assert.equal(body.distinct, "title");
+        assert.equal(body.limit, 20);
+        assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+        assert.deepEqual(body.attributesToRetrieve, ["title", "company", "company_domain"]);
+    });
+}
+
+// The generic guard: this is the SECOND dependency of the "code declares a
+// setting the live index doesn't carry" shape (`id` in filterableAttributes
+// 400'd for six days before the index caught up — see the comment above
+// `"id"` in JOBS_INDEX_SETTINGS). Asserts the INVARIANT — whatever
+// `buildSuggestBody` sets as `distinct` must be a filterable attribute — not
+// the instance, so a future change to either side that breaks the pairing
+// fails this test instead of shipping a live 400.
+test("buildSuggestBody's distinct attribute is declared filterable in JOBS_INDEX_SETTINGS", () => {
+    const { distinct } = buildSuggestBody("engineer");
+    assert.ok(distinct, "buildSuggestBody must set a distinct attribute");
+    assert.ok(
+        JOBS_INDEX_SETTINGS.filterableAttributes.includes(distinct as string),
+        `distinct attribute "${distinct}" must be a member of JOBS_INDEX_SETTINGS.filterableAttributes or Meili 400s the suggest query`,
+    );
 });
