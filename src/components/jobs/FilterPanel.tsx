@@ -6,6 +6,7 @@
  * needs exactly one home.
  */
 import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/facets";
+import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { GHOST_META } from "@/lib/jobs/presentation";
@@ -234,6 +235,18 @@ export interface FilterState {
     postedBucket: PostedBucket | undefined;
     /** First-screen default true (hide `likely_ghost` postings) — mirrors the URL's `ghosts` param. */
     hideGhosts: boolean;
+    /**
+     * Curated-board scope (`?board=elite`). It narrows results HARDER than any
+     * facet — an editorial allowlist of a few hundred domains out of the whole
+     * corpus — so it lives here, in the one collection that means "everything
+     * currently narrowing this search", rather than beside it. Kept outside,
+     * it was a filter no chip could name and no clear could reach: it survived
+     * every new query and silently capped results, on one device only (it is
+     * URL state), which is exactly how it read as "search is broken".
+     */
+    board: BoardId | null;
+    /** Single-employer scope (`?company=…`). Same shape, same reason as `board`. */
+    companyDomain: string | null;
 }
 
 /**
@@ -251,6 +264,8 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     visaOnly: false,
     postedBucket: "30d",
     hideGhosts: true,
+    board: null,
+    companyDomain: null,
 };
 
 /**
@@ -292,6 +307,27 @@ export function activeFilterEntries(
     opts?: { includeQuietDefaults?: boolean },
 ): { key: string; label: string; clear: (s: FilterState) => FilterState }[] {
     const entries: { key: string; label: string; clear: (s: FilterState) => FilterState }[] = [];
+
+    // Scope first: it narrows the corpus itself, so it reads ahead of every
+    // facet in the chip row. It is an entry at all for one reason — a filter
+    // the searcher cannot see is a filter they cannot escape.
+    if (state.board) {
+        entries.push({
+            key: "board",
+            label: BOARD_META[state.board].label,
+            clear: (s) => ({ ...s, board: null }),
+        });
+    }
+
+    // `companyDomain` deliberately emits NO entry, despite being a first-class
+    // member of `FilterState` alongside `board`. The SERP already renders a
+    // dedicated employer token for it ("employer · acme.com ✕",
+    // `data-testid="company-scope-chip"`, page.tsx) — richer than a generic
+    // chip and mounted where a link-arrived scope belongs. Emitting one here
+    // would put TWO removable chips on screen for ONE scope, which is the
+    // duplicate-affordance regression this file has already been cleaned of
+    // once (ITEM S, 2026-08-15). Membership in `FilterState` is what it needs:
+    // that is what puts it inside "clear all" and "clear search".
 
     for (const key of FACETABLE_KEYS) {
         for (const v of state.facets[key] ?? []) {
