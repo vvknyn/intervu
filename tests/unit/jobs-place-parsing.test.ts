@@ -401,11 +401,24 @@ test("F1: 'hybrid' in the location box also routes to work_type", async () => {
   assert.deepEqual(p.facets?.work_type, ["hybrid"]);
 });
 
-test("F1: mixed 'remote canada' -> work_type AND a Canada place clause", async () => {
+test("F1: mixed 'remote canada' -> a Canada place clause carrying the work mode", async () => {
+  // The work mode used to land in a GLOBAL `work_type` facet. It now binds
+  // to the clause for the place it was typed with. For a single phrase the
+  // two are the same set — `(remote) AND (Canada)` vs `((Canada) AND
+  // (remote))` — so this is a change of representation, not of results;
+  // what it buys is the two-place case, where a global facet cannot say
+  // "remote in Canada, hybrid in Toronto" at all.
   const p = await resolveLocationFacet({ facets: { location_country: ["remote canada"] } }, VOCAB);
-  assert.deepEqual(p.facets?.work_type, ["remote"]);
-  assert.deepEqual(p.places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+  assert.deepEqual(p.places, [
+    { any: [{ field: "location_country", value: "Canada" }], workTypes: ["remote"] },
+  ]);
+  assert.equal(p.facets?.work_type, undefined, "bound, so nothing pools globally");
   assert.equal(p.facets?.location_country, undefined);
+
+  // Equivalence guard: both constraints still reach the rendered filter.
+  const clause = buildFilter(p).find((f) => f.includes("location_country"))!;
+  assert.ok(clause.includes('location_country = "Canada"'), clause);
+  assert.ok(clause.includes('work_type = "remote"'), clause);
 });
 
 test("F1 class case: plain 'canada' (no work-mode term) is untouched by the work-mode path", async () => {
@@ -552,4 +565,109 @@ test("S1 REGRESSION (live-discovered): Meilisearch's own stop-words list ('in','
   assert.equal(p.q, "warehouse jobs in");
   assert.equal(p.places?.length, 1);
   assert.deepEqual(p.places![0].any, [{ field: "location_city", value: "Dallas" }]);
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Multi-place filtering, and work modes bound to the place they were typed
+ * with. Reported as two gaps in the same journey: "there is no way to do
+ * multiple location searches like (Canada and remote) and (US & hybrid)".
+ * ──────────────────────────────────────────────────────────────────────── */
+
+test("several chosen places OR together — the list has always been supported end to end", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["toronto", "canada"] } },
+    VOCAB,
+  );
+  assert.equal(p.places?.length, 2, "each chosen place resolves to its own clause");
+  // The exact facet is consumed — leaving it would AND a raw string against
+  // the resolved clauses and match nothing.
+  assert.equal(p.facets?.location_country, undefined);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some((f) => f.includes('location_city = "Toronto"') && f.includes('location_country = "Canada"') && f.includes(" OR ")),
+    `both places must appear in ONE OR group: ${JSON.stringify(filter)}`,
+  );
+});
+
+test("a work mode typed with a place binds to THAT place, not to the whole query", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["remote canada", "hybrid toronto"] } },
+    VOCAB,
+  );
+  assert.equal(p.places?.length, 2);
+
+  const canada = p.places!.find((c) => c.any.some((a) => a.value === "Canada"))!;
+  const toronto = p.places!.find((c) => c.any.some((a) => a.value === "Toronto"))!;
+  assert.deepEqual(canada.workTypes, ["remote"]);
+  assert.deepEqual(toronto.workTypes, ["hybrid"]);
+
+  // The whole point: NO global work_type facet, because a global one would
+  // read (remote OR hybrid) AND (Canada OR Toronto) and hand back remote
+  // Toronto roles that were never asked for.
+  assert.equal(p.facets?.work_type, undefined, "work modes must not pool into a global facet");
+});
+
+test("the bound work mode reaches the rendered filter, AND-ed inside its own place clause", async () => {
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["remote canada", "hybrid toronto"] } },
+    VOCAB,
+  );
+  const places = buildFilter(p).find((f) => f.includes("location_country"))!;
+  assert.ok(places.includes('work_type = "remote"'), places);
+  assert.ok(places.includes('work_type = "hybrid"'), places);
+  // Each mode sits inside the clause for its own place: the substring from
+  // Canada to the next clause boundary must carry "remote" and not "hybrid".
+  const canadaFirst = places.indexOf('location_country = "Canada"');
+  const torontoAt = places.indexOf('location_city = "Toronto"');
+  const [lo, hi] = canadaFirst < torontoAt ? [canadaFirst, torontoAt] : [torontoAt, canadaFirst];
+  const firstClause = places.slice(lo, hi);
+  const firstMode = canadaFirst < torontoAt ? "remote" : "hybrid";
+  assert.ok(firstClause.includes(`work_type = "${firstMode}"`), `first clause should carry only its own mode: ${firstClause}`);
+});
+
+test("a SINGLE place with a work mode is unchanged in meaning — the one-location case still works", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["remote canada"] } }, VOCAB);
+  assert.equal(p.places?.length, 1);
+  assert.deepEqual(p.places![0].workTypes, ["remote"]);
+  // (place AND remote) and (remote) AND (place) are the same set; binding it
+  // is what makes the two-place case expressible without changing this one.
+  const filter = buildFilter(p);
+  const clause = filter.find((f) => f.includes("location_country"))!;
+  assert.ok(clause.includes('work_type = "remote"'), clause);
+});
+
+test("a work mode with no place of its own stays global — nothing to bind it to", async () => {
+  const p = await resolveLocationFacet({ facets: { location_country: ["remote"] } }, VOCAB);
+  assert.equal(p.places, undefined, "pure work-mode text filters no place");
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+});
+
+test("place text that does not resolve leaves its work mode global rather than dropping it", async () => {
+  // "lisbon" is in the fixture gazetteer but never validated by the fixture
+  // corpus, so it resolves to nothing. The mode we DID understand must
+  // still apply.
+  const p = await resolveLocationFacet({ facets: { location_country: ["remote lisbon"] } }, VOCAB);
+  assert.deepEqual(p.facets?.work_type, ["remote"]);
+});
+
+test("the Work-mode dropdown's own selection stays global alongside a bound one", async () => {
+  // Different questions: "remote anywhere" (dropdown) vs "hybrid in
+  // Toronto" (typed). Both remain askable, and both apply.
+  const p = await resolveLocationFacet(
+    { facets: { location_country: ["hybrid toronto"], work_type: ["remote"] } },
+    VOCAB,
+  );
+  assert.deepEqual(p.facets?.work_type, ["remote"], "the dropdown's choice is untouched");
+  assert.deepEqual(p.places![0].workTypes, ["hybrid"]);
+});
+
+test("a clause with no work mode renders exactly the string it always did", async () => {
+  // Guards the renderer's shape change: the multi-part parenthesised form is
+  // reserved for clauses that actually have extra parts.
+  const p = await resolveLocationFacet({ facets: { location_country: ["canada"] } }, VOCAB);
+  const filter = buildFilter(p);
+  assert.ok(
+    filter.some((f) => f === '((location_country = "Canada"))'),
+    `unchanged single-group rendering expected: ${JSON.stringify(filter)}`,
+  );
 });

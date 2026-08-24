@@ -5,6 +5,7 @@ import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
+import { capitalizeWords } from "@/lib/text-case";
 
 /**
  * Pure presentation helpers for a job posting — the vocabulary the ledger row
@@ -167,7 +168,7 @@ export function titleCaseDisplay(value: string): string {
 
 export function prettyEnum(s: string | null | undefined): string {
     if (!s || s === "unknown") return "";
-    return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    return capitalizeWords(s.replace(/_/g, " "));
 }
 
 /** Decode URL-encoded source data (e.g. "Wisdom%20AI" → "Wisdom AI") safely. */

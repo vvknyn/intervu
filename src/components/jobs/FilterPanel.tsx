@@ -10,6 +10,7 @@ import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { GHOST_META } from "@/lib/jobs/presentation";
+import { capitalizeWords } from "@/lib/text-case";
 
 /**
  * `ghost_badge`'s labels are DERIVED from `GHOST_META`, never restated here.
@@ -138,7 +139,14 @@ export function applyLocationSheetDraft(
  * unaffected — this only removes the passive, undisclosed prefill.
  */
 export function locationTriggerLabel(state: FilterState): string {
-    return state.facets.location_country?.[0]?.trim() || "City, state, or remote";
+    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+    if (values.length === 0) return "City, state, or remote";
+    if (values.length === 1) return values[0]!;
+    // A trigger is one line of a narrow control, so past the first place it
+    // reports a COUNT rather than truncating a list — "Montréal +2" says how
+    // much is hidden, where "Montréal, Toron…" only says that something is.
+    // The chips row below spells all of them out and can remove any one.
+    return `${values[0]} +${values.length - 1}`;
 }
 
 /** Static facet option ladders — always shown in SerpFilters even when the
@@ -177,7 +185,7 @@ export function isNoiseFacetValue(key: FacetKey, value: string): boolean {
 
 /** Human-friendly label for a facet value (shared with the active-filter chips). */
 export function facetValueLabel(key: FacetKey, v: string): string {
-    return VALUE_LABELS[key]?.[v] ?? v.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    return VALUE_LABELS[key]?.[v] ?? capitalizeWords(v.replace(/[_-]/g, " "));
 }
 
 /** What to call a facet KEY in a chip that has to say which filter it is
@@ -197,7 +205,7 @@ const KEY_LABELS: Partial<Record<FacetKey, string>> = {
 export function facetKeyLabel(key: FacetKey): string {
     return (
         KEY_LABELS[key] ??
-        key.replace(/^location_/, "").replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        capitalizeWords(key.replace(/^location_/, "").replace(/[_-]/g, " "))
     );
 }
 

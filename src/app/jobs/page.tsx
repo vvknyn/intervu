@@ -113,6 +113,8 @@ import {
 } from "@/components/jobs/FilterPanel";
 import { FilterChipsRow, pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
 import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { LocationCombobox } from "@/components/jobs/LocationCombobox";
+import { addLocationValue } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
@@ -1229,6 +1231,15 @@ function JobsContent() {
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
     const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain };
+    /**
+     * The places this search is filtered to. Read off `filterState` rather
+     * than mirrored into a second piece of state: the location box is an
+     * ENTRY field now, not the filter itself, so its text answers "what is
+     * being typed", never "what is being filtered on". Everything that needs
+     * the latter — the docked search chip, the saved-preference write, the
+     * applied-default disclosure — asks here.
+     */
+    const chosenLocations = filterState.facets.location_country ?? [];
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
     // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
@@ -1255,7 +1266,11 @@ function JobsContent() {
     // e.g. FilterChipsRow's own `lg:hidden`), inline exactly as before at
     // `lg` and up.
     const isLgUp = useMediaQuery("(min-width: 1024px)");
-    const [locationDraft, setLocationDraft] = useState(() => initialUrlState.facets.location_country?.[0] ?? "");
+    // Entry text only — deliberately NOT seeded from the URL's places. Landing
+    // on `?country=toronto,montreal` cannot be shown in one box, and showing
+    // just the first would under-report the filter that is actually running.
+    // The chips row renders every chosen place and can remove any one.
+    const [locationDraft, setLocationDraft] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
     const [mobileResultsEngaged, setMobileResultsEngaged] = useState(false);
     // Item 7a (2026-08-21 front-door audit): narrower and earlier than
@@ -1402,10 +1417,12 @@ function JobsContent() {
         }
         setDocked({
             label: query.trim() || "Search jobs",
-            place: locationDraft.trim() || undefined,
+            place: locationTriggerLabel(filterState) === "City, state, or remote"
+                ? undefined
+                : locationTriggerLabel(filterState),
             onExpand: expandSearch,
         });
-    }, [isLgUp, searchOutOfView, query, locationDraft, expandSearch, setDocked]);
+    }, [isLgUp, searchOutOfView, query, filterState, expandSearch, setDocked]);
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
@@ -1445,8 +1462,12 @@ function JobsContent() {
         if (user) {
             void saveAgentPreferencesAction({
                 search: {
+                    // The saved-preference model holds ONE location, so a
+                    // multi-place search saves its first. Joining them into a
+                    // single string would write a value place resolution has
+                    // never been asked to parse back.
                     query: q.trim() || undefined,
-                    location: locationDraft.trim() || undefined,
+                    location: chosenLocations[0]?.trim() || undefined,
                 },
             }).catch(() => {});
             // `accountEmailState === null` means the lookup hasn't answered
@@ -2792,9 +2813,9 @@ function JobsContent() {
         applyFilterState({ ...filterState, companyDomain: null });
     };
 
-    useEffect(() => {
-        setLocationDraft(filterState.facets.location_country?.[0] ?? "");
-    }, [filterState.facets.location_country]);
+    // (The effect that mirrored `facets.location_country[0]` back into the box
+    //  was removed with the multi-place control: it would re-fill the field
+    //  with the place just committed, so the next commit would add it twice.)
 
     // Sets every local FilterState field + pushes the matching URL replace in
     // one shot — the shared tail of both `clearAll` and a single chip's
@@ -2832,28 +2853,52 @@ function JobsContent() {
     );
 
     /**
-     * `value` overrides the draft for callers that are SETTING the location in
-     * the same tick they commit it — the field's own "✕ clear location" does
-     * `setLocationDraft("")` and then commits, and `locationDraft` in this
-     * closure is still the pre-clear string at that point, so committing the
-     * closed-over draft would re-apply the location the person just cleared.
-     * Blur and Enter pass nothing and keep reading the draft, as before.
+     * ADD a place to the filter, rather than replace the one already there.
+     *
+     * The corpus, the URL (`?country=a,b`) and place resolution have all
+     * carried a LIST the whole time — `resolveLocationFacet` walks every
+     * value and ORs the resolved clauses. Only this control collapsed it to
+     * one, which is why "Canada and remote" could not be asked for.
+     *
+     * Adding is folded-compared (`addLocationValue`), so committing
+     * "Montreal" when "Montréal" is already chosen is a no-op rather than a
+     * second filter for the same city.
+     *
+     * Split from `clearLocations` below on purpose: the old single entry
+     * point took `""` to mean "clear" and any other string to mean "set",
+     * which is one parameter carrying two meanings — harmless while setting
+     * replaced, actively wrong once it appends.
      */
-    const commitLocation = useCallback((value?: string) => {
-        const trimmed = (value ?? locationDraft).trim();
+    const addLocation = useCallback((value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        const current = filterState.facets.location_country ?? [];
+        const next = addLocationValue(current, trimmed);
+        if (next === current) return; // already filtered on this place
+        applyFilterStateWithIntent({
+            ...filterState,
+            facets: { ...filterState.facets, location_country: next },
+        });
+        if (user && query.trim()) {
+            void saveAgentPreferencesAction({
+                search: { query: query.trim(), location: next[0]?.trim() || undefined },
+            }).catch(() => {});
+        }
+    }, [filterState, user, query, applyFilterStateWithIntent]);
+
+    /** Drop every chosen place — what the field's own "✕ clear location"
+     *  means. Removing ONE place is the chips row's job, which already has a
+     *  ✕ per chip and needs no second affordance here. */
+    const clearLocations = useCallback(() => {
         const nextFacets = { ...filterState.facets };
-        if (trimmed) nextFacets.location_country = [trimmed];
-        else delete nextFacets.location_country;
+        delete nextFacets.location_country;
         applyFilterStateWithIntent({ ...filterState, facets: nextFacets });
         if (user && query.trim()) {
             void saveAgentPreferencesAction({
-                search: {
-                    query: query.trim(),
-                    location: trimmed || undefined,
-                },
+                search: { query: query.trim(), location: undefined },
             }).catch(() => {});
         }
-    }, [locationDraft, filterState, user, query, applyFilterStateWithIntent]);
+    }, [filterState, user, query, applyFilterStateWithIntent]);
 
     const handleLocationSheetContinue = useCallback(
         (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
@@ -2863,7 +2908,9 @@ function JobsContent() {
             const next = applyLocationSheetDraft(draft, filterState, remoteValue);
             const loc =
                 draft.useDetected ? "" : draft.showOther ? draft.otherText.trim() : draft.country ?? "";
-            setLocationDraft(loc);
+            // The sheet writes the FACET (via `applyLocationSheetDraft`); the
+            // entry box just goes back to empty rather than mirroring it.
+            setLocationDraft("");
             applyFilterStateWithIntent(next);
             setLocationSheetOpen(false);
             if (user && query.trim()) {
@@ -2942,7 +2989,9 @@ function JobsContent() {
             setQuery(q);
             setFacets(nextFacets);
             setSalaryMin(nextSalary);
-            setLocationDraft(loc);
+            // `nextFacets.location_country` above is what applies the saved
+            // place; the box is entry-only and stays empty.
+            setLocationDraft("");
             recordRecentSearch(q);
             setAgentPrefs((prev) => ({
                 configured: true,
@@ -4022,24 +4071,19 @@ function JobsContent() {
                                         {mobileLocationLabel}
                                     </span>
                                 </button>
-                                <Input
-                                    data-testid="location-input"
-                                    type="text"
-                                    placeholder="City, state, or remote"
+                                {/* Desktop only — below lg this field is replaced by
+                                    `location-picker-trigger` and its sheet. The
+                                    combobox owns its own dropdown, so the hiding
+                                    moves to its container: an absolutely-positioned
+                                    panel has to hang off the same box that is being
+                                    shown or hidden. */}
+                                <LocationCombobox
                                     value={locationDraft}
-                                    onChange={(e) => setLocationDraft(e.target.value)}
-                                    // Wrapped, not passed by reference: React hands
-                                    // `onBlur` the focus event, which would arrive as
-                                    // the new `value` override and commit "[object
-                                    // FocusEvent]" as a location.
-                                    onBlur={() => commitLocation()}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            commitLocation();
-                                        }
-                                    }}
-                                    className="hidden h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0 lg:flex sm:h-[56px] md:text-sm"
+                                    onChange={setLocationDraft}
+                                    onCommit={addLocation}
+                                    selected={chosenLocations}
+                                    containerClassName="hidden lg:flex"
+                                    className="h-11 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-base text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0 sm:h-[56px] md:text-sm"
                                 />
                                 {/* Location's own one-tap clear, matching the query
                                     field's `search-input-clear`. The toolbar's "✕ clear
@@ -4054,7 +4098,7 @@ function JobsContent() {
                                     `lg:flex` matches the input's own visibility: below
                                     lg this field is replaced by `location-picker-trigger`
                                     and its sheet, which carries its own clear. */}
-                                {locationDraft && (
+                                {(locationDraft || chosenLocations.length > 0) && (
                                     <button
                                         type="button"
                                         data-testid="location-input-clear"
@@ -4063,7 +4107,7 @@ function JobsContent() {
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => {
                                             setLocationDraft("");
-                                            commitLocation("");
+                                            clearLocations();
                                         }}
                                         className="mr-2 hidden h-6 w-6 shrink-0 items-center justify-center rounded-none glass-tint-muted text-xs text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
@@ -4274,7 +4318,7 @@ function JobsContent() {
                             around it. Same component/props, same `flex-wrap` row, so
                             it wraps below on narrow widths like every other chip here
                             instead of overflowing. */}
-                        {shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft) && (
+                        {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
                             <DefaultLocationChip iso2={result!.defaultedLocation!} onClear={suppressLocationDefault} />
                         )}
                         {fitActive && (
@@ -4769,7 +4813,7 @@ function JobsContent() {
                                     // doc comment) — reused, not a second source for "was a geo
                                     // default applied."
                                     locationDefault={
-                                        shouldShowLocationDefaultChip(result?.defaultedLocation, locationDraft)
+                                        shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations)
                                             ? { label: `near ${regionDisplayName(result!.defaultedLocation!)}`, onClear: suppressLocationDefault }
                                             : undefined
                                     }
