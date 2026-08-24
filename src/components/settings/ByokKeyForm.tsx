@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CircleNotch, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { FieldRow } from "@/components/ui/field-row";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -199,7 +200,7 @@ export function ByokKeyForm({ className, onChanged }: ByokKeyFormProps) {
 
             <div className="space-y-2">
                 <Label htmlFor="byok-key">Paste your key</Label>
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <FieldRow>
                     <Input
                         id="byok-key"
                         type="password"
@@ -222,7 +223,7 @@ export function ByokKeyForm({ className, onChanged }: ByokKeyFormProps) {
                     >
                         {testing ? <CircleNotch size={16} className="animate-spin" /> : "Test"}
                     </Button>
-                </div>
+                </FieldRow>
                 <p className="text-xs text-muted-foreground">
                     Keys look like {KEY_PLACEHOLDERS[provider]}
                 </p>

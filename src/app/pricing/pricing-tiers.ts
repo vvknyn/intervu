@@ -120,7 +120,20 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
           backedBy: { module: "src/actions/resume.ts", symbol: "parseResumeWithAI" },
         },
         {
-          text: "Connect your own AI — search and save jobs, track applications, and update your résumé without leaving your chat",
+          // Distinct from the "Connect your own AI" bullet below, which is
+          // MCP — your chat assistant driving intervu. This one is BYOK: your
+          // provider key powering intervu's own AI actions. Two features, and
+          // the near-identical names are why the copy spells out which is
+          // which rather than leaning on "your own AI".
+          // Deliberately avoids the phrase "AI action": tests/unit/pricing.test.ts
+          // locates the one allowance bullet with /AI action/i, and a second
+          // match would make that locator — and every assertion hanging off
+          // it — ambiguous. "those" refers to the examples in the bullet above.
+          text: "Or run those on your own provider account instead — add an OpenRouter or Groq key in Settings and they go through your key, not ours",
+          backedBy: { module: "src/actions/profile.ts", symbol: "saveProviderApiKey" },
+        },
+        {
+          text: "Drive intervu from your own AI chat — search and save jobs, track applications, and update your résumé without leaving the conversation",
           href: "/connect",
           backedBy: { module: "src/lib/agent/tools.ts", symbol: "toolSearchJobs" },
         },

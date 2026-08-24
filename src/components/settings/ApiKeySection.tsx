@@ -2,6 +2,7 @@
 
 import type { User } from "@/lib/firebase/client-auth";
 import { ByokKeyForm } from "@/components/settings/ByokKeyForm";
+import { BETA_UNLIMITED_CREDITS, CREDIT_UNIT } from "@/lib/llm/credit-copy";
 
 interface ApiKeySectionProps {
     user: User | null;
@@ -22,9 +23,15 @@ export function ApiKeySection({ user, onLoginClick }: ApiKeySectionProps) {
 
     return (
         <div className="space-y-5">
+            {/* Which sentence is true depends on the same constant the credit
+                gate reads, so this can't drift from what actually happens. It
+                already had: the old copy said "Free tier uses your own API
+                key", which stopped being true the day beta-unlimited went on
+                and left this screen telling people a key was required. */}
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-                Free tier uses your own API key. Pick a provider, get a key, test it, save. Intervu never sees the
-                plaintext after save (encrypted).
+                {BETA_UNLIMITED_CREDITS
+                    ? "AI actions are free and unlimited while we're in beta, so you don't need a key for anything. Add one only if you'd rather your AI requests ran on your own provider account."
+                    : `Add your own provider key to run AI actions on your own account, instead of drawing on your free ${CREDIT_UNIT.many} each month.`}
             </p>
             <ByokKeyForm />
         </div>
