@@ -1,18 +1,13 @@
 /**
- * Server-only LLM config resolution. Free tier is BYOK-only: non-admin users
- * without a saved key never receive the app-funded OpenRouter/Groq keys.
- * Admins may still use shared keys for ops/debugging.
+ * Server-only LLM config resolution. Every signed-in user runs on the app's
+ * own OpenRouter/Groq keys — the app funds the AI. Sign-in is still required:
+ * the shared key is never spent on anonymous traffic. Metering (and the
+ * admin exemption) lives in `credit-gate.ts`, not here; this module only
+ * answers "which provider and key".
  */
-import { getUserLLMConfig, getUserProviderKey } from "@/actions/profile";
 import { getServerUser } from "@/lib/firebase/auth-session";
-import {
-    AUTH_REQUIRED,
-    AUTH_REQUIRED_MESSAGE,
-    BYOK_REQUIRED,
-    BYOK_REQUIRED_MESSAGE,
-    isAdminUser,
-} from "@/lib/llm/credit-gate";
-import { AVAILABLE_MODELS, DEFAULT_MODEL, type Provider } from "@/lib/llm/models";
+import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
+import { DEFAULT_MODEL } from "@/lib/llm/models";
 import { ProviderConfig } from "@/lib/llm/types";
 
 function sharedOpenRouterKey(): string {
@@ -21,6 +16,15 @@ function sharedOpenRouterKey(): string {
 
 function sharedGroqKey(): string {
     return process.env.GROQ_API_KEY || "";
+}
+
+/** Throws AUTH_REQUIRED unless someone is signed in. The one place that rule
+ *  is expressed for key resolution — both resolvers below call it. */
+async function requireSignedIn(message: string): Promise<void> {
+    const user = await getServerUser();
+    if (!user) {
+        throw new Error(`${AUTH_REQUIRED}: ${message}`);
+    }
 }
 
 export type ResolvedLLMConfig = { provider: string; apiKey: string; model: string };
@@ -35,48 +39,20 @@ export async function resolveLLMConfig(override?: Partial<ProviderConfig>): Prom
         };
     }
 
-    const userCfg = await getUserLLMConfig();
-    if (userCfg) {
-        const fallbackModel = AVAILABLE_MODELS[userCfg.provider as Provider]?.[0]?.id || DEFAULT_MODEL;
-        return {
-            apiKey: userCfg.apiKey,
-            provider: userCfg.provider,
-            model: override?.model || userCfg.model || fallbackModel,
-        };
-    }
+    await requireSignedIn(AUTH_REQUIRED_MESSAGE);
 
-    const user = await getServerUser();
-    if (!user) {
-        throw new Error(`${AUTH_REQUIRED}: ${AUTH_REQUIRED_MESSAGE}`);
+    const apiKey = sharedOpenRouterKey();
+    if (!apiKey) {
+        throw new Error("Missing OPENROUTER_API_KEY environment variable.");
     }
-
-    // Admins may use the shared OpenRouter key for debugging.
-    if (await isAdminUser(user)) {
-        const apiKey = sharedOpenRouterKey();
-        if (!apiKey) {
-            throw new Error("Missing OPENROUTER_API_KEY environment variable.");
-        }
-        return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
-    }
-
-    throw new Error(`${BYOK_REQUIRED}: ${BYOK_REQUIRED_MESSAGE}`);
+    return { apiKey, provider: "openrouter", model: override?.model || DEFAULT_MODEL };
 }
 
-/** Groq Whisper transcription — requires a stored Groq BYOK key, or admin shared key. */
+/** Groq Whisper transcription — runs on the app's shared Groq key. */
 export async function resolveGroqTranscriptionKey(): Promise<string> {
-    const groqKey = await getUserProviderKey("groq");
-    if (groqKey) return groqKey;
+    await requireSignedIn("Sign in to use voice transcription.");
 
-    const user = await getServerUser();
-    if (!user) {
-        throw new Error(`${AUTH_REQUIRED}: Sign in to use voice transcription.`);
-    }
-
-    if (await isAdminUser(user)) {
-        const key = sharedGroqKey();
-        if (!key) throw new Error("Server configuration error: GROQ_API_KEY missing");
-        return key;
-    }
-
-    throw new Error(`${BYOK_REQUIRED}: ${BYOK_REQUIRED_MESSAGE}`);
+    const key = sharedGroqKey();
+    if (!key) throw new Error("Server configuration error: GROQ_API_KEY missing");
+    return key;
 }

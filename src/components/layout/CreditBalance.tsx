@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Coins, Sparkle, Key } from "@phosphor-icons/react";
+import { Coins, Sparkle } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
-import { BETA_UNLIMITED_CREDITS, BETA_UNLIMITED_NOTE, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
+import { BETA_UNLIMITED_CREDITS, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { cn } from "@/lib/utils";
 
-type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
+type CreditState = { isAdmin: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
 
 /**
  * Sidebar AI-credit indicator. Reads the current user's credit state once on
  * mount. Renders nothing until loaded (and nothing for signed-out users, whom
- * AppShell already gates on). Links to Settings to add a key / top up.
+ * AppShell already gates on). Links to /pricing, which is where the allowance
+ * model is actually explained.
  */
 export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     const [s, setS] = useState<CreditState | null>(null);
@@ -39,33 +40,24 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     if (s.earned > 0) {
         title += ` Plus ${creditCount(s.earned)} earned that never expire.`;
     }
-    let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
+    let low = !s.isAdmin && s.total <= 2;
 
     if (BETA_UNLIMITED_CREDITS) {
-        // Checked before the account-kind branches because it is true for
-        // every account. The balance underneath is real and untouched — the
-        // gate simply never draws on it during beta — so the honest thing to
-        // render is the state, not the number, which would otherwise sit
-        // frozen and read as a stuck counter.
-        Icon = Sparkle;
-        label = "Unlimited";
-        title = BETA_UNLIMITED_NOTE;
-        low = false;
+        // Nothing worth a slot in the top bar. The gate never draws on the
+        // balance during beta, so the number would sit frozen and read as a
+        // stuck counter, and a standing "Unlimited" badge oversells what is a
+        // temporary condition.
+        return null;
     } else if (s.isAdmin) {
         Icon = Sparkle;
         label = "Unlimited";
         title = "Admin — unlimited AI use.";
         low = false;
-    } else if (s.isBYOK) {
-        Icon = Key;
-        label = "Your API key";
-        title = "Using your own API key — no credit limit.";
-        low = false;
     }
 
     return (
         <Link
-            href="/settings?tab=api-key"
+            href="/pricing"
             title={title}
             data-testid="topbar-credit-balance"
             className={cn(

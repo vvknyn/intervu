@@ -47,10 +47,10 @@ test("the walk can never end on a free model", () => {
     }
 });
 
-test("a BYOK user on another provider is never handed these slugs", () => {
+test("a non-OpenRouter provider is never handed these slugs", () => {
     // Groq's namespace is `openai/gpt-oss-20b`, not `vendor/model:free`.
     // Walking an OpenRouter ladder on a Groq key would 404 every rung and turn
-    // a working generation into a failure — on the user's own key, no less.
+    // a working generation into a failure.
     const rungs = resolveModelLadder({ provider: "groq", model: "openai/gpt-oss-20b" }, FREE);
     assert.deepEqual(rungs.map((r) => r.model), ["openai/gpt-oss-20b"]);
 });
