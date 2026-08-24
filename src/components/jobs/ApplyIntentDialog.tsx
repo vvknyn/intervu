@@ -57,12 +57,11 @@ type Phase = "idle" | "working" | "result" | "blocked";
 /** Why the built-in lane is blocked. `auth`/`resume` are `TailorForJobResult`'s
  *  own `needs` values; `credits` and `error` come from the action's `error`
  *  string (`classifySentinel`) once `needs` is absent — see B2 in the spec.
- *  Four single-literal members (not one `kind: "auth" | "resume"` member) so
- *  each branch narrows on `.message` without a manual type assertion. */
+ *  Single-literal members (not one `kind: "auth" | "resume"` member) so each
+ *  branch narrows on `.message` without a manual type assertion. */
 type BlockedState =
     | { kind: "auth" }
     | { kind: "resume" }
-    | { kind: "byok"; message: string }
     | { kind: "credits"; message: string }
     | { kind: "error"; message: string };
 
@@ -160,9 +159,7 @@ export function ApplyIntentDialog({
         if (error) {
             const sentinel = classifySentinel(error);
             const message = sentinelMessage(error);
-            if (sentinel === "byok") {
-                setBlocked({ kind: "byok", message });
-            } else if (sentinel === "credits") {
+            if (sentinel === "credits") {
                 setBlocked({ kind: "credits", message });
             } else {
                 setBlocked({ kind: "error", message });
@@ -430,35 +427,16 @@ function BlockedPanel({
             </Link>
         );
     }
-    if (blocked.kind === "byok") {
-        return (
-            <div className="flex flex-col gap-2 rounded-none border border-border-strong bg-muted/40 p-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    API key required
-                </p>
-                <p className="text-[12.5px] leading-relaxed text-muted-foreground">{blocked.message}</p>
-                <Link
-                    href="/settings?tab=api-key"
-                    className="self-start text-[11px] uppercase tracking-wider text-brand underline underline-offset-4"
-                >
-                    Add your API key in Settings (we&apos;ll walk you through it)
-                </Link>
-            </div>
-        );
-    }
     if (blocked.kind === "credits") {
+        // No CTA: there is no top-up to sell and no key to add, so the message
+        // (which says when the allowance refills) is the whole answer. A button
+        // here would be a link to nowhere.
         return (
             <div className="flex flex-col gap-2 rounded-none border border-border-strong bg-muted/40 p-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Out of {CREDIT_UNIT.many}
                 </p>
                 <p className="text-[12.5px] leading-relaxed text-muted-foreground">{blocked.message}</p>
-                <Link
-                    href="/settings?tab=api-key"
-                    className="self-start text-[11px] uppercase tracking-wider text-brand underline underline-offset-4"
-                >
-                    Add your API key in Settings (we&apos;ll walk you through it)
-                </Link>
             </div>
         );
     }

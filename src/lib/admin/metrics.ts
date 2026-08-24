@@ -349,7 +349,7 @@ export const METRICS: readonly MetricSpec[] = [
         id: "ai_users",
         label: "Spent AI credits this month",
         group: "Credits",
-        note: "Accounts charged at least one shared-key credit in the current UTC month. Admins and legacy BYOK users are never charged, so they never appear here.",
+        note: "Accounts charged at least one shared-key credit in the current UTC month. Admins are never charged, so they never appear here.",
         async read(ctx) {
             return {
                 value: await countOf(ctx.db.collection("profiles").where("credits_period", "==", currentPeriod())),

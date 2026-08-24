@@ -109,22 +109,6 @@ export const PREP_PRESET_DESCRIPTIONS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Setup wizard nudge messages (WelcomeStep.tsx — moved from inline)
-// ---------------------------------------------------------------------------
-export const SETUP_NUDGES = [
-    "Back so soon? Grabbing a free API key takes under 60 seconds. We timed it.",
-    "We admire your commitment to avoidance, but the key is non-negotiable.",
-    "Plot twist: you still need an API key. The good news? It's free.",
-    "At this point you've spent more time closing this than it takes to get a key.",
-    "Roses are red, violets are blue, you need an API key — we're not kidding, it's true.",
-    "This wizard has more patience than your interviewer will. Add the key.",
-    "We're running out of funny things to say. Please just add a key.",
-    "OK you win the persistence award. But the key? Still required. Still free.",
-    "Legend says there's a user who added their key on the first try. Be that user.",
-    "We could do this all day. But wouldn't you rather prep for interviews?",
-];
-
-// ---------------------------------------------------------------------------
 // Completion / success messages
 // ---------------------------------------------------------------------------
 export const COMPLETION = {
@@ -179,9 +163,6 @@ export const SETTINGS_MESSAGES = {
     resetLinkFailed: "Couldn't send the reset link. Try again in a sec.",
     dataExported: "Data exported! Your interview prep, portable and free.",
     dataExportFailed: "Export hit a snag. Give it another shot.",
-    keyRemoved: (provider: string) =>
-        `${provider} key removed. Gone, but not forgotten.`,
-    keySaved: "Key saved! You're connected and ready to roll.",
     accountDeleteFailed:
         "Couldn't delete your account. That's... actually a good thing?",
 };

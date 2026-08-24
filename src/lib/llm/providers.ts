@@ -191,29 +191,6 @@ export class ProviderFactory {
         }
         return new OpenRouterProvider(apiKey, model);
     }
-
-    static async validateApiKey(provider: string, apiKey: string): Promise<{ valid: boolean; error?: string }> {
-        try {
-            if (provider === 'groq') {
-                // Key check only — no chat model needed (deprecated IDs would 404 here).
-                const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
-                await withTimeout(client.models.list(), DEFAULT_TIMEOUT_MS, 'Groq');
-                return { valid: true };
-            }
-
-            // OpenRouter: cheap chat probe on the default model.
-            const llmProvider = this.getProvider(provider, apiKey);
-            const response = await llmProvider.generate({ prompt: 'Reply with just "ok"', json: false });
-            if (response.error) return { valid: false, error: response.error };
-            return { valid: true };
-        } catch (e: any) {
-            const errorInfo = categorizeError(e, provider === 'groq' ? 'Groq' : 'OpenRouter');
-            if (errorInfo.code === LLMErrorCode.INVALID_KEY) {
-                return { valid: false, error: errorInfo.message };
-            }
-            return { valid: false, error: e.message || 'Failed to validate API key' };
-        }
-    }
 }
 
 export type { LLMErrorInfo as ErrorInfo };

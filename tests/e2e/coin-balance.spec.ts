@@ -1,4 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
+import { BETA_UNLIMITED_CREDITS } from '../../src/lib/llm/credit-copy';
 
 /**
  * TEST GROUP: COIN-BALANCE - TopBar credit indicator (PR #236)
@@ -21,12 +22,13 @@ import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 
 type MockCredits = {
     isAdmin: boolean;
-    isBYOK: boolean;
     allowance: number;
     earned: number;
     total: number;
     monthlyFree: number;
 };
+
+const BALANCE_TESTID = 'topbar-credit-balance';
 
 function mockFirebaseUser() {
     // Only displayName/email are read anywhere on the render path
@@ -76,6 +78,32 @@ async function precedesInDom(before: ReturnType<Page['getByTestId']>, afterTestI
     }, afterTestId);
 }
 
+/**
+ * Presence control for the absence assertions below.
+ *
+ * `toHaveCount(0)` passes just as happily when the test-id has been renamed as
+ * when the chip is genuinely absent, so an absence assertion alone can silently
+ * rot into a no-op. This briefly injects an element carrying the same test-id,
+ * proves the locator finds it, then removes it — so a later count of 0 means
+ * "the component chose not to render", not "the selector stopped matching".
+ *
+ * Until 2026-08-23 this job was done by the bring-your-own-key case, which was
+ * the one state that still rendered the chip during beta. That state no longer
+ * exists, so the control is made explicit rather than dropped with it.
+ */
+async function assertLocatorDetectsPresence(page: Page, testId: string) {
+    await page.evaluate((id) => {
+        const probe = document.createElement('div');
+        probe.setAttribute('data-testid', id);
+        probe.id = '__presence_probe__';
+        document.body.appendChild(probe);
+    }, testId);
+    await expect(page.getByTestId(testId)).toHaveCount(1);
+
+    await page.evaluate(() => document.getElementById('__presence_probe__')?.remove());
+    await expect(page.getByTestId(testId)).toHaveCount(0);
+}
+
 test.describe('COIN-BALANCE - TopBar credit indicator', () => {
     test('TC-COIN-001: ordinary user sees their partial numeric balance, positioned before the avatar', async ({
         page,
@@ -83,7 +111,6 @@ test.describe('COIN-BALANCE - TopBar credit indicator', () => {
     }) => {
         await signInAsMock(page, context, {
             isAdmin: false,
-            isBYOK: false,
             allowance: 37,
             earned: 0,
             total: 37,
@@ -92,9 +119,19 @@ test.describe('COIN-BALANCE - TopBar credit indicator', () => {
         await page.goto('/jobs');
         await page.waitForLoadState('networkidle');
 
-        const balance = page.getByTestId('topbar-credit-balance');
+        const balance = page.getByTestId(BALANCE_TESTID);
         const avatar = page.getByTestId('topbar-avatar');
         await expect(avatar).toBeVisible();
+
+        if (BETA_UNLIMITED_CREDITS) {
+            // The gate never draws on the balance during beta, so the number
+            // underneath is frozen and there is nothing honest to put in the
+            // slot. The chip is omitted rather than showing a stuck counter or
+            // a standing "Unlimited" badge.
+            await assertLocatorDetectsPresence(page, BALANCE_TESTID);
+            return;
+        }
+
         await expect(balance).toBeVisible();
         await expect(balance).toContainText('37');
 
@@ -104,7 +141,6 @@ test.describe('COIN-BALANCE - TopBar credit indicator', () => {
     test('TC-COIN-002: admin sees "Unlimited", not a number', async ({ page, context }) => {
         await signInAsMock(page, context, {
             isAdmin: true,
-            isBYOK: false,
             allowance: 0,
             earned: 0,
             total: 0,
@@ -113,33 +149,19 @@ test.describe('COIN-BALANCE - TopBar credit indicator', () => {
         await page.goto('/jobs');
         await page.waitForLoadState('networkidle');
 
-        const balance = page.getByTestId('topbar-credit-balance');
+        const balance = page.getByTestId(BALANCE_TESTID);
+
+        if (BETA_UNLIMITED_CREDITS) {
+            // Beta covers every account, admin included, so the badge is
+            // omitted here too. This test only passed during beta by
+            // coincidence: it was reading the beta branch's "Unlimited", not
+            // the admin one, so it asserted nothing about admins at all.
+            await assertLocatorDetectsPresence(page, BALANCE_TESTID);
+            return;
+        }
+
         await expect(balance).toBeVisible();
         await expect(balance).toContainText('Unlimited');
-        await expect(balance).not.toContainText(/\d/);
-
-        expect(await precedesInDom(balance, 'topbar-avatar')).toBe(true);
-    });
-
-    test('TC-COIN-003: BYOK user sees an own-key state, distinct from ordinary and admin', async ({
-        page,
-        context,
-    }) => {
-        await signInAsMock(page, context, {
-            isAdmin: false,
-            isBYOK: true,
-            allowance: 0,
-            earned: 0,
-            total: 0,
-            monthlyFree: 40,
-        });
-        await page.goto('/jobs');
-        await page.waitForLoadState('networkidle');
-
-        const balance = page.getByTestId('topbar-credit-balance');
-        await expect(balance).toBeVisible();
-        await expect(balance).toContainText('Your API key');
-        await expect(balance).not.toContainText('Unlimited');
         await expect(balance).not.toContainText(/\d/);
 
         expect(await precedesInDom(balance, 'topbar-avatar')).toBe(true);

@@ -1,7 +1,7 @@
 "use server";
 
 import { generateGenericJSON } from "@/actions/generate-context";
-import { AUTH_REQUIRED, OUT_OF_CREDITS, BYOK_REQUIRED } from "@/lib/llm/credit-gate";
+import { AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { ProviderConfig } from "@/lib/llm/types";
 import { quickParseSearchQuery, ParsedSearch } from "@/lib/search-utils";
 
@@ -69,7 +69,7 @@ export async function parseSearchQuery(query: string, modelConfig?: Partial<Prov
         // The shared-key cost/auth gate (inside generateGenericJSON) throws these
         // as hard blocks — surface them instead of silently degrading to a guess.
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS) || msg.startsWith(BYOK_REQUIRED)) throw e;
+        if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS)) throw e;
         console.error("LLM Parsing failed, using fallback", e);
     }
 

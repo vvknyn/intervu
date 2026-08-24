@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Coins, Sparkle, Key } from "@phosphor-icons/react";
+import { Coins, Sparkle } from "@phosphor-icons/react";
 import { getMyCreditsAction } from "@/actions/credits";
 import { BETA_UNLIMITED_CREDITS, CREDIT_UNIT, creditCount } from "@/lib/llm/credit-copy";
 import { cn } from "@/lib/utils";
 
-type CreditState = { isAdmin: boolean; isBYOK: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
+type CreditState = { isAdmin: boolean; allowance: number; earned: number; total: number; monthlyFree: number };
 
 /**
  * Sidebar AI-credit indicator. Reads the current user's credit state once on
  * mount. Renders nothing until loaded (and nothing for signed-out users, whom
- * AppShell already gates on). Links to Settings to add a key / top up.
+ * AppShell already gates on). Links to /pricing, which is where the allowance
+ * model is actually explained.
  */
 export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     const [s, setS] = useState<CreditState | null>(null);
@@ -39,17 +40,9 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
     if (s.earned > 0) {
         title += ` Plus ${creditCount(s.earned)} earned that never expire.`;
     }
-    let low = !s.isAdmin && !s.isBYOK && s.total <= 2;
+    let low = !s.isAdmin && s.total <= 2;
 
-    if (s.isBYOK) {
-        // Reported ahead of the beta switch: a connected key is a real state
-        // the person chose, and it outlives the beta. Ranking the switch first
-        // told every BYOK user "Unlimited" and hid the thing they set up.
-        Icon = Key;
-        label = "Your API key";
-        title = "Using your own API key — no credit limit.";
-        low = false;
-    } else if (BETA_UNLIMITED_CREDITS) {
+    if (BETA_UNLIMITED_CREDITS) {
         // Nothing worth a slot in the top bar. The gate never draws on the
         // balance during beta, so the number would sit frozen and read as a
         // stuck counter, and a standing "Unlimited" badge oversells what is a
@@ -64,7 +57,7 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
 
     return (
         <Link
-            href="/settings?tab=api-key"
+            href="/pricing"
             title={title}
             data-testid="topbar-credit-balance"
             className={cn(

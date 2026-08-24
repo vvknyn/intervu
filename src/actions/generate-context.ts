@@ -3,7 +3,7 @@
 import { CompanyReconData, MatchData, QuestionsData, ReverseQuestionsData, TechnicalData, CodingChallenge, AnswerCritique, QuestionItem, SystemDesignData } from "@/types";
 import { fetchServerCache, saveServerCache } from "@/actions/cache";
 import { ProviderFactory } from "@/lib/llm/providers";
-import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS, BYOK_REQUIRED, BYOK_SETTINGS_HINT } from "@/lib/llm/credit-gate";
+import { chargeIfSharedKey, AUTH_REQUIRED, OUT_OF_CREDITS } from "@/lib/llm/credit-gate";
 import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
@@ -52,6 +52,11 @@ const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(overr
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/** A provider-key fault is always the app's OWN shared key now — there is no
+ *  user-supplied key left to fix — so this copy owns the failure rather than
+ *  sending the reader to a Settings page that no longer has a key field. */
+const SHARED_KEY_FAULT_MESSAGE = "AI is temporarily unavailable — that's on our side, not yours. Please try again shortly.";
+
 const formatError = (e: any) => {
     console.error("Generation Error:", e);
     const msg = e?.message || String(e) || "";
@@ -59,7 +64,7 @@ const formatError = (e: any) => {
     // Hard blocks from the cost/auth gate must reach the client VERBATIM so it can
     // recognize the prefix (see Section C client handling). Do NOT run them through
     // the prefix-stripping cleanup below, which would eat "AUTH_REQUIRED:" etc.
-    if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS) || msg.startsWith(BYOK_REQUIRED)) {
+    if (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS)) {
         return { error: msg };
     }
 
@@ -73,11 +78,11 @@ const formatError = (e: any) => {
     } else if (lowerMsg.includes("429") || lowerMsg.includes("rate limit") || lowerMsg.includes("too many requests")) {
         errorMessage = "Rate limit exceeded. Please wait a moment and try again, or switch to a different AI provider.";
     } else if (lowerMsg.includes("401") || lowerMsg.includes("unauthorized") || lowerMsg.includes("invalid") && lowerMsg.includes("key")) {
-        errorMessage = `Invalid or missing API key. ${BYOK_SETTINGS_HINT}`;
+        errorMessage = SHARED_KEY_FAULT_MESSAGE;
     } else if (lowerMsg.includes("quota") || lowerMsg.includes("resource_exhausted")) {
         errorMessage = "The AI service hit its usage limit. Please try again shortly.";
     } else if (lowerMsg.includes("missing api key") || lowerMsg.includes("api key is required") || lowerMsg.includes("missing openrouter_api_key")) {
-        errorMessage = BYOK_SETTINGS_HINT;
+        errorMessage = SHARED_KEY_FAULT_MESSAGE;
     } else if (lowerMsg.includes("content") && (lowerMsg.includes("blocked") || lowerMsg.includes("safety"))) {
         errorMessage = "Content was blocked by the AI's safety filters. Please try a different query.";
     } else if (lowerMsg.includes("network") || lowerMsg.includes("econnrefused") || lowerMsg.includes("fetch failed")) {
@@ -134,22 +139,22 @@ export const fetchJSON = async (
      */
     modelLadder?: readonly string[],
 ) => {
-    // Resolved ONCE and reused. `getConfig` does a Firestore read for the BYOK
-    // lookup, so re-resolving per attempt cost a round-trip per retry — and a
-    // ladder needs one stable config whose model it can vary per rung anyway.
+    // Resolved ONCE and reused. `getConfig` hits the auth session, so
+    // re-resolving per attempt cost a round-trip per retry — and a ladder needs
+    // one stable config whose model it can vary per rung anyway.
     const baseConfig = await getConfig(configOverride);
 
     // Credit gate — charged ONCE per generation, above the ladder AND the retry
-    // loop, and only when this resolves to the shared key (admins + BYOK are
-    // exempt). Throws OUT_OF_CREDITS when the monthly free balance is spent.
+    // loop, and only when this resolves to the shared key (admins are exempt).
+    // Throws OUT_OF_CREDITS when the monthly free balance is spent.
     // This ordering is the reason the ladder is walked here rather than by the
     // caller: a caller looping over `generateGenericJSON` would charge one
     // credit per rung, so a single upload could cost three.
     await chargeIfSharedKey(baseConfig);
 
-    // Résumé parse passes a ladder even when configOverride.model is set (BYOK
-    // users pick a paid tail, not "skip the free rungs"). Only Groq skips —
-    // handled inside resolveModelLadder by provider !== openrouter.
+    // Résumé parse passes a ladder even when configOverride.model is set (an
+    // explicit model picks a paid tail, not "skip the free rungs"). Only Groq
+    // skips — handled inside resolveModelLadder by provider !== openrouter.
     const rungs = resolveModelLadder(
         baseConfig,
         modelLadder,
@@ -1367,7 +1372,7 @@ export async function generateInterviewPlan(
         // "partial result" — propagate them so the client's sentinel UX fires.
         for (const r of [reconMatchRes, questionsResKeys]) {
             if (r && 'error' in r && typeof r.error === 'string' &&
-                (r.error.startsWith(AUTH_REQUIRED) || r.error.startsWith(OUT_OF_CREDITS) || r.error.startsWith(BYOK_REQUIRED))) {
+                (r.error.startsWith(AUTH_REQUIRED) || r.error.startsWith(OUT_OF_CREDITS))) {
                 throw new Error(r.error);
             }
         }

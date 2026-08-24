@@ -14,17 +14,18 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
-import { ApiKeySection } from "@/components/settings/ApiKeySection";
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
 
-type AccountTab = "resume" | "prefs" | "api-key" | "account";
+type AccountTab = "resume" | "prefs" | "account";
 
 const ACCOUNT_SUBCOPY = "What your agent (and the board) need to know about you. Nothing else.";
 
+// An unrecognized tab (including the retired `api-key`, which may still be
+// bookmarked) lands on Resume rather than rendering an empty panel.
 function parseAccountTab(value: string | null): AccountTab {
-    if (value === "prefs" || value === "api-key" || value === "account") return value;
+    if (value === "prefs" || value === "account") return value;
     return "resume";
 }
 
@@ -32,7 +33,6 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
     const tabs: { key: AccountTab; label: string }[] = [
         { key: "resume", label: "Resume" },
         { key: "prefs", label: "Preferences" },
-        { key: "api-key", label: "API key" },
         { key: "account", label: "Account" },
     ];
     return (
@@ -196,13 +196,6 @@ export function SettingsContainer() {
                 {tab === "prefs" && (
                     <SettingsCard>
                         <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} embedded />
-                    </SettingsCard>
-                )}
-
-                {tab === "api-key" && (
-                    <SettingsCard>
-                        <h2 className="mb-4 text-[15px] font-semibold tracking-[-0.02em]">API key</h2>
-                        <ApiKeySection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
                     </SettingsCard>
                 )}
 
