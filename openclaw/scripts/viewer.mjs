@@ -36,7 +36,10 @@ import { readAccessToken } from "./viewer/mcporter-token.mjs";
 import { auditThenWatch, pickBestWatchUrl } from "./viewer/audit.mjs";
 
 const CDP_BASE = process.env.OPENCLAW_CDP_URL || DEFAULT_CDP_BASE;
-const API_BASE = process.env.INTERVU_API_BASE || "https://intervu.cc";
+// Must stay the origin the MCP server identifies as (`AGENT.issuer()`): this
+// base is used both to reach the API and to build the /watch link handed to a
+// phone, and the access token it sends was minted by that same origin.
+const API_BASE = process.env.INTERVU_API_BASE || "https://intervuhq.com";
 const MCP_SERVER_KEY = "intervu-cc-mcp";
 
 /** A few seconds is generous for a same-process WebSocket round-trip and

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Packages openclaw/ into public/ so the curl|bash installer
- * (https://intervu.cc/install) and its skill payload
- * (https://intervu.cc/intervu-apply-skill.tar.gz) are servable as static
- * files, with no repo checkout required on the install side.
+ * Packages openclaw/ into public/ so the curl|bash installer (`/install`) and
+ * its skill payload (`/intervu-apply-skill.tar.gz`) are servable as static
+ * files, with no repo checkout required on the install side. Paths only, no
+ * origin: install.sh owns that (its `INTERVU_BASE`), and a second copy here
+ * would be a second answer to which origin intervu installs from.
  *
  * Runs automatically as npm's "prebuild" hook, i.e. inside `npm run build`
  * — see package.json. Pure local file ops, no network: the Dockerfile's
@@ -46,8 +47,8 @@ execFileSync(
   { stdio: "inherit" },
 );
 
-// Installer: served at /install so `curl -fsSL https://intervu.cc/install |
-// bash` works with no repo access at all.
+// Installer: served at /install so `curl -fsSL <origin>/install | bash` works
+// with no repo access at all.
 copyFileSync(join(openclawDir, "install.sh"), join(publicDir, "install"));
 
 console.log("prebuild-openclaw: wrote public/intervu-apply-skill.tar.gz and public/install");

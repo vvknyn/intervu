@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ConnectClient } from "./connect-client";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { AGENT } from "@/lib/agent/config";
+import { getServerUser } from "@/lib/firebase/auth-session";
+import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
 
 const TITLE = "Connect your AI to intervu (MCP)";
 const DESCRIPTION =
@@ -13,11 +16,31 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/connect", TITLE, DESCRIPTION),
 };
 
-export default function ConnectPage() {
+/**
+ * Server shell. It exists to resolve two things the client half must not guess:
+ * the connector's own origin (`AGENT.issuer()` — a server-only env var, so
+ * reading it here and passing it down is the only way the page can't disagree
+ * with the `.well-known` documents a client actually reads), and whether the
+ * visitor is signed in.
+ *
+ * The sign-in fact matters because every route on this page ends at an intervu
+ * account: the MCP endpoint answers 401 until a connector completes the OAuth
+ * handshake, and the Claude Code lane tells you to paste a token that only
+ * Settings → Connected agents can mint. The page used to know neither, so a
+ * signed-out visitor was handed a URL and a token placeholder with nothing
+ * saying an account was involved (Vivek, 2026-08-24).
+ */
+export default async function ConnectPage() {
+  const issuer = AGENT.issuer();
+  const user = await getServerUser();
   return (
     <main data-testid="connect-page" className="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-8 py-10">
       <Suspense fallback={null}>
-        <ConnectClient />
+        <ConnectClient
+          mcpUrl={mcpConnectorUrl(issuer)}
+          installCommand={openclawInstallCommand(issuer)}
+          signedIn={Boolean(user)}
+        />
       </Suspense>
     </main>
   );

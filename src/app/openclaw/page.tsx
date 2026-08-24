@@ -14,8 +14,9 @@ import {
   WHILE_YOU_SLEPT_STEPS,
   WHAT_IT_WONT_DO_ITEMS,
   RUNS_ON_YOUR_MACHINE,
-  SETUP_STEPS,
+  setupSteps,
 } from "@/components/marketing/openclaw-content";
+import { AGENT } from "@/lib/agent/config";
 
 export const metadata: Metadata = {
   title: "OpenClaw — an overnight job-application agent",
@@ -24,6 +25,8 @@ export const metadata: Metadata = {
 };
 
 export default function OpenclawPage() {
+  // Step 2's `mcporter auth` command points at the connector's own origin.
+  const SETUP_STEPS = setupSteps(AGENT.issuer());
   return (
     <main data-testid="openclaw-page" className="bg-background">
       {/* Hero */}

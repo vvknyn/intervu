@@ -15,7 +15,7 @@ submits for you. Full behavior is in `SKILL.md` — this file is install-only.
 ## Install
 
 ```bash
-curl -fsSL https://intervu.cc/install | bash
+curl -fsSL https://intervuhq.com/install | bash
 ```
 
 No repo checkout needed — the command above works standalone.
@@ -31,7 +31,7 @@ What it does, in order:
   already registered.
 - Runs `mcporter auth intervu-cc-mcp` — a browser window opens for you to
   approve access (see landmine below on timing).
-- Downloads this skill's tarball from intervu.cc and installs it into
+- Downloads this skill's tarball from intervu and installs it into
   `~/.openclaw/skills/intervu-apply`.
 - Restarts the OpenClaw gateway so it picks up the newly installed skill.
 - Arms the `intervu-apply-digest` (`0 8 * * *`) and `intervu-apply-recap`

@@ -357,13 +357,18 @@ describe('agent oauth', () => {
   });
 
   describe('AGENT.issuer() — decoupled from the SEO domain (NEXT_PUBLIC_SITE_URL)', () => {
-    it('defaults to https://intervu.cc when AGENT_ISSUER_URL is unset, even if NEXT_PUBLIC_SITE_URL points at the SEO domain', () => {
+    it('ignores NEXT_PUBLIC_SITE_URL entirely and falls back to its own default', () => {
+      // The default moved intervu.cc -> intervuhq.com on 2026-08-24 (see
+      // AGENT.issuer()'s docblock). Pointing NEXT_PUBLIC_SITE_URL at a THIRD,
+      // unrelated origin is what makes this a decoupling test: asserting the
+      // issuer equals the SEO domain while the SEO domain IS the default would
+      // pass just as happily if the two were wired together.
       const savedIssuer = process.env.AGENT_ISSUER_URL;
       const savedSite = process.env.NEXT_PUBLIC_SITE_URL;
       delete process.env.AGENT_ISSUER_URL;
-      process.env.NEXT_PUBLIC_SITE_URL = 'https://intervuhq.com';
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://seo-canonical.example';
       try {
-        assert.equal(AGENT.issuer(), 'https://intervu.cc');
+        assert.equal(AGENT.issuer(), 'https://intervuhq.com');
       } finally {
         if (savedIssuer === undefined) delete process.env.AGENT_ISSUER_URL; else process.env.AGENT_ISSUER_URL = savedIssuer;
         if (savedSite === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = savedSite;

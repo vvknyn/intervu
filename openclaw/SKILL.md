@@ -33,9 +33,14 @@ the human's behalf.
 
 All intervu calls go through
 `mcporter call intervu-cc-mcp.<tool> --args '{...}' --output json`
-(`intervu-cc-mcp` is the server key; setup is `mcporter config add intervu-cc-mcp
---url https://intervu.cc/api/mcp --config ~/.mcporter/mcporter.json` then
-`mcporter auth intervu-cc-mcp`). The installer also writes an
+(`intervu-cc-mcp` is the server key). Setup is the installer's job, and this
+doc deliberately does not quote the server URL — for the same reason it does
+not quote the callback port below. The URL a config already holds is by
+definition the right one; a literal here invites an agent to "fix" a working
+entry to match a doc that has since gone stale, and an MCP client rejects the
+handshake when the URL and the origin's `.well-known` documents disagree. To
+set up or repair an install, re-run the installer, then
+`mcporter auth intervu-cc-mcp`. The installer also writes an
 `oauthRedirectUrl` key — a fixed `http://127.0.0.1:<port>/callback` — onto that
 server entry. **Do not remove it, and do not "correct" the port it names.**
 Which port it is is arbitrary; what matters is only that it never changes. A

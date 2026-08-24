@@ -1,7 +1,7 @@
 /**
  * Cellular transport. The laptop offers, the phone answers, and after the
  * introduction the two talk directly — so the user's screen never touches
- * intervu.cc. That is a property of the wiring, not a promise we make.
+ * intervu's servers. That is a property of the wiring, not a promise we make.
  *
  * Frames ride a data channel rather than a video track because CDP already
  * hands us finished JPEGs; putting them through an H.264 encoder would mean
