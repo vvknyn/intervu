@@ -41,14 +41,26 @@ function hasUnbalancedBrackets(value: string): boolean {
 }
 
 /**
- * Raw delimiter/markup characters that never occur in a real toponym in any
- * language. Their presence — regardless of where in the string — means an
- * upstream join or table delimiter leaked into the field verbatim (e.g. a
- * "<country> | <city>" concatenation collapsing two columns into one facet
- * value). This is a fixed character class, not a list of place names: it
- * fires identically on a delimiter artifact for any country, known or not.
+ * Raw delimiter/markup characters. Their presence — regardless of where in
+ * the string — means an upstream join or table delimiter leaked into the
+ * field verbatim (e.g. a "<country> | <city>" concatenation collapsing two
+ * columns into one facet value). This is a fixed character class, not a
+ * list of place names: it fires identically on a delimiter artifact for any
+ * country, known or not.
+ *
+ * Backtick is deliberately excluded from this class, even though it reads
+ * as the same kind of stray-markup character as the rest: it is also the
+ * common ASCII stand-in for the Hawaiian ʻokina and for the Arabic
+ * ʿayn/hamza in romanized place names ("Hawai`i", "San`a"), so its presence
+ * is not positive evidence of malformation the way the others are. Checked
+ * the rest of this class for the same kind of legitimate transliteration
+ * role and found none — none of them substitute for a diacritic or glottal
+ * mark in any romanization convention we could find — but that check was
+ * reasoning from known conventions, not an exhaustive survey, so if one
+ * turns up the fix is to name it here and drop it, the same way backtick
+ * was.
  */
-const RAW_DELIMITER_CHARS = /[|\\{}<>@#$%^*_=~`;]/;
+const RAW_DELIMITER_CHARS = /[|\\{}<>@#$%^*_=~;]/;
 
 /**
  * Two or more consecutive whitespace characters. A real geographic name —

@@ -41,6 +41,16 @@ test("an unknown-but-well-formed place still renders — absence of gazetteer kn
     assert.equal(isMalformedLocationValue("Świnoujście"), false);
 });
 
+test("backtick is not a delimiter tell — it is the ASCII stand-in for a real diacritic in romanized names", () => {
+    // Hawaiian ʻokina and Arabic ʿayn/hamza are both commonly typed as a
+    // backtick when the real combining character isn't available. Flagging
+    // these would be exactly the false positive this module exists to
+    // avoid: a real place suppressed because its correct spelling looks
+    // unfamiliar.
+    assert.equal(isMalformedLocationValue("Hawai`i"), false);
+    assert.equal(isMalformedLocationValue("San`a"), false);
+});
+
 test("balanced parentheses are a legitimate place-name shape, not a tell", () => {
     assert.equal(isMalformedLocationValue("Korea (South)"), false);
     assert.equal(isMalformedLocationValue("Congo (Kinshasa)"), false);
