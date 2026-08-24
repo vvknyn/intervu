@@ -65,25 +65,69 @@ export const PLACE_MIN_COUNT = 100;
 
 /**
  * Pure: given the raw hits a facet-search for `candidate.value` returned,
- * which ones does this candidate actually license? "exact" keeps only the
- * literal case-insensitive match, and only when it clears PLACE_MIN_COUNT.
+ * which ones does this candidate actually license? "exact" keeps every
+ * spelling that folds to the same case- and accent-insensitive form (see
+ * `foldForMatch`), and only when those together clear PLACE_MIN_COUNT.
  * "prefix" additionally keeps every hit starting with "<value> - " — the
  * compound-region pattern ("Canada - Remote", "Canada - Toronto") — still
  * gated on the hit being a REAL corpus value, never a pattern invented from
  * the candidate alone, but with no count floor (see PLACE_MIN_COUNT's doc).
  */
+/**
+ * Case- AND diacritic-folded form, used for every corpus-value comparison
+ * below.
+ *
+ * Meilisearch's facet FILTER (`location_city = "Montreal"`) is
+ * case-insensitive but accent-SENSITIVE, while its facet SEARCH (the
+ * typeahead this module runs on) is accent-INsensitive. Verified live
+ * 2026-08-24: `facetQuery: "Montreal"` and `facetQuery: "Montréal"` return
+ * byte-identical hit lists containing BOTH spellings, yet filtering on one
+ * returns 2,306 rows and the other 1,208 — provably disjoint sets (their
+ * union equals their sum exactly).
+ *
+ * So a corpus that spells one city two ways answers a searcher with half its
+ * rows, and which half depends on which spelling they happened to type. That
+ * is invisible to the searcher: both spellings look like a complete answer.
+ * Folding here is what lets ONE mention license EVERY spelling the corpus
+ * actually holds.
+ *
+ * `NFKD` splits a letter from its accent, then the combining marks are
+ * dropped — so this is a general transform over any diacritic, not a list of
+ * cities or languages that would have to be maintained.
+ */
+export function foldForMatch(value: string): string {
+  return value
+    .trim()
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
 export function selectMatchingHits(candidate: PlaceCandidate, hits: readonly FacetHit[]): PlaceFilter[] {
-  const needle = candidate.value.trim().toLowerCase();
+  const needle = foldForMatch(candidate.value);
   const out: PlaceFilter[] = [];
-  for (const hit of hits) {
-    const hay = hit.value.trim().toLowerCase();
-    if (hay === needle) {
-      if (hit.count < PLACE_MIN_COUNT) continue;
-      out.push({ field: candidate.field, value: hit.value });
-    } else if (candidate.matchMode === "prefix" && hay.startsWith(`${needle} - `)) {
-      out.push({ field: candidate.field, value: hit.value });
+
+  // Exact matches are decided as a GROUP, not hit by hit, because
+  // PLACE_MIN_COUNT is a claim about the place — "does the corpus really have
+  // this many postings here" — and a place split across spellings has its
+  // evidence split with it. Lévis (62) and Levis (39) each fail a floor of
+  // 100 that the single real city they name (101) clears. Counting the fold
+  // group once is what stops a spelling artifact from reading as noise.
+  const exact = hits.filter((h) => foldForMatch(h.value) === needle);
+  const exactTotal = exact.reduce((sum, h) => sum + h.count, 0);
+  if (exactTotal >= PLACE_MIN_COUNT) {
+    for (const hit of exact) out.push({ field: candidate.field, value: hit.value });
+  }
+
+  if (candidate.matchMode === "prefix") {
+    for (const hit of hits) {
+      const hay = foldForMatch(hit.value);
+      if (hay !== needle && hay.startsWith(`${needle} - `)) {
+        out.push({ field: candidate.field, value: hit.value });
+      }
     }
   }
+
   return out;
 }
 
@@ -101,7 +145,11 @@ export type CorpusValueChecker = (candidateGroups: PlaceCandidate[][]) => Promis
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 
 function cacheKey(field: LocationField, value: string): string {
-  return `${field}:${value.trim().toLowerCase()}`;
+  // Folded, so "Montreal" and "Montréal" share one entry. Safe because
+  // facet-search is accent-insensitive: both spellings provably return the
+  // same hit list (see `foldForMatch`), so one cached answer serves both —
+  // and it saves the second network call rather than merely deduplicating.
+  return `${field}:${foldForMatch(value)}`;
 }
 
 /**
