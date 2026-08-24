@@ -20,7 +20,12 @@
  */
 import { NextResponse } from "next/server";
 import { fetchFacetSearch, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
-import { buildLocationSuggestions, LOCATION_SUGGEST_FIELDS } from "@/lib/jobs/location-suggest";
+import {
+    applyLabelPrefix,
+    buildLocationSuggestions,
+    LOCATION_SUGGEST_FIELDS,
+    planLocationQuery,
+} from "@/lib/jobs/location-suggest";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowJobsLocationRequest } from "@/lib/shield/rate-limit";
 import type { LocationSuggestGroup } from "@/lib/jobs/location-suggest";
@@ -51,12 +56,23 @@ export async function GET(request: Request): Promise<NextResponse> {
         return NextResponse.json(EMPTY, { status: 429 });
     }
 
+    // Work-mode words typed into this box ("remote can") are not part of any
+    // place name, so searching the literal string only ever matches junk an
+    // employer typed into their own location field. The plan splits them off
+    // into a FILTER, using the same parser that `resolveLocationFacet` uses
+    // when the value is committed — see `planLocationQuery`.
+    const plan = planLocationQuery(q);
+
     // One call per field, concurrently — each is ~40ms against the box, so
     // three in series would put the typeahead over a perceptible 120ms.
     const fields = LOCATION_SUGGEST_FIELDS.map((f) => f.field);
     const results = await Promise.all(
         fields.map((field) =>
-            fetchFacetSearch(field as (typeof LOCATION_FACET_FIELDS)[number], q).catch(() => null),
+            fetchFacetSearch(
+                field as (typeof LOCATION_FACET_FIELDS)[number],
+                plan.facetQuery,
+                plan.filter,
+            ).catch(() => null),
         ),
     );
 
@@ -67,7 +83,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
 
     return NextResponse.json(
-        { groups: buildLocationSuggestions(hitsByField) } satisfies LocationSuggestResponse,
+        {
+            groups: applyLabelPrefix(buildLocationSuggestions(hitsByField), plan.labelPrefix),
+        } satisfies LocationSuggestResponse,
         { headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=3600" } },
     );
 }

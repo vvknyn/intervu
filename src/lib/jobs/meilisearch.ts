@@ -1020,6 +1020,11 @@ export const LOCATION_FACET_FIELDS = ["location_city", "location_state", "locati
 export async function fetchFacetSearch(
   field: (typeof LOCATION_FACET_FIELDS)[number],
   query: string,
+  /** Narrows the counts, e.g. `work_type = "remote"`. Meili applies it to the
+   *  facet search itself, so the number returned is the true intersection
+   *  rather than the facet value's total — which is what lets the location
+   *  picker show a work-mode-qualified count it can actually deliver. */
+  filter?: string,
 ): Promise<{ value: string; count: number }[] | null> {
   const h = host();
   if (!h) return null;
@@ -1028,7 +1033,7 @@ export async function fetchFacetSearch(
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
-      body: JSON.stringify({ facetName: field, facetQuery: query }),
+      body: JSON.stringify({ facetName: field, facetQuery: query, ...(filter ? { filter } : {}) }),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { facetHits?: { value: string; count: number }[] };
