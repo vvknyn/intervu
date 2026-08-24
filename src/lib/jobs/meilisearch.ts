@@ -598,7 +598,7 @@ export interface MeiliSearchBody {
  * (declared above) rather than a live GET against
  * `/indexes/jobs/settings/typo-tolerance`. That endpoint needs the admin
  * key, which per this file's module docblock is available ONLY to the
- * off-Vercel sync worker (`sync.ts`) and is never present in a Vercel
+ * pipeline-box sync worker (`sync.ts`) and is never present in a web app
  * request; the search-only key this read path actually holds 403s on every
  * settings endpoint (verified live 2026-08-23 — the same constraint
  * `fetchPostedDateFilterSupported` above already documents and works around
