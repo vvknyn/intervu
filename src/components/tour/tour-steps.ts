@@ -50,7 +50,7 @@ export const tourSteps: Record<string, TourStep[]> = {
       selector: '[data-tour="nav-connect"]',
       title: JOBS_USP.connect.title,
       description: JOBS_USP.connect.body,
-      placement: "bottom",
+      placement: "top",
       optional: true,
     },
   ],

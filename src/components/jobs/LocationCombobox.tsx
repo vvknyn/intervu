@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
 import { Check } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
@@ -77,6 +79,9 @@ export function LocationCombobox({
     // overwrite a faster one for a later keystroke. Same reasoning as
     // SearchAutocomplete's generation counter.
     const generation = useRef(0);
+    const anchorRef = useRef<HTMLDivElement>(null);
+    const hasSuggestions = groups.some((g) => g.items.length > 0);
+    const overlayRect = useAnchoredOverlayRect(anchorRef, isOpen && hasSuggestions);
 
     useEffect(() => {
         const q = value.trim();
@@ -149,8 +154,57 @@ export function LocationCombobox({
         }
     };
 
+    const suggestionList = (
+        <ul id="location-suggestions" role="listbox" aria-label="Location suggestions" className="max-h-[300px] overflow-y-auto py-2">
+            {groups.map((group) => {
+                const firstIndex = groups
+                    .slice(0, groups.indexOf(group))
+                    .reduce((n, g) => n + g.items.length, 0);
+                return (
+                    <Fragment key={group.field}>
+                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {group.heading}
+                        </li>
+                        {group.items.map((item, i) => {
+                            const index = firstIndex + i;
+                            const chosen = isLocationSelected(item, selected);
+                            return (
+                                <li
+                                    key={item.key}
+                                    role="option"
+                                    aria-selected={index === activeIndex}
+                                    className={cn(
+                                        "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
+                                        index === activeIndex
+                                            ? "bg-muted text-foreground"
+                                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                                    )}
+                                    onMouseEnter={() => setActiveIndex(index)}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => commit(item.label, item.field)}
+                                >
+                                    <span className="min-w-0 flex-1 truncate">
+                                        {highlightMatch(item.label, value).map((seg, si) => (
+                                            <span key={si} className={seg.matched ? "font-semibold text-foreground" : undefined}>
+                                                {seg.text}
+                                            </span>
+                                        ))}
+                                    </span>
+                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
+                                        {item.count.toLocaleString()}
+                                    </span>
+                                    {chosen && <Check size={14} weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
+                                </li>
+                            );
+                        })}
+                    </Fragment>
+                );
+            })}
+        </ul>
+    );
+
     return (
-        <div className={cn("relative flex min-w-0 flex-1", containerClassName)}>
+        <div ref={anchorRef} className={cn("relative flex min-w-0 flex-1", containerClassName)}>
             <Input
                 data-testid={testId}
                 type="text"
@@ -181,79 +235,24 @@ export function LocationCombobox({
                 className={className}
             />
 
-            {/* Floats over page content with nothing behind it, so it carries
-                the one sanctioned overlay shadow plus a full-strength border
-                and an opaque popover fill — matching SearchAutocomplete's
-                panel exactly rather than inventing a second dropdown look. */}
-            {open && (
-                <div className="absolute top-full left-0 z-[100] mt-2 min-w-[280px] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1">
-                    <ul id="location-suggestions" role="listbox" aria-label="Location suggestions" className="max-h-[300px] overflow-y-auto py-2">
-                        {groups.map((group) => {
-                            // Running offset rather than `indexOf`: the flat
-                            // list is what the arrow keys move through, and
-                            // two fields can legitimately hold the same place
-                            // name ("Quebec" the city and the province), which
-                            // an identity lookup would collapse onto one index.
-                            const firstIndex = groups
-                                .slice(0, groups.indexOf(group))
-                                .reduce((n, g) => n + g.items.length, 0);
-                            return (
-                                <Fragment key={group.field}>
-                                    <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                        {group.heading}
-                                    </li>
-                                    {group.items.map((item, i) => {
-                                        const index = firstIndex + i;
-                                        const chosen = isLocationSelected(item, selected);
-                                        return (
-                                            <li
-                                                key={item.key}
-                                                role="option"
-                                                aria-selected={index === activeIndex}
-                                                className={cn(
-                                                    "flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition-colors",
-                                                    index === activeIndex
-                                                        ? "bg-muted text-foreground"
-                                                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                                                )}
-                                                onMouseEnter={() => setActiveIndex(index)}
-                                                onMouseDown={(e) => e.preventDefault()}
-                                                onClick={() => commit(item.label, item.field)}
-                                            >
-                                                {/* `highlightMatch` compares case-insensitively but
-                                                    NOT accent-insensitively, so typing "montreal"
-                                                    against "Montréal" bolds nothing. The row is still
-                                                    returned and still selectable — Meili's facet
-                                                    SEARCH is accent-insensitive even though its
-                                                    filter is not — so this degrades to no emphasis
-                                                    rather than a missing suggestion. Folding the
-                                                    highlight needs an index map between the folded
-                                                    and original strings (NFKD changes length), which
-                                                    is not worth doing badly here. */}
-                                                <span className="min-w-0 flex-1 truncate">
-                                                    {highlightMatch(item.label, value).map((seg, si) => (
-                                                        <span key={si} className={seg.matched ? "font-semibold text-foreground" : undefined}>
-                                                            {seg.text}
-                                                        </span>
-                                                    ))}
-                                                </span>
-                                                {/* The count is the whole reason to open this list:
-                                                    it says whether filtering here leaves anything to
-                                                    read. Summed across spellings, so an accented
-                                                    city is not split into two smaller-looking rows. */}
-                                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
-                                                    {item.count.toLocaleString()}
-                                                </span>
-                                                {chosen && <Check size={14} weight="bold" className="shrink-0 text-foreground" aria-label="Already filtered" />}
-                                            </li>
-                                        );
-                                    })}
-                                </Fragment>
-                            );
-                        })}
-                    </ul>
-                </div>
-            )}
+            {/* Portaled so `overflow-hidden` on the docked header search form
+                cannot clip suggestions — same panel chrome as before. */}
+            {open &&
+                overlayRect &&
+                typeof document !== "undefined" &&
+                createPortal(
+                    <div
+                        className="fixed z-[100] min-w-[280px] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        style={{
+                            top: overlayRect.top,
+                            left: overlayRect.left,
+                            width: Math.max(280, overlayRect.width),
+                        }}
+                    >
+                        {suggestionList}
+                    </div>,
+                    document.body,
+                )}
         </div>
     );
 }

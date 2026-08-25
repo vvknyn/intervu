@@ -10,6 +10,14 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { tourSteps, type TourStep } from "./tour-steps";
+import { rectsEqual } from "./tour-target-rect";
+import {
+  markTourSeen,
+  clearTourMinimized,
+  writeTourMinimized,
+  hasSeenTourId,
+  readTourStorage,
+} from "./tour-storage";
 
 interface TourState {
   isActive: boolean;
@@ -32,32 +40,32 @@ interface TourContextValue extends TourState {
 
 export const TourContext = createContext<TourContextValue | null>(null);
 
-const STORAGE_KEY = "intervu-tour-state";
-
 function getPageId(pathname: string): string {
   if (pathname === "/" || pathname === "") return "dashboard";
   const segment = pathname.replace(/^\//, "").split("/")[0];
   return segment || "dashboard";
 }
 
-function getSeenPages(): Record<string, boolean> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+function tourBelongsOnPage(tourId: string, pathname: string): boolean {
+  const pageId = getPageId(pathname);
+  return pageId === tourId || tourId.startsWith(`${pageId}-`);
 }
 
-function markPageSeen(pageId: string) {
-  try {
-    const seen = getSeenPages();
-    seen[pageId] = true;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seen));
-  } catch {
-    // storage full or blocked
+function stepsForTour(tourId: string): TourStep[] {
+  const catalog = tourSteps[tourId] || [];
+  const available = catalog.filter((step) => !!visibleTourTarget(step.selector));
+  return available.length > 0 ? available : catalog;
+}
+
+/** First DOM match that is actually visible — skips hidden lg-only nav duplicates. */
+export function visibleTourTarget(selector: string): Element | null {
+  if (typeof document === "undefined") return null;
+  for (const el of document.querySelectorAll(selector)) {
+    if (!(el instanceof Element)) continue;
+    const visible = el.checkVisibility?.() ?? el.getClientRects().length > 0;
+    if (visible) return el;
   }
+  return null;
 }
 
 export function TourProvider({ children }: { children: ReactNode }) {
@@ -74,7 +82,6 @@ export function TourProvider({ children }: { children: ReactNode }) {
   });
 
   const rafRef = useRef<number>(0);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   // Track target element rect
   const updateRect = useCallback(() => {
@@ -83,57 +90,66 @@ export function TourProvider({ children }: { children: ReactNode }) {
         return prev;
       const step = prev.steps[prev.currentStep];
       if (!step) return prev;
-      const el = document.querySelector(step.selector);
+      const el = visibleTourTarget(step.selector);
       if (!el) return prev;
       const rect = el.getBoundingClientRect();
-      // Only update if rect actually changed
-      if (
-        prev.targetRect &&
-        prev.targetRect.x === rect.x &&
-        prev.targetRect.y === rect.y &&
-        prev.targetRect.width === rect.width &&
-        prev.targetRect.height === rect.height
-      ) {
-        return prev;
-      }
+      if (rectsEqual(prev.targetRect, rect)) return prev;
       return { ...prev, targetRect: rect };
     });
   }, []);
 
-  // Set up scroll/resize tracking
+  // Sample live target rect every frame while tour is visible
   useEffect(() => {
     if (!state.isActive || state.isMinimized) return;
 
-    const onUpdate = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateRect);
+    let running = true;
+    const tick = () => {
+      if (!running) return;
+      updateRect();
+      rafRef.current = requestAnimationFrame(tick);
     };
-
-    window.addEventListener("scroll", onUpdate, true);
-    window.addEventListener("resize", onUpdate);
-
-    // Also observe target element resizes
-    const step = state.steps[state.currentStep];
-    if (step) {
-      const el = document.querySelector(step.selector);
-      if (el) {
-        resizeObserverRef.current = new ResizeObserver(onUpdate);
-        resizeObserverRef.current.observe(el);
-      }
-    }
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      window.removeEventListener("scroll", onUpdate, true);
-      window.removeEventListener("resize", onUpdate);
+      running = false;
       cancelAnimationFrame(rafRef.current);
-      resizeObserverRef.current?.disconnect();
     };
-  }, [state.isActive, state.isMinimized, state.currentStep, state.steps, updateRect]);
+  }, [state.isActive, state.isMinimized, updateRect]);
+
+  // Restore minimized tour for this page after reload or return navigation
+  useEffect(() => {
+    const stored = readTourStorage().minimized;
+    if (!stored || !tourSteps[stored.tourId]) return;
+    if (!tourBelongsOnPage(stored.tourId, pathname)) return;
+
+    const steps = stepsForTour(stored.tourId);
+    if (steps.length === 0) return;
+
+    setState((prev) => {
+      if (prev.isActive && !prev.isMinimized) return prev;
+      if (
+        prev.isActive &&
+        prev.isMinimized &&
+        prev.pageId === stored.tourId
+      ) {
+        return prev;
+      }
+      return {
+        isActive: true,
+        isMinimized: true,
+        currentStep: Math.min(stored.step, steps.length - 1),
+        pageId: stored.tourId,
+        steps,
+        targetRect: null,
+      };
+    });
+  }, [pathname]);
 
   // Auto-stop on route change
   useEffect(() => {
     setState((prev) => {
       if (!prev.isActive) return prev;
+      if (tourBelongsOnPage(prev.pageId, pathname)) return prev;
       return {
         ...prev,
         isActive: false,
@@ -144,7 +160,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
         pageId,
       };
     });
-  }, [pageId]);
+  }, [pageId, pathname]);
 
   // Scroll into view and update rect when step changes
   useEffect(() => {
@@ -153,15 +169,19 @@ export function TourProvider({ children }: { children: ReactNode }) {
     const step = state.steps[state.currentStep];
     if (!step) return;
 
-    const el = document.querySelector(step.selector);
+    const el = visibleTourTarget(step.selector);
     if (!el) return;
 
     el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [state.currentStep, state.isActive, state.isMinimized, state.steps]);
 
-    // Wait for scroll to finish, then update rect
-    const timer = setTimeout(updateRect, 400);
-    return () => clearTimeout(timer);
-  }, [state.currentStep, state.isActive, state.isMinimized, state.steps, updateRect]);
+  const minimizeTour = useCallback(() => {
+    setState((prev) => {
+      if (!prev.isActive) return prev;
+      writeTourMinimized(prev.pageId, prev.currentStep);
+      return { ...prev, isMinimized: true, targetRect: null };
+    });
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -169,14 +189,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setState((prev) => ({
-          ...prev,
-          isActive: false,
-          isMinimized: false,
-          currentStep: 0,
-          steps: [],
-          targetRect: null,
-        }));
+        minimizeTour();
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         setState((prev) => {
@@ -194,44 +207,48 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state.isActive]);
+  }, [state.isActive, minimizeTour]);
 
-  const startTour = useCallback((tourId?: string) => {
-    const effectivePageId = tourId ?? pageId;
-    const stepsForPage = tourSteps[effectivePageId] || [];
-    // Filter out steps whose DOM element doesn't exist
-    const availableSteps = stepsForPage.filter((step) => {
-      return !!document.querySelector(step.selector);
-    });
+  const startTour = useCallback(
+    (tourId?: string) => {
+      clearTourMinimized();
+      const effectivePageId = tourId ?? pageId;
+      const steps = stepsForTour(effectivePageId);
 
-    if (availableSteps.length === 0) return;
+      if (steps.length === 0) return;
 
-    setState({
-      isActive: true,
-      isMinimized: false,
-      currentStep: 0,
-      pageId: effectivePageId,
-      steps: availableSteps,
-      targetRect: null,
-    });
-  }, [pageId]);
+      setState({
+        isActive: true,
+        isMinimized: false,
+        currentStep: 0,
+        pageId: effectivePageId,
+        steps,
+        targetRect: null,
+      });
+    },
+    [pageId],
+  );
 
   const stopTour = useCallback(() => {
-    markPageSeen(state.pageId);
-    setState((prev) => ({
-      ...prev,
-      isActive: false,
-      isMinimized: false,
-      currentStep: 0,
-      steps: [],
-      targetRect: null,
-    }));
-  }, [state.pageId]);
+    setState((prev) => {
+      markTourSeen(prev.pageId);
+      clearTourMinimized();
+      return {
+        ...prev,
+        isActive: false,
+        isMinimized: false,
+        currentStep: 0,
+        steps: [],
+        targetRect: null,
+      };
+    });
+  }, []);
 
   const nextStep = useCallback(() => {
     setState((prev) => {
       if (prev.currentStep >= prev.steps.length - 1) {
-        markPageSeen(prev.pageId);
+        markTourSeen(prev.pageId);
+        clearTourMinimized();
         return {
           ...prev,
           isActive: false,
@@ -252,16 +269,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const minimizeTour = useCallback(() => {
-    setState((prev) => ({ ...prev, isMinimized: true, targetRect: null }));
-  }, []);
-
   const resumeTour = useCallback(() => {
+    clearTourMinimized();
     setState((prev) => ({ ...prev, isMinimized: false }));
   }, []);
 
   const hasSeenTour = useCallback((pid: string) => {
-    return !!getSeenPages()[pid];
+    return hasSeenTourId(pid);
   }, []);
 
   return (

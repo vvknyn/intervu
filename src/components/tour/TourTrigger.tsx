@@ -5,6 +5,7 @@ import { useTour } from "@/hooks/use-tour";
 import { Question, X, Play } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { tourSteps } from "./tour-steps";
+import { visibleTourTarget } from "./TourProvider";
 
 function getPageId(pathname: string): string {
   if (pathname === "/" || pathname === "") return "dashboard";
@@ -33,7 +34,7 @@ export function TourTrigger() {
 
   useEffect(() => {
     const stepsForPage = tourSteps[pageId] || [];
-    const found = stepsForPage.some((s) => document.querySelector(s.selector));
+    const found = stepsForPage.some((s) => visibleTourTarget(s.selector));
     setHasTargets(found);
   }, [pageId]);
 

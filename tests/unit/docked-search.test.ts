@@ -160,6 +160,34 @@ describe("docked search: controlled input, not a scroll-to button", () => {
         assert.match(pill, /\bbg-card\b/, "a search box sits on the card ground the real field uses");
         assert.match(pill, /\bborder\b/, "a search box has a visible edge");
     });
+
+    it("does not clip typeahead — overflow-hidden swallows absolute dropdowns", () => {
+        const pill = classNameForTestId(TOPBAR, "topbar-docked-search");
+        assert.doesNotMatch(pill, /\boverflow-hidden\b/, "query and location suggestions hang below the field");
+        assert.match(pill, /\boverflow-visible\b/);
+    });
+
+    it("portals suggestion lists so clipped ancestors cannot hide them", () => {
+        const location = read("src/components/jobs/LocationCombobox.tsx");
+        const search = read("src/components/search/SearchAutocomplete.tsx");
+        assert.match(location, /createPortal[\s\S]*document\.body/);
+        assert.match(search, /createPortal[\s\S]*document\.body/);
+        assert.match(location, /useAnchoredOverlayRect/);
+        assert.match(search, /useAnchoredOverlayRect/);
+    });
+
+    it("centers docked clear controls in the field row", () => {
+        const src = stripComments(JOBS);
+        const queryBlock = src.slice(src.indexOf("const dockedQueryEl"), src.indexOf("const dockedLocationEl"));
+        const locationBlock = src.slice(src.indexOf("const dockedLocationEl"), src.indexOf("const resumeControlEl"));
+        assert.match(queryBlock, /flex h-full w-full items-center/);
+        assert.match(queryBlock, /topbar-docked-clear[\s\S]*self-center/);
+        assert.match(locationBlock, /flex h-full w-full items-center/);
+        assert.match(locationBlock, /topbar-docked-location-clear[\s\S]*self-center/);
+        const comboAt = src.indexOf('data-testid="topbar-docked-location-input"');
+        const combo = src.slice(comboAt, comboAt + 500);
+        assert.match(combo, /\bpr-7\b/, "text must stop before the clear affordance");
+    });
 });
 
 describe("docked search: mobile still owns nothing here", () => {

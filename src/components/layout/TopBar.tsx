@@ -8,6 +8,7 @@ import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
+import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import {
@@ -149,7 +150,10 @@ export function TopBar() {
                         a control (Vivek, 2026-08-24: "it is not at all obvious
                         that this is a search bar"): width and field vocabulary
                         are what say "search box", so it borrows both from the
-                        real field instead of inventing a header-only look. */}
+                        real field instead of inventing a header-only look.
+                        `overflow-visible` is load-bearing: query and location
+                        typeahead are absolutely positioned below the inputs,
+                        and overflow-hidden clipped them into a 40px slit. */}
                     {docked && (
                         <form
                             onSubmit={(e) => {
@@ -158,7 +162,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="hidden h-10 min-w-0 flex-1 box-border items-stretch overflow-hidden rounded-none border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="hidden h-10 min-w-0 flex-1 box-border items-stretch overflow-visible rounded-none border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass size={15} weight="bold" className="shrink-0 self-center text-foreground" />
@@ -167,7 +171,7 @@ export function TopBar() {
                                     className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible"
                                 />
                             </div>
-                            <div className="flex h-full w-[min(210px,28%)] shrink-0 items-stretch border-l border-border">
+                            <div className="flex h-full w-[min(210px,28%)] shrink-0 items-stretch border-l border-border pr-1">
                                 <MapPin size={15} weight="bold" aria-hidden className="ml-2.5 shrink-0 self-center text-muted-foreground/70" />
                                 <div data-testid="topbar-docked-location" className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible" />
                             </div>
@@ -246,6 +250,8 @@ export function TopBar() {
                             );
                         })}
                     </nav>
+
+                    <FollowAlertsBell />
 
                     {user ? (
                         <>

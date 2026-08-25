@@ -127,7 +127,14 @@ export function SavedSearchesPanel({
     if (!canSave && saved.length === 0) return null;
 
     return (
-        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-meta", className)}>
+        <div
+            data-testid="saved-searches-panel"
+            className={cn(
+                "flex items-center gap-2 text-meta",
+                compact ? "shrink-0 flex-nowrap" : "flex-wrap",
+                className,
+            )}
+        >
             {canSave && !naming && (
                 <button
                     type="button"
@@ -135,7 +142,7 @@ export function SavedSearchesPanel({
                     onClick={startSave}
                     className={cn(
                         compact
-                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground")
+                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2 text-xs font-medium leading-none text-muted-foreground transition-colors hover:text-foreground")
                             : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors",
                     )}
                 >
@@ -191,7 +198,7 @@ export function SavedSearchesPanel({
                 </div>
             )}
             {saved.length > 0 && (
-                <ul className="flex flex-wrap items-center gap-1.5">
+                <ul className={cn("flex items-center gap-1.5", compact ? "shrink-0 flex-nowrap" : "flex-wrap")}>
                     {saved.map((s) => (
                         <li key={s.id} className={cn(
                             compact

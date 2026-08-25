@@ -23,8 +23,8 @@ export const JOBS_USP = {
             "When a company publishes a salary range, that range is what you see. We never guess a number or borrow a crowd-sourced one.",
     },
     connect: {
-        title: "Reach the people behind the jobs",
+        title: "MCP and local agents",
         body:
-            "Connect is where you find contacts and send outreach — the hiring managers and recruiters tied to roles you are tracking.",
+            "Connect is where you configure MCP for your assistant, and the local agent that runs on your machine.",
     },
 } as const;

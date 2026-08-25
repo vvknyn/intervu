@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
 import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
@@ -151,6 +153,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const suggestGenRef = useRef(0);
 
     const inputRef = useRef<HTMLInputElement>(null);
+    const anchorRef = useRef<HTMLDivElement>(null);
+    const dropdownOpen = isOpen && suggestions.length > 0;
+    const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen);
     useImperativeHandle(
         ref,
         () => ({
@@ -259,7 +264,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     };
 
     return (
-        <div className={cn("relative group", containerClassName)}>
+        <div ref={anchorRef} className={cn("relative group", containerClassName)}>
             {/* The glyph is a FLEX SIBLING of the field, never an absolutely
                 positioned overlay with `pl-*` on the input holding the text
                 clear of it. That older shape coupled the component and its
@@ -303,76 +308,70 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 />
             </div>
 
-            {/* Dropdown. One of the few surfaces in the app that floats over
-                page content with nothing behind it — every dialog has a
-                scrim, this has the results list — so it carries the one
-                sanctioned overlay shadow (--shadow-overlay) plus a
-                full-strength border and an opaque popover fill, since the
-                rows underneath would otherwise read through a half-opacity
-                edge. */}
-            {isOpen && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover backdrop-blur-xl border border-border-strong z-[100] overflow-hidden animate-in fade-in slide-in-from-top-1 shadow-[var(--shadow-overlay)]">
-                    <ul role="listbox" aria-label="Search suggestions" className="py-2 max-h-[300px] overflow-y-auto">
-                        {suggestions.map((suggestion, index) => {
-                            // Item 6a: a section header renders once per run
-                            // of same-typed suggestions — at the very first
-                            // item, or wherever the type changes from the
-                            // item before it — never per-row, and never at
-                            // all for a type with no label in `SECTION_LABELS`.
-                            const label = SECTION_LABELS[suggestion.type];
-                            const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);
-                            const segments = highlightMatch(suggestion.text, value);
-                            return (
-                                <Fragment key={index}>
-                                    {showLabel && (
-                                        <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            {label}
-                                        </li>
-                                    )}
-                                    <li
-                                        role="option"
-                                        aria-selected={index === activeIndex}
-                                        className={cn(
-                                            "px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors text-sm",
-                                            index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            {/* Portaled so clipped ancestors (docked header `overflow-hidden`)
+                cannot hide suggestions. */}
+            {dropdownOpen &&
+                overlayRect &&
+                typeof document !== "undefined" &&
+                createPortal(
+                    <div
+                        className="fixed z-[100] overflow-hidden border border-border-strong bg-popover shadow-[var(--shadow-overlay)] backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+                        style={{
+                            top: overlayRect.top,
+                            left: overlayRect.left,
+                            width: overlayRect.width,
+                        }}
+                    >
+                        <ul role="listbox" aria-label="Search suggestions" className="max-h-[300px] overflow-y-auto py-2">
+                            {suggestions.map((suggestion, index) => {
+                                const label = SECTION_LABELS[suggestion.type];
+                                const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);
+                                const segments = highlightMatch(suggestion.text, value);
+                                return (
+                                    <Fragment key={index}>
+                                        {showLabel && (
+                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                {label}
+                                            </li>
                                         )}
-                                        onClick={() => handleSelect(suggestion.text)}
-                                        onMouseEnter={() => setActiveIndex(index)}
-                                        // Item 6e: without this, the click's own
-                                        // mousedown blurs the Input FIRST (firing
-                                        // the `onBlur` close above), which
-                                        // unmounts this row before its `onClick`
-                                        // ever runs — the standard combobox fix.
-                                        onMouseDown={(e) => e.preventDefault()}
-                                    >
-                                        {suggestion.type === 'history' ? (
-                                            <Clock size={16} className="shrink-0 opacity-70" />
-                                        ) : suggestion.type === 'company' ? (
-                                            <Buildings size={16} className="shrink-0 opacity-70" />
-                                        ) : (
-                                            <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
-                                        )}
-                                        <span className="flex-1 truncate">
-                                            {segments.map((seg, i) =>
-                                                seg.matched ? (
-                                                    <mark key={i} className="bg-transparent font-semibold text-foreground">
-                                                        {seg.text}
-                                                    </mark>
-                                                ) : (
-                                                    <span key={i}>{seg.text}</span>
-                                                ),
+                                        <li
+                                            role="option"
+                                            aria-selected={index === activeIndex}
+                                            className={cn(
+                                                "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
+                                                index === activeIndex ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                                             )}
-                                        </span>
-                                        {index === activeIndex && (
-                                            <CaretRight size={14} className="opacity-50" />
-                                        )}
-                                    </li>
-                                </Fragment>
-                            );
-                        })}
-                    </ul>
-                </div>
-            )}
+                                            onClick={() => handleSelect(suggestion.text)}
+                                            onMouseEnter={() => setActiveIndex(index)}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                        >
+                                            {suggestion.type === "history" ? (
+                                                <Clock size={16} className="shrink-0 opacity-70" />
+                                            ) : suggestion.type === "company" ? (
+                                                <Buildings size={16} className="shrink-0 opacity-70" />
+                                            ) : (
+                                                <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
+                                            )}
+                                            <span className="flex-1 truncate">
+                                                {segments.map((seg, i) =>
+                                                    seg.matched ? (
+                                                        <mark key={i} className="bg-transparent font-semibold text-foreground">
+                                                            {seg.text}
+                                                        </mark>
+                                                    ) : (
+                                                        <span key={i}>{seg.text}</span>
+                                                    ),
+                                                )}
+                                            </span>
+                                            {index === activeIndex && <CaretRight size={14} className="opacity-50" />}
+                                        </li>
+                                    </Fragment>
+                                );
+                            })}
+                        </ul>
+                    </div>,
+                    document.body,
+                )}
         </div>
     );
 });

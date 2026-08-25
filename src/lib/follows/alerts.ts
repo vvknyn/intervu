@@ -1,7 +1,7 @@
 /**
  * Pure, client-safe follow-alert helpers — deliberately free of anything
  * that pulls in `@/lib/jobs/search` (server-only: Meilisearch client, the
- * IP-geolocation reader, etc). `FollowAlertsCard.tsx` is a client component
+ * IP-geolocation reader, etc). `FollowAlertsBell.tsx` is a client component
  * that imports `jobPostedMs` from here; if this file dragged `search.ts`'s
  * import graph along, Next would have to bundle server-only Node built-ins
  * (`fs`/`net`, via the mmdb reader — see lib/geo/ip-country.ts) for the
