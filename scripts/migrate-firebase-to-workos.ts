@@ -30,6 +30,7 @@ import admin from "firebase-admin";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { toWorkosUserPayload } from "../src/lib/auth/firebase-to-workos.ts";
+import { classifyIdentity } from "../src/lib/auth/test-identity.ts";
 import {
   createClient,
   ensureMembership,
@@ -120,10 +121,20 @@ async function main() {
     : await ensureOrganization(client, "Intervu");
   console.log(`organization=${org.id}${org.created ? " (created)" : ""}`);
 
-  const tally = { created: 0, updated: 0, no_email: 0, failed: 0, memberships: 0 };
+  const tally = { created: 0, updated: 0, skipped: 0, no_email: 0, failed: 0, memberships: 0 };
   const failures = [];
 
   for (const user of firebaseUsers) {
+    // Automated-test accounts do not belong in an identity provider. Skipped
+    // here rather than only cleaned up afterwards, or every re-run would
+    // resurrect what `clean-test-identities.ts` removed.
+    const verdict = classifyIdentity(user.email);
+    if (verdict.isTest) {
+      tally.skipped++;
+      console.log(`skipped test_identity ${user.email} (${verdict.reason})`);
+      continue;
+    }
+
     // Read the existing record first so the `apps` tag merges rather than
     // replacing — a user of both products must keep both.
     const existing = DRY_RUN

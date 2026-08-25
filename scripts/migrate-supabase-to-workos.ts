@@ -24,6 +24,7 @@ import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { toWorkosUserPayload } from "../src/lib/auth/supabase-to-workos.ts";
+import { classifyIdentity } from "../src/lib/auth/test-identity.ts";
 import {
     createClient,
     ensureMembership,
@@ -110,6 +111,16 @@ async function main() {
     const failures: unknown[] = [];
 
     for (const row of rows) {
+        // Automated-test accounts do not belong in an identity provider. Skipped
+        // here rather than only cleaned up afterwards, or every re-run would
+        // resurrect what `clean-test-identities.ts` removed.
+        const verdict = classifyIdentity(row.email);
+        if (verdict.isTest) {
+            tally.skipped++;
+            console.log(`skipped test_identity ${row.email} (${verdict.reason})`);
+            continue;
+        }
+
         // An existing user may already be tagged for intervu. Read it first so
         // the tag merges instead of evicting them from the other product.
         const existing = DRY_RUN ? null : await findUserByEmail(client, (row.email ?? "").trim().toLowerCase());

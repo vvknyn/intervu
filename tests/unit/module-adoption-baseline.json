@@ -4,6 +4,7 @@
     "lib/analytics/funnel.ts",
     "lib/auth/firebase-to-workos.ts",
     "lib/auth/supabase-to-workos.ts",
+    "lib/auth/test-identity.ts",
     "lib/auth/workos-apps.ts",
     "lib/export-resume-pdf.ts",
     "lib/jobs/fit-verdict.ts",
