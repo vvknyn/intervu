@@ -6,7 +6,7 @@ const mastheadTitle = "Every job, straight from the employer.";
  *  guided tour, and any future surface that states why these listings differ. */
 export const JOBS_USP = {
     mastheadTitle,
-    searchDescription: `${mastheadTitle} ${LANDING_PROVENANCE_LINE}`,
+    searchDescription: LANDING_PROVENANCE_LINE,
     straightFromCompany: {
         title: "Straight from the company",
         body:

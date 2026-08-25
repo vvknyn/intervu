@@ -21,7 +21,8 @@ const YOURS_PAGE = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx"
 describe("jobs USP copy: single source for tour and landing", () => {
     it("exports the five marketing claims", () => {
         assert.equal(JOBS_USP.mastheadTitle, "Every job, straight from the employer.");
-        assert.match(JOBS_USP.searchDescription, /Every job, straight from the employer\./);
+        assert.doesNotMatch(JOBS_USP.searchDescription, /^Every job, straight from the employer\./);
+        assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
         assert.equal(JOBS_USP.straightFromCompany.title, "Straight from the company");
         assert.ok(JOBS_USP.straightFromCompany.body.length > 20);
         assert.equal(JOBS_USP.checkedBeforeApply.title, "Checked before you apply");
@@ -52,6 +53,7 @@ describe("jobs USP copy: single source for tour and landing", () => {
         assert.equal(steps[2].selector, '[data-tour="row-exception"]');
         assert.equal(steps[2].title, EXCEPTION_KEY_TITLE);
         assert.equal(steps[2].description, EXCEPTION_KEY_BODY);
+        assert.match(EXCEPTION_KEY_BODY, /\.$/);
         assert.equal(steps[2].optional, true);
 
         assert.equal(steps[3].selector, '[data-tour="jobs-posting-check"]');
@@ -148,23 +150,21 @@ describe("jobs-relist JIT tour", () => {
         assert.match(both[0].description, /may no longer be live/i);
     });
 
-    it("shouldShowRelistJit: false unless main tour done, unseen, and relist in DOM", () => {
+    it("shouldShowRelistJit: false unless main tour done, unseen, relist in DOM, and listings visible", () => {
         const cases = [
-            { mainTourActive: true, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: true, relistInDom: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: false, expected: false },
-            { mainTourActive: false, hasSeenMainTour: false, hasSeenRelist: false, relistInDom: true, expected: false },
-            { mainTourActive: true, hasSeenMainTour: true, hasSeenRelist: true, relistInDom: true, expected: false },
-            { mainTourActive: true, hasSeenMainTour: false, hasSeenRelist: false, relistInDom: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: true, relistInDom: false, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, expected: true },
+            { mainTourActive: true, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: false },
+            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: true, relistInDom: true, listingsVisible: true, expected: false },
+            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: false, listingsVisible: true, expected: false },
+            { mainTourActive: false, hasSeenMainTour: false, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: false },
+            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: false, expected: false },
+            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: true },
         ] as const;
 
         for (const c of cases) {
             assert.equal(
                 shouldShowRelistJit(c),
                 c.expected,
-                `main=${c.mainTourActive} seenMain=${c.hasSeenMainTour} seenRelist=${c.hasSeenRelist} dom=${c.relistInDom}`,
+                `main=${c.mainTourActive} seenMain=${c.hasSeenMainTour} seenRelist=${c.hasSeenRelist} dom=${c.relistInDom} listings=${c.listingsVisible}`,
             );
         }
     });
@@ -181,6 +181,7 @@ describe("jobs-relist JIT tour", () => {
                 bothInDom: true,
                 staleInDom: true,
                 relistInDom: true,
+                listingsVisible: true,
             }),
             "both",
         );
@@ -195,6 +196,7 @@ describe("jobs-relist JIT tour", () => {
                 bothInDom: false,
                 staleInDom: true,
                 relistInDom: true,
+                listingsVisible: true,
             }),
             "stale",
         );
@@ -209,8 +211,24 @@ describe("jobs-relist JIT tour", () => {
                 bothInDom: false,
                 staleInDom: false,
                 relistInDom: true,
+                listingsVisible: true,
             }),
             "relisted",
+        );
+        assert.equal(
+            pickExceptionJit({
+                mainTourActive: false,
+                hasSeenMainTour: true,
+                exceptionTourActive: false,
+                hasSeenBoth: true,
+                hasSeenStale: true,
+                hasSeenRelist: false,
+                bothInDom: false,
+                staleInDom: false,
+                relistInDom: true,
+                listingsVisible: false,
+            }),
+            null,
         );
     });
 });
@@ -240,12 +258,30 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /return null/);
     });
 
-    it("signed-out TopBar is one primary, not Get job alerts plus Log in", () => {
+    it("signed-out TopBar shows Sign in via WorkOSNavAuth plus Get job alerts", () => {
         const src = readFileSync(TOPBAR, "utf8");
         const signedOut = src.slice(src.indexOf("{user ?"), src.indexOf("<AuthPopover"));
         assert.match(signedOut, /topbar-alerts-cta/);
-        assert.doesNotMatch(signedOut, /data-testid="topbar-login"/);
-        assert.doesNotMatch(signedOut, />\s*Log in\s*</);
+        assert.match(signedOut, /WorkOSNavAuth/);
+    });
+
+    it("résumé prompts stay off while any jobs tour is active", () => {
+        const src = readFileSync(PAGE, "utf8");
+        assert.match(src, /showPersonalizationInvite[\s\S]*!tourActive/);
+        assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
+    });
+
+    it("SERP keeps a single page h1 when the landing masthead is absent", () => {
+        const src = readFileSync(PAGE, "utf8");
+        assert.doesNotMatch(src, /<LandingMasthead/);
+        assert.match(src, /<h1[^>]*className="[^"]*sr-only/);
+    });
+
+    it("loading splash copy uses readable status text size", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const splash = src.slice(src.indexOf("function JobsListSplash"), src.indexOf("/* ----------------------------- results mode"));
+        assert.match(splash, /Finding live roles/);
+        assert.doesNotMatch(splash, /text-\[11px\]/);
     });
 
     it("sort segments portal into the docked TopBar filter row", () => {
@@ -351,6 +387,7 @@ describe("jobs page chrome guards", () => {
     it("exception JIT queries data-exception selectors and pickExceptionJit", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /pickExceptionJit/);
+        assert.match(src, /listingsVisible/);
         assert.match(src, /\[data-exception="both"\]/);
         assert.match(src, /\[data-exception="stale"\]/);
         assert.match(src, /\[data-exception="relisted"\]/);
