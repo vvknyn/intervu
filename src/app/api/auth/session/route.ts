@@ -5,6 +5,7 @@ import { sendWelcomeEmailOnce } from "@/lib/email/welcome";
 import { grantWelcomeCredits } from "@/lib/llm/credit-gate";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSessionRequest } from "@/lib/shield/rate-limit";
+import { getServerUser } from "@/lib/auth/server-user";
 
 /**
  * POST /api/auth/session — Create session cookie from ID token
@@ -65,6 +66,30 @@ export async function POST(request: Request) {
         console.error("[Session] Create error:", error);
         return NextResponse.json({ error: error.message || "Failed to create session" }, { status: 401 });
     }
+}
+
+/**
+ * GET /api/auth/session — who is signed in, according to the server.
+ *
+ * The client cannot answer this for itself any more. Its own listener is
+ * Firebase's `onAuthStateChanged`, which knows nothing about a WorkOS session,
+ * so a user who signs in through AuthKit is authenticated to every server
+ * action while the UI still renders them signed out. `getServerUser()` already
+ * reads both providers, and this exposes that one answer to the browser.
+ *
+ * Returns only what the client actually renders — uid, email, display name.
+ * Never a token: the session cookie is httpOnly precisely so script cannot
+ * reach it, and handing back a credential here would undo that.
+ */
+export async function GET() {
+    const user = await getServerUser();
+    return NextResponse.json(
+        { user },
+        // Identity is per-request and per-cookie. A cached copy of this
+        // response served to a second person is an account takeover, so it
+        // must never sit in a CDN or the browser's http cache.
+        { headers: { "Cache-Control": "no-store, private" } },
+    );
 }
 
 /**
