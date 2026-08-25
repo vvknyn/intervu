@@ -24,6 +24,8 @@ const AUTHKIT_URL =
     "&state=Fe26.2*1*abc*def~2" +
     "&code_challenge=chal123" +
     "&code_challenge_method=S256" +
+    "&screen_hint=sign-in" +
+    "&login_hint=someone%40example.com" +
     "&provider=authkit";
 
 describe("withAuthProvider", () => {
@@ -67,6 +69,44 @@ describe("withAuthProvider", () => {
         for (const empty of [null, undefined, ""]) {
             assert.equal(withAuthProvider(AUTHKIT_URL, empty), AUTHKIT_URL);
         }
+    });
+
+    /**
+     * The production failure this was written for. `screen_hint` asks the hosted
+     * page for a particular screen; naming a provider means no hosted page ever
+     * renders. WorkOS rejects the pair outright — `302 error.workos.com/sso`,
+     * shown to the user as "Couldn't sign in" — instead of ignoring the
+     * leftover, so leaving it in place breaks every provider hand-off.
+     */
+    it("drops screen_hint when a provider is named", () => {
+        const out = new URL(withAuthProvider(AUTHKIT_URL, "GoogleOAuth"));
+        assert.equal(out.searchParams.get("screen_hint"), null);
+    });
+
+    // A different provider AND the other screen_hint value: the sign-up door
+    // built the same URL with `screen_hint=sign-up`, so a fix that only handled
+    // the sign-in case would have left half the flows broken.
+    it("drops screen_hint for any provider and either screen", () => {
+        const signup = AUTHKIT_URL.replace("screen_hint=sign-in", "screen_hint=sign-up");
+        const out = new URL(withAuthProvider(signup, "MicrosoftOAuth"));
+        assert.equal(out.searchParams.get("screen_hint"), null);
+        assert.equal(out.searchParams.get("provider"), "MicrosoftOAuth");
+    });
+
+    // The other half of the rule, and the reason it is not "strip every hint":
+    // WorkOS forwards login_hint upstream, so it stays useful exactly when the
+    // hosted page is skipped. A blanket strip would pass the test above and
+    // quietly lose the pre-filled account.
+    it("keeps hints that describe the user, not the screen", () => {
+        const out = new URL(withAuthProvider(AUTHKIT_URL, "GoogleOAuth"));
+        assert.equal(out.searchParams.get("login_hint"), "someone@example.com");
+    });
+
+    // Without a provider the hosted page is exactly where the user is going, so
+    // the parameter must survive. This is the negative control for the strip.
+    it("keeps screen_hint when no provider is requested", () => {
+        const out = new URL(withAuthProvider(AUTHKIT_URL, null));
+        assert.equal(out.searchParams.get("screen_hint"), "sign-in");
     });
 
     it("encodes a provider value rather than letting it inject parameters", () => {
