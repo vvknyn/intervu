@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { isAuthGatedProductPath } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
+import { allowDetailPageRequest, DETAIL_PAGE_WINDOW_MS, isDetailPagePath } from "@/lib/shield/rate-limit";
+import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 import { JOBS_VISITOR_COOKIE, JOBS_VISITOR_COOKIE_MAX_AGE } from "@/lib/jobs-visitor-cookie";
 
 export async function middleware(request: NextRequest) {
@@ -16,6 +18,20 @@ export async function middleware(request: NextRequest) {
         })
     ) {
         return new NextResponse(null, { status: 403 });
+    }
+
+    // Per-IP rate limit on the /jobs/<slug> and /co/<slug> detail pages
+    // (lib/shield/rate-limit.ts's `isDetailPagePath`/`allowDetailPageRequest`
+    // docblocks for scope + sizing). Cheapest possible rejection: before the
+    // WorkOS `authkit()` call below, which does real work on every request.
+    if (isDetailPagePath(request.nextUrl.pathname)) {
+        const ip = resolveClientIpFromHeaders(request.headers);
+        if (!allowDetailPageRequest(ip)) {
+            return new NextResponse(null, {
+                status: 429,
+                headers: { "Retry-After": String(DETAIL_PAGE_WINDOW_MS / 1000) },
+            });
+        }
     }
 
     // WorkOS AuthKit session — composable pattern that integrates with

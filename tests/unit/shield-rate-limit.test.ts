@@ -4,6 +4,7 @@ import {
   allowAuthSessionRequest,
   allowAuthSignupRequest,
   allowConnectWaitlistRequest,
+  allowDetailPageRequest,
   allowJobsSuggestRequest,
   allowSearchRequest,
   AUTH_SESSION_MAX_REQUESTS,
@@ -12,6 +13,9 @@ import {
   checkRateLimitWindow,
   clearRateLimitStateForTests,
   CONNECT_WAITLIST_MAX_REQUESTS,
+  DETAIL_PAGE_MAX_REQUESTS,
+  DETAIL_PAGE_WINDOW_MS,
+  isDetailPagePath,
   JOBS_SUGGEST_MAX_REQUESTS,
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
@@ -174,5 +178,59 @@ test("allowAuthSignupRequest: its own store, separate from the session limiter's
   assert.equal(allowAuthSignupRequest("1.2.3.4", now), false);
   // Signup is exhausted, but the SAME ip's session budget is untouched.
   assert.equal(allowAuthSessionRequest("1.2.3.4", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("isDetailPagePath: the /jobs list is NEVER a detail page — the class-fix case", () => {
+  assert.equal(isDetailPagePath("/jobs"), false);
+  // Trailing slash, empty slug — still the list, not a detail page.
+  assert.equal(isDetailPagePath("/jobs/"), false);
+  // pathname never carries a query string, but a bare "/jobs" segment must
+  // stay unmatched regardless of what the full URL's search params hold.
+  assert.equal(isDetailPagePath("/jobsomething"), false);
+});
+
+test("isDetailPagePath: matches a job or company detail page, including a nested slug path", () => {
+  assert.equal(isDetailPagePath("/jobs/senior-engineer-at-acme-11111111-1111-1111-1111-111111111111"), true);
+  assert.equal(isDetailPagePath("/jobs/11111111-1111-1111-1111-111111111111/opengraph-image"), true);
+  assert.equal(isDetailPagePath("/co/acme"), true);
+  assert.equal(isDetailPagePath("/co"), false);
+  assert.equal(isDetailPagePath("/co/"), false);
+});
+
+test("allowDetailPageRequest: under the cap is allowed, at the cap is blocked", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < DETAIL_PAGE_MAX_REQUESTS; i++) {
+    assert.equal(allowDetailPageRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowDetailPageRequest("1.2.3.4", now), false);
+  clearRateLimitStateForTests();
+});
+
+test("allowDetailPageRequest: keeps its own per-IP window, separate from every other chokepoint's", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < DETAIL_PAGE_MAX_REQUESTS; i++) {
+    assert.equal(allowDetailPageRequest("1.2.3.4", now), true);
+  }
+  assert.equal(allowDetailPageRequest("1.2.3.4", now), false);
+  // Detail-page budget is exhausted, but the SAME ip's other chokepoints
+  // (a second limited path shares this store, per `/co/<slug>` above —
+  // this proves it doesn't leak into an UNRELATED concern) are untouched.
+  assert.equal(allowSearchRequest("1.2.3.4", now), true);
+  assert.equal(allowJobsSuggestRequest("1.2.3.4", now), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowDetailPageRequest: a different IP starts with a fresh window, and the window recovers once entries age out", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  for (let i = 0; i < DETAIL_PAGE_MAX_REQUESTS; i++) {
+    assert.equal(allowDetailPageRequest("9.9.9.9", now), true);
+  }
+  assert.equal(allowDetailPageRequest("9.9.9.9", now), false);
+  assert.equal(allowDetailPageRequest("8.8.8.8", now), true);
+  assert.equal(allowDetailPageRequest("9.9.9.9", now + DETAIL_PAGE_WINDOW_MS + 1), true);
   clearRateLimitStateForTests();
 });

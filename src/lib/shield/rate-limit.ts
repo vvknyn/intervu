@@ -177,3 +177,61 @@ export const AUTH_SIGNUP_MAX_REQUESTS = 5;
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the signup action's own store. */
 export const allowAuthSignupRequest = createIpRateLimiter(AUTH_SIGNUP_WINDOW_MS, AUTH_SIGNUP_MAX_REQUESTS);
+
+/** Exact segment match or a non-empty slug beneath it — `/jobs` (the list)
+ *  and `/jobs/` (empty slug) are both false; `/jobs/foo` and
+ *  `/jobs/foo/opengraph-image` are both true. Mirrors `isAtOrBeneath` in
+ *  `suspicious-request.ts`, but that helper treats the base path itself as
+ *  a match (`/api` counts) — here the base itself (the list/index) must
+ *  stay OUT, so it can't be reused as-is. */
+function hasNonEmptySlugBeneath(pathname: string, base: string): boolean {
+  const prefix = `${base}/`;
+  return pathname.startsWith(prefix) && pathname.length > prefix.length;
+}
+
+/**
+ * True for a job or company DETAIL page — `/jobs/<slug>` or `/co/<slug>` —
+ * never for the `/jobs` list itself or its `?job=`/query-param variants
+ * (pathname never carries a query string, but this only matches a real path
+ * segment regardless). This distinction is load-bearing: a plain click on a
+ * `/jobs` list row opens the job in an in-page panel via native
+ * `history.pushState` to `/jobs?job=<id>` (`app/jobs/page.tsx`'s
+ * `applyUrlState`/`openJob` — zero HTTP requests, the list's own server
+ * payload never depends on its search params), so limiting `/jobs` itself
+ * would throttle ordinary browsing/filtering, not detail-page traffic. The
+ * paths this DOES match are reached by real navigation: the row's `<Link
+ * href={jobPath(job)}>` (crawlable/copy-link-able, `app/jobs/page.tsx`) and
+ * the company link `router.push`'d from the open job panel.
+ */
+export function isDetailPagePath(pathname: string): boolean {
+  return hasNonEmptySlugBeneath(pathname, "/jobs") || hasNonEmptySlugBeneath(pathname, "/co");
+}
+
+/**
+ * Per-IP sliding-window rate limit for the `/jobs/<slug>` and `/co/<slug>`
+ * detail pages, applied at the middleware seam (`isDetailPagePath` above) —
+ * the one app-side backstop before this repo's IP+threshold Cloudflare rule
+ * (free-plan-locked, no header/path awareness). One shared store for both
+ * prefixes, not two: they're the same concern (an unauthenticated visitor
+ * loading a public slug-keyed detail page), unlike the chokepoints above
+ * that deliberately stay separate because they measure different things.
+ *
+ * Sized well above the keystroke-driven typeahead's 90/60s
+ * (`JOBS_SUGGEST_MAX_REQUESTS`) because a single real "detail open" is not
+ * one request here. Next's App Router `<Link>` (the jobs-list row uses one,
+ * `jobPath(job)`) prefetches by default on viewport intersection, not just
+ * on click — and the list loads `DEFAULT_BROWSE_LIMIT` (20, `actions/jobs.ts`)
+ * rows per infinite-scroll batch, so a few seconds of continuous scrolling
+ * can silently prefetch several batches' worth of distinct slugs before
+ * anyone clicks anything. A real click can itself cost two hits on this
+ * shape: a stale/re-titled slug 301s via `permanentRedirect` to the
+ * canonical one (`app/jobs/[slug]/page.tsx`), and both the old and new URL
+ * match this path. 150/60s absorbs that scroll-driven fan-out plus repeat
+ * visits for one visitor while still meaningfully throttling a sustained
+ * slug-walking scrape (2.5 req/s sustained, not a one-off burst).
+ */
+export const DETAIL_PAGE_WINDOW_MS = 60_000;
+export const DETAIL_PAGE_MAX_REQUESTS = 150;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the detail-page store. */
+export const allowDetailPageRequest = createIpRateLimiter(DETAIL_PAGE_WINDOW_MS, DETAIL_PAGE_MAX_REQUESTS);
