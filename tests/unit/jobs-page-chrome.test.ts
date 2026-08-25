@@ -260,11 +260,35 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /return null/);
     });
 
-    it("signed-out TopBar shows Sign in via WorkOSNavAuth plus Get job alerts", () => {
+    it("signed-out TopBar offers Sign in and Get job alerts, and only one auth system", () => {
         const src = readFileSync(TOPBAR, "utf8");
-        const signedOut = src.slice(src.indexOf("{user ?"), src.indexOf("<AuthPopover"));
-        assert.match(signedOut, /topbar-alerts-cta/);
-        assert.match(signedOut, /WorkOSNavAuth/);
+        const start = src.indexOf('authChrome === "pending"');
+        assert.notStrictEqual(start, -1, "auth chrome branch not found in TopBar");
+        const authBlock = src.slice(start, src.indexOf("<AuthPopover"));
+        assert.match(authBlock, /topbar-signin/);
+        assert.match(authBlock, /topbar-alerts-cta/);
+        // The defect this replaced was a SECOND auth component rendering its
+        // own session check and its own button beside the popover's, so the
+        // two could disagree on screen. Naming the old component here would
+        // only have banned that one instance — this bans the shape: nothing
+        // in the bar may resolve auth except `onAuthChange` above.
+        assert.doesNotMatch(src, /useAuth\(/);
+        assert.strictEqual(src.match(/<AuthPopover/g)?.length, 1);
+    });
+
+    it("TopBar reserves the auth slot instead of claiming signed-out before auth resolves", () => {
+        const src = readFileSync(TOPBAR, "utf8");
+        // `null` alone would mean both "signed out" and "not asked yet", and
+        // `onAuthChange` waits on a server round-trip for the httpOnly WorkOS
+        // cookie — so the undefined seed is what keeps a signed-in user from
+        // being shown a Sign-in button mid-flight.
+        assert.match(src, /useState<User \| null \| undefined>\(undefined\)/);
+        const pending = src.slice(
+            src.indexOf('authChrome === "pending"'),
+            src.indexOf('authChrome === "authenticated"'),
+        );
+        assert.doesNotMatch(pending, /topbar-signin|topbar-alerts-cta/);
+        assert.match(pending, /topbar-auth-pending/);
     });
 
     it("résumé prompts stay off while any jobs tour is active", () => {
