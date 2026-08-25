@@ -66,7 +66,6 @@ import {
     interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
-    seamSummarySorted,
     buildRowMetaLine,
     employmentTypeSegment,
     locationWithMode,
@@ -2362,9 +2361,7 @@ function JobsContent() {
     // Deliverable 3 — collapse repeat postings (same title, same company —
     // e.g. one role cross-posted at several locations) into one card each,
     // ranked at the earliest/best-ranked copy's position. `clusterJobs` is
-    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`, so a
-    // partitioned sort's reordering (above) survives clustering instead of
-    // being clustered back into raw engine order.
+    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`.
     const clusters = useMemo(() => clusterJobs(displayHits), [displayHits]);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -2551,9 +2548,41 @@ function JobsContent() {
     // instead of asserting death. Confirmed gone: the tombstone.
     const deadJobFoundJob = deadJobResolved?.status === "found" ? deadJobResolved.job : null;
     const isDeadJobConfirmed = deadJobResolved?.status === "not_found";
+
+    // List hits omit `description` for payload size — hydrate the selected
+    // in-list job on demand (same id lookup as the dead-job existence check).
+    const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob } | null>(null);
+    const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
+    if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
+    useEffect(() => {
+        setHydratedDetail((prev) => (prev && prev.id === selectedId ? prev : null));
+    }, [selectedId]);
+    useEffect(() => {
+        if (!selected || selected.description !== undefined) return;
+        const id = selected.id;
+        if (hydratedDetail?.id === id) return;
+        const token = detailHydrationGuardRef.current!.begin();
+        void (async () => {
+            try {
+                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
+                if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
+                const job = r.hits?.[0];
+                if (job?.id === id) setHydratedDetail({ id, job });
+            } catch {
+                /* detail renders without description until retry/select */
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected?.id, selected?.description]);
+
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
-    const detailJob = selected ?? deadJobFoundJob;
+    const detailJob = useMemo(() => {
+        const base = selected ?? deadJobFoundJob;
+        if (!base) return null;
+        if (hydratedDetail?.id === base.id) return hydratedDetail.job;
+        return base;
+    }, [selected, deadJobFoundJob, hydratedDetail]);
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
 
     const mainJobsTourActive = tourActive && tourPageId === "jobs";

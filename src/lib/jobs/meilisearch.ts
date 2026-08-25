@@ -585,15 +585,57 @@ export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
  */
 export type MatchingStrategy = "all" | "last";
 
+/** List SERP retrieve set — every field row/cluster/sort code reads, minus
+ *  `description` (detail hydrates on demand). Search still uses default
+ *  `searchableAttributes`; only the returned payload shrinks. */
+export const JOB_LIST_ATTRIBUTES_TO_RETRIEVE = [
+  "id",
+  "title",
+  "company",
+  "company_domain",
+  "location",
+  "location_city",
+  "location_state",
+  "location_country",
+  "work_type",
+  "employment_type",
+  "experience_level",
+  "salary_min",
+  "salary_max",
+  "salary_currency",
+  "salary_period",
+  "visa_sponsorship",
+  "tags",
+  "apply_url",
+  "source",
+  "posted_at",
+  "first_seen_at",
+  "posted_ts",
+  "updated_at",
+  "vacancy_status",
+  "ghost_badge",
+  "ghost_checked_at",
+  "company_opened_90d",
+  "company_closed_90d",
+  "company_open_count",
+  "company_stage",
+  "is_indexed_google",
+  "google_indexed_at",
+  "is_indexed_linkedin",
+  "linkedin_indexed_at",
+  "report_count",
+] as const;
+
 export interface MeiliSearchBody {
   q: string;
   matchingStrategy: MatchingStrategy;
   filter: string[];
   facets?: string[];
-  hitsPerPage: number;
-  page: number;
+  limit: number;
+  offset: number;
   sort?: string[];
   attributesToSearchOn?: string[];
+  attributesToRetrieve?: readonly string[];
 }
 
 /**
@@ -695,10 +737,14 @@ export function buildSearchBody(
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
-    // Page mode returns an EXACT totalHits; limit/offset mode caps the estimate at 1000.
-    hitsPerPage: p.limit ?? 40,
-    page: Math.floor((p.offset ?? 0) / (p.limit ?? 40)) + 1,
+    // `limit`/`offset`, not `hitsPerPage`/`page` — page mode forces exhaustive
+    // count pagination over the full match set (see `buildSuggestBody`).
+    // Exact totals at 100k+ are recovered via `resolveCorpusCount` when
+    // `withFacets` returns an uncapped `ghost_badge` facet sum.
+    limit: p.limit ?? 40,
+    offset: p.offset ?? 0,
     sort: buildMeiliSort(p, legacy),
+    ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
   };
 }
 
@@ -724,8 +770,10 @@ async function searchWithDomainPostFilter(
   const scanParams = { ...p, q: postFilterSearchQ(p) };
 
   for (let page = 1; ; page++) {
+    const built = buildSearchBody(scanParams, legacy, matchingStrategy, { skipDomainFilters: true });
+    const { limit: _limit, offset: _offset, ...rest } = built;
     const body = {
-      ...buildSearchBody(scanParams, legacy, matchingStrategy, { skipDomainFilters: true }),
+      ...rest,
       hitsPerPage: POST_FILTER_PAGE_SIZE,
       page,
     };
@@ -809,23 +857,8 @@ async function searchWithDomainPostFilter(
  * whatever produced `result` — strict pass, relaxed "last" pass, or the
  * `searchWithDomainPostFilter` path all funnel through this one call in
  * `searchMeili`, so one guard covers all three. Relevance mode is untouched:
- * there is no engine-decided order to verify.
- *
- * 2026-08-14: checks `sortVerifiableHits(hits, mode, p.q)`, not `hits`
- * directly. `typo` now sits ahead of `sort` in `rankingRules`
- * (`JOBS_INDEX_SETTINGS` docblock above), so a scoped sorted page can
- * legitimately restart its date/salary order at a typo-bucket boundary —
- * that restart is the new rule order working as intended, not the
- * searchCutoffMs partial-sort disorder this guard exists to catch, so
- * checking the WHOLE page would retry (and locally re-sort, undoing the
- * bucketing) on every such page. `sortVerifiableHits` narrows the check to
- * the titled subsequence — the 0-typo bucket's visible face, and the only
- * part of the page this guard can hold to a real monotonic promise; below
- * that seam carries no such promise ("weaker matches") and was never this
- * guard's to order. See `sortVerifiableHits`'s own docblock (sort.ts) for
- * why this is safe to ship ahead of the rankingRules change landing on the
- * live index. Unscoped requests (empty `q`, or relevance) are unaffected —
- * they still get the original whole-page check.
+ * there is no engine-decided order to verify. Explicit sorts verify the
+ * whole page with `isPageSorted`.
  */
 async function applySortIntegrityGuard(
   result: JobSearchResult,

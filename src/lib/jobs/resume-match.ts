@@ -125,7 +125,7 @@ export function mergeFacets(
                 union.push(v);
             }
         }
-        merged[key] = union;
+        merged[key] = union.sort();
     }
     return merged;
 }
