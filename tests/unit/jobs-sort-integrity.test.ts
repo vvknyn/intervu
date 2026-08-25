@@ -183,14 +183,15 @@ describe("searchMeili sort-integrity guard — salary_desc (a mode the 2026-08-1
 /**
  * 2026-08-14: `typo` now sits ahead of `sort` in `rankingRules`
  * (JOBS_INDEX_SETTINGS, meilisearch.ts), so an explicit-sort + non-empty-q
- * search is scoped to title+company (`shouldScopeTextMatchToTitle`, sort.ts)
- * and can legitimately restart its date/salary order at the boundary
+ * search can legitimately restart its date/salary order at the boundary
  * between the 0-typo bucket and a looser typo-admit bucket — that restart
  * is the new rule order working as intended, NOT the searchCutoffMs
  * partial-sort disorder the guard above exists to catch. These pin the
- * guard's new invariant: check sortedness on the TITLED subsequence only
- * (`sortVerifiableHits`, sort.ts) when scoping is active, and keep the
- * original whole-page check when it isn't (empty q, or relevance).
+ * guard's invariant: check sortedness on the TITLED subsequence only
+ * (`sortVerifiableHits`, sort.ts) when an explicit sort + query would
+ * interleave titled vs mention hits, and keep the original whole-page
+ * check when it wouldn't (empty q, or relevance).
+ * Retrieval is whole-document for every sort (`buildSearchBody`).
  */
 describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary)", () => {
     it("passes when the titled subsequence is monotonic even though the full page restarts at a typo-bucket boundary", async () => {

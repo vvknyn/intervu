@@ -18,7 +18,7 @@ import {
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery } from "./presentation";
 import { sanitizeTimestamp } from "./posting-freshness";
-import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortVerifiableHits } from "./sort";
+import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -244,9 +244,7 @@ export const JOBS_INDEX_SETTINGS = {
   // bucket. A page can legitimately restart its date/salary order at a
   // bucket boundary — that restart is this rule working as intended, not the
   // searchCutoffMs partial-sort disorder the sort-integrity guard exists to
-  // catch (see `sortVerifiableHits`, sort.ts, and `applySortIntegrityGuard`
-  // below, updated the same day to check only the 0-typo/titled subsequence
-  // rather than the whole page).
+  // catch (see `applySortIntegrityGuard` below).
   //
   // BEST is byte-identical: BEST sends no `sort` param, so the `sort` rule is
   // inert regardless of where it sits, and moving it past `typo` does not
@@ -503,6 +501,11 @@ export function renderPlaceClause(clause: PlaceClause): string {
  *  `= "active"`: those differ for any future third status. */
 export const LIVE_VACANCY_FILTER = 'vacancy_status != "closed"';
 
+function canonicalFacetValues(rawVals: string[]): string[] {
+  const vals = rawVals.filter((v) => v !== "any" && v !== "all");
+  return [...new Set(vals)].sort();
+}
+
 export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilterOpts): string[] {
   const f: string[] = [LIVE_VACANCY_FILTER];
   // Task 11 — existence check: requires "id" in `filterableAttributes`
@@ -521,7 +524,7 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
   for (const key of FACETABLE_KEYS) {
     const rawVals = facets[key];
     if (!rawVals || rawVals.length === 0) continue;
-    const vals = rawVals.filter((v) => v !== "any" && v !== "all");
+    const vals = canonicalFacetValues(rawVals);
     if (vals.length === 0) continue;
     // OR within a facet, AND across facets. JSON.stringify quotes + escapes the value.
     f.push("(" + vals.map((v) => `${key} = ${JSON.stringify(v)}`).join(" OR ") + ")");
@@ -656,42 +659,32 @@ export function buildSearchBody(
 ): MeiliSearchBody {
   // `matchingStrategy === "last"` is this file's existing marker for "this is
   // the relaxed pass" (see `searchMeili`'s `runPass`/`shouldRelaxSearch`) —
-  // fired only after a strict scoped pass came back with zero hits. Reusing
-  // it here means the relax pass drops title/company scoping back to
-  // whole-document search by construction, with no second rebuild path: a
-  // genuinely-empty result still degrades gracefully instead of staying
-  // artificially empty under a scope that just proved it matches nothing.
-  const sortScoped =
-    matchingStrategy !== "last" && shouldScopeTextMatchToTitle(resolveEffectiveSort(p), p.q);
+  // fired only after a strict pass came back with zero hits. Reusing it here
+  // means the relax pass drops tech-skill attribute scoping back to
+  // whole-document search by construction (`matchingStrategy === "last"`).
   const techSkillScoped =
-    !opts?.companyScoped && !sortScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
+    !opts?.companyScoped && matchingStrategy !== "last" && isTechSkillQuery(p.q ?? "");
   return {
     // `quoteShortTokens` only rewrites the text handed to Meilisearch — every
-    // classifier below (`sortScoped`, `techSkillScoped`, `buildFilter`, …)
-    // still reads the raw `p.q`/`p` so quoting can never change what the
-    // query is CLASSIFIED as, only how its short tokens are matched.
+    // classifier below (`techSkillScoped`, `buildFilter`, …) still reads the
+    // raw `p.q`/`p` so quoting can never change what the query is CLASSIFIED
+    // as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
-    // Whole-document retrieval is the default and stays that way (see the
-    // note above `searchMeili`). Two scoped exceptions, company-intent always
+    // Whole-document retrieval is the default and stays that way for every
+    // sort mode — explicit sorts only change ORDER BY (`buildMeiliSort`), not
+    // which attributes may match. Two scoped exceptions, company-intent always
     // narrower and therefore always winning when both apply:
     //  - `companyScoped`: the query text names an employer — see the
     //    "FOREMAN - SEAL & STRIPE" note in company-intent.ts. Restricts to
     //    `company` alone.
-    //  - `sortScoped`: an explicit non-relevance sort turns `sort` into a
-    //    real ORDER BY (JOBS_INDEX_SETTINGS's rankingRules docblock above) —
-    //    restricts to `title`+`company` so a fresh/high-salary posting that
-    //    only matches in its description can't outrank real title matches
-    //    under that ordering. See `shouldScopeTextMatchToTitle` (sort.ts).
     //  - `techSkillScoped`: standalone tech/programming language tokens
     //    (e.g. "Rust", "Swift", "Python") scope to title/tags/description
     //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
-      : sortScoped
-        ? { attributesToSearchOn: ["title", "company"] }
-        : techSkillScoped
-          ? { attributesToSearchOn: ["title", "tags", "description"] }
-          : {}),
+      : techSkillScoped
+        ? { attributesToSearchOn: ["title", "tags", "description"] }
+        : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that

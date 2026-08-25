@@ -205,7 +205,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
-import { buildMatchQuery } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -2329,12 +2329,10 @@ function JobsContent() {
             failed: zeroQueryFetchFailed,
         }) === "serp-ask";
 
-    // Whether this render's search is scoped to title+company because an
-    // explicit sort turned `sort` into a real ORDER BY — the identical
-    // condition `buildSearchBody` used server-side to decide the SAME thing
+    // Whether to partition hits into titled vs mention blocks for display —
+    // retrieval is whole-document; this flag is seam UI only
     // (`shouldScopeTextMatchToTitle`, sort.ts). Relevance ranking (explicit
-    // or auto-defaulted) never scopes, so it's false there exactly when it's
-    // false here.
+    // or auto-defaulted) skips the partition.
     const sortScopedSeam = shouldScopeTextMatchToTitle(effectiveSort, result?.effectiveQ ?? "");
 
     // The relevance seam (Task A) — where the "titled it" block of results
@@ -3462,13 +3460,14 @@ function JobsContent() {
     // `resolveUrlSort` above for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
-        const { q, facets: f } = buildMatchQuery(r);
-        setFacets(f);
+        const { q, facets: derived } = buildMatchQuery(r);
+        const merged = mergeFacets(facets, derived);
+        setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: f, sort: "fit" }), "replace");
+        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
     };
 
     // Dismiss the "Ranked by your résumé" chip — per controller resolution
@@ -4981,9 +4980,7 @@ function JobsContent() {
                                                     data-testid="relevance-seam"
                                                     className="mb-1 border-t border-border pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {sortScopedSeam
-                                                        ? seamSummarySorted(seamIndex)
-                                                        : seamSummary(seamIndex, total, displayHits.length)}
+                                                    {seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
                                                 ...rows,
                                             ];

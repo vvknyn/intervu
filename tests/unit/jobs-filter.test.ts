@@ -43,3 +43,13 @@ test("postedSinceMs drops out under the TRANSITIONAL legacy retry, same as poste
     const f = buildFilter({ postedSinceMs: 1_800_000_000_000 }, true);
     assert.ok(!f.some((c) => c.includes("posted_ts")), JSON.stringify(f));
 });
+
+test("filter clauses are commutative — facet object key order does not change the clause set", () => {
+    const forward = buildFilter({
+        facets: { work_type: ["remote"], experience_level: ["senior"] },
+    });
+    const reversed = buildFilter({
+        facets: { experience_level: ["senior"], work_type: ["remote"] },
+    });
+    assert.deepEqual([...forward].sort(), [...reversed].sort());
+});

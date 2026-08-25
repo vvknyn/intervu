@@ -45,24 +45,15 @@ export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | u
 }
 
 /**
- * Does an explicit-sort search need its text matching scoped to title+company
- * only, dropping description/location/tags from consideration? See
- * `JOBS_INDEX_SETTINGS`'s `rankingRules` docblock (meilisearch.ts) — `sort`
- * now sits right after `words`, acting as a true ORDER BY for any request
- * that carries one, so a query match buried in a posting's description can
- * surface a totally unrelated title under an explicit sort (q="product
- * manager" + FRESHEST returning "Driver - Class 5"). Scoping retrieval to
- * title+company is what keeps a hit meaning "this posting IS what was
- * searched for" once ranking can no longer bury a weak match behind
- * relevance.
+ * Under an explicit non-relevance sort with a query, titled vs mention hits
+ * interleave by date/pay. This flag drives the client seam
+ * (`partitionByTitleMatch`) and the sort-integrity titled subsequence
+ * (`sortVerifiableHits`) — display and monotonicity checks, not retrieval.
+ * Matching itself is whole-document for every sort (`buildSearchBody`).
  *
  * Classified by `mode`, not by enumerating sort names: any resolved sort
- * OTHER than `"relevance"` is, by definition, an explicit global ordering —
- * see `resolveEffectiveSort`. Relevance (explicit or auto-defaulted) is
- * untouched: with no `sort` param sent to Meilisearch the `sort` ranking
- * rule is inert, so whole-document search only ever gets REORDERED by
- * relevance, never risks surfacing under an ordering it didn't earn. A bare
- * browse (`q` empty) is also untouched — there is no query text to scope.
+ * OTHER than `"relevance"` is an explicit global ordering. A bare browse
+ * (`q` empty) is untouched — there is no query text to partition on.
  */
 export function shouldScopeTextMatchToTitle(mode: JobSortMode, q: string | undefined): boolean {
     return mode !== "relevance" && Boolean((q ?? "").trim());
@@ -128,20 +119,13 @@ export function isPageSorted(hits: PublicJob[], mode: JobSortMode): boolean {
  * each tier sorted within itself), not the searchCutoffMs partial-sort
  * disorder this guard exists to catch.
  *
- * When `shouldScopeTextMatchToTitle` is active, retrieval is scoped to
- * title+company, and the titled hits (matched via the SAME
- * `titleMatchesQuery` predicate the client-side seam partition
- * (`partitionByTitleMatch`, presentation.ts) uses — one predicate, so the
- * two can never disagree about what counts as "titled it") are exactly the
- * 0-typo bucket's visible face. Checking sortedness on that subsequence
- * alone restores a promise the guard can actually verify. Below the seam
- * carries no such promise ("weaker matches" — see `seamSummarySorted`,
+ * Retrieval is whole-document for every sort. The titled hits (matched via
+ * the SAME `titleMatchesQuery` predicate the client-side seam partition
+ * (`partitionByTitleMatch`, presentation.ts) uses) are still the 0-typo
+ * bucket's visible face. Checking sortedness on that subsequence alone
+ * restores a promise the guard can actually verify. Below the seam carries
+ * no such promise ("weaker matches" — see `seamSummarySorted`,
  * presentation.ts); it was never this guard's job to order that tail.
- *
- * Safe to deploy ahead of the `typo`-before-`sort` rankingRules change
- * landing on the live index: under the OLD order the whole page was
- * monotonic, and a subsequence of a monotonic sequence is itself
- * monotonic — so this narrower check never flags a false positive either way.
  *
  * Unscoped (empty `q`, or relevance mode) returns `hits` unchanged — the
  * guard's original whole-page check.

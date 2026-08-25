@@ -153,6 +153,37 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(bestMatch).toHaveAttribute('aria-pressed', 'false');
     });
 
+    test('TC-JOBS-SORT-003: switching sort does not change the matched result count', async ({ page }) => {
+        await page.goto('/jobs?q=product%20manager&posted=any');
+        await page.waitForLoadState('networkidle');
+
+        const bestMatch = page.getByRole('button', { name: 'best match' });
+        if ((await bestMatch.count()) === 0) {
+            test.skip(true, 'Backend unconfigured — sort segments absent');
+        }
+        const freshest = page.getByRole('button', { name: 'freshest' });
+        if ((await freshest.count()) === 0) {
+            test.skip(true, 'Corpus carries no posted_ts — freshest segment hidden');
+        }
+
+        const resultLine = page.getByTestId('result-line');
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        const initialCount = (await resultLine.textContent())?.trim() ?? '';
+        if (!initialCount || /No roles match/i.test(initialCount)) {
+            test.skip(true, 'No rows for this query in the current corpus');
+        }
+
+        await freshest.click();
+        await expect(page).toHaveURL(/sort=newest/);
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        await bestMatch.click();
+        await expect(page).toHaveURL(/sort=relevance/);
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+    });
+
     test('TC-JOBS-REFRESH-001: refetch keeps current results visible and shows in-flight feedback', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);

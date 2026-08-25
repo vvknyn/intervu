@@ -41,17 +41,16 @@ test("relax only when a real query strictly matched NOTHING — thin results sta
     assert.equal(shouldRelaxSearch(0, "   "), false);
 });
 
-test("an explicit newest sort with a query scopes retrieval to title+company", () => {
-    // The bug this exists to prevent: q="product manager" + FRESHEST surfaced
-    // "Driver - Class 5" — a fresh posting whose only match was buried in its
-    // description — because an explicit `sort` now acts as a global ORDER BY.
+test("an explicit newest sort with a query stays whole-document — same retrieval as relevance", () => {
     const body = buildSearchBody({ q: "product manager", sort: "newest" }, false);
-    assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+    assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
+    assert.deepEqual(body.sort, ["posted_ts:desc"]);
 });
 
-test("an explicit salary_desc sort with a query scopes retrieval to title+company", () => {
+test("an explicit salary_desc sort with a query stays whole-document", () => {
     const body = buildSearchBody({ q: "product manager", sort: "salary_desc" }, false);
-    assert.deepEqual(body.attributesToSearchOn, ["title", "company"]);
+    assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
+    assert.deepEqual(body.sort, ["salary_max:desc", "salary_min:desc"]);
 });
 
 test("relevance sort (explicit or auto) with a query stays unscoped", () => {
@@ -68,16 +67,50 @@ test("browse mode (no query) stays unscoped regardless of sort", () => {
     assert.ok(!("attributesToSearchOn" in salary), JSON.stringify(salary));
 });
 
-test("company-intent scoping is narrower and always wins over sort-scoping", () => {
+test("company-intent scoping wins regardless of sort", () => {
     const body = buildSearchBody({ q: "cloudflare", sort: "newest" }, false, "all", { companyScoped: true });
     assert.deepEqual(body.attributesToSearchOn, ["company"]);
 });
 
-test("the relax pass (matchingStrategy last) drops sort-scoping back to whole-document search", () => {
-    const strict = buildSearchBody({ q: "product manager", sort: "newest" }, false, "all");
-    assert.deepEqual(strict.attributesToSearchOn, ["title", "company"]);
-    const relaxed = buildSearchBody({ q: "product manager", sort: "newest" }, false, "last");
-    assert.ok(!("attributesToSearchOn" in relaxed), JSON.stringify(relaxed));
+test("the relax pass (matchingStrategy last) drops tech-skill scoping back to whole-document search", () => {
+    const strictRole = buildSearchBody({ q: "product manager", sort: "newest" }, false, "all");
+    assert.ok(!("attributesToSearchOn" in strictRole), JSON.stringify(strictRole));
+    const relaxedRole = buildSearchBody({ q: "product manager", sort: "newest" }, false, "last");
+    assert.ok(!("attributesToSearchOn" in relaxedRole), JSON.stringify(relaxedRole));
+    assert.equal(relaxedRole.matchingStrategy, "last");
+
+    const strictTech = buildSearchBody({ q: "Rust", sort: "newest" }, false, "all");
+    assert.deepEqual(strictTech.attributesToSearchOn, ["title", "tags", "description"]);
+    const relaxedTech = buildSearchBody({ q: "Rust", sort: "newest" }, false, "last");
+    assert.ok(!("attributesToSearchOn" in relaxedTech), JSON.stringify(relaxedTech));
+});
+
+test("sort does not change which attributes are searched — same q, different sorts, identical retrieval scope", () => {
+    const q = "product manager";
+    const base = { q, matchingStrategy: "all" as const, filter: buildSearchBody({ q }, false).filter };
+    const newest = buildSearchBody({ q, sort: "newest" }, false);
+    const relevance = buildSearchBody({ q, sort: "relevance" }, false);
+    const salary = buildSearchBody({ q, sort: "salary_desc" }, false);
+    const auto = buildSearchBody({ q }, false);
+
+    for (const body of [newest, relevance, salary, auto]) {
+        assert.ok(!("attributesToSearchOn" in body), JSON.stringify(body));
+        assert.equal(body.q, q);
+        assert.equal(body.matchingStrategy, base.matchingStrategy);
+        assert.deepEqual(body.filter, base.filter);
+    }
+    assert.deepEqual(newest.sort, ["posted_ts:desc"]);
+    assert.deepEqual(salary.sort, ["salary_max:desc", "salary_min:desc"]);
+    assert.equal(relevance.sort, undefined);
+    assert.equal(auto.sort, undefined);
+});
+
+test("tech-skill scoping is identical under newest and relevance", () => {
+    const scoped = ["title", "tags", "description"] as const;
+    const newest = buildSearchBody({ q: "Rust", sort: "newest" }, false);
+    const relevance = buildSearchBody({ q: "Rust", sort: "relevance" }, false);
+    assert.deepEqual(newest.attributesToSearchOn, [...scoped]);
+    assert.deepEqual(relevance.attributesToSearchOn, [...scoped]);
 });
 
 // Short-token prefix explosion (meilisearch is index-wide prefixSearch, no

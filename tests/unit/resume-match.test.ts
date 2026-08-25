@@ -7,6 +7,7 @@ import {
     capExploreTerms,
     buildExploreBroadenQuery,
     resolveExploreOutcome,
+    mergeFacets,
 } from '../../src/lib/jobs/resume-match';
 import type { ResumeData } from '../../src/types/resume';
 
@@ -194,5 +195,28 @@ describe('resolveExploreOutcome', () => {
     it('res.error + no skills to fall back on → no-fallback', () => {
         const bare = mk({ profession: '', yearsOfExperience: 0 });
         assert.deepEqual(resolveExploreOutcome({ error: 'NO_SUGGESTIONS' }, bare, null), { kind: 'no-fallback' });
+    });
+});
+
+describe('mergeFacets', () => {
+    it('is commutative — same union regardless of argument order for disjoint keys', () => {
+        const location = { location_country: ['CA'] };
+        const seniority = { experience_level: ['senior'] };
+        assert.deepEqual(mergeFacets(location, seniority), mergeFacets(seniority, location));
+    });
+
+    it('unions values on the same key without duplicates', () => {
+        const a = { work_type: ['remote'] };
+        const b = { work_type: ['remote', 'hybrid'] };
+        assert.deepEqual(mergeFacets(a, b), { work_type: ['remote', 'hybrid'] });
+        assert.deepEqual(mergeFacets(b, a).work_type?.slice().sort(), ['hybrid', 'remote']);
+    });
+
+    it('does not mutate inputs', () => {
+        const current = { location_country: ['US'] };
+        const derived = { experience_level: ['senior'] };
+        mergeFacets(current, derived);
+        assert.deepEqual(current, { location_country: ['US'] });
+        assert.deepEqual(derived, { experience_level: ['senior'] });
     });
 });

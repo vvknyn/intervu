@@ -107,6 +107,29 @@ export function buildExploreBroadenQuery(resume: ResumeData): DerivedQuery {
     return { q: capExploreTerms(topSkills(resume, 6)).join(" "), facets: {} };
 }
 
+/** Union résumé-derived facets with already-applied ones — commutative, non-mutating. */
+export function mergeFacets(
+    current: Partial<Record<FacetKey, string[]>>,
+    derived: Partial<Record<FacetKey, string[]>>,
+): Partial<Record<FacetKey, string[]>> {
+    const merged: Partial<Record<FacetKey, string[]>> = { ...current };
+    for (const key of Object.keys(derived) as FacetKey[]) {
+        const fromDerived = derived[key];
+        if (!fromDerived?.length) continue;
+        const existing = merged[key] ?? [];
+        const seen = new Set(existing);
+        const union = [...existing];
+        for (const v of fromDerived) {
+            if (!seen.has(v)) {
+                seen.add(v);
+                union.push(v);
+            }
+        }
+        merged[key] = union;
+    }
+    return merged;
+}
+
 /** What `runExplore` (src/app/jobs/page.tsx) should do with a settled Explore attempt. */
 export type ExploreOutcome =
     | { kind: "success"; q: string; titles: string[] }
