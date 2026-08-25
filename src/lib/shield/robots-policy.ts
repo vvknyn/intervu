@@ -50,6 +50,21 @@ export const PRIVATE_PATHS = ["/api/", "/admin", "/settings", "/account", "/rese
  */
 export const DEEP_SEARCH_DISALLOW_PATTERN = "/?";
 
+/**
+ * Job posting and parameterized search URL disallow patterns.
+ * Explicitly instructs all search engines and AI crawlers to never index individual job listings
+ * or parameterized query variations.
+ */
+export const JOB_DISALLOW_PATTERNS = [
+  "/jobs/",
+  "/job/",
+  "/*?job=*",
+  "/*?*job*",
+  "/*?q=*",
+  "/?*",
+  "/*?*",
+];
+
 export interface RobotsRule {
   userAgent: string | string[];
   allow?: string | string[];
@@ -58,14 +73,14 @@ export interface RobotsRule {
 
 /**
  * Pure builder for the `robots.ts` rules array. Any crawler not named below
- * still gets the general `"*"` rule (marketing surface allowed, private/API
- * and query-parameterized search results not) — a new search engine or AI
- * crawler works by default with no code change needed.
+ * still gets the general `"*"` rule (marketing surface allowed, private/API,
+ * job listings, and query-parameterized search results not).
  */
 export function buildRobotsRules(): RobotsRule[] {
   const crawlableBots: string[] = [...SEARCH_ENGINE_BOTS, ...AI_ANSWER_ENGINE_BOTS];
+  const allDisallowed = [...PRIVATE_PATHS, DEEP_SEARCH_DISALLOW_PATTERN, ...JOB_DISALLOW_PATTERNS];
   return [
-    { userAgent: "*", allow: "/", disallow: [...PRIVATE_PATHS, DEEP_SEARCH_DISALLOW_PATTERN] },
-    { userAgent: crawlableBots, allow: "/", disallow: [...PRIVATE_PATHS, DEEP_SEARCH_DISALLOW_PATTERN] },
+    { userAgent: "*", allow: "/", disallow: allDisallowed },
+    { userAgent: crawlableBots, allow: "/", disallow: allDisallowed },
   ];
 }
