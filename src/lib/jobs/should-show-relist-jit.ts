@@ -12,6 +12,8 @@ export type ExceptionJitInput = {
     bothInDom: boolean;
     staleInDom: boolean;
     relistInDom: boolean;
+    /** Job results list is on screen — not the mobile field directory alone. */
+    listingsVisible: boolean;
 };
 
 /** Pick which one-step exception coachmark to auto-start, if any. Precedence: both > stale > relisted. */
@@ -25,8 +27,9 @@ export function pickExceptionJit({
     bothInDom,
     staleInDom,
     relistInDom,
+    listingsVisible,
 }: ExceptionJitInput): ExceptionJitKind | null {
-    if (!hasSeenMainTour || mainTourActive || exceptionTourActive) return null;
+    if (!hasSeenMainTour || mainTourActive || exceptionTourActive || !listingsVisible) return null;
     if (bothInDom && !hasSeenBoth) return "both";
     if (staleInDom && !hasSeenStale) return "stale";
     if (relistInDom && !hasSeenRelist) return "relisted";
@@ -38,6 +41,7 @@ export type RelistJitInput = {
     hasSeenMainTour: boolean;
     hasSeenRelist: boolean;
     relistInDom: boolean;
+    listingsVisible: boolean;
 };
 
 /** Thin wrapper — relist-only gate for callers/tests that haven't moved to `pickExceptionJit`. */

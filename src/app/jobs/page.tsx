@@ -869,7 +869,7 @@ function JobCardSkeleton() {
 function JobsListSplash() {
     return (
         <div>
-            <p className="pt-8 text-[13px] text-muted-foreground">
+            <p className="pt-8 text-sm text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>
             <div className="mt-2">
@@ -2581,6 +2581,7 @@ function JobsContent() {
             bothInDom,
             staleInDom,
             relistInDom,
+            listingsVisible: !showLandingMarketing && hits.length > 0,
         });
         if (!kind) return;
 
@@ -2588,7 +2589,7 @@ function JobsContent() {
             kind === "both" ? "jobs-exception-both" : kind === "stale" ? "jobs-stale" : "jobs-relist";
         const id = requestAnimationFrame(() => startTour(tourId));
         return () => cancelAnimationFrame(id);
-    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id]);
+    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id, showLandingMarketing]);
 
     // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
     // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —
@@ -3079,7 +3080,7 @@ function JobsContent() {
      * hoisted near `emptySearchState` above — single source, see its comment.
      */
     const showResumeMoment =
-        !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS;
+        !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS && !tourActive;
 
     // Personalization invite — the quiet bottom-of-list nudge that precedes
     // the résumé moment. Appears from the first search result (no opens gate),
@@ -3090,7 +3091,8 @@ function JobsContent() {
         !upsellDismissed &&
         !fitActive &&
         !hasUsableResume &&
-        !showResumeMoment;
+        !showResumeMoment &&
+        !tourActive;
 
     // Guest save upsell banner — shown after the first anonymous save (either
     // "Go after" or a saved search) until dismissed. Signed-in users never see
@@ -4191,6 +4193,7 @@ function JobsContent() {
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
             <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
+                <h1 className="sr-only">Jobs</h1>
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
