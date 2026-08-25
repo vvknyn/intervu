@@ -37,4 +37,10 @@ describe("follow alerts bell relocation", () => {
         assert.match(src, /follow-alerts-cta/);
         assert.match(src, /useFollows/);
     });
+
+    it("job title rows link to the job path, not the company page", () => {
+        const src = readFileSync(BELL, "utf8");
+        assert.match(src, /jobPath\(job\)/);
+        assert.doesNotMatch(src, /href=\{`\/co\/\$\{slug\}`\}/);
+    });
 });
