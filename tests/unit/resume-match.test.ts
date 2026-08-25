@@ -6,6 +6,7 @@ import {
     topSkills,
     capExploreTerms,
     buildExploreBroadenQuery,
+    mergeFacets,
     resolveExploreOutcome,
 } from '../../src/lib/jobs/resume-match';
 import type { ResumeData } from '../../src/types/resume';
@@ -145,6 +146,36 @@ describe('buildExploreBroadenQuery', () => {
     });
 });
 
+describe('mergeFacets', () => {
+    it('unions résumé-derived facets with user-applied ones without mutating inputs', () => {
+        const current = { work_type: ['remote'], experience_level: ['mid'] };
+        const derived = { experience_level: ['senior'] };
+        const merged = mergeFacets(current, derived);
+        assert.deepEqual(merged, {
+            work_type: ['remote'],
+            experience_level: ['mid', 'senior'],
+        });
+        assert.deepEqual(current, { work_type: ['remote'], experience_level: ['mid'] });
+    });
+
+    it('is commutative regardless of which side had the facet first', () => {
+        const userFirst = mergeFacets(
+            { work_type: ['remote'], experience_level: ['mid'] },
+            { experience_level: ['senior'] },
+        );
+        const fitFirst = mergeFacets(
+            { experience_level: ['senior'] },
+            { work_type: ['remote'], experience_level: ['mid'] },
+        );
+        assert.deepEqual(userFirst, fitFirst);
+    });
+
+    it('dedupes identical values on the same facet key', () => {
+        const merged = mergeFacets({ experience_level: ['senior'] }, { experience_level: ['senior'] });
+        assert.deepEqual(merged.experience_level, ['senior']);
+    });
+});
+
 // Explore is auth-gated (src/app/page.tsx's `runExplore`), so its
 // success/error branching can't be exercised by an anonymous browser check —
 // this pure extraction is what makes the class of bug in the prod screenshot
@@ -194,5 +225,28 @@ describe('resolveExploreOutcome', () => {
     it('res.error + no skills to fall back on → no-fallback', () => {
         const bare = mk({ profession: '', yearsOfExperience: 0 });
         assert.deepEqual(resolveExploreOutcome({ error: 'NO_SUGGESTIONS' }, bare, null), { kind: 'no-fallback' });
+    });
+});
+
+describe('mergeFacets', () => {
+    it('is commutative — same union regardless of argument order for disjoint keys', () => {
+        const location = { location_country: ['CA'] };
+        const seniority = { experience_level: ['senior'] };
+        assert.deepEqual(mergeFacets(location, seniority), mergeFacets(seniority, location));
+    });
+
+    it('unions values on the same key without duplicates', () => {
+        const a = { work_type: ['remote'] };
+        const b = { work_type: ['remote', 'hybrid'] };
+        assert.deepEqual(mergeFacets(a, b), { work_type: ['hybrid', 'remote'] });
+        assert.deepEqual(mergeFacets(b, a), { work_type: ['hybrid', 'remote'] });
+    });
+
+    it('does not mutate inputs', () => {
+        const current = { location_country: ['US'] };
+        const derived = { experience_level: ['senior'] };
+        mergeFacets(current, derived);
+        assert.deepEqual(current, { location_country: ['US'] });
+        assert.deepEqual(derived, { experience_level: ['senior'] });
     });
 });

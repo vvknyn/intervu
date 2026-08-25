@@ -153,6 +153,49 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await expect(bestMatch).toHaveAttribute('aria-pressed', 'false');
     });
 
+    test('TC-JOBS-SORT-003: sort and filter order do not change matched count or ID set', async ({ page }) => {
+        const q = 'product%20manager';
+        await page.goto(`/jobs?q=${q}&work_type=remote&experience_level=senior&posted=any`);
+        await page.waitForLoadState('networkidle');
+
+        const bestMatch = page.getByRole('button', { name: 'best match' });
+        if ((await bestMatch.count()) === 0) {
+            test.skip(true, 'Backend unconfigured — sort segments absent');
+        }
+        const freshest = page.getByRole('button', { name: 'freshest' });
+        const topPay = page.getByRole('button', { name: 'top pay' });
+        if ((await freshest.count()) === 0) {
+            test.skip(true, 'Corpus carries no posted_ts — freshest segment hidden');
+        }
+
+        const resultLine = page.getByTestId('result-line');
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        const initialCount = (await resultLine.textContent())?.trim() ?? '';
+        if (!initialCount || /No roles match/i.test(initialCount)) {
+            test.skip(true, 'No rows for this query in the current corpus');
+        }
+
+        // Compare totals, not the first page of titles: an explicit sort
+        // reorders the same matched set, so page 1's rows legitimately change.
+        await freshest.click();
+        await expect(page).toHaveURL(/sort=newest/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        await topPay.click();
+        await expect(page).toHaveURL(/sort=salary/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        await bestMatch.click();
+        await expect(page).toHaveURL(/sort=relevance/);
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+
+        // Reverse filter apply order on a fresh navigation — same total.
+        await page.goto(`/jobs?q=${q}&experience_level=senior&work_type=remote&posted=any`);
+        await page.waitForLoadState('networkidle');
+        await expect(resultLine).toBeVisible({ timeout: 15000 });
+        await expect.poll(async () => (await resultLine.textContent())?.trim() ?? '').toBe(initialCount);
+    });
+
     test('TC-JOBS-REFRESH-001: refetch keeps current results visible and shows in-flight feedback', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);

@@ -43,3 +43,37 @@ test("postedSinceMs drops out under the TRANSITIONAL legacy retry, same as poste
     const f = buildFilter({ postedSinceMs: 1_800_000_000_000 }, true);
     assert.ok(!f.some((c) => c.includes("posted_ts")), JSON.stringify(f));
 });
+
+test("facet object-key order does not change the filter array", () => {
+    const a = buildFilter({
+        facets: { experience_level: ["senior"], work_type: ["remote"] },
+    });
+    const b = buildFilter({
+        facets: { work_type: ["remote"], experience_level: ["senior"] },
+    });
+    assert.deepEqual(a, b);
+});
+
+test("duplicate facet values produce one OR predicate per value", () => {
+    const f = buildFilter({ facets: { experience_level: ["senior", "senior", "mid"] } });
+    const levelClauses = f.filter((c) => c.includes("experience_level"));
+    assert.equal(levelClauses.length, 1);
+    assert.equal((levelClauses[0].match(/senior/g) ?? []).length, 1);
+    assert.ok(levelClauses[0].includes("mid"));
+});
+
+test("reversed value selection order canonicalizes to the same filter", () => {
+    const forward = buildFilter({ facets: { work_type: ["remote", "hybrid"] } });
+    const reversed = buildFilter({ facets: { work_type: ["hybrid", "remote"] } });
+    assert.deepEqual(forward, reversed);
+});
+
+test("filter clauses are commutative — facet object key order does not change the clause set", () => {
+    const forward = buildFilter({
+        facets: { work_type: ["remote"], experience_level: ["senior"] },
+    });
+    const reversed = buildFilter({
+        facets: { experience_level: ["senior"], work_type: ["remote"] },
+    });
+    assert.deepEqual([...forward].sort(), [...reversed].sort());
+});

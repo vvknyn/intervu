@@ -66,7 +66,6 @@ import {
     interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
-    seamSummarySorted,
     buildRowMetaLine,
     employmentTypeSegment,
     locationWithMode,
@@ -205,7 +204,7 @@ import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import { jobPath } from "@/lib/jobs/job-slug";
 import type { BoardId } from "@/lib/boards/types";
-import { buildMatchQuery } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import {
     emptyPending,
     queuePending,
@@ -2329,12 +2328,10 @@ function JobsContent() {
             failed: zeroQueryFetchFailed,
         }) === "serp-ask";
 
-    // Whether this render's search is scoped to title+company because an
-    // explicit sort turned `sort` into a real ORDER BY — the identical
-    // condition `buildSearchBody` used server-side to decide the SAME thing
+    // Whether to partition hits into titled vs mention blocks for display —
+    // retrieval is whole-document; this flag is seam UI only
     // (`shouldScopeTextMatchToTitle`, sort.ts). Relevance ranking (explicit
-    // or auto-defaulted) never scopes, so it's false there exactly when it's
-    // false here.
+    // or auto-defaulted) skips the partition.
     const sortScopedSeam = shouldScopeTextMatchToTitle(effectiveSort, result?.effectiveQ ?? "");
 
     // The relevance seam (Task A) — where the "titled it" block of results
@@ -2364,9 +2361,7 @@ function JobsContent() {
     // Deliverable 3 — collapse repeat postings (same title, same company —
     // e.g. one role cross-posted at several locations) into one card each,
     // ranked at the earliest/best-ranked copy's position. `clusterJobs` is
-    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`, so a
-    // partitioned sort's reordering (above) survives clustering instead of
-    // being clustered back into raw engine order.
+    // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`.
     const clusters = useMemo(() => clusterJobs(displayHits), [displayHits]);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -2553,9 +2548,41 @@ function JobsContent() {
     // instead of asserting death. Confirmed gone: the tombstone.
     const deadJobFoundJob = deadJobResolved?.status === "found" ? deadJobResolved.job : null;
     const isDeadJobConfirmed = deadJobResolved?.status === "not_found";
+
+    // List hits omit `description` for payload size — hydrate the selected
+    // in-list job on demand (same id lookup as the dead-job existence check).
+    const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob } | null>(null);
+    const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
+    if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
+    useEffect(() => {
+        setHydratedDetail((prev) => (prev && prev.id === selectedId ? prev : null));
+    }, [selectedId]);
+    useEffect(() => {
+        if (!selected || selected.description !== undefined) return;
+        const id = selected.id;
+        if (hydratedDetail?.id === id) return;
+        const token = detailHydrationGuardRef.current!.begin();
+        void (async () => {
+            try {
+                const r = await searchJobsAction({ id, limit: 1, offset: 0, hideGhosts: false });
+                if (!detailHydrationGuardRef.current!.isCurrent(token)) return;
+                const job = r.hits?.[0];
+                if (job?.id === id) setHydratedDetail({ id, job });
+            } catch {
+                /* detail renders without description until retry/select */
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected?.id, selected?.description]);
+
     // The job to actually render in the detail pane/sheet — `selected`
     // (in `hits`) first, else the existence check's confirmed-alive job.
-    const detailJob = selected ?? deadJobFoundJob;
+    const detailJob = useMemo(() => {
+        const base = selected ?? deadJobFoundJob;
+        if (!base) return null;
+        if (hydratedDetail?.id === base.id) return hydratedDetail.job;
+        return base;
+    }, [selected, deadJobFoundJob, hydratedDetail]);
     const detailPursuit = detailJob ? pursuitsByJobId.get(detailJob.id) : undefined;
 
     const mainJobsTourActive = tourActive && tourPageId === "jobs";
@@ -3462,13 +3489,14 @@ function JobsContent() {
     // `resolveUrlSort` above for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
-        const { q, facets: f } = buildMatchQuery(r);
-        setFacets(f);
+        const { q, facets: derived } = buildMatchQuery(r);
+        const merged = mergeFacets(facets, derived);
+        setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: f, sort: "fit" }), "replace");
+        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
     };
 
     // Dismiss the "Ranked by your résumé" chip — per controller resolution
@@ -4981,9 +5009,7 @@ function JobsContent() {
                                                     data-testid="relevance-seam"
                                                     className="mb-1 border-t border-border pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {sortScopedSeam
-                                                        ? seamSummarySorted(seamIndex)
-                                                        : seamSummary(seamIndex, total, displayHits.length)}
+                                                    {seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
                                                 ...rows,
                                             ];
