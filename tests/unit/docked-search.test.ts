@@ -184,9 +184,10 @@ describe("docked search: controlled input, not a scroll-to button", () => {
         assert.match(queryBlock, /topbar-docked-clear[\s\S]*self-center/);
         assert.match(locationBlock, /flex h-full w-full items-center/);
         assert.match(locationBlock, /topbar-docked-location-clear[\s\S]*self-center/);
-        const comboAt = src.indexOf('data-testid="topbar-docked-location-input"');
-        const combo = src.slice(comboAt, comboAt + 500);
-        assert.match(combo, /\bpr-7\b/, "text must stop before the clear affordance");
+        const comboAt = src.indexOf("const dockedLocationEl");
+        const combo = src.slice(comboAt, src.indexOf("const resumeControlEl"));
+        assert.match(combo, /containerClassName="[^"]*flex-1/, "w-full on the combobox shoves the clear onto Search");
+        assert.doesNotMatch(combo, /containerClassName="[^"]*\bw-full\b/);
     });
 });
 
