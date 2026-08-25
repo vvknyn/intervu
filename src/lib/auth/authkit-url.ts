@@ -26,5 +26,22 @@ export function withAuthProvider(url: string, provider: string | null | undefine
     if (!provider) return url;
     const target = new URL(url);
     target.searchParams.set("provider", provider);
+    for (const param of HOSTED_PAGE_ONLY_PARAMS) target.searchParams.delete(param);
     return target.toString();
 }
+
+/**
+ * Parameters that only mean something while AuthKit's hosted page is rendering.
+ *
+ * Naming a provider skips that page entirely, and WorkOS treats the combination
+ * as malformed rather than ignoring the leftover: authorize answers `302
+ * https://error.workos.com/sso` and the user sees "Couldn't sign in". The
+ * library adds `screen_hint` unconditionally — `getSignInUrl` sends `sign-in`
+ * and `getSignUpUrl` sends `sign-up` — so every provider hand-off inherits it
+ * unless it is stripped here.
+ *
+ * Hints that describe the *user* rather than the screen (`login_hint`,
+ * `domain_hint`) are deliberately absent: WorkOS forwards those upstream, so
+ * they stay meaningful precisely when the hosted page is skipped.
+ */
+const HOSTED_PAGE_ONLY_PARAMS = ["screen_hint"] as const;
