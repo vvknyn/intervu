@@ -39,13 +39,36 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   capture_pageleave: true,
   autocapture: true,
 
-  // Cookieless, per-tab, gone on reload.
+  // Session replay is enabled at the PostHog project level, so it is already
+  // recording — which means /privacy has to disclose it. The masking that
+  // disclosure promises must be OURS, not posthog-js's default:
+  // @posthog/types documents no `@default` for maskAllInputs (compare
+  // maskAttributeFn right below it, which does), so leaving it unset would
+  // rest a published privacy claim on a third-party value we neither control
+  // nor can test. Setting it here makes "what you type isn't captured" a
+  // decision in this repo.
+  session_recording: {
+    maskAllInputs: true,
+  },
+
+  // Cookieless, per-tab, gone when the tab closes.
   //
-  // This is a PUBLISHED PROMISE, not a tuning knob: /privacy states "It runs
-  // cookieless on intervu: no analytics cookie is set, and session state is
-  // kept in memory only, gone the moment you close the tab or reload."
-  // Changing it would make that page false. The known cost is that a hard
-  // reload starts a fresh anonymous id, so unique-visitor and
-  // returning-visitor counts read high; that trade was made on purpose.
-  persistence: "memory",
+  // This is a PUBLISHED PROMISE, not a tuning knob — /privacy describes
+  // exactly this behaviour, and tests/unit/posthog-options.test.ts looks up
+  // the required wording BY the mode set here, so the two cannot drift.
+  //
+  // Why not "memory": posthog-js treats memory persistence as "cannot use
+  // session storage" (sessionid.ts `_canUseSessionStorage`), so the session id
+  // is reborn on every reload and every in-tab navigation that isn't a client
+  // route change. Session replays arrive chopped into one-page fragments and
+  // any funnel spanning a reload cannot connect. That was the cost of the
+  // stricter setting, and it was being paid in full.
+  //
+  // Why not "localStorage+cookie" (posthog-js's default): that survives
+  // closing the tab, which is cross-visit tracking and needs a consent
+  // banner intervu does not have. sessionStorage is the narrowest setting
+  // that makes a single visit legible: no cookie, nothing shared between
+  // tabs, nothing left behind once the tab is closed. Returning-visitor and
+  // unique-visitor counts still read high, and that trade stands.
+  persistence: "sessionStorage",
 };

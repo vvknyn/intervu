@@ -127,11 +127,18 @@ export default function PrivacyPage() {
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
-          working and fix what isn&apos;t. It runs cookieless on intervu: no analytics cookie is set, and session
-          state is kept in memory only, gone the moment you close the tab or reload. Events aren&apos;t tied to
-          your identity unless you&apos;re signed in. PostHog (US cloud) processes this data as our processor under
-          their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and the sign-in
-          cookie above remains the only cookie on intervu.
+          working and fix what isn&apos;t. It runs cookieless on intervu: no analytics cookie is set. What PostHog
+          needs to hold on to lives in your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your
+          session, nothing is shared with your other tabs, and all of it is discarded when you close the tab.
+          Events aren&apos;t tied to your identity unless you&apos;re signed in. PostHog (US cloud) processes this
+          data as our processor under their own DPA terms. We don&apos;t run ad trackers or any third-party
+          tracking pixels, and the sign-in cookie above remains the only cookie on intervu.
+        </p>
+        <p>
+          PostHog also records a replay of your visit — the pages you saw and how you moved through them — so we
+          can find the places where the product gets in your way. Anything you type is masked before it leaves
+          your browser: we can see that you filled in a field, never what you put in it. A replay covers a single
+          tab, and is tied to your identity only if you&apos;re signed in.
         </p>
 
         <h2>Retention &amp; deletion</h2>
