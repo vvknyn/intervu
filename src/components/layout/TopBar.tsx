@@ -23,6 +23,9 @@ import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrom
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
+import { useShareControl } from "@/components/ui/share-action";
+import { withShareRef } from "@/lib/share/share-decision";
+import { getSiteUrl, SHARE_APP_TEXT, SITE_NAME } from "@/lib/seo/constants";
 
 function initialsOf(user: User): string {
     const src = (user.displayName || user.email || "?").trim();
@@ -31,6 +34,29 @@ function initialsOf(user: User): string {
         return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return src.slice(0, 1).toUpperCase();
+}
+
+/** "Share Intervu" account-menu entry — same share control as JobDetail's
+ *  ShareAction (native sheet, clipboard fallback, honest failure), rendered
+ *  as a plain DropdownMenuItem so it keeps this menu's own keyboard/click
+ *  handling rather than nesting a second interactive element inside it.
+ *  `onSelect` is prevented so the menu stays open long enough to show the
+ *  transient "Copied"/"Couldn't share" text. */
+function ShareIntervuMenuItem() {
+    const { state, trigger } = useShareControl();
+    const label = state === "copied" ? "Copied!" : state === "failed" ? "Couldn't share" : "Share Intervu";
+
+    return (
+        <DropdownMenuItem
+            onSelect={(e) => {
+                e.preventDefault();
+                trigger({ title: SITE_NAME, text: SHARE_APP_TEXT, url: withShareRef(getSiteUrl(), "app") });
+            }}
+            className="rounded-lg"
+        >
+            {label}
+        </DropdownMenuItem>
+    );
 }
 
 /**
@@ -225,6 +251,7 @@ export function TopBar() {
                                         Feedback
                                     </DropdownMenuItem>
                                 </FeedbackModal>
+                                <ShareIntervuMenuItem />
                                 <DropdownMenuItem asChild className="rounded-lg text-muted-foreground text-xs">
                                     <Link href="/privacy">Privacy & Terms</Link>
                                 </DropdownMenuItem>

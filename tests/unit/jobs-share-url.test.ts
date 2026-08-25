@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { jobShareUrl } from "../../src/lib/jobs/share-url";
 
 /** R6 (2026-08-09 founder report): one URL builder shared by the board's
- *  own "Copy link" button (CopyJobLinkButton, JobDetail.tsx — client,
+ *  own share control (ShareAction, JobDetail.tsx — client,
  *  window.location.origin) and the MCP search_jobs/get_job tools
  *  (agent/tools.ts — server, AGENT.issuer()), so an agent-shared link and a
- *  web-copied link are byte-identical. Now delegates to `jobPath`
+ *  web-shared link are byte-identical. Now delegates to `jobPath`
  *  (job-slug.ts) for the canonical, indexable `/jobs/<slug>-<uuid>` shape —
  *  see job-slug.test.ts for slug-building coverage; these tests cover the
  *  origin-joining behaviour this function itself owns. */

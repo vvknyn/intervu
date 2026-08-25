@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   LANDING_DESCRIPTION,
   LANDING_TITLE,
+  SHARE_APP_TEXT,
+  SHARE_JOB_TEXT,
   SITE_DESCRIPTION,
 } from "../../src/lib/seo/constants";
 import {
@@ -41,6 +43,8 @@ const GUEST_STRINGS: Record<string, string> = {
   LANDING_TITLE,
   LANDING_DESCRIPTION,
   SITE_DESCRIPTION,
+  SHARE_JOB_TEXT,
+  SHARE_APP_TEXT,
   INSTRUMENT_META,
   INSTRUMENT_SUPPORT,
   FOOTER_PROVENANCE_LINE,

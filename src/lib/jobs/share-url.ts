@@ -4,7 +4,7 @@ import type { PublicJob } from "./types";
 /**
  * Pure: a job -> the canonical, indexable job-detail URL
  * (`/jobs/<slug>-<uuid>`, see `jobPath`). One source for a shape two very
- * different callers need byte-identical: `CopyJobLinkButton` (JobDetail.tsx,
+ * different callers need byte-identical: the board's `ShareAction` (JobDetail.tsx,
  * client — origin from `window.location.origin`) and the MCP `search_jobs`/
  * `get_job` tools (agent/tools.ts, server — origin from `getSiteUrl()`, the
  * SEO canonical, never `AGENT.issuer()`, which answers a different question

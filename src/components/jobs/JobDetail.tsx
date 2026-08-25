@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, Copy } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
+import { ShareAction } from "@/components/ui/share-action";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -22,6 +23,8 @@ import { countryToFlag } from "@/lib/jobs/country-flag";
 import { STATUS_PILL, LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
+import { withShareRef } from "@/lib/share/share-decision";
+import { SHARE_JOB_TEXT } from "@/lib/seo/constants";
 import { POSTING_AGE_CONTEXT_COPY, isAgeSignal, shouldShowAgeBalanceNote } from "@/lib/jobs/ghost-context-copy";
 import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs";
 import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
@@ -207,44 +210,6 @@ export function JobDetailActionBar({
                 </Button>
             )}
         </div>
-    );
-}
-
-/**
- * "Copy link" control for the detail header — visible to guests and
- * signed-in users alike, since job identity is never gated (see the header
- * restructure in `JobDetail` below). Copies the canonical `/jobs/<slug>-<id>`
- * URL rather than `window.location`, because this same panel also renders
- * from `/yours/[id]` (a pursuit-id route, not a job-id one — see this
- * file's module doc comment above). Same copied-state register as
- * `CopyUrlBar` (app/connect/connect-client.tsx): a local timed flag, no
- * toast, no new dependency; a denied/unavailable clipboard degrades to a
- * silent no-op rather than crashing the panel.
- */
-function CopyJobLinkButton({ job }: { job: Pick<PublicJob, "id" | "title" | "company"> }) {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = async () => {
-        try {
-            const url = jobShareUrl(window.location.origin, job);
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-        } catch {
-            // Clipboard API can be denied (permissions/insecure context) —
-            // the control just stays put rather than breaking the panel.
-        }
-    };
-
-    return (
-        <button
-            type="button"
-            onClick={handleCopy}
-            aria-label={copied ? "Link copied" : "Copy link to this role"}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
-        >
-            {copied ? <Check size={16} weight="bold" /> : <Copy size={16} />}
-        </button>
     );
 }
 
@@ -635,7 +600,15 @@ export function JobDetail({
                             )}
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
-                            <CopyJobLinkButton job={job} />
+                            <ShareAction
+                                title={`${job.title} at ${companyBrand}`}
+                                text={SHARE_JOB_TEXT}
+                                url={withShareRef(
+                                    jobShareUrl(typeof window !== "undefined" ? window.location.origin : "", job),
+                                    "job",
+                                )}
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+                            />
                             {onClose && (
                                 <button
                                     type="button"
