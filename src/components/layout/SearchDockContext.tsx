@@ -26,16 +26,14 @@ export type DockedSearch = {
     onChange: (value: string) => void;
     onSubmit: (value: string) => void;
     placeholder?: string;
-    /** Where, when a place is actually set. Omitted rather than shown empty. */
-    place?: string;
-    /** Opens whatever place-picking UI the page uses. Omitted hides the segment. */
-    onPlaceClick?: () => void;
     /** Every filter currently narrowing the search, for a dismissible chip each. */
     chips: DockedSearchChip[];
     onClearChip: (key: string) => void;
     /** Badge count on the "Filters" button — 0 renders no badge, per house style. */
     filterCount: number;
-    /** Opens the page's own filter panel/sheet. */
+    /** Whether the page's filter panel is currently expanded. */
+    filtersExpanded: boolean;
+    /** Toggles the page's own filter panel/sheet. */
     onOpenFilters: () => void;
     /**
      * One short piece of standing context for this search, shown beside the

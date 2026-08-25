@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Moon, Sun } from "@phosphor-icons/react";
+import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
-import { siteChrome } from "@/components/layout/site-chrome";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
-import { cn } from "@/lib/utils";
 
 /** Quiet footer links — Research/Pricing live here (not primary nav). */
 export const LEGAL_LINKS: { label: string; href: string }[] = [
@@ -19,60 +21,57 @@ export const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Terms", href: "/terms" },
 ];
 
-/** Compact 1-line footer links for embedding inside filter drawers and toolbars without chasing infinite scroll. */
-export function CompactFooterLinks({ className }: { className?: string }) {
-    return (
-        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground", className)}>
-            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
-                <Link
-                    key={link.href}
-                    href={link.href}
-                    className="transition-colors hover:text-foreground underline underline-offset-2"
-                >
-                    {link.label}
-                </Link>
-            ))}
-            <span className="text-muted-foreground/60">· Job data by Subspace</span>
-        </div>
-    );
-}
-
-/** The actual footer markup, mounted once by `Footer` below. */
+/** Compact 1-line footer links — removed from filter panels; use `FooterContent`. */
 export function FooterContent() {
+    const [user, setUser] = useState<User | null>(null);
+    const { mode, toggleMode, mounted } = useTheme();
+
+    useEffect(() => {
+        const unsubscribe = onAuthChange(setUser);
+        return () => unsubscribe();
+    }, []);
+
     return (
         <footer
             data-testid="site-footer"
-            className={cn(
-                "shrink-0 border-t pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0",
-                siteChrome.bar,
-                siteChrome.border,
-            )}
+            className="shrink-0 border-t border-border/80 bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}
             <div className="shell-row flex flex-col gap-3 py-6">
-                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>{FOOTER_PROVENANCE_LINE}</p>
+                <p className="max-w-md text-xs text-muted-foreground">{FOOTER_PROVENANCE_LINE}</p>
                 <nav
                     aria-label="Company"
-                    className={cn("flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]", siteChrome.faint)}
+                    className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
                 >
                     {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                         <Link
                             key={link.href}
                             href={link.href}
-                            className={cn("transition-colors duration-100", siteChrome.faintHover)}
+                            className="transition-colors duration-100 hover:text-foreground"
                         >
                             {link.label}
                         </Link>
                     ))}
+                    {!user && mounted && (
+                        <button
+                            type="button"
+                            onClick={toggleMode}
+                            aria-label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                            className="inline-flex items-center gap-1.5 transition-colors duration-100 hover:text-foreground"
+                        >
+                            {mode === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+                            <span>Dark mode {mode === "dark" ? "on" : "off"}</span>
+                        </button>
+                    )}
                 </nav>
-                <p className={cn("max-w-md text-[12px]", siteChrome.faint)}>
+                <p className="max-w-md text-xs text-muted-foreground">
                     Job data by{" "}
                     <a
                         href="https://thesubspace.io"
                         target="_blank"
                         rel="noopener"
-                        className={cn("underline decoration-dotted underline-offset-2", siteChrome.faintHover)}
+                        className="underline decoration-dotted underline-offset-2 transition-colors duration-100 hover:text-foreground"
                     >
                         Subspace
                     </a>
@@ -88,16 +87,10 @@ export function FooterContent() {
  * on the same routes `TopBar` hides its own chrome on — a login/auth screen
  * shouldn't repeat the product nav. Landing (`/`) is full-bleed instrument —
  * chrome hidden via `shouldHideSiteChrome`.
- *
- * Suppressed on infinite-scroll routes (`/jobs`) so the footer never runs away
- * or jumps when the list sentinel auto-loads more results. Secondary links
- * live in the filter panel, top nav, and settings on those surfaces.
  */
 export function Footer() {
     const pathname = usePathname();
-    const hideNav = shouldHideSiteChrome(pathname);
-    const isInfiniteScroll = pathname === "/jobs" || pathname.startsWith("/jobs/");
-    if (hideNav || isInfiniteScroll) return null;
+    if (shouldHideSiteChrome(pathname)) return null;
 
     return <FooterContent />;
 }

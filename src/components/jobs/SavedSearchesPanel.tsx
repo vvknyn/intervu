@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BookmarkSimple, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
@@ -126,7 +127,7 @@ export function SavedSearchesPanel({
     if (!canSave && saved.length === 0) return null;
 
     return (
-        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-[13px]", className)}>
+        <div data-testid="saved-searches-panel" className={cn("flex flex-wrap items-center gap-2 text-meta", className)}>
             {canSave && !naming && (
                 <button
                     type="button"
@@ -134,7 +135,7 @@ export function SavedSearchesPanel({
                     onClick={startSave}
                     className={cn(
                         compact
-                            ? "-my-1.5 inline-flex items-center gap-1 py-1.5 text-[13px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                            ? cn(toolbarControlHeight, "inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground")
                             : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-none glass-tint-muted px-3 text-xs font-bold uppercase tracking-wider text-foreground hover:text-foreground transition-colors",
                     )}
                 >
@@ -171,7 +172,7 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 ? "text-[13px] font-medium text-foreground underline underline-offset-2 hover:no-underline"
-                                : "h-7 rounded-none glass-tint-blue px-2.5 text-[10px] font-bold uppercase",
+                                : "h-7 rounded-none glass-tint-blue px-2.5 text-xs font-bold uppercase whitespace-nowrap",
                         )}
                     >
                         Save
@@ -182,7 +183,7 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 ? "text-[13px] text-muted-foreground hover:text-foreground"
-                                : "text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 px-1",
+                                : "text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 px-1",
                         )}
                     >
                         ✕
@@ -216,7 +217,7 @@ export function SavedSearchesPanel({
                             {(newCounts[s.id] ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
-                                    className="text-[10px] font-bold text-brand"
+                                    className="text-xs font-bold text-brand"
                                 >
                                     +{newCounts[s.id]}
                                 </span>

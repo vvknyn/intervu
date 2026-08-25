@@ -14,7 +14,7 @@ import { test, expect, type Page } from '@playwright/test';
  * uses.
  */
 function frontDoorLogin(page: Page) {
-  return page.getByTestId('topbar-login');
+  return page.getByTestId('topbar-alerts-cta');
 }
 
 test.describe('AUTH - Authentication Tests', () => {
@@ -29,7 +29,9 @@ test.describe('AUTH - Authentication Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Desktop: look for "Log in" in the side rail
-    const loginButton = page.locator('button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")');
+    const loginButton = page.locator(
+      'button:has-text("Get job alerts"), button:has-text("Log in"), a:has-text("Log in"), button:has-text("login")',
+    );
     const isVisible = await loginButton.first().isVisible().catch(() => false);
 
     if (!isVisible) {

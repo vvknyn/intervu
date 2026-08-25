@@ -204,14 +204,11 @@ describe('LandingMasthead: renders the provenance claim (or nothing)', () => {
         assert.match(html, /Every job, straight from the employer\./);
     });
 
-    it('is what the page actually passes — the claim is a constant, not fetched state', () => {
-        // The 2026-08-18 bug was the prop never arriving. Its 2026-08-24 shape
-        // would be the page reintroducing a count-bearing sentence of its own,
-        // so assert the call site by source rather than only the component.
+    it('/jobs does not mount LandingMasthead — header search owns lg+ landing', () => {
         const pageSrc = readFileSync(
             new URL('../../src/app/jobs/page.tsx', import.meta.url),
             'utf8',
         );
-        assert.match(pageSrc, /<LandingMasthead claim=\{LANDING_PROVENANCE_LINE\} \/>/);
+        assert.doesNotMatch(pageSrc, /<LandingMasthead/);
     });
 });

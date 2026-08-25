@@ -77,10 +77,8 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
             /if \(!headerDockActive\)\s*{\s*setDocked\(null\);/,
             "the dock must clear on the SAME fact the hero/toolbar use to stand down, not a re-derived condition",
         );
-        // `headerDockActive` itself must be built from `isPristineLanding` —
-        // the single question "is anything narrowing this search" already
-        // answers "should the header take over", per `activeFilterEntries`.
-        assert.match(src, /const headerDockActive = isLgUp && !isPristineLanding;/);
+        // lg+ always docks — pristine landing uses the header search too.
+        assert.match(src, /const headerDockActive = isLgUp;/);
     });
 
     it("the dock effect's dependency list carries no object/array literal — the React #185 guard", () => {
@@ -99,13 +97,14 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
 });
 
 describe("dock chips: sourced from activeFilterEntries only", () => {
-    it("the dock effect's chip list maps activeEntries — no hand-rolled second enumeration", () => {
+    it("the dock effect's chip list maps FacetBar leftovers — not duplicates of dropdown chips", () => {
         const src = stripComments(JOBS);
         assert.match(
             src,
-            /chips:\s*activeEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
-            "the header's chips must read the same activeFilterEntries()-derived array every other 'what's active' reader uses",
+            /chips:\s*unnamedEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
+            "header chips must use entriesNeedingOwnChip(activeEntries) so FacetBar-owned filters are not duplicated",
         );
+        assert.match(src, /entriesNeedingOwnChip\(activeEntries, facetBarRepresents/);
     });
 
     it("the toolbar's own copy stands down once the header owns the search", () => {

@@ -8,6 +8,7 @@ import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
 import { OPENCLAW_INSTALL_HINT } from "@/components/marketing/openclaw-content";
 import { resolveWaitlistOutcome } from "@/components/marketing/waitlist-outcome";
 import { Button } from "@/components/ui/button";
+import { chipVariants } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import {
@@ -81,14 +82,14 @@ function CopyBox({ value, label }: { value: string; label?: string }) {
   };
 
   return (
-    <div className="relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-slate-300 bg-slate-50/80 p-3 shadow-2xs dark:border-slate-700 dark:bg-slate-900/60">
+    <div className="relative flex items-center justify-between gap-3 overflow-hidden rounded-none border border-border bg-muted/40 p-3 shadow-2xs">
       <div className="min-w-0 flex-1 pl-1">
         {label && (
-          <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-1 whitespace-nowrap text-xs font-bold uppercase tracking-wider text-muted-foreground">
             {label}
           </div>
         )}
-        <code className="block truncate text-[13px] font-semibold text-foreground">
+        <code className="block truncate text-meta font-semibold text-foreground">
           {value}
         </code>
       </div>
@@ -97,10 +98,10 @@ function CopyBox({ value, label }: { value: string; label?: string }) {
         size="sm"
         onClick={handleCopy}
         className={cn(
-          "shrink-0 gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
+          "shrink-0 gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-all",
           copied
-            ? "bg-emerald-600 text-white dark:bg-emerald-500"
-            : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100",
+            ? "bg-brand text-brand-foreground"
+            : "bg-brand text-brand-foreground hover:bg-brand/90",
         )}
       >
         {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
@@ -188,8 +189,8 @@ export function ConnectClient({
     <div className="space-y-8 w-full">
       {/* Header Banner */}
       <div>
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/80 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-800 shadow-2xs dark:border-emerald-800/80 dark:bg-emerald-950/60 dark:text-emerald-300">
-          <Sparkle size={13} weight="fill" className="text-emerald-500" />
+        <div className={cn(chipVariants({ active: true }), "mb-3 h-auto gap-2 px-3 py-1")}>
+          <Sparkle size={13} weight="fill" className="text-brand" />
           Model Context Protocol (MCP) & Local Agents
         </div>
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
@@ -204,7 +205,7 @@ export function ConnectClient({
       {/* 2-Column Responsive Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
         {/* Left Column: Universal MCP Server Connection */}
-        <section className="rounded-2xl border border-slate-300/80 bg-card p-6 sm:p-7 shadow-xs dark:border-slate-700 space-y-6">
+        <section className="rounded-none border border-border bg-card p-6 sm:p-7 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-border/80 pb-4">
             <div>
               <h2 className="text-sm font-bold text-foreground">1. Universal MCP Server</h2>
@@ -213,7 +214,7 @@ export function ConnectClient({
             <button
               type="button"
               onClick={() => setFilm("mcp")}
-              className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline underline-offset-4"
+              className="text-xs font-semibold text-brand hover:text-brand/80 underline underline-offset-4"
             >
               How MCP works →
             </button>
@@ -229,13 +230,13 @@ export function ConnectClient({
           {!signedIn && (
             <div
               data-testid="connect-signin-step"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-none border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
             >
               <div className="min-w-0">
                 <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200">
                   First, sign in to intervu
                 </h3>
-                <p className="mt-1 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                <p className="mt-1 text-xs leading-snug text-amber-800 dark:text-amber-300">
                   Your AI connects as you, so it needs an account to connect to. We&apos;ll bring you
                   right back here.
                 </p>
@@ -243,7 +244,7 @@ export function ConnectClient({
               <Button
                 asChild
                 size="sm"
-                className="shrink-0 gap-1.5 rounded-lg bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="shrink-0 gap-1.5 bg-brand px-3.5 text-xs font-semibold text-brand-foreground hover:bg-brand/90"
               >
                 <a href={`/login?next=${encodeURIComponent("/connect")}`}>Sign in</a>
               </Button>
@@ -266,12 +267,7 @@ export function ConnectClient({
                     key={client.id}
                     type="button"
                     onClick={() => handleSelectClient(client.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-150 shadow-2xs",
-                      active
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-600/30 dark:border-emerald-500 dark:bg-emerald-950/70 dark:text-emerald-200"
-                        : "border-slate-300 bg-card text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
-                    )}
+                    className={cn(chipVariants({ active }), "shadow-2xs")}
                   >
                     {client.label}
                   </button>
@@ -280,10 +276,10 @@ export function ConnectClient({
             </div>
 
             {/* Instructions Box */}
-            <div className="rounded-xl border border-slate-300/90 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/50 space-y-3">
+            <div className="rounded-none border border-border bg-muted/40 p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white dark:bg-emerald-500 dark:text-slate-950">
+                  <span className="flex h-4 w-4 items-center justify-center rounded-none bg-brand text-[10px] font-bold text-brand-foreground">
                     ✓
                   </span>
                   <h4 className="text-xs font-bold text-foreground">
@@ -294,7 +290,7 @@ export function ConnectClient({
                   <Button
                     asChild
                     size="xs"
-                    className="gap-1 rounded-md bg-slate-900 font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-2xs"
+                    className="gap-1 bg-brand font-semibold text-brand-foreground hover:bg-brand/90 shadow-2xs"
                   >
                     <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">
                       Open {currentMeta.label} <ArrowSquareOut size={12} />
@@ -306,7 +302,7 @@ export function ConnectClient({
               <ol className="space-y-1.5 text-xs text-foreground">
                 {currentInstruction.steps.map((step, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-white border border-slate-300 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-2xs">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-none bg-card border border-border text-[10px] font-bold text-foreground shadow-2xs">
                       {idx + 1}
                     </span>
                     <span className="leading-snug">{step}</span>
@@ -315,7 +311,7 @@ export function ConnectClient({
               </ol>
 
               {currentInstruction.note && (
-                <p className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded px-2 py-0.5 inline-block">
+                <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-none px-2 py-0.5 inline-block">
                   Note: {currentInstruction.note}
                 </p>
               )}
@@ -326,19 +322,19 @@ export function ConnectClient({
         {/* Right Column: OpenClaw Local Agent & Accordions */}
         <div className="space-y-6">
           {/* OpenClaw Card */}
-          <section className="rounded-2xl border border-slate-300/80 bg-card p-6 sm:p-7 shadow-xs dark:border-slate-700 space-y-5">
+          <section className="rounded-none border border-border bg-card p-6 sm:p-7 shadow-xs space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/80 pb-4">
               <div className="flex items-center gap-2">
-                <TerminalWindow size={18} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
+                <TerminalWindow size={18} weight="duotone" className="text-brand" />
                 <h2 className="text-sm font-bold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
-                <span className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="whitespace-nowrap rounded-none border border-border bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                   Self-Hosted
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setFilm("claw")}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 underline underline-offset-4"
+                className="text-xs font-semibold text-brand hover:text-brand/80 underline underline-offset-4"
               >
                 Watch demo film →
               </button>
@@ -352,15 +348,15 @@ export function ConnectClient({
               {platform === "mac" || platform === null ? (
                 <div className="space-y-2">
                   <CopyBox value={installCommand} label="1-Click Mac Terminal Command" />
-                  <p className="text-[11px] text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
+                  <p className="text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="rounded-none border border-border bg-muted/40 p-3.5">
                   <p className="text-xs text-muted-foreground mb-2.5">
                     OpenClaw is built for macOS. Enter your email to get notified when Windows / Linux launches:
                   </p>
                   {outcome?.kind === "success" ? (
-                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    <p className="text-xs font-semibold text-brand">
                       ✓ You&apos;re on the list!
                     </p>
                   ) : (
@@ -373,9 +369,9 @@ export function ConnectClient({
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="you@company.com"
                           disabled={pending}
-                          className="h-8 text-base md:text-xs rounded-lg"
+                          className="h-8 text-base md:text-xs"
                         />
-                        <Button type="submit" size="xs" disabled={pending} className="rounded-lg">
+                        <Button type="submit" size="xs" disabled={pending}>
                           {pending ? "Joining…" : "Notify me"}
                         </Button>
                       </div>
@@ -392,11 +388,11 @@ export function ConnectClient({
             {/* Sample Prompts */}
             <AccordionItem
               value="sample-prompts"
-              className="rounded-2xl border border-slate-300/80 bg-card px-4 shadow-2xs dark:border-slate-700"
+              className="rounded-none border border-border bg-card px-4 shadow-2xs"
             >
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <Sparkle size={14} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
+                  <Sparkle size={14} weight="duotone" className="text-brand" />
                   <span>Sample Prompts to Ask Your AI</span>
                 </div>
               </AccordionTrigger>
@@ -405,7 +401,7 @@ export function ConnectClient({
                   {TRY_THESE_PROMPTS.map((prompt, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-[11px] text-foreground dark:border-slate-800 dark:bg-slate-900/40"
+                      className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted/40 p-2.5 text-xs text-foreground"
                     >
                       <span className="flex-1 font-medium leading-snug">{prompt}</span>
                       <Button
@@ -413,7 +409,7 @@ export function ConnectClient({
                         variant="ghost"
                         size="xs"
                         onClick={() => navigator.clipboard.writeText(prompt)}
-                        className="h-6 shrink-0 gap-1 rounded px-1.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+                        className="h-6 shrink-0 gap-1 whitespace-nowrap px-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
                       >
                         <Copy size={11} /> Copy
                       </Button>
@@ -426,26 +422,26 @@ export function ConnectClient({
             {/* Privacy & Permissions Guarantees */}
             <AccordionItem
               value="privacy-security"
-              className="rounded-2xl border border-slate-300/80 bg-card px-4 shadow-2xs dark:border-slate-700"
+              className="rounded-none border border-border bg-card px-4 shadow-2xs"
             >
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck size={14} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
+                  <ShieldCheck size={14} weight="duotone" className="text-brand" />
                   <span>Permissions & Privacy Guarantees</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
-                <ul className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li className="flex items-start gap-1.5">
-                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span className="text-brand font-bold">✓</span>
                     <span><strong>Read-only search:</strong> Your AI queries public verified job data only.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
-                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span className="text-brand font-bold">✓</span>
                     <span><strong>No auto-submit:</strong> Never submits applications automatically without manual approval.</span>
                   </li>
                   <li className="flex items-start gap-1.5">
-                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span className="text-brand font-bold">✓</span>
                     <span><strong>Stateless queries:</strong> Zero tracking and never used for model training.</span>
                   </li>
                 </ul>
@@ -455,24 +451,24 @@ export function ConnectClient({
             {/* Raw JSON Config */}
             <AccordionItem
               value="json-config"
-              className="rounded-2xl border border-slate-300/80 bg-card px-4 shadow-2xs dark:border-slate-700"
+              className="rounded-none border border-border bg-card px-4 shadow-2xs"
             >
               <AccordionTrigger className="py-3 text-xs font-bold text-foreground hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <Code size={14} weight="duotone" className="text-emerald-600 dark:text-emerald-400" />
+                  <Code size={14} weight="duotone" className="text-brand" />
                   <span>Raw JSON Config</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
                 <div className="relative">
-                  <pre className="overflow-x-auto rounded-lg border border-slate-300 bg-slate-950 p-3 text-[11px] text-slate-100 dark:border-slate-800 shadow-2xs">
+                  <pre className="overflow-x-auto rounded-none border border-border bg-slate-950 p-3 text-xs text-slate-100 shadow-2xs">
                     <code>{jsonConfig}</code>
                   </pre>
                   <Button
                     type="button"
                     size="xs"
                     onClick={() => navigator.clipboard.writeText(jsonConfig)}
-                    className="absolute right-2 top-2 h-6 gap-1 rounded bg-slate-800 px-2 text-[10px] font-semibold text-white hover:bg-slate-700"
+                    className="absolute right-2 top-2 h-6 gap-1 whitespace-nowrap rounded-none bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted"
                   >
                     <Copy size={11} /> Copy
                   </Button>

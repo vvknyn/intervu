@@ -45,3 +45,31 @@ test("prose-safe display reaches the real row/detail-pane path: a stacked geogra
   const out = presentCompany({ name: "Michael Kors (Canada) Holdings LTD", domain: "michaelkors.com" });
   assert.equal(out.name, "Michael Kors");
 });
+
+test("prefers the domain-corroborated brand tail over an ATS slogan prefix", () => {
+  const out = presentCompany({
+    name: "Active Sourcing und Direktansprache und HR Beratung - Prime21",
+    domain: "prime21.de",
+  });
+  assert.equal(out.name, "Prime21");
+});
+
+test("drops a title-echoed slogan segment even without a corroborating domain", () => {
+  const out = presentCompany({
+    name: "Active Sourcing und Direktansprache und HR Beratung - Prime21",
+    domain: null,
+    title: "Trainee Recruitment Consultant IT (all genders) | Active Sourcing und Direktansprache und HR Beratung",
+  });
+  assert.equal(out.name, "Prime21");
+});
+
+test("does not steal a department tail when domain matches the leading brand, not the last segment", () => {
+  const out = presentCompany({ name: "Goldman Sachs - Investment Banking", domain: "gs.com" });
+  assert.ok(out.name.includes("Goldman"));
+  assert.equal(out.name, "Goldman Sachs - Investment Banking");
+});
+
+test("does not split on hyphens inside words (Toronto-Dominion stays one segment)", () => {
+  const out = presentCompany({ name: "The Toronto-Dominion Bank (Canada)", domain: "td.com" });
+  assert.equal(out.name, "The Toronto-Dominion Bank (Canada)");
+});

@@ -64,6 +64,10 @@ export function TourTrigger() {
     );
   }
 
+  // /jobs uses its own quiet replay control on the filters row — the
+  // floating pill collides with SIGN IN TO APPLY on mobile.
+  if (pageId === "jobs") return null;
+
   // No tour targets on this page — don't render the button
   if (!hasTargets) return null;
 
@@ -72,7 +76,7 @@ export function TourTrigger() {
   // iOS safe-area inset so it never collides with footer text.
   return (
     <button
-      onClick={startTour}
+      onClick={() => startTour()}
       className="fixed right-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-[80] flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/80 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm transition-all outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40 lg:bottom-6"
       aria-label="Take a tour"
     >

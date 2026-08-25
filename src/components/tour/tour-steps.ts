@@ -1,3 +1,8 @@
+import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
+import { RELISTED_EXPLAIN } from "@/lib/jobs/relisted-explain";
+import { EXCEPTION_KEY_BODY, EXCEPTION_KEY_TITLE } from "@/lib/jobs/row-exception";
+import { GHOST_META } from "@/lib/jobs/presentation";
+
 export interface TourStep {
   selector: string;
   title: string;
@@ -7,6 +12,72 @@ export interface TourStep {
 }
 
 export const tourSteps: Record<string, TourStep[]> = {
+  jobs: [
+    {
+      selector: '[data-tour="jobs-search"]',
+      title: JOBS_USP.mastheadTitle,
+      description: JOBS_USP.searchDescription,
+      placement: "bottom",
+    },
+    {
+      selector: '[data-tour="jobs-card"]',
+      title: JOBS_USP.straightFromCompany.title,
+      description: JOBS_USP.straightFromCompany.body,
+      placement: "bottom",
+    },
+    {
+      selector: '[data-tour="row-exception"]',
+      title: EXCEPTION_KEY_TITLE,
+      description: EXCEPTION_KEY_BODY,
+      placement: "bottom",
+      optional: true,
+    },
+    {
+      selector: '[data-tour="jobs-posting-check"]',
+      title: JOBS_USP.checkedBeforeApply.title,
+      description: JOBS_USP.checkedBeforeApply.body,
+      placement: "bottom",
+      optional: true,
+    },
+    {
+      selector: '[data-tour="jobs-pay"]',
+      title: JOBS_USP.realPay.title,
+      description: JOBS_USP.realPay.body,
+      placement: "bottom",
+      optional: true,
+    },
+    {
+      selector: '[data-tour="nav-connect"]',
+      title: JOBS_USP.connect.title,
+      description: JOBS_USP.connect.body,
+      placement: "bottom",
+      optional: true,
+    },
+  ],
+  "jobs-relist": [
+    {
+      selector: '[data-tour="row-exception"][data-exception="relisted"]',
+      title: "This one was relisted",
+      description: RELISTED_EXPLAIN,
+      placement: "bottom",
+    },
+  ],
+  "jobs-stale": [
+    {
+      selector: '[data-tour="row-exception"][data-exception="stale"]',
+      title: GHOST_META.likely_ghost!.label,
+      description: GHOST_META.likely_ghost!.explain,
+      placement: "bottom",
+    },
+  ],
+  "jobs-exception-both": [
+    {
+      selector: '[data-tour="row-exception"][data-exception="both"]',
+      title: "Relisted and possibly stale",
+      description: `${RELISTED_EXPLAIN} ${GHOST_META.likely_ghost!.explain}`,
+      placement: "bottom",
+    },
+  ],
   dashboard: [
     {
       selector: '[data-tour="search-input"]',

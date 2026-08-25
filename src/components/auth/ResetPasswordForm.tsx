@@ -163,7 +163,7 @@ export function ResetPasswordForm() {
                     <button
                         type="submit"
                         disabled={isPending}
-                        className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 mt-6"
+                        className="mt-6 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isPending ? (
                             <CircleNotch size={16} className="mx-auto animate-spin" />

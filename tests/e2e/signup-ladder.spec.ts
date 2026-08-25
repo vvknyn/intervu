@@ -4,11 +4,10 @@ import { test, expect, type Page } from '@playwright/test';
  * TEST GROUP: SIGNUP-LADDER - TopBar value-first CTA (wave-2, 2026-08-20 audit)
  *
  * The signed-out header's only CTA used to be a bare "Log in" — an ask with
- * no value attached. It now leads with "Get job alerts"
- * (data-testid="topbar-alerts-cta", inverted-ink primary), demoting "Log in"
- * to a quiet text link (data-testid="topbar-login", unchanged testid so
- * navigation.spec.ts / auth.spec.ts keep passing). Signed-in visitors see
- * neither — the avatar menu replaces both.
+ * no value attached. It now leads with a single "Get job alerts"
+ * (data-testid="topbar-alerts-cta", inverted-ink primary). Login lives on
+ * the auth dialog's own tab — a second header button was a competing CTA.
+ * Signed-in visitors see neither — the avatar menu replaces the CTA.
  *
  * Signed-in state is faked via the same dev-only `__INTERVU_E2E_AUTH__` hook
  * coin-balance.spec.ts uses (src/lib/firebase/client-auth.ts) — real
@@ -34,15 +33,14 @@ async function signInAsMock(page: Page) {
 }
 
 test.describe('SIGNUP-LADDER - TopBar value-first CTA', () => {
-  test('TC-LADDER-001: signed-out header leads with "Get job alerts", demotes "Log in"', async ({ page }) => {
+  test('TC-LADDER-001: signed-out header has one "Get job alerts" primary', async ({ page }) => {
     await page.goto('/jobs');
     await page.waitForLoadState('networkidle');
 
     const alertsCta = page.getByTestId('topbar-alerts-cta');
-    const login = page.getByTestId('topbar-login');
     await expect(alertsCta).toBeVisible();
     await expect(alertsCta).toHaveText('Get job alerts');
-    await expect(login).toBeVisible();
+    await expect(page.getByTestId('topbar-login')).toHaveCount(0);
 
     // Opens straight into the signup tab — where the alerts/tracker value
     // line the header just promised is what actually renders.

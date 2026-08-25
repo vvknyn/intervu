@@ -3,8 +3,8 @@
  * through at most `ANON_MAX_PAGES` pages of results before hitting a gate.
  * Signed-in users are uncapped. Browse SERP is public; deep pagination signs in.
  *
- * `ANON_PAGE_SIZE` mirrors the UI's own page size (`PAGE` in
- * src/app/jobs/page.tsx, currently 30).
+ * `ANON_PAGE_SIZE` is the anonymous depth window (3×30 = 90 hits). The UI
+ * `PAGE` in src/app/jobs/page.tsx is independent and may differ.
  */
 export const ANON_PAGE_SIZE = 30;
 export const ANON_MAX_PAGES = 3;

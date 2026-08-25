@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCompany, displayCompany, displayCompanyName, humanizeTenantSubdomain } from "../../src/lib/jobs/presentation";
+import { cleanCompany, displayCompany, displayCompanyBrand, displayCompanyName, humanizeTenantSubdomain, preferBrandSegment } from "../../src/lib/jobs/presentation";
 
 // Real production company strings, retrieved live 2026-07-26.
 
@@ -421,4 +421,39 @@ test("displayCompanyName is idempotent across the full class of inputs above", (
         const once = displayCompanyName(input);
         assert.equal(displayCompanyName(once), once, `not idempotent for "${input}" -> "${once}"`);
     }
+});
+
+// displayCompanyBrand / preferBrandSegment — ATS slogan + brand tails, 2026-08.
+
+test("displayCompanyBrand prefers domain-corroborated brand tail (Prime21 shape)", () => {
+    assert.equal(
+        displayCompanyBrand("Active Sourcing und Direktansprache und HR Beratung - Prime21", "prime21.de"),
+        "Prime21",
+    );
+});
+
+test("preferBrandSegment drops title-echoed slogan without domain corroboration", () => {
+    assert.equal(
+        preferBrandSegment(
+            "Active Sourcing und Direktansprache und HR Beratung - Prime21",
+            null,
+            "Trainee Recruitment Consultant IT (all genders) | Active Sourcing und Direktansprache und HR Beratung",
+        ),
+        "Prime21",
+    );
+});
+
+test("displayCompanyBrand leaves Goldman Sachs - Investment Banking when last segment ≠ domain brand", () => {
+    assert.equal(displayCompanyBrand("Goldman Sachs - Investment Banking", "gs.com"), "Goldman Sachs - Investment Banking");
+});
+
+test("displayCompanyBrand does not collapse bilingual duplicates without corroboration (3M audit gap)", () => {
+    assert.equal(
+        displayCompanyBrand("CAN 3M Canada Company - Compagnie 3M Canada", "3m.com"),
+        "CAN 3M Canada Company - Compagnie 3M Canada",
+    );
+});
+
+test("preferBrandSegment does not split Toronto-Dominion on an internal hyphen", () => {
+    assert.equal(preferBrandSegment("The Toronto-Dominion Bank (Canada)", "td.com"), "The Toronto-Dominion Bank (Canada)");
 });

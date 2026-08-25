@@ -46,7 +46,7 @@ export function presentJob(job: PublicJob): PresentedJob {
   const status = GHOST_BADGE_STATUS[job.ghost_badge];
   return {
     title: decodeText(job.title),
-    company: presentCompany({ name: job.company, domain: job.company_domain }),
+    company: presentCompany({ name: job.company, domain: job.company_domain, title: job.title }),
     location: locationSummary(locationText(job)),
     descriptionLede: descriptionLede(job.description),
     salary: salaryText(job),

@@ -279,7 +279,7 @@ export function CompanyRoleSearch({
                       {decodeText(selectedJob.title)}
                     </p>
                     <p className="truncate text-[13px] text-muted-foreground">
-                      {displayCompanyBrand(selectedJob.company, selectedJob.company_domain)}
+                      {displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title)}
                     </p>
                   </>
                 ) : (
@@ -298,7 +298,7 @@ export function CompanyRoleSearch({
           </div>
           <SheetTitle className="sr-only">
             {selectedJob
-              ? `${decodeText(selectedJob.title)} at ${displayCompanyBrand(selectedJob.company, selectedJob.company_domain)}`
+              ? `${decodeText(selectedJob.title)} at ${displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title)}`
               : "Job details"}
           </SheetTitle>
           <div

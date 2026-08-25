@@ -72,3 +72,17 @@ export function formatCorpusCount(count: CorpusCount): string {
     const n = count.value.toLocaleString();
     return count.kind === "floor" ? `${n}+` : n;
 }
+
+/** Compact approximate count for toolbar/status lines — "~2.1 mil", "~820k". */
+export function formatCompactCorpusCount(count: CorpusCount): string {
+    const n = count.value;
+    const plus = count.kind === "floor" ? "+" : "";
+    if (n >= 1_000_000) {
+        const mil = Math.round((n / 1_000_000) * 10) / 10;
+        return `~${mil} mil${plus}`;
+    }
+    if (n >= 1_000) {
+        return `~${Math.round(n / 1_000)}k${plus}`;
+    }
+    return `~${n.toLocaleString()}${plus}`;
+}

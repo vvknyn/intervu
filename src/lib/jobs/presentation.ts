@@ -266,7 +266,7 @@ export function humanizeTenantSubdomain(raw: string): string {
     const atsMatch = s.match(/^([a-z0-9-]+)\.(zohorecruit|applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|recruitee|ashbyhq|breezy|workable)\.(com|io|net|co)$/i);
     let token = atsMatch ? atsMatch[1] : s;
 
-    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech)$/i, "");
+    token = token.replace(/\.(com|io|net|org|co|ai|app|dev|tech|de)$/i, "");
     // Runs after the TLD strip above so "careers.com" loses its TLD first
     // (-> "careers", a single label the prefix-strip leaves alone) rather
     // than being read as prefix "careers" + bare-TLD remainder "com".
@@ -681,6 +681,59 @@ export function displayCompanyName(s: string | null | undefined): string {
     return stripLegalTail(withoutComma);
 }
 
+/** Split a display company name on spaced dash/em-dash separators only —
+ *  hyphens inside words ("Toronto-Dominion") stay intact. */
+const COMPANY_SEGMENT_SPLIT_RE = /\s+[–—|-]\s+/;
+
+function squashBrandKey(s: string): string {
+    return s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function splitCompanyDisplaySegments(name: string): string[] {
+    return name.split(COMPANY_SEGMENT_SPLIT_RE).map((s) => s.trim()).filter(Boolean);
+}
+
+/** True when a segment looks like an ATS slogan/team line echoed in the title
+ *  rather than a company name — 4+ words or length ≥ 20, and a case-
+ *  insensitive substring of `title`. */
+function isTitleEchoSegment(segment: string, title: string | null | undefined): boolean {
+    if (!title) return false;
+    const decodedTitle = decodeText(title);
+    if (!decodedTitle) return false;
+    const wordCount = segment.split(/\s+/).filter(Boolean).length;
+    if (wordCount < 4 && segment.length < 20) return false;
+    return decodedTitle.toLowerCase().includes(segment.toLowerCase());
+}
+
+/**
+ * Prefer the brand tail of `{slogan} - {brand}` ATS company strings when an
+ * independent signal confirms the tail: domain-brand equality (squash of last
+ * segment vs squash of `humanizeTenantSubdomain(domain)`) or title-echo drop
+ * of slogan segments. Composes on `displayCompanyName` output — never on raw
+ * corpus names — so legal-suffix stripping still runs first.
+ */
+export function preferBrandSegment(
+    name: string,
+    domain: string | null | undefined,
+    title?: string | null,
+): string {
+    const segments = splitCompanyDisplaySegments(name);
+    if (segments.length <= 1) return name;
+
+    const lastSegment = segments[segments.length - 1]!;
+    if (domain) {
+        const domainBrand = humanizeTenantSubdomain(domain);
+        if (domainBrand && squashBrandKey(lastSegment) === squashBrandKey(domainBrand)) {
+            return lastSegment;
+        }
+    }
+
+    const kept = segments.filter((s) => !isTitleEchoSegment(s, title));
+    if (kept.length === 0 || kept.length === segments.length) return name;
+    if (kept.length === 1) return kept[0]!;
+    return kept.join(" - ");
+}
+
 /**
  * `displayCompany`'s domain-fallback pattern (above), but through
  * `displayCompanyName` so a reader sees a brand name rather than a raw legal
@@ -689,11 +742,17 @@ export function displayCompanyName(s: string | null | undefined): string {
  * (no domain to key off) or `resolveCompanyName`'s corpus tally both depend
  * on the suffix surviving in what they key or count by.
  */
-export function displayCompanyBrand(name: string | null | undefined, domain: string | null | undefined): string {
+export function displayCompanyBrand(
+    name: string | null | undefined,
+    domain: string | null | undefined,
+    title?: string | null,
+): string {
     const brand = displayCompanyName(name);
-    if (brand) return brand;
-    if (domain) return humanizeTenantSubdomain(domain);
-    return "";
+    if (!brand) {
+        if (domain) return humanizeTenantSubdomain(domain);
+        return "";
+    }
+    return preferBrandSegment(brand, domain, title);
 }
 
 /**

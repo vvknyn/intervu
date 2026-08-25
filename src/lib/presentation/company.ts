@@ -38,6 +38,8 @@ import { displayCompanyBrand } from "@/lib/jobs/presentation";
 export interface CompanyLikeInput {
   name?: string | null;
   domain?: string | null;
+  /** Job title — enables slogan-echo stripping in `preferBrandSegment`. */
+  title?: string | null;
 }
 
 export interface PresentedCompany {
@@ -50,7 +52,7 @@ const UNKNOWN_COMPANY = "Unknown company";
 export function presentCompany(input: CompanyLikeInput): PresentedCompany {
   const domain = input.domain ?? null;
   return {
-    name: displayCompanyBrand(input.name, domain) || UNKNOWN_COMPANY,
+    name: displayCompanyBrand(input.name, domain, input.title) || UNKNOWN_COMPANY,
     domain,
   };
 }

@@ -117,11 +117,10 @@ describe("FollowButton: guest render never claims Following without a verified c
   });
 });
 
-describe("FollowButton: variant=\"primary\" is the page's single inverted-ink action", () => {
-  it('reaches Button\'s "default" variant, not "brand" (blue is for accents, never the primary CTA)', () => {
+describe("FollowButton: variant=\"primary\" is the page's single filled CTA", () => {
+  it('reaches Button\'s "default" variant (primary = brand navy)', () => {
     const html = render({ variant: "primary" });
     assert.match(html, /data-variant="default"/);
-    assert.doesNotMatch(html, /data-variant="brand"/);
   });
 
   it('variant="outline" (a case other than primary) still reaches its own Button variant, unchanged', () => {
