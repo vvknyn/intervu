@@ -93,9 +93,9 @@ export function ResetPasswordForm() {
         <div className="min-h-screen flex items-center justify-center px-4">
             <div className="w-full max-w-xs">
                 <div className="mb-8 text-center">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
                         Set new password
-                    </h2>
+                    </h1>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         Enter your new password below
                     </p>
@@ -107,6 +107,7 @@ export function ResetPasswordForm() {
                     </div>
                 )}
 
+                {oobCode && (
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-1">
                         <div className="relative">
@@ -162,7 +163,7 @@ export function ResetPasswordForm() {
 
                     <button
                         type="submit"
-                        disabled={isPending}
+                        disabled={isPending || !oobCode}
                         className="mt-6 w-full rounded bg-brand px-3 py-2 text-sm font-medium text-brand-foreground hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isPending ? (
@@ -172,6 +173,7 @@ export function ResetPasswordForm() {
                         )}
                     </button>
                 </form>
+                )}
             </div>
         </div>
     );
