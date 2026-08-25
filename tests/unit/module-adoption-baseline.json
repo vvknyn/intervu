@@ -1,7 +1,5 @@
 {
   "orphans": [
-    "lib/analytics.ts",
-    "lib/analytics/funnel.ts",
     "lib/auth/firebase-to-workos.ts",
     "lib/auth/supabase-to-workos.ts",
     "lib/auth/test-identity.ts",
