@@ -1,6 +1,7 @@
 "use server";
 
-import { getServerUser, clearSessionCookie } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
+import { clearSessionCookie } from "@/lib/firebase/auth-session";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { runUserDataPlan } from "@/lib/db/user-data";
 import { redirect } from "next/navigation";

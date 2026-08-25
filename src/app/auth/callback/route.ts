@@ -1,10 +1,7 @@
-import { relativeRedirect } from "@/lib/http/relative-redirect";
+import { handleAuth } from "@workos-inc/authkit-nextjs";
 
 /**
- * Auth callback route — no longer needed for Firebase.
- * Firebase Auth handles redirects client-side.
- * Keeping this route to avoid 404s from old links.
+ * WorkOS AuthKit OAuth callback route.
+ * Exchanges the authorization code for a session and sets cookies.
  */
-export async function GET() {
-    return relativeRedirect("/");
-}
+export const GET = handleAuth();

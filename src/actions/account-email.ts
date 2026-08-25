@@ -16,7 +16,7 @@
  * borrows a signed-in session point the account's identity — and its
  * password-reset mail — at an address they control.
  */
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { resolveAccountEmailRequest, resolveEmailNudgeState, type EmailNudgeState } from "@/lib/auth/account-email";
 import { isReachableEmail } from "@/lib/auth/username-email";

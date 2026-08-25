@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { firestoreStore } from "@/lib/agent/store";
 import { createAuthCode } from "@/lib/agent/oauth";
 import { validateConsentRequest, type ConsentParamsInput } from "@/lib/agent/consent";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 
 function readConsentParams(formData: FormData): ConsentParamsInput {
     const get = (key: string): string | undefined => {

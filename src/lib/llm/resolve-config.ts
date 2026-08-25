@@ -5,7 +5,7 @@
  * admin exemption) lives in `credit-gate.ts`, not here; this module only
  * answers "which provider and key".
  */
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
 import { DEFAULT_MODEL } from "@/lib/llm/models";
 import { ProviderConfig } from "@/lib/llm/types";

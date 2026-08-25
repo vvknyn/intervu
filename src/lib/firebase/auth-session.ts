@@ -11,10 +11,18 @@ const SESSION_COOKIE_NAME = "firebase-session";
 const SESSION_EXPIRY_DAYS = 14;
 
 /**
- * Get the current authenticated user from the session cookie (server-side).
- * Returns null if not authenticated.
+ * The user behind a Firebase session cookie, or null.
+ *
+ * Callers should ask `getServerUser()` in `@/lib/auth/server-user` instead —
+ * it is the provider-agnostic chokepoint and knows about WorkOS too. This
+ * function is the Firebase half of it, and exists only until the last issued
+ * session cookie expires (14 days), at which point it can be deleted.
  */
-export async function getServerUser(): Promise<{ uid: string; email?: string; displayName?: string; customClaims?: Record<string, any> } | null> {
+export async function getFirebaseServerUser(): Promise<{
+    uid: string;
+    email?: string;
+    displayName?: string;
+} | null> {
     try {
         const cookieStore = await cookies();
         const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -30,7 +38,6 @@ export async function getServerUser(): Promise<{ uid: string; email?: string; di
             uid: decoded.uid,
             email: decoded.email,
             displayName: decoded.name,
-            customClaims: decoded,
         };
     } catch (error) {
         // Session expired or invalid

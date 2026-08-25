@@ -10,7 +10,7 @@ import {
     type CredentialSummary,
     type CredentialSummaryKind,
 } from "@/lib/agent/tokens";
-import { getServerUser } from "@/lib/firebase/auth-session";
+import { getServerUser } from "@/lib/auth/server-user";
 
 export type { CredentialSummary as AgentCredentialSummary } from "@/lib/agent/tokens";
 
