@@ -103,6 +103,15 @@ export interface PublicJob {
   google_indexed_at?: string | null;
   is_indexed_linkedin?: boolean | null;
   linkedin_indexed_at?: string | null;
+  /** Enriched deterministic qualifications & telemetry */
+  min_years_experience?: number | null;
+  max_years_experience?: number | null;
+  must_have_skills?: string[];
+  preferred_skills?: string[];
+  tech_stack?: string[];
+  in_office_days?: number | null;
+  normalized_salary_min?: number | null;
+  normalized_salary_max?: number | null;
   /**
    * ITEM O-FE (2026-08-15) — user "Report listing" count, aggregated
    * upstream from the flags endpoint. Same dark-launch posture as the

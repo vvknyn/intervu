@@ -93,7 +93,7 @@ export const JOBS_SYNONYMS: Record<string, string[]> = deriveSynonyms(JOBS_SYNON
 
 /** Index settings for the jobs index. Applied by the sync worker on (re)provision. */
 export const JOBS_INDEX_SETTINGS = {
-  searchableAttributes: ["title", "company", "description", "location", "tags"],
+  searchableAttributes: ["title", "company", "description", "location", "tags", "must_have_skills", "tech_stack"],
   filterableAttributes: [
     "work_type",
     "employment_type",
@@ -134,8 +134,30 @@ export const JOBS_INDEX_SETTINGS = {
     // would silently DROP it on the next apply. Do not remove without
     // confirming the box no longer needs it.
     "occupation",
+    // Enriched qualification and telemetry attributes (Subspace upstream)
+    "min_years_experience",
+    "max_years_experience",
+    "must_have_skills",
+    "preferred_skills",
+    "tech_stack",
+    "in_office_days",
+    "normalized_salary_min",
+    "normalized_salary_max",
+    "company_opened_90d",
+    "company_closed_90d",
+    "company_open_count",
   ],
-  sortableAttributes: ["posted_at", "first_seen_at", "updated_at", "salary_min", "salary_max", "posted_ts"],
+  sortableAttributes: [
+    "posted_at",
+    "first_seen_at",
+    "updated_at",
+    "salary_min",
+    "salary_max",
+    "posted_ts",
+    "min_years_experience",
+    "normalized_salary_min",
+    "company_opened_90d",
+  ],
   // "posted_ts:desc" is the FINAL rule: recency is the tiebreak among
   // equally-relevant hits, never a substitute for relevance — the six rules
   // ahead of it (words..exactness) always decide first. Applied to the live
@@ -624,6 +646,14 @@ export const JOB_LIST_ATTRIBUTES_TO_RETRIEVE = [
   "is_indexed_linkedin",
   "linkedin_indexed_at",
   "report_count",
+  "min_years_experience",
+  "max_years_experience",
+  "must_have_skills",
+  "preferred_skills",
+  "tech_stack",
+  "in_office_days",
+  "normalized_salary_min",
+  "normalized_salary_max",
 ] as const;
 
 export interface MeiliSearchBody {
