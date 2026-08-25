@@ -4049,8 +4049,8 @@ function JobsContent() {
                 suggest={suggestForBox}
                 seeds={searchSeeds}
                 placeholder={SEARCH_PLACEHOLDER}
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground shadow-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none pr-7"
-                containerClassName="h-full min-w-0 w-full overflow-visible"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs font-semibold text-foreground shadow-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none"
+                containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {queryDraft && (
                 <button
@@ -4079,8 +4079,8 @@ function JobsContent() {
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 pr-7 text-xs text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0"
-                containerClassName="h-full min-w-0 w-full overflow-visible"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 text-xs text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0"
+                containerClassName="h-full min-w-0 flex-1 overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
                 <button
