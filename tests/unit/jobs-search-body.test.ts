@@ -181,7 +181,7 @@ test("list search retrieves JOB_LIST_ATTRIBUTES_TO_RETRIEVE without description"
     const body = buildSearchBody({ q: Q }, false);
     assert.ok(body.attributesToRetrieve);
     assert.deepEqual(body.attributesToRetrieve, [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE]);
-    assert.ok(!body.attributesToRetrieve.includes("description"));
+    assert.ok(!(body.attributesToRetrieve as readonly string[]).includes("description"));
 });
 
 test("id lookup omits attributesToRetrieve so the full document is returned", () => {
