@@ -64,6 +64,19 @@ export function WorkArrangementDistribution({
         </div>
       </div>
 
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1" aria-label="Workplace flexibility legend">
+        {workTypes.map((item) => (
+          <li key={`legend-${item.key}`} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span
+              className={`h-2 w-2 shrink-0 rounded-none ${SEGMENT_COLORS[item.key] || "bg-muted-foreground"}`}
+              aria-hidden
+            />
+            <span className="font-medium text-foreground">{item.label}</span>
+            <span className="tabular-nums">{item.pct}%</span>
+          </li>
+        ))}
+      </ul>
+
       <ol className="mt-4 space-y-1.5">
         {workTypes.map((item) => {
           const href = `/${serializeJobsUrl({
