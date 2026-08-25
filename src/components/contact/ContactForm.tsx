@@ -123,7 +123,7 @@ export function ContactForm() {
                     <p className="text-xs text-destructive">{error}</p>
                 )}
 
-                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-foreground text-background text-xs font-bold uppercase tracking-wider px-7 hover:bg-foreground/90 transition-colors">
+                <Button type="submit" size="lg" disabled={isSubmitting} className="h-11 rounded-none bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-7 hover:bg-primary/90 transition-colors">
                     {isSubmitting ? "Sending…" : "Send message →"}
                 </Button>
             </form>

@@ -21,7 +21,10 @@ import path from "node:path";
  */
 
 const PAGE = path.join(process.cwd(), "src/app/jobs/page.tsx");
-const src = readFileSync(PAGE, "utf8");
+const SHARED = path.join(process.cwd(), "src/lib/jobs/toolbar-control-height.ts");
+const pageSrc = readFileSync(PAGE, "utf8");
+const sharedSrc = readFileSync(SHARED, "utf8");
+const src = pageSrc;
 
 /** A Tailwind height utility at any breakpoint — `h-7`, `lg:h-9`, `h-[46px]`. */
 const HEIGHT_UTIL = /(?:^|[\s"'`])(?:sm:|md:|lg:|xl:|2xl:)?h-(?:\d|\[)/;
@@ -53,12 +56,13 @@ function classNameBlocksContaining(needle: string): string[] {
 
 test("toolbar control height", async (t) => {
     await t.test("the shared token is the row's single source of height", () => {
-        const decl = /const toolbarControlHeight =\s*"([^"]+)"/.exec(src);
+        const decl = /export const toolbarControlHeight =\s*"([^"]+)"/.exec(sharedSrc);
         assert.ok(decl, "toolbarControlHeight must exist — it is what the row aligns on");
         // 44px is the phone tap-target floor the mobile chips already used;
         // 28px from `lg` is the `chipVariants` density the rest of the app is
         // built on. Both halves are load-bearing, so both are pinned here.
         assert.equal(decl![1], "h-11 lg:h-7");
+        assert.match(pageSrc, /from "@\/lib\/jobs\/toolbar-control-height"/);
     });
 
     await t.test("no chip in the toolbar states its own height", () => {
@@ -85,11 +89,11 @@ test("toolbar control height", async (t) => {
     });
 
     await t.test("the two segmented groups are written once, not twice", () => {
-        assert.match(src, /const toolbarSegmentGroupClass =/);
+        assert.match(sharedSrc, /export const toolbarSegmentGroupClass =/);
         // Sort and Layout previously carried byte-identical class strings, so
         // a change to one silently left the other behind.
-        const uses = src.match(/toolbarSegmentGroupClass/g) ?? [];
-        assert.equal(uses.length, 3, "expected one declaration and both groups using it");
+        const uses = pageSrc.match(/toolbarSegmentGroupClass/g) ?? [];
+        assert.equal(uses.length, 2, "expected one import and both groups using it");
     });
 
     await t.test("a segment fills its group rather than fixing its own height", () => {
@@ -100,6 +104,8 @@ test("toolbar control height", async (t) => {
         const seg = classNameBlockAt(src.indexOf("className={", start));
         assert.ok(seg, "ToolbarSegment must style itself through a className expression");
         assert.match(seg!, /self-stretch/);
+        assert.match(seg!, /items-center/, "stretched segments must flex-center their label");
+        assert.match(seg!, /leading-none/, "uppercase labels need a flush line-box or they sit high");
         assert.doesNotMatch(seg!, HEIGHT_UTIL);
     });
 });

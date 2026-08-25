@@ -68,7 +68,7 @@ function TabsTrigger({
         "inline-flex h-9 items-center justify-center gap-1.5 rounded-none px-4 text-xs font-semibold whitespace-nowrap text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50",
         "border-b-2 border-transparent hover:text-foreground hover:border-border-strong",
         "data-[state=active]:border-foreground data-[state=active]:text-foreground",
-        "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:border-b-0 group-data-[variant=block]/tabs-list:data-[state=active]:bg-foreground group-data-[variant=block]/tabs-list:data-[state=active]:text-background",
+        "group-data-[variant=block]/tabs-list:h-8 group-data-[variant=block]/tabs-list:border-b-0 group-data-[variant=block]/tabs-list:data-[state=active]:bg-primary group-data-[variant=block]/tabs-list:data-[state=active]:text-primary-foreground",
         className
       )}
       {...props}

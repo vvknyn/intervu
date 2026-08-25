@@ -19,18 +19,26 @@ interface ContextHelpProps {
      *  to a separate generic help mark. Optional so every existing bare-"?"
      *  callsite is unaffected. */
     icon?: React.ReactNode
+    /** Colored inline words as the trigger — drops the fixed 18×18 icon box. */
+    children?: React.ReactNode
 }
 
-export function ContextHelp({ content, className, side = "top", icon }: ContextHelpProps) {
+export function ContextHelp({ content, className, side = "top", icon, children }: ContextHelpProps) {
+    const textTrigger = children != null;
     return (
         <TooltipProvider delayDuration={300}>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <button
                         type="button"
-                        className={cn("text-muted-foreground hover:text-foreground transition-colors cursor-help inline-flex items-center justify-center align-middle ml-1 h-[18px] w-[18px] shrink-0 leading-none", className)}
+                        className={cn(
+                            textTrigger
+                                ? "cursor-help inline-flex items-center"
+                                : "text-muted-foreground hover:text-foreground transition-colors cursor-help inline-flex items-center justify-center align-middle ml-1 h-[18px] w-[18px] shrink-0 leading-none",
+                            className,
+                        )}
                     >
-                        {icon ?? <Question size={14} weight="regular" />}
+                        {textTrigger ? children : (icon ?? <Question size={14} weight="regular" />)}
                         <span className="sr-only">More information</span>
                     </button>
                 </TooltipTrigger>

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ArrowUpRight,
 } from "@phosphor-icons/react";
+import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 interface LandingMastheadProps {
   /**
    * The honest-market claim sentence (`marketingClaim()` in
@@ -40,7 +41,7 @@ export function LandingMasthead({ claim }: LandingMastheadProps) {
     <div className="pb-4 sm:pb-6">
     <div className="border-b border-border py-5 sm:py-7">
       <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-        Every job, straight from the employer.
+        {JOBS_USP.mastheadTitle}
       </h1>
       {claim ? (
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -102,8 +103,8 @@ export const indexCategories = [
   },
 ];
 
-/** The 3-column "Why these listings are different" block — shared by mobile
- *  showcase (below directory) and desktop pristine (compact, no directory). */
+/** The 3-column "Why these listings are different" block — kept for pages that
+ *  still render it inline; /jobs now teaches this via the guided tour instead. */
 export function LandingUspSection() {
   return (
     <div>
@@ -114,28 +115,28 @@ export function LandingUspSection() {
       <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-xs leading-relaxed">
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
           <div className="font-bold text-foreground">
-            Straight from the company
+            {JOBS_USP.straightFromCompany.title}
           </div>
           <p className="text-muted-foreground">
-            We read openings from each company&apos;s own careers page and hiring system. Nothing here comes from a recruiter, an agency, or a job board reselling someone else&apos;s listing.
+            {JOBS_USP.straightFromCompany.body}
           </p>
         </div>
 
         <div className="space-y-1.5 sm:border-r sm:border-border/80 sm:pr-6">
           <div className="font-bold text-foreground">
-            Checked before you apply
+            {JOBS_USP.checkedBeforeApply.title}
           </div>
           <p className="text-muted-foreground">
-            We look at how old a posting is, how often it has been relisted, and whether the company&apos;s system still shows it open — so you can tell an active job from one that has probably already gone.
+            {JOBS_USP.checkedBeforeApply.body}
           </p>
         </div>
 
         <div className="space-y-1.5">
           <div className="font-bold text-foreground">
-            Real pay, not estimates
+            {JOBS_USP.realPay.title}
           </div>
           <p className="text-muted-foreground">
-            When a company publishes a salary range, that range is what you see. We never guess a number or borrow a crowd-sourced one.
+            {JOBS_USP.realPay.body}
           </p>
         </div>
       </div>
@@ -230,8 +231,6 @@ export function LandingMarketingShowcase({
           </button>
         </div>
       </div>
-
-      <LandingUspSection />
     </div>
   );
 }

@@ -235,10 +235,10 @@ export async function getRelatedJobsAction(
 }
 
 /** Page size for the cached default browse — mirrors `PAGE` in
- *  jobs/page.tsx (currently 30). Not imported from there: that file is
+ *  jobs/page.tsx (currently 20). Not imported from there: that file is
  *  "use client" and this one is "use server," so the two stay independent
  *  constants by construction rather than a cross-runtime import. */
-const DEFAULT_BROWSE_LIMIT = 30;
+const DEFAULT_BROWSE_LIMIT = 20;
 
 /**
  * Resolve a country ISO2 to the same `places` clause shape
@@ -290,7 +290,7 @@ const getCachedDefaultBrowse = unstable_cache(
       },
       {},
     ),
-  ["jobs-default-browse"],
+  ["jobs-default-browse", String(DEFAULT_BROWSE_LIMIT)],
   { revalidate: 600 },
 );
 

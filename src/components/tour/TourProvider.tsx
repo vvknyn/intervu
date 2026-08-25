@@ -21,7 +21,7 @@ interface TourState {
 }
 
 interface TourContextValue extends TourState {
-  startTour: () => void;
+  startTour: (tourId?: string) => void;
   stopTour: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -196,8 +196,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [state.isActive]);
 
-  const startTour = useCallback(() => {
-    const stepsForPage = tourSteps[pageId] || [];
+  const startTour = useCallback((tourId?: string) => {
+    const effectivePageId = tourId ?? pageId;
+    const stepsForPage = tourSteps[effectivePageId] || [];
     // Filter out steps whose DOM element doesn't exist
     const availableSteps = stepsForPage.filter((step) => {
       return !!document.querySelector(step.selector);
@@ -209,7 +210,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       isActive: true,
       isMinimized: false,
       currentStep: 0,
-      pageId,
+      pageId: effectivePageId,
       steps: availableSteps,
       targetRect: null,
     });

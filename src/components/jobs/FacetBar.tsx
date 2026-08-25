@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chipVariants } from "@/components/ui/chip";
+import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
@@ -81,7 +82,11 @@ function FacetChip({
         <Popover>
             <PopoverTrigger
                 data-testid={testId}
-                className={cn(chipVariants({ active: activeValue != null }), "rounded-md")}
+                className={cn(
+                    chipVariants({ active: activeValue != null }),
+                    toolbarControlHeight,
+                    "box-border items-center justify-center rounded-none px-3 lg:px-2",
+                )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}
                 <CaretDown size={11} weight="bold" aria-hidden className="opacity-60" />
@@ -89,7 +94,7 @@ function FacetChip({
             <PopoverContent
                 align="start"
                 sideOffset={6}
-                className="flex w-60 flex-col gap-1 rounded-xl border border-slate-200 p-3 shadow-lg dark:border-slate-700"
+                className="flex w-56 flex-col gap-0.5 rounded-none border border-border bg-card p-2 shadow-md"
             >
                 {children}
             </PopoverContent>
@@ -141,7 +146,7 @@ export function FacetBar({
     };
 
     return (
-        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-2 lg:flex">
+        <div data-testid="facet-bar" className="hidden flex-wrap items-center gap-1.5 lg:flex">
             {postedDateSupported && (
                 <FacetChip
                     label="Posted"

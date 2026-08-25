@@ -171,7 +171,7 @@ export function FollowAlertsCard({
         type="button"
         data-testid="follow-alerts-cta"
         onClick={handleViewAll}
-        className="w-full rounded-[10px] bg-foreground px-4 py-3 text-[14px] font-semibold text-background transition-opacity hover:opacity-90"
+        className="w-full rounded-[10px] bg-primary px-4 py-3 text-[14px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
       >
         {board === "elite" ? "View followed roles →" : "View in Elite SERP →"}
       </button>

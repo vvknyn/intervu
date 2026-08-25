@@ -76,6 +76,15 @@ function tailwindShadowScaleKeys(): Set<string> {
     return new Set(tailwindShadowScaleDefaults().keys());
 }
 
+test("type scale: body default and theme tokens wired at the chokepoint", () => {
+    assert.match(GLOBALS, /body\s*\{[\s\S]*?font-size:\s*16px;/, "body font-size must be 16px (text-body role)");
+    const themeBlock = GLOBALS.slice(GLOBALS.indexOf("@theme {"), GLOBALS.indexOf("\n}", GLOBALS.indexOf("@theme {")) + 2);
+    assert.match(themeBlock, /--text-body:\s*1rem;/, "@theme must register --text-body");
+    assert.match(themeBlock, /--text-meta:\s*0\.875rem;/, "@theme must register --text-meta");
+    assert.match(themeBlock, /--text-xs:\s*0\.8125rem;/, "@theme must override --text-xs to 0.8125rem (13px)");
+    assert.match(themeBlock, /--text-sm:\s*0\.9375rem;/, "@theme must override --text-sm to 0.9375rem (15px)");
+});
+
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
     const scaleKeys = tailwindShadowScaleKeys();
     const shadows = declarations(GLOBALS).filter((d) => scaleKeys.has(d.name));
@@ -171,6 +180,30 @@ test("elevation is achromatic — a shadow never carries a hue", () => {
         `hued shadow colour(s): ${offenders.join(", ")}. Elevation is a shade of grey; ` +
             `a tint here means the shadow belongs to a palette the ramp no longer uses.`,
     );
+});
+
+test("primary filled chrome aliases brand — body ink stays on --foreground", () => {
+    for (const scope of ["root", "dark"] as const) {
+        const selector = scope === "root" ? ":root" : "\\.dark";
+        const start = GLOBALS.search(new RegExp(`^${selector}\\s*\\{`, "m"));
+        assert.ok(start >= 0, `no ${scope} block in globals.css`);
+        const block = GLOBALS.slice(start, GLOBALS.indexOf("\n}", start));
+        assert.match(
+            block,
+            /--primary:\s*var\(--brand\)/,
+            `${scope}: --primary must alias --brand so filled CTAs match logo navy`,
+        );
+        assert.match(
+            block,
+            /--primary-foreground:\s*255 255 255/,
+            `${scope}: --primary-foreground must stay white on brand fills`,
+        );
+        assert.match(
+            block,
+            /--foreground:\s*(?!var\(--brand\))/,
+            `${scope}: --foreground must remain body ink, not brand`,
+        );
+    }
 });
 
 test("the brand mark has exactly one dot colour, and it is the --live token", () => {

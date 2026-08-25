@@ -80,12 +80,12 @@ function StatusChips({
                             className={cn(
                                 "flex h-11 min-h-11 items-center gap-1.5 rounded-none px-3 text-xs font-semibold uppercase tracking-wider transition-colors md:h-auto md:min-h-0 md:py-1",
                                 active
-                                    ? "bg-foreground text-background font-bold"
+                                    ? "bg-primary text-primary-foreground font-bold"
                                     : "text-muted-foreground hover:text-foreground",
                             )}
                         >
                             <span>{label}</span>
-                            <span className={cn("px-1 text-[10px]", active ? "opacity-90" : "opacity-60")}>
+                            <span className={cn("px-1 text-xs", active ? "opacity-90" : "opacity-60")}>
                                 {n}
                             </span>
                         </button>
@@ -111,8 +111,8 @@ function TrackerEmptyState({
 }) {
     const guestCount = listGuestPursuits().length;
     return (
-        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-slate-300/80 bg-card p-8 shadow-xs dark:border-slate-700 text-center space-y-6">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+        <div data-testid={user ? "yours-empty" : "yours-guest-empty"} className="rounded-none border border-border bg-card p-8 shadow-xs text-center space-y-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-none border border-brand/20 bg-brand/10 text-brand shadow-2xs">
                 <BookmarkSimple size={24} weight="duotone" />
             </div>
 
@@ -123,7 +123,7 @@ function TrackerEmptyState({
                 </p>
             </div>
 
-            <Button asChild className="rounded-none font-semibold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 shadow-xs">
+            <Button asChild className="rounded-none font-semibold">
                 <Link href="/jobs">Browse verified roles</Link>
             </Button>
 
@@ -133,7 +133,7 @@ function TrackerEmptyState({
                     <button
                         type="button"
                         onClick={onLoginClick}
-                        className="font-semibold text-foreground underline underline-offset-4 hover:text-emerald-600"
+                        className="font-semibold text-foreground underline underline-offset-4 hover:text-brand"
                     >
                         Sign in
                     </button>{" "}

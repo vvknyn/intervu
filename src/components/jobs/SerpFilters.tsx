@@ -1,6 +1,6 @@
 "use client";
 
-import { CompactFooterLinks } from "@/components/layout/Footer";
+import { cn } from "@/lib/utils";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import {
     facetValueLabel,
@@ -57,18 +57,21 @@ export function Affordance({
     return (
         <label
             data-testid={testId}
-            className="flex min-h-9 cursor-pointer items-center gap-2 text-[13px] text-foreground"
+            className={cn(
+                "flex min-h-7 cursor-pointer items-center gap-1.5 text-xs leading-tight text-foreground",
+                active && inputType === "radio" && "font-medium text-brand",
+            )}
         >
             <input
                 type={inputType}
                 checked={active}
                 readOnly
                 onClick={onClick}
-                className="h-3.5 w-3.5 shrink-0 accent-foreground"
+                className="h-3 w-3 shrink-0 accent-brand"
             />
             <span className="min-w-0 flex-1">{children}</span>
             {typeof count === "number" && (
-                <span className="ml-auto text-[11px] text-faint tabular-nums">{count.toLocaleString()}</span>
+                <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{count.toLocaleString()}</span>
             )}
         </label>
     );
@@ -77,10 +80,10 @@ export function Affordance({
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div className="flex flex-col">
-            <h4 className="mb-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-faint">
+            <h4 className="mb-1 whitespace-nowrap text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                 {label}
             </h4>
-            <div className="flex flex-col gap-2">{children}</div>
+            <div className="flex flex-col gap-0.5">{children}</div>
         </div>
     );
 }
@@ -117,7 +120,7 @@ function FacetGroup({
                     {facetValueLabel(facetKey, value)}
                 </Affordance>
             ))}
-            {caption && <p className="mt-1 text-[10px] text-faint">{caption}</p>}
+            {caption && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{caption}</p>}
         </Group>
     );
 }
@@ -183,8 +186,8 @@ export function SerpFilters({
             <div
                 className={
                     layout === "rail"
-                        ? "grid grid-cols-1 gap-y-5"
-                        : "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4"
+                        ? "grid grid-cols-1 gap-y-3"
+                        : "grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-4"
                 }
             >
                 {postedDateSupported && (
@@ -282,13 +285,13 @@ export function SerpFilters({
                 )}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-start justify-between gap-x-5 gap-y-3 border-t border-border pt-3.5">
-                <div className="flex flex-col gap-1">
+            <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-t border-border pt-2">
+                <div className="flex flex-col gap-0.5">
                     <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
                         Sponsors visas
                     </Affordance>
                     {visaShare != null && (
-                        <p className="pl-5 text-[10px] text-faint">
+                        <p className="pl-[18px] text-[10px] leading-snug text-muted-foreground">
                             sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
                         </p>
                     )}
@@ -298,10 +301,6 @@ export function SerpFilters({
                         Reset all ✕
                     </Affordance>
                 )}
-            </div>
-
-            <div className="mt-4 border-t border-border/60 pt-3">
-                <CompactFooterLinks />
             </div>
         </>
     );

@@ -270,7 +270,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 callers own their own padding again. `jobs-first-screen.spec.ts`
                 ("no glyph painted over the search field overlaps where its text
                 starts") measures this and is the regression gate. */}
-            <div className="relative flex w-full items-center">
+            <div className="relative flex h-full w-full items-center">
                 {leadingIcon && (
                     <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground/70">
                         {leadingIcon}
@@ -325,7 +325,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                             return (
                                 <Fragment key={index}>
                                     {showLabel && (
-                                        <li aria-hidden className="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                        <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                             {label}
                                         </li>
                                     )}

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCorpusCount, formatCorpusCount, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
+import { resolveCorpusCount, formatCorpusCount, formatCompactCorpusCount, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
 
 // Whole-branch review finding: the app must never present a Meilisearch
 // maxTotalHits-capped `total` as an exact fact. `resolveCorpusCount` is the
@@ -56,5 +56,19 @@ describe('formatCorpusCount', () => {
     it('exact zero renders as "0", not blank', () => {
         const zero: CorpusCount = { kind: 'exact', value: 0 };
         assert.equal(formatCorpusCount(zero), '0');
+    });
+});
+
+describe('formatCompactCorpusCount', () => {
+    it('millions — one decimal and "mil"', () => {
+        assert.equal(formatCompactCorpusCount({ kind: 'exact', value: 2_062_887 }), '~2.1 mil');
+    });
+
+    it('hundreds of thousands — rounded k', () => {
+        assert.equal(formatCompactCorpusCount({ kind: 'exact', value: 820_000 }), '~820k');
+    });
+
+    it('floor keeps trailing plus', () => {
+        assert.equal(formatCompactCorpusCount({ kind: 'floor', value: CORPUS_COUNT_CAP }), '~100k+');
     });
 });

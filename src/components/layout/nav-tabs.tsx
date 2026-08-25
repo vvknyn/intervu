@@ -15,16 +15,30 @@ import { FileText, Kanban } from "@phosphor-icons/react";
  */
 export type NavBadge = "pursuits";
 
+export type NavPlacement = "menu" | "bar";
+
 export type NavTab = {
     label: string;
     shortLabel: string;
     href: string;
     testId: string;
     match: (pathname: string) => boolean;
+    placement: NavPlacement;
+    tourSelector?: string;
     icon?: ComponentType;
     variant?: "cta";
     badge?: NavBadge;
 };
+
+/** Desktop TopBar: label for the clustered Jobs/Resume/Tracker dropdown. */
+export function menuNavTriggerLabel(pathname: string, tabs: readonly NavTab[]): string {
+    const active = tabs.find((t) => t.placement === "menu" && t.match(pathname));
+    return active?.label ?? "Jobs";
+}
+
+export function menuNavActive(pathname: string, tabs: readonly NavTab[]): boolean {
+    return tabs.some((t) => t.placement === "menu" && t.match(pathname));
+}
 
 function JobsIcon() {
     return (
@@ -75,6 +89,7 @@ export const NAV_TABS: NavTab[] = [
         href: "/jobs",
         testId: "topbar-jobs",
         match: (p) => p === "/jobs" || p.startsWith("/jobs/"),
+        placement: "menu",
         icon: JobsIcon,
     },
     {
@@ -83,6 +98,7 @@ export const NAV_TABS: NavTab[] = [
         href: "/resume",
         testId: "topbar-resume",
         match: (p) => p.startsWith("/resume"),
+        placement: "menu",
         icon: ResumeIcon,
     },
     {
@@ -91,6 +107,7 @@ export const NAV_TABS: NavTab[] = [
         href: "/yours",
         testId: "topbar-tracker",
         match: (p) => p.startsWith("/yours"),
+        placement: "menu",
         icon: TrackerIcon,
         // The tracked count used to sit in the /jobs filter toolbar as a chip
         // linking here. It was never a filter — it narrowed nothing — so it
@@ -103,6 +120,8 @@ export const NAV_TABS: NavTab[] = [
         href: "/connect",
         testId: "topbar-connect",
         match: (p) => p.startsWith("/connect") || p.startsWith("/openclaw"),
+        placement: "bar",
+        tourSelector: "nav-connect",
         icon: ConnectIcon,
     },
 ];
@@ -114,6 +133,7 @@ export const MOBILE_ACCOUNT_TAB: NavTab = {
     href: "/settings",
     testId: "topbar-account",
     match: (p) => p.startsWith("/settings") || p.startsWith("/account"),
+    placement: "bar",
     icon: AccountIcon,
 };
 
@@ -123,6 +143,7 @@ export const TRENDS_TAB: NavTab = {
     href: "/trends",
     testId: "topbar-trends",
     match: (p) => p.startsWith("/trends"),
+    placement: "bar",
 };
 
 export const FOOTER_EXTRA_TABS: NavTab[] = [
@@ -132,6 +153,7 @@ export const FOOTER_EXTRA_TABS: NavTab[] = [
         href: "/research/ghost-jobs",
         testId: "footer-research",
         match: (p) => p.startsWith("/research"),
+        placement: "bar",
     },
     {
         label: "Pricing",
@@ -139,6 +161,7 @@ export const FOOTER_EXTRA_TABS: NavTab[] = [
         href: "/pricing",
         testId: "footer-pricing",
         match: (p) => p.startsWith("/pricing"),
+        placement: "bar",
     },
     TRENDS_TAB,
 ];
