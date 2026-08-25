@@ -30,6 +30,24 @@ config({ path: `${ROOT}/.env.local`, quiet: true });
 
 const APPLY = process.argv.includes("--apply");
 const PROD = process.argv.includes("--prod");
+
+/**
+ * Addresses the operator names explicitly, e.g.
+ * `--include a@b.com,c@d.com`.
+ *
+ * Some accounts are only knowable as tests by a human — a plus-addressed
+ * mailbox, a personal login kept for exercising gated UI. Those judgements
+ * belong to the operator at the command line, where they are logged with the
+ * run, rather than baked into the predicate as a name list that would quietly
+ * outlive the reason it was added.
+ */
+const includeArg = process.argv.indexOf("--include");
+const INCLUDED = new Set(
+    (includeArg === -1 ? "" : (process.argv[includeArg + 1] ?? ""))
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+);
 const apiKey = PROD ? process.env.WORKOS_PROD_API_KEY : process.env.WORKOS_API_KEY;
 if (!apiKey) {
     console.error(`missing ${PROD ? "WORKOS_PROD_API_KEY" : "WORKOS_API_KEY"}`);
@@ -56,7 +74,10 @@ async function main() {
     const tally = { deleted: 0, would_delete: 0, kept_active: 0, failed: 0 };
 
     for (const user of users) {
-        const verdict = classifyIdentity(user.email);
+        const named = INCLUDED.has((user.email ?? "").trim().toLowerCase());
+        const verdict = named
+            ? ({ isTest: true, reason: "named_by_operator" } as const)
+            : classifyIdentity(user.email);
         if (!verdict.isTest) continue;
 
         // A second, independent belt: whatever the address looks like, an

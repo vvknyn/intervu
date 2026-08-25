@@ -10,7 +10,7 @@ import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CircleNotch } from '@phosphor-icons/react'
+import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
@@ -199,6 +199,29 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
                         <GoogleGlyph />
                         Continue with Google
+                    </Button>
+                    {/* Passkeys and email codes are handled by WorkOS AuthKit,
+                        not here: WebAuthn needs a challenge/assertion ceremony
+                        that has no API to call, so the hosted page has to run
+                        it. Added ALONGSIDE Google rather than replacing it —
+                        every existing intervu account arrived through Google
+                        and that path is untouched. */}
+                    <Button
+                        variant="outline"
+                        type="button"
+                        className="w-full"
+                        disabled={isPending}
+                        onClick={() => {
+                            const params = new URLSearchParams();
+                            const next = new URLSearchParams(window.location.search).get("next");
+                            if (next) params.set("next", next);
+                            if (activeTab === "signup") params.set("mode", "signup");
+                            const query = params.toString();
+                            window.location.href = `/auth/start${query ? `?${query}` : ""}`;
+                        }}
+                    >
+                        <Fingerprint weight="bold" className="size-4" />
+                        Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
                         <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
