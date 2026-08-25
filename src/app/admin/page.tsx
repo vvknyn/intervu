@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
-import { isCurrentUserAdmin } from "@/actions/admin";
 import { AdminPanel } from "@/components/admin/AdminPanel";
+import { getServerUser } from "@/lib/auth/server-user";
+import { isAdminUser } from "@/lib/llm/credit-gate";
 
 export default async function AdminPage() {
-    const isAdmin = await isCurrentUserAdmin();
-
-    if (!isAdmin) {
+    const user = await getServerUser();
+    if (!user) {
         redirect("/login?next=/admin");
+    }
+    if (!isAdminUser(user)) {
+        redirect("/");
     }
 
     return <AdminPanel />;

@@ -2581,7 +2581,7 @@ function JobsContent() {
             bothInDom,
             staleInDom,
             relistInDom,
-            listingsVisible: !showLandingMarketing && hits.length > 0,
+            listingsVisible: hits.length > 0 && (!showLandingMarketing || isLgUp),
         });
         if (!kind) return;
 
@@ -2589,7 +2589,7 @@ function JobsContent() {
             kind === "both" ? "jobs-exception-both" : kind === "stale" ? "jobs-stale" : "jobs-relist";
         const id = requestAnimationFrame(() => startTour(tourId));
         return () => cancelAnimationFrame(id);
-    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id, showLandingMarketing]);
+    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id, showLandingMarketing, isLgUp]);
 
     // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
     // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —

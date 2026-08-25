@@ -54,5 +54,7 @@ test("current-page underline wraps the label box, not padded link chrome", () =>
 test("guest /admin redirects to login with next, not the public SERP", () => {
     const src = readFileSync(ADMIN, "utf8");
     assert.match(src, /redirect\("\/login\?next=\/admin"\)/);
-    assert.doesNotMatch(src, /redirect\("\/"\)/);
+    assert.match(src, /redirect\("\/"\)/);
+    assert.match(src, /getServerUser/);
+    assert.match(src, /isAdminUser/);
 });
