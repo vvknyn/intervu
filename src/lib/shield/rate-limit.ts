@@ -226,12 +226,18 @@ export function isDetailPagePath(pathname: string): boolean {
  * anyone clicks anything. A real click can itself cost two hits on this
  * shape: a stale/re-titled slug 301s via `permanentRedirect` to the
  * canonical one (`app/jobs/[slug]/page.tsx`), and both the old and new URL
- * match this path. 150/60s absorbs that scroll-driven fan-out plus repeat
- * visits for one visitor while still meaningfully throttling a sustained
- * slug-walking scrape (2.5 req/s sustained, not a one-off burst).
+ * match this path. And `/jobs/<slug>/opengraph-image` matches too, so every
+ * social-preview fetch shares this budget.
+ *
+ * 300/60s: the prefetch fan-out above means a fast continuous scroller can
+ * viewport-intersect on the order of 100-200 rows in a minute — 150 sat
+ * inside plausible real usage, and the cost of undersizing is the Aug 25
+ * Cloudflare lockout replayed app-side (a real visitor 429'd mid-browse).
+ * 300 keeps a >2x margin over that worst case while still capping a
+ * sustained slug-walking scrape at ~5 req/s — weeks to walk a 2M+ corpus.
  */
 export const DETAIL_PAGE_WINDOW_MS = 60_000;
-export const DETAIL_PAGE_MAX_REQUESTS = 150;
+export const DETAIL_PAGE_MAX_REQUESTS = 300;
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the detail-page store. */
 export const allowDetailPageRequest = createIpRateLimiter(DETAIL_PAGE_WINDOW_MS, DETAIL_PAGE_MAX_REQUESTS);
