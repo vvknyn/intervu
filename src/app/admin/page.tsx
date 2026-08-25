@@ -6,7 +6,7 @@ export default async function AdminPage() {
     const isAdmin = await isCurrentUserAdmin();
 
     if (!isAdmin) {
-        redirect("/");
+        redirect("/login?next=/admin");
     }
 
     return <AdminPanel />;
