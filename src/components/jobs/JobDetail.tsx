@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check } from "@phosphor-icons/react";
+import { ArrowSquareOut, BookmarkSimple, Check } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -502,7 +502,7 @@ export function JobDetail({
                     <div className="flex items-start gap-3 sm:gap-3.5">
                         <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         <div className="min-w-0 flex-1">
-                            <h2 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h2>
+                            <h1 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h1>
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
@@ -673,7 +673,7 @@ export function JobDetail({
                         {job.apply_url && (
                             <Button onClick={onOpenPosting} className="gap-2 h-10 sm:h-9 px-5 rounded-none bg-brand text-brand-foreground hover:bg-brand/90 text-xs font-bold uppercase tracking-wider transition-colors">
                                 <ArrowSquareOut size={16} />
-                                Apply
+                                {signedIn ? "Apply" : "Sign in to apply"}
                             </Button>
                         )}
                         {pursuit ? (
@@ -686,7 +686,7 @@ export function JobDetail({
                             </Link>
                         ) : (
                             <Button variant="outline" onClick={onGoAfter} disabled={goingAfter} className="gap-2 h-10 sm:h-9 px-4 rounded-none text-xs font-bold uppercase tracking-wider transition-colors">
-                                <Check size={16} />
+                                <BookmarkSimple size={16} />
                                 {goingAfter ? "Saving…" : "Save"}
                             </Button>
                         )}
