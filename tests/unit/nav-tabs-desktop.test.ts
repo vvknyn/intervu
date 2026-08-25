@@ -22,10 +22,11 @@ test("TRENDS_TAB is a footer-only /trends entry", () => {
     assert.equal(TRENDS_TAB.match("/"), false);
 });
 
-test("Connect tab is present with its own icon and no cta variant", () => {
+test("Agents tab is present with its own icon and no cta variant", () => {
     const connect = NAV_TABS.find((t) => t.href === "/connect");
     assert.ok(connect);
-    assert.equal(connect?.label, "Connect");
+    assert.equal(connect?.label, "Agents");
+    assert.equal(connect?.shortLabel, "Agents");
     assert.ok(connect?.icon);
     assert.equal(connect?.variant, undefined);
 });
@@ -38,10 +39,10 @@ test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () 
 });
 
 test("Connect nav is not active on /openclaw", () => {
-    const connect = NAV_TABS.find((t) => t.href === "/connect");
-    assert.ok(connect);
-    assert.equal(connect!.match("/openclaw"), false);
-    assert.equal(connect!.match("/connect"), true);
+    const agents = NAV_TABS.find((t) => t.href === "/connect");
+    assert.ok(agents);
+    assert.equal(agents!.match("/openclaw"), false);
+    assert.equal(agents!.match("/connect"), true);
 });
 
 test("current-page underline wraps the label box, not padded link chrome", () => {

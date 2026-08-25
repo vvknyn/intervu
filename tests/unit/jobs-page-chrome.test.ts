@@ -30,6 +30,7 @@ describe("jobs USP copy: single source for tour and landing", () => {
         assert.equal(JOBS_USP.realPay.title, "Real pay, not estimates");
         assert.ok(JOBS_USP.realPay.body.length > 20);
         assert.equal(JOBS_USP.connect.title, "MCP and local agents");
+        assert.match(JOBS_USP.connect.body, /Agents/i);
         assert.match(JOBS_USP.connect.body, /MCP/i);
         assert.match(JOBS_USP.connect.body, /local agent/i);
         assert.doesNotMatch(JOBS_USP.connect.body, /outreach/i);
@@ -74,16 +75,17 @@ describe("jobs USP copy: single source for tour and landing", () => {
 });
 
 describe("nav tab placement", () => {
-    it("clusters Jobs, Resume, Tracker in menu; Connect stays on the bar", () => {
+    it("clusters Jobs, Resume, Tracker in menu; Agents stays on the bar", () => {
         const jobs = NAV_TABS.find((t) => t.testId === "topbar-jobs");
         const resume = NAV_TABS.find((t) => t.testId === "topbar-resume");
         const tracker = NAV_TABS.find((t) => t.testId === "topbar-tracker");
-        const connect = NAV_TABS.find((t) => t.testId === "topbar-connect");
+        const agents = NAV_TABS.find((t) => t.testId === "topbar-connect");
         assert.equal(jobs?.placement, "menu");
         assert.equal(resume?.placement, "menu");
         assert.equal(tracker?.placement, "menu");
-        assert.equal(connect?.placement, "bar");
-        assert.equal(connect?.tourSelector, "nav-connect");
+        assert.equal(agents?.placement, "bar");
+        assert.equal(agents?.label, "Agents");
+        assert.equal(agents?.tourSelector, "nav-connect");
     });
 
     it("TopBar has no standalone theme button in the header cluster", () => {

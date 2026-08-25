@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent 
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { Check } from "@phosphor-icons/react";
+import { Check, CircleNotch } from "@phosphor-icons/react";
 import { highlightMatch } from "@/lib/highlight-match";
 import { isLocationSelected } from "@/lib/jobs/location-suggest";
 import { LOCATION_TRIGGER_PLACEHOLDER } from "@/components/jobs/FilterPanel";
@@ -72,6 +72,7 @@ export function LocationCombobox({
     "data-testid": testId = "location-input",
 }: LocationComboboxProps) {
     const [groups, setGroups] = useState<LocationSuggestGroup[]>([]);
+    const [fetching, setFetching] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
 
@@ -81,16 +82,19 @@ export function LocationCombobox({
     const generation = useRef(0);
     const anchorRef = useRef<HTMLDivElement>(null);
     const hasSuggestions = groups.some((g) => g.items.length > 0);
-    const overlayRect = useAnchoredOverlayRect(anchorRef, isOpen && hasSuggestions);
+    const showLoading = isOpen && value.trim().length > 0 && fetching;
+    const overlayRect = useAnchoredOverlayRect(anchorRef, isOpen && (hasSuggestions || showLoading));
 
     useEffect(() => {
         const q = value.trim();
         if (!q) {
             setGroups([]);
+            setFetching(false);
             setActiveIndex(-1);
             return;
         }
         const mine = ++generation.current;
+        setFetching(true);
         const timer = setTimeout(() => {
             fetch(`/api/jobs/locations?q=${encodeURIComponent(q)}`)
                 .then((r) => (r.ok ? r.json() : { groups: [] }))
@@ -104,6 +108,9 @@ export function LocationCombobox({
                 // which is exactly what it was before this component.
                 .catch(() => {
                     if (mine === generation.current) setGroups([]);
+                })
+                .finally(() => {
+                    if (mine === generation.current) setFetching(false);
                 });
         }, DEBOUNCE_MS);
         return () => clearTimeout(timer);
@@ -121,7 +128,7 @@ export function LocationCombobox({
     );
 
     const items = flatten(groups);
-    const open = isOpen && items.length > 0;
+    const open = isOpen && (items.length > 0 || showLoading);
 
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Escape") {
@@ -156,6 +163,12 @@ export function LocationCombobox({
 
     const suggestionList = (
         <ul id="location-suggestions" role="listbox" aria-label="Location suggestions" className="max-h-[300px] overflow-y-auto py-2">
+            {showLoading && (
+                <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+                    <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
+                    Loading locations…
+                </li>
+            )}
             {groups.map((group) => {
                 const firstIndex = groups
                     .slice(0, groups.indexOf(group))

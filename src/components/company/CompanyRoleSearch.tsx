@@ -7,6 +7,7 @@ import { CompanyFollowControl } from "@/components/companies/CompanyFollowContro
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CircleNotch } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -95,6 +96,7 @@ export function CompanyRoleSearch({
 }) {
   const [query, setQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
+  const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
@@ -118,6 +120,7 @@ export function CompanyRoleSearch({
         return;
       }
       try {
+        setLoadingJobId(jobId);
         const fetched = await getJobByIdAction(jobId);
         if (fetched) {
           setSelectedJob(fetched);
@@ -127,6 +130,8 @@ export function CompanyRoleSearch({
         }
       } catch {
         toast.error("Could not load job details");
+      } finally {
+        setLoadingJobId(null);
       }
     },
     [jobs],

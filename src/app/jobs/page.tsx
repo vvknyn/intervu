@@ -16,6 +16,7 @@ import {
     Check,
     Question,
     SlidersHorizontal,
+    CircleNotch,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -317,32 +318,28 @@ function ToolbarSegment({
     label,
     pressed,
     onClick,
+    pending = false,
 }: {
     label: string;
     pressed: boolean;
     onClick: () => void;
+    pending?: boolean;
 }) {
     return (
         <button
             type="button"
             aria-pressed={pressed}
+            aria-busy={pending || undefined}
+            disabled={pending}
             onClick={onClick}
             className={cn(
-                // `self-stretch`, not a fixed height: a segment fills whatever
-                // group it sits in, so the GROUP owns the height and the two
-                // can never disagree. `min-h-6` is the floor for the one group
-                // that has no height of its own — the wrapping mobile sort row
-                // inside the filters panel — and keeps that case on the 24px
-                // WCAG target this control was rebuilt to clear.
-                // Flex + leading-none: a stretched <button> blockifies and
-                // parks the label at the top of the extra space (uppercase
-                // especially — unused descender room). Center the glyph box.
-                "inline-flex self-stretch min-h-6 box-border items-center justify-center rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
+                "inline-flex self-stretch min-h-6 box-border items-center justify-center gap-1.5 rounded-none px-3 text-xs font-bold uppercase leading-none tracking-wider transition-all duration-150",
                 pressed
                     ? "bg-brand text-brand-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground",
             )}
         >
+            {pending && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
             {label}
         </button>
     );
@@ -1199,6 +1196,7 @@ function JobsContent() {
     // one; the backend sort stays whatever `resolveUrlSort` resolves it to
     // (relevance, via the résumé-derived query — see `applyFit`).
     const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
+    const [fitResolving, setFitResolving] = useState(false);
     // Mirrors `fitActive` for read access from callbacks that can outlive the
     // render that defined them (`maybeReplay`'s stable-identity closure) —
     // same reason `resultRef`/`selectedIdRef` exist below.
@@ -3499,14 +3497,19 @@ function JobsContent() {
     // choice) — false only when no usable résumé was found, the signal a
     // caller uses to decide whether to fall back to the uploader.
     const resolveAndApplyFit = async (): Promise<boolean> => {
-        const token = fitIntentRef.current!.begin();
-        const r = await resolveUsableResume();
-        if (!fitIntentRef.current!.isCurrent(token)) return true;
-        if (r) {
-            applyFit(r);
-            return true;
+        setFitResolving(true);
+        try {
+            const token = fitIntentRef.current!.begin();
+            const r = await resolveUsableResume();
+            if (!fitIntentRef.current!.isCurrent(token)) return true;
+            if (r) {
+                applyFit(r);
+                return true;
+            }
+            return false;
+        } finally {
+            setFitResolving(false);
         }
-        return false;
     };
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
@@ -3926,6 +3929,7 @@ function JobsContent() {
                         label="best match"
                         pressed={fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())}
                         onClick={chooseBestMatch}
+                        pending={fitResolving}
                     />
                 </div>
             )}
@@ -4108,6 +4112,8 @@ function JobsContent() {
             <button
                 type="button"
                 onClick={() => handleMyResumeClick()}
+                disabled={fitResolving}
+                aria-busy={fitResolving || undefined}
                 data-testid="jobs-my-resume"
                 title={
                     resumeControlState === "active"
@@ -4122,10 +4128,15 @@ function JobsContent() {
                 className={cn(
                     chipVariants({ active: resumeControlState === "active" }),
                     toolbarChipClass,
-                    "leading-none",
+                    "inline-flex items-center gap-1.5 leading-none",
                 )}
             >
-                {resumeControlState === "active" ? "My résumé" : "Add résumé"}
+                {fitResolving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+                {fitResolving
+                    ? "Loading…"
+                    : resumeControlState === "active"
+                      ? "My résumé"
+                      : "Add résumé"}
             </button>
         ) : null;
 
@@ -4157,6 +4168,7 @@ function JobsContent() {
                     fitActive || (!fitActive && effectiveSort === "relevance" && !!query.trim())
                 }
                 onClick={chooseBestMatch}
+                pending={fitResolving}
             />
         </div>
     ) : null;

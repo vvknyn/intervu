@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown } from "@phosphor-icons/react";
+import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { WorkOSNavAuth } from "@/components/auth/workos-nav-auth";
@@ -73,6 +73,7 @@ export function TopBar() {
     const [user, setUser] = useState<User | null>(null);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTab, setAuthTab] = useState<"login" | "signup">("login");
+    const [signingOut, setSigningOut] = useState(false);
     const sessionRefreshed = useRef(false);
     const { mode, toggleMode, mounted } = useTheme();
 
@@ -104,6 +105,8 @@ export function TopBar() {
     if (hideNav) return null;
 
     const handleSignOut = async () => {
+        if (signingOut) return;
+        setSigningOut(true);
         localStorage.clear();
         await signOut();
         window.location.href = "/";
@@ -311,8 +314,19 @@ export function TopBar() {
                                     </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={handleSignOut} className="rounded-lg text-rose-600 dark:text-rose-400">
-                                    Sign out
+                                <DropdownMenuItem
+                                    onSelect={handleSignOut}
+                                    disabled={signingOut}
+                                    className="rounded-lg text-rose-600 dark:text-rose-400"
+                                >
+                                    {signingOut ? (
+                                        <span className="flex items-center gap-2">
+                                            <CircleNotch size={14} className="animate-spin" aria-hidden />
+                                            Signing out…
+                                        </span>
+                                    ) : (
+                                        "Sign out"
+                                    )}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

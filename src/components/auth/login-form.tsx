@@ -61,6 +61,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [isPending, startTransition] = useTransition()
+    const [authKitPending, setAuthKitPending] = useState<string | null>(null)
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
@@ -99,6 +100,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
      * fresh.
      */
     const startAuthKit = (provider?: string) => {
+        setAuthKitPending(provider ?? 'passkey')
         const params = new URLSearchParams()
         const next = new URLSearchParams(window.location.search).get("next")
         if (next) params.set("next", next)
@@ -205,8 +207,12 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={() => startAuthKit("GoogleOAuth")}>
-                        <GoogleGlyph />
+                    <Button variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                        {authKitPending === "GoogleOAuth" ? (
+                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                        ) : (
+                            <GoogleGlyph />
+                        )}
                         Continue with Google
                     </Button>
                     {/* Passkeys and email codes need AuthKit's hosted page:
@@ -218,10 +224,14 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                         variant="outline"
                         type="button"
                         className="w-full"
-                        disabled={isPending}
+                        disabled={isPending || authKitPending !== null}
                         onClick={() => startAuthKit()}
                     >
-                        <Fingerprint weight="bold" className="size-4" />
+                        {authKitPending === "passkey" ? (
+                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                        ) : (
+                            <Fingerprint weight="bold" className="size-4" />
+                        )}
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (

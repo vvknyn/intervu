@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookmarkSimple, X } from "@phosphor-icons/react";
+import { BookmarkSimple, X, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
@@ -56,6 +56,8 @@ export function SavedSearchesPanel({
     const [naming, setNaming] = useState(false);
     const [nameDraft, setNameDraft] = useState("");
     const [newCounts, setNewCounts] = useState<Record<string, number>>({});
+    const [saving, setSaving] = useState(false);
+    const [removingId, setRemovingId] = useState<string | null>(null);
 
     const startSave = () => {
         setNameDraft(suggestSavedSearchName(urlState));
@@ -64,29 +66,40 @@ export function SavedSearchesPanel({
 
     const commitSave = async () => {
         const name = nameDraft.trim();
-        if (!name) return;
-        const href = hrefFromJobsUrlState(urlState);
-        if (getCurrentUser()) {
-            const res = await saveSavedSearchAction({ name, href });
-            if (!res.error) invalidateSavedSearchesCache();
-        } else {
-            if (onBeforeGuestSave?.() === "block") {
-                setNaming(false);
-                setNameDraft("");
-                return;
+        if (!name || saving) return;
+        setSaving(true);
+        try {
+            const href = hrefFromJobsUrlState(urlState);
+            if (getCurrentUser()) {
+                const res = await saveSavedSearchAction({ name, href });
+                if (!res.error) invalidateSavedSearchesCache();
+            } else {
+                if (onBeforeGuestSave?.() === "block") {
+                    setNaming(false);
+                    setNameDraft("");
+                    return;
+                }
+                persistSavedSearch({ name, href });
             }
-            persistSavedSearch({ name, href });
+            setNaming(false);
+            setNameDraft("");
+        } finally {
+            setSaving(false);
         }
-        setNaming(false);
-        setNameDraft("");
     };
 
     const removeSaved = async (s: SavedSearch) => {
-        if (getCurrentUser()) {
-            const res = await deleteSavedSearchAction(s.id);
-            if (!res.error) invalidateSavedSearchesCache();
-        } else {
-            deleteSavedSearch(s.id);
+        if (removingId) return;
+        setRemovingId(s.id);
+        try {
+            if (getCurrentUser()) {
+                const res = await deleteSavedSearchAction(s.id);
+                if (!res.error) invalidateSavedSearchesCache();
+            } else {
+                deleteSavedSearch(s.id);
+            }
+        } finally {
+            setRemovingId(null);
         }
     };
 
@@ -175,14 +188,16 @@ export function SavedSearchesPanel({
                     <button
                         type="button"
                         data-testid="save-search-commit"
+                        disabled={saving}
                         onClick={() => void commitSave()}
                         className={cn(
                             compact
-                                ? "text-[13px] font-medium text-foreground underline underline-offset-2 hover:no-underline"
-                                : "h-7 rounded-none glass-tint-blue px-2.5 text-xs font-bold uppercase whitespace-nowrap",
+                                ? "inline-flex items-center gap-1 text-[13px] font-medium text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                                : "inline-flex h-7 items-center gap-1 rounded-none glass-tint-blue px-2.5 text-xs font-bold uppercase whitespace-nowrap disabled:opacity-50",
                         )}
                     >
-                        Save
+                        {saving && <CircleNotch size={12} className="animate-spin shrink-0" aria-hidden />}
+                        {saving ? "Saving…" : "Save"}
                     </button>
                     <button
                         type="button"
@@ -232,11 +247,16 @@ export function SavedSearchesPanel({
                             <button
                                 type="button"
                                 data-testid="saved-search-remove"
+                                disabled={removingId === s.id}
                                 onClick={() => void removeSaved(s)}
-                                className="text-muted-foreground hover:text-foreground ml-0.5"
+                                className="text-muted-foreground hover:text-foreground ml-0.5 disabled:opacity-50"
                                 aria-label={`Remove saved search ${s.name}`}
                             >
-                                <X size={11} />
+                                {removingId === s.id ? (
+                                    <CircleNotch size={11} className="animate-spin" aria-hidden />
+                                ) : (
+                                    <X size={11} />
+                                )}
                             </button>
                         </li>
                     ))}

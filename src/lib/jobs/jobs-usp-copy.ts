@@ -25,6 +25,6 @@ export const JOBS_USP = {
     connect: {
         title: "MCP and local agents",
         body:
-            "Connect is where you configure MCP for your assistant, and the local agent that runs on your machine.",
+            "Agents is where you configure MCP for your assistant, and the local agent that runs on your machine.",
     },
 } as const;

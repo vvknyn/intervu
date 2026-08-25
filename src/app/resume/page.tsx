@@ -17,6 +17,19 @@ function ResumeHeader() {
     return <PageHeader size="display" fullWidth sticky={false} title="Résumé" description={RESUME_SUBCOPY} />;
 }
 
+function ResumeAuthSkeleton() {
+    return (
+        <div className="space-y-4 rounded-none border border-border bg-card p-8" role="status" aria-busy="true">
+            <span className="sr-only">Loading résumé</span>
+            <div aria-hidden className="mx-auto max-w-sm space-y-3">
+                <div className="skeleton-bar mx-auto h-12 w-12" />
+                <div className="skeleton-bar mx-auto h-4 w-48" />
+                <div className="skeleton-bar mx-auto h-3 w-full" />
+            </div>
+        </div>
+    );
+}
+
 function SignedOutState({ onLoginClick }: { onLoginClick: () => void }) {
     return (
         <div className="space-y-4 rounded-none border border-dashed border-border bg-card p-8 text-center">
@@ -63,7 +76,9 @@ export default function ResumePage() {
                         : "max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10",
                 )}
             >
-                {!authReady ? null : !user ? (
+                {!authReady ? (
+                    <ResumeAuthSkeleton />
+                ) : !user ? (
                     <SignedOutState onLoginClick={() => setAuthPopoverOpen(true)} />
                 ) : (
                     <>
