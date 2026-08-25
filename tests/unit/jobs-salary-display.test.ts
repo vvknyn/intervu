@@ -79,3 +79,17 @@ test("salaryText leaves normal annual ranges unchanged", () => {
 test("salaryText returns null when pay is missing", () => {
     assert.equal(salaryText(job({})), null);
 });
+
+test("salaryText prints one figure when min equals max after normalize", () => {
+    assert.equal(
+        salaryText(
+            job({
+                salary_min: 46_000,
+                salary_max: 46_000,
+                salary_currency: "USD",
+                salary_period: "year",
+            }),
+        ),
+        "USD 46k/yr",
+    );
+});
