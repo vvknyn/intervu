@@ -18,6 +18,14 @@ export const metadata: Metadata = {
     alternates: {
         canonical: "/jobs",
     },
+    // No `images` here either (same fix as root layout.tsx, 2026-08-24):
+    // /jobs is the front door `/` redirects to, so THIS explicit array —
+    // not the root layout's — was the one actually serving the 512x512
+    // square app icon as prod's og:image. Leaving it unset lets it fall
+    // back to the root's file-based opengraph-image.tsx (1200x630) since
+    // /jobs has no more specific generator of its own; /jobs/[slug] keeps
+    // its own per-job opengraph-image.tsx, which is more specific than
+    // either and still wins.
     openGraph: {
         type: "website",
         locale: "en_US",
@@ -25,20 +33,11 @@ export const metadata: Metadata = {
         title: LANDING_TITLE,
         description: LANDING_DESCRIPTION,
         url: `${getSiteUrl()}/jobs`,
-        images: [
-            {
-                url: `${getSiteUrl()}/icon-512.png`,
-                width: 512,
-                height: 512,
-                alt: "Intervu - Live Job Search and Verified Postings",
-            },
-        ],
     },
     twitter: {
         card: "summary_large_image",
         title: LANDING_TITLE,
         description: LANDING_DESCRIPTION,
-        images: [`${getSiteUrl()}/icon-512.png`],
     },
 };
 

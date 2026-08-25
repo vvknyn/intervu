@@ -88,6 +88,12 @@ export const metadata: Metadata = {
   // `/jobs`, a "use client" page that can't export one) is better served
   // by no canonical tag than a wrong one pointing at `/`. `/` sets its own
   // in src/app/page.tsx.
+  // No `images` array here — leaving it unset lets Next's file-based
+  // convention (opengraph-image.tsx, 1200x630) fill it in, and lets every
+  // route with its own generator (jobs/[slug], co/[slug], companies/[slug],
+  // pricing, trends) override it per-route. An explicit `images` entry here
+  // previously WON over all of those, so the 512x512 square app icon shipped
+  // as the og:image on every route instead (2026-08-24 fix).
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -95,20 +101,11 @@ export const metadata: Metadata = {
     title: LANDING_TITLE,
     description: SITE_DESCRIPTION,
     url: getSiteUrl(),
-    images: [
-      {
-        url: `${getSiteUrl()}/icon-512.png`,
-        width: 512,
-        height: 512,
-        alt: "Intervu - Verified Live Job Search",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: LANDING_TITLE,
     description: SITE_DESCRIPTION,
-    images: [`${getSiteUrl()}/icon-512.png`],
   },
   robots: {
     index: true,
