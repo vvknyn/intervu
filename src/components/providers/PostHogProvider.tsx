@@ -4,7 +4,11 @@ import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 import { useEffect, useRef } from "react";
 import { onAuthChange } from "@/lib/firebase/client-auth";
-import { POSTHOG_OPTIONS, POSTHOG_PRODUCT } from "@/lib/posthog-options";
+import {
+  POSTHOG_OPTIONS,
+  POSTHOG_PRODUCT,
+  posthogApiHost,
+} from "@/lib/posthog-options";
 import { identityAction } from "@/lib/posthog-identity";
 
 // intervu reuses subspace's PostHog project/key — no separate project, no
@@ -13,8 +17,12 @@ import { identityAction } from "@/lib/posthog-identity";
 // Until NEXT_PUBLIC_POSTHOG_KEY is set, this provider no-ops completely (no
 // init call, no network, renders children unwrapped).
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const POSTHOG_HOST =
-  process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
+
+// Read, not defaulted. The default lives in posthogApiHost() and is the
+// same-origin proxy; this var only exists to override it deliberately. It used
+// to default to "https://us.i.posthog.com" here, which meant a dropped env var
+// silently reinstated the ad-blocked host and lost analytics with no signal.
+const POSTHOG_HOST_OVERRIDE = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
 // intervu has no cookie-consent banner (deliberate — see privacy policy), so
 // persistence is always 'memory'. If a consent banner ever ships, port
@@ -31,7 +39,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     if (!POSTHOG_KEY || typeof window === "undefined") return;
 
     if (!started.current) {
-      posthog.init(POSTHOG_KEY, { api_host: POSTHOG_HOST, ...POSTHOG_OPTIONS });
+      posthog.init(POSTHOG_KEY, {
+        api_host: posthogApiHost(window.location.origin, POSTHOG_HOST_OVERRIDE),
+        ...POSTHOG_OPTIONS,
+      });
       posthog.register({ product: POSTHOG_PRODUCT });
       started.current = true;
     }
