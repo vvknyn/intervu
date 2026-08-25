@@ -39,19 +39,31 @@ export async function middleware(request: NextRequest) {
     // Returning-searcher memory (see lib/jobs-visitor-cookie.ts) — client-
     // readable, not httpOnly, since it's only ever a "have you been here
     // before" flag for `/`'s bar, never an auth artifact.
+    const response = handleAuthkitHeaders(request, headers);
+
     if (pathname.startsWith("/jobs")) {
-        const response = handleAuthkitHeaders(request, headers);
         response.cookies.set(JOBS_VISITOR_COOKIE, "1", {
             maxAge: JOBS_VISITOR_COOKIE_MAX_AGE,
             secure: process.env.NODE_ENV === "production",
             path: "/",
             sameSite: "lax",
         });
-        return response;
     }
 
-    // Continue with AuthKit headers properly handled
-    return handleAuthkitHeaders(request, headers);
+    // Google/Search Engine Disallow: unconditionally instruct all search engines
+    // to ignore and drop any individual job pages, ?job= permalinks, or parameterized job queries.
+    const isJobRoute =
+        pathname.startsWith("/jobs/") ||
+        pathname.startsWith("/job/") ||
+        request.nextUrl.searchParams.has("job") ||
+        (pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0) ||
+        (pathname === "/" && request.nextUrl.searchParams.toString().length > 0);
+
+    if (isJobRoute) {
+        response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+    }
+
+    return response;
 }
 
 export const config = {

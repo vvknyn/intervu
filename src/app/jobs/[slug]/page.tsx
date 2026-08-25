@@ -6,7 +6,6 @@ import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
-import { buildJobPostingJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
 /**
@@ -48,15 +47,23 @@ export async function generateMetadata({
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
             : `${job.title}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
-    // Same policy Task 6 later exposes as `isJobIndexable` (job-slug.ts) —
-    // inlined here since that shared gate doesn't exist yet in this task.
-    const indexable = job.vacancy_status !== "closed" && job.ghost_badge !== "likely_ghost" && job.ghost_badge !== "unscored";
-
     return {
         title,
         description,
         ...canonicalMetadata(path, title, description),
-        ...(indexable ? {} : { robots: { index: false, follow: true } }),
+        robots: {
+            index: false,
+            follow: false,
+            nocache: true,
+            googleBot: {
+                index: false,
+                follow: false,
+                noimageindex: true,
+                "max-video-preview": -1,
+                "max-image-preview": "none",
+                "max-snippet": -1,
+            },
+        },
     };
 }
 
@@ -70,12 +77,10 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
     // link), send crawlers and humans to the one canonical URL.
     if (`/jobs/${slug}` !== path) permanentRedirect(path);
 
-    const jsonLd = buildJobPostingJsonLd(job, path);
     const closed = job.vacancy_status === "closed";
 
     return (
         <main data-testid="job-page" className="mx-auto max-w-[900px] px-4 py-8 sm:px-6">
-            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
             {closed && (
                 <p data-testid="job-closed-notice" className="mt-2 text-sm text-muted-foreground">
                     This role is closed. It was last seen active on{" "}

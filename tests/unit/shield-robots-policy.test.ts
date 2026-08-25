@@ -89,6 +89,15 @@ test("buildRobotsRules: search-engine and AI-crawler name lists never overlap", 
   assert.deepEqual(overlap, []);
 });
 
+test("buildRobotsRules: job pages and parameterized job queries are disallowed for every rule", () => {
+  const rules = buildRobotsRules();
+  for (const rule of rules) {
+    const disallow = Array.isArray(rule.disallow) ? rule.disallow : [rule.disallow].filter(Boolean);
+    assert.ok(disallow.includes("/jobs/"), `expected /jobs/ disallowed for ${JSON.stringify(rule.userAgent)}`);
+    assert.ok(disallow.includes("/*?job=*"), `expected /*?job=* disallowed for ${JSON.stringify(rule.userAgent)}`);
+  }
+});
+
 test("buildRobotsRules: exactly two rules — general and the shared crawlable-bots rule", () => {
   assert.equal(buildRobotsRules().length, 2);
 });
