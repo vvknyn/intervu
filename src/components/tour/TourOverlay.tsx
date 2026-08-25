@@ -21,6 +21,7 @@ export function TourOverlay() {
     nextStep,
     prevStep,
     minimize,
+    stopTour,
   } = useTour();
 
   const cardRef = useRef<HTMLDivElement>(null);

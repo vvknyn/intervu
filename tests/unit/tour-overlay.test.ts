@@ -11,5 +11,6 @@ describe("TourOverlay single-step chrome", () => {
         assert.match(src, /steps\.length === 1/);
         assert.match(src, /Previous/);
         assert.match(src, /isSingleStep/);
+        assert.match(src, /stopTour/);
     });
 });
