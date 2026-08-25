@@ -18,7 +18,7 @@ export default function WatchAnywherePage() {
                     intervu.
                 </p>
                 <ol className="space-y-3 text-sm text-white/80 list-decimal list-inside">
-                    <li>Install the Tailscale app on this phone.</li>
+                    <li>Install the Tailscale app on this device.</li>
                     <li>Sign in with the same account your agent shows you.</li>
                 </ol>
                 <p className="text-sm text-white/60">

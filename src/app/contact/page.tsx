@@ -17,7 +17,7 @@ export default function ContactPage() {
       <header>
         <h1 className="font-display text-display font-extrabold text-foreground">Contact</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          We read everything that comes through here, and we reply from hello@thesubspace.io.
+          We read everything that comes through here, and we reply from hello@thesubspace.io (Subspace, our job data partner).
         </p>
       </header>
 
