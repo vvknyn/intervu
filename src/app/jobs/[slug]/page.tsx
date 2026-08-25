@@ -72,19 +72,10 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
 
     const jsonLd = buildJobPostingJsonLd(job, path);
     const closed = job.vacancy_status === "closed";
-    const company = displayCompanyFor(job);
 
     return (
         <main data-testid="job-page" className="mx-auto max-w-[900px] px-4 py-8 sm:px-6">
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
-            {/* Content order is mandatory (spec §6): h1 (title+company) first,
-                then the employer track record, then JobDetail's own verdict/
-                exposure/description/apply body — every block of original
-                content precedes the scraped, duplicate-content description. */}
-            <h1 className="text-2xl font-semibold tracking-tight">
-                {job.title}
-                {company ? ` at ${company}` : ""}
-            </h1>
             {closed && (
                 <p data-testid="job-closed-notice" className="mt-2 text-sm text-muted-foreground">
                     This role is closed. It was last seen active on{" "}

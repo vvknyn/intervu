@@ -21,6 +21,7 @@ export function TourOverlay() {
     nextStep,
     prevStep,
     minimize,
+    stopTour,
   } = useTour();
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -58,6 +59,7 @@ export function TourOverlay() {
 
   const isLast = currentStep === steps.length - 1;
   const isFirst = currentStep === 0;
+  const isSingleStep = steps.length === 1;
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   const spotlightX = targetRect.left - SPOTLIGHT_PADDING;
@@ -188,26 +190,34 @@ export function TourOverlay() {
           </div>
 
           <div className="flex shrink-0 items-center justify-between px-4 pb-3">
-            <button
-              onClick={prevStep}
-              disabled={isFirst}
-              className="text-xs font-medium px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
-            >
-              Previous
-            </button>
+            {!isSingleStep ? (
+              <button
+                onClick={prevStep}
+                disabled={isFirst}
+                className="text-xs font-medium px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              >
+                Previous
+              </button>
+            ) : (
+              <span aria-hidden className="w-[72px]" />
+            )}
 
+            {!isSingleStep && (
             <button
               onClick={minimize}
               className="text-xs font-medium px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               Minimize
             </button>
+            )}
+
+            {isSingleStep && <span aria-hidden className="flex-1" />}
 
             <button
-              onClick={nextStep}
+              onClick={isSingleStep ? stopTour : nextStep}
               className="text-xs font-semibold px-3 py-1.5 rounded-md bg-brand text-brand-foreground hover:opacity-90 transition-opacity"
             >
-              {isLast ? "Finish" : "Next"}
+              {isSingleStep ? "Close" : isLast ? "Finish" : "Next"}
             </button>
           </div>
         </motion.div>

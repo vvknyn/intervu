@@ -10,32 +10,26 @@ import {
 } from "@/lib/follows/alert-cursor";
 import type { FollowAlertGroup } from "@/lib/follows/alerts";
 import { jobPostedMs } from "@/lib/follows/alerts";
-import type { FollowedCompany } from "@/lib/follows/types";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { locationText } from "@/lib/jobs/presentation";
+import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type AlertRow = {
   job: PublicJob;
-  domain: string;
   displayName: string;
-  slug: string;
 };
 
-function flattenAlertRows(groups: FollowAlertGroup[], follows: FollowedCompany[]): AlertRow[] {
-  const slugByDomain = new Map(follows.map((f) => [f.domain.trim().toLowerCase(), f.slug]));
+function flattenAlertRows(groups: FollowAlertGroup[]): AlertRow[] {
   const rows: AlertRow[] = [];
 
   for (const group of groups) {
-    const slug = slugByDomain.get(group.domain) ?? group.domain;
     for (const job of group.jobs) {
       rows.push({
         job,
-        domain: group.domain,
         displayName: group.displayName,
-        slug,
       });
     }
   }
@@ -82,7 +76,7 @@ export function FollowAlertsBell() {
     };
   }, [follows]);
 
-  const rows = useMemo(() => flattenAlertRows(groups, follows), [groups, follows]);
+  const rows = useMemo(() => flattenAlertRows(groups), [groups]);
 
   const acknowledge = useCallback(() => {
     writeFollowAlertCursor(new Date().toISOString());
@@ -137,13 +131,13 @@ export function FollowAlertsBell() {
         </div>
 
         <ul className="max-h-[min(24rem,50vh)] divide-y divide-border/60 overflow-y-auto">
-          {rows.map(({ job, displayName, slug }) => {
+          {rows.map(({ job, displayName }) => {
             const loc = locationText(job);
             const meta = loc ? `${displayName} · ${loc}` : displayName;
             return (
               <li key={job.id}>
                 <Link
-                  href={`/co/${slug}`}
+                  href={jobPath(job)}
                   data-testid="follow-alert-row"
                   onClick={acknowledge}
                   className="flex items-center justify-between gap-3 px-4 py-3 text-[13.5px] transition-colors hover:text-brand"

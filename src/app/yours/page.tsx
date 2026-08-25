@@ -32,7 +32,7 @@ import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 
-const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before send.";
+const TRACKER_SUBCOPY = "Your records — not submissions. Agent drafts still stop before they're sent.";
 
 function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
     return (
@@ -67,7 +67,7 @@ function StatusChips({
 }) {
     return (
         <div className="mb-4 flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-none border border-border bg-card/75 p-0.5 backdrop-blur-xl">
+            <div className="inline-flex max-w-full items-center overflow-x-auto rounded-none border border-border bg-card/75 p-0.5 backdrop-blur-xl">
                 {TRACKER_CHIP_FILTERS.map(({ key, label }) => {
                     const n = key === "all" ? total : counts[key];
                     const active = filter === key;

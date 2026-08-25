@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown } from "@phosphor-icons/react";
 import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
+import { WorkOSNavAuth } from "@/components/auth/workos-nav-auth";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
@@ -193,11 +194,11 @@ export function TopBar() {
                                 className={cn(
                                     "inline-flex items-center gap-1 whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors outline-none",
                                     menuActive
-                                        ? "border-b-2 border-brand text-brand font-bold"
+                                        ? "text-brand font-bold"
                                         : "text-muted-foreground hover:text-foreground",
                                 )}
                             >
-                                {menuTriggerLabel}
+                                <span className={cn(menuActive && "border-b-2 border-brand")}>{menuTriggerLabel}</span>
                                 <CaretDown size={12} weight="bold" aria-hidden />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="min-w-[9rem] rounded-none border border-border bg-card p-1">
@@ -238,14 +239,15 @@ export function TopBar() {
                                     data-testid={tab.testId}
                                     data-tour={tab.tourSelector}
                                     aria-current={active ? "page" : undefined}
+                                    data-nav-current={active ? "true" : undefined}
                                     className={cn(
                                         "whitespace-nowrap rounded-none px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-colors",
                                         active
-                                            ? "border-b-2 border-brand text-brand font-bold"
+                                            ? "text-brand font-bold"
                                             : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
-                                    {tab.label}
+                                    <span className={cn(active && "border-b-2 border-brand")}>{tab.label}</span>
                                 </Link>
                             );
                         })}
@@ -316,6 +318,8 @@ export function TopBar() {
                         </DropdownMenu>
                         </>
                     ) : (
+                        <>
+                        <WorkOSNavAuth />
                         <button
                             type="button"
                             data-testid="topbar-alerts-cta"
@@ -327,6 +331,7 @@ export function TopBar() {
                         >
                             Get job alerts
                         </button>
+                        </>
                     )}
                     </div>
                 </div>

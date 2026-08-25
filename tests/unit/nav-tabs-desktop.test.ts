@@ -1,15 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NAV_TABS, TRENDS_TAB } from "../../src/components/layout/nav-tabs";
 
-/**
- * `MobileTabBar` renders one icon per `NAV_TABS` entry straight off that
- * entry's own `icon` field (nav-tabs.tsx) — replaced a hand-written 4-icon
- * array kept in lockstep by convention, so the invariant worth guarding is
- * now "every NAV_TABS entry supplies its own icon," not a specific count.
- * Adding or removing a tab in NAV_TABS is covered by construction; this test
- * would only fail if a *new* entry forgot to set `icon`.
- */
+const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
+const ADMIN = join(__dirname, "..", "..", "src", "app", "admin", "page.tsx");
+
 test("every NAV_TABS entry carries its own icon (MobileTabBar has nothing left to hardcode)", () => {
     assert.ok(NAV_TABS.length > 0);
     for (const tab of NAV_TABS) {
@@ -38,4 +35,26 @@ test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () 
         assert.notEqual(tab.href, "/prep");
         assert.notEqual(tab.href, "/resume-builder");
     }
+});
+
+test("Connect nav is not active on /openclaw", () => {
+    const connect = NAV_TABS.find((t) => t.href === "/connect");
+    assert.ok(connect);
+    assert.equal(connect!.match("/openclaw"), false);
+    assert.equal(connect!.match("/connect"), true);
+});
+
+test("current-page underline wraps the label box, not padded link chrome", () => {
+    const src = readFileSync(TOPBAR, "utf8");
+    const barBlock = src.slice(src.indexOf("barTabs.map"), src.indexOf("{user ?"));
+    assert.match(barBlock, /<span className=\{cn\(active && "border-b-2 border-brand"\)\}/);
+    assert.doesNotMatch(barBlock, /active\s*\?\s*"border-b-2 border-brand text-brand/);
+});
+
+test("guest /admin redirects to login with next, not the public SERP", () => {
+    const src = readFileSync(ADMIN, "utf8");
+    assert.match(src, /redirect\("\/login\?next=\/admin"\)/);
+    assert.match(src, /redirect\("\/"\)/);
+    assert.match(src, /getServerUser/);
+    assert.match(src, /isAdminUser/);
 });

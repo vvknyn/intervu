@@ -923,7 +923,10 @@ export function salaryText(j: PublicJob): string | null {
     const per = period ? `/${period}` : "";
     const fmt = (n: number) => formatSalaryAmount(normalizeSalaryAmount(n, j.salary_period));
     if (j.salary_min != null && j.salary_max != null) {
-        return `${cur}${fmt(j.salary_min)}–${fmt(j.salary_max)}${per}`;
+        const min = fmt(j.salary_min);
+        const max = fmt(j.salary_max);
+        if (min === max) return `${cur}${min}${per}`;
+        return `${cur}${min}–${max}${per}`;
     }
     const one = (j.salary_min ?? j.salary_max) as number;
     return `${cur}${fmt(one)}${per}`;
