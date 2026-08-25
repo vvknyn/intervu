@@ -1,7 +1,7 @@
 /**
  * Thin re-export of the "follows" `visit-cursor.ts` scope. Kept as its own
  * module (rather than inlining callers onto visit-cursor.ts directly) so
- * `FollowAlertsCard` and any other existing consumer keep compiling against
+ * `FollowAlertsBell` and any other existing consumer keep compiling against
  * these exact names, and so the legacy `intervu.follows.alertCursor`
  * storage key stays exactly where readers already look for it.
  */

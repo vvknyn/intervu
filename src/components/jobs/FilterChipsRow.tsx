@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { chipVariants } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import { SALARY_PRESETS, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
+import { toolbarChipClass } from "@/lib/jobs/toolbar-control-height";
 
 /**
  * Mobile "Posted" chip cycle — a tighter subset of the rail's full
@@ -76,7 +77,8 @@ function Chip({
             onClick={onClick}
             className={cn(
                 chipVariants({ active }),
-                "h-11 px-3 text-[13px]",
+                toolbarChipClass,
+                "shrink-0 leading-none gap-1",
                 !active && "border-foreground/20 bg-background text-foreground/80",
                 active && "border-brand/70 bg-brand/15 text-brand shadow-[inset_0_1px_0_0_rgba(255,255,255,0.32)]",
                 className,
@@ -135,10 +137,7 @@ export function FilterChipsRow({
         <div
             role="group"
             aria-label="Quick filters"
-            className={cn(
-                "mb-3 grid shrink-0 gap-2 border border-border/70 bg-muted/20 p-1.5 pb-2 lg:hidden",
-                postedDateSupported ? "grid-cols-3" : "grid-cols-2",
-            )}
+            className="flex shrink-0 items-center gap-2 lg:hidden"
         >
             {/* Same rule as the rail's "Date posted" section: no control when the
                 corpus can't answer it. Both surfaces read one flag so they can't
@@ -147,7 +146,6 @@ export function FilterChipsRow({
                 <Chip
                     active={!!state.postedBucket}
                     onClick={() => onPostedBucket(nextPostedBucket(state.postedBucket))}
-                    className="w-full justify-center"
                 >
                     {state.postedBucket ? postedBucketLabel(state.postedBucket) : "Posted"}
                     <CaretDown size={11} weight="bold" />
@@ -159,14 +157,12 @@ export function FilterChipsRow({
                 onClick={() => {
                     if (remoteValue) onToggleFacet("work_type", remoteValue);
                 }}
-                className="w-full justify-center"
             >
                 Remote
             </Chip>
             <Chip
                 active={salaryActive}
                 onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}
-                className="w-full justify-center"
             >
                 {salaryLabel ?? "Salary"}
                 <CaretDown size={11} weight="bold" />

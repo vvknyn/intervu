@@ -33,7 +33,6 @@
     "src/components/dashboard/PrepSettings.tsx:399: shadow-sm",
     "src/components/dashboard/PrepSettings.tsx:407: shadow-sm",
     "src/components/dashboard/StoryEditorWizard.tsx:277: shadow-xl",
-    "src/components/follows/FollowAlertsCard.tsx:119: shadow-sm",
     "src/components/jobs/BoardVisitBanner.tsx:65: shadow-2xl",
     "src/components/jobs/CompanyLogo.tsx:101: shadow-2xs",
     "src/components/jobs/CompanyLogo.tsx:91: shadow-2xs",

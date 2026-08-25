@@ -22,8 +22,12 @@ import path from "node:path";
 
 const PAGE = path.join(process.cwd(), "src/app/jobs/page.tsx");
 const SHARED = path.join(process.cwd(), "src/lib/jobs/toolbar-control-height.ts");
+const FILTER_CHIPS = path.join(process.cwd(), "src/components/jobs/FilterChipsRow.tsx");
+const SAVED_SEARCHES = path.join(process.cwd(), "src/components/jobs/SavedSearchesPanel.tsx");
 const pageSrc = readFileSync(PAGE, "utf8");
 const sharedSrc = readFileSync(SHARED, "utf8");
+const filterChipsSrc = readFileSync(FILTER_CHIPS, "utf8");
+const savedSearchesSrc = readFileSync(SAVED_SEARCHES, "utf8");
 const src = pageSrc;
 
 /** A Tailwind height utility at any breakpoint — `h-7`, `lg:h-9`, `h-[46px]`. */
@@ -107,5 +111,28 @@ test("toolbar control height", async (t) => {
         assert.match(seg!, /items-center/, "stretched segments must flex-center their label");
         assert.match(seg!, /leading-none/, "uppercase labels need a flush line-box or they sit high");
         assert.doesNotMatch(seg!, HEIGHT_UTIL);
+    });
+
+    await t.test("the toolbar scroller stays one nowrap row at every breakpoint", () => {
+        const toolbar = pageSrc.slice(pageSrc.indexOf('data-testid="jobs-toolbar"'));
+        const scroller = toolbar.slice(
+            toolbar.indexOf("showJobsToolbarRow && ("),
+            toolbar.indexOf("{facetsMountSite ==="),
+        );
+        assert.match(scroller, /flex-nowrap/);
+        assert.match(scroller, /overflow-x-auto/);
+        assert.doesNotMatch(scroller, /flex-wrap/);
+    });
+
+    await t.test("FilterChipsRow is a nowrap chip rail, not a 3-column grid", () => {
+        assert.doesNotMatch(filterChipsSrc, /grid-cols-3/);
+        assert.doesNotMatch(filterChipsSrc, /w-full justify-center/);
+        assert.match(filterChipsSrc, /flex shrink-0 items-center/);
+        assert.match(filterChipsSrc, /toolbarChipClass/);
+    });
+
+    await t.test("compact SavedSearchesPanel stays nowrap inside the toolbar scroller", () => {
+        assert.match(savedSearchesSrc, /compact \? "shrink-0 flex-nowrap" : "flex-wrap"/);
+        assert.match(savedSearchesSrc, /compact \? "shrink-0 flex-nowrap" : "flex-wrap"\)/);
     });
 });

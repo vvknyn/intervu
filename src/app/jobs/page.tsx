@@ -15,6 +15,7 @@ import {
     X,
     Check,
     Question,
+    SlidersHorizontal,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +46,7 @@ import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
-import { syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
-import { FollowAlertsCard } from "@/components/follows/FollowAlertsCard";
+import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
@@ -393,7 +393,7 @@ function DefaultLocationChip({ iso2, onClear }: { iso2: string; onClear: () => v
     return (
         <span
             data-testid="default-location-chip"
-            className={cn(chipVariants({ active: false }), "mono-data gap-1.5 text-xs", toolbarControlHeight)}
+            className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex items-center justify-center gap-1.5 text-xs leading-none")}
         >
             {flag && <span aria-hidden>{flag}</span>}
             near {name}
@@ -489,10 +489,29 @@ function JobsTourReplayButton() {
             className={cn(
                 chipVariants({ active: false }),
                 toolbarControlHeight,
-                "inline-flex w-11 shrink-0 items-center justify-center rounded-none p-0 text-muted-foreground transition-colors hover:text-foreground lg:w-7",
+                "inline-flex w-11 shrink-0 items-center justify-center leading-none rounded-none p-0 text-muted-foreground transition-colors hover:text-foreground lg:w-7",
             )}
         >
             <Question size={16} weight="bold" aria-hidden />
+        </button>
+    );
+}
+
+function JobsSearchPrefsButton({ onClick }: { onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            data-testid="jobs-search-prefs"
+            aria-label="Set up search preferences"
+            onClick={onClick}
+            className={cn(
+                chipVariants({ active: false }),
+                toolbarChipClass,
+                "inline-flex shrink-0 items-center justify-center gap-1.5 leading-none text-muted-foreground transition-colors hover:text-foreground",
+            )}
+        >
+            <SlidersHorizontal size={14} weight="bold" aria-hidden />
+            <span className="whitespace-nowrap text-xs leading-none">Preferences</span>
         </button>
     );
 }
@@ -1237,8 +1256,6 @@ function JobsContent() {
         getSuppressLocationDefaultSnapshot,
         getSuppressLocationDefaultServerSnapshot,
     );
-    const { follows, hasAny: hasFollows } = useFollows();
-
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
     // call site. `jobId` defaults to whatever the URL currently holds, so a
@@ -3950,7 +3967,7 @@ function JobsContent() {
                     className={cn(
                         chipVariants({ active: activeCategory != null }),
                         toolbarControlHeight,
-                        "box-border gap-1 whitespace-nowrap px-3 text-xs font-semibold transition-colors lg:px-2",
+                        "inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors lg:px-2",
                     )}
                 >
                     {activeCategory ? activeCategory.title : "Browse by field"}
@@ -4014,9 +4031,13 @@ function JobsContent() {
     );
 
     const tourReplayEl = <JobsTourReplayButton />;
+    const searchPrefsEl =
+        user && !agentSearchPrefsSet ? (
+            <JobsSearchPrefsButton onClick={() => setSearchPrefsDialogOpen(true)} />
+        ) : null;
 
     const dockedQueryEl = (
-        <>
+        <div className="relative flex h-full w-full items-center">
             <SearchAutocomplete
                 ref={searchAutocompleteRef}
                 value={queryDraft}
@@ -4042,23 +4063,23 @@ function JobsContent() {
                         setQueryDraft("");
                         submitSearch("");
                     }}
-                    className="absolute right-0 flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    className="mr-0.5 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                     ✕
                 </button>
             )}
-        </>
+        </div>
     );
 
     const dockedLocationEl = (
-        <>
+        <div className="relative flex h-full w-full items-center">
             <LocationCombobox
                 value={locationDraft}
                 onChange={setLocationDraft}
                 onCommit={addLocation}
                 selected={chosenLocations}
                 data-testid="topbar-docked-location-input"
-                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-xs text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0"
+                className="h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent pl-1 pr-7 text-xs text-foreground shadow-none placeholder:text-muted-foreground/70 focus-visible:border-0 focus-visible:ring-0"
                 containerClassName="h-full min-w-0 w-full overflow-visible"
             />
             {(locationDraft || chosenLocations.length > 0) && (
@@ -4072,12 +4093,12 @@ function JobsContent() {
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    className="mr-1 flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-none text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                     ✕
                 </button>
             )}
-        </>
+        </div>
     );
 
     const resumeControlEl =
@@ -4099,6 +4120,7 @@ function JobsContent() {
                 className={cn(
                     chipVariants({ active: resumeControlState === "active" }),
                     toolbarChipClass,
+                    "leading-none",
                 )}
             >
                 {resumeControlState === "active" ? "My résumé" : "Add résumé"}
@@ -4388,10 +4410,10 @@ function JobsContent() {
                                     >
                                         clear ✕
                                     </button>
-                                    {canSaveSearch && <span aria-hidden className="text-border">·</span>}
+                                    {canSaveSearch && !showJobsToolbarRow && <span aria-hidden className="text-border">·</span>}
                                 </>
                             )}
-                            {savedSearchControl}
+                            {!showJobsToolbarRow && savedSearchControl}
                         </div>
                     )}
                 </section>
@@ -4411,16 +4433,6 @@ function JobsContent() {
                     />
                 )}
 
-                {showToolbarFilters && (
-                    <FilterChipsRow
-                        state={filterState}
-                        distribution={result?.facetDistribution}
-                        onPostedBucket={panelPostedBucket}
-                        onToggleFacet={panelToggleFacet}
-                        onSalaryMin={panelSalaryMin}
-                        postedDateSupported={postedDateSupported}
-                    />
-                )}
                 {headerDockActive && facetsMountSite === "inline" && (
                     <div
                         id="filters-panel"
@@ -4439,7 +4451,17 @@ function JobsContent() {
                     )}
                 >
                     {showJobsToolbarRow && (
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2.5 lg:flex-nowrap lg:gap-x-3 lg:overflow-x-auto">
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain lg:gap-3">
+                        {showToolbarFilters && (
+                            <FilterChipsRow
+                                state={filterState}
+                                distribution={result?.facetDistribution}
+                                onPostedBucket={panelPostedBucket}
+                                onToggleFacet={panelToggleFacet}
+                                onSalaryMin={panelSalaryMin}
+                                postedDateSupported={postedDateSupported}
+                            />
+                        )}
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
                             type="button"
@@ -4451,7 +4473,7 @@ function JobsContent() {
                             className={cn(
                                 chipVariants({ active: filtersOpen || activeCount > 0 }),
                                 toolbarControlHeight,
-                                "box-border px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-xs transition-colors lg:px-3",
+                                "box-border shrink-0 px-3.5 rounded-none font-semibold text-foreground inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
                                 filtersOpen && "border-brand bg-brand text-brand-foreground hover:border-brand hover:bg-brand/90",
                                 activeCount > 0 && "has-active",
                             )}
@@ -4478,7 +4500,7 @@ function JobsContent() {
                             <button
                                 type="button"
                                 onClick={clearFit}
-                                className={cn(chipVariants({ active: true }), toolbarChipClass)}
+                                className={cn(chipVariants({ active: true }), toolbarChipClass, "shrink-0 leading-none")}
                             >
                                 ranked by your résumé ✕
                             </button>
@@ -4487,7 +4509,7 @@ function JobsContent() {
                             <span
                                 key={entry.key}
                                 data-testid="active-filter-chip"
-                                className={cn(chipVariants({ active: false }), "mono-data gap-1.5 px-3 text-xs lg:px-2", toolbarControlHeight)}
+                                className={cn(chipVariants({ active: false }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 px-3 text-xs leading-none lg:px-2")}
                             >
                                 {chipLabelForEntry(entry)}
                                 <ChipDismiss
@@ -4503,6 +4525,7 @@ function JobsContent() {
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
                         {showResumeControl && !headerDockActive && resumeControlEl}
                         {!headerDockActive && sortEl}
+                        {!headerDockActive && searchPrefsEl}
                         {!headerDockActive && tourReplayEl}
                     </div>
                     )}
@@ -4546,7 +4569,14 @@ function JobsContent() {
                 {showResumeControl && headerDockActive && dockedResumeMount &&
                     createPortal(resumeControlEl, dockedResumeMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
-                {headerDockActive && dockedExtrasMount && createPortal(tourReplayEl, dockedExtrasMount)}
+                {headerDockActive && dockedExtrasMount &&
+                    createPortal(
+                        <>
+                            {searchPrefsEl}
+                            {tourReplayEl}
+                        </>,
+                        dockedExtrasMount,
+                    )}
 
                 <div className={cn(
                     headerDockActive
@@ -4597,18 +4627,6 @@ function JobsContent() {
                     )}
 
                     <div className="flex min-h-0 flex-1 flex-col xl:min-w-0">
-                        {showLandingMarketing && user && !agentSearchPrefsSet && (
-                            <div className="mb-6">
-                                <Button
-                                    variant="outline"
-                                    type="button"
-                                    onClick={() => setSearchPrefsDialogOpen(true)}
-                                    className="rounded-none border-border/80 text-[13px] font-medium"
-                                >
-                                    Set up search preferences
-                                </Button>
-                            </div>
-                        )}
                         <div
                             className={cn(
                                 "flex min-h-0 flex-1 flex-col",
@@ -4676,15 +4694,6 @@ function JobsContent() {
                             this state (see `resultCountLine`) because the relaxed total
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
-                        {hasFollows && (
-                            <FollowAlertsCard
-                                follows={follows}
-                                nowMs={nowMs}
-                                board={board}
-                                onViewAll={() => onBoardChange("elite")}
-                            />
-                        )}
-
                         {!loading && result?.widened && (
                             <p data-testid="widened-note" className="mb-3 text-[13.5px] text-muted-foreground">
                                 Nothing matches every word of that — showing the closest matches.

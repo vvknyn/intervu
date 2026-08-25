@@ -28,8 +28,12 @@ describe("jobs USP copy: single source for tour and landing", () => {
         assert.ok(JOBS_USP.checkedBeforeApply.body.length > 20);
         assert.equal(JOBS_USP.realPay.title, "Real pay, not estimates");
         assert.ok(JOBS_USP.realPay.body.length > 20);
-        assert.equal(JOBS_USP.connect.title, "Reach the people behind the jobs");
-        assert.ok(JOBS_USP.connect.body.length > 20);
+        assert.equal(JOBS_USP.connect.title, "MCP and local agents");
+        assert.match(JOBS_USP.connect.body, /MCP/i);
+        assert.match(JOBS_USP.connect.body, /local agent/i);
+        assert.doesNotMatch(JOBS_USP.connect.body, /outreach/i);
+        assert.doesNotMatch(JOBS_USP.connect.body, /hiring managers/i);
+        assert.doesNotMatch(JOBS_USP.connect.body, /recruiters/i);
     });
 
     it("tourSteps.jobs titles and descriptions derive from JOBS_USP", () => {
@@ -94,6 +98,11 @@ describe("nav tab placement", () => {
         assert.match(footer, /bg-background/);
         assert.doesNotMatch(footer, /siteChrome/);
         assert.doesNotMatch(footer, /bg-chrome/);
+    });
+
+    it("MobileTabBar forwards tourSelector as data-tour", () => {
+        const src = readFileSync(MOBILE_TABBAR, "utf8");
+        assert.match(src, /data-tour=\{tab\.tourSelector\}/);
     });
 
     it("MobileTabBar paints paper chrome, not ink siteChrome", () => {
@@ -347,5 +356,38 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /\[data-exception="relisted"\]/);
         assert.match(src, /jobs-exception-both/);
         assert.match(src, /jobs-stale/);
+    });
+
+    it("TourProvider resolves visible tour targets, not hidden duplicates", () => {
+        const src = readFileSync(
+            join(__dirname, "..", "..", "src", "components", "tour", "TourProvider.tsx"),
+            "utf8",
+        );
+        assert.match(src, /export function visibleTourTarget/);
+        assert.doesNotMatch(src, /document\.querySelector\(step\.selector\)/);
+    });
+
+    it("deduplicates save search when the toolbar row is showing", () => {
+        const src = readFileSync(PAGE, "utf8");
+        assert.match(src, /!showJobsToolbarRow && savedSearchControl/);
+    });
+
+    it("mounts FilterChipsRow inside the toolbar scroller", () => {
+        const src = readFileSync(PAGE, "utf8");
+        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'));
+        assert.match(toolbar, /<FilterChipsRow/);
+        const beforeToolbar = src.slice(0, src.indexOf('data-testid="jobs-toolbar"'));
+        assert.doesNotMatch(beforeToolbar, /<FilterChipsRow/);
+    });
+
+    it("search prefs chip lives on the filter toolbar, not the results column", () => {
+        const src = readFileSync(PAGE, "utf8");
+        assert.match(src, /data-testid="jobs-search-prefs"/);
+        assert.doesNotMatch(src, /showLandingMarketing && user && !agentSearchPrefsSet/);
+        assert.doesNotMatch(src, /mb-6[\s\S]{0,200}Set up search preferences/);
+        const labelMatches = [...src.matchAll(/Set up search preferences/g)];
+        assert.equal(labelMatches.length, 1, "label should appear exactly once as aria-label");
+        assert.match(src, /aria-label="Set up search preferences"/);
+        assert.match(src, /createPortal\([\s\S]*searchPrefsEl[\s\S]*dockedExtrasMount/);
     });
 });

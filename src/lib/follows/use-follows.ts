@@ -89,7 +89,7 @@ export interface UseFollowsResult {
      * truth for rendering "Following". A signed-out guest-store bookmark is
      * not a real notification channel (no server row, no address to email),
      * so it never lands here even though it's still in `follows` for
-     * pull-based surfaces (e.g. FollowAlertsCard) that don't claim to push
+     * pull-based surfaces (e.g. FollowAlertsBell) that don't claim to push
      * an email. See docs/specs — guest follows exist only as sign-in
      * migration intent (`syncGuestFollowsToServer`).
      */

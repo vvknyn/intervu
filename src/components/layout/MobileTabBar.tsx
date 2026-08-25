@@ -38,6 +38,7 @@ export function MobileTabBar() {
                         // bare tab.testId made every strict testid locator
                         // resolve to 2 elements.
                         data-testid={`mobile-${tab.testId}`}
+                        data-tour={tab.tourSelector}
                         aria-current={active ? "page" : undefined}
                         className={cn(
                             "relative flex h-14 flex-col items-center justify-center gap-0.5 whitespace-nowrap text-xs font-semibold transition-colors duration-100 [&_svg]:h-[22px] [&_svg]:w-[22px]",

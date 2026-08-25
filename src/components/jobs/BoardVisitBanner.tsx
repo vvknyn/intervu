@@ -8,7 +8,7 @@ import { resolveVisitBannerState } from "@/lib/jobs/visit-banner";
 
 /**
  * "Posted since your last visit" board banner — self-contained about its own
- * fetch, same posture as `FollowAlertsCard`. Honesty gate lives in
+ * fetch, same posture as `FollowAlertsBell`. Honesty gate lives in
  * `resolveVisitBannerState`: a visitor with no PRIOR stored board cursor
  * never sees a "since your last visit" claim, however large the count.
  */
