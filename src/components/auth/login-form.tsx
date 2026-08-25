@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrandMark } from '@/components/brand/BrandMark'
-import { signInWithIdentifier, signInWithEmail, signInWithGoogle, isPopupCancelled } from '@/lib/firebase/client-auth'
+import { signInWithIdentifier, signInWithEmail } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
@@ -83,27 +83,29 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
         })
     }
 
-    const handleGoogleSignIn = () => {
-        setMessage(null)
-
-        startTransition(async () => {
-            try {
-                const user = await signInWithGoogle()
-                // `null` means the popup was blocked and we fell back to a
-                // full-page redirect — the browser is about to navigate away,
-                // there's nothing left for this component to do.
-                if (!user) return
-                router.refresh()
-                await syncGuestFollowsToServer()
-                if (onSuccess) onSuccess()
-            } catch (err) {
-                if (isPopupCancelled(err)) {
-                    setMessage('Sign-in was cancelled — try again whenever you’re ready.')
-                } else {
-                    setMessage(friendlyAuthMessage(err, 'Google sign-in failed — try again in a moment.'))
-                }
-            }
-        })
+    /**
+     * Hand off to WorkOS AuthKit.
+     *
+     * With no provider the hosted page offers every method enabled for the
+     * environment (passkey, email code, password). With one, WorkOS skips its
+     * chooser and goes straight to that provider's own screen — which is what
+     * keeps "Continue with Google" a single click, and honest about where it
+     * sends you.
+     *
+     * A full-page navigation, not a popup: the answer returns through
+     * /auth/callback, which establishes the session server-side. That is also
+     * why `onSuccess` is not called — this component no longer exists by the
+     * time the user comes back, and the page they land on reads the session
+     * fresh.
+     */
+    const startAuthKit = (provider?: string) => {
+        const params = new URLSearchParams()
+        const next = new URLSearchParams(window.location.search).get("next")
+        if (next) params.set("next", next)
+        if (activeTab === "signup") params.set("mode", "signup")
+        if (provider) params.set("provider", provider)
+        const query = params.toString()
+        window.location.href = `/auth/start${query ? `?${query}` : ""}`
     }
 
     const handleSignUp = async (e: React.FormEvent) => {
@@ -196,29 +198,28 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     the alerts/digest this form is now selling. That path stays
                     above username/password on both tabs rather than below it. */}
                 <div className="grid gap-2 mb-4">
-                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={handleGoogleSignIn}>
+                    {/* Google now runs through WorkOS rather than Firebase, so
+                        every provider issues the same session and the server
+                        has one answer to "who is this". `GoogleOAuth` is
+                        WorkOS's own identifier for the connection configured in
+                        the dashboard — not an app-side name, and not validated
+                        here, because WorkOS is the authority on which
+                        providers an environment actually has. */}
+                    <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={() => startAuthKit("GoogleOAuth")}>
                         <GoogleGlyph />
                         Continue with Google
                     </Button>
-                    {/* Passkeys and email codes are handled by WorkOS AuthKit,
-                        not here: WebAuthn needs a challenge/assertion ceremony
-                        that has no API to call, so the hosted page has to run
-                        it. Added ALONGSIDE Google rather than replacing it —
-                        every existing intervu account arrived through Google
-                        and that path is untouched. */}
+                    {/* Passkeys and email codes need AuthKit's hosted page:
+                        WebAuthn requires a challenge/assertion ceremony that
+                        has no API to call, so the page has to run it. No
+                        provider here means WorkOS shows whichever methods are
+                        enabled for the environment. */}
                     <Button
                         variant="outline"
                         type="button"
                         className="w-full"
                         disabled={isPending}
-                        onClick={() => {
-                            const params = new URLSearchParams();
-                            const next = new URLSearchParams(window.location.search).get("next");
-                            if (next) params.set("next", next);
-                            if (activeTab === "signup") params.set("mode", "signup");
-                            const query = params.toString();
-                            window.location.href = `/auth/start${query ? `?${query}` : ""}`;
-                        }}
+                        onClick={() => startAuthKit()}
                     >
                         <Fingerprint weight="bold" className="size-4" />
                         Use a passkey or email code

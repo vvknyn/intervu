@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { validateNextParam } from "@/lib/auth/product-routes";
+import { withAuthProvider } from "@/lib/auth/authkit-url";
 
 /**
  * Hand off to WorkOS AuthKit for the sign-in methods our own form cannot host.
  *
- *   /auth/start?next=/jobs             → sign-in screen
- *   /auth/start?next=/jobs&mode=signup → sign-up screen
+ *   /auth/start?next=/jobs                        → sign-in screen
+ *   /auth/start?next=/jobs&mode=signup            → sign-up screen
+ *   /auth/start?next=/jobs&provider=GoogleOAuth   → straight to that provider
  *
  * Passkeys are the reason this exists. WebAuthn needs challenge issuance,
  * credential creation/assertion and origin binding, and WorkOS does not expose
@@ -37,5 +39,9 @@ export async function GET(request: NextRequest) {
             ? await getSignUpUrl({ returnTo })
             : await getSignInUrl({ returnTo });
 
-    return NextResponse.redirect(url);
+    // Both helpers above set the PKCE cookie that the callback checks `state`
+    // against, so the URL must be taken from them and only re-pointed — never
+    // rebuilt. Without `provider` the user lands on AuthKit's hosted page and
+    // chooses there; with it they go straight to that provider's own screen.
+    return NextResponse.redirect(withAuthProvider(url, params.get("provider")));
 }
