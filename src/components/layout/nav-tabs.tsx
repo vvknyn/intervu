@@ -119,7 +119,7 @@ export const NAV_TABS: NavTab[] = [
         shortLabel: "Connect",
         href: "/connect",
         testId: "topbar-connect",
-        match: (p) => p.startsWith("/connect") || p.startsWith("/openclaw"),
+        match: (p) => p.startsWith("/connect"),
         placement: "bar",
         tourSelector: "nav-connect",
         icon: ConnectIcon,
