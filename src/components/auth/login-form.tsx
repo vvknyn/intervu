@@ -6,6 +6,7 @@ import { BrandMark } from '@/components/brand/BrandMark'
 import { signInWithIdentifier, signInWithEmail } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
+import { captureFunnelEvent } from '@/lib/analytics/funnel'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -135,6 +136,18 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                 // submitted address, not a derived one (signInWithUsername
                 // would re-derive `<username>@intervu.cc`, which no longer
                 // matches).
+                // The account exists as of the line above; `signUp` returned
+                // without an error and the early return took the failure path.
+                //
+                // ⚠️ This covers the username/password form ONLY. Google now
+                // goes through WorkOS AuthKit (`startAuthKit`), which is a full
+                // page redirect — the browser leaves before any signup could be
+                // observed, and the callback is server-side where posthog-js
+                // does not run. So AuthKit signups are currently UNCOUNTED
+                // rather than guessed at. Closing that gap needs either
+                // server-side capture or an explicit new-user signal handed
+                // back from /auth/callback; see docs/analytics/FUNNEL.md.
+                captureFunnelEvent('signup_completed', { method: 'username' })
                 await signInWithEmail(email, password)
                 router.refresh()
                 await syncGuestFollowsToServer()

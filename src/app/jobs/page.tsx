@@ -107,6 +107,7 @@ import {
     toolbarControlHeight,
     toolbarSegmentGroupClass,
 } from "@/lib/jobs/toolbar-control-height";
+import { captureFunnelEvent } from "@/lib/analytics/funnel";
 import {
     activeFilterEntries,
     entriesNeedingOwnChip,
@@ -1339,6 +1340,22 @@ function JobsContent() {
         setMobileResultsEngaged(true);
         recordRecentSearch(q);
         applyUrlState(buildUrlState({ q }), "push");
+        // Step 1 of the funnel (docs/analytics/FUNNEL.md). Placed at this one
+        // submit chokepoint for the same reason the dropdown is closed here:
+        // Enter, a suggestion pick, the external Search button and the
+        // category/seed chips all route through it, so a future entry point is
+        // counted automatically instead of being silently invisible.
+        //
+        // The raw query is deliberately NOT sent — only its length. A search
+        // box carries names, employers and salary expectations, and none of
+        // that needs to leave the browser to answer "did they search".
+        // `activeFilterEntries` is re-derived here rather than read from the
+        // render-scope binding so this does not depend on declaration order.
+        captureFunnelEvent("search_submitted", {
+            query_length: q.trim().length,
+            has_location: chosenLocations.length > 0,
+            filter_count: activeFilterEntries(filterState).length,
+        });
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
@@ -2283,6 +2300,16 @@ function JobsContent() {
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
         void recordJobOpenedAction(lastSearchId, id, rank);
+        // Same -1 rule as the line above, for the same reason: a job opened
+        // from a URL has no rank in the current result set, and a fabricated
+        // `position: -1` would quietly poison every position-ranked insight.
+        // Not firing is the honest answer.
+        //
+        // One call site covers both SERP rows and the detail pane's "also in"
+        // rail, because `onOpenRelated` is wired to this same function.
+        if (rank >= 0) {
+            captureFunnelEvent("result_clicked", { position: rank, job_id: id, source: "serp" });
+        }
         setOpensThisSession((n) => n + 1);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
         const hit = resultRef.current?.hits.find((h) => h.id === id);
@@ -3154,6 +3181,13 @@ function JobsContent() {
     };
 
     const handleOpenPosting = (job: PublicJob) => {
+        // Fired BEFORE the auth gate and the AI hand-off prompt, because the
+        // event means "clicked Apply", not "reached the posting". Counting only
+        // the clicks that survive both interstitials would hide exactly the
+        // number worth knowing: comparing this against actual opens is what
+        // measures the gate's drop-off. Moving it below either early return
+        // would make that drop-off invisible.
+        captureFunnelEvent("apply_clicked", { job_id: job.id, source: "serp" });
         if (resolveApplyGateDecision(Boolean(user)) === "gate") {
             handleApplyGate(job);
             return;
@@ -3268,6 +3302,11 @@ function JobsContent() {
             const newCount = recordGuestSave();
             setGuestSaveCount(newCount);
             toast.success(GUEST_SAVE_TOAST);
+            // A guest's first save is a real save, so it counts. Fired here and
+            // not at the top of the handler: the branch above this one opens the
+            // auth popover instead of saving, and counting that click would
+            // inflate saves with the exact clicks the gate rejected.
+            captureFunnelEvent("job_saved", { job_id: job.id });
             return;
         }
         void (async () => {
@@ -3285,6 +3324,10 @@ function JobsContent() {
                 }
                 invalidatePursuitsCache();
                 toast.success(GUEST_SAVE_TOAST);
+                // The signed-in save, counted only once the action came back
+                // clean — the `res.error` branch above returns, and a thrown
+                // error lands in the catch, so neither reaches this line.
+                captureFunnelEvent("job_saved", { job_id: job.id });
             } catch (e) {
                 if (classifySentinel(e) === "auth") {
                     setAuthOpen(true);
