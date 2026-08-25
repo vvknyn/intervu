@@ -4,6 +4,11 @@
  *
  *   npx tsx scripts/migrate-firebase-to-workos.ts --dry-run   # report only
  *   npx tsx scripts/migrate-firebase-to-workos.ts             # create/update
+ *   npx tsx scripts/migrate-firebase-to-workos.ts --prod      # target production
+ *
+ * These are intervu's users: each is placed in the **Intervu** organization and
+ * tagged `metadata.apps=intervu`, which is what keeps them distinguishable from
+ * subspace's users now that one WorkOS environment serves both products.
  *
  * Run under tsx, not bare node: the mapping it imports is TypeScript, and it
  * is TypeScript because that is what the unit tests exercise.
@@ -25,12 +30,24 @@ import admin from "firebase-admin";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { toWorkosUserPayload } from "../src/lib/auth/firebase-to-workos.ts";
+import {
+  createClient,
+  ensureMembership,
+  ensureOrganization,
+  findUserByEmail,
+  upsertUser,
+} from "./workos-sync.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
 
 const DRY_RUN = process.argv.includes("--dry-run");
-const WORKOS_KEY = requireEnv("WORKOS_API_KEY");
+const PROD = process.argv.includes("--prod");
+// Production is opt-in and uses a SEPARATE variable, so a normal run can never
+// reach it by accident and local dev never has to point at the live tenant.
+const WORKOS_KEY = PROD
+  ? requireEnv("WORKOS_PROD_API_KEY")
+  : requireEnv("WORKOS_API_KEY");
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -83,45 +100,36 @@ async function listFirebaseUsers() {
   return users;
 }
 
-// --- WorkOS --------------------------------------------------------------
-
-async function workos(path, init = {}) {
-  const res = await fetch(`https://api.workos.com${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${WORKOS_KEY}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  const body = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body };
-}
-
-async function findByEmail(email) {
-  const res = await workos(
-    `/user_management/users?email=${encodeURIComponent(email)}&limit=1`,
-  );
-  return res.ok ? (res.body.data?.[0] ?? null) : null;
-}
-
 // --- Run -----------------------------------------------------------------
 
 async function main() {
+  const client = createClient(WORKOS_KEY);
+
+  // Say out loud which tenant is about to be written to. The two keys are
+  // interchangeable at the call site and differ only in consequence.
+  console.log(
+    `target=${PROD ? "PRODUCTION" : "staging"} key_prefix=${WORKOS_KEY.slice(0, 8)} dry_run=${DRY_RUN}`,
+  );
+
   const hashConfig = await fetchHashConfig();
   const firebaseUsers = await listFirebaseUsers();
-  console.log(`firebase_users=${firebaseUsers.length} dry_run=${DRY_RUN}`);
+  console.log(`firebase_users=${firebaseUsers.length}`);
 
-  const tally = {
-    created: 0,
-    updated: 0,
-    unchanged: 0,
-    no_email: 0,
-    failed: 0,
-  };
+  const org = DRY_RUN
+    ? { id: "(dry-run)", created: false }
+    : await ensureOrganization(client, "Intervu");
+  console.log(`organization=${org.id}${org.created ? " (created)" : ""}`);
+
+  const tally = { created: 0, updated: 0, no_email: 0, failed: 0, memberships: 0 };
   const failures = [];
 
   for (const user of firebaseUsers) {
+    // Read the existing record first so the `apps` tag merges rather than
+    // replacing — a user of both products must keep both.
+    const existing = DRY_RUN
+      ? null
+      : await findUserByEmail(client, (user.email ?? "").trim().toLowerCase());
+
     const payload = toWorkosUserPayload(
       {
         uid: user.uid,
@@ -134,6 +142,7 @@ async function main() {
         passwordSalt: user.passwordSalt,
       },
       hashConfig,
+      existing?.metadata?.apps,
     );
 
     if (!payload) {
@@ -144,64 +153,34 @@ async function main() {
       continue;
     }
 
-    const existing = await findByEmail(payload.email);
-
     if (DRY_RUN) {
-      console.log(
-        `${existing ? "would_update" : "would_create"} ${payload.email}` +
-          ` password=${payload.password_hash ? "yes" : "no"}`,
-      );
-      tally[existing ? "updated" : "created"]++;
-      continue;
-    }
-
-    if (existing) {
-      // Re-running must converge, not duplicate. The update carries
-      // external_id and metadata so a half-finished earlier run is repaired;
-      // the password hash is only sent when we have one, so an existing
-      // credential is never blanked.
-      const { password_hash, password_hash_type, email, ...rest } = payload;
-      const res = await workos(`/user_management/users/${existing.id}`, {
-        method: "PUT",
-        body: JSON.stringify(rest),
-      });
-      if (res.ok) {
-        tally.updated++;
-        console.log(`updated ${payload.email} id=${existing.id}`);
-      } else {
-        tally.failed++;
-        failures.push({
-          email: payload.email,
-          status: res.status,
-          code: res.body?.code,
-        });
-        console.log(
-          `FAILED update ${payload.email} http=${res.status} code=${res.body?.code}`,
-        );
-      }
-      continue;
-    }
-
-    const res = await workos("/user_management/users", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
       tally.created++;
       console.log(
-        `created ${payload.email} id=${res.body.id} external_id=${res.body.external_id}`,
+        `would_sync ${payload.email} password=${payload.password_hash ? "yes" : "no"}`,
       );
-    } else {
+      continue;
+    }
+
+    const outcome = await upsertUser(client, payload);
+    if (outcome.action === "failed") {
       tally.failed++;
       failures.push({
         email: payload.email,
-        status: res.status,
-        code: res.body?.code,
+        status: outcome.status,
+        code: outcome.code,
       });
       console.log(
-        `FAILED create ${payload.email} http=${res.status} code=${res.body?.code}`,
+        `FAILED ${payload.email} http=${outcome.status} code=${outcome.code}`,
       );
+      continue;
     }
+
+    tally[outcome.action]++;
+    const membership = await ensureMembership(client, outcome.id, org.id);
+    if (membership === "added") tally.memberships++;
+    console.log(
+      `${outcome.action} ${payload.email} id=${outcome.id} membership=${membership}`,
+    );
   }
 
   console.log(`\nresult ${JSON.stringify(tally)}`);

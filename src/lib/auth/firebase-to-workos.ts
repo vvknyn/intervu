@@ -20,6 +20,8 @@
  *    `firebase-scrypt` if the hash is given in PHC form.
  */
 
+import { APP_INTERVU, mergeApps } from "./workos-apps";
+
 /** Project-level scrypt parameters, from the Identity Toolkit admin config. */
 export interface FirebaseHashConfig {
   /** Base64. The secret that makes every per-user hash verifiable. */
@@ -140,6 +142,7 @@ export function splitDisplayName(displayName?: string): {
 export function toWorkosUserPayload(
   user: FirebaseUserLike,
   config: FirebaseHashConfig,
+  existingApps?: string,
 ): WorkosUserPayload | null {
   if (!user.email) return null;
 
@@ -149,7 +152,13 @@ export function toWorkosUserPayload(
     config,
   );
 
-  const metadata: Record<string, string> = { firebase_uid: user.uid };
+  const metadata: Record<string, string> = {
+    firebase_uid: user.uid,
+    // Merged, not assigned: someone with accounts in both products is ONE
+    // WorkOS user, and whichever migration runs second must not evict them
+    // from the other. See `workos-apps.ts`.
+    apps: mergeApps(existingApps, APP_INTERVU),
+  };
   if (user.photoURL) metadata.photo_url = user.photoURL;
 
   return {

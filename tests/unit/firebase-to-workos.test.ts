@@ -159,3 +159,26 @@ test("toWorkosUserPayload skips a user with no email", () => {
   assert.equal(toWorkosUserPayload({ uid: "phone-only" }, CONFIG), null);
   assert.equal(toWorkosUserPayload({ uid: "blank", email: "" }, CONFIG), null);
 });
+
+/**
+ * The `apps` tag is what keeps intervu's users distinguishable from subspace's
+ * now that a single WorkOS environment serves both products.
+ */
+test("a Firebase user is tagged intervu, and the tag merges rather than replaces", () => {
+  const fresh = toWorkosUserPayload({ uid: "u1", email: "a@b.com" }, CONFIG)!;
+  assert.equal(fresh.metadata.apps, "intervu");
+
+  // The case that matters is the OTHER one: a person already known to
+  // subspace. Assigning here instead of merging would evict them from
+  // subspace while their login kept working — a silent loss, not an error.
+  const both = toWorkosUserPayload({ uid: "u2", email: "b@c.com" }, CONFIG, "subspace")!;
+  assert.equal(both.metadata.apps, "intervu,subspace");
+
+  // Re-running the migration must converge, not accumulate duplicates.
+  const again = toWorkosUserPayload(
+    { uid: "u3", email: "c@d.com" },
+    CONFIG,
+    "intervu,subspace",
+  )!;
+  assert.equal(again.metadata.apps, "intervu,subspace");
+});
