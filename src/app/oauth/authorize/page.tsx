@@ -5,6 +5,7 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
     return (
@@ -98,11 +99,11 @@ function ConsentCard({ clientName, params }: { clientName: string; params: Conse
             <CardFooter className="flex gap-2">
                 <form action={approveConsentAction} className="flex-1">
                     <HiddenConsentFields params={params} />
-                    <Button type="submit" className="w-full">Allow</Button>
+                    <ConsentAllowButton />
                 </form>
                 <form action={denyConsentAction} className="flex-1">
                     <HiddenConsentFields params={params} />
-                    <Button type="submit" variant="outline" className="w-full">Deny</Button>
+                    <ConsentDenyButton />
                 </form>
             </CardFooter>
         </CenteredCard>

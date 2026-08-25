@@ -19,6 +19,7 @@ function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (
             disabled={disabled}
             role="switch"
             aria-checked={checked}
+            aria-busy={disabled || undefined}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${checked ? "bg-brand" : "bg-muted"}`}
         >
             <span

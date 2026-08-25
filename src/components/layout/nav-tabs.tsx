@@ -1,6 +1,6 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Resume · Tracker · Connect · (avatar → Account)
+ * Jobs · Resume · Tracker · Agents · (avatar → Account)
  * Research / Pricing / Trends live in the footer.
  */
 import type { ComponentType } from "react";
@@ -115,8 +115,8 @@ export const NAV_TABS: NavTab[] = [
         badge: "pursuits",
     },
     {
-        label: "Connect",
-        shortLabel: "Connect",
+        label: "Agents",
+        shortLabel: "Agents",
         href: "/connect",
         testId: "topbar-connect",
         match: (p) => p.startsWith("/connect"),

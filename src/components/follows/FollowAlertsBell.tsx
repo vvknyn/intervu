@@ -84,7 +84,17 @@ export function FollowAlertsBell() {
     setOpen(false);
   }, []);
 
-  if (loading || rows.length === 0) return null;
+  if (loading) {
+    return (
+      <div
+        data-testid="topbar-follow-alerts-skeleton"
+        aria-hidden
+        className="skeleton-bar h-8 w-8 shrink-0"
+      />
+    );
+  }
+
+  if (rows.length === 0) return null;
 
   const totalNew = rows.length;
   const companyCount = groups.length;

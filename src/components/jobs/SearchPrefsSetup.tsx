@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CircleNotch } from "@phosphor-icons/react";
 import {
     Dialog,
     DialogContent,
@@ -191,7 +192,14 @@ function SearchPrefsForm({
                             onClick={onFinish}
                             className="rounded-none"
                         >
-                            Skip
+                            {saving ? (
+                                <>
+                                    <CircleNotch size={14} className="mr-2 animate-spin" />
+                                    Saving…
+                                </>
+                            ) : (
+                                "Skip"
+                            )}
                         </Button>
                         <Button
                             type="button"
@@ -214,7 +222,16 @@ function SearchPrefsForm({
                     onClick={onContinue}
                     className="rounded-none"
                 >
-                    {step === 3 ? "Show jobs" : "Continue"}
+                    {saving ? (
+                        <>
+                            <CircleNotch size={14} className="mr-2 animate-spin" />
+                            Saving…
+                        </>
+                    ) : step === 3 ? (
+                        "Show jobs"
+                    ) : (
+                        "Continue"
+                    )}
                 </Button>
             )}
         </div>

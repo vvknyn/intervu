@@ -28,7 +28,15 @@ export function CreditBalance({ collapsed }: { collapsed?: boolean }) {
         };
     }, []);
 
-    if (!s) return null;
+    if (!s) {
+        return (
+            <div
+                data-testid="topbar-credit-balance-skeleton"
+                aria-hidden
+                className="skeleton-bar h-8 w-16 shrink-0 rounded-[9px]"
+            />
+        );
+    }
 
     // icon + short label + optional tone, per account kind. The total is what
     // a spend actually draws against; the tooltip discloses the allowance/

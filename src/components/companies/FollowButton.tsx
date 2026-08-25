@@ -11,7 +11,13 @@ import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
 import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
+import { CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+
+/** Busy-state label for follow/unfollow actions — one place for tests and UI. */
+export function followButtonBusyLabel(following: boolean): string {
+  return following ? "Unfollowing…" : "Following…";
+}
 
 export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "open-email-step" };
 
@@ -169,12 +175,12 @@ export function FollowButton({
     }
   };
 
-  const label =
-    following
-      ? variant === "elite" || variant === "primary"
-        ? "Following ✓"
-        : "Following"
-      : idleLabel;
+  const idleFollowingLabel =
+    variant === "elite" || variant === "primary" ? "Following ✓" : "Following";
+  const label = following ? idleFollowingLabel : idleLabel;
+  const displayLabel = busy ? followButtonBusyLabel(following) : label;
+  const disabled = busy || (loading && optimistic === null);
+  const showSpinner = busy || (loading && optimistic === null);
 
   const buttonNode =
     variant === "elite" || variant === "pill" ? (
@@ -183,9 +189,11 @@ export function FollowButton({
         data-testid="follow-company"
         data-following={following ? "true" : "false"}
         aria-pressed={following}
-        disabled={loading && optimistic === null}
+        disabled={disabled}
+        aria-busy={showSpinner || undefined}
         onClick={() => void handleClick()}
         className={cn(
+          "inline-flex items-center justify-center gap-2",
           variant === "elite" &&
             "border px-4 py-2 text-[13.5px] font-semibold transition-colors",
           variant === "elite" &&
@@ -201,7 +209,8 @@ export function FollowButton({
           className,
         )}
       >
-        {label}
+        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {displayLabel}
       </button>
     ) : (
       <Button
@@ -211,7 +220,8 @@ export function FollowButton({
         data-testid="follow-company"
         data-following={following ? "true" : "false"}
         aria-pressed={following}
-        disabled={loading && optimistic === null}
+        disabled={disabled}
+        aria-busy={showSpinner || undefined}
         onClick={() => void handleClick()}
         className={cn(
           following &&
@@ -220,7 +230,8 @@ export function FollowButton({
           className,
         )}
       >
-        {label}
+        {showSpinner && <CircleNotch size={14} className="animate-spin shrink-0" aria-hidden />}
+        {displayLabel}
       </Button>
     );
 

@@ -4,7 +4,7 @@ import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperat
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
+import { CircleNotch, Clock, MagnifyingGlass, Buildings, CaretRight } from "@phosphor-icons/react";
 import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
@@ -98,6 +98,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     seeds
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+    const [suggestLoading, setSuggestLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
@@ -154,7 +155,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
-    const dropdownOpen = isOpen && suggestions.length > 0;
+    const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
+    const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
     const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen);
     useImperativeHandle(
         ref,
@@ -177,10 +179,12 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         if (suggest) {
             const q = value.trim();
             if (!q) {
+                setSuggestLoading(false);
                 const seedList = seedsRef.current;
                 setSuggestions(seedList && seedList.length > 0 ? seedList.map((s) => ({ text: s, type: "seed" as const })) : []);
                 return invalidate;
             }
+            setSuggestLoading(true);
             const timer = setTimeout(() => {
                 const fn = suggestRef.current;
                 if (!fn) return;
@@ -190,6 +194,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     })
                     .catch(() => {
                         if (suggestGenRef.current === myGeneration) setSuggestions([]);
+                    })
+                    .finally(() => {
+                        if (suggestGenRef.current === myGeneration) setSuggestLoading(false);
                     });
             }, 150);
             return () => {
@@ -323,6 +330,12 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         }}
                     >
                         <ul role="listbox" aria-label="Search suggestions" className="max-h-[300px] overflow-y-auto py-2">
+                            {showSuggestLoading && (
+                                <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+                                    <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
+                                    Loading suggestions…
+                                </li>
+                            )}
                             {suggestions.map((suggestion, index) => {
                                 const label = SECTION_LABELS[suggestion.type];
                                 const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);

@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FollowButton, decideGuestFollowClick, resolveFollowingState } from "../../src/components/companies/FollowButton";
+import { FollowButton, decideGuestFollowClick, resolveFollowingState, followButtonBusyLabel } from "../../src/components/companies/FollowButton";
 import { visibleFollowDomains } from "../../src/lib/follows/use-follows";
 import type { FollowedCompany } from "../../src/lib/follows/types";
 
@@ -98,6 +98,16 @@ describe("resolveFollowingState: signed-in behavior is unchanged by this fix", (
       resolveFollowingState({ accountFollowing: false, isSignedIn: false, emailVerified: false }),
       false,
     );
+  });
+});
+
+describe("followButtonBusyLabel", () => {
+  it("follow action -> Following…", () => {
+    assert.equal(followButtonBusyLabel(false), "Following…");
+  });
+
+  it("unfollow action -> Unfollowing…", () => {
+    assert.equal(followButtonBusyLabel(true), "Unfollowing…");
   });
 });
 
