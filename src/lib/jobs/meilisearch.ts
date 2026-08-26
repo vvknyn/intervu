@@ -1008,61 +1008,66 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
   };
 
-  let result = await runSearch();
+  const isRelevance = resolveEffectiveSort(p) === "relevance";
+  let result: JobSearchResult;
 
-  if (resolveEffectiveSort(p) === "relevance") {
-    const { shouldRunRoleTitleLane, roleTitlePairQueries, titleSatisfiesRoleQuery } = await import(
-      "./query-understanding"
-    );
-    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped, p.offset)) {
-      const extraHits = await fetchRoleTitleLaneHits(h, p, companyScoped);
-      if (extraHits.length > 0) {
-        result = { ...result, ...mergeRoleTitleHits(result, extraHits) };
+  if (isRelevance) {
+    const { shouldRunRoleTitleLane, titleSatisfiesRoleQuery } = await import("./query-understanding");
+    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, p, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const floored = unique.filter((hit) =>
+        titleSatisfiesRoleQuery(decodeText(hit.title), p.q ?? ""),
+      );
+      const ranked = applyRelevanceQualityReranking(floored, p.q ?? "");
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      result = {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    } else {
+      result = await runSearch();
+      if (result.hits.length > 0) {
+        result.hits = applyRelevanceQualityReranking(result.hits, p.q);
       }
     }
-    if (result.hits.length > 0) {
-      result.hits = applyRelevanceQualityReranking(result.hits, p.q);
-      if (roleTitlePairQueries(p.q ?? "").length > 0) {
-        result.hits = result.hits.filter((h) =>
-          titleSatisfiesRoleQuery(decodeText(h.title), p.q ?? ""),
-        );
-      }
-      const pageLimit = p.limit ?? 40;
-      if (result.hits.length > pageLimit) result.hits = result.hits.slice(0, pageLimit);
-    }
+  } else {
+    result = await runSearch();
   }
+
   return applySortIntegrityGuard(result, p, runSearch);
 }
 
-/** Dedupe extras into primary page-1 hits; total stays primary.total — extras
- *  may improve order/membership without pretending the corpus grew. */
-export function mergeRoleTitleHits(
-  primary: { hits: PublicJob[]; total: number },
-  extraHits: PublicJob[],
-): { hits: PublicJob[]; total: number } {
-  const seen = new Set(primary.hits.map((h) => h.id));
-  const hits = [...primary.hits];
-  for (const hit of extraHits) {
-    if (!seen.has(hit.id)) {
-      seen.add(hit.id);
-      hits.push(hit);
-    }
-  }
-  return { hits, total: primary.total };
+export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
+  return ranked.slice(offset, offset + limit);
 }
 
 async function fetchRoleTitleLaneHits(
   h: string,
   p: JobSearchParams,
   companyScoped: boolean,
-): Promise<PublicJob[]> {
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
   const { roleTitlePairQueries } = await import("./query-understanding");
   const pairs = roleTitlePairQueries(p.q ?? "");
-  if (pairs.length === 0) return [];
+  if (pairs.length === 0) return { hits: [] };
 
-  const searchPair = async (pairQ: string, legacy: boolean): Promise<PublicJob[]> => {
+  const searchPair = async (
+    pairQ: string,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
     const body = buildSearchBody(
-      { ...p, q: pairQ, withFacets: false, limit: 40, offset: 0 },
+      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0 },
       legacy,
       "all",
       { companyScoped, titleScoped: true },
@@ -1076,17 +1081,28 @@ async function fetchRoleTitleLaneHits(
     if (!res.ok && res.status === 400) {
       const text = await res.text().catch(() => "");
       if (/posted_ts/i.test(text) && !legacy) {
-        return searchPair(pairQ, true);
+        return searchPair(pairQ, withFacets, true);
       }
-      return [];
+      return { hits: [] };
     }
-    if (!res.ok) return [];
-    const json = (await res.json()) as { hits?: PublicJob[] };
-    return json.hits ?? [];
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: json.hits ?? [],
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
   };
 
-  const batches = await Promise.all(pairs.map((pairQ) => searchPair(pairQ, false)));
-  return batches.flat();
+  const batches = await Promise.all(
+    pairs.map((pairQ, i) => searchPair(pairQ, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
 }
 
 const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist|driver|paramedic|phlebotomist|teacher|substitute teacher|caregiver|cook|waiter|bus monitor|janitor|custodian)\b/i;

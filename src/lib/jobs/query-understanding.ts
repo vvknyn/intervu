@@ -63,20 +63,21 @@ export interface ParsedSeniority {
   experienceLevels: string[];
 }
 
-const SENIORITY_PHRASES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bintern(?:ship)?\b/gi, "intern"],
-  [/\bsummer intern(?:ship)?\b/gi, "intern"],
-  [/\bco-?op\b/gi, "intern"],
-  [/\bjunior\b/gi, "entry"],
-  [/\bentry[- ]level\b/gi, "entry"],
-  [/\bnew grad(?:uate)?\b/gi, "entry"],
-  [/\bassociate\b/gi, "entry"],
-  [/\bdirector\b/gi, "executive"],
-  [/\bvice president\b/gi, "executive"],
-  [/\bvp\b/gi, "executive"],
-  [/\bhead of\b/gi, "executive"],
-  [/\bchief\b/gi, "executive"],
-  [/\bc-level\b/gi, "executive"],
+/** [match, experience_level, title-lane prefix]. Null prefix = bucket signal only. */
+const SENIORITY_PHRASES: ReadonlyArray<readonly [RegExp, string, string | null]> = [
+  [/\bintern(?:ship)?\b/gi, "intern", "intern"],
+  [/\bsummer intern(?:ship)?\b/gi, "intern", null],
+  [/\bco-?op\b/gi, "intern", "intern"],
+  [/\bjunior\b/gi, "entry", "junior"],
+  [/\bentry[- ]level\b/gi, "entry", null],
+  [/\bnew grad(?:uate)?\b/gi, "entry", null],
+  [/\bassociate\b/gi, "entry", "associate"],
+  [/\bdirector\b/gi, "executive", "director"],
+  [/\bvice president\b/gi, "executive", "vice president"],
+  [/\bvp\b/gi, "executive", "vp"],
+  [/\bhead of\b/gi, "executive", "head of"],
+  [/\bchief\b/gi, "executive", "chief"],
+  [/\bc-level\b/gi, "executive", null],
 ];
 
 export function parseSeniorityTokens(q: string): ParsedSeniority {
@@ -102,57 +103,79 @@ function findSeniorityAnchors(q: string): string[] {
   return [...new Set(anchors)];
 }
 
+/** Prefixes in the same seniority bucket as whatever the query named. */
+function expandedPairPrefixes(q: string): string[] {
+  const buckets = new Set<string>();
+  for (const [re, canonical] of SENIORITY_PHRASES) {
+    if ([...q.matchAll(new RegExp(re.source, re.flags))].length > 0) buckets.add(canonical);
+  }
+  const prefixes: string[] = [];
+  const seen = new Set<string>();
+  for (const [, canonical, prefix] of SENIORITY_PHRASES) {
+    if (!prefix || !buckets.has(canonical) || seen.has(prefix)) continue;
+    seen.add(prefix);
+    prefixes.push(prefix);
+  }
+  return prefixes;
+}
+
 function sortedTokenKey(tokens: readonly string[]): string {
   return [...tokens].sort().join("|");
 }
 
-/** Title-only pair queries for seniority+role recall (e.g. "director brand"). */
+const ROLE_TITLE_PAIR_CAP = 12;
+
+/** Title-only pair queries for seniority+role recall (e.g. "director brand").
+ *  Executive tokens expand to director/vp/head of/chief so a director query
+ *  also retrieves VP Product / Head of Brand titles. */
 export function roleTitlePairQueries(q: string): string[] {
   const trimmed = q.trim();
   if (!trimmed) return [];
 
-  const anchors = findSeniorityAnchors(trimmed);
-  if (anchors.length === 0) return [];
+  const prefixes = expandedPairPrefixes(trimmed);
+  if (prefixes.length === 0) return [];
 
-  const allMeaningful = meaningfulTitleTokens(trimmed);
-  const anchorTokens = new Set<string>();
-  for (const anchor of anchors) {
-    for (const t of meaningfulTitleTokens(anchor)) anchorTokens.add(t);
+  const typedAnchors = findSeniorityAnchors(trimmed);
+  const typedAnchorTokens = new Set<string>();
+  for (const anchor of typedAnchors) {
+    for (const t of meaningfulTitleTokens(anchor)) typedAnchorTokens.add(t);
   }
-  const remaining = allMeaningful.filter((t) => !anchorTokens.has(t));
+  const remaining = meaningfulTitleTokens(trimmed).filter((t) => !typedAnchorTokens.has(t));
   if (remaining.length === 0) return [];
 
-  const fullKey = sortedTokenKey(allMeaningful);
+  const fullKey = sortedTokenKey(meaningfulTitleTokens(trimmed));
   const pairs: string[] = [];
-  outer: for (const anchor of anchors) {
+  outer: for (const prefix of prefixes) {
     for (const token of remaining) {
-      const pair = `${anchor} ${token}`;
+      const pair = `${prefix} ${token}`;
       if (sortedTokenKey(meaningfulTitleTokens(pair)) === fullKey) continue;
       pairs.push(pair);
-      if (pairs.length >= 3) break outer;
+      if (pairs.length >= ROLE_TITLE_PAIR_CAP) break outer;
     }
   }
   return pairs;
 }
 
-/** True when `title` carries the query's seniority anchor AND at least one
- *  other meaningful query token. One-token titles (Brand Designer, Account
- *  Director, Art Director) fail. Queries with no seniority+role pairs are
- *  not this class — always true, so stripe/rust are untouched.
+/** True when `title` carries a seniority token in the query's bucket AND at
+ *  least one other meaningful query token. One-token titles (Brand Designer,
+ *  Account Director, Art Director) fail. Queries with no seniority+role pairs
+ *  are not this class — always true, so stripe/rust are untouched.
  *  Remaining tokens match exactly or +s (product ≠ production). */
 export function titleSatisfiesRoleQuery(title: string, q: string): boolean {
   if (roleTitlePairQueries(q).length === 0) return true;
 
-  const anchors = findSeniorityAnchors(q.trim());
+  const prefixes = expandedPairPrefixes(q.trim());
   const titleTokens = meaningfulTitleTokens(title);
-  const anchorTokens = new Set<string>();
-  for (const anchor of anchors) {
-    for (const t of meaningfulTitleTokens(anchor)) anchorTokens.add(t);
+  const typedAnchorTokens = new Set<string>();
+  for (const anchor of findSeniorityAnchors(q.trim())) {
+    for (const t of meaningfulTitleTokens(anchor)) typedAnchorTokens.add(t);
   }
-  const remaining = meaningfulTitleTokens(q.trim()).filter((t) => !anchorTokens.has(t));
+  const remaining = meaningfulTitleTokens(q.trim()).filter((t) => !typedAnchorTokens.has(t));
 
-  const hasAnchor = [...anchorTokens].some((at) =>
-    titleTokens.some((tt) => tt === at || tt.startsWith(at)),
+  const tokenInTitle = (want: string) =>
+    titleTokens.some((tt) => tt === want || tt.startsWith(want));
+  const hasAnchor = prefixes.some((prefix) =>
+    meaningfulTitleTokens(prefix).every(tokenInTitle),
   );
   const hasOther = remaining.some((rt) =>
     titleTokens.some((tt) => tt === rt || tt === `${rt}s` || rt === `${tt}s`),
@@ -163,10 +186,8 @@ export function titleSatisfiesRoleQuery(title: string, q: string): boolean {
 export function shouldRunRoleTitleLane(
   q: string,
   companyScoped: boolean,
-  offset?: number,
 ): boolean {
   if (companyScoped) return false;
-  if (offset != null && offset > 0) return false;
   if (isTechSkillQuery(q)) return false;
   return roleTitlePairQueries(q).length > 0;
 }
