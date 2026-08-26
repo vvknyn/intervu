@@ -198,7 +198,7 @@ function normalizeAmpersand(s: string): string {
     return s.replace(/&/g, " and ");
 }
 
-function meaningfulTitleTokens(s: string): string[] {
+export function meaningfulTitleTokens(s: string): string[] {
     return tokenize(normalizeAmpersand(s)).filter((t) => !FUNCTION_WORDS_SET.has(t));
 }
 

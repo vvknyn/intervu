@@ -17,6 +17,8 @@ import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
 import { FUNCTION_WORDS } from "../geo/common-words";
+import { meaningfulTitleTokens } from "./presentation";
+import { isTechSkillQuery } from "./tech-skills";
 
 /** Set form of `FUNCTION_WORDS` for O(1) membership checks — built once at
  *  module load, same pattern resolve-place.ts's own GUARD_WORDS uses. */
@@ -88,6 +90,60 @@ export function parseSeniorityTokens(q: string): ParsedSeniority {
     }
   }
   return { residualQ: residual.replace(/\s+/g, " ").trim(), experienceLevels: [...found] };
+}
+
+function findSeniorityAnchors(q: string): string[] {
+  const anchors: string[] = [];
+  for (const [re] of SENIORITY_PHRASES) {
+    for (const m of q.matchAll(new RegExp(re.source, re.flags))) {
+      anchors.push(m[0].toLowerCase().replace(/\s+/g, " ").trim());
+    }
+  }
+  return [...new Set(anchors)];
+}
+
+function sortedTokenKey(tokens: readonly string[]): string {
+  return [...tokens].sort().join("|");
+}
+
+/** Title-only pair queries for seniority+role recall (e.g. "director brand"). */
+export function roleTitlePairQueries(q: string): string[] {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+
+  const anchors = findSeniorityAnchors(trimmed);
+  if (anchors.length === 0) return [];
+
+  const allMeaningful = meaningfulTitleTokens(trimmed);
+  const anchorTokens = new Set<string>();
+  for (const anchor of anchors) {
+    for (const t of meaningfulTitleTokens(anchor)) anchorTokens.add(t);
+  }
+  const remaining = allMeaningful.filter((t) => !anchorTokens.has(t));
+  if (remaining.length === 0) return [];
+
+  const fullKey = sortedTokenKey(allMeaningful);
+  const pairs: string[] = [];
+  outer: for (const anchor of anchors) {
+    for (const token of remaining) {
+      const pair = `${anchor} ${token}`;
+      if (sortedTokenKey(meaningfulTitleTokens(pair)) === fullKey) continue;
+      pairs.push(pair);
+      if (pairs.length >= 3) break outer;
+    }
+  }
+  return pairs;
+}
+
+export function shouldRunRoleTitleLane(
+  q: string,
+  companyScoped: boolean,
+  offset?: number,
+): boolean {
+  if (companyScoped) return false;
+  if (offset != null && offset > 0) return false;
+  if (isTechSkillQuery(q)) return false;
+  return roleTitlePairQueries(q).length > 0;
 }
 
 /* ----------------------- place tokens → filters ----------------------- */
