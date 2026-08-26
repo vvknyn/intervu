@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { roleTitlePairQueries, shouldRunRoleTitleLane } from "../../src/lib/jobs/query-understanding";
+import {
+    roleTitlePairQueries,
+    shouldRunRoleTitleLane,
+    titleSatisfiesRoleQuery,
+} from "../../src/lib/jobs/query-understanding";
 import {
     applyRelevanceQualityReranking,
     mergeRoleTitleHits,
@@ -92,4 +96,44 @@ test("applyRelevanceQualityReranking: Brand Director extra outranks Product Data
     );
     const ranked = applyRelevanceQualityReranking(merged.hits, BRAND_PRODUCT_Q);
     assert.equal(ranked[0].id, "brand-dir");
+});
+
+test("titleSatisfiesRoleQuery: keeps director+product and director+brand titles", () => {
+    assert.equal(titleSatisfiesRoleQuery("Director, Product Management", BRAND_PRODUCT_Q), true);
+    assert.equal(titleSatisfiesRoleQuery("Director, Brand Strategy", BRAND_PRODUCT_Q), true);
+    assert.equal(titleSatisfiesRoleQuery("Director of Brand & Product Design", BRAND_PRODUCT_Q), true);
+});
+
+test("titleSatisfiesRoleQuery: drops one-token and false-friend titles", () => {
+    assert.equal(titleSatisfiesRoleQuery("Brand Designer", BRAND_PRODUCT_Q), false);
+    assert.equal(titleSatisfiesRoleQuery("Account Director", BRAND_PRODUCT_Q), false);
+    assert.equal(titleSatisfiesRoleQuery("Director, People & Culture", BRAND_PRODUCT_Q), false);
+    assert.equal(titleSatisfiesRoleQuery("Senior Art Director", BRAND_PRODUCT_Q), false);
+    assert.equal(titleSatisfiesRoleQuery("Director of Production- Contract Role", BRAND_PRODUCT_Q), false);
+});
+
+test("titleSatisfiesRoleQuery: does not floor queries without a seniority+role pair", () => {
+    assert.equal(titleSatisfiesRoleQuery("Staff Engineer", "stripe"), true);
+    assert.equal(titleSatisfiesRoleQuery("Therapist", "rust"), true);
+});
+
+test("role-query page: one-token titles are filtered after rerank", () => {
+    const keep = {
+        id: "keep",
+        title: "Director, Product Management",
+        salary_min: 100000,
+        ghost_badge: "unscored",
+        posted_ts: 1,
+    } as PublicJob;
+    const drop = {
+        id: "drop",
+        title: "Brand Designer",
+        salary_min: 80000,
+        ghost_badge: "unscored",
+        posted_ts: 2,
+    } as PublicJob;
+    const ranked = applyRelevanceQualityReranking([keep, drop], BRAND_PRODUCT_Q).filter((h) =>
+        titleSatisfiesRoleQuery(h.title, BRAND_PRODUCT_Q),
+    );
+    assert.deepEqual(ranked.map((h) => h.id), ["keep"]);
 });

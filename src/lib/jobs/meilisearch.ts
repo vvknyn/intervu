@@ -1011,22 +1011,25 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   let result = await runSearch();
 
   if (resolveEffectiveSort(p) === "relevance") {
-    const { shouldRunRoleTitleLane } = await import("./query-understanding");
+    const { shouldRunRoleTitleLane, roleTitlePairQueries, titleSatisfiesRoleQuery } = await import(
+      "./query-understanding"
+    );
     if (shouldRunRoleTitleLane(p.q ?? "", companyScoped, p.offset)) {
       const extraHits = await fetchRoleTitleLaneHits(h, p, companyScoped);
       if (extraHits.length > 0) {
         result = { ...result, ...mergeRoleTitleHits(result, extraHits) };
       }
     }
-  }
-
-  if (resolveEffectiveSort(p) === "relevance" && result.hits.length > 0) {
-    result.hits = applyRelevanceQualityReranking(result.hits, p.q);
-    // Title-lane extras are merged onto the page, then scored. Trim back to
-    // the requested page size so they compete for slots instead of elongating
-    // page 1 (load-more offset still walks the whole-document total).
-    const pageLimit = p.limit ?? 40;
-    if (result.hits.length > pageLimit) result.hits = result.hits.slice(0, pageLimit);
+    if (result.hits.length > 0) {
+      result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+      if (roleTitlePairQueries(p.q ?? "").length > 0) {
+        result.hits = result.hits.filter((h) =>
+          titleSatisfiesRoleQuery(decodeText(h.title), p.q ?? ""),
+        );
+      }
+      const pageLimit = p.limit ?? 40;
+      if (result.hits.length > pageLimit) result.hits = result.hits.slice(0, pageLimit);
+    }
   }
   return applySortIntegrityGuard(result, p, runSearch);
 }

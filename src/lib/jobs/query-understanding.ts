@@ -135,6 +135,31 @@ export function roleTitlePairQueries(q: string): string[] {
   return pairs;
 }
 
+/** True when `title` carries the query's seniority anchor AND at least one
+ *  other meaningful query token. One-token titles (Brand Designer, Account
+ *  Director, Art Director) fail. Queries with no seniority+role pairs are
+ *  not this class — always true, so stripe/rust are untouched.
+ *  Remaining tokens match exactly or +s (product ≠ production). */
+export function titleSatisfiesRoleQuery(title: string, q: string): boolean {
+  if (roleTitlePairQueries(q).length === 0) return true;
+
+  const anchors = findSeniorityAnchors(q.trim());
+  const titleTokens = meaningfulTitleTokens(title);
+  const anchorTokens = new Set<string>();
+  for (const anchor of anchors) {
+    for (const t of meaningfulTitleTokens(anchor)) anchorTokens.add(t);
+  }
+  const remaining = meaningfulTitleTokens(q.trim()).filter((t) => !anchorTokens.has(t));
+
+  const hasAnchor = [...anchorTokens].some((at) =>
+    titleTokens.some((tt) => tt === at || tt.startsWith(at)),
+  );
+  const hasOther = remaining.some((rt) =>
+    titleTokens.some((tt) => tt === rt || tt === `${rt}s` || rt === `${tt}s`),
+  );
+  return hasAnchor && hasOther;
+}
+
 export function shouldRunRoleTitleLane(
   q: string,
   companyScoped: boolean,
