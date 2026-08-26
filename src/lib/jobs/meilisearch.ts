@@ -1022,8 +1022,12 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 
   if (resolveEffectiveSort(p) === "relevance" && result.hits.length > 0) {
     result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+    // Title-lane extras are merged onto the page, then scored. Trim back to
+    // the requested page size so they compete for slots instead of elongating
+    // page 1 (load-more offset still walks the whole-document total).
+    const pageLimit = p.limit ?? 40;
+    if (result.hits.length > pageLimit) result.hits = result.hits.slice(0, pageLimit);
   }
-  return applySortIntegrityGuard(result, p, runSearch);
 }
 
 /** Dedupe extras into primary page-1 hits; total stays primary.total — extras

@@ -60,6 +60,7 @@ test("mergeRoleTitleHits: extra id present, duplicates not doubled, primary orde
 
     assert.equal(merged.total, 100);
     assert.deepEqual(merged.hits.map((h) => h.id), ["a", "b", "c"]);
+    assert.equal(merged.hits.length, 3);
 });
 
 test("applyRelevanceQualityReranking: Brand Director extra outranks Product Data Coordinator primary", () => {
