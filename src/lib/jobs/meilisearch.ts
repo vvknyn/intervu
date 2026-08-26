@@ -1028,6 +1028,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     const pageLimit = p.limit ?? 40;
     if (result.hits.length > pageLimit) result.hits = result.hits.slice(0, pageLimit);
   }
+  return applySortIntegrityGuard(result, p, runSearch);
 }
 
 /** Dedupe extras into primary page-1 hits; total stays primary.total — extras
