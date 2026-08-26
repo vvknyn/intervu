@@ -17,6 +17,7 @@ import {
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -1012,7 +1013,6 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   let result: JobSearchResult;
 
   if (isRelevance) {
-    const { shouldRunRoleTitleLane, titleSatisfiesRoleQuery } = await import("./query-understanding");
     if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
       const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, p, companyScoped);
       const seen = new Set<string>();
@@ -1057,7 +1057,6 @@ async function fetchRoleTitleLaneHits(
   p: JobSearchParams,
   companyScoped: boolean,
 ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
-  const { roleTitlePairQueries } = await import("./query-understanding");
   const pairs = roleTitlePairQueries(p.q ?? "");
   if (pairs.length === 0) return { hits: [] };
 
