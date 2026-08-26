@@ -16,7 +16,7 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery } from "./presentation";
+import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -1017,7 +1017,7 @@ const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist
  * Post-search relevance & quality reranking for default/relevance searches:
  * Subtly elevates high-signal postings that candidates prioritize:
  * 0. Demotes non-tech titles on tech queries (e.g. "Therapist at Rust Medical Center" when searching "Rust").
- * 1. Exact title alignment with search query.
+ * 1. Title-token coverage score (`titleRelevanceScore`).
  * 2. Transparent compensation disclosure (salary_min > 0 or salary_max > 0).
  * 3. Verified clear ghost badge (ghost_badge === "clear").
  * 4. Recency tie-breaker.
@@ -1035,10 +1035,10 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
       if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
     }
 
-    // 1. Exact title match tier
-    const aTitleMatch = query && titleMatchesQuery(decodeText(a.title), query) ? 1 : 0;
-    const bTitleMatch = query && titleMatchesQuery(decodeText(b.title), query) ? 1 : 0;
-    if (aTitleMatch !== bTitleMatch) return bTitleMatch - aTitleMatch;
+    // 1. Title relevance tier (meaningful-token coverage, stopword-tolerant)
+    const aTitleScore = query ? titleRelevanceScore(decodeText(a.title), query) : 0;
+    const bTitleScore = query ? titleRelevanceScore(decodeText(b.title), query) : 0;
+    if (aTitleScore !== bTitleScore) return bTitleScore - aTitleScore;
 
     // 2. Salary disclosure boost (disclosed pay is high signal for job seekers)
     const aHasSalary = (a.salary_min != null && a.salary_min > 0) || (a.salary_max != null && a.salary_max > 0) ? 1 : 0;
