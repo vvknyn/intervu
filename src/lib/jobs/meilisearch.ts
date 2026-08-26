@@ -16,7 +16,8 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery } from "./presentation";
+import { decodeText, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -437,6 +438,8 @@ export interface BuildFilterOpts {
 export interface BuildSearchBodyOpts extends BuildFilterOpts {
   /** Query text names an employer — see company-intent.ts. */
   companyScoped?: boolean;
+  /** Title-only recall lane for seniority+role pair searches. */
+  titleScoped?: boolean;
 }
 
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
@@ -754,9 +757,11 @@ export function buildSearchBody(
     //    to prevent non-tech company false positives (e.g. "Rust Medical Center").
     ...(opts?.companyScoped
       ? { attributesToSearchOn: ["company"] }
-      : techSkillScoped
-        ? { attributesToSearchOn: ["title", "tags", "description"] }
-        : {}),
+      : opts?.titleScoped
+        ? { attributesToSearchOn: ["title"] }
+        : techSkillScoped
+          ? { attributesToSearchOn: ["title", "tags", "description"] }
+          : {}),
     // Meilisearch's DEFAULT is "last", which drops query words from the end
     // until something matches. For a three-word role that means a search for
     // "Technical Account Manager" is allowed to answer with documents that
@@ -922,6 +927,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     };
   }
 
+  const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
+
   const runSearch = async (): Promise<JobSearchResult> => {
     const needsDomain = needsDomainFilters(p);
 
@@ -941,8 +948,6 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     // post-filter path above is deliberately excluded — those are
     // `board`/`companyDomain` browses that are ALREADY constrained to one
     // employer, so company-scoping the query text would add nothing.
-    const companyScoped = await resolveCompanyIntent(p.id ? undefined : p.q);
-
     const runPass = async (
       matchingStrategy: MatchingStrategy = "all",
     ): Promise<JobSearchResult> => {
@@ -1004,11 +1009,99 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     return relaxed.total > 0 ? { ...relaxed, widened: true } : strict;
   };
 
-  const result = await runSearch();
-  if (resolveEffectiveSort(p) === "relevance" && result.hits.length > 0) {
-    result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+  const isRelevance = resolveEffectiveSort(p) === "relevance";
+  let result: JobSearchResult;
+
+  if (isRelevance) {
+    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+      const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, p, companyScoped);
+      const seen = new Set<string>();
+      const unique: PublicJob[] = [];
+      for (const hit of laneHits) {
+        if (seen.has(hit.id)) continue;
+        seen.add(hit.id);
+        unique.push(hit);
+      }
+      const floored = unique.filter((hit) =>
+        titleSatisfiesRoleQuery(decodeText(hit.title), p.q ?? ""),
+      );
+      const ranked = applyRelevanceQualityReranking(floored, p.q ?? "");
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 40;
+      result = {
+        hits: pageRoleTitleHits(ranked, offset, limit),
+        total: ranked.length,
+        backend: "meilisearch",
+        configured: true,
+        facetDistribution,
+      };
+    } else {
+      result = await runSearch();
+      if (result.hits.length > 0) {
+        result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+      }
+    }
+  } else {
+    result = await runSearch();
   }
+
   return applySortIntegrityGuard(result, p, runSearch);
+}
+
+export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
+  return ranked.slice(offset, offset + limit);
+}
+
+async function fetchRoleTitleLaneHits(
+  h: string,
+  p: JobSearchParams,
+  companyScoped: boolean,
+): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+  const pairs = roleTitlePairQueries(p.q ?? "");
+  if (pairs.length === 0) return { hits: [] };
+
+  const searchPair = async (
+    pairQ: string,
+    withFacets: boolean,
+    legacy: boolean,
+  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
+    const body = buildSearchBody(
+      { ...p, q: pairQ, withFacets, limit: 1000, offset: 0 },
+      legacy,
+      "all",
+      { companyScoped, titleScoped: true },
+    );
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok && res.status === 400) {
+      const text = await res.text().catch(() => "");
+      if (/posted_ts/i.test(text) && !legacy) {
+        return searchPair(pairQ, withFacets, true);
+      }
+      return { hits: [] };
+    }
+    if (!res.ok) return { hits: [] };
+    const json = (await res.json()) as {
+      hits?: PublicJob[];
+      facetDistribution?: Record<string, Record<string, number>>;
+    };
+    return {
+      hits: json.hits ?? [],
+      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+    };
+  };
+
+  const batches = await Promise.all(
+    pairs.map((pairQ, i) => searchPair(pairQ, i === 0 && !!p.withFacets, false)),
+  );
+  return {
+    hits: batches.flatMap((b) => b.hits),
+    facetDistribution: batches[0]?.facetDistribution,
+  };
 }
 
 const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist|driver|paramedic|phlebotomist|teacher|substitute teacher|caregiver|cook|waiter|bus monitor|janitor|custodian)\b/i;
@@ -1017,7 +1110,7 @@ const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist
  * Post-search relevance & quality reranking for default/relevance searches:
  * Subtly elevates high-signal postings that candidates prioritize:
  * 0. Demotes non-tech titles on tech queries (e.g. "Therapist at Rust Medical Center" when searching "Rust").
- * 1. Exact title alignment with search query.
+ * 1. Title-token coverage score (`titleRelevanceScore`).
  * 2. Transparent compensation disclosure (salary_min > 0 or salary_max > 0).
  * 3. Verified clear ghost badge (ghost_badge === "clear").
  * 4. Recency tie-breaker.
@@ -1035,10 +1128,10 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
       if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
     }
 
-    // 1. Exact title match tier
-    const aTitleMatch = query && titleMatchesQuery(decodeText(a.title), query) ? 1 : 0;
-    const bTitleMatch = query && titleMatchesQuery(decodeText(b.title), query) ? 1 : 0;
-    if (aTitleMatch !== bTitleMatch) return bTitleMatch - aTitleMatch;
+    // 1. Title relevance tier (meaningful-token coverage, stopword-tolerant)
+    const aTitleScore = query ? titleRelevanceScore(decodeText(a.title), query) : 0;
+    const bTitleScore = query ? titleRelevanceScore(decodeText(b.title), query) : 0;
+    if (aTitleScore !== bTitleScore) return bTitleScore - aTitleScore;
 
     // 2. Salary disclosure boost (disclosed pay is high signal for job seekers)
     const aHasSalary = (a.salary_min != null && a.salary_min > 0) || (a.salary_max != null && a.salary_max > 0) ? 1 : 0;

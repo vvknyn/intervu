@@ -17,6 +17,13 @@ import type { Gazetteer } from "../geo/gazetteer";
 import type { CorpusValueChecker } from "../geo/corpus-values";
 import { scanPlacePhrases, rebuildAfterRejection, type PlaceResolution } from "../geo/resolve-place";
 import { FUNCTION_WORDS } from "../geo/common-words";
+import { SENIORITY_PHRASES } from "./role-title-lane";
+
+export {
+  roleTitlePairQueries,
+  shouldRunRoleTitleLane,
+  titleSatisfiesRoleQuery,
+} from "./role-title-lane";
 
 /** Set form of `FUNCTION_WORDS` for O(1) membership checks — built once at
  *  module load, same pattern resolve-place.ts's own GUARD_WORDS uses. */
@@ -60,22 +67,6 @@ export interface ParsedSeniority {
   residualQ: string;
   experienceLevels: string[];
 }
-
-const SENIORITY_PHRASES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bintern(?:ship)?\b/gi, "intern"],
-  [/\bsummer intern(?:ship)?\b/gi, "intern"],
-  [/\bco-?op\b/gi, "intern"],
-  [/\bjunior\b/gi, "entry"],
-  [/\bentry[- ]level\b/gi, "entry"],
-  [/\bnew grad(?:uate)?\b/gi, "entry"],
-  [/\bassociate\b/gi, "entry"],
-  [/\bdirector\b/gi, "executive"],
-  [/\bvice president\b/gi, "executive"],
-  [/\bvp\b/gi, "executive"],
-  [/\bhead of\b/gi, "executive"],
-  [/\bchief\b/gi, "executive"],
-  [/\bc-level\b/gi, "executive"],
-];
 
 export function parseSeniorityTokens(q: string): ParsedSeniority {
   let residual = q;

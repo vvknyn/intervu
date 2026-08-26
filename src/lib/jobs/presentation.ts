@@ -6,6 +6,7 @@ import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 import { capitalizeWords } from "@/lib/text-case";
+import { FUNCTION_WORDS } from "@/lib/geo/common-words";
 
 /**
  * Pure presentation helpers for a job posting — the vocabulary the ledger row
@@ -187,6 +188,61 @@ export function decodeText(s: string | null | undefined): string {
  *  (keeps "c++" and ".net" intact as single tokens). */
 function tokenize(s: string): string[] {
     return s.toLowerCase().split(/[^a-z0-9+#.]+/i).filter(Boolean);
+}
+
+/** Set form of `FUNCTION_WORDS` — Meilisearch stop words are a subset. */
+const FUNCTION_WORDS_SET: Set<string> = new Set(FUNCTION_WORDS);
+
+/** Normalize `&` to `and` before tokenizing for title-relevance scoring. */
+function normalizeAmpersand(s: string): string {
+    return s.replace(/&/g, " and ");
+}
+
+export function meaningfulTitleTokens(s: string): string[] {
+    return tokenize(normalizeAmpersand(s)).filter((t) => !FUNCTION_WORDS_SET.has(t));
+}
+
+/**
+ * Graded title alignment for relevance reranking: fraction of meaningful query
+ * tokens (stopwords stripped via `FUNCTION_WORDS`) matched in the title via the
+ * same startsWith rule as `titleMatchesQuery`, plus up to +0.2 for in-order,
+ * compact matches. Score range 0..1.2. Empty/whitespace q or no meaningful
+ * query tokens → 0.
+ */
+export function titleRelevanceScore(title: string, q: string): number {
+    const queryTokens = meaningfulTitleTokens(q.trim());
+    if (queryTokens.length === 0) return 0;
+
+    const titleTokens = meaningfulTitleTokens(title);
+    if (titleTokens.length === 0) return 0;
+
+    const matchedTitleIndices: number[] = [];
+    for (const qt of queryTokens) {
+        const idx = titleTokens.findIndex((tt) => tt.startsWith(qt));
+        if (idx >= 0) matchedTitleIndices.push(idx);
+    }
+    if (matchedTitleIndices.length === 0) return 0;
+
+    const coverage = matchedTitleIndices.length / queryTokens.length;
+
+    const inOrder =
+        matchedTitleIndices.length >= 2 &&
+        matchedTitleIndices.every((idx, i) => i === 0 || idx > matchedTitleIndices[i - 1]);
+
+    let bonus = 0;
+    if (inOrder) {
+        bonus += 0.1;
+        if (matchedTitleIndices.length === queryTokens.length) {
+            let gapSum = 0;
+            for (let i = 1; i < matchedTitleIndices.length; i++) {
+                gapSum += matchedTitleIndices[i] - matchedTitleIndices[i - 1] - 1;
+            }
+            const maxGap = titleTokens.length - matchedTitleIndices.length;
+            bonus += maxGap > 0 ? 0.1 * (1 - gapSum / maxGap) : 0.1;
+        }
+    }
+
+    return coverage + bonus;
 }
 
 /**
