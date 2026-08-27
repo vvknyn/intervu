@@ -8,7 +8,8 @@ import { toast } from "@/lib/toast";
 import { downloadBlob } from "@/lib/export-utils";
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import type { ResumeData } from "@/types/resume";
+import { tailoredVersionToResumeData } from "@/lib/resume/tailored-version";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
 import {
     fetchTailoredVersionsAction,
     fetchTailoredVersionAction,
@@ -32,14 +33,7 @@ async function downloadTailoredVersionPdf(id: string): Promise<void> {
         throw new Error(res.error || "Couldn't load this version");
     }
     const detail = res.data;
-    const resumeData: ResumeData = {
-        profile: detail.originalProfile,
-        education: detail.originalEducation,
-        generatedSummary: detail.tailoredSummary,
-        experience: detail.tailoredExperience,
-        competencies: detail.tailoredCompetencies,
-        sectionOrder: detail.sectionOrder,
-    };
+    const resumeData = tailoredVersionToResumeData(detail);
     const filename = deriveResumePdfFilename({
         company: detail.companyName,
         role: detail.positionTitle,
@@ -90,30 +84,13 @@ function VersionRow({
             </div>
 
             {confirming ? (
-                <div className="flex w-full flex-col gap-2 rounded-none border border-border bg-muted/30 p-3 sm:w-auto sm:flex-row sm:items-center">
-                    <span className="text-xs text-muted-foreground">Delete this version?</span>
-                    <div className="flex w-full gap-2 sm:w-auto">
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={deleting}
-                            onClick={onDelete}
-                            className="w-full gap-1.5 rounded-none sm:w-auto"
-                        >
-                            {deleting ? <CircleNotch size={12} className="animate-spin" /> : <Trash size={12} />}
-                            {deleting ? "Deleting…" : "Confirm"}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onCancelDelete}
-                            disabled={deleting}
-                            className="w-full rounded-none sm:w-auto"
-                        >
-                            Cancel
-                        </Button>
-                    </div>
-                </div>
+                <InlineConfirm
+                    prompt="Delete this version?"
+                    busy={deleting}
+                    busyLabel="Deleting…"
+                    onConfirm={onDelete}
+                    onCancel={onCancelDelete}
+                />
             ) : (
                 <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline" size="sm" className="rounded-none text-xs">
@@ -209,7 +186,7 @@ export function TailoredVersionsList({
         <section className="pt-6 border-t border-border">
             <h2 className="text-[15px] font-semibold tracking-[-0.02em] mb-1">Tailored versions</h2>
             <p className="text-[13px] text-muted-foreground mb-4">
-                Résumés you tailored for a specific role from the apply dialog.
+                Resumes you tailored for a specific role from the apply dialog.
             </p>
 
             {status === "loading" && (
@@ -234,7 +211,7 @@ export function TailoredVersionsList({
                         <FileText size={24} />
                     </div>
                     <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        No tailored versions yet. When you apply to a role, you can tailor your résumé for it from
+                        No tailored versions yet. When you apply to a role, you can tailor your resume for it from
                         the apply dialog.
                     </p>
                 </div>

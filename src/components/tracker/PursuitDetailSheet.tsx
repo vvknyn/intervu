@@ -6,20 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { confirmToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
 import {
-    TRACKER_DETAIL_STAGES,
+    TRACKER_LANE_STAGES,
     TRACKER_SHEET_BOTTOM,
     daysInTracker,
     daysSinceUpdate,
     hasResumeLinked,
+    isActiveTrackerLaneStage,
     isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { NoteAutosave } from "@/lib/pursuits/note-autosave";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
 
 interface PursuitDetailSheetProps {
     pursuit: Pursuit | null;
@@ -53,7 +54,7 @@ export function PursuitDetailSheet({
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-[18px] border-b-0 p-0",
+                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-none border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -105,6 +106,9 @@ function PursuitDetailBody({
     const noteRef = useRef(note);
     noteRef.current = note;
 
+    const [confirmingRemove, setConfirmingRemove] = useState(false);
+    const [removing, setRemoving] = useState(false);
+
     const noteAutosaveRef = useRef<NoteAutosave | null>(null);
     if (!noteAutosaveRef.current) {
         noteAutosaveRef.current = new NoteAutosave((value) => {
@@ -130,20 +134,18 @@ function PursuitDetailBody({
         };
     }, []);
 
-    // Two-step inline confirm — same `confirmToast` pattern as
-    // AgentAccessSection's `handleRevoke` (settings/AgentAccessSection.tsx):
-    // a single unconfirmed click used to fire this destructive action
-    // immediately. No new modal — this reuses the app-wide confirm dialog
-    // every other destructive action already goes through.
+    // Two-step inline confirm — the same shared shape `YourResumeSection`'s
+    // delete-resume flow and `TailoredVersionsList`'s per-version delete
+    // already use, rather than a fourth destructive-action pattern
+    // (`confirmToast`) for one more surface.
     const handleRemove = async () => {
-        const ok = await confirmToast({
-            title: `Remove ${pursuit.position} at ${pursuit.company_name}?`,
-            description: "This removes it from your tracker. You can always add it again later.",
-            confirmLabel: "Remove",
-            destructive: true,
-        });
-        if (!ok) return;
-        await onRemove();
+        setRemoving(true);
+        try {
+            await onRemove();
+        } finally {
+            setRemoving(false);
+            setConfirmingRemove(false);
+        }
     };
 
     return (
@@ -165,11 +167,8 @@ function PursuitDetailBody({
             </div>
             <div className="space-y-4 px-5 py-4 pb-7">
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
-                    {TRACKER_DETAIL_STAGES.map(({ stage, label }) => {
-                        const pressed =
-                            stage === "interested"
-                                ? pursuit.status === "interested" || pursuit.status === "resume_ready"
-                                : pursuit.status === stage;
+                    {TRACKER_LANE_STAGES.map(({ stage, label }) => {
+                        const pressed = isActiveTrackerLaneStage(pursuit.status, stage);
                         return (
                             <button
                                 key={stage}
@@ -188,7 +187,7 @@ function PursuitDetailBody({
                     })}
                 </div>
 
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-xl bg-muted p-3.5">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-none bg-muted p-3.5">
                     <div>
                         <dt className="mb-1 whitespace-nowrap text-xs uppercase tracking-[0.06em] text-[#8b939e]">In tracker</dt>
                         <dd className="text-meta">{days}d</dd>
@@ -262,15 +261,27 @@ function PursuitDetailBody({
                     >
                         Download resume
                     </Button>
-                    <Button
-                        variant="outline"
-                        disabled={saving}
-                        className="text-[#8a3a3a] hover:text-[#8a3a3a]"
-                        onClick={() => void handleRemove()}
-                    >
-                        Remove
-                    </Button>
+                    {!confirmingRemove && (
+                        <Button
+                            variant="outline"
+                            disabled={saving}
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmingRemove(true)}
+                        >
+                            Remove
+                        </Button>
+                    )}
                 </div>
+                {confirmingRemove && (
+                    <InlineConfirm
+                        prompt={`Remove ${pursuit.position} at ${pursuit.company_name}?`}
+                        confirmLabel="Remove"
+                        busyLabel="Removing…"
+                        busy={removing}
+                        onConfirm={() => void handleRemove()}
+                        onCancel={() => setConfirmingRemove(false)}
+                    />
+                )}
                 {!hasResumeLinked(pursuit) && (
                     <p className="text-[12px] text-muted-foreground">No resume version on file for this application.</p>
                 )}

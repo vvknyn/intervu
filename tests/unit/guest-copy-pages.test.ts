@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 const PAGE = join(__dirname, "..", "..", "src", "app", "watch", "anywhere", "page.tsx");
 const YOURS = join(__dirname, "..", "..", "src", "app", "yours", "page.tsx");
+const TRACKER_BOARD = join(__dirname, "..", "..", "src", "components", "tracker", "TrackerKanbanBoard.tsx");
 const CONTACT = join(__dirname, "..", "..", "src", "app", "contact", "page.tsx");
 
 describe("watch anywhere copy", () => {
@@ -16,10 +17,9 @@ describe("watch anywhere copy", () => {
 });
 
 describe("yours tracker chrome", () => {
-    it("status tabs scroll inside the row on narrow viewports", () => {
-        const src = readFileSync(YOURS, "utf8");
-        const chips = src.slice(src.indexOf("function StatusChips"), src.indexOf("function YoursContent"));
-        assert.match(chips, /overflow-x-auto/);
+    it("lane jump nav scrolls inside the row on narrow viewports", () => {
+        const src = readFileSync(TRACKER_BOARD, "utf8");
+        assert.match(src, /overflow-x-auto/);
     });
 
     it("tracker subtitle is a complete sentence", () => {

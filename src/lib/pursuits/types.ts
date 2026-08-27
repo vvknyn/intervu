@@ -198,7 +198,7 @@ export function nextAction(
  *  grouping and the stat-card counts, so they can't disagree. */
 export type BoardColumn = "saved" | "applied" | "interviewing" | "offer" | "closed";
 
-export function boardColumn(p: Pursuit): BoardColumn {
+export function boardColumn(p: Pick<Pursuit, "status">): BoardColumn {
     switch (p.status) {
         case "interested":
         case "resume_ready":

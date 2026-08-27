@@ -4,6 +4,7 @@
  */
 
 import { boardColumn, type BoardColumn, type Pursuit, type PursuitStage } from "./types";
+import { STATUS_PILL, applicationStatusTone } from "@/lib/ui/status-tokens";
 
 export type TrackerFilter = "all" | "saved" | "applied" | "interviewing" | "offer";
 
@@ -45,22 +46,34 @@ export function groupPursuitsByBoardColumn(pursuits: Pursuit[]): Record<BoardCol
     return groups;
 }
 
-/** Detail sheet + add form — maps UI "saved" to pursuit stage. */
-export const TRACKER_DETAIL_STAGES: { stage: PursuitStage; label: string }[] = [
+/**
+ * Detail sheet + add form — the ONE stage list both surfaces render as
+ * lane buttons/options. One entry per `BoardColumn`, in board order
+ * (`TRACKER_BOARD_COLUMNS`'s own order), each carrying the `PursuitStage`
+ * that stage-write actually asserts when a user picks that lane. "Closed"
+ * writes `withdrawn` rather than `rejected` — a user picking "Closed" is
+ * asserting a fact about their own action ("I stepped away"), not the
+ * employer's decision, which the UI has no basis to presume; `rejected`
+ * stays a valid, correctly-displayed status when set elsewhere (e.g. MCP).
+ */
+export const TRACKER_LANE_STAGES: { stage: PursuitStage; label: string }[] = [
     { stage: "interested", label: "Saved" },
     { stage: "applied", label: "Applied" },
     { stage: "interviewing", label: "Interviewing" },
     { stage: "offer", label: "Offer" },
-    { stage: "rejected", label: "Rejected" },
-    { stage: "withdrawn", label: "Withdrawn" },
+    { stage: "withdrawn", label: "Closed" },
 ];
 
-export const TRACKER_ADD_STAGES: { stage: PursuitStage; label: string }[] = [
-    { stage: "interested", label: "Saved" },
-    { stage: "applied", label: "Applied" },
-    { stage: "interviewing", label: "Interviewing" },
-    { stage: "offer", label: "Offer" },
-];
+/**
+ * Is `candidate` (one of `TRACKER_LANE_STAGES`) the lane a pursuit
+ * currently sitting at `current` is already in? Compares via `boardColumn`
+ * rather than exact-stage equality so `resume_ready` still lights up
+ * "Saved" and `rejected` still lights up "Closed" — the same collapsing
+ * `groupPursuitsByBoardColumn` already applies to the board itself.
+ */
+export function isActiveTrackerLaneStage(current: PursuitStage, candidate: PursuitStage): boolean {
+    return boardColumn({ status: current }) === boardColumn({ status: candidate });
+}
 
 export function trackerStatusLabel(status: PursuitStage): string {
     if (status === "interested" || status === "resume_ready") return "Saved";
@@ -69,23 +82,12 @@ export function trackerStatusLabel(status: PursuitStage): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+/** Status pill classes — delegates to the shared `STATUS_PILL` token map
+ *  (`lib/ui/status-tokens.ts`) instead of hand-picked raw hex, so this pill
+ *  carries a dark-mode variant and stays on the one status→color scale
+ *  every other status pill in the app already uses. */
 export function trackerStatusBadgeClass(status: PursuitStage): string {
-    switch (status) {
-        case "interested":
-        case "resume_ready":
-            return "bg-[#eef2f7]";
-        case "applied":
-            return "border-[#c5e0c3] bg-[var(--green-soft,#e8f3e7)] text-[#3d6e3b]";
-        case "interviewing":
-            return "border-[#c9cef0] bg-[#eef0ff] text-[#3d457a]";
-        case "offer":
-            return "border-[#ddd2b8] bg-[#f3efe6] text-[#6a5528]";
-        case "rejected":
-        case "withdrawn":
-            return "bg-[#f3f3f3] text-[#888]";
-        default:
-            return "";
-    }
+    return STATUS_PILL[applicationStatusTone(status)];
 }
 
 export function matchesTrackerFilter(p: Pursuit, filter: TrackerFilter): boolean {

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CircleNotch } from "@phosphor-icons/react";
 import type { PursuitStage } from "@/lib/pursuits/types";
-import { TRACKER_ADD_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
+import { TRACKER_LANE_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
 
 export interface TrackRoleDraft {
     company: string;
@@ -69,7 +69,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-[18px] border-b-0 p-0",
+                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-none border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -108,7 +108,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {TRACKER_ADD_STAGES.map(({ stage, label }) => (
+                                {TRACKER_LANE_STAGES.map(({ stage, label }) => (
                                     <SelectItem key={stage} value={stage}>
                                         {label}
                                     </SelectItem>

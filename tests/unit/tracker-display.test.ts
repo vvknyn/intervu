@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
     countByTrackerFilter,
     groupPursuitsByBoardColumn,
+    isActiveTrackerLaneStage,
     matchesTrackerFilter,
     matchesTrackerSearch,
     trackerStatusLabel,
@@ -59,6 +60,18 @@ test("visibleTrackerBoardColumns shows all columns for all filter, one column ot
         "closed",
     ]);
     assert.deepEqual(visibleTrackerBoardColumns("applied"), ["applied"]);
+});
+
+test("isActiveTrackerLaneStage collapses stages into the same lane as the board does", () => {
+    // resume_ready has no button of its own in TRACKER_LANE_STAGES — it must
+    // still light up "Saved" (stage: "interested"), same as boardColumn.
+    assert.equal(isActiveTrackerLaneStage("resume_ready", "interested"), true);
+    // rejected has no button of its own either — it must light up "Closed"
+    // (stage: "withdrawn"), not stay unmatched.
+    assert.equal(isActiveTrackerLaneStage("rejected", "withdrawn"), true);
+    // A pursuit sitting in one lane must not also read as active in another.
+    assert.equal(isActiveTrackerLaneStage("applied", "interviewing"), false);
+    assert.equal(isActiveTrackerLaneStage("interested", "withdrawn"), false);
 });
 
 test("groupPursuitsByBoardColumn buckets by boardColumn exhaustively", () => {
