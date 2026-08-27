@@ -57,20 +57,16 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   // share. See `buildCompanyFacts`'s own doc for why each part can be null.
   const facts = buildCompanyFacts(data);
   // "9 of the 68 roles tracked here may no longer be live" — see company-page-copy.ts for
-  // why the count is always derivable from `ghostFlaggedPct` and doesn't
-  // need the company-wide/sample split above.
+  // why the count is always derivable from `data.ghostFlaggedPct` (the
+  // CompanyPageData field behind the gated rail's own KPI tile — unrelated
+  // to the FAQPage structured data above, which never states this stat) and
+  // doesn't need the company-wide/sample split above.
   const staleShare = staleShareText(data);
   const faqJsonLd = buildFaqPageJsonLd(
     buildCompanyFaqItems({
       companyName: data.name,
       // The same sentence the body renders below — see `CompanyFaqInput`.
       hiringAnswer: humanizeProjectorHeadline(hiring.headline),
-      // The FAQ answer states this share as a fact about "this company's
-      // tracked postings". Where the percentage only covers the fetched
-      // window, that question is dropped rather than answered with a sample
-      // dressed as a census — the same reason `buildCompanyFaqItems` already
-      // skips it on `null` instead of fabricating 0%.
-      ghostFlaggedPct: ghostPctIsCompanyWide ? data.ghostFlaggedPct : null,
     }),
   );
   // Same array-of-graphs convention as the root layout's own JSON-LD
