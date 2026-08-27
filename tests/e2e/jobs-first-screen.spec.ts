@@ -322,8 +322,12 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
      * This test asserted the import dialog directly, which is the state AFTER
      * authentication; anonymously it could only ever see the auth popover.
      * Measured: clicking it here opens a dialog reading "Authentication / Log
-     * In / Sign Up". Asserting the gate keeps the real contract under test —
-     * the click starts the journey rather than doing nothing.
+     * In / Create account" (the sr-only DialogTitle is still literally
+     * "Authentication" as of the 2026-08-27 auth/docs redesign — see
+     * auth-popover.tsx — so the regex below stays tolerant on purpose rather
+     * than pinning the tab's exact wording). Asserting the gate keeps the
+     * real contract under test — the click starts the journey rather than
+     * doing nothing.
      */
     test("best match with no query starts the résumé-rank journey (auth gate first)", async ({ page }) => {
         await page.goto('/jobs?posted=any');

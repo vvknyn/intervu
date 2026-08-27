@@ -71,8 +71,10 @@ describe("signUp source shape (actions/auth.ts)", () => {
 });
 
 /**
- * Login identifier routing (login-form.tsx, SimpleAuthForm.tsx, via
- * `signInWithIdentifier`): an "@"-bearing input takes the direct email path;
+ * Login identifier routing (login-form.tsx, via `signInWithIdentifier`;
+ * SimpleAuthForm.tsx is gone as of the 2026-08-27 auth/docs redesign —
+ * LoginForm now owns this logic alone): an "@"-bearing input takes the
+ * direct email path;
  * a bare token takes the legacy `signInWithUsername` re-derivation, so
  * existing synthetic-address accounts keep logging in unchanged.
  */

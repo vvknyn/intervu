@@ -94,13 +94,15 @@ test.describe('COPY - Quirky Messages Tests', () => {
       await loginBtn.click();
       await page.waitForTimeout(1000);
 
-      // Switch to Sign Up tab if visible
-      const signUpTab = page.locator('text=Sign Up');
+      // Switch to the signup tab if visible (tab label is "Create account"
+      // as of the 2026-08-27 auth/docs redesign — see authCardCopy in
+      // lib/auth/auth-gate-copy.ts).
+      const signUpTab = page.locator('text=Create account').first();
       if (await signUpTab.isVisible({ timeout: 3000 })) {
         await signUpTab.click();
 
         // Try submitting empty form
-        const submitBtn = page.locator('button:has-text("Sign Up")').last();
+        const submitBtn = page.locator('button:has-text("Create account")').last();
         if (await submitBtn.isVisible({ timeout: 3000 })) {
           await submitBtn.click();
 
