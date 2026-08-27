@@ -8,6 +8,8 @@ import { chipVariants } from "@/components/ui/chip";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { MatchChip } from "@/components/jobs/MatchChip";
+import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel } from "@/components/jobs/job-detail-facts";
@@ -236,6 +238,8 @@ export function JobDetail({
     onOpenRelated,
     reportJobEnabled = false,
     collapseDescription = true,
+    matchScore = null,
+    matchAsOfDate = null,
 }: {
     job: PublicJob;
     /** Single per-render-pass "now" from JobsContent — see the `nowMs` comment there. */
@@ -277,6 +281,13 @@ export function JobDetail({
      *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
      *  with it. */
     collapseDescription?: boolean;
+    /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
+     *  no signed-in résumé or no comparable field — renders no chip, never a
+     *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP card and
+     *  `sort=fit` read, computed once by the shared `PublicJobDetail` mount. */
+    matchScore?: MatchScore | null;
+    /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
+    matchAsOfDate?: string | null;
 }) {
     const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
@@ -484,6 +495,11 @@ export function JobDetail({
                         <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                         <div className="min-w-0 flex-1">
                             <h1 className="text-xl sm:text-[22px] font-bold leading-snug sm:leading-tight tracking-tight text-foreground">{decodeText(job.title)}</h1>
+                            {matchScore && (
+                                <div className="mt-1.5">
+                                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} />
+                                </div>
+                            )}
                             <div className="mt-1 text-sm font-medium text-muted-foreground">
                                 {cleanedCompany ? (
                                     <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">

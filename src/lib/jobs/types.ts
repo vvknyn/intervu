@@ -51,6 +51,16 @@ export interface PublicJob {
   salary_period: string | null;
   visa_sponsorship: boolean | null;
   tags: string[];
+  /**
+   * Owned by Subspace's own classifier, not intervu — populated upstream and
+   * filterable live since Meili task 467532 (2026-08-18, see
+   * `JOBS_INDEX_SETTINGS` in meilisearch.ts) but never previously surfaced on
+   * this wire type. Search hits are cast straight through (`as PublicJob[]`,
+   * no stripping mapper), so this was always present on the raw document —
+   * adding it here is typing-only, zero runtime change. Optional because
+   * older/unclassified documents don't carry it.
+   */
+  occupation?: string | null;
   apply_url: string;
   source: string;
   posted_at: string | null;

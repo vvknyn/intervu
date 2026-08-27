@@ -7,6 +7,7 @@ import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
+import { fetchResumeData } from "@/actions/resume";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
 import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
@@ -17,6 +18,7 @@ import {
 } from "@/lib/auth/auth-gate-copy";
 import { getGuestSaveCount, recordGuestSave } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
+import { shortDate } from "@/lib/jobs/presentation";
 import {
     emptyPending,
     queuePending,
@@ -26,10 +28,13 @@ import {
 } from "@/lib/jobs/pending-actions";
 import type { PublicJob } from "@/lib/jobs/types";
 import { classifySentinel } from "@/lib/llm/sentinels";
+import { scoreJobAgainstResume } from "@/lib/match/score";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import type { ResumeData } from "@/types/resume";
 
 export interface PublicJobDetailProps {
     job: PublicJob;
@@ -72,6 +77,34 @@ export function PublicJobDetail({
     const pendingRef = useRef<PendingState<PublicJob, PublicJob>>(emptyPending());
 
     useEffect(() => onAuthChange(setUser), []);
+
+    // Same résumé read path `/jobs` uses (`fetchResumeData` →
+    // `resume_last_updated`, see actions/resume.ts) so the detail-header chip
+    // can never disagree with the SERP card chip for the same signed-in user.
+    const [resume, setResume] = useState<ResumeData | null>(null);
+    const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
+    useEffect(() => {
+        if (!user) {
+            setResume(null);
+            setResumeAsOfDate(null);
+            return;
+        }
+        let cancelled = false;
+        fetchResumeData()
+            .then(({ data, updatedAt }) => {
+                if (cancelled || !data || !resumeIsUsable(data)) return;
+                setResume(data);
+                const ms = updatedAt ? Date.parse(updatedAt) : NaN;
+                setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+            })
+            .catch(() => {
+                /* no résumé on file — no chip, no nagging */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
+    const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -252,6 +285,8 @@ export function PublicJobDetail({
                     onRequestSignIn={requireAuth}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
+                    matchScore={matchScore}
+                    matchAsOfDate={resumeAsOfDate}
                 />
             ) : (
                 <JobDetail
@@ -268,6 +303,8 @@ export function PublicJobDetail({
                     className={cn(detailClassName)}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
+                    matchScore={matchScore}
+                    matchAsOfDate={resumeAsOfDate}
                 />
             )}
             {/* Document layout already has its own sticky-rail Apply card at
