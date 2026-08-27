@@ -105,8 +105,12 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
 }
 
 /** Direction drives the only colour on the row. `improving`/`declining` are
- *  the ledger's own words for "good for a jobseeker" / "bad for one"; anything
- *  else is drawn neutral rather than guessed at. */
+ *  the ledger's own words for "good for a jobseeker" / "bad for one" — the
+ *  same favorable/caution vocabulary every other verdict on the site reads
+ *  off `--verdict-good`/`--verdict-caution` (see `Badge`'s `verdict-good` /
+ *  `verdict-caution` variants); anything else is drawn neutral rather than
+ *  guessed at. Colour is a signal here, not decoration, so it can never be
+ *  brand blue (that's reserved for interactive elements) or a hardcoded hue. */
 export function directionStyle(direction: CompanyChangeEvent["direction"]): {
   Icon: typeof TrendUp;
   chip: string;
@@ -114,12 +118,16 @@ export function directionStyle(direction: CompanyChangeEvent["direction"]): {
 } {
   switch (direction) {
     case "improving":
-      return { Icon: TrendUp, chip: "border-brand/20 bg-brand/10 text-brand", icon: "text-brand" };
+      return {
+        Icon: TrendUp,
+        chip: "border-verdict-good/30 bg-verdict-good-bg/80 text-verdict-good",
+        icon: "text-verdict-good",
+      };
     case "declining":
       return {
         Icon: TrendDown,
-        chip: "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-        icon: "text-amber-600 dark:text-amber-400",
+        chip: "border-verdict-caution/30 bg-verdict-caution-bg/80 text-verdict-caution",
+        icon: "text-verdict-caution",
       };
     default:
       return { Icon: Minus, chip: "border-border bg-chip text-muted-foreground", icon: "text-muted-foreground" };

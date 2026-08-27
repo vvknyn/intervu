@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decodeHtmlEntities, shapeNewsArticle } from "@/lib/companies/news";
+import { decodeHtmlEntities, dedupeNewsArticles, shapeNewsArticle } from "@/lib/companies/news";
 import type { CompanyNewsArticle } from "@/lib/companies/types";
 
 function article(overrides: Partial<CompanyNewsArticle> = {}): CompanyNewsArticle {
@@ -67,5 +67,30 @@ describe("companies/news — shapeNewsArticle", () => {
     const shaped = shapeNewsArticle(article({ publisher: "Bloomberg", is_funding_event: true }));
     assert.equal(shaped.publisher, "Bloomberg");
     assert.equal(shaped.is_funding_event, true);
+  });
+});
+
+describe("companies/news — dedupeNewsArticles", () => {
+  it("drops a re-syndicated headline, keeping the first (most recent) occurrence", () => {
+    const first = article({ url: "https://a.example/1", publisher: "TechCrunch" });
+    const dupe = article({ url: "https://b.example/2", publisher: "Yahoo Finance" });
+    const deduped = dedupeNewsArticles([first, dupe]);
+    assert.deepEqual(deduped, [first]);
+  });
+
+  it("titles differing only in case or whitespace still collapse to one row", () => {
+    const first = article({ title: "Anthropic  raises new round" });
+    const dupe = article({ title: "ANTHROPIC RAISES NEW ROUND" });
+    assert.equal(dedupeNewsArticles([first, dupe]).length, 1);
+  });
+
+  it("a genuinely different headline (a case other than the duplicate) is kept", () => {
+    const a = article({ title: "Anthropic raises new round" });
+    const b = article({ title: "Anthropic opens a new office" });
+    assert.deepEqual(dedupeNewsArticles([a, b]), [a, b]);
+  });
+
+  it("an empty list stays empty", () => {
+    assert.deepEqual(dedupeNewsArticles([]), []);
   });
 });

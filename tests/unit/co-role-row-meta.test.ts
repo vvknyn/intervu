@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyRoleSearch } from "../../src/components/company/CompanyRoleSearch";
+import { CompanyRoleSearch, collapseDuplicatePostings } from "../../src/components/company/CompanyRoleSearch";
 import { CompanyRolesList } from "../../src/components/company/CompanyRolesList";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -117,4 +117,39 @@ test("CompanyRolesList: a clear+fresh row renders no status pill", () => {
 test("CompanyRolesList: a stale-clear row still renders 'Not recently verified'", () => {
   const html = renderRolesList([job({ id: "1", ghost_badge: "clear", ghost_checked_at: STALE })]);
   assert.match(html, /Not recently verified/);
+});
+
+/**
+ * `collapseDuplicatePostings` — the same role re-synced under a second id
+ * (live example: Stewart's "Escrow Operations Intern", ingested twice).
+ * Keyed on title + `locationText`, the same text the row itself renders, so
+ * two rows a visitor can't tell apart never render as two.
+ */
+test("collapseDuplicatePostings: same title+location, a non-display field differs (id, salary) — collapses to the first", () => {
+  const first = job({ id: "1", title: "Escrow Operations Intern", salary_min: 40_000 });
+  const dupe = job({ id: "2", title: "Escrow Operations Intern", salary_min: 45_000 });
+  assert.deepEqual(collapseDuplicatePostings([first, dupe]), [first]);
+});
+
+test("collapseDuplicatePostings: a URL-encoded/whitespace-only title difference is a distinct duplication pattern that also collapses", () => {
+  const first = job({ id: "1", title: "Escrow%20Operations%20Intern" });
+  const dupe = job({ id: "2", title: "  ESCROW OPERATIONS INTERN  " });
+  assert.equal(collapseDuplicatePostings([first, dupe]).length, 1);
+});
+
+test("collapseDuplicatePostings: a genuinely different posting (different location) is kept alongside the first", () => {
+  const a = job({ id: "1", title: "Escrow Operations Intern", location_city: "Edmond" });
+  const b = job({ id: "2", title: "Escrow Operations Intern", location_city: "Houston" });
+  assert.deepEqual(collapseDuplicatePostings([a, b]), [a, b]);
+});
+
+test("collapseDuplicatePostings: an empty list stays empty", () => {
+  assert.deepEqual(collapseDuplicatePostings([]), []);
+});
+
+test("CompanyRoleSearch: a duplicated posting renders as one row, not two", () => {
+  const first = job({ id: "1", title: "Escrow Operations Intern", salary_min: 40_000 });
+  const dupe = job({ id: "2", title: "Escrow Operations Intern", salary_min: 45_000 });
+  const html = renderRoleSearch([first, dupe]);
+  assert.equal((html.match(/Escrow Operations Intern/g) || []).length, 1);
 });

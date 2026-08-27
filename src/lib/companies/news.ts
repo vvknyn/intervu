@@ -91,6 +91,30 @@ export function shapeNewsArticle(a: CompanyNewsArticle): CompanyNewsArticle {
   };
 }
 
+/** Collapses whitespace and case so two feeds' punctuation/formatting
+ *  variants of the same headline compare equal. */
+function normalizedTitle(title: string): string {
+  return title.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Same story, syndicated to more than one outlet, is not two stories. RSS
+ * aggregation genuinely republishes one headline across several publishers
+ * (and sometimes the same publisher twice), so the news card would otherwise
+ * show a duplicate row for it. Keeps the FIRST occurrence — articles arrive
+ * newest-first from the API, so "first" is "most recent" — and is pure/order-
+ * preserving so it composes with the existing filter/map pipeline.
+ */
+export function dedupeNewsArticles(articles: CompanyNewsArticle[]): CompanyNewsArticle[] {
+  const seen = new Set<string>();
+  return articles.filter((a) => {
+    const key = normalizedTitle(a.title);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** Fetches recent news for a company domain. Fails soft to `[]` on any error. */
 export async function fetchCompanyNews(domain: string): Promise<CompanyNewsArticle[]> {
   if (!hasSubspaceApiKey()) return [];
@@ -124,7 +148,7 @@ export async function fetchCompanyNews(domain: string): Promise<CompanyNewsArtic
     // publishable article: rendering it would put an empty card, or a link
     // to nowhere, on a page whose whole point is that it only shows what it
     // can source.
-    return body.data.articles.filter(isRenderableArticle).map(shapeNewsArticle);
+    return dedupeNewsArticles(body.data.articles.filter(isRenderableArticle).map(shapeNewsArticle));
   } catch {
     // Network error, timeout/abort, or malformed JSON — never break the page.
     return [];
