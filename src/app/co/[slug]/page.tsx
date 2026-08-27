@@ -11,6 +11,7 @@ import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
   buildCompanyFacts,
@@ -63,7 +64,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
     buildCompanyFaqItems({
       companyName: data.name,
       // The same sentence the body renders below — see `CompanyFaqInput`.
-      hiringAnswer: hiring.headline,
+      hiringAnswer: humanizeProjectorHeadline(hiring.headline),
       // The FAQ answer states this share as a fact about "this company's
       // tracked postings". Where the percentage only covers the fetched
       // window, that question is dropped rather than answered with a sample
@@ -123,7 +124,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {hiring.hasOpenRoles && (
                   <span className="h-2 w-2 shrink-0 rounded-full bg-brand animate-pulse" aria-hidden />
                 )}
-                {hiring.headline}
+                {humanizeProjectorHeadline(hiring.headline)}
               </p>
               {/* Icon-fact row — domain (a real link), hiring geos, remote
                   share — replaces the old dot-joined mono string with

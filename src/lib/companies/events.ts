@@ -41,6 +41,24 @@ export function eventTypeLabel(eventType: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/**
+ * "health outlook changed to actively_hiring" → "health outlook changed to
+ * actively hiring".
+ *
+ * `headline` is the projector's prose, verbatim — this repo never rewords or
+ * re-cases it. But the projector composes some headlines by interpolating its
+ * own snake_case enum vocabulary (the same vocabulary `eventTypeLabel` reads
+ * for the chip) straight into the sentence, so a raw enum token can leak into
+ * copy that is otherwise a normal sentence. This normalizes only that: runs
+ * of underscores become a single space. No trimming, no case changes, no
+ * rewording — this is the one seam every projector-headline render routes
+ * through, so a future projector headline gets the same treatment without a
+ * caller having to know why.
+ */
+export function humanizeProjectorHeadline(headline: string): string {
+  return headline.replace(/_+/g, " ");
+}
+
 function baseUrl(): string {
   return (process.env.SUBSPACE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
