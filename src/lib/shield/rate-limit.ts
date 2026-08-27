@@ -146,34 +146,48 @@ export const JOBS_LOCATION_MAX_REQUESTS = 90;
 export const allowJobsLocationRequest = createIpRateLimiter(JOBS_LOCATION_WINDOW_MS, JOBS_LOCATION_MAX_REQUESTS);
 
 /**
- * Per-IP sliding-window rate limit for `POST /api/auth/session` — mints the
- * session cookie and fires the welcome email, and had NO rate limit before
- * this (verified 2026-08-16). Own store, not shared with `allowSearchRequest`
- * et al. above — same "one chokepoint, one meaning" reasoning as the
- * waitlist and suggest stores. A real human signs in a handful of times in
- * ten minutes, even switching devices or retrying a typo'd password — 10 per
- * 600s is generous against that and tight against a scripted mint loop
- * (each hit re-verifies a Firebase ID token and can trigger a Resend send).
- */
-export const AUTH_SESSION_WINDOW_MS = 600_000;
-export const AUTH_SESSION_MAX_REQUESTS = 10;
-
-/** Thin I/O wrapper: `checkRateLimitWindow` wired to the session route's own store. */
-export const allowAuthSessionRequest = createIpRateLimiter(AUTH_SESSION_WINDOW_MS, AUTH_SESSION_MAX_REQUESTS);
-
-/**
  * Per-IP sliding-window rate limit for `signUp` (actions/auth.ts) — its own
- * store, not `allowAuthSessionRequest`'s above: creating a brand-new account
- * and minting a session for an existing one are different concerns even
- * though they can come from the same IP (a successful signup calls
- * `/api/auth/session` right after, client-side). A real visitor creates an
- * account once; retrying a taken username or a typo a couple times is
- * normal — 5 per 600s mirrors the connect-waitlist budget's reasoning for a
- * rare, one-shot action, and stays tight against a scripted account-creation
- * loop (each hit is a Firebase Auth user plus a Firestore profile write).
+ * store: creating a brand-new account is a different concern from every
+ * other chokepoint in this file, even from the same IP. A real visitor
+ * creates an account once; retrying a taken username or a typo a couple
+ * times is normal — 5 per 600s mirrors the connect-waitlist budget's
+ * reasoning for a rare, one-shot action, and stays tight against a scripted
+ * account-creation loop (each hit is a WorkOS user plus a Firestore profile
+ * write).
  */
 export const AUTH_SIGNUP_WINDOW_MS = 600_000;
 export const AUTH_SIGNUP_MAX_REQUESTS = 5;
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the signup action's own store. */
 export const allowAuthSignupRequest = createIpRateLimiter(AUTH_SIGNUP_WINDOW_MS, AUTH_SIGNUP_MAX_REQUESTS);
+
+/**
+ * Per-IP sliding-window rate limit for `signIn` (actions/auth.ts) — its own
+ * store, not `allowAuthSignupRequest`'s above: signing in to an existing
+ * account and creating a new one are different concerns, and a scripted
+ * password-guessing loop against one username is exactly the traffic shape
+ * signup's 5-per-600s budget is too generous for (guessing needs many tries
+ * against one account, not one try against many). 10 per 60s covers a real
+ * person mistyping a password a few times in a row while staying tight
+ * against a credential-stuffing loop (each hit is a WorkOS
+ * `authenticateWithPassword` call).
+ */
+export const AUTH_SIGNIN_WINDOW_MS = 60_000;
+export const AUTH_SIGNIN_MAX_REQUESTS = 10;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the sign-in action's own store. */
+export const allowAuthSignInRequest = createIpRateLimiter(AUTH_SIGNIN_WINDOW_MS, AUTH_SIGNIN_MAX_REQUESTS);
+
+/**
+ * Per-IP sliding-window rate limit for the password-reset request action
+ * (`ForgotPasswordForm`) — its own store: unlike sign-in/signup, every hit
+ * here sends an email (`createPasswordReset` + Resend), so this is also a
+ * mailbox-flooding control, not just an account-guessing one. Mirrors the
+ * connect-waitlist budget's reasoning for a rare, one-shot action a real
+ * visitor uses once or twice.
+ */
+export const AUTH_RESET_REQUEST_WINDOW_MS = 600_000;
+export const AUTH_RESET_REQUEST_MAX_REQUESTS = 5;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the reset-request action's own store. */
+export const allowAuthResetRequest = createIpRateLimiter(AUTH_RESET_REQUEST_WINDOW_MS, AUTH_RESET_REQUEST_MAX_REQUESTS);

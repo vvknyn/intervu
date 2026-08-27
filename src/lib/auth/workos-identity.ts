@@ -26,6 +26,11 @@ export interface WorkosIdentity {
   email?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  /** `username` is set here (not `firstName`) for a password signup — a
+   *  username is a label, not a person's name, and WorkOS's own `name`
+   *  field is surfaced back to the user in places (e.g. its dashboard) a
+   *  made-up first name would look wrong. See `toServerUser`'s fallback. */
+  metadata?: Record<string, string> | null;
 }
 
 /**
@@ -36,12 +41,17 @@ export interface WorkosIdentity {
  * `tailored_resumes`, `search_events` all carry `user_id`). Get this wrong and
  * a returning user signs in successfully and finds an empty account — nothing
  * errors, which is what makes it the dangerous field.
+ *
+ * `displayName` prefers a real first/last name (Google sign-in) and falls
+ * back to `metadata.username` (password signup) — the same label Firebase's
+ * `displayName` carried before this migration, for the UI surfaces
+ * (TopBar, Settings, YourResumeSection) that already render it.
  */
 export function toServerUser(user: WorkosIdentity): ServerUser {
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   return {
     uid: user.externalId || user.id,
     email: user.email ?? undefined,
-    displayName: name || undefined,
+    displayName: name || user.metadata?.username || undefined,
   };
 }

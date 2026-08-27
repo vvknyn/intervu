@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
-import { deleteAccount } from "@/actions/auth";
+import { deleteAccount, requestPasswordResetAction } from "@/actions/auth";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, sendResetEmail, type User } from "@/lib/firebase/client-auth";
+import { onAuthChange, signOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsLoading } from "@/components/settings/SettingsLoading";
@@ -78,32 +78,25 @@ export function SettingsContainer() {
     const [resetMessage, setResetMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [resumeEditorOpen, setResumeEditorOpen] = useState(false);
 
+    // `requestPasswordResetAction` always resolves `{success:true}` (it never
+    // leaks whether the account/email exists), so there is no error branch to
+    // sniff here anymore — the try/catch this replaced existed only to force
+    // Firebase's `auth/user-not-found` into the same neutral message.
     const handlePasswordReset = async () => {
         const email = (resetEmail || user?.email || "").trim();
         if (!email) return;
         setIsResetting(true);
         setResetMessage(null);
-        try {
-            await sendResetEmail(email);
-            setResetMessage({ type: "success", text: SETTINGS_MESSAGES.resetLinkSent });
-            setTimeout(() => setResetMessage(null), 5000);
-        } catch (e: unknown) {
-            const code = (e as { code?: string })?.code;
-            if (code === "auth/user-not-found") {
-                setResetMessage({ type: "success", text: SETTINGS_MESSAGES.resetLinkSent });
-            } else {
-                setResetMessage({ type: "error", text: SETTINGS_MESSAGES.resetLinkFailed });
-            }
-            setTimeout(() => setResetMessage(null), 5000);
-        } finally {
-            setIsResetting(false);
-        }
+        await requestPasswordResetAction({ email });
+        setResetMessage({ type: "success", text: SETTINGS_MESSAGES.resetLinkSent });
+        setTimeout(() => setResetMessage(null), 5000);
+        setIsResetting(false);
     };
 
     const handleSignOut = async () => {
         isSigningOut.current = true;
         localStorage.clear();
-        await firebaseSignOut();
+        await signOut();
         window.location.href = "/";
     };
 
@@ -118,6 +111,10 @@ export function SettingsContainer() {
                 setIsDeleting(false);
                 return;
             }
+            // The WorkOS user is already gone server-side; this only clears
+            // the session cookie still sitting in the browser (same route
+            // `handleSignOut` above uses).
+            await signOut();
             router.push("/");
         } catch (e: unknown) {
             setMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to delete account." });
@@ -131,11 +128,11 @@ export function SettingsContainer() {
             setUser(currentUser);
             setResetEmail(currentUser.email ?? "");
         }
-        const unsubscribe = onAuthChange((firebaseUser) => {
+        const unsubscribe = onAuthChange((nextUser) => {
             if (isSigningOut.current) return;
-            setUser(firebaseUser);
-            if (firebaseUser?.email) setResetEmail(firebaseUser.email);
-            if (firebaseUser) router.refresh();
+            setUser(nextUser);
+            if (nextUser?.email) setResetEmail(nextUser.email);
+            if (nextUser) router.refresh();
         });
         return () => unsubscribe();
     }, [router]);

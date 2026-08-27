@@ -14,7 +14,8 @@ export type EmailKind =
   | "welcome"
   | "transactional"
   | "verify_follow"
-  | "verify_email";
+  | "verify_email"
+  | "password_reset";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -54,6 +55,13 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // alerts it unlocks are `digest`, which stays suppressible — consenting to
   // be reachable is not consenting to be marketed to.
   verify_email: { suppressible: false, requiresUnsubscribeHeader: false },
+  // A password-reset link confirms an action the requester just took on our
+  // own form and contains no commercial content — same shape as
+  // verify_follow/verify_email, and for the same reason nothing to opt out
+  // of. Also sidesteps a real hazard: an attacker who has already gotten
+  // someone unsubscribed from "all" must not be able to use that to block a
+  // legitimate password-reset link from reaching the account owner.
+  password_reset: { suppressible: false, requiresUnsubscribeHeader: false },
 };
 
 export function emailKindPolicy(kind: EmailKind): EmailKindPolicy {

@@ -5,7 +5,7 @@
  * run is a real code path, not a separate reimplementation that could
  * silently drift from what actually gets sent.
  */
-import { getAdminAuth } from "@/lib/firebase/admin";
+import { getWorkosUserManagement, resolveWorkosUserId } from "@/lib/auth/workos-runtime";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { isMintedLoginEmail } from "@/lib/auth/username-email";
 import { signUnsubscribeToken } from "../unsubscribe-token";
@@ -27,16 +27,23 @@ export interface DigestPreview {
 export type DigestPreviewResult = DigestPreview | { skipped: DigestSkipReason };
 
 /**
- * Firebase Auth's email for a digest-eligible uid, or null when the account
- * has none. Shared by `previewDigestForUser` and the route's PG-lane dedupe
- * set (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so the two
+ * WorkOS's email for a digest-eligible uid, or null when the account has
+ * none. Shared by `previewDigestForUser` and the route's PG-lane dedupe set
+ * (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so the two
  * lanes can't drift on how "this account's email" is defined.
  */
 export async function digestEmailForUid(uid: string): Promise<string | null> {
-  const user = await getAdminAuth()
-    .getUser(uid)
-    .catch(() => null);
-  return user?.email ?? null;
+  try {
+    const userManagement = await getWorkosUserManagement();
+    const userId = await resolveWorkosUserId(
+      (externalId) => userManagement.getUserByExternalId(externalId),
+      uid,
+    );
+    const user = await userManagement.getUser(userId);
+    return user.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function previewDigestForUser(uid: string): Promise<DigestPreviewResult> {

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FunnelSimple, MagnifyingGlass, MapPin, Moon, Sun, CaretDown, CircleNotch } from "@phosphor-icons/react";
-import { onAuthChange, refreshSession, signOut, type User } from "@/lib/firebase/client-auth";
+import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -77,17 +77,10 @@ export function TopBar() {
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [authTab, setAuthTab] = useState<"login" | "signup">("login");
     const [signingOut, setSigningOut] = useState(false);
-    const sessionRefreshed = useRef(false);
     const { mode, toggleMode, mounted } = useTheme();
 
     useEffect(() => {
-        const unsubscribe = onAuthChange((u) => {
-            setUser(u);
-            if (u && !sessionRefreshed.current) {
-                sessionRefreshed.current = true;
-                refreshSession().catch(() => {});
-            }
-        });
+        const unsubscribe = onAuthChange((u) => setUser(u));
         return () => unsubscribe();
     }, []);
 

@@ -12,29 +12,25 @@
  * nothing new, and `assembleDigest` drops empty sections, so a uid appearing
  * here costs a read and nothing more.
  */
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { getWorkosUserManagement, listIntervuUsers } from "@/lib/auth/workos-runtime";
+import { toServerUser } from "@/lib/auth/workos-identity";
 import { isDefaultDigestEnabled } from "./default-section";
 
-/** Auth's own page size cap. */
-const LIST_USERS_PAGE = 1000;
-
 /**
- * Every uid Firebase Auth knows about — the eligibility set when the
+ * Every uid `listIntervuUsers()` knows about — the eligibility set when the
  * default lane is on, since then "has told us something" stops being a
- * precondition for an email. Paginates rather than taking the first page:
- * a silent truncation here would look exactly like "those users had nothing
- * new", which is the failure mode that hid 22,853 employers in the jobs.ca
- * harvest.
+ * precondition for an email. `listIntervuUsers` auto-paginates the full set
+ * rather than a first page: a silent truncation here would look exactly
+ * like "those users had nothing new", which is the failure mode that hid
+ * 22,853 employers in the jobs.ca harvest. `toServerUser(...).uid` is the
+ * same `externalId || id` derivation every Firestore-keyed lookup uses, so
+ * this set lines up with the uids `collectDigestForUser` reads by.
  */
 async function listAllUids(): Promise<string[]> {
-  const uids: string[] = [];
-  let pageToken: string | undefined;
-  do {
-    const page = await getAdminAuth().listUsers(LIST_USERS_PAGE, pageToken);
-    uids.push(...page.users.map((u) => u.uid));
-    pageToken = page.pageToken;
-  } while (pageToken);
-  return uids;
+  const userManagement = await getWorkosUserManagement();
+  const users = await listIntervuUsers(userManagement);
+  return users.map((user) => toServerUser(user).uid);
 }
 
 export async function listDigestEligibleUids(): Promise<string[]> {

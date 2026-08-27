@@ -89,11 +89,11 @@ export function sharePercent(part: number, whole: number): number | null {
     return Math.round((part / whole) * 100);
 }
 
-/** The subset of `UserRecord` the census reads — narrowed so the pure
- *  summariser can be tested with plain objects instead of Firebase types. */
+/** The subset of a WorkOS `User` the census reads — narrowed so the pure
+ *  summariser can be tested with plain objects instead of SDK types. */
 export interface AuthUserLike {
-    metadata: { creationTime?: string; lastSignInTime?: string };
-    providerData: ReadonlyArray<{ providerId: string }>;
+    createdAt: string;
+    lastSignInAt?: string | null;
 }
 
 export interface AuthCensus {
@@ -102,23 +102,16 @@ export interface AuthCensus {
     created: Record<string, number>;
     /** Accounts whose LAST sign-in falls inside each window. */
     active: Record<string, number>;
-    /** Accounts holding at least one non-password provider. Matched on the
-     *  class ("not a password login"), not on a list of provider ids, so a
-     *  newly enabled provider is counted without editing this file. */
-    federated: number;
 }
 
-/** Pure: roll a page-walked user list into the four People numbers. */
+/** Pure: roll a page-walked user list into the People numbers. */
 export function summarizeUsers(users: readonly AuthUserLike[], nowMs: number): AuthCensus {
-    const census: AuthCensus = { total: users.length, created: {}, active: {}, federated: 0 };
+    const census: AuthCensus = { total: users.length, created: {}, active: {} };
     for (const { label, days } of WINDOWS) {
         const cutoff = nowMs - days * 86_400_000;
-        census.created[label] = users.filter((u) => msOf(u.metadata.creationTime) >= cutoff).length;
-        census.active[label] = users.filter((u) => msOf(u.metadata.lastSignInTime) >= cutoff).length;
+        census.created[label] = users.filter((u) => msOf(u.createdAt) >= cutoff).length;
+        census.active[label] = users.filter((u) => msOf(u.lastSignInAt ?? undefined) >= cutoff).length;
     }
-    census.federated = users.filter((u) =>
-        u.providerData.some((p) => p.providerId !== "password"),
-    ).length;
     return census;
 }
 

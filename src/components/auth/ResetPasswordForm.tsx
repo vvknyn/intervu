@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { confirmReset } from "@/lib/firebase/client-auth";
+import { confirmPasswordResetAction } from "@/actions/auth";
 import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,9 @@ import { Field } from "@/components/ui/field";
 export function ResetPasswordForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    // Firebase's reset link appends ?oobCode=...&mode=resetPassword to our continue URL.
-    const oobCode = searchParams.get("oobCode");
+    // WorkOS's reset link appends ?token=... to `passwordResetEmailContent`'s
+    // /reset-password URL (lib/email/password-reset.ts).
+    const token = searchParams.get("token");
 
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -48,28 +49,20 @@ export function ResetPasswordForm() {
             setError("Password must be at least 6 characters");
             return;
         }
-        if (!oobCode) {
+        if (!token) {
             setError("This reset link is invalid or has expired. Please request a new one.");
             return;
         }
 
         setIsPending(true);
         setError(null);
-        try {
-            await confirmReset(oobCode, password);
+        const result = await confirmPasswordResetAction({ token, newPassword: password });
+        if ("error" in result) {
+            setError(result.error);
+        } else {
             setSuccess(true);
-        } catch (err: unknown) {
-            const code = (err as { code?: string })?.code;
-            if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") {
-                setError("This reset link is invalid or has expired. Please request a new one.");
-            } else if (code === "auth/weak-password") {
-                setError("Password is too weak. Please choose a stronger one.");
-            } else {
-                setError((err as { message?: string })?.message || "Could not reset password. Please try again.");
-            }
-        } finally {
-            setIsPending(false);
         }
+        setIsPending(false);
     };
 
     if (success) {
@@ -104,13 +97,13 @@ export function ResetPasswordForm() {
                     </p>
                 </div>
 
-                {!oobCode && (
+                {!token && (
                     <div className="mb-4 text-xs text-warn text-center">
                         This page should be opened from the link in your reset email.
                     </div>
                 )}
 
-                {oobCode && (
+                {token && (
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Field label="New password" htmlFor="reset-password-new">
                         <div className="relative">
@@ -164,7 +157,7 @@ export function ResetPasswordForm() {
                         </div>
                     )}
 
-                    <Button type="submit" variant="brand" disabled={isPending || !oobCode} className="w-full mt-6">
+                    <Button type="submit" variant="brand" disabled={isPending || !token} className="w-full mt-6">
                         {isPending ? (
                             <CircleNotch size={16} className="animate-spin" />
                         ) : (
