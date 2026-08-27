@@ -5,9 +5,12 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
 import { ProviderConfig } from "@/lib/llm/types";
+import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { getIntervuPg } from "@/lib/pg/pool";
+import { RESUME_PARSE_DAILY_LIMIT, resolveParseRateLimit, getResumeParseCountToday, recordResumeParseAttempt } from "@/lib/resume/parse-rate-limit";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -221,6 +224,25 @@ export async function parseResumeWithAI(
         const optimizedConfig = {
             ...configOverride
         };
+
+        // Auth + daily abuse brake. `generateGenericJSON` below also enforces
+        // sign-in (via resolveLLMConfig), but that gate fires deep inside the
+        // model ladder — too late to key a per-user counter or to stop a
+        // request before it spends an LLM call. Same AUTH_REQUIRED sentinel
+        // either way, so the client's existing handling doesn't change.
+        const user = await getServerUser();
+        if (!user) {
+            return { error: `${AUTH_REQUIRED}: ${AUTH_REQUIRED_MESSAGE}` };
+        }
+
+        const pg = getIntervuPg();
+        if (pg) {
+            const countToday = await getResumeParseCountToday(pg, user.uid);
+            if (!resolveParseRateLimit(countToday)) {
+                return { error: `You've reached today's limit of ${RESUME_PARSE_DAILY_LIMIT} resume parses. Please try again tomorrow.` };
+            }
+            await recordResumeParseAttempt(pg, user.uid);
+        }
 
         // Free models first, the paid default behind them — now the default for
         // every generation rather than this call site's own opt-in, so the

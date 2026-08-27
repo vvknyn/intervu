@@ -8,7 +8,6 @@ import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { CreditBalance } from "@/components/layout/CreditBalance";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
@@ -262,7 +261,6 @@ export function TopBar() {
                         <span aria-hidden data-testid="topbar-auth-pending" className="block h-10 w-8 shrink-0" />
                     ) : authChrome === "authenticated" && user ? (
                         <>
-                            <CreditBalance />
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
@@ -280,9 +278,6 @@ export function TopBar() {
                             <DropdownMenuContent align="end" className="w-56 rounded-xl border border-border bg-card p-1 shadow-lg">
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href="/settings">Account</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="rounded-lg">
-                                    <Link href="/pricing">Pricing</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { StarStory } from "@/types";
 import { StoryList } from "@/components/dashboard/StoryList";
 import { StoryEditorWizard } from "@/components/dashboard/StoryEditorWizard";
-import { StoryImportModal } from "@/components/settings/StoryImportModal";
 import { Button } from "@/components/ui/button";
 import { Plus, DownloadSimple } from "@phosphor-icons/react";
 import { exportStoriesToText } from "@/lib/export-utils";
@@ -16,20 +15,12 @@ interface StoryManagerProps {
 
 export function StoryManager({ stories, onChange }: StoryManagerProps) {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
-    const [importModalOpen, setImportModalOpen] = useState(false);
     const [editingStory, setEditingStory] = useState<StarStory | null>(null);
 
-    const handleImportStories = (importedStories: StarStory[]) => {
-        // Generate new unique IDs to avoid conflicts with existing stories
-        const storiesWithNewIds = importedStories.map(story => ({
-            ...story,
-            id: crypto.randomUUID()
-        }));
-        onChange([...stories, ...storiesWithNewIds]);
-        setImportModalOpen(false);
+    const handleCreate = () => {
+        setEditingStory(null);
+        setIsWizardOpen(true);
     };
-
-
 
     const handleEdit = (story: StarStory) => {
         setEditingStory(story);
@@ -104,11 +95,11 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                         <DownloadSimple size={14} className="mr-2" /> Export
                     </Button>
                     <Button
-                        onClick={() => setImportModalOpen(true)}
+                        onClick={handleCreate}
                         size="sm"
                         className="text-xs"
                     >
-                        <Plus size={14} className="mr-2" /> Import Story (Stories)
+                        <Plus size={14} className="mr-2" /> New Story
                     </Button>
                 </div>
             </div>
@@ -125,13 +116,6 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                 onClose={() => setIsWizardOpen(false)}
                 story={editingStory}
                 onSave={handleSaveStory}
-            />
-
-            {/* Import Modal */}
-            <StoryImportModal
-                isOpen={importModalOpen}
-                onClose={() => setImportModalOpen(false)}
-                onImport={handleImportStories}
             />
 
             {/* Clear All Confirmation Dialog */}

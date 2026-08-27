@@ -1,20 +1,18 @@
 /**
- * Client-safe mirror of the cost/auth gate's sentinel prefixes.
+ * Client-safe mirror of the auth gate's sentinel prefix.
  *
- * `credit-gate.ts` defines AUTH_REQUIRED / OUT_OF_CREDITS but imports
- * firebase-admin, so it can't be pulled into client components. Server actions
- * throw errors prefixed with these tokens (e.g. "AUTH_REQUIRED: Sign in …");
- * the UI uses the helpers here to branch — open the login popover for
- * AUTH_REQUIRED, show the out-of-credits panel for OUT_OF_CREDITS — instead
- * of dumping a raw error string at the user.
+ * `credit-gate.ts` defines AUTH_REQUIRED but imports firebase-admin, so it
+ * can't be pulled into client components. Server actions throw errors
+ * prefixed with this token (e.g. "AUTH_REQUIRED: Sign in …"); the UI uses the
+ * helpers here to branch — open the login popover for AUTH_REQUIRED —
+ * instead of dumping a raw error string at the user.
  *
- * Keep these literals in sync with src/lib/llm/credit-gate.ts.
+ * Keep this literal in sync with src/lib/llm/credit-gate.ts.
  */
 
 export const AUTH_REQUIRED = "AUTH_REQUIRED";
-export const OUT_OF_CREDITS = "OUT_OF_CREDITS";
 
-export type SentinelKind = "auth" | "credits" | null;
+export type SentinelKind = "auth" | null;
 
 /** Pull a plain message string out of whatever an action threw/returned. */
 export function messageOf(e: unknown): string {
@@ -28,11 +26,10 @@ export function messageOf(e: unknown): string {
     return "";
 }
 
-/** Classify an error/message as an auth or out-of-credits sentinel, else null. */
+/** Classify an error/message as an auth sentinel, else null. */
 export function classifySentinel(e: unknown): SentinelKind {
     const msg = messageOf(e);
     if (msg.startsWith(AUTH_REQUIRED)) return "auth";
-    if (msg.startsWith(OUT_OF_CREDITS)) return "credits";
     return null;
 }
 
@@ -43,7 +40,7 @@ export function classifySentinel(e: unknown): SentinelKind {
 export function sentinelMessage(e: unknown): string {
     const msg = messageOf(e);
     const idx = msg.indexOf(":");
-    if (idx !== -1 && (msg.startsWith(AUTH_REQUIRED) || msg.startsWith(OUT_OF_CREDITS))) {
+    if (idx !== -1 && msg.startsWith(AUTH_REQUIRED)) {
         return msg.slice(idx + 1).trim();
     }
     return msg;

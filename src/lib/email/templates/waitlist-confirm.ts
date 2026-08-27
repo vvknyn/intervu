@@ -2,10 +2,10 @@ import { renderEmailShellHtml, renderEmailShellText } from "./base";
 import { EMAIL_COLORS as C } from "./palette";
 
 export interface WaitlistConfirmEmailInput {
-  /** Plain-language description of what was signed up for, e.g. "the Hunt
-   *  credit pack" or "OpenClaw on Windows" — always built from an internal,
-   *  enum-validated label (PACKS / CONNECT_CLIENTS), never raw user input,
-   *  so no HTML-escaping is needed here. */
+  /** Plain-language description of what was signed up for, e.g. "OpenClaw
+   *  on Windows" — always built from an internal, enum-validated label
+   *  (CONNECT_CLIENTS), never raw user input, so no HTML-escaping is needed
+   *  here. */
   whatSignedUpFor: string;
   unsubscribeUrl: string;
   /** Absolute site origin — the shell builds the brand header and footer

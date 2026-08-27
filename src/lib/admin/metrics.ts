@@ -1,10 +1,10 @@
 /**
  * Server-only module (imports firebase-admin); never import from a client
  * component. Exposed to the UI only via a thin "use server" action wrapper
- * (`src/actions/admin-metrics.ts`) — the same shape `credit-gate.ts` uses.
+ * (`src/actions/admin-metrics.ts`).
  *
  * WHAT THIS IS. intervu already writes a lot of telemetry — searches, opens,
- * apply clicks, AI credit spend, saved intent, email lifecycle, daily corpus
+ * apply clicks, historical AI credit spend, saved intent, email lifecycle, daily corpus
  * snapshots — and until now had nowhere to read it back. PostHog is wired in
  * (`components/providers/PostHogProvider.tsx`) but no-ops without a key, and
  * `lib/analytics.ts` has no callers, so a hosted dashboard would show an empty
@@ -37,7 +37,6 @@
 import type { Firestore, Query } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getWorkosUserManagement, listIntervuUsers } from "@/lib/auth/workos-runtime";
-import { currentPeriod } from "@/lib/llm/credit-gate";
 import { SEARCH_LOG_TTL_DAYS } from "@/lib/jobs/search-log";
 import { FOLLOW_FUNNEL_STEPS, type FollowFunnelStep } from "@/lib/follows/funnel-log";
 import {
@@ -322,20 +321,24 @@ export const METRICS: readonly MetricSpec[] = [
         { collection: "followedCompanies", group: true },
     ),
 
-    // --- Credits ----------------------------------------------------------
+    // --- Credits ------------------------------------------------------
+    // FROZEN (2026-08-27, billing removed — everything free): nothing writes
+    // `profiles.credits_period` or `credit_grants` any more. Historical
+    // totals only, same "counter died, number didn't" treatment as
+    // `apply_days` above.
     {
         id: "ai_users",
-        label: "Spent AI credits this month",
+        label: "Accounts ever charged an AI credit",
         group: "Credits",
-        note: "Accounts charged at least one shared-key credit in the current UTC month. Admins are never charged, so they never appear here.",
+        note: "FROZEN: lifetime count of accounts that spent at least one shared-key credit before credits were removed 2026-08-27. Not a live figure.",
         async read(ctx) {
             return {
-                value: await countOf(ctx.db.collection("profiles").where("credits_period", "==", currentPeriod())),
+                value: await countOf(ctx.db.collection("profiles").where("credits_period", ">", "")),
             };
         },
     },
     timedCount(
-        { id: "credit_grants", label: "Credit grants", group: "Credits", note: "Additive grants to permanent balances — the welcome bonus and anything else awarded. Idempotent, so one row is one real grant." },
+        { id: "credit_grants", label: "Credit grants", group: "Credits", note: "FROZEN: additive grants to permanent balances (the welcome bonus and anything else awarded) before credits were removed 2026-08-27. Idempotent, so one row is one real grant." },
         { collection: "credit_grants" },
         "granted_at",
     ),

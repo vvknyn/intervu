@@ -2,7 +2,6 @@
 
 import { unstable_cache } from "next/cache";
 import { createApplication, upsertPursuitForJob } from "@/actions/application";
-import { generateGenericJSON } from "@/actions/generate-context";
 import {
   getJobsBackendStatus,
   getJobsLastUpdated,
@@ -460,62 +459,6 @@ export async function getJobsFreshnessAction(): Promise<string | null> {
  */
 export async function getPostedDateFilterSupportAction(): Promise<boolean | null> {
   return isPostedDateFilterSupported();
-}
-
-/**
- * Explore mode: ask the model for ADJACENT roles the candidate is positioned for
- * but might not search themselves. Inherits the login + credit gate from
- * `generateGenericJSON` — auth / out-of-credits surface as sentinel-prefixed
- * `error` strings the client routes to the AuthPopover (see lib/llm/sentinels).
- *
- * Inputs are user-controlled (resume-derived) and flow into an LLM prompt, so
- * they're length-capped to bound prompt size + injection surface.
- */
-export async function suggestAdjacentRolesAction(input: {
-  profession: string;
-  skills: string[];
-  seniority?: string | null;
-}): Promise<{ titles?: string[]; error?: string }> {
-  const profession = (input.profession ?? "").trim().slice(0, 120);
-  const skills = (input.skills ?? [])
-    .map((s) => String(s ?? "").trim().slice(0, 60))
-    .filter(Boolean)
-    .slice(0, 12);
-  const seniority = (input.seniority ?? "").trim().slice(0, 20);
-
-  if (!profession && skills.length === 0) {
-    return { error: "Add a profession or skills to your resume to explore adjacent roles." };
-  }
-
-  const prompt = `You suggest ADJACENT career roles for a job seeker.
-
-Current role: "${profession || "(not specified)"}"
-${seniority ? `Seniority: ${seniority}` : ""}
-Skills: ${skills.join(", ") || "(none listed)"}
-
-Return 6 to 8 job titles that are ADJACENT or TANGENTIAL to this background —
-roles the person is well-positioned for but might not search for themselves.
-Favor lateral moves and reasonable stretches that reuse their skills. Avoid
-exact synonyms of their current title, and avoid unrelated fields.
-
-Return ONLY JSON, no prose:
-{ "titles": ["Title 1", "Title 2", "Title 3", "Title 4", "Title 5", "Title 6"] }`;
-
-  const result = await generateGenericJSON(prompt);
-
-  // Sentinel-prefixed hard blocks (AUTH_REQUIRED / OUT_OF_CREDITS) arrive here
-  // verbatim; pass them through so the client's sentinel UX fires.
-  if (result?.error) return { error: result.error };
-
-  const lowerProfession = profession.toLowerCase();
-  const titles = (Array.isArray(result?.titles) ? result.titles : [])
-    .map((t: unknown) => String(t ?? "").trim())
-    .filter((t: string) => t.length > 0 && t.toLowerCase() !== lowerProfession)
-    .filter((t: string, i: number, arr: string[]) => arr.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
-    .slice(0, 8);
-
-  if (titles.length === 0) return { error: "NO_SUGGESTIONS" };
-  return { titles };
 }
 
 /** Report which search backend is live, for the UI's connected/empty states. */

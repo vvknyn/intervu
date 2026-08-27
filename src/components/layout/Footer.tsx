@@ -10,10 +10,9 @@ import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrom
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { FOOTER_PROVENANCE_LINE } from "@/lib/marketing-stats";
 
-/** Quiet footer links — Research/Pricing live here (not primary nav). */
+/** Quiet footer links — Research lives here (not primary nav). */
 export const LEGAL_LINKS: { label: string; href: string }[] = [
     { label: "Research", href: "/research/ghost-jobs" },
-    { label: "Pricing", href: "/pricing" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
     { label: "Setup help", href: "/connect/help" },

@@ -90,7 +90,7 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // truthy-but-wrong `true` silently selects the legacy init-only mode: one
   // $pageview per hard page load and nothing at all for client-side
   // navigation. intervu is an App Router SPA, so under `true` every in-app
-  // route change (/jobs -> /co/[slug] -> /pricing) was invisible.
+  // route change (/jobs -> /co/[slug] -> /trends) was invisible.
   //
   // The monitor dedupes on pathname, so this neither double-counts the initial
   // pageview nor fires on query-only changes (/jobs?q=... filter edits).

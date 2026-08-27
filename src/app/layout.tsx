@@ -92,7 +92,7 @@ export const metadata: Metadata = {
   // No `images` array here — leaving it unset lets Next's file-based
   // convention (opengraph-image.tsx, 1200x630) fill it in, and lets every
   // route with its own generator (jobs/[slug], co/[slug], companies/[slug],
-  // pricing, trends) override it per-route. An explicit `images` entry here
+  // trends) override it per-route. An explicit `images` entry here
   // previously WON over all of those, so the 512x512 square app icon shipped
   // as the og:image on every route instead (2026-08-24 fix).
   openGraph: {

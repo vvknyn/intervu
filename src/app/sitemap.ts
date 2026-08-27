@@ -89,11 +89,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
-      url: `${siteUrl}/pricing`,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
       // MCP pairing / waitlist — pre-launch beta, publicly linkable. Also
       // the canonical human landing spot for the agent/MCP surface (Task 10
       // page consolidation): `/agents` now permanently redirects here rather

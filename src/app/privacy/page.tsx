@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
 import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
@@ -37,7 +36,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           Once you&apos;re using intervu, we store the things you create: your tracked applications, saved resumes,
-          saved searches, prep answers, and credit balance. This data lives in Google Cloud Firestore and is only
+          saved searches, and prep answers. This data lives in Google Cloud Firestore and is only
           ever accessed by our servers — never exposed directly to the browser or to other users.
         </p>
         <p>
@@ -60,32 +59,18 @@ export default function PrivacyPage() {
         </p>
 
         <h2>How we use it</h2>
-        {/* Reads the same switch /terms and /pricing do. While beta is on, no
-            feature draws on a balance and there is nothing to buy, so naming a
-            "paid feature" here would describe a charge the product cannot
-            levy — and a privacy policy is the worst place to be approximately
-            true. The metered wording is kept, not deleted, so it is correct
-            again the day the switch flips. */}
-        {BETA_UNLIMITED_CREDITS ? (
-          <p>
-            We use your account data to run the product: to show your tracked applications and keep your resumes and
-            prep answers where you left them. AI features are free while intervu is in beta, so nothing you do draws
-            on a balance. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
-            advertising profiles.
-          </p>
-        ) : (
-          <p>
-            We use your account data to run the product: to show your tracked applications, keep your resumes and
-            prep answers where you left them, and apply your credit balance when you use a paid feature. That&apos;s
-            it — we don&apos;t use your data to train models, and we don&apos;t build advertising profiles.
-          </p>
-        )}
+        <p>
+          We use your account data to run the product: to show your tracked applications and keep your resumes and
+          prep answers where you left them. intervu is free to use — nothing you do draws on a balance or requires
+          payment. That&apos;s it — we don&apos;t use your data to train models, and we don&apos;t build
+          advertising profiles.
+        </p>
 
         <h2>AI processing</h2>
         <p>
-          Some features — resume tailoring and interview prep critique — work by sending the relevant text (your
-          resume, a job description, your prep answers) to an AI provider to generate a response. We use OpenRouter
-          and Groq for this. That text is sent transiently to generate your result; it is not stored by us for any
+          Some features — resume parsing (when you upload one) and resume tailoring — work by sending the relevant
+          text (your resume, a job description) to an AI provider to generate a response. We use OpenRouter and Groq
+          for this. That text is sent transiently to generate your result; it is not stored by us for any
           purpose beyond producing that response, and we don&apos;t use it to train anything. Each provider is
           bound by its own data-handling terms, which govern how they process the request while it&apos;s with
           them.
@@ -140,8 +125,8 @@ export default function PrivacyPage() {
         <p>
           We keep your data for as long as your account is active. You can delete your account and everything tied
           to it at any time from <Link href="/settings">account settings</Link> — it&apos;s self-serve, not a
-          support ticket. Deletion removes your profile, tracked applications, resumes, prep answers, and credit
-          history from our systems.
+          support ticket. Deletion removes your profile, tracked applications, resumes, and prep answers from our
+          systems.
         </p>
 
         <h2>Your choices</h2>

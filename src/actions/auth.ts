@@ -137,7 +137,7 @@ export async function signUp(
     const result = await signUpCore(deps, { username, password, email });
     if ("error" in result) return result;
 
-    // Deferred, not awaited: welcome email + credit grant + org membership
+    // Deferred, not awaited: welcome email + org membership
     // must never turn a successful signup into an error, and a person
     // creating an account should not wait on Resend or Firestore to see it
     // succeed. Same reasoning `POST /api/auth/session` used to run this
@@ -191,7 +191,7 @@ export async function signIn(
     if ("error" in result) return result;
 
     // Same deferred-provisioning reasoning as `signUp` above — a returning
-    // user's sign-in must not wait on, or fail because of, the welcome/credit/
+    // user's sign-in must not wait on, or fail because of, the welcome/
     // membership self-heal.
     after(() =>
         provisionAppAccess(deps.provisioning, result.user).catch((err) =>
