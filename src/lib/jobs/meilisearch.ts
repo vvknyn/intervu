@@ -425,6 +425,16 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
   "30d": 30 * 86_400_000,
 };
 
+/** Years-of-experience bucket → inclusive `[min, max]` on `min_years_experience`;
+ *  `max: null` is the open-ended top bucket ("11+"). Mirrors `BUCKET_MS`'s role
+ *  for `postedBucket` — the one lookup `buildFilter` translates through. */
+const YEARS_EXPERIENCE_RANGES: Record<NonNullable<JobSearchParams["yearsExperience"]>, { min: number; max: number | null }> = {
+  "0-2": { min: 0, max: 2 },
+  "3-5": { min: 3, max: 5 },
+  "6-10": { min: 6, max: 10 },
+  "11+": { min: 11, max: null },
+};
+
 export interface BuildFilterOpts {
   skipDomainFilters?: boolean;
 }
@@ -574,6 +584,20 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     }
     // Docs with a null posted_ts (not yet backfilled) simply won't match — acceptable.
   }
+  if (p.yearsExperience) {
+    // Unlike `postedBucket` above, a doc MISSING `min_years_experience`
+    // must still match — see `JobSearchParams.yearsExperience`'s doc:
+    // backfill coverage is ~47% and draining, so a bare range clause would
+    // silently hide most of the corpus from every bucket rather than narrow
+    // it. The union with `NOT EXISTS` is what keeps an unscored doc visible
+    // until its own enrichment lands.
+    const { min, max } = YEARS_EXPERIENCE_RANGES[p.yearsExperience];
+    const bounds =
+      max != null
+        ? `(min_years_experience >= ${min} AND min_years_experience <= ${max})`
+        : `min_years_experience >= ${min}`;
+    f.push(`(${bounds} OR min_years_experience NOT EXISTS)`);
+  }
   // `postedSinceMs` — an absolute floor rather than a relative bucket (see
   // its doc on `JobSearchParams`). Same `!legacy` gate as `postedBucket`
   // just above: both depend on `posted_ts` being filterable, so both drop
@@ -610,9 +634,16 @@ export function shouldRelaxSearch(strictTotal: number, q: string): boolean {
  */
 export type MatchingStrategy = "all" | "last";
 
-/** List SERP retrieve set — every field row/cluster/sort code reads, minus
- *  `description` (detail hydrates on demand). Search still uses default
- *  `searchableAttributes`; only the returned payload shrinks. */
+/** List SERP retrieve set — every field row/cluster/filter/sort code actually
+ *  reads, minus `description` (detail hydrates on demand). Search still uses
+ *  default `searchableAttributes`; only the returned payload shrinks. Of the
+ *  eight enriched qualification/telemetry attributes added to
+ *  `filterableAttributes` above, only the three the SERP filter UI reads or
+ *  renders (`min_years_experience`, `tech_stack`, `must_have_skills`) are
+ *  listed here — `max_years_experience`, `preferred_skills`,
+ *  `in_office_days`, `normalized_salary_min`/`max` have no reader yet and are
+ *  filterable/sortable on the index without being fetched per row; add one
+ *  here only once something in this repo reads it off `PublicJob`. */
 export const JOB_LIST_ATTRIBUTES_TO_RETRIEVE = [
   "id",
   "title",
@@ -650,13 +681,8 @@ export const JOB_LIST_ATTRIBUTES_TO_RETRIEVE = [
   "linkedin_indexed_at",
   "report_count",
   "min_years_experience",
-  "max_years_experience",
   "must_have_skills",
-  "preferred_skills",
   "tech_stack",
-  "in_office_days",
-  "normalized_salary_min",
-  "normalized_salary_max",
 ] as const;
 
 export interface MeiliSearchBody {

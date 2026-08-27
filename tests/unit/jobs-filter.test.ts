@@ -77,3 +77,52 @@ test("filter clauses are commutative — facet object key order does not change 
     });
     assert.deepEqual([...forward].sort(), [...reversed].sort());
 });
+
+// tech_stack / must_have_skills ride the SAME generic FACETABLE_KEYS loop as
+// every other categorical facet above — proven here rather than assumed, so
+// a future change to that loop can't silently stop covering them.
+test("tech_stack and must_have_skills compose through the generic facet loop, same as any other facet", () => {
+    const f = buildFilter({ facets: { tech_stack: ["Python", "Rust"], must_have_skills: ["SQL"] } });
+    const techClause = f.find((c) => c.includes("tech_stack"));
+    const skillsClause = f.find((c) => c.includes("must_have_skills"));
+    assert.ok(techClause, JSON.stringify(f));
+    assert.ok(skillsClause, JSON.stringify(f));
+    assert.ok(techClause!.includes('"Python"') && techClause!.includes('"Rust"'));
+    assert.ok(skillsClause!.includes('"SQL"'));
+});
+
+// Years-of-experience: a REQUIRED missing-field union, not an edge case —
+// backfill coverage is ~47% and draining (see JobSearchParams.yearsExperience),
+// so a bare range clause would silently hide most of the corpus.
+test("yearsExperience composes a range clause OR'd with NOT EXISTS, for every finite bucket", () => {
+    const cases: [string, string, string][] = [
+        ["0-2", "min_years_experience >= 0", "min_years_experience <= 2"],
+        ["3-5", "min_years_experience >= 3", "min_years_experience <= 5"],
+        ["6-10", "min_years_experience >= 6", "min_years_experience <= 10"],
+    ];
+    for (const [bucket, lo, hi] of cases) {
+        const f = buildFilter({ yearsExperience: bucket as never });
+        const clause = f.find((c) => c.includes("min_years_experience"));
+        assert.ok(clause, `${bucket}: ${JSON.stringify(f)}`);
+        assert.ok(clause!.includes(lo) && clause!.includes(hi), `${bucket}: ${clause}`);
+        assert.ok(clause!.includes("min_years_experience NOT EXISTS"), `${bucket}: ${clause}`);
+    }
+});
+
+test("yearsExperience's open-ended top bucket (11+) has no upper bound, still unions with NOT EXISTS", () => {
+    const f = buildFilter({ yearsExperience: "11+" });
+    const clause = f.find((c) => c.includes("min_years_experience"));
+    assert.ok(clause, JSON.stringify(f));
+    assert.equal(clause, "(min_years_experience >= 11 OR min_years_experience NOT EXISTS)");
+});
+
+test("yearsExperience absent adds no min_years_experience clause", () => {
+    const f = buildFilter({});
+    assert.ok(!f.some((c) => c.includes("min_years_experience")), JSON.stringify(f));
+});
+
+test("yearsExperience composes with an unrelated facet — proves the class, not a lone special case", () => {
+    const f = buildFilter({ yearsExperience: "6-10", facets: { work_type: ["remote"] } });
+    assert.ok(f.some((c) => c.includes("min_years_experience") && c.includes("NOT EXISTS")), JSON.stringify(f));
+    assert.ok(f.some((c) => c.includes("work_type") && c.includes("remote")), JSON.stringify(f));
+});
