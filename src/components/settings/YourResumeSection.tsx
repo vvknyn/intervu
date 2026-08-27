@@ -12,6 +12,8 @@ import { parseResumeContent, resumeDataToParsedDocument } from "@/lib/resume/par
 import { renderResumePdf, deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { downloadBlob } from "@/lib/export-utils";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
+import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
 import type { ResumeData, ResumeExperience, ResumeEducation } from "@/types/resume";
 
 interface YourResumeSectionProps {
@@ -20,8 +22,6 @@ interface YourResumeSectionProps {
     embedded?: boolean;
     onEditorActiveChange?: (active: boolean) => void;
 }
-
-const TEXT_PREVIEW_LINES = 40;
 
 function formatDate(iso: string | null): string | null {
     if (!iso) return null;
@@ -270,6 +270,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
                 ) : (
                     <ResumeSummaryBody
                         summary={summary}
+                        user={user}
                         onReplace={() => setViewMode("upload")}
                         onOpenEditor={() => setViewMode("live_editor")}
                         onDeleted={() => setRetryToken((t) => t + 1)}
@@ -292,11 +293,13 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
 
 function ResumeSummaryBody({
     summary,
+    user,
     onReplace,
     onOpenEditor,
     onDeleted,
 }: {
     summary: ResumeSummary;
+    user: User | null;
     onReplace: () => void;
     onOpenEditor: () => void;
     onDeleted: () => void;
@@ -351,30 +354,13 @@ function ResumeSummaryBody({
                 <Upload size={13} /> Replace
             </Button>
             {confirmingDelete ? (
-                <div className="flex w-full flex-col gap-2 rounded-none border border-border bg-muted/30 p-3">
-                    <span className="text-xs text-muted-foreground">Delete this resume?</span>
-                    <div className="flex w-full flex-col gap-2 sm:flex-row">
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={deleting}
-                            onClick={handleDelete}
-                            className="w-full gap-1.5 rounded-none sm:w-auto"
-                        >
-                            {deleting ? <CircleNotch size={12} className="animate-spin" /> : <Trash size={12} />}
-                            {deleting ? "Deleting…" : "Confirm"}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setConfirmingDelete(false)}
-                            disabled={deleting}
-                            className="w-full rounded-none sm:w-auto"
-                        >
-                            Cancel
-                        </Button>
-                    </div>
-                </div>
+                <InlineConfirm
+                    prompt="Delete this resume?"
+                    busy={deleting}
+                    busyLabel="Deleting…"
+                    onConfirm={handleDelete}
+                    onCancel={() => setConfirmingDelete(false)}
+                />
             ) : (
                 <Button
                     variant="outline"
@@ -389,52 +375,17 @@ function ResumeSummaryBody({
         </div>
     );
 
-    if (summary.source === "resume_text") {
-        const preview = summary.resume_text.split("\n").slice(0, TEXT_PREVIEW_LINES).join("\n");
-        return (
-            <div className="space-y-3">
-                {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-                <pre className="text-xs whitespace-pre-wrap font-sans bg-muted/30 border border-border rounded-none p-4 max-h-80 overflow-y-auto">
-                    {preview}
-                </pre>
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)} className="w-full text-xs rounded-none sm:w-auto">
-                        Download .pdf
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadBlob(summary.resume_text, "resume.txt", "text/plain")}
-                        className="w-full text-xs rounded-none sm:w-auto"
-                    >
-                        Download .txt
-                    </Button>
-                </div>
-                {manageRow}
-            </div>
-        );
-    }
-
-    const { profile, experience } = summary.resume_data;
-    const experienceCount = experience?.length || 0;
+    // One document render for both sources — `summaryToResumeData` already
+    // normalizes `resume_text` (parsed) and `resume_data` (as-is) into the
+    // same `ResumeData` shape, so the base resume renders as the actual
+    // typeset document (the same component the tailoring flow's live
+    // preview uses) instead of a raw text dump or a settings-style grid.
+    const resumeData = summaryToResumeData(summary, user);
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-baseline text-xs rounded-none border border-border bg-card p-4">
-                {profile?.name && (
-                    <>
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Name</span>
-                        <span className="min-w-0 break-words font-mono text-[13px] font-semibold text-foreground">{profile.name}</span>
-                    </>
-                )}
-                {profile?.profession && (
-                    <>
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Headline</span>
-                        <span className="min-w-0 break-words font-mono text-[13px] text-foreground">{profile.profession}</span>
-                    </>
-                )}
-                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Experience</span>
-                <span className="min-w-0 font-mono text-[13px] text-foreground">{experienceCount} {experienceCount === 1 ? "entry" : "entries"}</span>
+            <div className="max-h-[32rem] overflow-y-auto bg-muted/30 p-4">
+                <LiveResumePreview data={resumeData} />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => downloadBaseResumePdf(summary)} className="w-full text-xs rounded-none sm:w-auto">
@@ -443,10 +394,14 @@ function ResumeSummaryBody({
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")}
+                    onClick={() =>
+                        summary.source === "resume_text"
+                            ? downloadBlob(summary.resume_text, "resume.txt", "text/plain")
+                            : downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")
+                    }
                     className="w-full text-xs rounded-none sm:w-auto"
                 >
-                    Download .json
+                    {summary.source === "resume_text" ? "Download .txt" : "Download .json"}
                 </Button>
             </div>
             {manageRow}

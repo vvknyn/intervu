@@ -44,7 +44,7 @@ export function McpHandoffNote({
 }) {
     if (!job) {
         return (
-            <div className={cn("rounded-xl border border-emerald-300/80 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800/80 dark:bg-emerald-950/50 dark:text-emerald-200 shadow-2xs", className)}>
+            <div className={cn("border border-emerald-300/80 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800/80 dark:bg-emerald-950/50 dark:text-emerald-200 shadow-2xs", className)}>
                 {VARIANT_COPY[variant]}{" "}
                 <Link href="/connect" className="font-bold text-emerald-900 underline underline-offset-4 hover:text-emerald-950 dark:text-emerald-300">
                     Connect it once →
@@ -54,7 +54,7 @@ export function McpHandoffNote({
     }
 
     return (
-        <div className={cn("rounded-xl border border-emerald-300/80 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800/80 dark:bg-emerald-950/50 dark:text-emerald-200 shadow-2xs", className)}>
+        <div className={cn("border border-emerald-300/80 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800/80 dark:bg-emerald-950/50 dark:text-emerald-200 shadow-2xs", className)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <p className="min-w-[16ch] flex-1 font-medium">{VARIANT_COPY[variant]}</p>
                 <McpHandoffActions job={job} />
