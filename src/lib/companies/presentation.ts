@@ -9,7 +9,7 @@
  * helper that lives in the page file is a helper no unit test can reach.
  */
 import type { Metadata } from "next";
-import { isCompanyIndexable } from "./indexable";
+import { fetchCompanySnapshotRoleCount, resolveCompanyIndexability } from "./indexable";
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
@@ -342,15 +342,36 @@ export function companyMetaDescription(data: CompanyPageData): string {
  * `follow` is retained on the noindex branch on purpose — the roles list
  * links to real `/jobs/<slug>` pages that ARE indexable, and an empty company
  * page is still a legitimate path to them.
+ *
+ * The robots decision reads `resolveCompanyIndexability` off the SAME
+ * `company_directory` snapshot `sitemap.ts` uses (`fetchCompanySnapshotRoleCount`,
+ * fetched fresh per request by domain) alongside the live role count, so this
+ * is async now — see that seam's doc on why a page can only ever be
+ * indexable ahead of or in lockstep with the sitemap, never behind it.
+ * `fetchSnapshotRoleCount` is injectable (same DI convention as
+ * `fetchCompanySnapshotRoleCount` itself) so unit tests never hit the
+ * network. `hasTrackRecord` stays a separate OR on top: it can upgrade a page
+ * the role count alone would reject, but it isn't a threshold `sitemap.ts`
+ * can see (the directory doc carries no KPIs), so it never widens
+ * `inSitemap` and doesn't belong inside `resolveCompanyIndexability`.
  */
-export function buildCompanyPageMetadata(data: CompanyPageData): Metadata {
+export async function buildCompanyPageMetadata(
+  data: CompanyPageData,
+  fetchSnapshotRoleCount: typeof fetchCompanySnapshotRoleCount = fetchCompanySnapshotRoleCount,
+): Promise<Metadata> {
   const title = `Is ${data.name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
   const description = companyMetaDescription(data);
+  const snapshotRoleCount = await fetchSnapshotRoleCount(data.domain);
+  const { pageIndexable } = resolveCompanyIndexability({
+    snapshotRoleCount,
+    liveRoleCount: data.jobs.length,
+  });
+  const indexable = pageIndexable || data.hasTrackRecord === true;
   return {
     title,
     description,
     ...canonicalMetadata(companyBoardPath(data.domain), title, description),
-    ...(isCompanyIndexable(data) ? {} : { robots: { index: false, follow: true } }),
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
   };
 }
 
