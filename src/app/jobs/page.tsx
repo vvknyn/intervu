@@ -66,9 +66,6 @@ import {
     interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
-    buildRowMetaLine,
-    employmentTypeSegment,
-    locationWithMode,
 } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -130,6 +127,10 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDetail, JobDetailActionBar, JobDetailSkeleton } from "@/components/jobs/JobDetail";
+import { buildFactChips } from "@/components/jobs/job-detail-facts";
+import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
+import { rowTrustChip } from "@/lib/jobs/badges";
+import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
@@ -571,22 +572,27 @@ function JobCard({
     const age = postedAgeShort(derivePostedTs(job), now);
     // `presented.location` (locationSummary(locationText(job))) passes the
     // `LOCATION_UNKNOWN_TEXT` sentinel through unchanged when nothing usable
-    // came off the posting — that's an absence, not a value, so the meta
-    // line's location segment renders only when it's something OTHER than
-    // that (remote is always a known value even when the underlying
-    // location is unknown, since `locationText`'s remote branch never
-    // surfaces the sentinel).
+    // came off the posting — that's an absence, not a value, so the fact
+    // chip renders only when it's something OTHER than that (remote is
+    // always a known value even when the underlying location is unknown,
+    // since `locationText`'s remote branch never surfaces the sentinel).
     const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
-    // Meta-line facts, ordered salary-first — see `buildRowMetaLine`'s doc
-    // comment for the absence-is-silence rule and the posted-age fallback.
-    const metaSegments = buildRowMetaLine(
-        {
-            salary: presented.salary,
-            location: locationKnown ? locationWithMode(presented.location, job.work_type) : null,
-            employmentType: employmentTypeSegment(job.employment_type),
-        },
-        age,
-    );
+    // Icon-fact grammar (board-redesign.html §rollout stage 1) — same
+    // `buildFactChips` chokepoint JobDetail uses, so a card and the pane it
+    // opens can never disagree about how work_type/employment_type/
+    // experience_level/salary read. `null, null` skips the posted/first_seen
+    // kinds (`age`, below, already covers that on the row). Work-type is its
+    // own chip here, so location is deliberately plain (no `locationWithMode`
+    // fold-in) — showing "Hybrid" in both the location text AND its own
+    // chip would say the same fact twice.
+    const factChips = buildFactChips(job, null, null);
+    const freshness = classifyPostingFreshness(job, now);
+    // Positive-only trust signal (mirrors `rowTrustChip`'s own doc comment:
+    // "review"/"ghost" verdicts already surface via `exceptionMark` above,
+    // not duplicated here).
+    const activelyPosted = rowTrustChip(job, now) === "clear";
+    const topSkills = (job.must_have_skills ?? []).slice(0, 3);
+    const extraSkillCount = Math.max(0, (job.must_have_skills?.length ?? 0) - topSkills.length);
 
     return (
         <div
@@ -665,7 +671,7 @@ function JobCard({
                         </span>
                     )}
                 </span>
-                <div className="mt-1 w-full text-left text-sm font-medium text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-left text-sm font-medium text-muted-foreground">
                     {onCompany ? (
                         <button
                             type="button"
@@ -678,7 +684,20 @@ function JobCard({
                             {presented.company.name}
                         </button>
                     ) : (
-                        presented.company.name
+                        <span>{presented.company.name}</span>
+                    )}
+                    {/* "New" reads the SAME 7-day `classifyPostingFreshness`
+                        window everything else on the row already uses — not
+                        the mock's literal "today," which this data can't
+                        honestly claim (posting-freshness.ts's FRESH_WINDOW_MS
+                        is 7 days, not 1). */}
+                    {freshness.kind === "fresh" && (
+                        <span
+                            data-testid="freshness-badge"
+                            className="mono-data inline-flex items-center rounded-none border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300"
+                        >
+                            New
+                        </span>
                     )}
                 </div>
             </div>
@@ -701,27 +720,33 @@ function JobCard({
                     </span>
                 )}
             </span>
-            <div className="col-span-full flex flex-wrap items-baseline gap-x-1.5 gap-y-1 pt-0.5">
-                {/* Meta line (Vivek's approved mock, 2026-08-20) — one quiet
-                    prose sentence replaces the labeled boxed chips: salary
-                    leads in semibold, everything else muted, "·" between
-                    segments. No label, no box, no tint — semantic color
-                    (the old PAY chip's green) is reserved for exceptions
-                    elsewhere on the row (the trust icon, the relist mark),
-                    not for a routine fact. Each segment renders only when
-                    known (`buildRowMetaLine`'s absence-is-silence rule); when
-                    nothing is known the line falls back to the posted age. */}
-                {metaSegments.length > 0 && (
-                    <span data-testid="job-row-meta" className="text-meta leading-snug">
-                        {metaSegments.map((segment, i) => (
-                            <span key={i}>
-                                {i > 0 && <span className="mx-1.5 text-muted-foreground/60" aria-hidden>·</span>}
-                                <span className={segment.emphasis ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                                    {segment.text}
-                                </span>
-                            </span>
-                        ))}
+            {/* Icon-fact row (board-redesign.html §1) — replaces the quiet
+                prose meta line: one icon set (`FACT_CHIP_ICON`, shared with
+                JobDetail), no box/border, salary bold. Each fact renders
+                only when known (absence is silence, same rule the prose
+                line followed). Falls back to posted age when nothing else
+                is known, so a row is never mute. */}
+            <div className="col-span-full flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
+                {locationKnown && (
+                    <span className="inline-flex items-center gap-1.5 text-xs">
+                        <FACT_CHIP_ICON.location size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="mono-data text-muted-foreground">{presented.location}</span>
                     </span>
+                )}
+                {factChips.map((c) => {
+                    const FactIcon = FACT_CHIP_ICON[c.kind];
+                    const isSalary = c.kind === "salary";
+                    return (
+                        <span key={c.kind} className="inline-flex items-center gap-1.5 text-xs">
+                            <FactIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                            <span className={cn("mono-data", isSalary ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                                {c.label}
+                            </span>
+                        </span>
+                    );
+                })}
+                {!locationKnown && factChips.length === 0 && age && (
+                    <span className="mono-data text-xs text-muted-foreground">Posted {age}</span>
                 )}
                 {variantCount > 0 && (
                     <button
@@ -737,6 +762,29 @@ function JobCard({
                     </button>
                 )}
             </div>
+            {/* Skill chips + trust check (board-redesign.html §1 row3).
+                Renders only when there's something to show on either side —
+                no empty spacer row. */}
+            {(topSkills.length > 0 || activelyPosted) && (
+                <div className="col-span-full flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {topSkills.map((skill) => (
+                            <span key={skill} className="inline-flex items-center rounded-none bg-chip px-2.5 py-0.5 text-xs font-medium leading-tight text-foreground/80">
+                                {decodeText(skill)}
+                            </span>
+                        ))}
+                        {extraSkillCount > 0 && (
+                            <span className="mono-data text-xs text-muted-foreground">+{extraSkillCount}</span>
+                        )}
+                    </div>
+                    {activelyPosted && (
+                        <span className="mono-data inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                            <Check size={12} weight="bold" aria-hidden />
+                            Actively posted
+                        </span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
