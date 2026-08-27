@@ -2,6 +2,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
+import { collapseDuplicatePostings } from "@/lib/companies/dedupe-postings";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import { fetchCompanyEvents } from "@/lib/companies/events";
@@ -62,11 +63,16 @@ export async function getCompanyPageData(
     throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);
   }
   // Internal-only postings ("[Internal] ...") are staffing noise, never a
-  // role this public page should list, count, or name the company from —
-  // filtered once, here, so every downstream reader (the roles list, the
-  // open-role count, the ghost-flagged share, the name resolver) sees the
-  // same public set instead of each re-deriving its own view of it.
-  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
+  // role this public page should list, count, or name the company from;
+  // re-synced duplicate postings (the same role ingested twice under a
+  // second id — `collapseDuplicatePostings`, dedupe-postings.ts) are the
+  // same kind of noise. Both are filtered once, here, so every downstream
+  // reader (the roles list, the open-role count, the ghost-flagged share,
+  // the name resolver, the in-page role search) sees the SAME final array
+  // instead of each re-deriving its own view of it — the seam that used to
+  // let the hero KPI (sourced from this array pre-dedup) and the rendered
+  // role list (deduped a second time, client-side) disagree.
+  const jobs = collapseDuplicatePostings(result.hits.filter((job) => !isInternalPosting(job.title)));
   const boards = getBoardsForDomain(domain);
 
   if (jobs.length === 0 && boards.length === 0) return null;

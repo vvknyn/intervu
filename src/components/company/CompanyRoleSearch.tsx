@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
@@ -39,29 +39,6 @@ export function jobMatchesQuery(job: PublicJob, query: string): boolean {
     .join(" ")
     .toLowerCase();
   return haystack.includes(q);
-}
-
-/**
- * Collapses re-synced duplicate postings — the same role ingested twice
- * under a second id — to a single row, keyed on the same text the row
- * itself displays (title + location) via `decodeText`/`locationText`, so
- * two rows a visitor can't tell apart never render as two. Order-preserving
- * (keeps the first occurrence), matching `dedupeNewsArticles`'s convention
- * for the same class of problem. The key is deliberately narrower than full
- * row equality: a minor field like `work_type` differing between the pair
- * (observed live — one copy discloses "Onsite", the duplicate omits it)
- * does not exempt them from collapsing.
- */
-export function collapseDuplicatePostings(jobs: PublicJob[]): PublicJob[] {
-  const seen = new Set<string>();
-  const out: PublicJob[] = [];
-  for (const job of jobs) {
-    const key = `${decodeText(job.title).trim().toLowerCase()}\u0000${locationText(job).trim().toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(job);
-  }
-  return out;
 }
 
 /** The "N of M ..." caption beside the "Open roles" heading — truthful about
@@ -124,10 +101,11 @@ export function CompanyRoleSearch({
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
 
-  // Collapsed once, up front — every downstream count, search, and render
-  // reads this set, so "how many roles" can't disagree with "how many rows".
-  const deduped = useMemo(() => collapseDuplicatePostings(jobs), [jobs]);
-  const matched = hasQuery ? deduped.filter((job) => jobMatchesQuery(job, trimmedQuery)) : deduped;
+  // `jobs` arrives already deduped — `getCompanyPageData` (get-company.ts)
+  // runs `collapseDuplicatePostings` once, server-side, so every downstream
+  // count, search, and render reads the SAME set. This component trusts that
+  // contract rather than re-deriving its own view of it.
+  const matched = hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs;
   const displayed = matched.slice(0, ROLES_PREVIEW);
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
@@ -167,14 +145,14 @@ export function CompanyRoleSearch({
     <section data-testid="company-role-search">
       <h2 className="mb-4 flex items-baseline justify-between font-display text-[20px] font-semibold">
         Open roles
-        {deduped.length > 0 && (
+        {jobs.length > 0 && (
           <span className="text-xs font-normal text-muted-foreground" aria-live="polite">
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
       </h2>
 
-      {deduped.length > 0 && (
+      {jobs.length > 0 && (
         <div className="mb-4">
           <label htmlFor="company-role-search" className="sr-only">
             Search {companyName}&apos;s open roles by title, location, or level
@@ -191,7 +169,7 @@ export function CompanyRoleSearch({
           />
           {searchesPartialWindow && hasQuery && (
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Searching the {deduped.length} most recent roles —{" "}
+              Searching the {jobs.length} most recent roles —{" "}
               <Link href={jobsSearchUrl} className="text-brand hover:underline">
                 use full search
               </Link>{" "}

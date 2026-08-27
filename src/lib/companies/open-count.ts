@@ -7,19 +7,43 @@
  * did, live. A window length is a property of the request, not of the
  * employer; it can never be the count.
  *
- * The count comes from the backend's `total` instead, resolved through
- * `resolveCorpusCount` (lib/jobs/corpus-count.ts) — the repo's existing
- * exact-vs-floor decision, which already knows that Meilisearch caps
- * `totalHits` at `pagination.maxTotalHits` and that a saturated value is a
- * floor, not a fact. Reusing it keeps "is this count trustworthy?" a single
- * source of truth instead of a second, disagreeing rule on this page.
+ * When the fetch is COMPLETE (`result.total < requestedLimit` — strictly
+ * below the window, so every matching hit provably came back), the count is
+ * instead the caller's own `hitCount`: the length of whatever array the
+ * caller actually filtered, deduped, and is about to render. The raw backend
+ * `total` counts rows the caller may have already dropped (internal-only
+ * postings, re-synced duplicate postings), so it can only ever be >= the
+ * caller's true count — treating it as a floor to `Math.max` against (the
+ * old behavior) always silently picked the inflated number. Live proof:
+ * Stewart's `/co` page stated "66 open roles" (raw `total`) over a rendered
+ * list that deduped to 62. A `total` that lands EXACTLY on the limit is
+ * deliberately NOT treated as complete: it is indistinguishable from a
+ * saturated window that stopped counting right at the cap, so it falls
+ * through to the incomplete-fetch branch below, same as a `total` over the
+ * limit.
+ *
+ * `preview` overrides even a complete fetch, though: the snapshot-preview
+ * backend serves a capped in-memory slice of the corpus (dev/demo), so its
+ * `total` only counts that slice — completeness relative to a fake corpus
+ * proves nothing about the real one.
+ *
+ * Otherwise, when the fetch is INCOMPLETE (more matches exist than were
+ * fetched, or the window saturated exactly at the limit) the count falls
+ * back to the backend's `total`, resolved through `resolveCorpusCount`
+ * (lib/jobs/corpus-count.ts) — the repo's existing exact-vs-floor decision,
+ * which already knows that Meilisearch caps `totalHits` at
+ * `pagination.maxTotalHits` and that a saturated value is a floor, not a
+ * fact. Reusing it keeps "is this count trustworthy?" a single source of
+ * truth instead of a second, disagreeing rule on this page. Rows past the
+ * fetch window were never retrieved, so they can't be reconciled against the
+ * caller's own filtering either — there is no better number to give than the
+ * backend's own.
  *
  * `resolveCorpusCount` only knows about that ONE cap, so this adds the two
  * the company page can additionally hit, both of which make `total` itself a
- * floor rather than an exact count:
+ * floor rather than an exact count in this branch:
  *
- *   - `preview` — the snapshot-preview backend serves a capped in-memory
- *     slice of the corpus (dev/demo), so its `total` counts the slice.
+ *   - `preview`, same as above.
  *   - a qualified result whose hit window SATURATED. `searchMeili`'s
  *     transitional domain post-filter path (`searchWithDomainPostFilter`)
  *     returns `total = matches found in the scan window only` and early-stops
@@ -49,6 +73,20 @@ export function resolveOpenCount(
   hitCount: number,
   requestedLimit: number,
 ): OpenCount {
+  // Fetch complete — see the module doc above for why `hitCount` (not
+  // `total`) is the count here. Strictly-less-than: a `total` that lands
+  // EXACTLY on the limit is indistinguishable from a saturated window that
+  // stopped counting right at the cap (the post-filter early-stop path below
+  // produces exactly that shape), so it falls through to the same
+  // saturation/note check an over-the-limit `total` gets. `preview` still
+  // overrides even a genuinely complete fetch — the snapshot-preview backend
+  // serves a capped slice of the corpus, so completeness relative to that
+  // slice proves nothing about the real count (see module doc).
+  if (result.total < requestedLimit) {
+    return { value: hitCount, isLowerBound: result.preview === true };
+  }
+
+  // Incomplete fetch — unchanged from before this fix.
   const corpus = resolveCorpusCount(result);
   // Never claim fewer roles than the page is about to list: a post-filter
   // scan can return more matches than its own `total` window accounted for.
