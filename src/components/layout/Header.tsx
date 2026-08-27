@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { KeyboardEvent } from "react";
-import { type User as FirebaseUser } from "firebase/auth";
+import type { ServerUser } from "@/lib/auth/workos-identity";
 
 import { PrepSettings, QuestionSettings } from "@/components/dashboard/PrepSettings";
 
@@ -19,7 +19,7 @@ interface HeaderProps {
   company?: string;
   position?: string;
   round?: string;
-  user: FirebaseUser | null;
+  user: ServerUser | null;
   showSearch?: boolean;
   title?: string;
   onOpenSidebar?: () => void;

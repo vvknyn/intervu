@@ -13,9 +13,11 @@ describe("ResetPasswordForm", () => {
     });
 
     it("disables password fields and submit without a reset token", () => {
+        // WorkOS's reset link carries `?token=...` (see the component's own
+        // doc comment) — Firebase's `oobCode` no longer exists here.
         const src = readFileSync(FORM, "utf8");
-        assert.match(src, /!oobCode/);
-        assert.match(src, /disabled=\{isPending \|\| !oobCode\}/);
-        assert.match(src, /\{oobCode && \(/);
+        assert.match(src, /!token/);
+        assert.match(src, /disabled=\{isPending \|\| !token\}/);
+        assert.match(src, /\{token && \(/);
     });
 });

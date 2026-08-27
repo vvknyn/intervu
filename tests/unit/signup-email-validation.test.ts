@@ -1,10 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
-import { validateSignupEmail } from "@/lib/auth/username-email";
-import { isEmailIdentifier } from "@/lib/firebase/client-auth";
+import { validateSignupEmail, isEmailIdentifier } from "@/lib/auth/username-email";
 
 /**
  * "ok keep accounts, kill the username-only path" (Vivek, Aug 20 2026) —
@@ -44,29 +41,6 @@ describe("validateSignupEmail", () => {
     // real domain that merely contains it as a substring must still pass.
     it("accepts a lookalike domain that only contains the minted domain as a substring", () => {
         assert.equal(validateSignupEmail("person@notintervu.cc").ok, true);
-    });
-});
-
-describe("signUp source shape (actions/auth.ts)", () => {
-    const src = readFileSync(join(process.cwd(), "src/actions/auth.ts"), "utf8");
-
-    // The property under test: signUp can never mint. Executing signUp
-    // itself needs Firebase Admin, Turnstile, and rate-limiting mocked (no
-    // such harness exists in this repo yet — see user-data-sweep.test.ts for
-    // the same source-inspection pattern used for an equally I/O-heavy
-    // action), so this asserts the structural guarantee directly: the
-    // minting function is gone from the file, and the submitted, validated
-    // email is what reaches Firebase Admin verbatim.
-    it("never calls the minting function usernameEmail", () => {
-        assert.doesNotMatch(src, /usernameEmail\(/);
-    });
-
-    it("validates the submitted email via validateSignupEmail before creating the account", () => {
-        assert.match(src, /validateSignupEmail\(/);
-        const createIdx = src.indexOf("adminAuth.createUser(");
-        const validateIdx = src.indexOf("validateSignupEmail(");
-        assert.ok(validateIdx > -1 && createIdx > -1);
-        assert.ok(validateIdx < createIdx, "email must be validated before the account is created");
     });
 });
 

@@ -15,7 +15,8 @@
  * the token format and who holds which address.
  */
 import { NextResponse } from "next/server";
-import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { getWorkosUserManagement, resolveWorkosUserId } from "@/lib/auth/workos-runtime";
 import { verifyAccountEmailToken } from "@/lib/email/account-email-token";
 import { relativeRedirect } from "@/lib/http/relative-redirect";
 
@@ -30,14 +31,20 @@ export async function GET(request: Request): Promise<NextResponse> {
     try {
         // emailVerified: the person just proved control of this mailbox by
         // opening a link only it received. Leaving it false would make
-        // Firebase treat a confirmed address as unconfirmed, and any later
+        // WorkOS treat a confirmed address as unconfirmed, and any later
         // provider linking would refuse it.
-        await getAdminAuth().updateUser(claim.uid, {
+        const userManagement = await getWorkosUserManagement();
+        const userId = await resolveWorkosUserId(
+            (externalId) => userManagement.getUserByExternalId(externalId),
+            claim.uid,
+        );
+        await userManagement.updateUser({
+            userId,
             email: claim.email,
             emailVerified: true,
         });
     } catch (e) {
-        // The common real failure is `auth/email-already-exists` — the
+        // The common real failure is WorkOS's `email_exists` conflict — the
         // address belongs to another account. Nothing the visitor can fix
         // here, and the pending value stays put so the settings page keeps
         // showing the attempt rather than silently forgetting it.
