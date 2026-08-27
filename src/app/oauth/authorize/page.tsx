@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { firestoreStore } from "@/lib/agent/store";
 import { validateConsentRequest, consentParamsToQuery, type ConsentParams, type ConsentParamsInput } from "@/lib/agent/consent";
@@ -6,6 +7,12 @@ import { approveConsentAction, denyConsentAction } from "@/actions/agent-consent
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/ConsentSubmitButtons";
+
+// Neutral by design — `clientName` below is attacker-chosen DCR metadata
+// (see `redirectHost`'s doc comment) and must never land in a <title>.
+export const metadata: Metadata = {
+    title: "Connect an agent",
+};
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
     return (
