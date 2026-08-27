@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 11, 2026";
+const LAST_UPDATED = "August 27, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -30,8 +30,10 @@ export default function PrivacyPage() {
         <h2>What we collect</h2>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
-          sign in with Google or with a username and password — Google-hosted sign-in is handled by Firebase Auth,
-          so we never see or store your Google password.
+          sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
+          email-code sign-in run through WorkOS, our sign-in provider, which holds your account record under its
+          own data-processing terms — we never see or store your Google password. Username-and-password sign-in
+          is currently processed by Google&apos;s Firebase Auth.
         </p>
         <p>
           Once you&apos;re using intervu, we store the things you create: your tracked applications, saved resumes,
@@ -118,16 +120,20 @@ export default function PrivacyPage() {
 
         <h2>Cookies &amp; analytics</h2>
         <p>
-          We use a single cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts), lasts about
-          14 days, and identifies your session — nothing more.
+          We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
+          identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
+          visit: a returning-visitor flag (literally the value 1, with no identifier in it), so the front door
+          can skip the first-visit intro next time.
         </p>
         <p>
           We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
           working and fix what isn&apos;t. It runs cookieless on intervu: no analytics cookie is set, and session
           state is kept in memory only, gone the moment you close the tab or reload. Events aren&apos;t tied to
           your identity unless you&apos;re signed in. PostHog (US cloud) processes this data as our processor under
-          their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and the sign-in
-          cookie above remains the only cookie on intervu.
+          their own DPA terms. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond the
+          two cookies above intervu sets none. The Cloudflare Turnstile check on our contact and sign-up forms
+          runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
+          bots.
         </p>
 
         <h2>Retention &amp; deletion</h2>

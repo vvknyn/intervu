@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "August 1, 2026";
+const LAST_UPDATED = "August 27, 2026";
 
 export default function TermsPage() {
   return (
@@ -35,14 +35,15 @@ export default function TermsPage() {
           charge employers to be included.
         </p>
 
-        <h2>Posting-check and risk signals are estimates, not facts</h2>
+        <h2>Posting-check and risk signals are automated observations, not guarantees</h2>
         <p>
           Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
-          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; —
-          are automated estimates based on posting age, listing freshness, and patterns across an employer&apos;s
-          other listings. They are not statements of fact about any specific listing or employer, and we make no
-          warranty as to their accuracy. Treat every signal as one input, not a verdict, when you decide where to
-          spend your time.
+          covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; — come from automated checks of facts we
+          observe on an employer&apos;s own careers site: posting age, whether a listing is still published, and
+          how it has been reposted over time. They describe what we saw when we checked, not an employer&apos;s
+          intent, and a listing can change after we check it. They are not statements of fact beyond those
+          observations, and we make no warranty as to their accuracy or completeness. Treat every signal as one
+          input, not a verdict, when you decide where to spend your time.
         </p>
 
         <h2>Acceptable use</h2>
