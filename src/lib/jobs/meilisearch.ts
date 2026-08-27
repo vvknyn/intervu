@@ -135,7 +135,11 @@ export const JOBS_INDEX_SETTINGS = {
     // would silently DROP it on the next apply. Do not remove without
     // confirming the box no longer needs it.
     "occupation",
-    // Enriched qualification and telemetry attributes (Subspace upstream)
+    // Enriched qualification and telemetry attributes (Subspace upstream).
+    // Verified applied to the live jobs index 2026-08-26: a search-key
+    // filter/sort probe accepted every attribute below in filter and/or
+    // sort expressions, and a bogus attribute name was correctly rejected —
+    // negative control confirming the probe discriminates live vs. not.
     "min_years_experience",
     "max_years_experience",
     "must_have_skills",
