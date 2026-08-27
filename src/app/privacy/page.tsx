@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION = "How intervu collects, uses, and protects your data.";
@@ -18,14 +19,9 @@ export default function PrivacyPage() {
   return (
     <main data-testid="privacy-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-        <div className="border-b border-border pb-4 mb-6">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & PRIVACY ]</span>
-          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Privacy Policy</h1>
-        </div>
+        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
-        <p>Last updated: {LAST_UPDATED}</p>
-
         <p>
           intervu is a job search tool. This page explains what we collect, why, and how you can control it. If
           anything here is unclear, use the contact page — we read every message ourselves.

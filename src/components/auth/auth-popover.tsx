@@ -43,7 +43,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
     if (!showTrigger) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-2xl border border-border bg-card shadow-2xl">
+                <DialogContent className="sm:max-w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
                     <DialogTitle className="sr-only">Authentication</DialogTitle>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />
@@ -59,7 +59,7 @@ export function AuthPopover({ open, onOpenChange, showTrigger = true, onAuthed, 
                     Log In
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-2xl border border-border bg-card shadow-2xl">
+            <PopoverContent align="end" className="w-[420px] p-6 pt-8 rounded-none border border-border-strong bg-card">
                 <div>
                     {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} />

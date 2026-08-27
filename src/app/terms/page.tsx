@@ -3,6 +3,7 @@ import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { BETA_UNLIMITED_CREDITS } from "@/lib/llm/credit-copy";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using intervu, including how we frame posting-check and risk signals.";
@@ -19,14 +20,9 @@ export default function TermsPage() {
   return (
     <main data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-        <div className="border-b border-border pb-4 mb-6">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ LEGAL & TERMS ]</span>
-          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">Terms of Service</h1>
-        </div>
+        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <article className="prose prose-sm max-w-none dark:prose-invert">
-        <p>Last updated: {LAST_UPDATED}</p>
-
         <p>
           intervu is in beta. That means the product is real and working, but still changing — features may shift,
           and we&apos;re actively improving how the service works. By using intervu, you agree to the terms below.

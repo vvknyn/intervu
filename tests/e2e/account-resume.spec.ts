@@ -16,27 +16,30 @@ import { test, expect } from '@playwright/test';
  * own comments; settings.spec.ts's tests run logged OUT and currently fail
  * against a real auth-gated /settings, a PRE-EXISTING gap, not something
  * this change touches). This spec drives the real username/password
- * sign-up flow (SimpleAuthForm.tsx) with a unique per-run username against
- * the configured Firebase project, then cleans up via the existing
- * self-serve "Delete account" flow (SettingsContainer.tsx's Danger Zone)
- * at the end — a real, self-contained account for the duration of one test
- * run, not a shared fixture.
+ * sign-up flow (LoginForm.tsx, rendered full-page at /login since the
+ * 2026-08-27 auth/docs redesign — SimpleAuthForm.tsx is gone) with a
+ * unique per-run username against the configured Firebase project, then
+ * cleans up via the existing self-serve "Delete account" flow
+ * (SettingsContainer.tsx's Danger Zone) at the end — a real, self-contained
+ * account for the duration of one test run, not a shared fixture.
  */
 test.describe('ACCOUNT-RESUME', () => {
     test('signed-in flow: upload a resume, see it, replace it, delete it', async ({ page }) => {
         const username = `e2eresume${Date.now()}`;
         const password = 'TestPass123!';
 
-        // Sign up (LoginForm.tsx — the component AuthPopover actually renders;
-        // defaults to the "Log In" tab, so switch to "Sign Up" first). Lands
-        // on /jobs (the redirect's own default) — this spec is about the
-        // account resume surface, not the post-auth redirect mechanism, so
-        // it navigates to /settings itself once the session exists.
+        // Sign up (LoginForm.tsx, rendered full-page at /login; defaults to
+        // the "Sign in" tab, so switch to "Create account" first — tab label,
+        // card title, and submit button all share that wording by design,
+        // see authCardCopy in lib/auth/auth-gate-copy.ts). Lands on /jobs
+        // (the redirect's own default) — this spec is about the account
+        // resume surface, not the post-auth redirect mechanism, so it
+        // navigates to /settings itself once the session exists.
         await page.goto('/login');
-        await page.getByRole('tab', { name: 'Sign Up' }).click();
+        await page.getByRole('tab', { name: 'Create account' }).click();
         await page.locator('#username').fill(username);
         await page.locator('#password').fill(password);
-        await page.getByRole('button', { name: 'Sign Up' }).click();
+        await page.getByRole('button', { name: 'Create account' }).click();
         await expect(page).toHaveURL('/jobs', { timeout: 20_000 });
         await page.goto('/settings');
 

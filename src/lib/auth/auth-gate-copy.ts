@@ -37,6 +37,30 @@ export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCoun
     return keep ? `${keep} ${lead}` : lead;
 }
 
+export type AuthCardTab = "login" | "signup";
+
+export interface AuthCardCopy {
+    eyebrow: string;
+    title: string;
+    tabLabel: string;
+    submitLabel: string;
+}
+
+/** Single source of truth for LoginForm's per-tab wording. The tab label,
+ *  card heading, and submit button all have to name the same action
+ *  (control-names-the-action) — deriving all four from one `label` instead
+ *  of three call sites each picking their own string is what makes them
+ *  incapable of drifting apart. */
+export function authCardCopy(tab: AuthCardTab): AuthCardCopy {
+    const label = tab === "signup" ? "Create account" : "Sign in";
+    return {
+        eyebrow: `intervu · ${label.toLowerCase()}`,
+        title: label,
+        tabLabel: label,
+        submitLabel: label,
+    };
+}
+
 /** Exported guest-surface strings for jargon guard tests. */
 export const GUEST_AUTH_STRINGS: Record<string, string> = {
     SAVE_TOAST: GUEST_SAVE_TOAST,

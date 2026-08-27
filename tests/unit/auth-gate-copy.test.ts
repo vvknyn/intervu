@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    authCardCopy,
     formatAuthGateValueLine,
     guestKeepLine,
     SIGNUP_SUBCOPY,
@@ -36,4 +37,24 @@ test("SIGNUP_SUBCOPY names the alerts/saved-search/tracker value triad", () => {
     assert.match(SIGNUP_SUBCOPY, /alert/i);
     assert.match(SIGNUP_SUBCOPY, /saved search/i);
     assert.match(SIGNUP_SUBCOPY, /tracker/i);
+});
+
+// Redesign (2026-08-27, frozen proposal #9): the login card's tab, heading,
+// and submit button must literally share one word per action — this is the
+// "control-names-the-action" invariant, proved by construction rather than
+// by convention.
+test("authCardCopy: tab label, title, and submit label are identical per tab", () => {
+    const login = authCardCopy("login");
+    assert.equal(login.tabLabel, login.title);
+    assert.equal(login.tabLabel, login.submitLabel);
+    assert.equal(login.title, "Sign in");
+
+    const signup = authCardCopy("signup");
+    assert.equal(signup.tabLabel, signup.title);
+    assert.equal(signup.tabLabel, signup.submitLabel);
+    assert.equal(signup.title, "Create account");
+});
+
+test("authCardCopy: login and signup never share the same wording", () => {
+    assert.notEqual(authCardCopy("login").title, authCardCopy("signup").title);
 });
