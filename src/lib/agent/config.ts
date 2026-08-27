@@ -142,6 +142,23 @@ export const AGENT = {
      *  ceiling since no real résumé list runs longer than this. See
      *  `lib/resume/set-resume.ts`. */
     RESUME_DATA_ARRAY_MAX_ITEMS: 50,
+    /**
+     * D6 — per-credential DAILY cap on company-read tool calls (get_company,
+     * get_company_timeline, search_companies), enforced ONCE at the
+     * `withDeps` wrapper seam (route.ts) via a `companyRead: true` tool
+     * option — never by enumerating tool names, so a future company-reading
+     * tool inherits this budget by construction. Resets at UTC midnight (a
+     * calendar-day budget, NOT a rolling window like DAILY_RECORD_BUDGET
+     * above — see company-read-budget.ts). 50/day is generous for a real
+     * "look up this company" session and stingy against enumerating the
+     * whole company corpus one profile at a time.
+     */
+    DAILY_COMPANY_READ_BUDGET: 50,
+    /** `search_companies`' per-call result cap — independent of RESULT_CAP
+     *  (jobs): coincidentally the same number today, but a different budget
+     *  for a different resource (companies, not job records), so it gets its
+     *  own constant rather than reusing RESULT_CAP for an unrelated concern. */
+    COMPANY_SEARCH_LIMIT: 20,
 };
 
 /**
