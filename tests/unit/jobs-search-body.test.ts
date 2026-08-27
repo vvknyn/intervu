@@ -184,6 +184,26 @@ test("list search retrieves JOB_LIST_ATTRIBUTES_TO_RETRIEVE without description"
     assert.ok(!(body.attributesToRetrieve as readonly string[]).includes("description"));
 });
 
+// Of Subspace's 8 enriched fields (meilisearch.ts JOBS_INDEX_SETTINGS), only
+// the 3 the jobs SERP actually reads (yearsExperience/tech/skills filters —
+// FilterPanel.tsx, SerpFilters.tsx) belong in the retrieve list; the other 5
+// have no reader yet and would only inflate every SERP response.
+test("JOB_LIST_ATTRIBUTES_TO_RETRIEVE carries exactly the enriched fields the SERP reads, no more", () => {
+    const attrs = JOB_LIST_ATTRIBUTES_TO_RETRIEVE as readonly string[];
+    for (const read of ["min_years_experience", "must_have_skills", "tech_stack"]) {
+        assert.ok(attrs.includes(read), `expected ${read} in retrieve list: ${JSON.stringify(attrs)}`);
+    }
+    for (const unread of [
+        "max_years_experience",
+        "preferred_skills",
+        "in_office_days",
+        "normalized_salary_min",
+        "normalized_salary_max",
+    ]) {
+        assert.ok(!attrs.includes(unread), `${unread} has no reader — should not be retrieved: ${JSON.stringify(attrs)}`);
+    }
+});
+
 test("id lookup omits attributesToRetrieve so the full document is returned", () => {
     const body = buildSearchBody({ id: "abc", limit: 1 }, false);
     assert.ok(!("attributesToRetrieve" in body));

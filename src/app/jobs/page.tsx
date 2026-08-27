@@ -189,6 +189,7 @@ import {
     type JobSortMode,
     type PostedBucket,
     type PublicJob,
+    type YearsExperienceBucket,
 } from "@/lib/jobs/types";
 import {
     parseJobsUrl,
@@ -1165,6 +1166,9 @@ function JobsContent() {
     const [salaryMin, setSalaryMin] = useState(initialUrlState.salaryMin);
     const [visaOnly, setVisaOnly] = useState(initialUrlState.visaOnly);
     const [postedBucket, setPostedBucket] = useState<PostedBucket | undefined>(initialUrlState.postedBucket);
+    const [yearsExperience, setYearsExperience] = useState<YearsExperienceBucket | undefined>(
+        initialUrlState.yearsExperience,
+    );
     // First-screen default: exclude likely_ghost from results. `ghosts=show` in
     // the URL flips it. No UI toggle wired yet (Task 6 — Trust toolbar).
     const [hideGhosts, setHideGhosts] = useState(initialUrlState.hideGhosts);
@@ -1177,7 +1181,16 @@ function JobsContent() {
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
     // needed so `buildJobSearchPayload` has a single FilterState to take.
-    const filterState: FilterState = { facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain };
+    const filterState: FilterState = {
+        facets,
+        salaryMin,
+        visaOnly,
+        postedBucket,
+        yearsExperience,
+        hideGhosts,
+        board,
+        companyDomain,
+    };
     /**
      * The places this search is filtered to. Read off `filterState` rather
      * than mirrored into a second piece of state: the location box is an
@@ -1264,6 +1277,7 @@ function JobsContent() {
         salaryMin,
         visaOnly,
         postedBucket,
+        yearsExperience,
         hideGhosts,
         board,
         companyDomain,
@@ -1759,6 +1773,7 @@ function JobsContent() {
                 salaryMin,
                 visaOnly,
                 postedBucket,
+                yearsExperience,
                 hideGhosts,
                 board,
                 companyDomain,
@@ -1768,7 +1783,19 @@ function JobsContent() {
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
         // real and the results must be re-fetched in the new order.
-        [query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported],
+        [
+            query,
+            facets,
+            salaryMin,
+            visaOnly,
+            postedBucket,
+            yearsExperience,
+            hideGhosts,
+            board,
+            companyDomain,
+            sortOverride,
+            postedDateSupported,
+        ],
     );
 
     // Single source: résumé usable, hoisted here (instead of
@@ -2457,6 +2484,7 @@ function JobsContent() {
             setSalaryMin(parsed.salaryMin);
             setVisaOnly(parsed.visaOnly);
             setPostedBucket(parsed.postedBucket);
+            setYearsExperience(parsed.yearsExperience);
             setHideGhosts(parsed.hideGhosts);
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
@@ -2773,7 +2801,7 @@ function JobsContent() {
         // reason: page 2+ must never silently reapply a default this
         // session already cleared.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [result, query, facets, salaryMin, visaOnly, postedBucket, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
+    }, [result, query, facets, salaryMin, visaOnly, postedBucket, yearsExperience, hideGhosts, board, companyDomain, sortOverride, postedDateSupported, locationDefaultSuppressed]);
 
     const loadMoreRef = useRef(loadMore);
     loadMoreRef.current = loadMore;
@@ -2871,6 +2899,7 @@ function JobsContent() {
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
         setPostedBucket(next.postedBucket);
+        setYearsExperience(next.yearsExperience);
         setHideGhosts(next.hideGhosts);
         setBoard(next.board);
         setCompanyDomain(next.companyDomain);
@@ -2880,6 +2909,7 @@ function JobsContent() {
                 salaryMin: next.salaryMin,
                 visaOnly: next.visaOnly,
                 postedBucket: next.postedBucket,
+                yearsExperience: next.yearsExperience,
                 hideGhosts: next.hideGhosts,
                 board: next.board,
                 companyDomain: next.companyDomain,
@@ -3070,6 +3100,8 @@ function JobsContent() {
     const panelVisaOnly = (v: boolean) => applyFilterStateWithIntent({ ...filterState, visaOnly: v });
     const panelPostedBucket = (v: PostedBucket | undefined) =>
         applyFilterStateWithIntent({ ...filterState, postedBucket: v });
+    const panelYearsExperience = (v: YearsExperienceBucket | undefined) =>
+        applyFilterStateWithIntent({ ...filterState, yearsExperience: v });
     const panelClearAll = () => applyFilterStateWithIntent(PRISTINE_FILTER_STATE);
 
     const applySavedSearchPrefs = useCallback(
@@ -4014,6 +4046,7 @@ function JobsContent() {
                 onSalaryMin={panelSalaryMin}
                 onVisaOnly={panelVisaOnly}
                 onPostedBucket={panelPostedBucket}
+                onYearsExperience={panelYearsExperience}
                 onClearAll={panelClearAll}
                 hideGhosts={hideGhosts}
                 onHideGhosts={onHideGhosts}

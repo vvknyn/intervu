@@ -69,6 +69,19 @@ test("the 30d default is coerced away (not sent) when date filtering is unsuppor
     assert.equal(p.postedBucket, undefined);
 });
 
+// yearsExperience is NOT gated by postedDateSupported (unlike postedBucket
+// above) — min_years_experience isn't relative-to-now, so a stale bucket in
+// state carries no staleness risk and passes through unconditionally.
+test("yearsExperience passes through verbatim regardless of postedDateSupported", () => {
+    const state: FilterState = { ...PRISTINE_FILTER_STATE, yearsExperience: "6-10" };
+    assert.equal(buildJobSearchPayload(state, "", "newest", true).yearsExperience, "6-10");
+    assert.equal(buildJobSearchPayload(state, "", "newest", false).yearsExperience, "6-10");
+});
+
+test("yearsExperience is undefined by default (pristine state)", () => {
+    assert.equal(buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", true).yearsExperience, undefined);
+});
+
 test("null/undefined sort becomes undefined; an explicit sort passes through", () => {
     assert.equal(buildJobSearchPayload(PRISTINE_FILTER_STATE, "", null, true).sort, undefined);
     assert.equal(buildJobSearchPayload(PRISTINE_FILTER_STATE, "", undefined, true).sort, undefined);

@@ -42,6 +42,14 @@ test("each active filter yields one clearable entry", () => {
 // that the toolbar pill row deliberately keeps quiet. Same function, same
 // `clear` semantics — no second "what's active" derivation.
 
+test("yearsExperience is an active entry, labelled from the bucket, and its clear drops it back to pristine (undefined)", () => {
+    const s: FilterState = { ...base, yearsExperience: "6-10" };
+    const entries = activeFilterEntries(s);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].key, "yearsExperience");
+    assert.deepEqual(entries[0].clear(s), base);
+});
+
 test("toolbar consumer (no opts) still omits the pristine 30d default even when another filter is active — regression guard on the fence", () => {
     const s: FilterState = { ...base, salaryMin: 100_000, postedBucket: "30d" };
     const entries = activeFilterEntries(s);

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
+import type { FacetDistribution, FacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
 import {
     facetValueLabel,
     isNoiseFacetValue,
@@ -9,6 +9,7 @@ import {
     SALARY_PRESETS,
     STATIC_FACET_LADDERS,
     TOP_N,
+    YEARS_EXPERIENCE_PRESETS,
     distributionTaggedShare,
     booleanTaggedShare,
     type FilterState,
@@ -134,6 +135,7 @@ export function SerpFilters({
     onSalaryMin,
     onVisaOnly,
     onPostedBucket,
+    onYearsExperience,
     onClearAll,
     hideGhosts,
     onHideGhosts,
@@ -151,6 +153,7 @@ export function SerpFilters({
     onSalaryMin: (v: number) => void;
     onVisaOnly: (v: boolean) => void;
     onPostedBucket: (v: PostedBucket | undefined) => void;
+    onYearsExperience: (v: YearsExperienceBucket | undefined) => void;
     onClearAll: () => void;
     hideGhosts: boolean;
     onHideGhosts: (v: boolean) => void;
@@ -253,6 +256,37 @@ export function SerpFilters({
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
                 />
+
+                <FacetGroup
+                    label="Tech stack"
+                    facetKey="tech_stack"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                    cap={TOP_N}
+                />
+
+                <FacetGroup
+                    label="Must-have skills"
+                    facetKey="must_have_skills"
+                    distribution={distribution}
+                    state={state}
+                    onToggleFacet={onToggleFacet}
+                    cap={TOP_N}
+                />
+
+                <Group label="Years of experience">
+                    {YEARS_EXPERIENCE_PRESETS.map((o) => (
+                        <Affordance
+                            key={o.label}
+                            inputType="radio"
+                            active={state.yearsExperience === o.value}
+                            onClick={() => onYearsExperience(o.value)}
+                        >
+                            {o.label}
+                        </Affordance>
+                    ))}
+                </Group>
 
                 <Group label="Posting check">
                     <Affordance inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>

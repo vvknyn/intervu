@@ -49,7 +49,7 @@ export function buildJobSearchPayload(
     suppressLocationDefault?: boolean,
 ): Pick<
     JobSearchParams,
-    | "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "hideGhosts" | "sort"
+    | "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "yearsExperience" | "hideGhosts" | "sort"
     | "board" | "companyDomain" | "suppressLocationDefault"
 > {
     return {
@@ -58,6 +58,7 @@ export function buildJobSearchPayload(
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
         postedBucket: postedDateSupported ? state.postedBucket : undefined,
+        yearsExperience: state.yearsExperience,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,
         // Corpus scope rides in on `state` like every other narrowing. It used
