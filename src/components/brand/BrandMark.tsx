@@ -19,18 +19,23 @@ export const BRAND_MARK_DOT = { cx: 32, cy: 32, r: 7 } as const;
 // (#7cb87a, #6fad6d) — and after the accent moved from emerald to
 // International Klein Blue, neither of them was the brand colour any more.
 //
-// This is `--live` (globals.css `--live: 0 47 167`), not `--brand`, on purpose:
+// This is `--live` (globals.css `--live: 14 159 78`), not `--brand`, on purpose:
 // the docstring above defines the dot as the live signal the brackets hold, and
-// --live is the token for that. The two happen to share a value today; keying
-// off the meaning means the mark follows the signal if they ever diverge.
+// --live is the token for that. Ledger palette (2026-08-27): Klein blue keeps
+// every interactive/brand job, green joins with exactly one meaning — "this
+// fact is live/verified" — so the dot moved off --brand's blue onto that
+// green, keying off the meaning it always had rather than the value it used
+// to share with --brand.
 //
 // It is a literal, not rgb(var(--live)), because Satori (next/og) renders these
 // same constants with no CSS custom properties available — an OG card has no
 // theme to follow, so it takes the light-mode value. In-app the component below
 // uses `fill-live` instead, which resolves the SAME token per theme; a frozen
-// #002FA7 dot would all but vanish against dark's #0A0A0A ground. One meaning,
-// two mechanisms, because only one of the two renderers has a cascade.
-export const BRAND_MARK_DOT_FILL = "#002FA7";
+// #0E9F4E dot would all but vanish against dark's #0A0A0A ground — dark mode
+// uses --live's own dark value (#2FBF71) via the cascade, not this constant.
+// One meaning, two mechanisms, because only one of the two renderers has a
+// cascade.
+export const BRAND_MARK_DOT_FILL = "#0E9F4E";
 
 export function BrandMark({ className = "h-7 w-7" }: { className?: string }) {
     return (

@@ -97,6 +97,15 @@
   --brand: 0 47 167;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* Named for the ROLE, not the hue — these are the blue-50/blue-100 tints
+     that `--live-tint-*` carried before the Ledger palette (2026-08-27) gave
+     green exactly one meaning ("this fact is live/verified") and moved every
+     interactive/progress consumer off it. Same values, honest name: they
+     tint --brand, not --live, so --st-applied/--st-offer (tracker progress
+     states, not live facts) read these instead of drifting green by riding
+     a token they no longer mean. */
+  --brand-tint-bg: 240 249 255;
+  --brand-tint-bg-alt: 239 246 255;
 
   /* Site chrome */
   --chrome: 10 10 10;
@@ -114,35 +123,40 @@
   /* Soft Signal accents */
   --chip: 245 245 245;
   --faint: 163 163 163;
-  --live: 0 47 167;
+  --live: 14 159 78;
   /* Named for the ROLE (the tint that accompanies --live), not for a hue.
      These held blue-50/blue-100/blue-200 under `--green-tint-*` names ever
      since the accent moved from emerald to Klein blue — a token whose name
      contradicts its value is how the next pass reintroduces the old colour
      by trusting the name. --live is the one accent they tint with, so they
-     track it by construction. */
-  --live-tint-bg: 240 249 255;
-  --live-tint-bg-alt: 239 246 255;
-  --live-tint-border: 191 219 254;
+     track it by construction. (Ledger palette, 2026-08-27: --live itself
+     moved back to green — Klein blue now means "interactive/brand", green
+     means exactly one thing, "this fact is live/verified" — so these tints
+     are green again too, and it's the SAME reasoning as above, not a new
+     one: the name was always the role, not a hue.) */
+  --live-tint-bg: 240 253 244;
+  --live-tint-bg-alt: 236 253 245;
+  --live-tint-border: 187 247 208;
   --warn: 217 119 6;
   --warn-dot: 245 158 11;
   --danger-tint-border: 254 205 211;
 
   /* Verdict channel */
-  --verdict-live: 0 47 167;
+  --verdict-live: var(--live);
   --verdict-good: 21 128 61;
   --verdict-caution: 217 119 6;
   --verdict-risk: 225 29 72;
-  --verdict-live-bg: 239 246 255;
+  --verdict-live-bg: var(--live-tint-bg);
   --verdict-good-bg: 232 245 236;
   --verdict-caution-bg: 254 243 199;
   --verdict-risk-bg: 255 241 242;
 
-  /* Pipeline / status colors */
+  /* Pipeline / status colors — progress states, not live facts, so they ride
+     --brand (Ledger palette, 2026-08-27) and never --live. */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
-  --st-applied: var(--live);              --st-applied-soft: var(--live-tint-bg);
+  --st-applied: var(--brand);             --st-applied-soft: var(--brand-tint-bg);
   --st-intv: var(--warn);                 --st-intv-soft: 254 243 199;
-  --st-offer: var(--live);                --st-offer-soft: var(--live-tint-bg-alt);
+  --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 255 241 242;
 
   /* Sidebar width */
@@ -201,6 +215,10 @@
   --brand: 45 104 255;
   --brand-foreground: 255 255 255;
   --brand-muted: 37 99 235;
+  /* See the light-mode comment above — same tints --live-tint-* carried
+     before the Ledger palette, now under the honest --brand-tint-* name. */
+  --brand-tint-bg: 15 23 42;
+  --brand-tint-bg-alt: 15 23 42;
 
   /* Site chrome (dark) */
   --chrome: 14 14 14;
@@ -218,29 +236,29 @@
   /* Soft Signal accents (dark) */
   --chip: 26 26 26;
   --faint: 115 115 115;
-  --live: 45 104 255;
-  --live-tint-bg: 15 23 42;
-  --live-tint-bg-alt: 15 23 42;
-  --live-tint-border: 30 58 138;
+  --live: 47 191 113;
+  --live-tint-bg: 14 37 23;
+  --live-tint-bg-alt: 14 37 23;
+  --live-tint-border: 22 101 52;
   --warn: 245 158 11;
   --warn-dot: 245 158 11;
   --danger-tint-border: 120 30 45;
 
   /* Verdict channel (dark) */
-  --verdict-live: 45 104 255;
+  --verdict-live: var(--live);
   --verdict-good: 74 222 128;
   --verdict-caution: 251 191 36;
   --verdict-risk: 255 59 105;
-  --verdict-live-bg: 15 23 42;
+  --verdict-live-bg: var(--live-tint-bg);
   --verdict-good-bg: 14 37 23;
   --verdict-caution-bg: 38 31 16;
   --verdict-risk-bg: 42 16 22;
 
-  /* Pipeline / status colors (dark) */
+  /* Pipeline / status colors (dark) — progress states, not live facts. */
   --st-saved: var(--muted-foreground);    --st-saved-soft: var(--chip);
-  --st-applied: var(--live);              --st-applied-soft: var(--live-tint-bg);
+  --st-applied: var(--brand);             --st-applied-soft: var(--brand-tint-bg);
   --st-intv: var(--warn);                 --st-intv-soft: 38 31 16;
-  --st-offer: var(--live);                --st-offer-soft: var(--live-tint-bg-alt);
+  --st-offer: var(--brand);               --st-offer-soft: var(--brand-tint-bg-alt);
   --st-closed: var(--destructive);        --st-closed-soft: 42 16 22;
 
   /* Overlay elevation (dark) — stronger than the light value since a drop
