@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: SETTINGS - Account page tests (lean 3-tab layout)
@@ -10,7 +10,9 @@ import { test, expect } from '@playwright/test';
  * logged-out run of this file redirects every test to the external WorkOS
  * AuthKit hosted login before it ever reaches this page, so the whole
  * suite reads red without credentials. That gate is a pre-existing gap,
- * not something the auth/docs redesign touches or fixes.
+ * not something the auth/docs redesign touches or fixes — every test here
+ * goes through tests/e2e/helpers/auth-gate.ts, which skips the whole file
+ * unless E2E_STORAGE_STATE points at a real signed-in session.
  */
 
 test.describe('SETTINGS - Account Page Tests', () => {

@@ -1,4 +1,5 @@
 import { test, expect, devices } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: MOBILE - Mobile Responsive Tests
@@ -225,8 +226,11 @@ test.describe('MOBILE - Mobile Responsive Tests', () => {
    * renders (same gate TC-NAV-007 in navigation.spec.ts documents). `/yours`
    * came off that list in the 2026-08-08 engagement wave — the guest tracker
    * is a deliberate logged-out experience, so it renders directly.
+   *
+   * Gated via tests/e2e/helpers/auth-gate.ts: the `/settings` leg needs a
+   * real signed-in session.
    */
-  test('TC-MOBILE-008: Navigation works on mobile', async ({ page }) => {
+  authTest('TC-MOBILE-008: Navigation works on mobile', async ({ page }) => {
     await page.goto('/');
 
     // Navigate using direct URLs on mobile

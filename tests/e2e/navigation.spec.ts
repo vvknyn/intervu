@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: NAV - Navigation Tests
@@ -131,8 +132,12 @@ test.describe('NAV - Navigation Tests', () => {
    * list in the 2026-08-08 engagement wave: the guest tracker (localStorage
    * pursuits, sync-on-login) is a deliberate logged-out experience, so a
    * signed-out visit now renders the page itself.
+   *
+   * Gated via tests/e2e/helpers/auth-gate.ts: exercising the `/settings`
+   * leg for real needs a signed-in session, which this suite never
+   * fabricates.
    */
-  test('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
+  authTest('TC-NAV-007: Direct URL access to all pages', async ({ page }) => {
     const pages = [
       { url: '/', landsOn: '/jobs' },
       { url: '/yours', landsOn: '/yours' },

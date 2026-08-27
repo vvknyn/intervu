@@ -1,10 +1,19 @@
 import { test, expect } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: STORAGE - Cross-Page Storage Persistence Tests
  *
  * Tests that localStorage data persists correctly across page navigations,
  * covering resume data, dashboard state, prep settings, theme, and API keys.
+ *
+ * `/settings` is auth-gated (AUTH_GATED_PRODUCT_PREFIXES). A signed-out
+ * visit bounces off-origin before the page (and its localStorage reads)
+ * ever run, so the tests that read localStorage back right after landing
+ * on `/settings` (001, 002, 003, 005) go through
+ * tests/e2e/helpers/auth-gate.ts and need a real signed-in session. 004
+ * only passes *through* `/settings` without reading state there, so it is
+ * unaffected.
  */
 
 test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
@@ -22,7 +31,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
      *
      * API keys set on the dashboard should be available on the settings page.
      */
-    test('TC-STORAGE-001: API keys persist across page navigations', async ({ page }) => {
+    authTest('TC-STORAGE-001: API keys persist across page navigations', async ({ page }) => {
         await page.evaluate(() => {
             localStorage.setItem('guest_api_keys', JSON.stringify({ groq: 'gsk_test_key_abc123' }));
         });
@@ -55,7 +64,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
      *
      * Theme chosen in settings should persist across navigation.
      */
-    test('TC-STORAGE-002: Theme setting persists across pages', async ({ page }) => {
+    authTest('TC-STORAGE-002: Theme setting persists across pages', async ({ page }) => {
         await page.evaluate(() => {
             localStorage.setItem('interview-os-theme', 'dark');
         });
@@ -79,7 +88,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
      *
      * Dashboard prep settings (model, provider) should persist.
      */
-    test('TC-STORAGE-003: Prep settings persist across pages', async ({ page }) => {
+    authTest('TC-STORAGE-003: Prep settings persist across pages', async ({ page }) => {
         await page.evaluate(() => {
             localStorage.setItem('guest_model', 'groq:openai/gpt-oss-20b');
             localStorage.setItem('interview-os-prep-settings', JSON.stringify({
@@ -125,7 +134,7 @@ test.describe('STORAGE - Cross-Page Storage Persistence Tests', () => {
      *
      * Dismissing the privacy notice should persist across pages and reloads.
      */
-    test('TC-STORAGE-005: Privacy notice dismiss persists', async ({ page }) => {
+    authTest('TC-STORAGE-005: Privacy notice dismiss persists', async ({ page }) => {
         await page.evaluate(() => {
             localStorage.setItem('privacy-notice-dismissed', 'true');
         });

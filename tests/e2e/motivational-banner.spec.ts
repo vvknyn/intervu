@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: BANNER - Motivational Banner Tests
@@ -29,8 +30,12 @@ test.describe('BANNER - Motivational Banner Tests', () => {
 
   /**
    * TC-BANNER-001: Banner appears on settings page
+   *
+   * Gated via tests/e2e/helpers/auth-gate.ts: `/settings` is auth-gated
+   * (AUTH_GATED_PRODUCT_PREFIXES) and this assertion requires actually
+   * landing on it, so it needs a real signed-in session.
    */
-  test('TC-BANNER-001: Banner appears on settings page', async ({ page }) => {
+  authTest('TC-BANNER-001: Banner appears on settings page', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -92,8 +97,11 @@ test.describe('BANNER - Motivational Banner Tests', () => {
 
   /**
    * TC-BANNER-005: Banner reappears after TTL expires
+   *
+   * Gated via tests/e2e/helpers/auth-gate.ts: same as TC-BANNER-001, this
+   * assertion requires actually landing on `/settings`.
    */
-  test('TC-BANNER-005: Banner reappears after TTL expires', async ({ page }) => {
+  authTest('TC-BANNER-005: Banner reappears after TTL expires', async ({ page }) => {
     await page.goto('/settings');
     await page.evaluate(() => {
       const expired = Date.now() - 60 * 60 * 1000;
