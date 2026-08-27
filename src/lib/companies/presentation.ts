@@ -415,18 +415,29 @@ function remoteShareClause(intelligence: CompanyPageData["intelligence"]): strin
   return pct == null ? null : `${pct}% of roles remote`;
 }
 
+/** The hero's "derived facts" row: domain, where this employer is hiring,
+ *  what share of roles are remote. `hiringGeos`/`remoteShare` are `null`
+ *  (never a placeholder string) when the underlying clause has nothing
+ *  usable behind it — the hero renders each fact as its own icon-led item
+ *  and simply omits the ones that are `null`. */
+export interface CompanyFacts {
+  domain: string;
+  hiringGeos: string | null;
+  remoteShare: string | null;
+}
+
 /**
- * The hero's quiet "derived facts" line under the hiring-answer sentence:
- * domain, where this employer is hiring, what share of roles are remote.
- * Absence is silence throughout — a clause with nothing usable behind it is
- * omitted, never a placeholder, and `domain` is the only part guaranteed to
- * ever be there (see `CompanyPageData.domain` / `getCompanyPageData`, which
- * never returns a page with an empty one).
+ * The hero's quiet "derived facts" under the hiring-answer sentence: domain,
+ * where this employer is hiring, what share of roles are remote. `domain` is
+ * the only part guaranteed to ever be there (see `CompanyPageData.domain` /
+ * `getCompanyPageData`, which never returns a page with an empty one).
  */
-export function buildCompanyFactsLine(
+export function buildCompanyFacts(
   data: Pick<CompanyPageData, "domain" | "jobs" | "intelligence">,
-): string {
-  return [data.domain, hiringGeosClause(data.jobs), remoteShareClause(data.intelligence)]
-    .filter((part): part is string => Boolean(part))
-    .join(" · ");
+): CompanyFacts {
+  return {
+    domain: data.domain,
+    hiringGeos: hiringGeosClause(data.jobs),
+    remoteShare: remoteShareClause(data.intelligence),
+  };
 }

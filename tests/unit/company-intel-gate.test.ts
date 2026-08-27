@@ -81,6 +81,59 @@ describe("CompanyIntelGate: locked overlay for unsigned-out visitors", () => {
     assert.match(html, /border-dashed/);
     assert.match(html, /Followers only/);
   });
+
+  it("reserves a height floor so the lock card can't overflow a wrapper whose blurred children are shorter than the card itself", () => {
+    const html = renderLockedGate();
+    assert.match(html, /min-h-\[320px\]/);
+  });
+});
+
+/** A second gate instance with the rail's overrides — no button, a narrower
+ *  description, and its own testid, so it can share the page with the
+ *  main-column gate above without colliding on `data-testid`. */
+function renderRailGate(): string {
+  return renderToStaticMarkup(
+    React.createElement(
+      CompanyFollowChannelProvider,
+      {
+        domain: "acme.com",
+        displayName: "Acme",
+        children: React.createElement(
+          CompanyIntelGate,
+          {
+            domain: "acme.com",
+            slug: "acme",
+            displayName: "Acme",
+            testId: "company-intel-gate-record",
+            description: "The hiring record and list health for Acme — visible once you follow.",
+            showFollowButton: false,
+            children: React.createElement("p", null, "The hiring record"),
+          },
+        ),
+      },
+    ),
+  );
+}
+
+describe("CompanyIntelGate: rail overrides (testId, description, showFollowButton)", () => {
+  it("a distinct testId lets a second gate instance share the page without colliding", () => {
+    const html = renderRailGate();
+    assert.match(html, /data-testid="company-intel-gate-record"/);
+    assert.ok(!html.includes('data-testid="company-intel-gate"'), "must not also carry the default testid");
+  });
+
+  it("showFollowButton=false keeps the named, veiled frame but drops the CTA — the Follow card sits above it", () => {
+    const html = renderRailGate();
+    assert.match(html, /The hiring record and list health for Acme/);
+    assert.match(html, /Followers only/);
+    assert.match(html, /border-dashed/);
+    assert.doesNotMatch(html, /data-testid="follow-company"/);
+  });
+
+  it("a custom description overrides the default copy entirely, not just appends to it", () => {
+    const html = renderRailGate();
+    assert.doesNotMatch(html, /funding, tech stack, and news/);
+  });
 });
 
 describe("/co/[slug]: secondary intel is gated behind follow", () => {
