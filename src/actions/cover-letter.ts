@@ -4,6 +4,7 @@ import { ProviderFactory } from "@/lib/llm/providers";
 import { fetchUrlContent } from "@/actions/fetch-url";
 import { chargeIfSharedKey } from "@/lib/llm/credit-gate";
 import { resolveLLMConfig } from "@/lib/llm/resolve-config";
+import { wrapUntrusted } from "@/lib/llm/untrusted";
 
 export async function generateCoverLetter(resumeContent: string, jobUrlOrDescription: string, length: "short" | "standard" | "long" = "standard") {
     try {
@@ -33,7 +34,7 @@ export async function generateCoverLetter(resumeContent: string, jobUrlOrDescrip
             ${resumeContent.substring(0, 15000)}
 
             JOB DESCRIPTION:
-            ${jobContext.substring(0, 10000)}
+            ${wrapUntrusted("job_posting", jobContext.substring(0, 10000))}
 
             GUIDELINES:
             1. **Tone**: Extremely human, conversational, and authentic. Avoid "AI-sounding" phrases like "I am writing to express my enthusiastic interest" or "seamlessly align". Instead, write like a real person speaking to another person. Be confident but humble.

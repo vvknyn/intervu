@@ -11,6 +11,7 @@ import { FREE_LADDER } from "@/lib/llm/models";
 import { PrepJobContext, fingerprintJobContext } from "@/lib/prep/job-context";
 import { planHasSessionQuestions } from "@/lib/prep/cache-key";
 import { resolveCacheLookup } from "@/lib/interview-cache";
+import { wrapUntrusted } from "@/lib/llm/untrusted";
 
 function hashQuestionText(text: string): string {
     let hash = 0;
@@ -382,7 +383,7 @@ Now analyze "${sanitizedCompany}":`;
 export async function fetchMatch(company: string, position: string, round: string, resume: string, stories: string, sources: string = "", jobContext: string = "", configOverride?: Partial<ProviderConfig>, companies: string[] = [], strategyLength: "brief" | "standard" | "detailed" = "standard"): Promise<{ data?: MatchData; error?: string }> {
     try {
         const fullContext = `RESUME SUMMARY:\n${resume}\n\nADDITIONAL STORIES:\n${stories}\n\nADDITIONAL SOURCES:\n${sources}`;
-        const jobContextSection = jobContext ? `\n\nJOB POSTING CONTEXT:\n${jobContext}` : "";
+        const jobContextSection = jobContext ? `\n\nJOB POSTING CONTEXT:\n${wrapUntrusted("job_posting", jobContext)}` : "";
 
         // Use all provided companies by default
         const selectedCompanies = companies.length > 0 ? companies : [];
@@ -715,7 +716,7 @@ export async function analyzeJobPosting(jobText: string, configOverride?: Partia
             3. Interview Round (default to "Behavioral" if not specified, or infer "Technical" if it contains coding/system design keywords)
 
             Job Text:
-            "${jobText.substring(0, 3000)}"
+            ${wrapUntrusted("job_posting", jobText.substring(0, 3000))}
 
             Return JSON:
             {
@@ -969,7 +970,7 @@ export async function generateAnswerCritique(
             ? `Verified Company Facts: ${JSON.stringify(context.reconData)}`
             : "No verified company data available. Do not invent specific product features or internal metrics.";
         const jobContextSection = context.jobContextText
-            ? `\n\nJOB POSTING CONTEXT:\n${context.jobContextText}`
+            ? `\n\nJOB POSTING CONTEXT:\n${wrapUntrusted("job_posting", context.jobContextText)}`
             : "";
 
         const prompt = `
@@ -1029,7 +1030,7 @@ async function fetchUnifiedReconMatch(
 ): Promise<{ recon: CompanyReconData; match: MatchData } | { error: string }> {
     try {
         const fullContext = `RESUME SUMMARY:\n${resume}\n\nADDITIONAL STORIES:\n${stories}`;
-        const jobContextSection = jobContextText ? `\n\nJOB POSTING CONTEXT:\n${jobContextText}` : "";
+        const jobContextSection = jobContextText ? `\n\nJOB POSTING CONTEXT:\n${wrapUntrusted("job_posting", jobContextText)}` : "";
         const sanitizedCompany = company.trim().replace(/['"]/g, '');
 
         const unifiedLengthInstruction = strategyLength === "brief"
@@ -1155,7 +1156,7 @@ async function fetchUnifiedQuestions(
     try {
         const { questions, reverse, technical, systemDesign, coding } = counts;
         const jobContextSection = context.jobContextText
-            ? `\n\nJOB POSTING CONTEXT:\n${context.jobContextText}`
+            ? `\n\nJOB POSTING CONTEXT:\n${wrapUntrusted("job_posting", context.jobContextText)}`
             : "";
 
         const prompt = `

@@ -10,6 +10,17 @@
  *
  * Pure — no I/O, no Firestore — so tamper/mismatch handling is directly
  * unit-testable.
+ *
+ * KNOWN KEY-REUSE TRADE-OFF: the HMAC signing key below is the same raw
+ * `ENCRYPTION_KEY` bytes used for AES-256-GCM encryption in lib/encryption.ts
+ * — general key-hygiene practice is to use a separate key per cryptographic
+ * primitive (e.g. HKDF-derive a distinct signing key from the same master).
+ * This is deliberately NOT done here: tokens are permanent by design (see
+ * "no expiry" above), so switching the signing key would invalidate every
+ * unsubscribe link already sent in every past email — a CASL/CAN-SPAM
+ * deliverability regression, not just a bug. If `ENCRYPTION_KEY` ever
+ * rotates for its AES use, mint a dedicated `UNSUBSCRIBE_SIGNING_KEY` at
+ * that point rather than reusing the new AES key blind.
  */
 import crypto from "crypto";
 import { getEncryptionKey } from "@/lib/encryption";

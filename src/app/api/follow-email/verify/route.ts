@@ -33,7 +33,13 @@ export async function GET(request: Request): Promise<NextResponse> {
     return relativeRedirect(FAILURE_PATH);
   }
 
-  const follow = domain && name ? { companyDomain: domain, displayName: name } : null;
+  // Bounded the same as the POST submit path (nonEmptyString(255)/(200) in
+  // route.ts's bodySchema) — this GET path is the other entry point that
+  // writes companyDomain/displayName, so it must be bounded identically even
+  // though the values are already escaped downstream (defense-in-depth).
+  const follow = domain && name && domain.length <= 255 && name.length <= 200
+    ? { companyDomain: domain, displayName: name }
+    : null;
   const consumed = await consumeAndFollow(q, token, follow);
   if (!consumed) {
     return relativeRedirect(FAILURE_PATH);

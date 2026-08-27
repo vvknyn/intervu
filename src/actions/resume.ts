@@ -351,12 +351,20 @@ export async function parseResumeWithAI(
     }
 }
 
+/** Hard cap on decoded file size for résumé uploads — bounds the CPU cost of
+ *  parsing (unpdf/mammoth run on this) regardless of how large a base64
+ *  payload an unauthenticated-looking caller manages to submit. */
+const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+
 /**
  * Extract text from PDF file (server-side)
  * Uses unpdf library (lightweight, works in serverless runtimes)
  */
 export async function extractPDFText(fileBase64: string): Promise<{ text?: string; error?: string }> {
     try {
+        const user = await getServerUser();
+        if (!user) return { error: "Not authenticated" };
+
         console.log("[Resume] Starting PDF extraction, base64 length:", fileBase64.length);
 
         // Validate input
@@ -369,6 +377,10 @@ export async function extractPDFText(fileBase64: string): Promise<{ text?: strin
         try {
             const buffer = Buffer.from(fileBase64, 'base64');
             console.log("[Resume] Buffer created, size:", buffer.length, "bytes");
+
+            if (buffer.length > MAX_RESUME_FILE_BYTES) {
+                return { error: "This PDF is too large (max 10MB). Please upload a smaller file." };
+            }
 
             const header = buffer.slice(0, 5).toString('ascii');
             if (!header.startsWith('%PDF')) {
@@ -434,11 +446,18 @@ export async function extractPDFText(fileBase64: string): Promise<{ text?: strin
  */
 export async function extractDocxText(fileBase64: string): Promise<{ text?: string; error?: string }> {
     try {
+        const user = await getServerUser();
+        if (!user) return { error: "Not authenticated" };
+
         // Dynamic import to avoid bundling issues
         const mammoth = await import('mammoth');
 
         // Convert base64 to buffer
         const buffer = Buffer.from(fileBase64, 'base64');
+
+        if (buffer.length > MAX_RESUME_FILE_BYTES) {
+            return { error: "This DOCX file is too large (max 10MB). Please upload a smaller file." };
+        }
 
         const result = await mammoth.extractRawText({ buffer });
 
