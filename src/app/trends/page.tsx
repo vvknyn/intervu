@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Clock } from "@phosphor-icons/react/dist/ssr";
 import { getCachedMarketTrends } from "@/lib/jobs/market-trends";
 import {
   captureDailySnapshotIfAbsent,
@@ -38,9 +39,7 @@ function DailySnapshotSummary({ snapshots }: { snapshots: DailySnapshotDoc[] }) 
         <p data-testid="trends-pulse-delta" className="text-xs text-foreground">
           <span className="text-muted-foreground">Since {sinceLabel(delta.sinceDate, snapshots[snapshots.length - 1].date)}: </span>
           <span className="font-bold">{delta.netActiveChange >= 0 ? "+" : ""}{delta.netActiveChange.toLocaleString()}</span>
-          <span className="text-muted-foreground"> net active · </span>
-          <span className="font-bold">{delta.newlyClosed.toLocaleString()}</span>
-          <span className="text-muted-foreground"> newly closed</span>
+          <span className="text-muted-foreground"> net active</span>
         </p>
       )}
       <p data-testid="trends-pulse-tracking-since" className="mt-0.5 text-[10.5px] uppercase tracking-wider text-muted-foreground">
@@ -101,15 +100,10 @@ export default async function TrendsPage() {
         title="Market trends"
         description="Live stats from the jobs corpus we track — from companies' own career pages, not curated."
         actions={
-          <div className="flex items-center gap-2 rounded-none border border-border bg-card px-3 py-1.5 text-xs">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-none bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-none bg-emerald-500" />
-            </span>
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-              Direct Ingestion Active
-            </span>
-          </div>
+          <span className="mono-data flex items-center gap-1.5 rounded-none border border-border bg-card px-3 py-1.5 text-[11px] text-muted-foreground">
+            <Clock size={13} weight="bold" />
+            counts refresh every 15 minutes
+          </span>
         }
       />
 

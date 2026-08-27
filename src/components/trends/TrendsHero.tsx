@@ -17,29 +17,29 @@ export function TrendsHero({
 }) {
   const tiles = [
     {
-      label: "Live Active Openings",
+      label: "Live active openings",
       subtitle: "Verified direct from employer career pages",
       value: liveJobs,
       testId: "trends-stat-live",
       icon: <Briefcase size={16} weight="duotone" className="text-foreground" />,
-      indicator: "bg-emerald-500",
+      indicator: "bg-st-offer",
       href: `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: undefined })}`,
     },
     {
-      label: "Total Postings Tracked",
-      subtitle: "Cumulative indexed across all historical statuses",
+      label: "Total postings tracked",
+      subtitle: "Every posting we've ever seen, live or closed",
       value: totalTracked,
       testId: "trends-stat-total",
       icon: <Database size={16} weight="duotone" className="text-foreground" />,
       indicator: "bg-slate-400 dark:bg-slate-500",
     },
     {
-      label: "Possibly Stale",
-      subtitle: "Flagged by automated integrity heuristic checks",
+      label: "Possibly stale",
+      subtitle: "Failed the same posting check shown on the job page",
       value: ghostFlaggedLive,
       testId: "trends-stat-ghost",
-      icon: <ShieldWarning size={16} weight="duotone" className="text-rose-500" />,
-      indicator: "bg-rose-500",
+      icon: <ShieldWarning size={16} weight="duotone" className="text-st-intv" />,
+      indicator: "bg-st-intv",
     },
   ];
 
@@ -49,7 +49,7 @@ export function TrendsHero({
         const content = (
           <div
             data-testid={tile.testId}
-            className="group relative flex h-full flex-col justify-between rounded-none border border-border/80 bg-card/75 p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] transition-all duration-150 hover:bg-card/90 hover:border-border-strong"
+            className="group relative flex h-full flex-col justify-between rounded-none border border-border bg-card p-6 transition-colors hover:border-border-strong"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
@@ -60,7 +60,7 @@ export function TrendsHero({
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border/70 bg-muted/40 backdrop-blur-md">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40">
                     {tile.icon}
                   </div>
                   {tile.href && (

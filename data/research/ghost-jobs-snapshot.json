@@ -1,0 +1,29 @@
+{
+  "asOf": "2026-07-01",
+  "dateModified": "2026-08-26",
+  "totalScored": 38806,
+  "companiesCount": 3128,
+  "grades": {
+    "A": { "count": 80, "description": "Excellent — clear, fresh, transparent" },
+    "B": { "count": 20067, "description": "Good — solid listing, minor gaps" },
+    "C": { "count": 15302, "description": "Ambiguous — missing key signals" },
+    "DF": { "count": 3357, "description": "Low quality — likely not worth applying" }
+  },
+  "salary": {
+    "posted": { "count": 12970, "avgScore": 0.677 },
+    "notPosted": { "count": 25836, "avgScore": 0.598 }
+  },
+  "remote": {
+    "remote": { "count": 3940, "avgScore": 0.678 },
+    "nonRemote": { "count": 34866, "avgScore": 0.619 }
+  },
+  "companySize": [
+    { "label": "50+ open roles", "companies": 211, "jobs": 16366, "avgScore": 0.651 },
+    { "label": "10–49 roles", "companies": 747, "jobs": 15931, "avgScore": 0.621 },
+    { "label": "< 10 roles", "companies": 2170, "jobs": 6509, "avgScore": 0.568 }
+  ],
+  "staleness": {
+    "withPostedDate": 30980,
+    "over60d": 12497
+  }
+}
