@@ -8,6 +8,7 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { JobDetail, JobDetailActionBar } from "@/components/jobs/JobDetail";
+import { JobDetailDocument } from "@/components/jobs/JobDetailDocument";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     formatAuthGateValueLine,
@@ -38,11 +39,18 @@ export interface PublicJobDetailProps {
     collapseDescription?: boolean;
     /** Passed through to JobDetail — sheet mount uses border-0 bg-transparent shadow-none. */
     detailClassName?: string;
+    /** "panel" (default) is the SERP glass panel/modal (`JobDetail`); "document"
+     *  is the standalone `/jobs/[slug]` page layout (`JobDetailDocument`). The
+     *  same gate/handler wiring below drives both — only the rendered detail
+     *  component differs. `JobDetailActionBar` renders unconditionally either
+     *  way; it's already the proven sticky action surface for this route. */
+    layout?: "panel" | "document";
 }
 
 /**
- * Client-side wiring for `JobDetail` on standalone or modal job views.
- * Apply/save gates and the sticky action bar match `/jobs` (SERP) behavior.
+ * Client-side wiring for `JobDetail`/`JobDetailDocument` on standalone or
+ * modal job views. Apply/save gates and the sticky action bar match `/jobs`
+ * (SERP) behavior.
  */
 export function PublicJobDetail({
     job,
@@ -50,6 +58,7 @@ export function PublicJobDetail({
     onOpenRelated,
     collapseDescription = true,
     detailClassName,
+    layout = "panel",
 }: PublicJobDetailProps) {
     const [nowMs] = useState(() => Date.now());
     const [goingAfter, setGoingAfter] = useState(false);
@@ -231,26 +240,59 @@ export function PublicJobDetail({
                 }
                 defaultTab={authGateReason === "apply" ? "signup" : "login"}
             />
-            <JobDetail
-                job={job}
-                now={nowMs}
-                signedIn={Boolean(user)}
-                pursuit={byJobId.get(job.id)}
-                goingAfter={goingAfter}
-                reportJobEnabled={reportJobEnabled}
-                onClose={onClose}
-                onOpenRelated={handleOpenRelated}
-                onRequestSignIn={requireAuth}
-                collapseDescription={collapseDescription}
-                className={cn(detailClassName)}
-                onOpenPosting={() => handleOpenPosting(job)}
-                onGoAfter={() => handleGoAfter(job)}
-            />
-            <JobDetailActionBar
-                job={job}
-                signedIn={Boolean(user)}
-                onOpenPosting={() => handleOpenPosting(job)}
-            />
+            {layout === "document" ? (
+                <JobDetailDocument
+                    job={job}
+                    now={nowMs}
+                    signedIn={Boolean(user)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
+                    reportJobEnabled={reportJobEnabled}
+                    onOpenRelated={handleOpenRelated}
+                    onRequestSignIn={requireAuth}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                />
+            ) : (
+                <JobDetail
+                    job={job}
+                    now={nowMs}
+                    signedIn={Boolean(user)}
+                    pursuit={byJobId.get(job.id)}
+                    goingAfter={goingAfter}
+                    reportJobEnabled={reportJobEnabled}
+                    onClose={onClose}
+                    onOpenRelated={handleOpenRelated}
+                    onRequestSignIn={requireAuth}
+                    collapseDescription={collapseDescription}
+                    className={cn(detailClassName)}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                    onGoAfter={() => handleGoAfter(job)}
+                />
+            )}
+            {/* Document layout already has its own sticky-rail Apply card at
+                lg+ (JobDetailDocument's `applyCardEl`) — this bar stacking on
+                top of it would be a redundant second Apply CTA that, at full
+                document width, sits on top of the (now unclamped) description
+                text instead of a short clamped panel. Mobile still needs it:
+                the document layout's single-column stack has no persistent
+                rail there. The panel layout is unchanged — unconditional,
+                exactly as before. */}
+            {layout === "document" ? (
+                <div className="lg:hidden">
+                    <JobDetailActionBar
+                        job={job}
+                        signedIn={Boolean(user)}
+                        onOpenPosting={() => handleOpenPosting(job)}
+                    />
+                </div>
+            ) : (
+                <JobDetailActionBar
+                    job={job}
+                    signedIn={Boolean(user)}
+                    onOpenPosting={() => handleOpenPosting(job)}
+                />
+            )}
         </>
     );
 }

@@ -52,7 +52,7 @@ import type { Pursuit } from "@/lib/pursuits/types";
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
  *  the structure. See lib/jobs/format-description.ts. */
-function JobDescription({ blocks }: { blocks: DescBlock[] }) {
+export function JobDescription({ blocks }: { blocks: DescBlock[] }) {
     return (
         <div className="text-[14px] leading-relaxed sm:text-[13.5px] text-muted-foreground">
             {blocks.map((b, i) => {
@@ -195,7 +195,7 @@ export function JobDetailActionBar({
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
  */
-function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
+export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     const loc = locationText(job);
