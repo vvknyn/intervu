@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 
-const TITLE = "About";
+const TITLE = "About intervu";
 const DESCRIPTION = "What intervu is, how it works, and where the data comes from.";
 
 export const metadata: Metadata = {
@@ -11,17 +11,29 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/about", TITLE, DESCRIPTION),
 };
 
+// Squared "rtable" treatment, same convention as research/ghost-jobs/page.tsx:
+// one hairline border around the whole table, header cells uppercase with no
+// top border, every data-row cell gets a top hairline instead of a bottom one.
+const RTABLE_TH = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground";
+const RTABLE_TD = "border-t border-foreground/10 px-4 py-3 align-top";
+
+// Section labels read as small uppercase caps, never mono (typography.test.ts
+// bans font-mono outside <code>) — `:where()` in the typography plugin keeps
+// its own h2 styling at zero specificity, so these utilities win outright.
+const ASEC = "mt-8 mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+
 export default function AboutPage() {
   return (
     <main data-testid="about-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <div className="rounded-none border border-border/80 bg-card/75 p-6 sm:p-10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
-        <div className="border-b border-border pb-4 mb-6">
-          <span className="text-xs font-bold uppercase tracking-widest text-brand">[ ABOUT INTERVU ]</span>
-          <h1 className="mt-1 font-display text-3xl font-black uppercase tracking-tight text-foreground">About The Corpus</h1>
-        </div>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">About intervu</p>
+      <h1 className="mt-3 font-display text-display font-extrabold text-foreground">About intervu</h1>
+      <p className="mt-1.5 text-sm italic text-muted-foreground">
+        An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
+        the way otherwise.
+      </p>
 
-        <article className="prose prose-sm max-w-none dark:prose-invert">
-        <h2>What intervu is</h2>
+      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <h2 className={ASEC}>What intervu is</h2>
         <p>
           The job market runs on information asymmetry. Employers know which roles are actively being filled,
           which listings are stale, and which teams are really hiring. Job seekers don&apos;t — they see a listing
@@ -33,7 +45,7 @@ export default function AboutPage() {
           actually posted, flag what looks stale or low-signal, and get out of the way otherwise.
         </p>
 
-        <h2>How it works</h2>
+        <h2 className={ASEC}>How it works</h2>
         <p>
           We track listings directly from employers&apos; own career pages — not from aggregators, not from resold
           feeds. That matters for two reasons: freshness and provenance. When a company closes a role in its hiring
@@ -49,33 +61,45 @@ export default function AboutPage() {
           listing gives you.
         </p>
 
-        <h2>How Intervu compares to Indeed and LinkedIn</h2>
-        <p>
-          Traditional job boards like Indeed and LinkedIn were built for employer advertising, not candidate clarity.
-          Here is how Intervu is different:
-        </p>
-        <ul>
-          <li>
-            <strong>Direct ATS indexing vs. aggregator clutter:</strong> Instead of flooded feeds filled with third-party
-            reposts and staffing-firm duplicates, Intervu syncs directly with verified company career portals.
-          </li>
-          <li>
-            <strong>Active stale-posting screening:</strong> On Indeed and LinkedIn, stale listings linger indefinitely even
-            when hiring has paused. Intervu monitors employer hiring velocity, ATS update timestamps, and posting age to
-            protect you from dead-end applications.
-          </li>
-          <li>
-            <strong>Real salary transparency:</strong> We surface explicit compensation ranges and compensation benchmarks
-            up front so you don&apos;t spend weeks interviewing blindly.
-          </li>
-          <li>
-            <strong>Zero sponsored spam:</strong> Results are ordered by genuine relevance and freshness — never distorted
-            by pay-to-play employer ad budgets.
-          </li>
-        </ul>
+        <h2 className={ASEC}>Compared to Indeed and LinkedIn</h2>
+      </article>
 
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-foreground/10 text-[13.5px]">
+          <thead>
+            <tr>
+              <th className={RTABLE_TH}></th>
+              <th className={RTABLE_TH}>intervu</th>
+              <th className={RTABLE_TH}>typical job board</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className={RTABLE_TD}>listings come from</td>
+              <td className={RTABLE_TD}>employers&apos; own career pages</td>
+              <td className={RTABLE_TD}>employer ads + resold feeds</td>
+            </tr>
+            <tr>
+              <td className={RTABLE_TD}>when a role closes</td>
+              <td className={RTABLE_TD}>gone, usually within a day</td>
+              <td className={RTABLE_TD}>lingers until the ad lapses</td>
+            </tr>
+            <tr>
+              <td className={RTABLE_TD}>screening</td>
+              <td className={RTABLE_TD}>posting check on every role</td>
+              <td className={RTABLE_TD}>none disclosed</td>
+            </tr>
+            <tr>
+              <td className={RTABLE_TD}>match scores</td>
+              <td className={RTABLE_TD}>none — facts only</td>
+              <td className={RTABLE_TD}>invented percentages</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <h2>Where the data comes from</h2>
+      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <h2 className={ASEC}>Where the data comes from</h2>
         <p>
           intervu runs on the Subspace jobs corpus — an independent hiring-market data engine that monitors
           companies&apos; own career pages. Subspace is the infrastructure; intervu is the product built on top of
@@ -86,12 +110,11 @@ export default function AboutPage() {
           .
         </p>
 
-        <h2>Contact</h2>
+        <h2 className={ASEC}>Contact</h2>
         <p>
           Questions or feedback: use the <Link href="/contact">contact page</Link>.
         </p>
       </article>
-      </div>
     </main>
   );
 }

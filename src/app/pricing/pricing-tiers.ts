@@ -63,7 +63,7 @@ export type PricingCta =
 
 export interface PricingTier {
   name: string;
-  /** The literal price slot — a dollar figure, a unit ("credits/week"), or "let's talk". Always rendered font-mono. */
+  /** The literal price slot — a dollar figure, a unit ("credits/week"), or "let's talk". */
   price: string;
   /** Short phrase under the price describing what it buys. */
   tagline: string;
@@ -88,10 +88,10 @@ export interface PricingTier {
 export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTier[] {
   return [
     {
-      name: "Free",
+      name: "Free · while we're in beta",
       price: "$0",
       tagline: "the whole product",
-      priceNote: "No card required. Nothing to cancel.",
+      priceNote: "no card required · nothing to cancel · paid tiers come later",
       bullets: [
         {
           text: stats
@@ -99,7 +99,10 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
             : "Search live jobs, straight from companies' own career pages",
         },
         { text: "A posting check on every role — actively posted, worth verifying, or possibly stale" },
-        { text: "Track every application in one place, from interested to offer" },
+        // Tracker lane vocabulary ("saved", not "interested") matches the
+        // workspace redesign's lane naming (proposal 5) so this card doesn't
+        // cite a stage name the tracker itself no longer uses.
+        { text: "Track every application in one place, from saved to offer" },
         // The AI-allowance line is chosen by the same constant the gate reads
         // (`BETA_UNLIMITED_CREDITS`, ./credit-copy.ts), never written by hand:
         // during beta `chargeIfSharedKey` short-circuits above `consumeCredit`,
@@ -128,7 +131,9 @@ export function buildPricingTiers(stats: MarketingCorpusStats | null): PricingTi
           backedBy: { module: "src/lib/agent/tools.ts", symbol: "toolSearchJobs" },
         },
       ],
-      cta: { kind: "link", label: "Start free", href: "/", variant: "brand" },
+      // Says what happens: /jobs is where "Start free" actually landed a
+      // visitor anyway (via redirect) — link straight there instead.
+      cta: { kind: "link", label: "Browse live roles", href: "/jobs", variant: "brand" },
     },
   ];
 }

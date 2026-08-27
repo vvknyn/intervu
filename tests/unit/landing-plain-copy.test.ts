@@ -1,9 +1,8 @@
 import { describe, it } from 'node:test'; import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { indexCategories, LandingMasthead } from '../../src/components/jobs/LandingMarketingShowcase';
-import { LANDING_PROVENANCE_LINE } from '../../src/lib/marketing-stats';
+import { indexCategories } from '../../src/components/jobs/LandingMarketingShowcase';
+import { JOBS_USP } from '../../src/lib/jobs/jobs-usp-copy';
 
 /**
  * Guards the landing-page copy rewrite (2026-08-18): the page used to talk
@@ -179,36 +178,37 @@ describe('jobs toolbar chip row: field chips derive from indexCategories, not a 
 });
 
 /**
- * Guards the masthead claim (2026-08-18): `marketClaim` in app/jobs/page.tsx
- * was computed but never passed to anything that rendered it — a dead-state
- * bug where the state existed and updated correctly but no JSX ever read it.
- * This asserts the render side directly: a non-null `claim` prop must reach
- * the page, and `null` must render nothing claim-shaped, never an invented
- * placeholder sentence.
- *
- * The claim carries provenance and no count since 2026-08-24 — see
- * `LANDING_PROVENANCE_LINE`'s own note and the class-wide guard in
- * guest-copy-jargon.test.ts.
+ * Guards the masthead mount (2026-08-26 front-door redesign): `LandingMasthead`
+ * and `LandingUspSection` were dead exports — authored, tested, never mounted
+ * anywhere on /jobs (the bug this file used to guard by asserting their
+ * NON-render). The frozen redesign absorbs their substance into one inline
+ * mount at the `showLandingMarketing` callsite and retires both exports —
+ * "Both dead exports then actually retire" / "move the tests to the mounted
+ * markup" (front-door-redesign proposal, section 2). This re-derives the old
+ * component-level assertions against that mounted markup instead of the
+ * now-deleted component functions.
  */
-describe('LandingMasthead: renders the provenance claim (or nothing)', () => {
-    it('renders the claim sentence when passed a non-null claim', () => {
-        const html = renderToStaticMarkup(LandingMasthead({ claim: LANDING_PROVENANCE_LINE }));
-        assert.match(html, /screened for stale postings/);
+describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
+    const JOBS_PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'page.tsx');
+
+    it('LandingMasthead and LandingUspSection no longer exist as exports', () => {
+        const src = readFileSync(TARGET, 'utf8');
+        assert.doesNotMatch(src, /export function LandingMasthead/);
+        assert.doesNotMatch(src, /export function LandingUspSection/);
     });
 
-    it('renders nothing claim-shaped when claim is null', () => {
-        const html = renderToStaticMarkup(LandingMasthead({ claim: null }));
-        assert.doesNotMatch(html, /live roles/);
-        assert.doesNotMatch(html, /screened for stale postings/);
-        // The h1 still renders — only the claim paragraph is conditional.
-        assert.match(html, /Every job, straight from the employer\./);
-    });
-
-    it('/jobs does not mount LandingMasthead — header search owns lg+ landing', () => {
-        const pageSrc = readFileSync(
-            new URL('../../src/app/jobs/page.tsx', import.meta.url),
-            'utf8',
-        );
-        assert.doesNotMatch(pageSrc, /<LandingMasthead/);
+    it('renders the tested headline, provenance line, and live count when showLandingMarketing', () => {
+        const src = readFileSync(JOBS_PAGE, 'utf8');
+        const start = src.indexOf('{showLandingMarketing ? (');
+        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        assert.notStrictEqual(start, -1, 'masthead ternary anchor moved — update this test');
+        assert.notStrictEqual(end, -1, 'sr-only fallback h1 anchor moved — update this test');
+        const branch = src.slice(start, end);
+        assert.match(branch, /\{JOBS_USP\.mastheadTitle\}/);
+        assert.match(branch, /\{JOBS_USP\.searchDescription\}/);
+        assert.match(branch, /\{liveCountEl\}/);
+        // The claim text itself, not just the symbol reference — same fact
+        // the deleted LandingMasthead's own test asserted.
+        assert.match(JOBS_USP.searchDescription, /screened for stale postings/);
     });
 });

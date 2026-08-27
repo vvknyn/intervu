@@ -297,10 +297,20 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
     });
 
-    it("SERP keeps a single page h1 when the landing masthead is absent", () => {
+    it("SERP renders exactly one h1 — masthead branch or sr-only fallback, never both", () => {
+        // The masthead and the sr-only fallback are the two arms of one
+        // ternary (2026-08-26 front-door redesign), so at most one can ever
+        // be in the DOM at a time — this is the guard against ever co-mounting
+        // two heroes, kept as a structural check rather than a component-name
+        // check now that the masthead is inline markup, not a component.
         const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /<LandingMasthead/);
-        assert.match(src, /<h1[^>]*className="[^"]*sr-only/);
+        const mastheadStart = src.indexOf("{showLandingMarketing ? (");
+        const fallbackH1 = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        assert.notStrictEqual(mastheadStart, -1, "masthead ternary anchor moved — update this test");
+        assert.notStrictEqual(fallbackH1, -1, "sr-only fallback h1 anchor moved — update this test");
+        assert.ok(fallbackH1 > mastheadStart, "sr-only h1 should be the ternary's else branch");
+        const h1Count = (src.match(/<h1[\s>]/g) || []).length;
+        assert.equal(h1Count, 2, "expected exactly two <h1> literals — masthead branch + sr-only fallback");
     });
 
     it("loading splash copy uses readable status text size", () => {
@@ -368,9 +378,20 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(replay, /h-9 w-9/);
     });
 
-    it("does not render LandingMasthead on /jobs", () => {
+    it("mounts the masthead's headline and provenance line when showLandingMarketing", () => {
+        // Was the "does not render LandingMasthead" guard for the OLD bug
+        // (component authored, never mounted). The masthead is now inline
+        // markup absorbed at this callsite — assert its real content mounts
+        // instead of asserting a component name that no longer exists.
         const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /<LandingMasthead/);
+        const start = src.indexOf("{showLandingMarketing ? (");
+        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        assert.notStrictEqual(start, -1);
+        assert.notStrictEqual(end, -1);
+        const branch = src.slice(start, end);
+        assert.match(branch, /JOBS_USP\.mastheadTitle/);
+        assert.match(branch, /JOBS_USP\.searchDescription/);
+        assert.match(branch, /liveCountEl/);
     });
 
     it("lg+ always docks search in the header", () => {

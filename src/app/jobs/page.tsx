@@ -99,6 +99,7 @@ import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { LandingMarketingShowcase, indexCategories } from "@/components/jobs/LandingMarketingShowcase";
+import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { tourSteps } from "@/components/tour/tour-steps";
 import {
@@ -4249,6 +4250,25 @@ function JobsContent() {
         showJobsToolbarRow || (!headerDockActive && facetsMountSite !== null);
 
     /**
+     * The live-count link, same markup regardless of where it renders. Two
+     * call sites need it: the mobile search well below (only once the
+     * landing masthead has stopped owning it) and the masthead itself, which
+     * is the only place this count appears on lg+ now that the TopBar ticker
+     * is gone (2026-08-24) — extracted so neither site can drift from the
+     * other's copy or styling.
+     */
+    const liveCountEl = liveJobsCount !== null && (
+        <Link
+            href="/trends"
+            data-testid="search-live-count"
+            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
+        >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
+            {formatCorpusCount(liveJobsCount)} live roles
+        </Link>
+    );
+
+    /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
      * and result count stay mounted whether the query is empty
      * (`isSerpAsk` — tappable search seeds, chrome preserved) or has
@@ -4276,7 +4296,33 @@ function JobsContent() {
                 deliberately don't, so they line up against the same gutter,
                 and the results grid is the one thing that stops widening. */}
             <main data-shell="bleed" className="shell-row flex min-h-screen flex-col pb-20 pt-2 sm:pt-3">
-                <h1 className="sr-only">Jobs</h1>
+                {/* Landing masthead — mounts only for a zero-intent pristine
+                    visitor (`showLandingMarketing`), at every width, not just
+                    mobile: the header's docked search took over the box on
+                    lg+ but never stated what the corpus IS or where it's
+                    from. Was authored (`LandingMasthead`) but never mounted
+                    anywhere on this route (2026-08-21 front-door audit, item
+                    2; frozen front-door redesign, 2026-08-26). Once a search
+                    runs, this unmounts in favor of the sr-only heading so the
+                    page still carries exactly one h1. */}
+                {showLandingMarketing ? (
+                    <div className="pb-4 sm:pb-6">
+                        <div className="border-b border-border py-5 sm:py-7">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand">
+                                Live from employer career pages
+                            </p>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                                {JOBS_USP.mastheadTitle}
+                            </h1>
+                            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                                {JOBS_USP.searchDescription}
+                            </p>
+                            {liveCountEl}
+                        </div>
+                    </div>
+                ) : (
+                    <h1 className="sr-only">Jobs</h1>
+                )}
                 <a
                     href="#jobs-results-list"
                     className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-20 focus:z-[60] focus:border focus:border-foreground focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
@@ -4301,17 +4347,11 @@ function JobsContent() {
                 >
                     {/* The live count, moved here off the TopBar. Same /trends
                         destination it always had — it is a way into the report,
-                        not a badge. Absent until a real count resolves. */}
-                    {liveJobsCount !== null && (
-                        <Link
-                            href="/trends"
-                            data-testid="search-live-count"
-                            className="mb-2 inline-flex items-center gap-1.5 whitespace-nowrap mono-data text-xs font-bold uppercase tracking-wider text-brand transition-colors hover:text-brand/80"
-                        >
-                            <span aria-hidden className="h-1.5 w-1.5 rounded-none bg-brand animate-pulse" />
-                            {formatCorpusCount(liveJobsCount)} live roles
-                        </Link>
-                    )}
+                        not a badge. Absent until a real count resolves.
+                        Suppressed during the landing masthead, which already
+                        renders this same `liveCountEl` itself — otherwise a
+                        mobile pristine visitor would see the count twice. */}
+                    {!showLandingMarketing && liveCountEl}
                     {/* Collapses once the header carries a live copy of this
                         search (`headerDockActive`, lg+ only) — the reclaimed
                         height goes straight to results instead of two typing
@@ -4509,8 +4549,12 @@ function JobsContent() {
                     directory + "start with a filter" shortcuts. Was authored
                     but never mounted anywhere (2026-08-21 front-door audit,
                     item 3): the pristine landing had no browse affordance
-                    below the search box at all, only after a search ran. */}
-                {showLandingMarketing && !isLgUp && (
+                    below the search box at all, only after a search ran. Now
+                    mounts at every width (frozen front-door redesign,
+                    2026-08-26) — it used to be mobile-only because the
+                    desktop pristine landing had nothing above it worth
+                    scrolling to; the masthead above gives it one. */}
+                {showLandingMarketing && (
                     <LandingMarketingShowcase
                         onSelectQuery={submitSearch}
                         onSelectRemote={onSelectRemote}
