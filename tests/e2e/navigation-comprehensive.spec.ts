@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * COMPREHENSIVE NAVIGATION TESTS
@@ -43,7 +44,11 @@ test.describe('NAVIGATION - Desktop Top Bar', () => {
         await page.setViewportSize({ width: 1280, height: 800 });
     });
 
-    test('NAV-001: Top bar is visible on all pages', async ({ page }) => {
+    // Gated via tests/e2e/helpers/auth-gate.ts: NAV_PAGES includes /settings
+    // (auth-gated, AUTH_GATED_PRODUCT_PREFIXES), and this asserts the top
+    // bar unconditionally on every page in the loop, so it needs a real
+    // signed-in session to reach /settings at all.
+    authTest('NAV-001: Top bar is visible on all pages', async ({ page }) => {
         for (const navPage of [{ name: 'Jobs', path: '/jobs', label: 'Jobs' }, ...NAV_PAGES]) {
             await page.goto(navPage.path);
             await page.waitForLoadState('domcontentloaded');
@@ -130,7 +135,8 @@ test.describe('NAVIGATION - Mobile Top Bar', () => {
         await page.setViewportSize({ width: 375, height: 667 });
     });
 
-    test('NAV-M-001: Top bar is visible on all pages', async ({ page }) => {
+    // Gated via tests/e2e/helpers/auth-gate.ts: same reason as NAV-001.
+    authTest('NAV-M-001: Top bar is visible on all pages', async ({ page }) => {
         for (const navPage of [{ name: 'Jobs', path: '/jobs', label: 'Jobs' }, ...NAV_PAGES]) {
             await page.goto(navPage.path);
             await page.waitForLoadState('domcontentloaded');

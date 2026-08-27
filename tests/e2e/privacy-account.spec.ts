@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { test as authTest } from './helpers/auth-gate';
 
 /**
  * TEST GROUP: PRIVACY & ACCOUNT - Privacy Controls and Account Management
@@ -6,6 +7,13 @@ import { test, expect } from '@playwright/test';
  * Tests for privacy notice, account deletion UI, data export, and
  * localStorage clearing on signout. Settings page uses a single-page
  * sectioned layout (no tabs).
+ *
+ * `/settings` is auth-gated (AUTH_GATED_PRODUCT_PREFIXES) — a signed-out
+ * visit bounces off-origin before the page renders. Tests below that
+ * assert hard on `/settings` content (004, 005, 006, 007, 009) go through
+ * tests/e2e/helpers/auth-gate.ts and need a real signed-in session. The
+ * others only soft-check `/settings` (isVisible()-guarded), so they no-op
+ * cleanly when signed out and are left as-is.
  */
 
 test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => {
@@ -78,7 +86,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
    *
    * Verifies the Data & Privacy section is present on the settings page (flat layout, no tabs).
    */
-  test('TC-PRIVACY-004: Data & Privacy section visible in settings', async ({ page }) => {
+  authTest('TC-PRIVACY-004: Data & Privacy section visible in settings', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -92,7 +100,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
    *
    * Verifies export data and delete account links are present in Data & Privacy.
    */
-  test('TC-PRIVACY-005: Export and delete links visible', async ({ page }) => {
+  authTest('TC-PRIVACY-005: Export and delete links visible', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -115,7 +123,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
    *
    * Verifies the delete account dialog opens and requires typing DELETE.
    */
-  test('TC-PRIVACY-006: Delete account dialog requires confirmation', async ({ page }) => {
+  authTest('TC-PRIVACY-006: Delete account dialog requires confirmation', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -154,7 +162,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
    *
    * Verifies the confirmation text resets when dialog is closed and reopened.
    */
-  test('TC-PRIVACY-007: Delete dialog resets on close', async ({ page }) => {
+  authTest('TC-PRIVACY-007: Delete dialog resets on close', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -211,7 +219,7 @@ test.describe('PRIVACY & ACCOUNT - Privacy and Account Management Tests', () => 
    *
    * Verifies the data section works on mobile viewport.
    */
-  test('TC-PRIVACY-009: Settings page responsive with data section', async ({ page }) => {
+  authTest('TC-PRIVACY-009: Settings page responsive with data section', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');

@@ -25,6 +25,7 @@ import { test, expect } from '@playwright/test';
  */
 test.describe('ACCOUNT-RESUME', () => {
     test('signed-in flow: upload a resume, see it, replace it, delete it', async ({ page }) => {
+        test.skip(true, 'needs live signup + Turnstile — cannot be automated; run manually');
         const username = `e2eresume${Date.now()}`;
         const password = 'TestPass123!';
 
