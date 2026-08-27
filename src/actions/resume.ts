@@ -24,7 +24,7 @@ export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
 /**
  * Fetch structured resume data from database
  */
-export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; error?: string }> {
+export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; updatedAt?: string | null; error?: string }> {
     try {
         const user = await getServerUser();
 
@@ -54,7 +54,13 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
         return {
             data: resumeData,
             source: docData?.resume_import_source,
-            confidence: docData?.resume_import_confidence
+            confidence: docData?.resume_import_confidence,
+            // Same field `saveResumeData` writes on every save (below) and
+            // `getBaseResumeSummaryForUser` (lib/resume/base-resume.ts) reads
+            // for the Settings card — reused here so the match-score toolbar's
+            // "scored against your résumé of {date}" line has one source of
+            // truth for "when was this last touched", not a second read path.
+            updatedAt: (docData?.resume_last_updated as string | undefined) ?? null
         };
     } catch (e: any) {
         console.error("[Resume] Fetch Exception:", e);

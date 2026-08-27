@@ -66,9 +66,12 @@ import {
     interleaveByCompany,
     partitionByTitleMatch,
     seamSummary,
+    shortDate,
 } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { ContextHelp } from "@/components/ui/context-help";
+import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -548,6 +551,8 @@ function JobCard({
     onToggleExpand,
     dense = false,
     tourAnchor = false,
+    matchScore = null,
+    matchAsOfDate = null,
 }: {
     job: PublicJob;
     active: boolean;
@@ -566,6 +571,12 @@ function JobCard({
     dense?: boolean;
     /** First visible result row — anchor for the jobs guided tour. */
     tourAnchor?: boolean;
+    /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
+     *  no signed-in résumé or no comparable field — renders no chip, never a
+     *  fabricated 0 (Rule 3, match-contract.md). */
+    matchScore?: MatchScore | null;
+    /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
+    matchAsOfDate?: string | null;
 }) {
     const presented = presentJob(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
@@ -708,7 +719,11 @@ function JobCard({
                 claim. Monospace is reserved for <code> (see typography.test);
                 `.mono-data` gets the same "figures line up" property from
                 tabular-nums on the sans face instead. */}
-            <span className="flex h-fit items-start self-start">
+            {/* Match chip stacks above the age line in this same meta
+                column — no new row, no layout shift when a résumé isn't on
+                file (`matchScore` is simply `null` then). */}
+            <span className="flex h-fit flex-col items-end gap-1 self-start">
+                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} />}
                 {age && (
                     <span
                         data-testid="posted-age"
@@ -1711,6 +1726,11 @@ function JobsContent() {
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
+    // The stored `resume_last_updated` behind the match-score toolbar's
+    // "scored against your résumé of {date}" line (see `fetchResumeData`,
+    // actions/resume.ts) — kept alongside `resume` itself, set at the same
+    // two call sites, so the two can never point at different résumés.
+    const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
 
     // Task 8 résumé upsell card dismissal — read once on mount (no new mount
@@ -2467,6 +2487,49 @@ function JobsContent() {
     // pure (lib/jobs/cluster.ts); reads `displayHits`, not raw `hits`.
     const clusters = useMemo(() => clusterJobs(displayHits), [displayHits]);
 
+    // The one scoring function (`scoreJobAgainstResume`, lib/match/score.ts)
+    // computed once per result set, keyed by job id. Both the card chip
+    // (JobCard below) and the `fitActive` resort just below reuse this SAME
+    // map — the frozen "one scoring function" rule means the chip and the
+    // visible order can never disagree about a job's score. `null` (no
+    // résumé) short-circuits to no map at all, not a map of nulls.
+    const matchScores = useMemo(() => {
+        if (!resume) return null;
+        const map = new Map<string, MatchScore | null>();
+        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h));
+        return map;
+    }, [resume, hits]);
+
+    // The receipt/toolbar's "against your résumé of {date}" text — formatted
+    // once here (`shortDate`, presentation.ts, UTC-pinned) rather than at
+    // each chip, then lowercased at this copy layer only: the design's "aug
+    // 27" is a deliberate literal-lowercase style choice, not a locale
+    // default, so it stays out of the shared date formatter.
+    const resumeAsOfDate = useMemo(() => {
+        if (!resumeUpdatedAt) return null;
+        const ms = Date.parse(resumeUpdatedAt);
+        return Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null;
+    }, [resumeUpdatedAt]);
+
+    // `sort=fit`'s visible order: a stable resort of `clusters` by the same
+    // per-job score above, applied client-side only while `fitActive`. This
+    // is layered ON TOP of `clusters` rather than folded into the
+    // `hits`/`displayHits`/`seamIndex` pipeline above — that machinery still
+    // drives relevance-mode recall and the "titled it" seam exactly as
+    // before. `sort=fit`'s actual backend mechanism is résumé-derived query
+    // text (`applyFit` → `buildMatchQuery`) feeding ordinary relevance
+    // ranking (see `resolveUrlSort`'s doc comment above) — this only
+    // reorders what relevance already retrieved, so recall is untouched and
+    // the visible order now matches the chip. `Array.prototype.sort` is
+    // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
+    // original relevance position instead of shuffling.
+    const renderedClusters = useMemo(() => {
+        if (!fitActive || !matchScores) return clusters;
+        return [...clusters].sort(
+            (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
+        );
+    }, [clusters, fitActive, matchScores]);
+
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
     // cluster shares the same title, so — since results already arrive
@@ -2481,13 +2544,14 @@ function JobsContent() {
         seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
 
     // The flat list of jobs actually rendered as their own row right now —
-    // every cluster's primary, plus its variants only while expanded.
+    // every cluster's primary, plus its variants only while expanded, in
+    // `renderedClusters`' order (== `clusters`' order outside `fitActive`).
     // `handleResultsKeyDown` below walks THIS, not raw `hits`: arrow-key nav
     // must never land on a collapsed variant with no visible row to show as
-    // selected.
+    // selected, and must step in the same order the rows actually appear.
     const visibleHits = useMemo(
-        () => clusters.flatMap((c) => [c.primary, ...(expandedClusters.has(c.primary.id) ? c.variants : [])]),
-        [clusters, expandedClusters],
+        () => renderedClusters.flatMap((c) => [c.primary, ...(expandedClusters.has(c.primary.id) ? c.variants : [])]),
+        [renderedClusters, expandedClusters],
     );
 
     // The URL is the reactive source of truth for the WHOLE screen, not just
@@ -3599,9 +3663,10 @@ function JobsContent() {
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
-        const { data } = await fetchResumeData();
+        const { data, updatedAt } = await fetchResumeData();
         if (data && resumeIsUsable(data)) {
             setResume(data);
+            setResumeUpdatedAt(updatedAt ?? null);
             return data;
         }
         return null;
@@ -3834,6 +3899,10 @@ function JobsContent() {
 
     const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number) => {
         setResume(data);
+        // Saved in the same beat, just below — the on-screen "as of" date is
+        // this moment, not whatever `saveResumeData`'s fire-and-forget write
+        // eventually timestamps server-side.
+        setResumeUpdatedAt(new Date().toISOString());
         setImportOpen(false);
         // Persist to the profile so returning users skip the upload step (best-effort).
         void saveResumeData(data, source, confidence).catch(() => {});
@@ -3973,6 +4042,8 @@ function JobsContent() {
             expanded={clusterProps?.expanded ?? false}
             onToggleExpand={clusterProps?.onToggleExpand}
             tourAnchor={tourAnchor}
+            matchScore={matchScores?.get(j.id) ?? null}
+            matchAsOfDate={resumeAsOfDate}
         />
     );
 
@@ -4325,6 +4396,29 @@ function JobsContent() {
             />
         </div>
     ) : null;
+
+    // "scored against your résumé of {date} · update to rescore" — the
+    // match-score receipt's one-time-parse honesty statement (design's
+    // `.asof`, right-aligned in the toolbar). Gated on `hasUsableResume`
+    // (same bar every other résumé-driven control here uses) rather than
+    // `fitActive`: chips render on every card whenever a résumé is loaded,
+    // not only while sorted by fit, so this line's gate matches the chips',
+    // not the sort control's. `handleUploadClick` is the SAME "open the
+    // importer" entry point "Add résumé"/"My résumé" already use — updating
+    // is the one act that re-runs the AI parse, so it's the only place this
+    // date can move.
+    const asOfEl =
+        hasUsableResume && resumeAsOfDate ? (
+            <span
+                data-testid="resume-as-of"
+                className="mono-data hidden shrink-0 items-center gap-1 text-[10.5px] text-muted-foreground lg:inline-flex"
+            >
+                scored against your résumé of {resumeAsOfDate} ·{" "}
+                <button type="button" onClick={handleUploadClick} className="text-brand hover:underline">
+                    update to rescore
+                </button>
+            </span>
+        ) : null;
 
     const showJobsToolbarRow = !headerDockActive;
     const showJobsToolbarSection =
@@ -4738,6 +4832,7 @@ function JobsContent() {
                         {!headerDockActive && sortEl}
                         {!headerDockActive && searchPrefsEl}
                         {!headerDockActive && tourReplayEl}
+                        {!headerDockActive && asOfEl}
                     </div>
                     )}
 
@@ -5154,7 +5249,7 @@ function JobsContent() {
                                             `seamIndex` directly — see its own comment
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
-                                        {clusters.flatMap((cluster, i) => {
+                                        {renderedClusters.flatMap((cluster, i) => {
                                             const expanded = expandedClusters.has(cluster.primary.id);
                                             const rows = [
                                                 renderJobRow(
@@ -5170,7 +5265,13 @@ function JobsContent() {
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
                                             ];
-                                            if (i !== clusterSeamIndex) return rows;
+                                            // Under `fitActive` the visible order is the
+                                            // match-score resort above, not relevance —
+                                            // the "titled it vs mentions it" seam text no
+                                            // longer describes anything real, so it's
+                                            // suppressed rather than drawn at a now-
+                                            // meaningless position.
+                                            if (fitActive || i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
                                                     key="seam"

@@ -9,6 +9,8 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { JobDescription, RelatedJobRow } from "@/components/jobs/JobDetail";
+import { MatchChip } from "@/components/jobs/MatchChip";
+import type { MatchScore } from "@/lib/match/score";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import {
@@ -207,6 +209,13 @@ export interface JobDetailDocumentProps {
     onRequestSignIn?: () => void;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
     reportJobEnabled?: boolean;
+    /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
+     *  no signed-in résumé or no comparable field — renders no chip, never a
+     *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP panel
+     *  (`JobDetail`) and `sort=fit` read, computed once by `PublicJobDetail`. */
+    matchScore?: MatchScore | null;
+    /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`). */
+    matchAsOfDate?: string | null;
 }
 
 /**
@@ -238,6 +247,8 @@ export function JobDetailDocument({
     onRequestSignIn,
     onOpenRelated,
     reportJobEnabled = false,
+    matchScore = null,
+    matchAsOfDate = null,
 }: JobDetailDocumentProps) {
     const closed = job.vacancy_status === "closed";
     const freshness = classifyPostingFreshness(job, now);
@@ -282,6 +293,11 @@ export function JobDetailDocument({
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
                     <h1 className="text-xl font-bold leading-snug tracking-tight text-foreground sm:text-2xl">{decodeText(job.title)}</h1>
+                    {matchScore && (
+                        <div className="mt-1.5">
+                            <MatchChip score={matchScore} asOfDate={matchAsOfDate} />
+                        </div>
+                    )}
                     <div className="mt-1.5 text-sm font-medium text-muted-foreground">
                         {cleanedCompany ? (
                             <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
