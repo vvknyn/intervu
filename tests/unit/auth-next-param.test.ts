@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isAuthGatedProductPath, validateNextParam } from "../../src/lib/auth/product-routes";
+import { isAuthGatedProductPath, loginRedirectUrl, validateNextParam } from "../../src/lib/auth/product-routes";
 
 test("isAuthGatedProductPath matches product prefixes", () => {
   assert.equal(isAuthGatedProductPath("/jobs"), false);
@@ -51,4 +51,29 @@ test("validateNextParam rejects protocol-relative and off-product paths", () => 
 
 test("validateNextParam rejects a protocol-relative path masquerading as the authorize return", () => {
   assert.equal(validateNextParam("//evil.test/oauth/authorize?client_id=abc"), null);
+});
+
+// middleware.ts hands a gated, logged-out request straight to
+// loginRedirectUrl(request.nextUrl, pathname) — these assert what the
+// caller in middleware.ts relies on: the result is always same-origin
+// /login carrying the full original path + query as `next`, and can never
+// be the WorkOS hosted chooser (skillful-spoon-89.authkit.app).
+test("loginRedirectUrl bounces a bare gated path to /login with next=<path>", () => {
+  const result = loginRedirectUrl(new URL("https://intervu.cc/settings"), "/settings");
+  assert.equal(result.origin, "https://intervu.cc");
+  assert.equal(result.pathname, "/login");
+  assert.equal(result.searchParams.get("next"), "/settings");
+  assert.ok(!result.toString().includes("authkit.app"));
+});
+
+test("loginRedirectUrl bounces a nested gated path + query string to /login with next=<full path+query>", () => {
+  const result = loginRedirectUrl(
+    new URL("https://intervu.cc/settings/security?tab=sessions&foo=bar"),
+    "/settings/security",
+  );
+  assert.equal(result.origin, "https://intervu.cc");
+  assert.equal(result.pathname, "/login");
+  assert.equal(result.searchParams.get("next"), "/settings/security?tab=sessions&foo=bar");
+  assert.equal(result.searchParams.size, 1);
+  assert.ok(!result.toString().includes("authkit.app"));
 });

@@ -58,6 +58,23 @@ function isSafePostAuthPath(pathname: string): boolean {
 }
 
 /**
+ * Login redirect target for a gated route hit while logged out: same
+ * origin as the request, pathname forced to `/login`, `next` carrying the
+ * original path + query so LoginClient's `redirectAfterAuth` can bounce
+ * back after sign-in. Always same-origin and always `/login` by
+ * construction — this can never resolve to the WorkOS hosted chooser
+ * (skillful-spoon-89.authkit.app), unlike the authorizationUrl this
+ * replaced.
+ */
+export function loginRedirectUrl(requestUrl: URL, pathname: string): URL {
+    const url = new URL(requestUrl);
+    url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("next", `${pathname}${requestUrl.search}`);
+    return url;
+}
+
+/**
  * Safe same-origin redirect target after sign-in. Rejects protocol-relative
  * paths (`//evil`) and off-site URLs; allows product routes, `/jobs`, and `/`.
  */
