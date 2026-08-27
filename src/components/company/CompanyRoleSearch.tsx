@@ -250,7 +250,7 @@ export function CompanyRoleSearch({
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-border bg-card p-6">
           <div>
             <h3 className="font-display text-[18px] font-semibold text-foreground">
-              Explore all {openCountLabel} open roles at {companyName}
+              Explore all open roles at {companyName}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Screened for postings that aren&apos;t really hiring, plus freshness and verified salary transparency.

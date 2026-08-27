@@ -39,31 +39,47 @@ describe("isCompanyIntelUnlocked: mirrors production Follow semantics", () => {
   });
 });
 
+/** The locked-gate fixture both tests below render — a follow channel with
+ *  no verified/account state, wrapping a gate around an arbitrary child. */
+function renderLockedGate(): string {
+  return renderToStaticMarkup(
+    React.createElement(
+      CompanyFollowChannelProvider,
+      {
+        domain: "acme.com",
+        displayName: "Acme",
+        children: React.createElement(
+          CompanyIntelGate,
+          {
+            domain: "acme.com",
+            slug: "acme",
+            displayName: "Acme",
+            children: React.createElement("p", null, "Hidden intel"),
+          },
+        ),
+      },
+    ),
+  );
+}
+
 describe("CompanyIntelGate: locked overlay for unsigned-out visitors", () => {
   it("renders data-unlocked=false with blur and follow CTA when no channel exists", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(
-        CompanyFollowChannelProvider,
-        {
-          domain: "acme.com",
-          displayName: "Acme",
-          children: React.createElement(
-            CompanyIntelGate,
-            {
-              domain: "acme.com",
-              slug: "acme",
-              displayName: "Acme",
-              children: React.createElement("p", null, "Hidden intel"),
-            },
-          ),
-        },
-      ),
-    );
+    const html = renderLockedGate();
     assert.match(html, /data-testid="company-intel-gate"/);
     assert.match(html, /data-unlocked="false"/);
     assert.match(html, /blur-\[6px\]/);
     assert.match(html, /Follow to unlock hiring intel/);
     assert.match(html, /data-testid="follow-company"/);
+  });
+
+  it("names what's locked instead of a bare wash: a described frame with a followers-only row", () => {
+    const html = renderLockedGate();
+    // The frame says what's behind it by name, not just "hiring intel".
+    assert.match(html, /funding, tech stack, and news for Acme/);
+    // A dashed lock row, not another solid block — distinguishes "there is
+    // more here" from the surrounding blurred content.
+    assert.match(html, /border-dashed/);
+    assert.match(html, /Followers only/);
   });
 });
 
