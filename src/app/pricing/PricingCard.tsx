@@ -1,15 +1,19 @@
 import Link from "next/link";
+import { Check } from "@phosphor-icons/react/dist/ssr";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PricingBullet, PricingCta, PricingTier } from "@/app/pricing/pricing-tiers";
 
 /** A bullet is a link when the tier data gives it an `href` (e.g. "Connect
  *  your AI (MCP)" -> /connect) — one branch, driven by data, not a second
- *  hand-written bullet list per tier. */
+ *  hand-written bullet list per tier. The checkmark reads `text-live`: the
+ *  system has no green token (docs/design/DESIGN-LANGUAGE.md — "there is no
+ *  green in the system"), and `--live`/`--brand` is the one channel that
+ *  already carries a favorable/interactive signal. */
 function TierBullet({ bullet }: { bullet: PricingBullet }) {
   return (
     <li className="flex gap-2 text-sm leading-snug text-foreground">
-      <span className="mt-[7px] h-[5px] w-[5px] shrink-0 bg-foreground/40" aria-hidden />
+      <Check className="mt-[3px] h-4 w-4 shrink-0 text-live" weight="bold" aria-hidden />
       {bullet.href ? (
         <Link href={bullet.href} className="underline underline-offset-2 hover:text-brand">
           {bullet.text}
@@ -55,8 +59,8 @@ export function PricingCard({ tier }: { tier: PricingTier }) {
     <div
       data-testid={`pricing-card-${tier.name.toLowerCase()}`}
       className={cn(
-        "relative flex flex-col gap-4 rounded-none p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]",
-        highlighted ? "border-2 border-foreground bg-card/90" : "border border-border/80 bg-card/75",
+        "relative flex flex-col gap-4 rounded-none bg-card p-6",
+        highlighted ? "border-2 border-foreground" : "border border-border",
       )}
     >
       {tier.highlight && (
