@@ -89,48 +89,60 @@ import type { CompanyPageData } from "./types";
 export const MIN_INDEXABLE_ROLES = 3;
 
 /**
- * The minimum a caller must know to apply the rule. Narrower than
- * `CompanyPageData` on purpose: `sitemap.ts` decides this for ~442 domains in
- * one batched aggregation query and never materializes a full page payload
- * (nor could it — an aggregation response carries counts, not job hits).
- * Both callers therefore run the SAME predicate instead of the sitemap
- * reimplementing a lookalike threshold that could drift from the page's.
+ * The two counts `resolveCompanyIndexability` needs — one per surface,
+ * sampled at different times BY DESIGN rather than by accident:
+ *
+ *   - `snapshotRoleCount`: the `company_directory` publisher's last measured
+ *     `open_role_count` for this domain — what `sitemap.ts` already reads for
+ *     every candidate, and what the page path fetches fresh per request via
+ *     `fetchCompanySnapshotRoleCount`. `null` means "no directory doc" (not
+ *     yet published, or a lookup failure — see that function's fail-soft
+ *     doc), never a claimed zero.
+ *   - `liveRoleCount`: `jobs.length` at request time — the roles the page is
+ *     actually about to render. Never `openCount`, which can claim roles the
+ *     page doesn't render (a stale aggregate against an empty hit list).
  */
-export interface CompanyIndexSignals {
-  /** Live roles the page will actually render. Never a claimed aggregate —
-   *  see `isCompanyIndexable` on why this is `jobs.length`. */
-  openRoleCount: number;
-  /**
-   * Whether the employer track-record KPIs resolved to real numbers.
-   * OMITTED means "this caller cannot observe it" — never pass `false` to
-   * stand in for unobserved. Absent and `false` both fail to open the gate on
-   * their own, but only one of them is a claim.
-   */
-  hasTrackRecord?: boolean;
+export interface CompanyIndexabilityInput {
+  snapshotRoleCount: number | null;
+  liveRoleCount: number;
 }
 
-/** The rule itself. Pure, so both callers and the tests share one copy. */
-export function hasIndexableCompanyContent(signals: CompanyIndexSignals): boolean {
-  if (signals.hasTrackRecord === true) return true;
-  return signals.openRoleCount >= MIN_INDEXABLE_ROLES;
+export interface CompanyIndexability {
+  /** Should this domain be a `/sitemap.xml` `/co/` entry? Mirrors the
+   *  sitemap's own Meili filter exactly — same threshold, same input. */
+  inSitemap: boolean;
+  /** Should THIS request's page render indexable (no `noindex`)? */
+  pageIndexable: boolean;
+}
+
+function qualifies(n: number | null): boolean {
+  return n != null && n >= MIN_INDEXABLE_ROLES;
 }
 
 /**
- * `CompanyPageData`-facing form — what `/co/[slug]`'s `generateMetadata`
- * calls.
+ * THE seam. Both `sitemap.ts` (via `fetchIndexableCompanyDomains`'s Meili
+ * filter, built from this same `MIN_INDEXABLE_ROLES`) and `/co/[slug]`'s
+ * robots decision (`presentation.ts`'s `buildCompanyPageMetadata`) derive
+ * their booleans from this one function instead of running independent
+ * threshold checks against independent data sources sampled at independent
+ * times — which is what let a company dip below the threshold live while
+ * staying sitemap-submitted off a stale snapshot: the recurring GSC
+ * "Submitted URL marked noindex" class this seam exists to close.
  *
- * Counts `jobs.length`, NOT `openCount`. `openCount` prefers the indexed
- * `company_open_count` aggregate, which can claim roles the page does not
- * render (a stale aggregate against an empty hit list) — and the question
- * this gate answers is "is there content on the page", which only the
- * rendered roles can answer. `openCount` being a lower bound
- * (`openCountIsLowerBound`) is a display concern, not an indexation one.
+ * `pageIndexable` ORs `liveRoleCount` on top of `snapshotRoleCount`, so a
+ * page is indexable exactly when it's AHEAD of the sitemap (a rising company
+ * not yet snapshotted — absence from the sitemap is never an error) or
+ * BEHIND it by design (a listed company dipping live stays indexable until
+ * the next publisher run demotes it). `inSitemap ⇒ pageIndexable` therefore
+ * holds for every input by construction, not by two call sites agreeing to
+ * keep it that way.
  */
-export function isCompanyIndexable(data: CompanyPageData): boolean {
-  return hasIndexableCompanyContent({
-    openRoleCount: data.jobs.length,
-    hasTrackRecord: data.hasTrackRecord,
-  });
+export function resolveCompanyIndexability({
+  snapshotRoleCount,
+  liveRoleCount,
+}: CompanyIndexabilityInput): CompanyIndexability {
+  const inSitemap = qualifies(snapshotRoleCount);
+  return { inSitemap, pageIndexable: inSitemap || qualifies(liveRoleCount) };
 }
 
 /** One company the `company_directory` index carries, with the live-role
@@ -300,4 +312,46 @@ export async function fetchIndexableCompanyDomains(
     console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
   }
   return indexable;
+}
+
+/**
+ * The single `company_directory` doc for one domain — the same snapshot
+ * `fetchIndexableCompanyDomains` pages in full for the sitemap, looked up
+ * here by the key those docs carry (`domain`) instead of walked. Feeds
+ * `resolveCompanyIndexability`'s `snapshotRoleCount` from the page path, so
+ * a page's robots decision reads the exact measurement the sitemap did
+ * rather than falling back to a live count the snapshot has never seen.
+ *
+ * Fail-soft, unlike `fetchIndexableCompanyDomains` — this runs inline in a
+ * page request, not a batch job with a FAILURE POSTURE to defend, and the
+ * caller already has `liveRoleCount` to fall back on:
+ *
+ *   - Meilisearch not configured, or the domain has no directory doc: `null`,
+ *     no warning — both are "not in the snapshot," which is correct input to
+ *     `resolveCompanyIndexability`, not an error.
+ *   - the Meilisearch request itself fails: `null` plus ONE `console.warn` —
+ *     degrade to a live-only decision rather than 500ing a page render or
+ *     fabricating a count.
+ *
+ * `search` is injectable (same DI as `fetchIndexableCompanyDomains`) so tests
+ * never hit the network.
+ */
+export async function fetchCompanySnapshotRoleCount(
+  domain: string,
+  search: typeof searchCompanyDirectoryPage = searchCompanyDirectoryPage,
+): Promise<number | null> {
+  if (!hasMeilisearch()) return null;
+  try {
+    const { hits } = await search({
+      sort: [],
+      filter: `domain = ${JSON.stringify(domain)}`,
+      limit: 1,
+      offset: 0,
+    });
+    const parsed = hits[0] ? parseCompanyDirectoryHit(hits[0]) : null;
+    return parsed ? parsed.openRoleCount : null;
+  } catch (err) {
+    console.warn(`fetchCompanySnapshotRoleCount(${domain}): company_directory lookup failed`, err);
+    return null;
+  }
 }
