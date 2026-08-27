@@ -130,9 +130,11 @@
 
   /* Verdict channel */
   --verdict-live: 0 47 167;
+  --verdict-good: 21 128 61;
   --verdict-caution: 217 119 6;
   --verdict-risk: 225 29 72;
   --verdict-live-bg: 239 246 255;
+  --verdict-good-bg: 232 245 236;
   --verdict-caution-bg: 254 243 199;
   --verdict-risk-bg: 255 241 242;
 
@@ -226,9 +228,11 @@
 
   /* Verdict channel (dark) */
   --verdict-live: 45 104 255;
+  --verdict-good: 74 222 128;
   --verdict-caution: 251 191 36;
   --verdict-risk: 255 59 105;
   --verdict-live-bg: 15 23 42;
+  --verdict-good-bg: 14 37 23;
   --verdict-caution-bg: 38 31 16;
   --verdict-risk-bg: 42 16 22;
 
@@ -302,9 +306,11 @@
   --color-warn-dot: rgb(var(--warn-dot));
   --color-danger-tint-border: rgb(var(--danger-tint-border));
   --color-verdict-live: rgb(var(--verdict-live));
+  --color-verdict-good: rgb(var(--verdict-good));
   --color-verdict-caution: rgb(var(--verdict-caution));
   --color-verdict-risk: rgb(var(--verdict-risk));
   --color-verdict-live-bg: rgb(var(--verdict-live-bg));
+  --color-verdict-good-bg: rgb(var(--verdict-good-bg));
   --color-verdict-caution-bg: rgb(var(--verdict-caution-bg));
   --color-verdict-risk-bg: rgb(var(--verdict-risk-bg));
   /* Elevation: none (DESIGN-LANGUAGE.md "Tokens"). Separation comes from a

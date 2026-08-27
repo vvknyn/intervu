@@ -15,6 +15,12 @@ export const metadata: Metadata = {
  * check, `tailscale up`, auth-URL scrape, marker file) is entirely the
  * agent's job, not this page's. Static: nothing here changes at runtime,
  * so there is no client-side state and no data to fetch.
+ *
+ * Not dead code: this page has zero inbound links anywhere in src/, which
+ * reads as an orphan to a grep, but the URL travels out-of-band in the
+ * agent's own WhatsApp messages (D2, 2026-08-26 redesign). Deleting or
+ * folding it into /connect/help would break links already sent to a real
+ * phone.
  */
 export default function WatchAnywherePage() {
     return (

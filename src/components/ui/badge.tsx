@@ -27,6 +27,11 @@ const badgeVariants = cva(
         "st-intv": "bg-st-intv-soft/80 text-st-intv border-st-intv/30",
         "st-offer": "bg-st-offer-soft/80 text-st-offer border-st-offer/30",
         "st-closed": "bg-st-closed-soft/80 text-st-closed border-st-closed/30",
+        // Verdict variants — same soft-fill/ink/hairline shape as the st-*
+        // set above, backed by the verdict-* tokens (globals.css) that every
+        // favorable/caution signal on the site already reads from.
+        "verdict-good": "bg-verdict-good-bg/80 text-verdict-good border-verdict-good/30",
+        "verdict-caution": "bg-verdict-caution-bg/80 text-verdict-caution border-verdict-caution/30",
       },
     },
     defaultVariants: {
