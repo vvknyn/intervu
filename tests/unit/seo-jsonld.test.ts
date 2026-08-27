@@ -30,33 +30,26 @@ describe("seo/jsonld", () => {
     const items = buildCompanyFaqItems({
       companyName: "Acme",
       hiringAnswer: "intervu isn't tracking any live open roles right now.",
-      ghostFlaggedPct: null,
     });
     assert.equal(items.length, 1);
     assert.equal(items[0]!.question, "Is Acme hiring?");
     assert.equal(items[0]!.answer, "intervu isn't tracking any live open roles right now.");
   });
 
-  it("buildCompanyFaqItems adds the ghost question when a pct exists", () => {
+  it("buildCompanyFaqItems never emits a ghost-flagged-share question — that stat is follower-gated on the page, structured data must not leak gated content to crawlers", () => {
     const items = buildCompanyFaqItems({
       companyName: "Beta",
       hiringAnswer: "Yes — 1 open role is live on intervu right now.",
-      ghostFlaggedPct: 25,
     });
-    assert.equal(items.length, 2);
-    assert.match(items[0]!.answer, /1 open role is live/);
-    assert.equal(items[1]!.question, "Does Beta have ghost-job risk?");
-    assert.match(items[1]!.answer, /25% of Beta's tracked postings/);
-  });
-
-  it("buildCompanyFaqItems skips the ghost question when ghostFlaggedPct is null (no scored postings)", () => {
-    const items = buildCompanyFaqItems({
-      companyName: "Gamma",
-      hiringAnswer: "Yes — 4 open roles are live on intervu right now.",
-      ghostFlaggedPct: null,
-    });
-    assert.equal(items.length, 1);
-    assert.ok(!items.some((i) => i.question.includes("ghost-job risk")));
+    // Positive control: the ungated hiring question is still present.
+    assert.ok(items.some((i) => i.question === "Is Beta hiring?"));
+    // Negative control: nothing in the output — question or answer — mentions
+    // the gated ghost/flagged-share stat, proving this isn't just an
+    // "only checked the question text" false negative.
+    const mentionsGhostOrFlagged = items.some(
+      (i) => /ghost|flagged/i.test(i.question) || /ghost|flagged/i.test(i.answer),
+    );
+    assert.equal(mentionsGhostOrFlagged, false);
   });
 
   it("buildFaqPageJsonLd drops blank pairs and returns null when nothing valid remains", () => {
