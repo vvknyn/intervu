@@ -1,5 +1,6 @@
 import type { BoardId } from "@/lib/boards/types";
 import type { CompanyNameSource } from "@/lib/companies/company-name";
+import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { PublicJob } from "@/lib/jobs/types";
 
 export interface CompanyFundingInfo {
@@ -133,6 +134,14 @@ export type CompanyPageData = {
    *  deliberately indistinguishable here, because the page renders the same
    *  thing (nothing) either way rather than guessing at a reason. */
   changeEvents: CompanyChangeEvent[];
+  /**
+   * Box-PG digital-exhaust facts (the "Hiring Record" bands) — profile,
+   * funding, SEC listing, gov contracts, health verdict, posting cadence,
+   * and the gated integrity/tech-stack/change-history sections. Null
+   * whenever `EXHAUST_PG_URL` is unset or the box is unreachable; every
+   * inner section fails soft independently — see `lib/companies/exhaust.ts`.
+   */
+  exhaust: CompanyExhaust | null;
   /**
    * The clock read at the async I/O boundary (`getCompanyPageData`), not
    * inside the server component's render body — server components must stay

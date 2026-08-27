@@ -1,16 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowSquareOut, GlobeHemisphereWest, House } from "@phosphor-icons/react/dist/ssr";
+import { ArrowSquareOut, GlobeHemisphereWest, House, MapPin } from "@phosphor-icons/react/dist/ssr";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFollowChannelProvider";
+import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyChangeEventTeaser } from "@/components/company/CompanyChangeEventTeaser";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
+import { CompanyExhaustGate, type ExhaustGateTeaser } from "@/components/company/CompanyExhaustGate";
+import { CompanyFactRow } from "@/components/company/CompanyFactRow";
+import { CompanyFilingsBand } from "@/components/company/CompanyFilingsBand";
+import { CompanyIntegrityBand } from "@/components/company/CompanyIntegrityBand";
 import { CompanyIntelGate } from "@/components/company/CompanyIntelGate";
 import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
+import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
+import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import {
@@ -82,6 +90,75 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
     ...(faqJsonLd ? [faqJsonLd] : []),
   ];
 
+  // Header chips (Band 1 extension) — each one is a fact from the box-PG
+  // profile row; a missing field just doesn't produce a chip (Rule 2). Never
+  // fed into JSON-LD/meta (Section 6 of the contract): these are UI-only.
+  const profile = data.exhaust?.profile?.data ?? null;
+  const headerChips = profile
+    ? [
+        profile.atsHint,
+        profile.nbEmployees ? `≈${profile.nbEmployees} people` : null,
+        profile.yearFounded ? `est. ${profile.yearFounded}` : null,
+        profile.organizationType,
+        profile.parentCompany ? `part of ${profile.parentCompany}` : null,
+      ].filter((c): c is string => Boolean(c))
+    : [];
+
+  // Gated Band 7 — full change history (up to 50) from box PG, mapped into
+  // the SAME `CompanyChangeEvent` shape the public 6-event teaser above
+  // already renders via `events.ts` — reuses `CompanyChangeEvents` untouched
+  // rather than a sibling list component. A row with no title carries no
+  // headline to show and is dropped, same rule `isRenderableEvent` enforces
+  // for the API-sourced list.
+  const gatedChangeHistory: CompanyChangeEvent[] = (data.exhaust?.changeHistory?.data ?? [])
+    .filter((e) => e.title)
+    .map((e) => ({
+      event_type: e.eventType,
+      direction: e.direction === "improving" || e.direction === "declining" ? e.direction : "neutral",
+      headline: e.title as string,
+      occurred_at: e.occurredAt,
+      confidence: e.confidence,
+    }));
+
+  // Gate teasers — real counts from the same exhaust sections the unlocked
+  // bands below render from, never fabricated (design call DC3). A section
+  // that resolved to null (query failed, or genuinely no rows) simply
+  // contributes no teaser row instead of a fake "0".
+  const integrityCount = data.exhaust?.integrity?.data.closedReasonCounts.reduce((s, r) => s + r.count, 0) ?? null;
+  const filingsCount =
+    (data.exhaust?.secListing ? 1 : 0) + (data.exhaust?.funding?.data.formDCount ? 1 : 0) +
+      (data.exhaust?.govContracts?.data.awardCount ?? 0) || null;
+  const exhaustGateTeasers: ExhaustGateTeaser[] = [
+    data.exhaust?.integrity && integrityCount
+      ? {
+          title: "Listing integrity",
+          description: "How honest their postings are: reposts, resurrections, how roles actually close.",
+          count: `${integrityCount} closings on record`,
+        }
+      : null,
+    gatedChangeHistory.length > 0
+      ? {
+          title: "Change history",
+          description: "Every recorded change to their hiring, as it happened.",
+          count: `${gatedChangeHistory.length} event${gatedChangeHistory.length === 1 ? "" : "s"}`,
+        }
+      : null,
+    data.exhaust?.techStack
+      ? {
+          title: "Hiring infrastructure",
+          description: "What their site runs on, and how it's built.",
+          count: null,
+        }
+      : null,
+    filingsCount
+      ? {
+          title: "Filings & records",
+          description: "SEC filings, funding rounds, and federal contracts — the paper trail.",
+          count: `${filingsCount} record${filingsCount === 1 ? "" : "s"}`,
+        }
+      : null,
+  ].filter((t): t is ExhaustGateTeaser => t !== null);
+
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
       <script
@@ -137,6 +214,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   <ArrowSquareOut className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {facts.domain}
                 </a>
+                {/* HQ renders at the precision the box actually stored —
+                    country only, never an invented city (contract rule). */}
+                {profile?.hqCountry && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {profile.hqCountry}
+                  </span>
+                )}
                 {facts.hiringGeos && (
                   <span className="inline-flex items-center gap-1.5">
                     <GlobeHemisphereWest className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -150,11 +235,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                   </span>
                 )}
               </div>
-              {data.stage && (
+              {(data.stage || headerChips.length > 0) && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {data.stage}
-                  </span>
+                  {data.stage && (
+                    <span className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {data.stage}
+                    </span>
+                  )}
+                  {headerChips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="border border-border bg-chip px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {chip}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
@@ -169,6 +264,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             className="shrink-0 self-start items-end text-right"
           />
         </header>
+
+        {/* Bands 2-3 — the Hiring Record's public, full-width bands: the
+            health-review verdict and the posting-cadence strip (the page's
+            signature band, public per design call DC1). Both drop cleanly
+            when the exhaust module has nothing for this domain. */}
+        {data.exhaust && (
+          <div className="mb-8 space-y-4">
+            <CompanyVerdictBand health={data.exhaust.health} nowMs={data.nowMs} />
+            <CompanyCadenceStrip cadence={data.exhaust.cadence} />
+          </div>
+        )}
 
         {/* Two-column body below the header: roles + gated change/public
             content in the main column, the hiring record and list health in
@@ -257,6 +363,36 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
             </CompanyIntelGate>
           </aside>
         </div>
+
+        {/* Band 5 — "On the record": enrichment facts, public per D1. Drops
+            below two cells (CompanyFactRow's own rule). */}
+        {data.exhaust && (
+          <div className="mt-8">
+            <CompanyFactRow exhaust={data.exhaust} />
+          </div>
+        )}
+
+        {/* Bands 6-9 — the gated portion of the Hiring Record: listing
+            integrity, full change history, hiring infrastructure, and
+            filings. Signed-in only (CompanyExhaustGate calls the server
+            session check itself); signed-out visitors see real-count
+            teasers, never blurred content. */}
+        {data.exhaust && exhaustGateTeasers.length > 0 && (
+          <div className="mt-8">
+            <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers}>
+              <div className="space-y-4">
+                <CompanyIntegrityBand integrity={data.exhaust.integrity} />
+                {gatedChangeHistory.length > 0 && (
+                  <section className="border border-border bg-card px-6 py-6 sm:px-8">
+                    <CompanyChangeEvents events={gatedChangeHistory} companyName={data.name} />
+                  </section>
+                )}
+                <CompanyTechStackBand techStack={data.exhaust.techStack} />
+                <CompanyFilingsBand exhaust={data.exhaust} />
+              </div>
+            </CompanyExhaustGate>
+          </div>
+        )}
       </main>
       </CompanyFollowChannelProvider>
     </div>

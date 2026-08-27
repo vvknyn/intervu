@@ -46,6 +46,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     ghostFlaggedPct: null,
     boards: ["elite"],
     nowMs: Date.now(),
+    exhaust: null,
     ...overrides,
     jobs,
   };
