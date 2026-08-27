@@ -6,14 +6,14 @@ import type { PricingBullet, PricingCta, PricingTier } from "@/app/pricing/prici
 
 /** A bullet is a link when the tier data gives it an `href` (e.g. "Connect
  *  your AI (MCP)" -> /connect) — one branch, driven by data, not a second
- *  hand-written bullet list per tier. The checkmark reads `text-live`: the
- *  system has no green token (docs/design/DESIGN-LANGUAGE.md — "there is no
- *  green in the system"), and `--live`/`--brand` is the one channel that
- *  already carries a favorable/interactive signal. */
+ *  hand-written bullet list per tier. The checkmark reads `text-verdict-good`
+ *  (the frozen spec's `.tier .t-row svg { stroke: var(--good) }`) — the
+ *  verdict-good token landed via feat/redesign-watch, so favorable checks no
+ *  longer have to borrow the brand/interactive channel. */
 function TierBullet({ bullet }: { bullet: PricingBullet }) {
   return (
     <li className="flex gap-2 text-sm leading-snug text-foreground">
-      <Check className="mt-[3px] h-4 w-4 shrink-0 text-live" weight="bold" aria-hidden />
+      <Check className="mt-[3px] h-4 w-4 shrink-0 text-verdict-good" weight="bold" aria-hidden />
       {bullet.href ? (
         <Link href={bullet.href} className="underline underline-offset-2 hover:text-brand">
           {bullet.text}
