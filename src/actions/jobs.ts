@@ -14,8 +14,10 @@ import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
+import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
+import { isInternalPosting } from "@/lib/jobs/presentation";
 import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
@@ -184,13 +186,17 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * it here too would silently double-charge `getRelatedJobsAction`'s shared
  * rate-limit budget for what is still a single logical call.
  */
-async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
-  if (!companyDomain) return null;
-  const countResult = await runSearch({
+async function fetchCompanyWindow(companyDomain: string): Promise<JobSearchResult> {
+  return runSearch({
     companyDomain,
     limit: COMPANY_JOBS_FETCH_LIMIT,
     hideGhosts: false,
   });
+}
+
+async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
+  if (!companyDomain) return null;
+  const countResult = await fetchCompanyWindow(companyDomain);
   return resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
 }
 
@@ -205,6 +211,32 @@ export async function getCompanyOpenCountAction(companyDomain: string): Promise<
   const ip = await getClientIp();
   if (!allowSearchRequest(ip)) return null;
   return resolveCompanyOpenCount(companyDomain);
+}
+
+/**
+ * The job-detail document layout's employer rail: live open-role count and
+ * an "about this company" line, from ONE shared query window
+ * (`fetchCompanyWindow`) instead of two separate fetches — same idiom as
+ * `getCompanyPageData` (get-company.ts), which this mirrors for a single
+ * job's page rather than the full /co listing. Internal-only postings are
+ * filtered out before either derivation, matching that same call site, so
+ * the about-line is never sourced from staffing-noise postings and the open
+ * count never counts them either.
+ */
+export async function getCompanyRailAction(
+  companyDomain: string,
+  companyName: string,
+): Promise<{ openCount: OpenCount | null; aboutLine: string | null }> {
+  if (!companyDomain) return { openCount: null, aboutLine: null };
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return { openCount: null, aboutLine: null };
+
+  const result = await fetchCompanyWindow(companyDomain);
+  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
+  return {
+    openCount: resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT),
+    aboutLine: extractCompanyAboutLine(jobs, companyName),
+  };
 }
 
 export async function getRelatedJobsAction(
