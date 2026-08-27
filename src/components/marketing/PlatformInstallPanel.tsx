@@ -39,7 +39,7 @@ export function PlatformInstallPanel({ installCommand }: { installCommand: strin
 
   return (
     <div className="space-y-2.5">
-      <PlatformRow highlighted={detected === "mac"} status={PLATFORM_INSTALL_STATUS.mac} pillVariant="verdict-live">
+      <PlatformRow highlighted={detected === "mac"} status={PLATFORM_INSTALL_STATUS.mac} pillVariant="verdict-good">
         <CopyCommand command={installCommand} label={MAC_INSTALL_COMMAND_LABEL} />
         <p className="mt-2 text-xs text-muted-foreground">{OPENCLAW_INSTALL_HINT}</p>
       </PlatformRow>
@@ -61,7 +61,7 @@ function PlatformRow({
   children,
 }: {
   status: { row: string; pill: string; body: string };
-  pillVariant: "verdict-live" | "verdict-caution";
+  pillVariant: "verdict-good" | "verdict-caution";
   highlighted: boolean;
   children: React.ReactNode;
 }) {

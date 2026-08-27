@@ -30,7 +30,7 @@ const badgeVariants = cva(
         // Verdict variants — same soft-fill/ink/hairline shape as the st-*
         // set above, backed by the verdict-* tokens (globals.css) that every
         // favorable/caution signal on the site already reads from.
-        "verdict-live": "bg-verdict-live-bg/80 text-verdict-live border-verdict-live/30",
+        "verdict-good": "bg-verdict-good-bg/80 text-verdict-good border-verdict-good/30",
         "verdict-caution": "bg-verdict-caution-bg/80 text-verdict-caution border-verdict-caution/30",
       },
     },
