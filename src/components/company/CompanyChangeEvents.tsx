@@ -1,6 +1,6 @@
 import React from "react";
 import { TrendUp, TrendDown, Minus } from "@phosphor-icons/react/dist/ssr";
-import { eventTypeLabel } from "@/lib/companies/events";
+import { eventTypeLabel, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyChangeEventEvidence } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
 
@@ -147,7 +147,8 @@ export function directionStyle(direction: CompanyChangeEvent["direction"]): {
  *
  * Every line here is a FACT the pipeline measured (posting velocity across two
  * 14-day windows, SEC filings, WARN notices), never an inference about intent
- * — the headline text is the projector's, rendered verbatim.
+ * — the headline text is the projector's, content-verbatim, with only its
+ * snake_case enum typography normalized via `humanizeProjectorHeadline`.
  */
 export function CompanyChangeEvents({
   events,
@@ -193,7 +194,9 @@ export function CompanyChangeEvents({
                   )}
                   {date && <span className="text-[11px] text-muted-foreground">{date}</span>}
                 </div>
-                <p className="mt-1.5 text-[15px] leading-snug text-foreground">{event.headline}</p>
+                <p className="mt-1.5 text-[15px] leading-snug text-foreground">
+                  {humanizeProjectorHeadline(event.headline)}
+                </p>
                 {event.evidence && <EventEvidence evidence={event.evidence} />}
               </div>
             </li>
