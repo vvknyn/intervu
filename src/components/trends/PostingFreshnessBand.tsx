@@ -1,18 +1,32 @@
 "use client";
 
-import Link from "next/link";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import type { FreshnessBucket } from "@/lib/jobs/posting-age-buckets";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
-import { Clock } from "@phosphor-icons/react";
+import { BarRow, TrendSection, type BarRowTone } from "./TrendSection";
 
 const BUCKET_LABELS: Record<FreshnessBucket, string> = {
   "7d": "Under 7 days",
-  "30d": "8 – 30 days ago",
-  "60d": "31 – 60 days ago",
+  "30d": "8 – 30 days",
+  "60d": "31 – 60 days",
   older: "Over 60 days",
 };
 
+// "Over 60 days" wears the receipt's caution color — it's the one bucket
+// this section flags, same amber-not-red rule as the posting-check section.
+const BUCKET_TONE: Partial<Record<FreshnessBucket, BarRowTone>> = {
+  older: "warn",
+};
+
+/**
+ * Only "7d" maps onto a real board filter. The board's `postedBucket` model
+ * is a "posted within N days of now" window with a single "older" cutoff
+ * fixed at 30 days (see url-state.ts / meilisearch.ts) — it has no bucket
+ * for "8-30 days ago", "31-60 days ago", or an "older than 60 days" cutoff.
+ * Linking those to the nearest existing bucket would silently change what
+ * "this row" means (e.g. "older" on the board means >30d, not >60d) — a
+ * dishonest link is worse than no link, so those three rows stay unlinked.
+ */
 export function freshnessBucketJobsHref(bucket: FreshnessBucket): string | undefined {
   if (bucket !== "7d") return undefined;
   return `/${serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: "7d" })}`;
@@ -28,62 +42,22 @@ export function PostingFreshnessBand({
   const maxValue = Math.max(...freshness.map((f) => f.count.value), 1);
 
   return (
-    <section data-testid="trends-freshness" className="rounded-none border border-border bg-card p-6 transition-colors">
-      <div className="flex items-center justify-between gap-2 border-b border-border pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-6 w-6 items-center justify-center rounded-none border border-border bg-muted/40 text-foreground/70">
-            <Clock size={15} weight="duotone" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Posting Freshness Profile</h2>
-            <p className="text-xs text-muted-foreground">Distribution of active openings by elapsed time since publication</p>
-          </div>
-        </div>
-        <span className="hidden text-[10.5px] uppercase tracking-wider text-muted-foreground sm:inline-block">
-          Age Decay
-        </span>
-      </div>
-
-      <ol className="mt-4 space-y-1.5">
-        {freshness.map(({ bucket, count }) => {
-          const href = freshnessBucketJobsHref(bucket);
-          const pct = totalValue > 0 ? Math.round((count.value / totalValue) * 100) : 0;
-          return (
-            <li
-              key={bucket}
-              data-testid={`trends-freshness-${bucket}`}
-              className="group flex items-center gap-3 px-2 py-1.5 text-xs transition-colors hover:bg-muted/40"
-            >
-              <div className="min-w-0 flex-1 truncate">
-                {href ? (
-                  <Link
-                    href={href}
-                    className="font-medium text-foreground hover:text-brand"
-                  >
-                    {BUCKET_LABELS[bucket]}
-                  </Link>
-                ) : (
-                  <span className="font-medium text-muted-foreground">{BUCKET_LABELS[bucket]}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="h-1.5 w-24 overflow-hidden rounded-none bg-muted/80 sm:w-36">
-                  <span
-                    className="block h-full rounded-none bg-slate-700 dark:bg-slate-300 transition-all"
-                    style={{ width: `${(count.value / maxValue) * 100}%` }}
-                  />
-                </span>
-                <span className="w-10 text-right text-[11px] text-muted-foreground tabular-nums">
-                  {pct}%
-                </span>
-                <span className="w-16 text-right text-xs font-bold text-foreground tabular-nums">
-                  {formatCorpusCount(count)}
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
+    <TrendSection testId="trends-freshness" label="How long roles stay posted" asOf="age of every live posting">
+      {freshness.map(({ bucket, count }) => {
+        const pct = totalValue > 0 ? Math.round((count.value / totalValue) * 100) : 0;
+        return (
+          <BarRow
+            key={bucket}
+            testId={`trends-freshness-${bucket}`}
+            label={BUCKET_LABELS[bucket]}
+            tone={BUCKET_TONE[bucket]}
+            pct={Math.round((count.value / maxValue) * 100)}
+            pctLabel={`${pct}%`}
+            count={formatCorpusCount(count)}
+            href={freshnessBucketJobsHref(bucket)}
+          />
+        );
+      })}
+    </TrendSection>
   );
 }

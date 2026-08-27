@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
-const DESCRIPTION =
-  "We scored 38,806 job listings from corporate ATS platforms. Only 6% are outright junk, but nearly half are missing the signals you need to decide if they're worth your time.";
-// The article is a static July 2026 snapshot (see copy below); this file was
-// last touched 2026-08-01 (`git log`), which is what dateModified reflects.
+// This article was first published as an essay in July 2026; that authorship
+// date is independent of the corpus snapshot below and doesn't move when the
+// snapshot is refreshed (see stats.dateModified, which does).
 const DATE_PUBLISHED = "2026-07-01";
-const DATE_MODIFIED = "2026-08-01";
+
+const stats = getGhostJobsStats();
+
+const DESCRIPTION = `We scored ${stats.totalScored.toLocaleString()} job listings from corporate ATS platforms. ${stats.gradePct.DF}% are outright junk, but nearly half are missing the signals you need to decide if they're worth your time.`;
 
 export const metadata: Metadata = {
   title: HEADLINE,
@@ -20,7 +23,7 @@ export const metadata: Metadata = {
 const articleJsonLd = buildArticleJsonLd({
   headline: HEADLINE,
   datePublished: DATE_PUBLISHED,
-  dateModified: DATE_MODIFIED,
+  dateModified: stats.dateModified,
   description: DESCRIPTION,
   path: "/research/ghost-jobs",
 });
@@ -42,6 +45,16 @@ const RTABLE = {
   tdNum: `${RTABLE_TD} text-right`,
 };
 
+// House document grammar (data-surfaces redesign proposal §03): mono
+// uppercase section labels with a house-token underline — the same "asec"
+// treatment /trends' TrendSection header uses, so the two data surfaces read
+// as one house vocabulary rather than each inventing its own. Tailwind
+// Typography's `.prose h2` rule is written with a zero-specificity `:where()`
+// selector, so a plain className on the element overrides it without an
+// `!important` fight.
+const DOC_SECTION_LABEL =
+  "mono-data mb-3 mt-10 border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand";
+
 export default function GhostJobsResearchPage() {
   return (
     <main data-testid="research-ghost-jobs-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -49,41 +62,50 @@ export default function GhostJobsResearchPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
-        From our research · July 2026 snapshot
+      <p className="mono-data text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+        From our research · corpus snapshot
       </p>
       <h1 className="mt-3 font-display text-display font-extrabold text-foreground">
         Ghost Jobs Aren&apos;t the Problem. Wasted Applications Are.
       </h1>
       <p className="mt-1.5 text-sm italic text-muted-foreground">
-        We scored 38,806 job listings from corporate ATS platforms. Only 6% are outright junk. But nearly half are
-        missing the signals you need to know if they&apos;re worth your time.
+        We scored {stats.totalScored.toLocaleString()} job listings from corporate ATS platforms.{" "}
+        {stats.gradePct.DF}% are outright junk. But nearly half are missing the signals you need to know if
+        they&apos;re worth your time.
+      </p>
+      <p
+        data-testid="ghost-jobs-asof"
+        className="mono-data mb-6 mt-3 border-b border-border pb-3 text-[11.5px] text-muted-foreground"
+      >
+        snapshot: {stats.asOfLabel} · grading queries re-run on refresh — the numbers update, the argument
+        doesn&apos;t have to
       </p>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+      <article className="prose prose-sm max-w-none dark:prose-invert">
         <p>
           The internet is obsessed with ghost jobs. &quot;50% of listings are fake.&quot; &quot;Companies post jobs
           they never intend to fill.&quot; It makes for great rage content.
         </p>
         <p>
-          But after scoring 38,806 listings pulled directly from corporate hiring systems, we think the ghost job
-          debate is a distraction from the actual problem.
+          But after scoring {stats.totalScored.toLocaleString()} listings pulled directly from corporate hiring
+          systems, we think the ghost job debate is a distraction from the actual problem.
         </p>
         <p>
           Most job listings aren&apos;t fake. They&apos;re just bad. And bad listings waste more of your time than
           fake ones ever could — because you can&apos;t tell the difference until you&apos;re three interviews deep.
         </p>
 
-        <h2>The Real Numbers</h2>
+        <h2 className={DOC_SECTION_LABEL}>The real numbers</h2>
         <p>
-          This is a July 2026 snapshot of our scored corpus. We pull listings directly from corporate applicant
-          tracking systems — Greenhouse, Ashby, Lever, SmartRecruiters, Workday, and 17 others. Not from Indeed. Not
-          from LinkedIn. From the company&apos;s own hiring system.
+          This is a {stats.asOfLabel} snapshot of our scored corpus. We pull listings directly from corporate
+          applicant tracking systems — Greenhouse, Ashby, Lever, SmartRecruiters, Workday, and 17 others. Not from
+          Indeed. Not from LinkedIn. From the company&apos;s own hiring system.
         </p>
         <p>
           Every listing gets scored on freshness, description quality, salary transparency, employer signals, and
-          role substance. Here&apos;s what <span className="verified-underline">38,806</span> listings
-          across <span className="verified-underline">3,128</span> companies look like:
+          role substance. Here&apos;s what{" "}
+          <span className="verified-underline">{stats.totalScored.toLocaleString()}</span> listings across{" "}
+          <span className="verified-underline">{stats.companiesCount.toLocaleString()}</span> companies look like:
         </p>
 
         <div className="not-prose my-6 overflow-x-auto">
@@ -99,44 +121,46 @@ export default function GhostJobsResearchPage() {
             <tbody>
               <tr>
                 <td className={RTABLE.tdMono}>A</td>
-                <td className={RTABLE.td}>Excellent — clear, fresh, transparent</td>
-                <td className={RTABLE.tdNum}>80</td>
-                <td className={RTABLE.tdNum}>0.2%</td>
+                <td className={RTABLE.td}>{stats.grades.A.description}</td>
+                <td className={RTABLE.tdNum}>{stats.grades.A.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.gradePct.A}%</td>
               </tr>
               <tr>
                 <td className={RTABLE.tdMono}>B</td>
-                <td className={RTABLE.td}>Good — solid listing, minor gaps</td>
-                <td className={RTABLE.tdNum}>20,067</td>
-                <td className={RTABLE.tdNum}>51.7%</td>
+                <td className={RTABLE.td}>{stats.grades.B.description}</td>
+                <td className={RTABLE.tdNum}>{stats.grades.B.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.gradePct.B}%</td>
               </tr>
               <tr>
                 <td className={RTABLE.tdMono}>C</td>
-                <td className={RTABLE.td}>Ambiguous — missing key signals</td>
-                <td className={RTABLE.tdNum}>15,302</td>
-                <td className={RTABLE.tdNum}>39.4%</td>
+                <td className={RTABLE.td}>{stats.grades.C.description}</td>
+                <td className={RTABLE.tdNum}>{stats.grades.C.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.gradePct.C}%</td>
               </tr>
               <tr>
                 <td className={RTABLE.tdMono}>D–F</td>
-                <td className={RTABLE.td}>Low quality — likely not worth applying</td>
-                <td className={RTABLE.tdNum}>3,357</td>
-                <td className={RTABLE.tdNum}>8.7%</td>
+                <td className={RTABLE.td}>{stats.grades.DF.description}</td>
+                <td className={RTABLE.tdNum}>{stats.grades.DF.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.gradePct.DF}%</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <p>
-          Only <span className="verified-underline">0.2%</span> of listings are excellent. Half are good
-          enough. And nearly <span className="verified-underline">48.1%</span> are either ambiguous or
-          worse.
+          Only <span className="verified-underline">{stats.gradePct.A}%</span> of listings are excellent. Half are
+          good enough. And nearly <span className="verified-underline">{stats.ambiguousOrWorsePct}%</span> are
+          either ambiguous or worse.
         </p>
         <p>
-          The 6% that are genuinely low quality? Those are the &quot;ghost jobs&quot; everyone is angry about. But
-          they&apos;re the minority of the problem.
+          The {stats.gradePct.DF}% that are genuinely low quality? Those are the &quot;ghost jobs&quot; everyone is
+          angry about. But they&apos;re the minority of the problem.
         </p>
 
-        <h2>The Real Problem: 15,302 Listings You Can&apos;t Read</h2>
-        <p>The C-grade bucket — 39.4% of all listings — is where careers go to die quietly.</p>
+        <h2 className={DOC_SECTION_LABEL}>
+          The real problem: {stats.grades.C.count.toLocaleString()} listings you can&apos;t read
+        </h2>
+        <p>The C-grade bucket — {stats.gradePct.C}% of all listings — is where careers go to die quietly.</p>
         <p>
           These aren&apos;t fake jobs. The company probably does want to hire someone. But the listing gives you
           almost nothing to work with:
@@ -164,7 +188,7 @@ export default function GhostJobsResearchPage() {
           it requires more data than &quot;real or fake.&quot;
         </p>
 
-        <h2>What Separates Good Listings From Bad Ones</h2>
+        <h2 className={DOC_SECTION_LABEL}>What separates good listings from bad ones</h2>
 
         <h3>Salary transparency is the #1 signal</h3>
         <div className="not-prose my-6 overflow-x-auto">
@@ -179,26 +203,28 @@ export default function GhostJobsResearchPage() {
             <tbody>
               <tr>
                 <td className={RTABLE.td}>Salary posted</td>
-                <td className={RTABLE.tdNum}>12,970</td>
-                <td className={RTABLE.tdNum}>0.677</td>
+                <td className={RTABLE.tdNum}>{stats.salary.posted.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.salary.posted.avgScore.toFixed(3)}</td>
               </tr>
               <tr>
                 <td className={RTABLE.td}>No salary</td>
-                <td className={RTABLE.tdNum}>25,839</td>
-                <td className={RTABLE.tdNum}>0.598</td>
+                <td className={RTABLE.tdNum}>{stats.salary.notPosted.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.salary.notPosted.avgScore.toFixed(3)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p>
-          Listings with salary information score 24.5% better across every quality dimension. Only 33% of listings
-          include any salary data — two-thirds of the market is opaque by default.
+          Listings with salary information score {stats.salaryLiftPct}% better across every quality dimension. Only{" "}
+          {stats.salaryPostedSharePct}% of listings include any salary data — two-thirds of the market is opaque by
+          default.
         </p>
 
-        <h3>40% of listings are stale</h3>
+        <h3>{stats.stalenessPct}% of listings are stale</h3>
         <p>
-          Of the 30,980 listings with posted dates, 12,497 (40.3%) have been live for over 60 days without being
-          updated.
+          Of the {stats.staleness.withPostedDate.toLocaleString()} listings with posted dates,{" "}
+          {stats.staleness.over60d.toLocaleString()} ({stats.stalenessPct}%) have been live for over 60 days without
+          being updated.
         </p>
 
         <h3>Remote jobs are higher quality</h3>
@@ -214,20 +240,20 @@ export default function GhostJobsResearchPage() {
             <tbody>
               <tr>
                 <td className={RTABLE.td}>Remote</td>
-                <td className={RTABLE.tdNum}>3,940</td>
-                <td className={RTABLE.tdNum}>0.678</td>
+                <td className={RTABLE.tdNum}>{stats.remote.remote.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.remote.remote.avgScore.toFixed(3)}</td>
               </tr>
               <tr>
                 <td className={RTABLE.td}>Non-remote</td>
-                <td className={RTABLE.tdNum}>34,869</td>
-                <td className={RTABLE.tdNum}>0.619</td>
+                <td className={RTABLE.tdNum}>{stats.remote.nonRemote.count.toLocaleString()}</td>
+                <td className={RTABLE.tdNum}>{stats.remote.nonRemote.avgScore.toFixed(3)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p>
-          Remote listings score 15.5% higher than non-remote ones — when you compete for talent nationally, you
-          can&apos;t rely on proximity, so you have to sell the role on paper.
+          Remote listings score {stats.remoteLiftPct}% higher than non-remote ones — when you compete for talent
+          nationally, you can&apos;t rely on proximity, so you have to sell the role on paper.
         </p>
 
         <h3>Bigger companies post better listings</h3>
@@ -242,53 +268,49 @@ export default function GhostJobsResearchPage() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className={RTABLE.td}>50+ open roles</td>
-                <td className={RTABLE.tdNum}>211</td>
-                <td className={RTABLE.tdNum}>16,366</td>
-                <td className={RTABLE.tdNum}>0.651</td>
-              </tr>
-              <tr>
-                <td className={RTABLE.td}>10–49 roles</td>
-                <td className={RTABLE.tdNum}>747</td>
-                <td className={RTABLE.tdNum}>15,931</td>
-                <td className={RTABLE.tdNum}>0.621</td>
-              </tr>
-              <tr>
-                <td className={RTABLE.td}>&lt; 10 roles</td>
-                <td className={RTABLE.tdNum}>2,170</td>
-                <td className={RTABLE.tdNum}>6,512</td>
-                <td className={RTABLE.tdNum}>0.568</td>
-              </tr>
+              {stats.companySize.map((bucket) => (
+                <tr key={bucket.label}>
+                  <td className={RTABLE.td}>{bucket.label}</td>
+                  <td className={RTABLE.tdNum}>{bucket.companies.toLocaleString()}</td>
+                  <td className={RTABLE.tdNum}>{bucket.jobs.toLocaleString()}</td>
+                  <td className={RTABLE.tdNum}>{bucket.avgScore.toFixed(3)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        <p>Companies with 50+ open positions post 19% better listings than those with fewer than 10.</p>
-
-        <h2>Why &quot;Ghost Job Detector&quot; Is the Wrong Product</h2>
         <p>
-          The ghost job framing asks a binary question: real or fake? But the data shows that&apos;s not the useful
-          question. Only 6% of listings are clearly fake. The other 94% exist on a spectrum from excellent to
-          opaque. What actually matters is the signal density of a listing — how much information it gives you to
-          make a decision.
+          Companies with {stats.companySize[0]!.label.toLowerCase()} post {stats.companySizeLiftPct}% better
+          listings than those with fewer than 10.
         </p>
 
-        <h2>What To Do With This</h2>
+        <h2 className={DOC_SECTION_LABEL}>Why &quot;ghost job detector&quot; is the wrong product</h2>
+        <p>
+          The ghost job framing asks a binary question: real or fake? But the data shows that&apos;s not the useful
+          question. Only {stats.gradePct.DF}% of listings are clearly fake. The other{" "}
+          {(100 - Number(stats.gradePct.DF)).toFixed(1)}% exist on a spectrum from excellent to opaque. What
+          actually matters is the signal density of a listing — how much information it gives you to make a
+          decision.
+        </p>
+
+        <h2 className={DOC_SECTION_LABEL}>What to do with this</h2>
         <p>
           If you&apos;re a job seeker: stop asking &quot;is this job real?&quot; Start asking &quot;does this
           listing tell me enough to decide?&quot; Look for salary, check the posted date, read the description with
           skepticism.
         </p>
         <p>
-          If you&apos;re a recruiter: the 39% ambiguous bucket is where you lose commission time — a role that looks
-          real but takes 6 months to close is worse than a ghost job, because you invested before you found out.
+          If you&apos;re a recruiter: the {stats.gradePct.C}% ambiguous bucket is where you lose commission time — a
+          role that looks real but takes 6 months to close is worse than a ghost job, because you invested before
+          you found out.
         </p>
         <p>
-          If you&apos;re an employer: two-thirds of your postings don&apos;t include salary, and 40% haven&apos;t
-          been refreshed in two months. You&apos;re not posting ghost jobs — you&apos;re posting lazy ones.
+          If you&apos;re an employer: two-thirds of your postings don&apos;t include salary, and {stats.stalenessPct}
+          % haven&apos;t been refreshed in two months. You&apos;re not posting ghost jobs — you&apos;re posting lazy
+          ones.
         </p>
 
-        <h2>How the screening works</h2>
+        <h2 className={DOC_SECTION_LABEL}>How the screening works</h2>
         <p>
           Every listing gets one of four states below. Like everything else on this page, these are automated
           estimates, not verdicts — see our <Link href="/terms">terms</Link> for how we frame ghost-job and risk
@@ -310,7 +332,7 @@ export default function GhostJobsResearchPage() {
           </li>
         </ul>
         <p>
-          This page is a static July 2026 snapshot. For live, market-wide numbers, see{" "}
+          This page is a {stats.asOfLabel} snapshot. For live, market-wide numbers, see{" "}
           <Link href="/trends">market trends</Link>.
         </p>
         <div className="not-prose mt-6 flex items-center gap-2.5 text-[13px] text-muted-foreground">
