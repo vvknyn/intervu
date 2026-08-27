@@ -89,14 +89,21 @@ function ConsentCard({ clientName, params }: { clientName: string; params: Conse
     return (
         <CenteredCard>
             <CardHeader>
-                <CardTitle>{clientName}</CardTitle>
-                <CardDescription>wants to connect to your intervu account</CardDescription>
+                {/* Neutral heading, quoted client (redesign 2026-08-27): the page
+                    speaks in its own voice, never the agent's self-declared name —
+                    `clientName` is attacker-chosen DCR metadata (see redirectHost's
+                    doc comment above) and only ever appears as quoted data below,
+                    never as a claim this page itself is making. */}
+                <CardTitle>Connect this agent to your account</CardTitle>
+                <div className="mt-1 inline-flex w-fit items-center gap-1 border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+                    agent says it is: <span className="font-medium text-foreground">&quot;{clientName}&quot;</span>
+                </div>
                 <p className="text-xs text-muted-foreground pt-1">
-                    Will send its access code to: <span className="">{redirectHost(params.redirect_uri)}</span>
+                    Will send its access code to: {redirectHost(params.redirect_uri)}
                 </p>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p>This will let <strong className="text-foreground">{clientName}</strong>:</p>
+                <p>This will let it:</p>
                 <ul className="list-disc space-y-1 pl-5">
                     <li>Search verified-real jobs as you</li>
                     <li>Save jobs &amp; update your application tracker</li>

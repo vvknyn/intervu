@@ -9,10 +9,14 @@
  * public onboarding + non-Mac waitlist capture — while everything behind
  * them that reads real account data still authenticates at the action/API
  * layer. Only surfaces that render server-side account data stay here.
+ *
+ * `/account` came OFF this list in the 2026-08-27 redesign: it is now a
+ * one-line redirect to `/settings?tab=account` and nothing else — "one
+ * door, one guard" — so `/settings` is the sole real gate and `/account`
+ * carries no gate of its own to drift out of sync with it.
  */
 export const AUTH_GATED_PRODUCT_PREFIXES = [
     "/settings",
-    "/account",
 ] as const;
 
 /**

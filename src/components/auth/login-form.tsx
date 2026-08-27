@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BrandMark } from '@/components/brand/BrandMark'
 import { signInWithIdentifier, signInWithEmail } from '@/lib/firebase/client-auth'
 import { friendlyAuthMessage } from '@/lib/firebase/auth-errors'
 import { signUp } from '@/actions/auth'
@@ -10,12 +9,12 @@ import { captureFunnelEvent } from '@/lib/analytics/funnel'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
-import { SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
+import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface LoginFormProps {
@@ -24,9 +23,6 @@ interface LoginFormProps {
     /** Initial tab when the form mounts — signup for apply gates, login otherwise. */
     defaultTab?: "login" | "signup";
 }
-
-const authFieldClass =
-    "min-h-11 rounded-lg border border-border bg-background px-3.5 text-sm text-foreground shadow-2xs focus:border-brand focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30";
 
 /** Standard 4-color Google "G" glyph — no icon library ships a brand mark
  *  for it, and pulling in a new dependency for one static SVG isn't worth
@@ -66,6 +62,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
     const [message, setMessage] = useState<string | null>(null)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+
+    const copy = authCardCopy(activeTab)
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -164,45 +162,22 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
 
     return (
         <div className="space-y-5 pt-1">
-            <div className="text-center space-y-1.5">
-                {/* ITEM R (2026-08-15, Vivek screenshot): the wordmark row
-                    sat optically off-center against the two lines below it.
-                    All three lines now share this ONE `text-center`
-                    container as their only centering mechanism — the
-                    wordmark row is `inline-flex` (sized to its own content,
-                    positioned by the ancestor's text-align like its plain-
-                    text siblings) instead of a full-width `flex` box
-                    centered by its own `justify-center`, which was a second,
-                    independent centering calculation that could drift a
-                    pixel from the text-align one beside it. */}
-                <div className="inline-flex items-center gap-2">
-                    <BrandMark className="h-6 w-6 text-foreground" />
-                    <span className="font-display font-bold text-lg text-foreground">intervu</span>
-                </div>
-                <h3 className="font-bold text-xl tracking-tight text-foreground">
-                    {activeTab === "login" ? "Welcome back" : "Create your account"}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                    {activeTab === "login"
-                        ? "Enter your credentials to access your account"
-                        : SIGNUP_SUBCOPY}
+            <div className="space-y-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand">
+                    {copy.eyebrow}
                 </p>
+                <h3 className="font-bold text-xl tracking-tight text-foreground">
+                    {copy.title}
+                </h3>
+                {activeTab === "signup" && (
+                    <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
+                )}
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 h-11 rounded-full bg-chip p-1 mb-5">
-                    <TabsTrigger
-                        value="login"
-                        className="h-full w-full rounded-full font-bold text-xs tracking-wider uppercase data-[state=active]:bg-card data-[state=active]:text-brand data-[state=active]:border data-[state=active]:border-brand/40 data-[state=active]:shadow-none"
-                    >
-                        Log In
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="signup"
-                        className="h-full w-full rounded-full font-bold text-xs tracking-wider uppercase data-[state=active]:bg-card data-[state=active]:text-brand data-[state=active]:border data-[state=active]:border-brand/40 data-[state=active]:shadow-none"
-                    >
-                        Sign Up
-                    </TabsTrigger>
+                <TabsList variant="block" className="grid w-full grid-cols-2 mb-5">
+                    <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
+                    <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
                 </TabsList>
 
                 {/* Email-first ordering (2026-08-20 signup-ladder audit): Google is
@@ -269,29 +244,20 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                     <form onSubmit={activeTab === "login" ? handleLogin : handleSignUp}>
                         <div className="grid gap-4">
                             {activeTab === "signup" && (
-                                <div className="grid gap-1">
-                                    <Label className="sr-only" htmlFor="email">
-                                        Email
-                                    </Label>
+                                <Field label="Email" htmlFor="email">
                                     <Input
                                         id="email"
-                                        placeholder="Email"
                                         type="email"
                                         autoComplete="email"
                                         disabled={isPending}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className={authFieldClass}
                                     />
-                                </div>
+                                </Field>
                             )}
-                            <div className="grid gap-1">
-                                <Label className="sr-only" htmlFor="username">
-                                    {activeTab === "login" ? "Email or username" : "Username"}
-                                </Label>
+                            <Field label={activeTab === "login" ? "Email or username" : "Username"} htmlFor="username">
                                 <Input
                                     id="username"
-                                    placeholder={activeTab === "login" ? "Email or username" : "Username"}
                                     type="text"
                                     autoCapitalize="none"
                                     autoComplete="username"
@@ -299,24 +265,19 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                     disabled={isPending}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className={authFieldClass}
                                 />
-                            </div>
-                            <div className="grid gap-1">
-                                <Label className="sr-only" htmlFor="password">
-                                    Password
-                                </Label>
+                            </Field>
+                            <Field label="Password" htmlFor="password">
                                 <div className="relative">
                                     <Input
                                         id="password"
-                                        placeholder="Password"
                                         type={showPassword ? "text" : "password"}
                                         autoCapitalize="none"
                                         autoComplete={activeTab === "signup" ? "new-password" : "current-password"}
                                         disabled={isPending}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className={`${authFieldClass} pr-14`}
+                                        className="pr-14"
                                     />
                                     <button
                                         type="button"
@@ -331,7 +292,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                 {activeTab === "signup" && (
                                     <p className="text-xs text-muted-foreground">6+ characters</p>
                                 )}
-                            </div>
+                            </Field>
                             {activeTab === "signup" && (
                                 <TurnstileWidget onVerify={setTurnstileToken} />
                             )}
@@ -342,7 +303,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login" }: Lo
                                 {isPending && (
                                     <CircleNotch size={16} className="mr-2 animate-spin" />
                                 )}
-                                {activeTab === "login" ? "Log In" : "Sign Up"}
+                                {copy.submitLabel}
                             </Button>
                         </div>
                     </form>

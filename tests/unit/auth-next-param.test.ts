@@ -11,7 +11,10 @@ test("isAuthGatedProductPath matches product prefixes", () => {
   assert.equal(isAuthGatedProductPath("/connect"), false);
   assert.equal(isAuthGatedProductPath("/connect/help"), false);
   assert.equal(isAuthGatedProductPath("/settings"), true);
-  assert.equal(isAuthGatedProductPath("/account/anything"), true);
+  // Redesign (2026-08-27, frozen proposal #9): /account is now a one-line
+  // redirect to /settings?tab=account with no gate of its own — "one door,
+  // one guard" — so it drops out of the gated-prefix matcher entirely.
+  assert.equal(isAuthGatedProductPath("/account/anything"), false);
   assert.equal(isAuthGatedProductPath("/"), false);
   assert.equal(isAuthGatedProductPath("/mock/auth-gate"), false);
 });

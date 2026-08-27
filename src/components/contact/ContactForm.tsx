@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { submitContactMessage } from "@/actions/contact";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 
@@ -66,8 +66,7 @@ export function ContactForm() {
     return (
         <div className="mt-8 rounded-none border border-border/80 bg-card/75 p-6 sm:p-8 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
             <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-foreground">01 / Name</Label>
+                <Field label="Name" htmlFor="name">
                     <Input
                         id="name"
                         value={name}
@@ -75,10 +74,9 @@ export function ContactForm() {
                         placeholder="Your name"
                         className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
-                </div>
+                </Field>
 
-                <div className="space-y-2">
-                    <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-foreground">02 / Email</Label>
+                <Field label="Email" htmlFor="email">
                     <Input
                         id="email"
                         type="email"
@@ -89,10 +87,9 @@ export function ContactForm() {
                         required
                         className="h-11 rounded-none border-border bg-background px-3.5 focus:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
                     />
-                </div>
+                </Field>
 
-                <div className="space-y-2">
-                    <Label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-foreground">03 / Message</Label>
+                <Field label="Message" htmlFor="message">
                     <Textarea
                         id="message"
                         value={message}
@@ -102,7 +99,7 @@ export function ContactForm() {
                         required
                         minLength={10}
                     />
-                </div>
+                </Field>
 
                 {/* Honeypot — visually hidden but present in the DOM/tab order for
                     bots that autofill every field. Real users never see or fill it. */}

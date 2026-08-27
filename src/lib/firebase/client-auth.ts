@@ -128,8 +128,8 @@ export function isEmailIdentifier(identifier: string): boolean {
  * field. An email takes `signInWithEmail` directly (every account created
  * after the 2026-08-20 signup-ladder audit); a bare username takes the
  * legacy `signInWithUsername` re-derivation (accounts that predate it — see
- * that function's doc). One chokepoint so login-form.tsx and
- * SimpleAuthForm.tsx share the same routing rule instead of two copies.
+ * that function's doc). One chokepoint so every login surface shares the
+ * same routing rule instead of each re-deriving it.
  */
 export async function signInWithIdentifier(identifier: string, password: string): Promise<FirebaseUser> {
     const trimmed = identifier.trim();

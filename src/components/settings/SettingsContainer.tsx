@@ -11,6 +11,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { onAuthChange, signOut as firebaseSignOut, getCurrentUser, sendResetEmail, type User } from "@/lib/firebase/client-auth";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { SettingsLoading } from "@/components/settings/SettingsLoading";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
@@ -149,15 +150,15 @@ export function SettingsContainer() {
         router.replace(path, { scroll: false });
     };
 
-    if (isLoading) {
-        return (
-            <PageLayout fullWidth>
-                <div className="mx-auto flex max-w-6xl xl:max-w-7xl flex-col items-center justify-center gap-3 px-4 py-16 text-muted-foreground sm:px-8 xl:px-10">
-                    <div className="h-5 w-5 animate-spin rounded-full border border-border border-t-foreground" />
-                    <p className="text-sm">Loading account…</p>
-                </div>
-            </PageLayout>
-        );
+    // Merged gate: while loading, and while there is genuinely no user,
+    // render the same loading state rather than a separate "log in to
+    // manage your account" UI — middleware already refuses an unauthenticated
+    // request before it reaches this component (isAuthGatedProductPath in
+    // lib/auth/product-routes.ts), so a resolved !user here is not a normal
+    // state to design a prompt for. Everything below this line can treat
+    // `user` as defined.
+    if (isLoading || !user) {
+        return <SettingsLoading />;
     }
 
     return (
@@ -173,7 +174,7 @@ export function SettingsContainer() {
                 {!resumeEditorOpen && (
                     <>
                         <div className="mb-5">
-                            <PageHeader title="Account" description={ACCOUNT_SUBCOPY} size="display" bare />
+                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} size="display" bare />
                         </div>
                         {message && (
                             <div className={`mb-4 text-sm ${message.type === "success" ? "text-foreground" : "text-destructive"}`}>
@@ -206,61 +207,46 @@ export function SettingsContainer() {
                             <p className="mb-4 text-[13px] text-muted-foreground">
                                 Email is how we reach you for resets. Password stays with you.
                             </p>
-                            {user ? (
-                                <>
-                                    <dl className="mb-4 grid grid-cols-1 gap-y-2 text-[13px] sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
-                                        <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Email</dt>
-                                        <dd className="min-w-0 break-words">{user.email}</dd>
-                                        <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Username</dt>
-                                        <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
-                                    </dl>
-                                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                        <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full sm:w-auto rounded-none">
-                                            {isResetting ? "Sending…" : "Send password reset link"}
-                                        </Button>
-                                        <Button variant="outline" onClick={() => void handleSignOut()} className="w-full sm:w-auto rounded-none">
-                                            Sign out
-                                        </Button>
-                                    </div>
-                                    {resetMessage && (
-                                        <p className={`mt-2 text-[12px] ${resetMessage.type === "success" ? "text-foreground" : "text-destructive"}`}>
-                                            {resetMessage.text}
-                                        </p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">
-                                    <button onClick={() => setAuthPopoverOpen(true)} className="underline text-brand hover:text-brand/80">
-                                        Log in
-                                    </button>{" "}
-                                    to manage your account.
+                            <dl className="mb-4 grid grid-cols-1 gap-y-2 text-[13px] sm:grid-cols-[120px_1fr] sm:gap-x-3.5 sm:gap-y-2">
+                                <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Email</dt>
+                                <dd className="min-w-0 break-words">{user.email}</dd>
+                                <dt className="text-[10px] uppercase tracking-[0.06em] text-[#8b939e]">Username</dt>
+                                <dd className="min-w-0 break-words">{user.displayName || user.email?.split("@")[0]}</dd>
+                            </dl>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                                <Button onClick={() => void handlePasswordReset()} disabled={isResetting} className="w-full sm:w-auto rounded-none">
+                                    {isResetting ? "Sending…" : "Send password reset link"}
+                                </Button>
+                                <Button variant="outline" onClick={() => void handleSignOut()} className="w-full sm:w-auto rounded-none">
+                                    Sign out
+                                </Button>
+                            </div>
+                            {resetMessage && (
+                                <p className={`mt-2 text-[12px] ${resetMessage.type === "success" ? "text-foreground" : "text-destructive"}`}>
+                                    {resetMessage.text}
                                 </p>
                             )}
                         </SettingsCard>
 
-                        {user && (
-                            <SettingsCard>
-                                <EmailPreferencesSection user={user} />
-                            </SettingsCard>
-                        )}
+                        <SettingsCard>
+                            <EmailPreferencesSection user={user} />
+                        </SettingsCard>
 
                         <SettingsCard>
                             <AgentAccessSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} />
                         </SettingsCard>
 
-                        {user && (
-                            <SettingsCard>
-                                <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Danger zone</h2>
-                                <p className="mb-4 text-[13px] text-muted-foreground">Permanent. No recovery.</p>
-                                <Button
-                                    variant="outline"
-                                    className="text-[#8a3a3a] border-[#e2c4c4] hover:text-[#8a3a3a]"
-                                    onClick={() => setShowDeleteDialog(true)}
-                                >
-                                    Delete account
-                                </Button>
-                            </SettingsCard>
-                        )}
+                        <SettingsCard>
+                            <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">Danger zone</h2>
+                            <p className="mb-4 text-[13px] text-muted-foreground">Permanent. No recovery.</p>
+                            <Button
+                                variant="outline"
+                                className="text-[#8a3a3a] border-[#e2c4c4] hover:text-[#8a3a3a]"
+                                onClick={() => setShowDeleteDialog(true)}
+                            >
+                                Delete account
+                            </Button>
+                        </SettingsCard>
                     </>
                 )}
 
