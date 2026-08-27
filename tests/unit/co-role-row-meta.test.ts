@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyRoleSearch, collapseDuplicatePostings } from "../../src/components/company/CompanyRoleSearch";
+import { CompanyRoleSearch } from "../../src/components/company/CompanyRoleSearch";
 import { CompanyRolesList } from "../../src/components/company/CompanyRolesList";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -120,36 +120,18 @@ test("CompanyRolesList: a stale-clear row still renders 'Not recently verified'"
 });
 
 /**
- * `collapseDuplicatePostings` — the same role re-synced under a second id
- * (live example: Stewart's "Escrow Operations Intern", ingested twice).
- * Keyed on title + `locationText`, the same text the row itself renders, so
- * two rows a visitor can't tell apart never render as two.
+ * Dedup contract: `CompanyRoleSearch` no longer runs `collapseDuplicatePostings`
+ * itself (moved to lib/companies/dedupe-postings.ts — see
+ * company-dedupe-postings.test.ts) — `getCompanyPageData` (get-company.ts)
+ * dedupes once, server-side, and hands this component the final array. This
+ * locks in that the component trusts its `jobs` prop as-is: a duplicate
+ * posting that reaches it (e.g. a caller that hasn't deduped) renders as two
+ * rows, not one, so a regression that re-adds a second, disagreeing dedup
+ * pass inside the component is easy to tell apart from this contract.
  */
-test("collapseDuplicatePostings: same title+location, a non-display field differs (id, salary) — collapses to the first", () => {
-  const first = job({ id: "1", title: "Escrow Operations Intern", salary_min: 40_000 });
-  const dupe = job({ id: "2", title: "Escrow Operations Intern", salary_min: 45_000 });
-  assert.deepEqual(collapseDuplicatePostings([first, dupe]), [first]);
-});
-
-test("collapseDuplicatePostings: a URL-encoded/whitespace-only title difference is a distinct duplication pattern that also collapses", () => {
-  const first = job({ id: "1", title: "Escrow%20Operations%20Intern" });
-  const dupe = job({ id: "2", title: "  ESCROW OPERATIONS INTERN  " });
-  assert.equal(collapseDuplicatePostings([first, dupe]).length, 1);
-});
-
-test("collapseDuplicatePostings: a genuinely different posting (different location) is kept alongside the first", () => {
-  const a = job({ id: "1", title: "Escrow Operations Intern", location_city: "Edmond" });
-  const b = job({ id: "2", title: "Escrow Operations Intern", location_city: "Houston" });
-  assert.deepEqual(collapseDuplicatePostings([a, b]), [a, b]);
-});
-
-test("collapseDuplicatePostings: an empty list stays empty", () => {
-  assert.deepEqual(collapseDuplicatePostings([]), []);
-});
-
-test("CompanyRoleSearch: a duplicated posting renders as one row, not two", () => {
+test("CompanyRoleSearch: renders exactly the jobs it's given — no dedup of its own", () => {
   const first = job({ id: "1", title: "Escrow Operations Intern", salary_min: 40_000 });
   const dupe = job({ id: "2", title: "Escrow Operations Intern", salary_min: 45_000 });
   const html = renderRoleSearch([first, dupe]);
-  assert.equal((html.match(/Escrow Operations Intern/g) || []).length, 1);
+  assert.equal((html.match(/Escrow Operations Intern/g) || []).length, 2);
 });

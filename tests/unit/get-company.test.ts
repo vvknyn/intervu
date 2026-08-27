@@ -21,7 +21,15 @@ function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
         company: "Animana",
         company_domain: "animana.com",
         location: null,
-        location_city: null,
+        // Distinct per hit by default (keyed on `id`, which every call site
+        // already sets uniquely) so `collapseDuplicatePostings` — applied by
+        // `getCompanyPageData` since the Stewart 66-vs-62 fix — never treats
+        // these tests' intentionally-distinct sibling rows (same default
+        // title, no location override) as re-synced duplicates of one
+        // another. Dedup-collision behavior itself is covered separately in
+        // company-dedupe-postings.test.ts, whose own `job()` factory keeps a
+        // fixed null location precisely so same-key rows DO collide.
+        location_city: `Test City ${overrides.id}`,
         location_state: null,
         location_country: null,
         work_type: "remote",
@@ -171,6 +179,27 @@ describe("getCompanyPageData — open-role count is never a window length", () =
 
         const result = await getCompanyPageData("stripe--com", search);
         assert.equal(result?.openCount, 50);
+    });
+
+    // The Stewart seam, end to end: a re-synced duplicate reaching this
+    // chokepoint used to inflate `openCount` (sourced from the pre-dedup hit
+    // count) past `jobs.length` (deduped a second time, client-side, in
+    // CompanyRoleSearch) — 66 vs 62, live. Both numbers now come from the
+    // SAME final array, so they can't disagree.
+    it("closes the Stewart seam: openCount equals jobs.length even when a re-synced duplicate reaches the fetch", async () => {
+        const search = ok({
+            hits: [
+                job({ id: "1", title: "Escrow Operations Intern", location_city: "Sioux Falls" }),
+                job({ id: "2", title: "Escrow Operations Intern", location_city: "Sioux Falls" }), // re-synced dupe of "1"
+                job({ id: "3", title: "Loan Officer", location_city: "Sioux Falls" }),
+            ],
+            total: 3,
+        });
+
+        const result = await getCompanyPageData("stewart--com", search);
+        assert.equal(result?.jobs.length, 2);
+        assert.equal(result?.openCount, result?.jobs.length);
+        assert.equal(result?.openCountIsLowerBound, false);
     });
 });
 
