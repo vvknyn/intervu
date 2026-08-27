@@ -6,16 +6,14 @@ import { Button } from "@/components/ui/button";
 import { fetchCompanyProfile } from "@/lib/companies/company-stats";
 import { companyFromSlug } from "@/lib/companies/paths";
 import { CompanyHeader } from "@/components/company/CompanyHeader";
-import { CompanyGhostMixBand } from "@/components/company/CompanyGhostMixBand";
-import { CompanyFreshnessBand } from "@/components/company/CompanyFreshnessBand";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 
 /**
- * Per-company truth page — live roles, ghost mix, posting freshness, all
- * from scraped hiring data. `fetchCompanyProfile` batches everything the page
- * needs into one Meilisearch round trip (see company-stats.ts); this file
- * only renders what comes back.
+ * Per-company truth page — live roles from scraped hiring data.
+ * `fetchCompanyProfile` batches everything the page needs into one
+ * Meilisearch round trip (see company-stats.ts); this file only renders what
+ * comes back.
  *
  * Consolidation (P1C, 2026-08-01): `/co/[slug]` (domain-keyed) is the ONE
  * canonical company surface. This name-keyed route is now a RESOLVER —
@@ -25,6 +23,15 @@ import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
  * domain. `generateMetadata` runs independently of that decision (it never
  * calls `fetchCompanyProfile`), so a redirecting request still resolves
  * metadata safely — the redirect response just supersedes it.
+ *
+ * Ghost-mix and posting-freshness bands were removed from this fallback
+ * (2026-08-27 receipts audit): both are the gated-receipt class — `/co`
+ * locks the same data behind `CompanyIntelGate` (follow-to-unlock) — and a
+ * domain-less company has no follow key for that gate to key off, so the
+ * only correct move was to stop rendering the receipt here, not to build a
+ * gate that cannot exist. `CompanyGhostMixBand` and `CompanyFreshnessBand`
+ * are both deleted — this page was each one's only consumer (verified
+ * 2026-08-27).
  *
  * Build-safety posture matches `/trends`: never fail the build on a Meili
  * error (`fetchCompanyProfile` degrades to `null` during the build
@@ -90,11 +97,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
           </Button>
         </>
       ) : (
-        <>
-          <CompanyGhostMixBand ghostMix={profile.ghostMix} />
-          <CompanyFreshnessBand freshness={profile.freshness} />
-          <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
-        </>
+        <CompanyRolesList roles={profile.roles} jobsSearchUrl={jobsSearchUrl} now={Date.now()} />
       )}
     </main>
   );
