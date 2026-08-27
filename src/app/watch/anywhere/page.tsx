@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+// Overrides the parent watch/layout.tsx title ("Live Application Session"),
+// which is written for /watch/[id] and is wrong for this page.
+export const metadata: Metadata = {
+    title: "Watch from anywhere",
+};
+
 /**
  * D9: the phone-side half of the Tailscale upgrade.
  *
