@@ -1,18 +1,24 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CircleNotch } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta } from "@/lib/jobs/presentation";
+import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
+import type { ResumeData } from "@/types/resume";
 
 /** Rendered-list cap — both the default (no-query) preview and a search
  *  match list stop here. One constant, so "how many roles do we ever draw
@@ -97,6 +103,47 @@ export function CompanyRoleSearch({
   const [query, setQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
+
+  // Match chip — same résumé read path as `/jobs` and the job-detail header
+  // (`fetchResumeData` → `resumeIsUsable`, see PublicJobDetail.tsx) so this
+  // page's chip can never disagree with the SERP/detail chip for the same
+  // signed-in user. Fetched ONCE per page (keyed on auth state), not per row.
+  const [user, setUser] = useState<User | null>(() => getCurrentUser());
+  useEffect(() => onAuthChange(setUser), []);
+
+  const [resume, setResume] = useState<ResumeData | null>(null);
+  const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) {
+      setResume(null);
+      setResumeAsOfDate(null);
+      return;
+    }
+    let cancelled = false;
+    fetchResumeData()
+      .then(({ data, updatedAt }) => {
+        if (cancelled || !data || !resumeIsUsable(data)) return;
+        setResume(data);
+        const ms = updatedAt ? Date.parse(updatedAt) : NaN;
+        setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+      })
+      .catch(() => {
+        /* no résumé on file — no chip, no nagging */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // The one scoring function (`scoreJobAgainstResume`, lib/match/score.ts),
+  // computed once per résumé/job-set, keyed by job id — same map idiom as
+  // `/jobs` (SERP). `null` (no résumé) short-circuits to no map at all.
+  const matchScores = useMemo(() => {
+    if (!resume) return null;
+    const map = new Map<string, MatchScore | null>();
+    for (const job of jobs) map.set(job.id, scoreJobAgainstResume(resume, job));
+    return map;
+  }, [resume, jobs]);
 
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
@@ -211,6 +258,7 @@ export function CompanyRoleSearch({
             // state renders no line at all (see `rowExceptionMeta`'s doc) —
             // only stale-clear/caution/likely_ghost verdicts show up here.
             const exception = rowExceptionMeta(job, now);
+            const matchScore = matchScores?.get(job.id) ?? null;
             return (
               <li key={job.id}>
                 <button
@@ -219,8 +267,11 @@ export function CompanyRoleSearch({
                   className="w-full text-left flex items-center gap-4 border border-border bg-card px-5 py-4 transition-all hover:border-border-strong hover:bg-chip/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
-                      {decodeText(job.title)}
+                    <div className="flex items-center gap-2">
+                      <div className="text-[17px] font-semibold text-foreground group-hover:text-brand transition-colors">
+                        {decodeText(job.title)}
+                      </div>
+                      {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} />}
                     </div>
                     {meta.length > 0 && (
                       <div className="mt-1 text-[14px] text-muted-foreground">
