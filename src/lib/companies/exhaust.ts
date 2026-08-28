@@ -60,6 +60,32 @@ export interface GovContractFacts {
   totalAmount: number | null;
 }
 
+export interface H1bLcaFacts {
+  fiscalYear: number;
+  initialApprovals: number;
+  continuingApprovals: number;
+  initialDenials: number;
+  continuingDenials: number;
+  employerCity: string | null;
+  employerState: string | null;
+}
+
+export interface WarnRecentNotice {
+  employerName: string | null;
+  noticeDate: string | null;
+  layoffDate: string | null;
+  employeesAffected: number | null;
+  location: string | null;
+}
+
+export interface WarnNoticeFacts {
+  noticeCount: number;
+  totalEmployeesAffected: number;
+  states: string[];
+  /** Capped to `WARN_RECENT_LIMIT` — the band shows a taste, not the ledger. */
+  recent: WarnRecentNotice[];
+}
+
 export interface HealthFacts {
   /** Raw snake_case verdict, e.g. "actively_hiring". Humanize at render time. */
   verdict: string | null;
@@ -105,6 +131,8 @@ export type CompanyExhaust = {
   funding: ExhaustSection<FundingFacts>;
   secListing: ExhaustSection<SecFacts>;
   govContracts: ExhaustSection<GovContractFacts>;
+  h1bLca: ExhaustSection<H1bLcaFacts>;
+  warnNotices: ExhaustSection<WarnNoticeFacts>;
   health: ExhaustSection<HealthFacts>;
   cadence: ExhaustSection<WeeklyCadence[]>;
   integrity: ExhaustSection<IntegrityFacts>;
@@ -119,6 +147,7 @@ const INTEGRITY_WINDOW_DAYS = 90;
  *  own `limit` input to this SAME cap, so the MCP wire's ceiling can never
  *  drift from the number of rows this module actually fetches. */
 export const CHANGE_HISTORY_LIMIT = 50;
+const WARN_RECENT_LIMIT = 3;
 
 // ─────────────────────────── pure decision helpers ───────────────────────
 
@@ -186,6 +215,23 @@ export function resolveFundingOrListingCell(input: {
   if (input.secListing?.isPublicFiler === true) return "sec";
   if (input.funding) return "funding";
   return null;
+}
+
+/**
+ * "N h-1b approvals in fy<year> (X initial, Y continuing)." — the denial
+ * clause is appended only when there were denials to report; a company with
+ * zero denials gets a plain approvals sentence, not "(0 denials)" noise.
+ */
+export function buildH1bSentence(data: H1bLcaFacts): string {
+  const total = data.initialApprovals + data.continuingApprovals;
+  const denials = data.initialDenials + data.continuingDenials;
+  const base = `${total} h-1b approval${total === 1 ? "" : "s"} in fy${data.fiscalYear} (${data.initialApprovals} initial, ${data.continuingApprovals} continuing).`;
+  return denials > 0 ? `${base} ${denials} denial${denials === 1 ? "" : "s"} in the same period.` : base;
+}
+
+/** "N layoff notice(s) filed — M employees affected." */
+export function buildWarnSentence(data: WarnNoticeFacts): string {
+  return `${data.noticeCount} layoff notice${data.noticeCount === 1 ? "" : "s"} filed — ${data.totalEmployeesAffected} employee${data.totalEmployeesAffected === 1 ? "" : "s"} affected.`;
 }
 
 /**
@@ -274,6 +320,8 @@ const ENRICHMENT_DATA_TYPES = [
   "sec_filing_summary",
   "government_contract",
   "tech_profile",
+  "h1b_lca",
+  "warn_notice",
 ] as const;
 
 async function fetchEnrichmentRows(pg: Queryable, domain: string): Promise<Map<string, EnrichmentRow>> {
@@ -431,6 +479,72 @@ function buildGovSection(row: EnrichmentRow | undefined): ExhaustSection<GovCont
   };
 }
 
+/**
+ * Exported (unlike its sibling builders above) so the payload→section and
+ * missing-keys→null contracts are node:test-able directly — the sentence
+ * grammar it feeds (`buildH1bSentence`) depends on every numeric field being
+ * present, so a partial row (e.g. denials missing) drops the whole section
+ * rather than rendering a sentence with a fabricated zero.
+ */
+export function buildH1bSection(row: EnrichmentRow | undefined): ExhaustSection<H1bLcaFacts> {
+  if (!row) return null;
+  const p = row.payload ?? {};
+  const fiscalYear = num(p.fiscal_year);
+  const initialApprovals = num(p.initial_approvals);
+  const continuingApprovals = num(p.continuing_approvals);
+  const initialDenials = num(p.initial_denials);
+  const continuingDenials = num(p.continuing_denials);
+  if (
+    fiscalYear == null ||
+    initialApprovals == null ||
+    continuingApprovals == null ||
+    initialDenials == null ||
+    continuingDenials == null
+  ) {
+    return null;
+  }
+  return {
+    data: {
+      fiscalYear,
+      initialApprovals,
+      continuingApprovals,
+      initialDenials,
+      continuingDenials,
+      employerCity: str(p.employer_city),
+      employerState: str(p.employer_state),
+    },
+    source: "company_enrichment · h1b_lca",
+    asOf: row.fetched_at,
+  };
+}
+
+/** Exported for the same node:test reasons as `buildH1bSection`. */
+export function buildWarnSection(row: EnrichmentRow | undefined): ExhaustSection<WarnNoticeFacts> {
+  if (!row) return null;
+  const p = row.payload ?? {};
+  const noticeCount = num(p.notice_count);
+  const totalEmployeesAffected = num(p.total_employees_affected);
+  if (noticeCount == null || totalEmployeesAffected == null) return null;
+
+  const recentRaw = Array.isArray(p.recent) ? p.recent : [];
+  const recent: WarnRecentNotice[] = recentRaw.slice(0, WARN_RECENT_LIMIT).map((r) => {
+    const row = (r ?? {}) as Record<string, unknown>;
+    return {
+      employerName: str(row.employer_name),
+      noticeDate: isoDate(row.notice_date),
+      layoffDate: isoDate(row.layoff_date),
+      employeesAffected: num(row.employees_affected),
+      location: str(row.location),
+    };
+  });
+
+  return {
+    data: { noticeCount, totalEmployeesAffected, states: strArray(p.states), recent },
+    source: "company_enrichment · warn_notice",
+    asOf: row.fetched_at,
+  };
+}
+
 function buildTechSection(row: EnrichmentRow | undefined): ExhaustSection<TechFacts> {
   if (!row) return null;
   const p = row.payload ?? {};
@@ -546,6 +660,8 @@ export async function getCompanyExhaust(
     funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
     secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
     govContracts: buildGovSection(enrichmentRows.get("government_contract")),
+    h1bLca: buildH1bSection(enrichmentRows.get("h1b_lca")),
+    warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
     techStack: buildTechSection(enrichmentRows.get("tech_profile")),
     health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
     cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : [], nowMs),
