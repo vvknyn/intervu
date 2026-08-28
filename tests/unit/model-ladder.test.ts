@@ -110,25 +110,6 @@ test("running out of rungs propagates the LAST error", async () => {
     );
 });
 
-test("one generation is charged exactly once, however many rungs run", () => {
-    // The invariant the credit policy rests on. `chargeIfSharedKey` bills one
-    // credit per call, so a ladder walked by the CALLER (looping over
-    // `generateGenericJSON`) would bill one credit per rung — three credits
-    // for one résumé upload. The walk therefore has to sit inside the charge
-    // boundary, and this asserts it stays there.
-    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-    const start = src.indexOf("export const fetchJSON");
-    assert.ok(start > 0, "fetchJSON moved — this guard needs re-pointing");
-    const body = src.slice(start, src.indexOf("\n};", start));
-
-    const charges = body.match(/chargeIfSharedKey\(/g) || [];
-    assert.equal(charges.length, 1, `fetchJSON charges ${charges.length} times per generation`);
-    assert.ok(
-        body.indexOf("chargeIfSharedKey(") < body.indexOf("runLadder("),
-        "the charge must happen ABOVE the ladder walk, not per rung",
-    );
-});
-
 test("the shipped ladder cannot hold a user longer than its budget", () => {
     // The failure this catches is adding "one more free rung" — each one is
     // free in money and 30s in someone's afternoon, and the cost lands on the
@@ -164,30 +145,22 @@ test("free rungs are given more time than they were measured to need", () => {
     }
 });
 
-test("BOTH generation chokepoints ladder by default", () => {
+test("the one generation chokepoint ladders by default", () => {
     // Owner's call reversed 2026-08-23: with the app funding every AI action,
-    // every action walks the free rungs. The guard this replaces required each
-    // caller to opt in — which is how `generateGenericText` went un-laddered
-    // unnoticed: it never routed through fetchJSON, so opting in the JSON path
-    // left a whole second path on the paid model.
-    //
-    // Asserted at the SEAMS, not at the ~17 call sites, because that is where
-    // the property actually holds — a new caller is covered by construction.
+    // every action walks the free rungs. `generateGenericText` (a second,
+    // un-laddered path that bypassed fetchJSON entirely) and the built-in
+    // résumé-tailoring caller that used it were both removed in the AI-billing
+    // strip — fetchJSON is now the only generation chokepoint, so this asserts
+    // the property AT that seam, not at each of its call sites.
     const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-
-    for (const [name, marker] of [
-        ["fetchJSON", "export const fetchJSON"],
-        ["generateGenericText", "export async function generateGenericText"],
-    ] as const) {
-        const start = src.indexOf(marker);
-        assert.ok(start >= 0, `${name} is gone — this guard needs re-pointing`);
-        const body = src.slice(start, start + 2200);
-        assert.match(
-            body,
-            /resolveModelLadder\([^)]*FREE_LADDER/,
-            `${name} no longer passes FREE_LADDER — a generation path is back on the paid model`,
-        );
-    }
+    const start = src.indexOf("export const fetchJSON");
+    assert.ok(start >= 0, "fetchJSON is gone — this guard needs re-pointing");
+    const body = src.slice(start, start + 2200);
+    assert.match(
+        body,
+        /resolveModelLadder\([^)]*FREE_LADDER/,
+        "fetchJSON no longer passes FREE_LADDER — the generation path is back on the paid model",
+    );
 });
 
 test("a caller that names its own model gets THAT model, not a free rung", () => {

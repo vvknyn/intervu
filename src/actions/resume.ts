@@ -4,7 +4,6 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData, ResumeProfile, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ResumeConfidenceScores, UncertainField, ParsedResumeResult } from "@/types/resume";
 import { generateGenericJSON } from "@/actions/generate-context";
-import { ProviderConfig } from "@/lib/llm/types";
 import { AUTH_REQUIRED, AUTH_REQUIRED_MESSAGE } from "@/lib/llm/credit-gate";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
@@ -184,7 +183,6 @@ function resumeDataToText(data: ResumeData): string {
 export async function parseResumeWithAI(
     content: string,
     contentType: 'pdf' | 'docx' | 'text',
-    configOverride?: Partial<ProviderConfig>
 ): Promise<{ data?: ParsedResumeResult; error?: string }> {
     try {
         if (!content || content.trim().length < 50) {
@@ -221,10 +219,6 @@ export async function parseResumeWithAI(
             }
         `;
 
-        const optimizedConfig = {
-            ...configOverride
-        };
-
         // Auth + daily abuse brake. `generateGenericJSON` below also enforces
         // sign-in (via resolveLLMConfig), but that gate fires deep inside the
         // model ladder — too late to key a per-user counter or to stop a
@@ -247,7 +241,7 @@ export async function parseResumeWithAI(
         // Free models first, the paid default behind them — now the default for
         // every generation rather than this call site's own opt-in, so the
         // ladder is no longer named here. See lib/llm/models.ts FREE_LADDER.
-        const result = await generateGenericJSON(prompt, optimizedConfig);
+        const result = await generateGenericJSON(prompt);
 
         if (!result) {
             return { error: "No response from AI. Please try again in a moment." };

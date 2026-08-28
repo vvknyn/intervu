@@ -11,12 +11,6 @@
  *               in actions/jobs.ts); `buildExploreBroadenQuery` is the
  *               deterministic fallback when AI is unavailable.
  *
- * `resolveExploreOutcome` extends this file's scope slightly — it's not a
- * `{q, facets}` derivation, but the pure decision behind Explore's own
- * success/auth/fallback/failure branching, kept here so it stays testable
- * alongside the query builders it calls (`buildExploreBroadenQuery`,
- * `capExploreTerms`) without a network/timer mock.
- *
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
  */
@@ -128,50 +122,4 @@ export function mergeFacets(
         merged[key] = union.sort();
     }
     return merged;
-}
-
-/** What `runExplore` (src/app/jobs/page.tsx) should do with a settled Explore attempt. */
-export type ExploreOutcome =
-    | { kind: "success"; q: string; titles: string[] }
-    | { kind: "auth" }
-    | { kind: "fallback"; q: string; credits: boolean }
-    | { kind: "no-fallback" }
-    | { kind: "failed" };
-
-/**
- * Decide the outcome of one Explore attempt from its settled AI-suggest
- * result — pulled out of `runExplore` so the branching (success / auth /
- * credits-or-soft-error fallback / no-fallback-possible / hard failure) is
- * unit-testable without mocking a network call or a timer. This is also
- * where the browser can't verify the failure path (Explore is auth-gated,
- * see the caller's own doc comment) — this function is the substitute.
- *
- * `settled` is `null` for a timeout or thrown rejection (the caller wraps
- * the suggest call in `withSettleGuard`, `EXPLORE_SUGGEST_TIMEOUT_MS`) — a
- * genuinely unexpected failure, mapped to `"failed"` (a visible error band)
- * rather than silently degraded like the action's OWN soft-error sentinels
- * below (no-lying-fallbacks: a hung request isn't a "no suggestions" case).
- *
- * `sentinel` is the caller's own `classifySentinel(settled.error)`
- * (lib/llm/sentinels.ts) result, passed in rather than imported here to keep
- * this module runtime-dependency-free (see header comment).
- */
-export function resolveExploreOutcome(
-    settled: { titles?: string[]; error?: string } | null,
-    resume: ResumeData,
-    sentinel: "auth" | "credits" | null,
-): ExploreOutcome {
-    if (settled === null) return { kind: "failed" };
-    if (settled.error) {
-        if (sentinel === "auth") return { kind: "auth" };
-        const { q } = buildExploreBroadenQuery(resume);
-        if (!q) return { kind: "no-fallback" };
-        return { kind: "fallback", q, credits: sentinel === "credits" };
-    }
-    const titles = settled.titles ?? [];
-    // Cap the QUERY to the 4 most significant terms (see `capExploreTerms`) —
-    // `titles` itself stays uncapped in the outcome, since the caller's
-    // "Exploring: [chip per title]" row is a different concern (each chip
-    // narrows to ONE title on click, so it wants every suggested title).
-    return { kind: "success", q: capExploreTerms(titles).join(" "), titles };
 }
