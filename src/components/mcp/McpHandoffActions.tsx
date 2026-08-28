@@ -89,7 +89,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 <button
                     type="button"
                     onClick={handlePrimary}
-                    className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors cursor-pointer"
+                    className="inline-flex h-8 items-center justify-center rounded-none bg-brand px-3 text-xs font-bold uppercase tracking-wider text-brand-foreground shadow-2xs hover:bg-brand/90 transition-colors cursor-pointer"
                 >
                     Open in {CLIENT_LABEL[savedClient]} →
                 </button>
@@ -109,7 +109,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
             <button
                 type="button"
                 onClick={handlePrimary}
-                className="inline-flex h-8 items-center justify-center rounded-lg bg-emerald-700 px-3.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-800 transition-colors cursor-pointer"
+                className="inline-flex h-8 items-center justify-center rounded-none bg-brand px-3.5 text-xs font-bold uppercase tracking-wider text-brand-foreground shadow-2xs hover:bg-brand/90 transition-colors cursor-pointer"
             >
                 Open in your AI →
             </button>

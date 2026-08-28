@@ -15,14 +15,8 @@ export const tourSteps: Record<string, TourStep[]> = {
   jobs: [
     {
       selector: '[data-tour="jobs-search"]',
-      title: JOBS_USP.mastheadTitle,
+      title: "Start with a search",
       description: JOBS_USP.searchDescription,
-      placement: "bottom",
-    },
-    {
-      selector: '[data-tour="jobs-card"]',
-      title: JOBS_USP.straightFromCompany.title,
-      description: JOBS_USP.straightFromCompany.body,
       placement: "bottom",
     },
     {

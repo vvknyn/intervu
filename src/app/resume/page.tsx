@@ -10,7 +10,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { FileText } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-const RESUME_SUBCOPY = "Your one base resume. Bring your own AI, connected over MCP, to tailor a version for a role.";
+const RESUME_SUBCOPY = "Your one base resume. Connect your AI to tailor a version for each role.";
 
 function ResumeHeader() {
     return <PageHeader size="display" fullWidth sticky={false} title="Resume" description={RESUME_SUBCOPY} />;
